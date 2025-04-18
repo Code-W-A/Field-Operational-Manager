@@ -1,0 +1,20 @@
+--- a/node_modules/@radix-ui/react-use-effect-event/dist/index.mjs
++++ b/node_modules/@radix-ui/react-use-effect-event/dist/index.mjs
+@@ -1,3 +1,15 @@
+ import * as React from 'react';
+ 
+-export { useEffectEvent as useEffectEvent } from 'react';
++// Replacement for useEffectEvent using useCallback
++const useEffectEvent = (callback) => {
++  const callbackRef = React.useRef(callback);
++  
++  React.useEffect(() => {
++    callbackRef.current = callback;
++  });
++  
++  return React.useCallback((...args) => {
++    return callbackRef.current?.(...args);
++  }, []);
++};
++
++export { useEffectEvent };
