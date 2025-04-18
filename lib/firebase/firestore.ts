@@ -31,7 +31,6 @@ export interface Lucrare {
   statusLucrare: string
   statusFacturare: string
   contract?: string
-  defectReclamat?: string // Adăugăm câmpul pentru defect reclamat
   createdAt?: Timestamp
   updatedAt?: Timestamp
   createdBy?: string

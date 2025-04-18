@@ -155,14 +155,8 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
               <p className="text-sm font-medium">Tip lucrare:</p>
               <p className="text-sm text-gray-500">{lucrare.tipLucrare}</p>
             </div>
-            {lucrare.defectReclamat && (
-              <div>
-                <p className="text-sm font-medium">Defect reclamat:</p>
-                <p className="text-sm text-gray-500">{lucrare.defectReclamat}</p>
-              </div>
-            )}
             <div>
-              <p className="text-sm font-medium">Echipament:</p>
+              <p className="text-sm font-medium">Locație:</p>
               <p className="text-sm text-gray-500">{lucrare.locatie}</p>
             </div>
             <div>
@@ -263,21 +257,6 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
           <LucrareForm
             onSubmit={handleUpdateLucrare}
             onCancel={() => setIsEditDialogOpen(false)}
-            formData={
-              lucrare || {
-                tipLucrare: "",
-                tehnicieni: [],
-                client: "",
-                locatie: "",
-                descriere: "",
-                persoanaContact: "",
-                telefon: "",
-                statusLucrare: "În așteptare",
-                statusFacturare: "Nefacturat",
-                contract: "",
-                defectReclamat: "",
-              }
-            }
             initialData={lucrare}
           />
         </DialogContent>

@@ -12,7 +12,6 @@ export function MainNav() {
 
   // Verificăm dacă utilizatorul are rolul de admin
   const isAdmin = userData?.role === "admin"
-  const isTechnician = userData?.role === "technician"
 
   return (
     <div className="flex gap-6 md:gap-10">
@@ -45,7 +44,6 @@ export function MainNav() {
           className={cn(
             "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
             pathname === "/dashboard/clienti" ? "text-primary" : "text-muted-foreground",
-            isTechnician ? "hidden" : "", // Hide for technicians
           )}
         >
           <Users className="h-4 w-4" />

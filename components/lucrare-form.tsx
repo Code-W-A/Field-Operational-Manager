@@ -9,17 +9,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { format } from "date-fns"
 import { ro } from "date-fns/locale"
-import { CalendarIcon, Loader2, Clock } from "lucide-react"
+import { CalendarIcon, Plus, Loader2, Clock } from "lucide-react"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { orderBy, where, query, collection, onSnapshot } from "firebase/firestore"
 import type { Client, PersoanaContact } from "@/lib/firebase/firestore"
 import { db } from "@/lib/firebase/config"
+import { ClientForm } from "./client-form"
 // Importăm componenta ContractSelect
 import { ContractSelect } from "./contract-select"
 
-// Add the defectReclamat field to the LucrareFormProps interface
+// Actualizăm interfața LucrareFormProps pentru a include câmpul contract
 interface LucrareFormProps {
   isEdit?: boolean
   dataEmiterii: Date | undefined
@@ -37,9 +39,8 @@ interface LucrareFormProps {
     statusLucrare: string
     statusFacturare: string
     contract?: string
-    defectReclamat?: string // Add this field
   }
-  handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void
+  handleInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   handleSelectChange: (id: string, value: string) => void
   handleTehnicieniChange: (value: string) => void
   fieldErrors?: string[]
@@ -155,8 +156,7 @@ export function LucrareForm({
 
   // Actualizăm persoanele de contact când se schimbă clientul selectat
   useEffect(() => {
-    // Make sure formData, formData.client, and clienti are all defined
-    if (formData && formData.client && clienti && clienti.length > 0) {
+    if (formData.client && clienti.length > 0) {
       const client = clienti.find((c) => c.nume === formData.client)
       if (client) {
         setSelectedClient(client)
@@ -175,7 +175,7 @@ export function LucrareForm({
         }
       }
     }
-  }, [formData, formData?.client, clienti])
+  }, [formData.client, clienti])
 
   // Modificăm funcția handleClientAdded pentru a gestiona corect adăugarea clientului
   const handleClientAdded = (clientName: string) => {
@@ -357,6 +357,90 @@ export function LucrareForm({
       </div>
 
       <div className="space-y-2">
+        <label htmlFor="client" className="text-sm font-medium">
+          Client *
+        </label>
+        <div className="flex gap-2">
+          <Select value={formData.client} onValueChange={(value) => handleSelectChange("client", value)}>
+            <SelectTrigger id="client" className={`flex-1 ${hasError("client") ? errorStyle : ""}`}>
+              <SelectValue placeholder={loadingClienti ? "Se încarcă..." : "Selectați clientul"} />
+            </SelectTrigger>
+            <SelectContent>
+              {clienti.map((client) => (
+                <SelectItem key={client.id} value={client.nume}>
+                  {client.nume}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="icon" onClick={() => setIsAddClientDialogOpen(true)}>
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Dialog pentru adăugarea unui client nou */}
+      <Dialog
+        open={isAddClientDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsAddClientDialogOpen(false)
+          }
+        }}
+      >
+        <DialogContent className="w-[calc(100%-2rem)] max-w-[500px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Adaugă Client Nou</DialogTitle>
+          </DialogHeader>
+          <ClientForm onSuccess={handleClientAdded} onCancel={() => setIsAddClientDialogOpen(false)} />
+        </DialogContent>
+      </Dialog>
+
+      {/* Persoane de contact pentru clientul selectat */}
+      {selectedClient && persoaneContact.length > 0 && (
+        <div className="space-y-2">
+          <label htmlFor="persoanaContact" className="text-sm font-medium">
+            Persoană Contact
+          </label>
+          <Select
+            value={formData.persoanaContact}
+            onValueChange={(value) => {
+              const contact = persoaneContact.find((c) => c.nume === value)
+              if (contact) {
+                handleContactSelect(contact)
+              }
+            }}
+          >
+            <SelectTrigger id="persoanaContact" className={hasError("persoanaContact") ? errorStyle : ""}>
+              <SelectValue placeholder="Selectați persoana de contact" />
+            </SelectTrigger>
+            <SelectContent>
+              {persoaneContact.map((contact, index) => (
+                <SelectItem key={index} value={contact.nume}>
+                  {contact.nume} {contact.functie ? `(${contact.functie})` : ""}{" "}
+                  {contact.telefon ? `- ${contact.telefon}` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">Selectați persoana de contact pentru această lucrare</p>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        <label htmlFor="telefon" className="text-sm font-medium">
+          Telefon Contact
+        </label>
+        <Input
+          id="telefon"
+          placeholder="Număr de telefon"
+          value={formData.telefon}
+          onChange={handleInputChange}
+          className={hasError("telefon") ? errorStyle : ""}
+        />
+      </div>
+
+      <div className="space-y-2">
         <label htmlFor="locatie" className="text-sm font-medium">
           Echipament
         </label>
@@ -365,21 +449,6 @@ export function LucrareForm({
           placeholder="Introduceți echipamentul"
           value={formData.locatie}
           onChange={handleInputChange}
-        />
-      </div>
-
-      {/* Add the defectReclamat field to the form, after the equipment field */}
-      {/* Insert this code after the equipment field and before the descriere field: */}
-      <div className="space-y-2">
-        <label htmlFor="defectReclamat" className="text-sm font-medium">
-          Defect reclamat
-        </label>
-        <Textarea
-          id="defectReclamat"
-          placeholder="Introduceți defectul reclamat de client"
-          value={formData.defectReclamat || ""}
-          onChange={handleInputChange}
-          className="min-h-[80px] resize-y"
         />
       </div>
 
