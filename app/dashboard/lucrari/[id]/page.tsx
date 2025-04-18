@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
@@ -11,10 +11,11 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/components/ui/use-toast"
-import { ChevronLeft, FileText, Pencil, Trash2 } from "lucide-react"
+import { ChevronLeft, FileText, Pencil, Trash2, ClipboardCheck } from "lucide-react"
 import { getLucrareById, updateLucrare, deleteLucrare } from "@/lib/firebase/firestore"
 import { LucrareForm } from "@/components/lucrare-form"
 import { TehnicianInterventionForm } from "@/components/tehnician-intervention-form"
+import { SignaturePad } from "@/components/signature-pad"
 import { useAuth } from "@/contexts/AuthContext"
 import type { Lucrare } from "@/lib/firebase/firestore"
 
@@ -26,6 +27,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [activeTab, setActiveTab] = useState("detalii")
+  const [isSignatureDialogOpen, setIsSignatureDialogOpen] = useState(false)
 
   // Încărcăm datele lucrării
   useEffect(() => {
@@ -49,35 +51,32 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
   }, [params.id])
 
   // Funcție pentru a actualiza o lucrare
-  const handleUpdateLucrare = useCallback(
-    async (data: Partial<Lucrare>) => {
-      if (!lucrare?.id) return
+  const handleUpdateLucrare = async (data: Partial<Lucrare>) => {
+    if (!lucrare?.id) return
 
-      try {
-        await updateLucrare(lucrare.id, data)
-        setIsEditDialogOpen(false)
+    try {
+      await updateLucrare(lucrare.id, data)
+      setIsEditDialogOpen(false)
 
-        // Actualizăm datele locale
-        setLucrare((prev) => (prev ? { ...prev, ...data } : null))
+      // Actualizăm datele locale
+      setLucrare((prev) => (prev ? { ...prev, ...data } : null))
 
-        toast({
-          title: "Lucrare actualizată",
-          description: "Lucrarea a fost actualizată cu succes.",
-        })
-      } catch (error) {
-        console.error("Eroare la actualizarea lucrării:", error)
-        toast({
-          title: "Eroare",
-          description: "A apărut o eroare la actualizarea lucrării.",
-          variant: "destructive",
-        })
-      }
-    },
-    [lucrare],
-  )
+      toast({
+        title: "Lucrare actualizată",
+        description: "Lucrarea a fost actualizată cu succes.",
+      })
+    } catch (error) {
+      console.error("Eroare la actualizarea lucrării:", error)
+      toast({
+        title: "Eroare",
+        description: "A apărut o eroare la actualizarea lucrării.",
+        variant: "destructive",
+      })
+    }
+  }
 
   // Funcție pentru a șterge o lucrare
-  const handleDeleteLucrare = useCallback(async () => {
+  const handleDeleteLucrare = async () => {
     if (!lucrare?.id) return
 
     try {
@@ -95,22 +94,49 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
         variant: "destructive",
       })
     }
-  }, [lucrare, router])
+  }
 
   // Funcție pentru a genera raportul
-  const handleGenerateReport = useCallback(() => {
+  const handleGenerateReport = () => {
     router.push(`/raport/${params.id}`)
-  }, [router, params.id])
+  }
+
+  // Funcție pentru a salva semnătura beneficiarului
+  const handleSaveBeneficiarySignature = async (signatureData: string) => {
+    if (!lucrare?.id) return
+
+    try {
+      await updateLucrare(lucrare.id, {
+        semnaturaBeneficiar: signatureData,
+      })
+
+      // Actualizăm datele locale
+      setLucrare((prev) => (prev ? { ...prev, semnaturaBeneficiar: signatureData } : null))
+      setIsSignatureDialogOpen(false)
+
+      toast({
+        title: "Semnătură salvată",
+        description: "Semnătura beneficiarului a fost salvată cu succes.",
+      })
+    } catch (error) {
+      console.error("Eroare la salvarea semnăturii:", error)
+      toast({
+        title: "Eroare",
+        description: "A apărut o eroare la salvarea semnăturii.",
+        variant: "destructive",
+      })
+    }
+  }
 
   // Funcție pentru a reîncărca datele lucrării
-  const refreshLucrare = useCallback(async () => {
+  const refreshLucrare = async () => {
     try {
       const data = await getLucrareById(params.id)
       setLucrare(data)
     } catch (error) {
       console.error("Eroare la reîncărcarea lucrării:", error)
     }
-  }, [params.id])
+  }
 
   if (loading) {
     return (
@@ -151,9 +177,10 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
       </DashboardHeader>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:w-auto md:grid-cols-2">
+        <TabsList className="grid w-full grid-cols-2 md:w-auto md:grid-cols-3">
           <TabsTrigger value="detalii">Detalii Lucrare</TabsTrigger>
           {role === "tehnician" && <TabsTrigger value="interventie">Intervenție</TabsTrigger>}
+          <TabsTrigger value="semnatura">Semnătură Beneficiar</TabsTrigger>
         </TabsList>
 
         <TabsContent value="detalii" className="mt-4">
@@ -291,11 +318,42 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
               initialData={{
                 descriereInterventie: lucrare.descriereInterventie,
                 statusLucrare: lucrare.statusLucrare,
+                semnaturaTehnician: lucrare.semnaturaTehnician,
               }}
               onUpdate={refreshLucrare}
             />
           </TabsContent>
         )}
+
+        <TabsContent value="semnatura" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Semnătură Beneficiar</CardTitle>
+              <CardDescription>Semnătura beneficiarului pentru confirmarea lucrării</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {lucrare.semnaturaBeneficiar ? (
+                <div className="flex flex-col items-center">
+                  <img
+                    src={lucrare.semnaturaBeneficiar || "/placeholder.svg"}
+                    alt="Semnătură beneficiar"
+                    className="border rounded max-w-full h-auto"
+                  />
+                  <Button variant="outline" size="sm" className="mt-4" onClick={() => setIsSignatureDialogOpen(true)}>
+                    Actualizează semnătura
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center">
+                  <p className="text-muted-foreground mb-4">Nu există semnătură pentru această lucrare</p>
+                  <Button onClick={() => setIsSignatureDialogOpen(true)}>
+                    <ClipboardCheck className="mr-2 h-4 w-4" /> Adaugă semnătură
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       {/* Dialog pentru editare lucrare */}
@@ -326,6 +384,20 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
             handleInputChange={() => {}}
             handleSelectChange={() => {}}
             handleTehnicieniChange={() => {}}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog pentru semnătura beneficiarului */}
+      <Dialog open={isSignatureDialogOpen} onOpenChange={setIsSignatureDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Semnătură Beneficiar</DialogTitle>
+          </DialogHeader>
+          <SignaturePad
+            onSave={handleSaveBeneficiarySignature}
+            existingSignature={lucrare.semnaturaBeneficiar}
+            title="Semnătură Beneficiar"
           />
         </DialogContent>
       </Dialog>

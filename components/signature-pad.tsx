@@ -1,72 +1,85 @@
 "use client"
 
-import type React from "react"
-
-import { useRef, useState, useCallback } from "react"
+import { useRef, useState, useEffect } from "react"
 import SignatureCanvas from "react-signature-canvas"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 
 interface SignaturePadProps {
-  onSave: (signature: string) => void
-  label?: string
-  signatureRef?: React.MutableRefObject<SignatureCanvas | null>
-  onSignatureChange?: (isEmpty: boolean) => void
+  onSave: (signatureData: string) => void
+  existingSignature?: string
+  title?: string
 }
 
-export function SignaturePad({ onSave, label = "Semnătură", signatureRef, onSignatureChange }: SignaturePadProps) {
-  const internalSignatureRef = useRef<SignatureCanvas | null>(null)
-  const [isEmpty, setIsEmpty] = useState(true)
+export function SignaturePad({ onSave, existingSignature, title = "Semnătură" }: SignaturePadProps) {
+  const signatureRef = useRef<SignatureCanvas | null>(null)
+  const [isSigned, setIsSigned] = useState(false)
+  const [showExisting, setShowExisting] = useState(!!existingSignature)
 
-  const sigRef = signatureRef || internalSignatureRef
+  useEffect(() => {
+    setShowExisting(!!existingSignature)
+  }, [existingSignature])
 
-  const handleClear = useCallback(() => {
-    if (sigRef.current) {
-      sigRef.current.clear()
-      setIsEmpty(true)
-      if (onSignatureChange) {
-        onSignatureChange(true)
-      }
+  const clearSignature = () => {
+    if (signatureRef.current) {
+      signatureRef.current.clear()
+      setIsSigned(false)
     }
-  }, [sigRef, onSignatureChange])
+  }
 
-  const handleSave = useCallback(() => {
-    if (sigRef.current && !sigRef.current.isEmpty()) {
-      const signatureData = sigRef.current.toDataURL("image/png")
+  const handleSave = () => {
+    if (signatureRef.current && !signatureRef.current.isEmpty()) {
+      const signatureData = signatureRef.current.toDataURL()
       onSave(signatureData)
+      setShowExisting(true)
     }
-  }, [sigRef, onSave])
+  }
 
-  const handleEnd = useCallback(() => {
-    if (sigRef.current) {
-      const newIsEmpty = sigRef.current.isEmpty()
-      setIsEmpty(newIsEmpty)
-      if (onSignatureChange) {
-        onSignatureChange(newIsEmpty)
-      }
-    }
-  }, [sigRef, onSignatureChange])
+  const handleNewSignature = () => {
+    setShowExisting(false)
+    clearSignature()
+  }
 
   return (
-    <div className="space-y-2">
-      <div className="text-sm font-medium">{label}</div>
-      <div className="rounded-md border border-gray-300 bg-white p-2">
-        <SignatureCanvas
-          ref={sigRef}
-          canvasProps={{
-            className: "w-full h-40 border rounded",
-            style: { width: "100%", height: "160px" },
-          }}
-          onEnd={handleEnd}
-        />
-      </div>
-      <div className="flex justify-end space-x-2">
-        <Button variant="outline" size="sm" onClick={handleClear}>
-          Șterge
-        </Button>
-        <Button size="sm" onClick={handleSave} disabled={isEmpty}>
-          Salvează
-        </Button>
-      </div>
-    </div>
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle className="text-lg">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {showExisting && existingSignature ? (
+          <div className="flex flex-col items-center">
+            <img
+              src={existingSignature || "/placeholder.svg"}
+              alt="Semnătură existentă"
+              className="border rounded max-w-full h-auto"
+            />
+            <Button variant="outline" size="sm" className="mt-2" onClick={handleNewSignature}>
+              Semnează din nou
+            </Button>
+          </div>
+        ) : (
+          <div className="border rounded p-1 bg-white">
+            <SignatureCanvas
+              ref={(ref) => (signatureRef.current = ref)}
+              canvasProps={{
+                className: "w-full h-40 border rounded",
+                style: { width: "100%", height: "160px" },
+              }}
+              onEnd={() => setIsSigned(true)}
+            />
+          </div>
+        )}
+      </CardContent>
+      {!showExisting && (
+        <CardFooter className="flex justify-between">
+          <Button variant="outline" onClick={clearSignature}>
+            Șterge
+          </Button>
+          <Button onClick={handleSave} disabled={!isSigned}>
+            Salvează semnătura
+          </Button>
+        </CardFooter>
+      )}
+    </Card>
   )
 }

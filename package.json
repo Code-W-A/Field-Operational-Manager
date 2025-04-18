@@ -61,10 +61,9 @@
     "@types/prop-types": "latest",
     "prop-types": "latest",
     "firebase": "latest",
+    "react-signature-canvas": "latest",
     "firebase-admin": "latest",
-    "@tanstack/react-table": "latest",
-    "jspdf": "latest",
-    "react-signature-canvas": "latest"
+    "@tanstack/react-table": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",

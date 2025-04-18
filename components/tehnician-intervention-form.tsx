@@ -1,11 +1,13 @@
 "use client"
 
 import type React from "react"
-import { useState, useCallback } from "react"
+
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { SignaturePad } from "@/components/signature-pad"
 import { Loader2 } from "lucide-react"
 import { updateLucrare } from "@/lib/firebase/firestore"
 import { toast } from "@/components/ui/use-toast"
@@ -15,6 +17,7 @@ interface TehnicianInterventionFormProps {
   initialData: {
     descriereInterventie?: string
     statusLucrare: string
+    semnaturaTehnician?: string
   }
   onUpdate: () => void
 }
@@ -23,25 +26,31 @@ export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: 
   const [formData, setFormData] = useState({
     descriereInterventie: initialData.descriereInterventie || "",
     statusLucrare: initialData.statusLucrare,
+    semnaturaTehnician: initialData.semnaturaTehnician || "",
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const { id, value } = e.target
     setFormData((prev) => ({ ...prev, [id]: value }))
-  }, [])
+  }
 
-  const handleSelectChange = useCallback((value: string) => {
+  const handleSelectChange = (value: string) => {
     setFormData((prev) => ({ ...prev, statusLucrare: value }))
-  }, [])
+  }
 
-  const handleSubmit = useCallback(async () => {
+  const handleSignatureSave = (signatureData: string) => {
+    setFormData((prev) => ({ ...prev, semnaturaTehnician: signatureData }))
+  }
+
+  const handleSubmit = async () => {
     try {
       setIsSubmitting(true)
 
       await updateLucrare(lucrareId, {
         descriereInterventie: formData.descriereInterventie,
         statusLucrare: formData.statusLucrare,
+        semnaturaTehnician: formData.semnaturaTehnician,
       })
 
       toast({
@@ -60,7 +69,7 @@ export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: 
     } finally {
       setIsSubmitting(false)
     }
-  }, [lucrareId, formData, onUpdate])
+  }
 
   return (
     <div className="space-y-6">
@@ -96,6 +105,12 @@ export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: 
           </Select>
         </CardContent>
       </Card>
+
+      <SignaturePad
+        onSave={handleSignatureSave}
+        existingSignature={formData.semnaturaTehnician}
+        title="Semnătură Tehnician"
+      />
 
       <div className="flex justify-end">
         <Button onClick={handleSubmit} disabled={isSubmitting}>
