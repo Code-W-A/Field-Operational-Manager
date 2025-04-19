@@ -176,6 +176,12 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                   <p className="text-sm font-medium">Tip lucrare:</p>
                   <p className="text-sm text-gray-500">{lucrare.tipLucrare}</p>
                 </div>
+                {lucrare.tipLucrare === "Intervenție în contract" && (
+                  <div>
+                    <p className="text-sm font-medium">Contract:</p>
+                    <p className="text-sm text-gray-500">{lucrare.contractNumber || "N/A"}</p>
+                  </div>
+                )}
                 {lucrare.defectReclamat && (
                   <div>
                     <p className="text-sm font-medium">Defect reclamat:</p>
@@ -319,6 +325,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
               statusLucrare: lucrare.statusLucrare,
               statusFacturare: lucrare.statusFacturare,
               contract: lucrare.contract,
+              contractNumber: lucrare.contractNumber,
               defectReclamat: lucrare.defectReclamat,
             }}
             handleInputChange={() => {}}

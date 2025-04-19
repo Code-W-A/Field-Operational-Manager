@@ -56,20 +56,31 @@ export function ReportGenerator({ lucrare }: ReportGeneratorProps) {
       doc.setFontSize(14)
       doc.text("Detalii Lucrare", 20, 110)
 
+      // Actualizăm generarea PDF-ului pentru a include numărul contractului
+
+      // În secțiunea "Detalii Lucrare", adăugăm numărul contractului dacă tipul lucrării este "Intervenție în contract"
       doc.setFontSize(12)
       doc.text(`Tip lucrare: ${lucrare.tipLucrare}`, 20, 120)
-      doc.text(`Tehnician: ${lucrare.tehnicieni?.join(", ")}`, 20, 130)
+      if (lucrare.tipLucrare === "Intervenție în contract") {
+        doc.text(`Contract: ${lucrare.contractNumber || "N/A"}`, 20, 130)
+        doc.text(`Tehnician: ${lucrare.tehnicieni?.join(", ")}`, 20, 140)
+      } else {
+        doc.text(`Tehnician: ${lucrare.tehnicieni?.join(", ")}`, 20, 130)
+      }
+
+      // Ajustăm poziția pentru defectul reclamat în funcție de prezența contractului
+      const yPosDefect = lucrare.tipLucrare === "Intervenție în contract" ? 155 : 145
 
       // Adăugăm defectul reclamat
       doc.setFontSize(14)
-      doc.text("Defect Reclamat", 20, 145)
+      doc.text("Defect Reclamat", 20, yPosDefect)
 
       doc.setFontSize(12)
       const defectLines = doc.splitTextToSize(lucrare.defectReclamat || "Nu a fost specificat", 170)
-      doc.text(defectLines, 20, 155)
+      doc.text(defectLines, 20, yPosDefect + 10)
 
       // Adăugăm descrierea lucrării
-      let yPos = 155 + defectLines.length * 7
+      let yPos = yPosDefect + 10 + defectLines.length * 7
 
       doc.setFontSize(14)
       doc.text("Descriere Lucrare", 20, yPos)

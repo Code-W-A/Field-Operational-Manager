@@ -368,7 +368,7 @@ export default function Lucrari() {
       header: "Contract",
       cell: ({ row }) => {
         if (row.original.tipLucrare !== "Intervenție în contract") return null
-        return <span>{row.original.contract || "N/A"}</span>
+        return <span>{row.original.contractNumber || "N/A"}</span>
       },
     },
     {
@@ -655,7 +655,7 @@ export default function Lucrari() {
                       {lucrare.tipLucrare === "Intervenție în contract" && (
                         <div className="flex justify-between">
                           <span className="text-sm font-medium text-muted-foreground">Contract:</span>
-                          <span className="text-sm">{lucrare.contract || "N/A"}</span>
+                          <span className="text-sm">{lucrare.contractNumber || "N/A"}</span>
                         </div>
                       )}
                       <div className="flex justify-between">

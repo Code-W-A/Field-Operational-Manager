@@ -63,8 +63,8 @@
     "firebase": "latest",
     "firebase-admin": "latest",
     "@tanstack/react-table": "latest",
-    "jspdf": "latest",
-    "react-signature-canvas": "latest"
+    "react-signature-canvas": "latest",
+    "jspdf": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",

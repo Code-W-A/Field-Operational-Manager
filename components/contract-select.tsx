@@ -12,7 +12,7 @@ import { db } from "@/lib/firebase/config"
 
 interface ContractSelectProps {
   value: string
-  onChange: (value: string) => void
+  onChange: (value: string, contractNumber?: string) => void
   hasError?: boolean
   errorStyle?: string
 }
@@ -71,7 +71,7 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
       setIsSubmitting(true)
 
       // Adăugăm contractul în Firestore
-      await addDoc(collection(db, "contracts"), {
+      const docRef = await addDoc(collection(db, "contracts"), {
         name: newContractName,
         number: newContractNumber,
         createdAt: serverTimestamp(),
@@ -81,6 +81,9 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
       setNewContractName("")
       setNewContractNumber("")
       setIsAddDialogOpen(false)
+
+      // Selectăm automat noul contract adăugat
+      onChange(docRef.id, newContractNumber)
     } catch (error) {
       console.error("Eroare la adăugarea contractului:", error)
     } finally {
@@ -90,7 +93,13 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
 
   return (
     <div className="flex gap-2">
-      <Select value={value} onValueChange={onChange}>
+      <Select
+        value={value}
+        onValueChange={(value) => {
+          const selectedContract = contracts.find((contract) => contract.id === value)
+          onChange(value, selectedContract?.number)
+        }}
+      >
         <SelectTrigger id="contract" className={`flex-1 ${hasError ? errorStyle : ""}`}>
           <SelectValue placeholder={loading ? "Se încarcă..." : "Selectați contractul"} />
         </SelectTrigger>

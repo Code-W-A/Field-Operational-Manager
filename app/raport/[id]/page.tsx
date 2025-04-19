@@ -211,6 +211,13 @@ export default function RaportPage({ params }: { params: { id: string } }) {
 
                 <Separator />
 
+                {lucrare?.tipLucrare === "Intervenție în contract" && (
+                  <div>
+                    <h3 className="font-medium text-gray-500">Contract:</h3>
+                    <p>{lucrare?.contractNumber || "N/A"}</p>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <h3 className="font-medium text-gray-500">Status Lucrare</h3>
                   <Select value={statusLucrare} onValueChange={handleStatusChange}>

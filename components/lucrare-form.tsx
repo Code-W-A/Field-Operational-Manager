@@ -33,6 +33,7 @@ interface Lucrare {
   statusLucrare: string
   statusFacturare: string
   contract?: string
+  contractNumber?: string
   defectReclamat?: string
 }
 
@@ -54,6 +55,7 @@ interface LucrareFormProps {
     statusLucrare: string
     statusFacturare: string
     contract?: string
+    contractNumber?: string
     defectReclamat?: string // Add this field
   }
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void
@@ -273,6 +275,7 @@ export function LucrareForm({
       statusLucrare: formData.statusLucrare,
       statusFacturare: formData.statusFacturare,
       contract: formData.contract,
+      contractNumber: formData.contractNumber,
       defectReclamat: formData.defectReclamat,
     }
 
@@ -397,7 +400,10 @@ export function LucrareForm({
               </label>
               <ContractSelect
                 value={formData.contract || ""}
-                onChange={(value) => handleSelectChange("contract", value)}
+                onChange={(value, contractNumber) => {
+                  handleSelectChange("contract", value)
+                  handleSelectChange("contractNumber", contractNumber || "")
+                }}
                 hasError={hasError("contract")}
                 errorStyle={errorStyle}
               />
