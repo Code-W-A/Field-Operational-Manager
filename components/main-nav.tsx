@@ -12,7 +12,7 @@ export function MainNav() {
 
   // Verificăm dacă utilizatorul are rolul de admin
   const isAdmin = userData?.role === "admin"
-  const isTechnician = userData?.role === "tehnician"
+  const isTechnician = userData?.role === "technician"
 
   return (
     <div className="flex gap-6 md:gap-10">

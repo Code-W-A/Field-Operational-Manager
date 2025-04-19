@@ -25,7 +25,6 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
         userData: userData,
         allowedRoles,
         hasRole: userData && allowedRoles ? allowedRoles.includes(userData.role) : false,
-        pathname,
       })
 
       if (!user) {
@@ -33,11 +32,8 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
       } else if (allowedRoles && userData && !allowedRoles.includes(userData.role)) {
         console.log("User does not have required role, redirecting to dashboard")
         router.push("/dashboard")
-      } else if (
-        userData?.role === "tehnician" &&
-        (pathname?.includes("/dashboard/clienti") || pathname?.startsWith("/dashboard/clienti/"))
-      ) {
-        // Prevent technicians from accessing any client-related pages
+      } else if (userData?.role === "tehnician" && pathname?.includes("/dashboard/clienti")) {
+        // Prevent technicians from accessing the Clients page
         console.log("Technician attempting to access Clients page, redirecting to dashboard")
         router.push("/dashboard")
       }
