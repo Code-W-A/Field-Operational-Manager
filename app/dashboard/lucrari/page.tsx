@@ -1,9 +1,7 @@
 "use client"
 
 import { DialogTrigger } from "@/components/ui/dialog"
-
 import type React from "react"
-
 import { useState, useEffect, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -19,7 +17,7 @@ import { Badge } from "@/components/ui/badge"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { format, parse } from "date-fns"
-import { Plus, MoreHorizontal, FileText, Eye, Pencil, Trash2, Loader2, AlertCircle } from "lucide-react"
+import { Plus, MoreHorizontal, FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Search, Filter } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { type Lucrare, addLucrare, deleteLucrare, updateLucrare, getLucrareById } from "@/lib/firebase/firestore"
@@ -31,12 +29,11 @@ import { DataTable } from "@/components/data-table/data-table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-// Corectăm importul pentru db
 import { doc, getDoc } from "firebase/firestore"
-import { db } from "@/lib/firebase/config" // Importăm direct din config în loc de firebase.ts
-
-// Importăm componenta ContractDisplay
+import { db } from "@/lib/firebase/config"
+import { Input } from "@/components/ui/input"
 import { DataTableViewOptions } from "@/components/data-table/data-table-view-options"
+import { DataTableFilters } from "@/components/data-table/data-table-filters"
 
 const ContractDisplay: React.FC<{ contractId: string | undefined }> = ({ contractId }) => {
   const [contractNumber, setContractNumber] = useState<string | null>(null)
@@ -88,7 +85,6 @@ export default function Lucrari() {
   const [dataInterventie, setDataInterventie] = useState<Date | undefined>(new Date())
   const [activeTab, setActiveTab] = useState("tabel")
   const [selectedLucrare, setSelectedLucrare] = useState<Lucrare | null>(null)
-  // Actualizăm starea formData pentru a include câmpul defectReclamat
   const [formData, setFormData] = useState({
     tipLucrare: "",
     tehnicieni: [] as string[],
@@ -105,6 +101,9 @@ export default function Lucrari() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<string[]>([])
+  const [searchTerm, setSearchTerm] = useState("")
+  const [filtersVisible, setFiltersVisible] = useState(false)
+  const [tableInstance, setTableInstance] = useState<any>(null)
 
   // Obținem lucrările din Firebase
   const {
@@ -159,6 +158,16 @@ export default function Lucrari() {
     }
   }, [isAddDialogOpen])
 
+  // Ascundem coloana de status facturare pentru tehnicienii
+  useEffect(() => {
+    if (userData?.role === "tehnician" && tableInstance) {
+      const statusFacturareColumn = tableInstance.getColumn("statusFacturare")
+      if (statusFacturareColumn) {
+        statusFacturareColumn.toggleVisibility(false)
+      }
+    }
+  }, [tableInstance, userData?.role])
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { id, value } = e.target
     setFormData((prev) => ({ ...prev, [id]: value }))
@@ -185,7 +194,6 @@ export default function Lucrari() {
     }
   }
 
-  // Actualizăm și funcția resetForm pentru a include câmpul defectReclamat
   const resetForm = () => {
     setDataEmiterii(new Date())
     setDataInterventie(new Date())
@@ -206,7 +214,6 @@ export default function Lucrari() {
     setFieldErrors([])
   }
 
-  // Actualizăm funcția validateForm pentru a valida și câmpul contract când este necesar
   const validateForm = () => {
     const errors: string[] = []
 
@@ -522,20 +529,6 @@ export default function Lucrari() {
     },
   ]
 
-  // Adăugăm cod pentru a ascunde coloana de status facturare pentru tehnicieni
-  // Adăugăm acest cod după definirea coloanelor și înainte de definirea filterableColumns
-  const [table, setTable] = useState(null)
-
-  // Ascundem coloana de status facturare pentru tehnicienii
-  useEffect(() => {
-    if (userData?.role === "tehnician") {
-      const statusFacturareColumn = table?.getColumn("statusFacturare")
-      if (statusFacturareColumn) {
-        statusFacturareColumn.toggleVisibility(false)
-      }
-    }
-  }, [table, userData?.role])
-
   // Definim opțiunile de filtrare pentru DataTable
   const filterableColumns = [
     {
@@ -609,6 +602,50 @@ export default function Lucrari() {
       type: "text",
     },
   ]
+
+  // Funcție pentru căutare globală
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value)
+    if (tableInstance) {
+      tableInstance.setGlobalFilter(e.target.value)
+    }
+  }
+
+  // Funcție pentru a reseta toate filtrele
+  const resetAllFilters = () => {
+    if (tableInstance) {
+      tableInstance.resetColumnFilters()
+      tableInstance.setGlobalFilter("")
+      setSearchTerm("")
+    }
+  }
+
+  // Funcție pentru a afișa/ascunde filtrele
+  const toggleFilters = () => {
+    setFiltersVisible(!filtersVisible)
+  }
+
+  // Filtrăm lucrările în funcție de termenul de căutare
+  const searchFilteredLucrari = useMemo(() => {
+    if (!searchTerm) return filteredLucrari
+
+    return filteredLucrari.filter((lucrare) => {
+      const searchFields = [
+        lucrare.client,
+        lucrare.locatie,
+        lucrare.descriere,
+        lucrare.persoanaContact,
+        lucrare.telefon,
+        lucrare.tipLucrare,
+        lucrare.statusLucrare,
+        lucrare.statusFacturare,
+        lucrare.defectReclamat,
+        ...lucrare.tehnicieni,
+      ]
+
+      return searchFields.some((field) => field && field.toLowerCase().includes(searchTerm.toLowerCase()))
+    })
+  }, [filteredLucrari, searchTerm])
 
   return (
     <DashboardShell>
@@ -714,19 +751,44 @@ export default function Lucrari() {
 
           {!loading && !fetchError && (
             <div className="flex flex-wrap items-center gap-2">
-              <DataTable.Filters
-                columns={columns}
-                data={filteredLucrari}
-                searchColumn=""
-                searchPlaceholder="Caută în toate câmpurile..."
-                filterableColumns={filterableColumns}
-                dateRangeColumn="dataInterventie"
-                advancedFilters={advancedFilters}
-              />
-              {table && <DataTableViewOptions table={table} />}
+              <div className="relative flex-1 min-w-[200px] max-w-sm">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Caută în toate câmpurile..."
+                  value={searchTerm}
+                  onChange={handleSearch}
+                  className="pl-9 w-full"
+                />
+              </div>
+              <Button variant="outline" size="sm" className="h-9 gap-1" onClick={toggleFilters}>
+                <Filter className="h-4 w-4 mr-1" />
+                <span>Filtre</span>
+                {tableInstance?.getState().columnFilters.length > 0 && (
+                  <span className="ml-1 rounded-full bg-primary w-4 h-4 text-xs flex items-center justify-center text-primary-foreground">
+                    {tableInstance.getState().columnFilters.length}
+                  </span>
+                )}
+              </Button>
+              {tableInstance && <DataTableViewOptions table={tableInstance} />}
+              {(tableInstance?.getState().columnFilters.length > 0 || searchTerm) && (
+                <Button variant="ghost" size="sm" onClick={resetAllFilters} className="h-9">
+                  Resetează filtrele
+                </Button>
+              )}
             </div>
           )}
         </div>
+
+        {filtersVisible && !loading && !fetchError && (
+          <Card className="p-4">
+            <DataTableFilters
+              table={tableInstance}
+              filterableColumns={filterableColumns}
+              dateRangeColumn="dataInterventie"
+              advancedFilters={advancedFilters}
+            />
+          </Card>
+        )}
 
         {loading ? (
           <div className="flex justify-center items-center py-12">
@@ -744,115 +806,165 @@ export default function Lucrari() {
           <DataTable
             columns={columns}
             data={filteredLucrari}
-            searchColumn="" // Lăsăm gol pentru a folosi globalFilter
+            searchColumn=""
             searchPlaceholder="Caută în toate câmpurile..."
             filterableColumns={filterableColumns}
             dateRangeColumn="dataInterventie"
             advancedFilters={advancedFilters}
             defaultSort={{ id: "dataEmiterii", desc: true }}
             showFilters={false}
-            table={table}
-            setTable={setTable}
+            onRowClick={handleViewDetails}
+            table={tableInstance}
+            setTable={setTableInstance}
           />
         ) : (
           <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredLucrari.map((lucrare) => (
-              <Card key={lucrare.id} className="overflow-hidden">
-                <CardContent className="p-0">
-                  <div className="flex items-center justify-between border-b p-4">
-                    <div>
-                      <h3 className="font-medium">{lucrare.client}</h3>
-                      <p className="text-sm text-muted-foreground">{lucrare.locatie}</p>
-                    </div>
-                    <Badge className={getStatusColor(lucrare.statusLucrare)}>{lucrare.statusLucrare}</Badge>
-                  </div>
-                  <div className="p-4">
-                    <div className="mb-4 space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-sm font-medium text-muted-foreground">Tip:</span>
-                        <Badge variant="outline" className={getTipLucrareColor(lucrare.tipLucrare)}>
-                          {lucrare.tipLucrare}
-                        </Badge>
-                      </div>
-                      {lucrare.defectReclamat && (
-                        <div>
-                          <span className="text-sm font-medium text-muted-foreground">Defect reclamat:</span>
-                          <p className="text-sm line-clamp-2" title={lucrare.defectReclamat}>
-                            {lucrare.defectReclamat}
-                          </p>
-                        </div>
-                      )}
-                      {lucrare.tipLucrare === "Intervenție în contract" && (
-                        <div className="flex justify-between">
-                          <span className="text-sm font-medium text-muted-foreground">Contract:</span>
-                          <ContractDisplay contractId={lucrare.contract} />
-                        </div>
-                      )}
-                      <div className="flex justify-between">
-                        <span className="text-sm font-medium text-muted-foreground">Data emiterii:</span>
-                        <span className="text-sm">{lucrare.dataEmiterii}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm font-medium text-muted-foreground">Data solicitată:</span>
-                        <span className="text-sm">{lucrare.dataInterventie}</span>
-                      </div>
+            {filteredLucrari
+              .filter((lucrare) => {
+                if (!searchTerm) return true
+
+                const searchFields = [
+                  lucrare.client,
+                  lucrare.locatie,
+                  lucrare.descriere,
+                  lucrare.persoanaContact,
+                  lucrare.telefon,
+                  lucrare.tipLucrare,
+                  lucrare.statusLucrare,
+                  lucrare.statusFacturare,
+                  lucrare.defectReclamat,
+                  ...lucrare.tehnicieni,
+                ]
+
+                return searchFields.some((field) => field && field.toLowerCase().includes(searchTerm.toLowerCase()))
+              })
+              .map((lucrare) => (
+                <Card
+                  key={lucrare.id}
+                  className="overflow-hidden cursor-pointer hover:shadow-md"
+                  onClick={() => handleViewDetails(lucrare.id!)}
+                >
+                  <CardContent className="p-0">
+                    <div className="flex items-center justify-between border-b p-4">
                       <div>
-                        <span className="text-sm font-medium text-muted-foreground">Tehnicieni:</span>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {lucrare.tehnicieni.map((tehnician, index) => (
-                            <Badge key={index} variant="secondary" className="bg-gray-100">
-                              {tehnician}
-                            </Badge>
-                          ))}
+                        <h3 className="font-medium">{lucrare.client}</h3>
+                        <p className="text-sm text-muted-foreground">{lucrare.locatie}</p>
+                      </div>
+                      <Badge className={getStatusColor(lucrare.statusLucrare)}>{lucrare.statusLucrare}</Badge>
+                    </div>
+                    <div className="p-4">
+                      <div className="mb-4 space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-muted-foreground">Tip:</span>
+                          <Badge variant="outline" className={getTipLucrareColor(lucrare.tipLucrare)}>
+                            {lucrare.tipLucrare}
+                          </Badge>
+                        </div>
+                        {lucrare.defectReclamat && (
+                          <div>
+                            <span className="text-sm font-medium text-muted-foreground">Defect reclamat:</span>
+                            <p className="text-sm line-clamp-2" title={lucrare.defectReclamat}>
+                              {lucrare.defectReclamat}
+                            </p>
+                          </div>
+                        )}
+                        {lucrare.tipLucrare === "Intervenție în contract" && (
+                          <div className="flex justify-between">
+                            <span className="text-sm font-medium text-muted-foreground">Contract:</span>
+                            <ContractDisplay contractId={lucrare.contract} />
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-muted-foreground">Data emiterii:</span>
+                          <span className="text-sm">{lucrare.dataEmiterii}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-muted-foreground">Data solicitată:</span>
+                          <span className="text-sm">{lucrare.dataInterventie}</span>
+                        </div>
+                        <div>
+                          <span className="text-sm font-medium text-muted-foreground">Tehnicieni:</span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {lucrare.tehnicieni.map((tehnician, index) => (
+                              <Badge key={index} variant="secondary" className="bg-gray-100">
+                                {tehnician}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-muted-foreground">Contact:</span>
+                          <span className="text-sm">{lucrare.persoanaContact}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-muted-foreground">Telefon:</span>
+                          <span className="text-sm">{lucrare.telefon}</span>
                         </div>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm font-medium text-muted-foreground">Contact:</span>
-                        <span className="text-sm">{lucrare.persoanaContact}</span>
+                      <div className="mb-4">
+                        <p className="text-sm font-medium text-muted-foreground">Descriere:</p>
+                        <p className="text-sm line-clamp-2" title={lucrare.descriere}>
+                          {lucrare.descriere}
+                        </p>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm font-medium text-muted-foreground">Telefon:</span>
-                        <span className="text-sm">{lucrare.telefon}</span>
-                      </div>
-                    </div>
-                    <div className="mb-4">
-                      <p className="text-sm font-medium text-muted-foreground">Descriere:</p>
-                      <p className="text-sm line-clamp-2" title={lucrare.descriere}>
-                        {lucrare.descriere}
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      {userData?.role !== "tehnician" && (
-                        <Badge className={getFacturaColor(lucrare.statusFacturare)}>{lucrare.statusFacturare}</Badge>
-                      )}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="gap-1">
-                            Acțiuni
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleViewDetails(lucrare.id!)}>
-                            <Eye className="mr-2 h-4 w-4" /> Vizualizează
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleEdit(lucrare)}>
-                            <Pencil className="mr-2 h-4 w-4" /> Editează
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleGenerateReport(lucrare.id!)}>
-                            <FileText className="mr-2 h-4 w-4" /> Generează Raport
-                          </DropdownMenuItem>
-                          {userData?.role === "admin" && (
-                            <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(lucrare.id!)}>
-                              <Trash2 className="mr-2 h-4 w-4" /> Șterge
+                      <div className="flex items-center justify-between">
+                        {userData?.role !== "tehnician" && (
+                          <Badge className={getFacturaColor(lucrare.statusFacturare)}>{lucrare.statusFacturare}</Badge>
+                        )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <Button variant="ghost" size="sm" className="gap-1">
+                              Acțiuni
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleViewDetails(lucrare.id!)
+                              }}
+                            >
+                              <Eye className="mr-2 h-4 w-4" /> Vizualizează
                             </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleEdit(lucrare)
+                              }}
+                            >
+                              <Pencil className="mr-2 h-4 w-4" /> Editează
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleGenerateReport(lucrare.id!)
+                              }}
+                            >
+                              <FileText className="mr-2 h-4 w-4" /> Generează Raport
+                            </DropdownMenuItem>
+                            {userData?.role === "admin" && (
+                              <DropdownMenuItem
+                                className="text-red-600"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDelete(lucrare.id!)
+                                }}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" /> Șterge
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              ))}
+            {filteredLucrari.length === 0 && (
+              <div className="col-span-full text-center py-10">
+                <p className="text-muted-foreground">Nu există lucrări care să corespundă criteriilor de căutare.</p>
+              </div>
+            )}
           </div>
         )}
       </div>

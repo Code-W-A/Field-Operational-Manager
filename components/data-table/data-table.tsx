@@ -16,13 +16,12 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Filter } from "lucide-react"
+import { Filter, Search } from "lucide-react"
 import { DataTablePagination } from "./data-table-pagination"
 import { DataTableViewOptions } from "./data-table-view-options"
 import { DataTableFilters } from "./data-table-filters"
 import { Card } from "@/components/ui/card"
 
-// Modificăm interfața DataTableProps pentru a adăuga proprietatea advancedFilters
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
@@ -43,9 +42,10 @@ interface DataTableProps<TData, TValue> {
   defaultSort?: { id: string; desc: boolean }
   onRowClick?: (row: TData) => void
   showFilters?: boolean
+  table?: any
+  setTable?: (table: any) => void
 }
 
-// Modificăm funcția DataTable pentru a utiliza proprietatea showFilters
 export function DataTable<TData, TValue>({
   columns,
   data,
@@ -56,7 +56,9 @@ export function DataTable<TData, TValue>({
   advancedFilters,
   defaultSort,
   onRowClick,
-  showFilters = true, // Valoarea implicită este true
+  showFilters = true,
+  table: externalTable,
+  setTable: setExternalTable,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>(defaultSort ? [defaultSort] : [])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -120,10 +122,22 @@ export function DataTable<TData, TValue>({
     },
   })
 
+  // Expunem tabelul către exterior dacă este necesar
+  useEffect(() => {
+    if (setExternalTable) {
+      setExternalTable(table)
+    }
+  }, [table, setExternalTable])
+
   // Resetăm paginarea când se schimbă filtrele
   useEffect(() => {
     table.resetPageIndex(true)
   }, [table, columnFilters, globalFilter])
+
+  // Calculăm numărul de filtre active
+  const activeFiltersCount =
+    table.getState().columnFilters.length +
+    (dateRangeColumn && table.getColumn(dateRangeColumn)?.getFilterValue() ? 1 : 0)
 
   return (
     <div className="space-y-4">
@@ -132,20 +146,26 @@ export function DataTable<TData, TValue>({
           <div className="flex flex-1 items-center space-x-2">
             {searchColumn && (
               <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder={searchPlaceholder}
                   value={globalFilter}
                   onChange={(e) => setGlobalFilter(e.target.value)}
-                  className="max-w-sm"
+                  className="pl-9 max-w-sm"
                 />
               </div>
             )}
-            <Button variant="outline" size="sm" className="h-9" onClick={() => setFiltersVisible(!filtersVisible)}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1"
+              onClick={() => setFiltersVisible(!filtersVisible)}
+            >
               <Filter className="mr-2 h-4 w-4" />
               <span className="sm:inline">Filtre</span>
-              {columnFilters.length > 0 && (
+              {activeFiltersCount > 0 && (
                 <span className="ml-1 rounded-full bg-primary w-4 h-4 text-xs flex items-center justify-center text-primary-foreground">
-                  {columnFilters.length}
+                  {activeFiltersCount}
                 </span>
               )}
             </Button>
@@ -232,7 +252,7 @@ DataTable.Filters = function DataTableStandaloneFilters<TData>({
   filterableColumns = [],
   dateRangeColumn,
   advancedFilters,
-}: Omit<DataTableProps<TData, any>, "onRowClick" | "defaultSort" | "showFilters">) {
+}: Omit<DataTableProps<TData, any>, "onRowClick" | "defaultSort" | "showFilters" | "table" | "setTable">) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState("")
@@ -271,15 +291,16 @@ DataTable.Filters = function DataTableStandaloneFilters<TData>({
     <div className="flex flex-wrap items-center gap-2">
       {searchColumn && (
         <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder={searchPlaceholder}
             value={globalFilter}
             onChange={(e) => setGlobalFilter(e.target.value)}
-            className="w-full"
+            className="pl-9 w-full"
           />
         </div>
       )}
-      <Button variant="outline" size="sm" className="h-9" onClick={() => setFiltersVisible(!filtersVisible)}>
+      <Button variant="outline" size="sm" className="h-9 gap-1" onClick={() => setFiltersVisible(!filtersVisible)}>
         <Filter className="mr-2 h-4 w-4" />
         <span className="sm:inline">Filtre</span>
         {table.getState().columnFilters.length > 0 && (
@@ -288,6 +309,7 @@ DataTable.Filters = function DataTableStandaloneFilters<TData>({
           </span>
         )}
       </Button>
+      <DataTableViewOptions table={table} />
 
       {filtersVisible && (
         <Card className="p-4 w-full mt-2">
