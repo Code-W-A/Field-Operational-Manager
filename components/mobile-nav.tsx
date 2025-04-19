@@ -56,7 +56,7 @@ export function MobileNav() {
             <ClipboardList className="h-5 w-5" />
             <span>Lucrări</span>
           </Link>
-          {!isTechnician && (
+          {isAdmin && (
             <Link
               href="/dashboard/clienti"
               onClick={() => setOpen(false)}
