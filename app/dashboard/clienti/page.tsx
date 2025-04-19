@@ -32,10 +32,8 @@ import { ClientForm } from "@/components/client-form"
 export default function Clienti() {
   const { userData } = useAuth()
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  // Eliminăm state-ul formData și funcțiile asociate
-  // Înlocuim:
-  // Cu:
   const [error, setError] = useState<string | null>(null)
+  const [table, setTable] = useState<any>(null)
 
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -45,6 +43,8 @@ export default function Clienti() {
 
   // Adăugăm state pentru activeTab
   const [activeTab, setActiveTab] = useState("tabel")
+  const [globalFilter, setGlobalFilter] = useState("")
+  const [filtersVisible, setFiltersVisible] = useState(false)
 
   // Detectăm dacă suntem pe un dispozitiv mobil
   const isMobile = useMediaQuery("(max-width: 768px)")
@@ -80,11 +80,7 @@ export default function Clienti() {
     if (clienti.length > 0 && editId) {
       fetchClientForEdit()
     }
-  }, [editId])
-
-  // Eliminăm funcția handleInputChange
-
-  // Eliminăm funcția handleSubmit
+  }, [editId, clienti])
 
   const handleDelete = async (id: string) => {
     if (window.confirm("Sunteți sigur că doriți să ștergeți acest client?")) {
@@ -98,9 +94,6 @@ export default function Clienti() {
       }
     }
   }
-
-  // Modificăm funcția handleEdit pentru a preveni navigarea la pagina de detalii
-  // și pentru a gestiona corect parametrul "edit" din URL
 
   // Modificăm funcția handleEdit pentru a include parametrul de eveniment și a preveni propagarea
   const handleEdit = (client: Client, e?: React.MouseEvent) => {
@@ -145,7 +138,7 @@ export default function Clienti() {
     {
       accessorKey: "nume",
       header: "Nume Companie",
-      cell: ({ row }) => <span className="font-medium">{row.original.nume}</span>,
+      cell: ({ row }: any) => <span className="font-medium">{row.original.nume}</span>,
     },
     {
       accessorKey: "adresa",
@@ -166,12 +159,12 @@ export default function Clienti() {
     {
       accessorKey: "numarLucrari",
       header: "Lucrări",
-      cell: ({ row }) => <span>{row.original.numarLucrari || 0}</span>,
+      cell: ({ row }: any) => <span>{row.original.numarLucrari || 0}</span>,
       filterFn: "numLucrariFilter", // Folosim filtrul personalizat definit în data-table.tsx
     },
     {
       id: "actions",
-      cell: ({ row }) => (
+      cell: ({ row }: any) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon">
@@ -197,7 +190,6 @@ export default function Clienti() {
             <DropdownMenuItem onClick={() => handleViewDetails(row.original.id!)}>
               <Eye className="mr-2 h-4 w-4" /> Vizualizează
             </DropdownMenuItem>
-            {/* Modificăm apelul handleEdit în dropdown-ul din tabel */}
             <DropdownMenuItem onClick={(e) => handleEdit(row.original, e)}>
               <Pencil className="mr-2 h-4 w-4" /> Editează
             </DropdownMenuItem>
@@ -222,6 +214,35 @@ export default function Clienti() {
         { label: "1-5 lucrări", value: "1-5" },
         { label: "Peste 5 lucrări", value: "5+" },
       ],
+    },
+  ]
+
+  // Adăugăm filtre avansate
+  const advancedFilters = [
+    {
+      id: "nume",
+      title: "Nume Companie",
+      type: "text",
+    },
+    {
+      id: "adresa",
+      title: "Adresă",
+      type: "text",
+    },
+    {
+      id: "persoanaContact",
+      title: "Persoană Contact",
+      type: "text",
+    },
+    {
+      id: "telefon",
+      title: "Telefon",
+      type: "text",
+    },
+    {
+      id: "email",
+      title: "Email",
+      type: "text",
     },
   ]
 
@@ -288,6 +309,7 @@ export default function Clienti() {
                 searchColumn="nume"
                 searchPlaceholder="Caută client..."
                 filterableColumns={filterableColumns}
+                advancedFilters={advancedFilters}
               />
             </div>
           )}
@@ -312,8 +334,11 @@ export default function Clienti() {
             searchColumn="nume"
             searchPlaceholder="Caută client..."
             filterableColumns={filterableColumns}
+            advancedFilters={advancedFilters}
             onRowClick={(client) => handleViewDetails(client.id!)}
             showFilters={false}
+            table={table}
+            setTable={setTable}
           />
         ) : (
           <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3">
@@ -362,7 +387,6 @@ export default function Clienti() {
                           >
                             <Eye className="mr-2 h-4 w-4" /> Vizualizează
                           </DropdownMenuItem>
-                          {/* Modificăm apelul handleEdit în dropdown-ul din carduri */}
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation()

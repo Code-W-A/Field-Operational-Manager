@@ -51,6 +51,7 @@ export default function Utilizatori() {
   const [formError, setFormError] = useState<string | null>(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [userToDelete, setUserToDelete] = useState<UserData | null>(null)
+  const [table, setTable] = useState<any>(null)
 
   // Adăugăm state pentru activeTab
   const [activeTab, setActiveTab] = useState("tabel")
@@ -229,7 +230,7 @@ export default function Utilizatori() {
     {
       accessorKey: "displayName",
       header: "Nume",
-      cell: ({ row }) => <span className="font-medium">{row.original.displayName}</span>,
+      cell: ({ row }: any) => <span className="font-medium">{row.original.displayName}</span>,
     },
     {
       accessorKey: "email",
@@ -238,12 +239,12 @@ export default function Utilizatori() {
     {
       accessorKey: "telefon",
       header: "Telefon",
-      cell: ({ row }) => <span>{row.original.telefon || "N/A"}</span>,
+      cell: ({ row }: any) => <span>{row.original.telefon || "N/A"}</span>,
     },
     {
       accessorKey: "role",
       header: "Rol",
-      cell: ({ row }) => (
+      cell: ({ row }: any) => (
         <Badge className={getRolColor(row.original.role)}>
           {row.original.role === "admin"
             ? "Administrator"
@@ -261,11 +262,11 @@ export default function Utilizatori() {
     {
       accessorKey: "lastLogin",
       header: "Ultima Autentificare",
-      cell: ({ row }) => <span>{formatDate(row.original.lastLogin)}</span>,
+      cell: ({ row }: any) => <span>{formatDate(row.original.lastLogin)}</span>,
     },
     {
       id: "actions",
-      cell: ({ row }) => (
+      cell: ({ row }: any) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon">
@@ -314,6 +315,25 @@ export default function Utilizatori() {
         { label: "Dispecer", value: "dispecer" },
         { label: "Tehnician", value: "tehnician" },
       ],
+    },
+  ]
+
+  // Adăugăm filtre avansate
+  const advancedFilters = [
+    {
+      id: "displayName",
+      title: "Nume",
+      type: "text",
+    },
+    {
+      id: "email",
+      title: "Email",
+      type: "text",
+    },
+    {
+      id: "telefon",
+      title: "Telefon",
+      type: "text",
     },
   ]
 
@@ -497,6 +517,7 @@ export default function Utilizatori() {
                 searchColumn="displayName"
                 searchPlaceholder="Caută utilizator..."
                 filterableColumns={filterableColumns}
+                advancedFilters={advancedFilters}
               />
             </div>
           )}
@@ -519,7 +540,10 @@ export default function Utilizatori() {
             searchColumn="displayName"
             searchPlaceholder="Caută utilizator..."
             filterableColumns={filterableColumns}
+            advancedFilters={advancedFilters}
             showFilters={false}
+            table={table}
+            setTable={setTable}
           />
         ) : (
           <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3">

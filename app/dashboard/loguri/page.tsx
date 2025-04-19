@@ -19,6 +19,9 @@ export default function Loguri() {
   const [logs, setLogs] = useState<Log[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [table, setTable] = useState<any>(null)
+  const [globalFilter, setGlobalFilter] = useState("")
+  const [filtersVisible, setFiltersVisible] = useState(false)
 
   // Detectăm dacă suntem pe un dispozitiv mobil
   const isMobile = useMediaQuery("(max-width: 768px)")
@@ -96,7 +99,7 @@ export default function Loguri() {
     {
       accessorKey: "timestamp",
       header: "Timestamp",
-      cell: ({ row }) => <span className="font-mono text-sm">{formatDate(row.original.timestamp)}</span>,
+      cell: ({ row }: any) => <span className="font-mono text-sm">{formatDate(row.original.timestamp)}</span>,
     },
     {
       accessorKey: "utilizator",
@@ -109,12 +112,16 @@ export default function Loguri() {
     {
       accessorKey: "detalii",
       header: "Detalii",
-      cell: ({ row }) => <div className="max-w-[300px]">{row.original.detalii}</div>,
+      cell: ({ row }: any) => <div className="max-w-[300px]">{row.original.detalii}</div>,
     },
     {
       accessorKey: "tip",
       header: "Tip",
-      cell: ({ row }) => <Badge className={getTipColor(row.original.tip)}>{row.original.tip}</Badge>,
+      cell: ({ row }: any) => <Badge className={getTipColor(row.original.tip)}>{row.original.tip}</Badge>,
+    },
+    {
+      accessorKey: "categorie",
+      header: "Categorie",
     },
   ]
 
@@ -138,6 +145,30 @@ export default function Loguri() {
         { label: "Ștergere", value: "Ștergere" },
         { label: "Autentificare", value: "Autentificare" },
       ],
+    },
+    {
+      id: "categorie",
+      title: "Categorie",
+      options: [
+        { label: "Date", value: "Date" },
+        { label: "Autentificare", value: "Autentificare" },
+        { label: "Sistem", value: "Sistem" },
+        { label: "Fișiere", value: "Fișiere" },
+      ],
+    },
+  ]
+
+  // Adăugăm filtre avansate
+  const advancedFilters = [
+    {
+      id: "utilizator",
+      title: "Utilizator",
+      type: "text",
+    },
+    {
+      id: "detalii",
+      title: "Detalii",
+      type: "text",
     },
   ]
 
@@ -168,6 +199,7 @@ export default function Loguri() {
                 searchPlaceholder="Caută în loguri..."
                 filterableColumns={filterableColumns}
                 dateRangeColumn="timestamp"
+                advancedFilters={advancedFilters}
               />
             </div>
           )}
@@ -191,8 +223,11 @@ export default function Loguri() {
             searchPlaceholder="Caută în loguri..."
             filterableColumns={filterableColumns}
             dateRangeColumn="timestamp"
+            advancedFilters={advancedFilters}
             defaultSort={{ id: "timestamp", desc: true }}
             showFilters={false}
+            table={table}
+            setTable={setTable}
           />
         ) : (
           <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3">
@@ -218,6 +253,10 @@ export default function Loguri() {
                       <div className="flex justify-between">
                         <span className="text-sm font-medium text-muted-foreground">Utilizator:</span>
                         <span className="text-sm">{log.utilizator}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm font-medium text-muted-foreground">Categorie:</span>
+                        <span className="text-sm">{log.categorie}</span>
                       </div>
                     </div>
                   </div>

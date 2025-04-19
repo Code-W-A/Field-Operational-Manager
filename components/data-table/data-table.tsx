@@ -25,7 +25,6 @@ import { Card } from "@/components/ui/card"
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
-  searchColumn?: string
   searchPlaceholder?: string
   filterableColumns?: {
     id: string
@@ -49,7 +48,6 @@ interface DataTableProps<TData, TValue> {
 export function DataTable<TData, TValue>({
   columns,
   data,
-  searchColumn,
   searchPlaceholder = "Caută...",
   filterableColumns = [],
   dateRangeColumn,
@@ -67,17 +65,25 @@ export function DataTable<TData, TValue>({
   const [globalFilter, setGlobalFilter] = useState("")
   const [filtersVisible, setFiltersVisible] = useState(false)
 
-  // Adăugăm o funcție de filtrare globală personalizată
-  const fuzzyFilter = (row: any, columnId: string, filterValue: string) => {
-    const value = row.getValue(columnId)
-    if (!value) return false
+  // Funcție de filtrare globală personalizată
+  const fuzzyGlobalFilter = (row: any, columnId: string, filterValue: string, addMeta: any) => {
+    // Ignorăm columnId deoarece căutăm în toate coloanele
+    if (!filterValue) return true
 
-    // Convertim valoarea la string pentru a putea căuta în ea
-    const valueStr = String(value).toLowerCase()
     const searchTerms = filterValue.toLowerCase().split(" ")
 
-    // Verificăm dacă toate termenii de căutare sunt prezenți în valoare
-    return searchTerms.every((term) => valueStr.includes(term))
+    // Obținem toate valorile din toate coloanele vizibile
+    const allValues = columns
+      .filter((col) => col.id !== "actions" && !columnVisibility[col.id as string])
+      .map((col) => {
+        const value = row.getValue(col.id as string)
+        return value !== null && value !== undefined ? String(value).toLowerCase() : ""
+      })
+      .filter(Boolean)
+      .join(" ")
+
+    // Verificăm dacă toate termenii de căutare sunt prezenți în valorile concatenate
+    return searchTerms.every((term) => allValues.includes(term))
   }
 
   const table = useReactTable({
@@ -92,14 +98,11 @@ export function DataTable<TData, TValue>({
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     filterFns: {
-      // Adăugăm un filtru personalizat pentru numărul de lucrări
       numLucrariFilter: (row, columnId, filterValue) => {
         const rowValue = row.getValue(columnId) as number
 
-        // Dacă nu avem valoare de filtru, returnăm true (afișăm toate rândurile)
         if (!filterValue) return true
 
-        // Filtrăm în funcție de valoarea selectată
         if (filterValue === "0") {
           return rowValue === 0 || rowValue === null || rowValue === undefined
         } else if (filterValue === "1-5") {
@@ -110,9 +113,9 @@ export function DataTable<TData, TValue>({
 
         return true
       },
-      fuzzy: fuzzyFilter, // Adăugăm filtrul fuzzy personalizat
+      fuzzy: fuzzyGlobalFilter,
     },
-    globalFilterFn: "fuzzy", // Folosim filtrul fuzzy pentru căutarea globală
+    globalFilterFn: "fuzzy",
     state: {
       sorting,
       columnFilters,
@@ -144,17 +147,15 @@ export function DataTable<TData, TValue>({
       {showFilters && (
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-1 items-center space-x-2">
-            {searchColumn && (
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder={searchPlaceholder}
-                  value={globalFilter}
-                  onChange={(e) => setGlobalFilter(e.target.value)}
-                  className="pl-9 max-w-sm"
-                />
-              </div>
-            )}
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder={searchPlaceholder}
+                value={globalFilter}
+                onChange={(e) => setGlobalFilter(e.target.value)}
+                className="pl-9 max-w-sm"
+              />
+            </div>
             <Button
               variant="outline"
               size="sm"
@@ -243,11 +244,10 @@ export function DataTable<TData, TValue>({
   )
 }
 
-// Adăugăm o componentă Filters la DataTable pentru a putea folosi filtrele independent
+// Actualizăm componenta Filters pentru a folosi căutarea globală
 DataTable.Filters = function DataTableStandaloneFilters<TData>({
   columns,
   data,
-  searchColumn,
   searchPlaceholder = "Caută...",
   filterableColumns = [],
   dateRangeColumn,
@@ -257,6 +257,26 @@ DataTable.Filters = function DataTableStandaloneFilters<TData>({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState("")
   const [filtersVisible, setFiltersVisible] = useState(false)
+
+  // Funcție de filtrare globală personalizată
+  const fuzzyGlobalFilter = (row: any, columnId: string, filterValue: string, addMeta: any) => {
+    if (!filterValue) return true
+
+    const searchTerms = filterValue.toLowerCase().split(" ")
+
+    // Obținem toate valorile din toate coloanele
+    const allValues = columns
+      .filter((col) => col.id !== "actions")
+      .map((col) => {
+        const value = row.getValue(col.id as string)
+        return value !== null && value !== undefined ? String(value).toLowerCase() : ""
+      })
+      .filter(Boolean)
+      .join(" ")
+
+    // Verificăm dacă toate termenii de căutare sunt prezenți în valorile concatenate
+    return searchTerms.every((term) => allValues.includes(term))
+  }
 
   const table = useReactTable({
     data,
@@ -279,7 +299,9 @@ DataTable.Filters = function DataTableStandaloneFilters<TData>({
         }
         return true
       },
+      fuzzy: fuzzyGlobalFilter,
     },
+    globalFilterFn: "fuzzy",
     state: {
       sorting,
       columnFilters,
@@ -289,17 +311,15 @@ DataTable.Filters = function DataTableStandaloneFilters<TData>({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {searchColumn && (
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder={searchPlaceholder}
-            value={globalFilter}
-            onChange={(e) => setGlobalFilter(e.target.value)}
-            className="pl-9 w-full"
-          />
-        </div>
-      )}
+      <div className="relative flex-1 min-w-[200px]">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          placeholder={searchPlaceholder}
+          value={globalFilter}
+          onChange={(e) => setGlobalFilter(e.target.value)}
+          className="pl-9 w-full"
+        />
+      </div>
       <Button variant="outline" size="sm" className="h-9 gap-1" onClick={() => setFiltersVisible(!filtersVisible)}>
         <Filter className="mr-2 h-4 w-4" />
         <span className="sm:inline">Filtre</span>
