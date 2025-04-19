@@ -127,9 +127,21 @@ export default function Dashboard() {
 
   // Funcție pentru a obține lucrările recente pentru afișare în taburi
   const getLucrariRecente = () => {
+    // Dacă utilizatorul este tehnician, filtrăm lucrările la care este alocat
+    if (role === "tehnician" && userData?.displayName) {
+      return [...lucrari]
+        .filter((l) => l.tehnicieni.includes(userData.displayName!))
+        .sort((a, b) => {
+          const dateA = a.dataEmiterii.split(".").reverse().join("")
+          const dateB = b.dataEmiterii.split(".").reverse().join("")
+          return dateB.localeCompare(dateA)
+        })
+        .slice(0, 5)
+    }
+
+    // Pentru admin și dispecer, afișăm toate lucrările
     return [...lucrari]
       .sort((a, b) => {
-        // Sortăm după data emiterii, presupunând că este în format "dd.MM.yyyy"
         const dateA = a.dataEmiterii.split(".").reverse().join("")
         const dateB = b.dataEmiterii.split(".").reverse().join("")
         return dateB.localeCompare(dateA)
@@ -137,14 +149,29 @@ export default function Dashboard() {
       .slice(0, 5)
   }
 
-  // Funcție pentru a obține lucrările în așteptare
+  // Modificăm și funcțiile pentru lucrările în așteptare și în curs
   const getLucrariAsteptare = () => {
-    return lucrari.filter((l) => l.statusLucrare.toLowerCase() === "în așteptare").slice(0, 5)
+    // Filtrăm lucrările în așteptare
+    const filteredLucrari =
+      role === "tehnician" && userData?.displayName
+        ? lucrari.filter(
+            (l) => l.statusLucrare.toLowerCase() === "în așteptare" && l.tehnicieni.includes(userData.displayName!),
+          )
+        : lucrari.filter((l) => l.statusLucrare.toLowerCase() === "în așteptare")
+
+    return filteredLucrari.slice(0, 5)
   }
 
-  // Funcție pentru a obține lucrările în curs
   const getLucrariInCurs = () => {
-    return lucrari.filter((l) => l.statusLucrare.toLowerCase() === "în curs").slice(0, 5)
+    // Filtrăm lucrările în curs
+    const filteredLucrari =
+      role === "tehnician" && userData?.displayName
+        ? lucrari.filter(
+            (l) => l.statusLucrare.toLowerCase() === "în curs" && l.tehnicieni.includes(userData.displayName!),
+          )
+        : lucrari.filter((l) => l.statusLucrare.toLowerCase() === "în curs")
+
+    return filteredLucrari.slice(0, 5)
   }
 
   return (

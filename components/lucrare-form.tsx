@@ -18,6 +18,9 @@ import type { Client, PersoanaContact } from "@/lib/firebase/firestore"
 import { db } from "@/lib/firebase/config"
 // Importăm componenta ContractSelect
 import { ContractSelect } from "./contract-select"
+// Importăm componenta ClientForm
+import { ClientForm } from "./client-form"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 // Define the Lucrare type
 interface Lucrare {
@@ -471,6 +474,16 @@ export function LucrareForm({
             </Button>
           </div>
         </div>
+
+        {/* Dialog pentru adăugarea unui client nou */}
+        <Dialog open={isAddClientDialogOpen} onOpenChange={setIsAddClientDialogOpen}>
+          <DialogContent className="w-[calc(100%-2rem)] max-w-[600px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Adaugă Client Nou</DialogTitle>
+            </DialogHeader>
+            <ClientForm onSuccess={handleClientAdded} onCancel={() => setIsAddClientDialogOpen(false)} />
+          </DialogContent>
+        </Dialog>
 
         {selectedClient && (
           <div className="space-y-2">

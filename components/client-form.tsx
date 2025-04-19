@@ -17,8 +17,6 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
   const [formData, setFormData] = useState({
     nume: "",
     adresa: "",
-    persoanaContact: "",
-    telefon: "",
     email: "",
   })
 
@@ -67,8 +65,6 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
 
       // Verificăm câmpurile obligatorii
       if (!formData.nume) errors.push("nume")
-      if (!formData.persoanaContact) errors.push("persoanaContact")
-      if (!formData.telefon) errors.push("telefon")
 
       // Verificăm dacă cel puțin o persoană de contact are nume și telefon
       const hasValidContact = persoaneContact.some((contact) => contact.nume && contact.telefon)
@@ -87,8 +83,13 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
       // Filtrăm persoanele de contact goale
       const filteredContacts = persoaneContact.filter((contact) => contact.nume && contact.telefon)
 
+      // Folosim prima persoană de contact ca persoană de contact principală pentru compatibilitate
+      const primaryContact = filteredContacts.length > 0 ? filteredContacts[0] : null
+
       const newClient = {
         ...formData,
+        persoanaContact: primaryContact ? primaryContact.nume : "",
+        telefon: primaryContact ? primaryContact.telefon : "",
         numarLucrari: 0,
         persoaneContact: filteredContacts,
       }
@@ -143,33 +144,6 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
         <Input id="adresa" placeholder="Introduceți adresa" value={formData.adresa} onChange={handleInputChange} />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <label htmlFor="persoanaContact" className="text-sm font-medium">
-            Persoană Contact Principal *
-          </label>
-          <Input
-            id="persoanaContact"
-            placeholder="Nume persoană contact"
-            value={formData.persoanaContact}
-            onChange={handleInputChange}
-            className={hasError("persoanaContact") ? errorStyle : ""}
-          />
-        </div>
-        <div className="space-y-2">
-          <label htmlFor="telefon" className="text-sm font-medium">
-            Telefon Principal *
-          </label>
-          <Input
-            id="telefon"
-            placeholder="Număr de telefon"
-            value={formData.telefon}
-            onChange={handleInputChange}
-            className={hasError("telefon") ? errorStyle : ""}
-          />
-        </div>
-      </div>
-
       <div className="space-y-2">
         <label htmlFor="email" className="text-sm font-medium">
           Email
@@ -186,7 +160,7 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
       {/* Secțiunea pentru persoane de contact */}
       <div className="space-y-4 mt-6 border-t pt-4">
         <div className="flex justify-between items-center">
-          <h3 className="text-md font-medium">Persoane de Contact</h3>
+          <h3 className="text-md font-medium">Persoane de Contact *</h3>
           <Button type="button" variant="outline" size="sm" onClick={handleAddContact} className="flex items-center">
             <Plus className="h-4 w-4 mr-1" /> Adaugă
           </Button>

@@ -8,7 +8,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -21,26 +20,21 @@ import { useAuth } from "@/contexts/AuthContext"
 import { useClientLucrari } from "@/hooks/use-client-lucrari"
 import { ClientEditForm } from "@/components/client-edit-form"
 import { useSearchParams, useRouter } from "next/navigation"
-import { type Client, addClient, deleteClient } from "@/lib/firebase/firestore"
+import { type Client, deleteClient } from "@/lib/firebase/firestore"
 import { DataTable } from "@/components/data-table/data-table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { Badge } from "@/components/ui/badge"
+import { ClientForm } from "@/components/client-form"
 
 export default function Clienti() {
   const { userData } = useAuth()
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [formData, setFormData] = useState({
-    nume: "",
-    adresa: "",
-    persoanaContact: "",
-    telefon: "",
-    email: "",
-  })
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  // Eliminăm state-ul formData și funcțiile asociate
+  // Înlocuim:
+  // Cu:
   const [error, setError] = useState<string | null>(null)
 
   const searchParams = useSearchParams()
@@ -88,50 +82,9 @@ export default function Clienti() {
     }
   }, [editId])
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { id, value } = e.target
-    setFormData((prev) => ({ ...prev, [id]: value }))
-  }
+  // Eliminăm funcția handleInputChange
 
-  const handleSubmit = async () => {
-    try {
-      setIsSubmitting(true)
-      setError(null)
-
-      if (!formData.nume || !formData.persoanaContact || !formData.telefon) {
-        setError("Vă rugăm să completați toate câmpurile obligatorii")
-        setIsSubmitting(false)
-        return
-      }
-
-      const newClient: Omit<Client, "id"> = {
-        ...formData,
-        numarLucrari: 0,
-      }
-
-      const clientId = await addClient(newClient)
-      console.log("Client adăugat cu ID:", clientId)
-
-      setIsAddDialogOpen(false)
-
-      // Resetăm formularul
-      setFormData({
-        nume: "",
-        adresa: "",
-        persoanaContact: "",
-        telefon: "",
-        email: "",
-      })
-
-      // Reîmprospătăm datele după adăugare
-      refreshData()
-    } catch (err) {
-      console.error("Eroare la adăugarea clientului:", err)
-      setError("A apărut o eroare la adăugarea clientului. Încercați din nou.")
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
+  // Eliminăm funcția handleSubmit
 
   const handleDelete = async (id: string) => {
     if (window.confirm("Sunteți sigur că doriți să ștergeți acest client?")) {
@@ -281,94 +234,18 @@ export default function Clienti() {
               <Plus className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Adaugă</span> Client
             </Button>
           </DialogTrigger>
-          <DialogContent className="w-[calc(100%-2rem)] max-w-[500px]">
+          <DialogContent className="w-[calc(100%-2rem)] max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Adaugă Client Nou</DialogTitle>
               <DialogDescription>Completați detaliile pentru a adăuga un client nou</DialogDescription>
             </DialogHeader>
-            {error && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <label htmlFor="nume" className="text-sm font-medium">
-                  Nume Companie
-                </label>
-                <Input
-                  id="nume"
-                  placeholder="Introduceți numele companiei"
-                  value={formData.nume}
-                  onChange={handleInputChange}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="adresa" className="text-sm font-medium">
-                  Adresă
-                </label>
-                <Input
-                  id="adresa"
-                  placeholder="Introduceți adresa"
-                  value={formData.adresa}
-                  onChange={handleInputChange}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <label htmlFor="persoanaContact" className="text-sm font-medium">
-                    Persoană Contact
-                  </label>
-                  <Input
-                    id="persoanaContact"
-                    placeholder="Nume persoană contact"
-                    value={formData.persoanaContact}
-                    onChange={handleInputChange}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="telefon" className="text-sm font-medium">
-                    Telefon
-                  </label>
-                  <Input
-                    id="telefon"
-                    placeholder="Număr de telefon"
-                    value={formData.telefon}
-                    onChange={handleInputChange}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="email" className="text-sm font-medium">
-                  Email
-                </label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="Adresă de email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                />
-              </div>
-            </div>
-            <DialogFooter className="flex-col gap-2 sm:flex-row">
-              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                Anulează
-              </Button>
-              <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSubmit} disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
-                  </>
-                ) : (
-                  "Salvează"
-                )}
-              </Button>
-            </DialogFooter>
+            <ClientForm
+              onSuccess={(clientName) => {
+                setIsAddDialogOpen(false)
+                refreshData() // Reîmprospătăm datele după adăugare
+              }}
+              onCancel={() => setIsAddDialogOpen(false)}
+            />
           </DialogContent>
         </Dialog>
       </DashboardHeader>

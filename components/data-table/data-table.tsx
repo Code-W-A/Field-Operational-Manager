@@ -22,7 +22,7 @@ import { DataTableViewOptions } from "./data-table-view-options"
 import { DataTableFilters } from "./data-table-filters"
 import { Card } from "@/components/ui/card"
 
-// Modificăm interfața DataTableProps pentru a adăuga proprietatea showFilters
+// Modificăm interfața DataTableProps pentru a adăuga proprietatea advancedFilters
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
@@ -34,9 +34,15 @@ interface DataTableProps<TData, TValue> {
     options: { label: string; value: string }[]
   }[]
   dateRangeColumn?: string
+  advancedFilters?: {
+    id: string
+    title: string
+    type: "text" | "select" | "date" | "boolean" | "number"
+    options?: { label: string; value: string }[]
+  }[]
   defaultSort?: { id: string; desc: boolean }
   onRowClick?: (row: TData) => void
-  showFilters?: boolean // Adăugăm această proprietate
+  showFilters?: boolean
 }
 
 // Modificăm funcția DataTable pentru a utiliza proprietatea showFilters
@@ -47,6 +53,7 @@ export function DataTable<TData, TValue>({
   searchPlaceholder = "Caută...",
   filterableColumns = [],
   dateRangeColumn,
+  advancedFilters,
   defaultSort,
   onRowClick,
   showFilters = true, // Valoarea implicită este true
@@ -57,6 +64,19 @@ export function DataTable<TData, TValue>({
   const [rowSelection, setRowSelection] = useState({})
   const [globalFilter, setGlobalFilter] = useState("")
   const [filtersVisible, setFiltersVisible] = useState(false)
+
+  // Adăugăm o funcție de filtrare globală personalizată
+  const fuzzyFilter = (row: any, columnId: string, filterValue: string) => {
+    const value = row.getValue(columnId)
+    if (!value) return false
+
+    // Convertim valoarea la string pentru a putea căuta în ea
+    const valueStr = String(value).toLowerCase()
+    const searchTerms = filterValue.toLowerCase().split(" ")
+
+    // Verificăm dacă toate termenii de căutare sunt prezenți în valoare
+    return searchTerms.every((term) => valueStr.includes(term))
+  }
 
   const table = useReactTable({
     data,
@@ -88,7 +108,9 @@ export function DataTable<TData, TValue>({
 
         return true
       },
+      fuzzy: fuzzyFilter, // Adăugăm filtrul fuzzy personalizat
     },
+    globalFilterFn: "fuzzy", // Folosim filtrul fuzzy pentru căutarea globală
     state: {
       sorting,
       columnFilters,
@@ -134,7 +156,12 @@ export function DataTable<TData, TValue>({
 
       {filtersVisible && showFilters && (
         <Card className="p-4">
-          <DataTableFilters table={table} filterableColumns={filterableColumns} dateRangeColumn={dateRangeColumn} />
+          <DataTableFilters
+            table={table}
+            filterableColumns={filterableColumns}
+            dateRangeColumn={dateRangeColumn}
+            advancedFilters={advancedFilters}
+          />
         </Card>
       )}
 
@@ -204,6 +231,7 @@ DataTable.Filters = function DataTableStandaloneFilters<TData>({
   searchPlaceholder = "Caută...",
   filterableColumns = [],
   dateRangeColumn,
+  advancedFilters,
 }: Omit<DataTableProps<TData, any>, "onRowClick" | "defaultSort" | "showFilters">) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -263,7 +291,12 @@ DataTable.Filters = function DataTableStandaloneFilters<TData>({
 
       {filtersVisible && (
         <Card className="p-4 w-full mt-2">
-          <DataTableFilters table={table} filterableColumns={filterableColumns} dateRangeColumn={dateRangeColumn} />
+          <DataTableFilters
+            table={table}
+            filterableColumns={filterableColumns}
+            dateRangeColumn={dateRangeColumn}
+            advancedFilters={advancedFilters}
+          />
         </Card>
       )}
     </div>

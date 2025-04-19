@@ -10,9 +10,10 @@ import { Label } from "@/components/ui/label"
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 
+// Modificăm interfața pentru a include proprietatea number
 interface ContractSelectProps {
   value: string
-  onChange: (value: string, contractNumber?: string) => void
+  onChange: (value: string, number?: string) => void
   hasError?: boolean
   errorStyle?: string
 }
@@ -71,7 +72,7 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
       setIsSubmitting(true)
 
       // Adăugăm contractul în Firestore
-      const docRef = await addDoc(collection(db, "contracts"), {
+      await addDoc(collection(db, "contracts"), {
         name: newContractName,
         number: newContractNumber,
         createdAt: serverTimestamp(),
@@ -81,9 +82,6 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
       setNewContractName("")
       setNewContractNumber("")
       setIsAddDialogOpen(false)
-
-      // Selectăm automat noul contract adăugat
-      onChange(docRef.id, newContractNumber)
     } catch (error) {
       console.error("Eroare la adăugarea contractului:", error)
     } finally {
@@ -95,9 +93,9 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
     <div className="flex gap-2">
       <Select
         value={value}
-        onValueChange={(value) => {
-          const selectedContract = contracts.find((contract) => contract.id === value)
-          onChange(value, selectedContract?.number)
+        onValueChange={(selectedValue) => {
+          const selectedContract = contracts.find((contract) => contract.id === selectedValue)
+          onChange(selectedValue, selectedContract?.number)
         }}
       >
         <SelectTrigger id="contract" className={`flex-1 ${hasError ? errorStyle : ""}`}>

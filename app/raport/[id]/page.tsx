@@ -54,6 +54,29 @@ export default function RaportPage({ params }: { params: { id: string } }) {
     fetchLucrare()
   }, [params.id])
 
+  // Adăugăm verificarea accesului pentru tehnicieni
+  // Adăugăm acest cod după încărcarea lucrării
+
+  // Verificăm dacă tehnicianul are acces la această lucrare
+  useEffect(() => {
+    const checkAccess = async () => {
+      if (
+        !loading &&
+        lucrare &&
+        userData?.role === "tehnician" &&
+        userData?.displayName &&
+        lucrare.tehnicieni && // Ensure lucrare.tehnicieni exists before using includes
+        !lucrare.tehnicieni.includes(userData.displayName)
+      ) {
+        // Tehnicianul nu este alocat la această lucrare, redirecționăm la dashboard
+        alert("Nu aveți acces la raportul acestei lucrări.")
+        router.push("/dashboard")
+      }
+    }
+
+    checkAccess()
+  }, [loading, lucrare, userData, router])
+
   const clearTechSignature = useCallback(() => {
     if (techSignatureRef.current) {
       techSignatureRef.current.clear()

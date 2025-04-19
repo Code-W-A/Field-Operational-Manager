@@ -18,6 +18,7 @@ import { TehnicianInterventionForm } from "@/components/tehnician-intervention-f
 import { useAuth } from "@/contexts/AuthContext"
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { useStableCallback } from "@/lib/utils/hooks"
+import { ContractDisplay } from "@/components/contract-display"
 
 export default function LucrarePage({ params }: { params: { id: string } }) {
   const router = useRouter()
@@ -48,6 +49,25 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
 
     fetchLucrare()
   }, [params.id])
+
+  // Verificăm dacă tehnicianul are acces la această lucrare
+  useEffect(() => {
+    if (
+      !loading &&
+      lucrare &&
+      userData?.role === "tehnician" &&
+      userData?.displayName &&
+      !lucrare.tehnicieni.includes(userData.displayName)
+    ) {
+      // Tehnicianul nu este alocat la această lucrare, redirecționăm la dashboard
+      toast({
+        title: "Acces restricționat",
+        description: "Nu aveți acces la această lucrare.",
+        variant: "destructive",
+      })
+      router.push("/dashboard")
+    }
+  }, [loading, lucrare, userData, router])
 
   // Funcție pentru a actualiza o lucrare
   const handleUpdateLucrare = useStableCallback(async (data: Partial<Lucrare>) => {
@@ -179,7 +199,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                 {lucrare.tipLucrare === "Intervenție în contract" && (
                   <div>
                     <p className="text-sm font-medium">Contract:</p>
-                    <p className="text-sm text-gray-500">{lucrare.contractNumber || "N/A"}</p>
+                    <ContractDisplay contractId={lucrare.contract} />
                   </div>
                 )}
                 {lucrare.defectReclamat && (

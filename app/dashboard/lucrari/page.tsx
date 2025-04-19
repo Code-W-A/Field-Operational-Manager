@@ -4,7 +4,7 @@ import { DialogTrigger } from "@/components/ui/dialog"
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
@@ -31,6 +31,51 @@ import { DataTable } from "@/components/data-table/data-table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+// Corectăm importul pentru db
+import { doc, getDoc } from "firebase/firestore"
+import { db } from "@/lib/firebase/config" // Importăm direct din config în loc de firebase.ts
+
+// Importăm componenta ContractDisplay
+import { DataTableViewOptions } from "@/components/data-table/data-table-view-options"
+
+const ContractDisplay: React.FC<{ contractId: string | undefined }> = ({ contractId }) => {
+  const [contractNumber, setContractNumber] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchContract = async () => {
+      if (!contractId) {
+        setContractNumber(null)
+        setLoading(false)
+        return
+      }
+
+      try {
+        const contractRef = doc(db, "contracts", contractId)
+        const contractSnap = await getDoc(contractRef)
+
+        if (contractSnap.exists()) {
+          setContractNumber(contractSnap.data().number || null)
+        } else {
+          setContractNumber(null)
+        }
+      } catch (error) {
+        console.error("Eroare la încărcarea contractului:", error)
+        setContractNumber(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchContract()
+  }, [contractId])
+
+  if (loading) {
+    return <span className="text-gray-400">Se încarcă...</span>
+  }
+
+  return <span>{contractNumber || "N/A"}</span>
+}
 
 export default function Lucrari() {
   const router = useRouter()
@@ -67,6 +112,14 @@ export default function Lucrari() {
     loading,
     error: fetchError,
   } = useFirebaseCollection<Lucrare>("lucrari", [orderBy("dataEmiterii", "desc")])
+
+  // Filtrăm lucrările pentru tehnicieni
+  const filteredLucrari = useMemo(() => {
+    if (userData?.role === "tehnician" && userData?.displayName) {
+      return lucrari.filter((lucrare) => lucrare.tehnicieni.includes(userData.displayName!))
+    }
+    return lucrari
+  }, [lucrari, userData?.role, userData?.displayName])
 
   // Detectăm dacă suntem pe un dispozitiv mobil
   const isMobile = useMediaQuery("(max-width: 768px)")
@@ -338,14 +391,17 @@ export default function Lucrari() {
     {
       accessorKey: "dataEmiterii",
       header: "Data Emiterii",
+      enableHiding: true,
     },
     {
       accessorKey: "dataInterventie",
       header: "Data solicitată intervenție",
+      enableHiding: true,
     },
     {
       accessorKey: "tipLucrare",
       header: "Tip Lucrare",
+      enableHiding: true,
       cell: ({ row }) => (
         <Badge variant="outline" className={getTipLucrareColor(row.original.tipLucrare)}>
           {row.original.tipLucrare}
@@ -356,6 +412,7 @@ export default function Lucrari() {
     {
       accessorKey: "defectReclamat",
       header: "Defect reclamat",
+      enableHiding: true,
       cell: ({ row }) => (
         <div className="max-w-[200px] truncate" title={row.original.defectReclamat}>
           {row.original.defectReclamat || "-"}
@@ -366,14 +423,16 @@ export default function Lucrari() {
     {
       accessorKey: "contract",
       header: "Contract",
+      enableHiding: true,
       cell: ({ row }) => {
         if (row.original.tipLucrare !== "Intervenție în contract") return null
-        return <span>{row.original.contractNumber || "N/A"}</span>
+        return <ContractDisplay contractId={row.original.contract} />
       },
     },
     {
       accessorKey: "tehnicieni",
       header: "Tehnicieni",
+      enableHiding: true,
       cell: ({ row }) => (
         <div className="flex flex-wrap gap-1">
           {row.original.tehnicieni.map((tehnician: string, index: number) => (
@@ -387,14 +446,17 @@ export default function Lucrari() {
     {
       accessorKey: "client",
       header: "Client",
+      enableHiding: true,
     },
     {
       accessorKey: "locatie",
       header: "Echipament",
+      enableHiding: true,
     },
     {
       accessorKey: "descriere",
       header: "Descriere",
+      enableHiding: true,
       cell: ({ row }) => (
         <div className="max-w-[200px] truncate" title={row.original.descriere}>
           {row.original.descriere}
@@ -404,14 +466,17 @@ export default function Lucrari() {
     {
       accessorKey: "persoanaContact",
       header: "Persoană Contact",
+      enableHiding: true,
     },
     {
       accessorKey: "telefon",
       header: "Telefon",
+      enableHiding: true,
     },
     {
       accessorKey: "statusLucrare",
       header: "Status Lucrare",
+      enableHiding: true,
       cell: ({ row }) => (
         <Badge className={getStatusColor(row.original.statusLucrare)}>{row.original.statusLucrare}</Badge>
       ),
@@ -419,12 +484,16 @@ export default function Lucrari() {
     {
       accessorKey: "statusFacturare",
       header: "Status Facturare",
+      enableHiding: true,
       cell: ({ row }) => (
         <Badge className={getFacturaColor(row.original.statusFacturare)}>{row.original.statusFacturare}</Badge>
       ),
+      enableSorting: userData?.role !== "tehnician",
+      enableColumnFilter: userData?.role !== "tehnician",
     },
     {
       id: "actions",
+      enableHiding: false,
       cell: ({ row }) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -453,6 +522,20 @@ export default function Lucrari() {
     },
   ]
 
+  // Adăugăm cod pentru a ascunde coloana de status facturare pentru tehnicieni
+  // Adăugăm acest cod după definirea coloanelor și înainte de definirea filterableColumns
+  const [table, setTable] = useState(null)
+
+  // Ascundem coloana de status facturare pentru tehnicienii
+  useEffect(() => {
+    if (userData?.role === "tehnician") {
+      const statusFacturareColumn = table?.getColumn("statusFacturare")
+      if (statusFacturareColumn) {
+        statusFacturareColumn.toggleVisibility(false)
+      }
+    }
+  }, [table, userData?.role])
+
   // Definim opțiunile de filtrare pentru DataTable
   const filterableColumns = [
     {
@@ -468,10 +551,13 @@ export default function Lucrari() {
       id: "tipLucrare",
       title: "Tip Lucrare",
       options: [
-        { label: "Contra cost", value: "contra cost" },
-        { label: "În garanție", value: "în garanție" },
-        { label: "Pregătire instalare", value: "pregătire instalare" },
-        { label: "Instalare", value: "instalare" },
+        { label: "Intervenție contra cost", value: "Intervenție contra cost" },
+        { label: "Pregătire în atelier", value: "Pregătire în atelier" },
+        { label: "Instalare", value: "Instalare" },
+        { label: "Intervenție în contract", value: "Intervenție în contract" },
+        { label: "Re-Intervenție", value: "Re-Intervenție" },
+        { label: "Intervenție garanție", value: "Intervenție garanție" },
+        { label: "Predare lucrare", value: "Predare lucrare" },
       ],
     },
     {
@@ -482,6 +568,45 @@ export default function Lucrari() {
         { label: "Nefacturat", value: "nefacturat" },
         { label: "Nu se facturează", value: "nu se facturează" },
       ],
+    },
+  ]
+
+  // Adăugăm filtre avansate
+  const advancedFilters = [
+    {
+      id: "client",
+      title: "Client",
+      type: "text",
+    },
+    {
+      id: "persoanaContact",
+      title: "Persoană Contact",
+      type: "text",
+    },
+    {
+      id: "telefon",
+      title: "Telefon",
+      type: "text",
+    },
+    {
+      id: "locatie",
+      title: "Echipament",
+      type: "text",
+    },
+    {
+      id: "descriere",
+      title: "Descriere",
+      type: "text",
+    },
+    {
+      id: "defectReclamat",
+      title: "Defect Reclamat",
+      type: "text",
+    },
+    {
+      id: "tehnicieni",
+      title: "Tehnicieni",
+      type: "text",
     },
   ]
 
@@ -588,15 +713,17 @@ export default function Lucrari() {
           </div>
 
           {!loading && !fetchError && (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <DataTable.Filters
                 columns={columns}
-                data={lucrari}
-                searchColumn="client"
-                searchPlaceholder="Caută după client, descriere..."
+                data={filteredLucrari}
+                searchColumn=""
+                searchPlaceholder="Caută în toate câmpurile..."
                 filterableColumns={filterableColumns}
                 dateRangeColumn="dataInterventie"
+                advancedFilters={advancedFilters}
               />
+              {table && <DataTableViewOptions table={table} />}
             </div>
           )}
         </div>
@@ -616,17 +743,20 @@ export default function Lucrari() {
         ) : activeTab === "tabel" ? (
           <DataTable
             columns={columns}
-            data={lucrari}
-            searchColumn="client"
-            searchPlaceholder="Caută după client, descriere..."
+            data={filteredLucrari}
+            searchColumn="" // Lăsăm gol pentru a folosi globalFilter
+            searchPlaceholder="Caută în toate câmpurile..."
             filterableColumns={filterableColumns}
             dateRangeColumn="dataInterventie"
+            advancedFilters={advancedFilters}
             defaultSort={{ id: "dataEmiterii", desc: true }}
             showFilters={false}
+            table={table}
+            setTable={setTable}
           />
         ) : (
           <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3">
-            {lucrari.map((lucrare) => (
+            {filteredLucrari.map((lucrare) => (
               <Card key={lucrare.id} className="overflow-hidden">
                 <CardContent className="p-0">
                   <div className="flex items-center justify-between border-b p-4">
@@ -655,7 +785,7 @@ export default function Lucrari() {
                       {lucrare.tipLucrare === "Intervenție în contract" && (
                         <div className="flex justify-between">
                           <span className="text-sm font-medium text-muted-foreground">Contract:</span>
-                          <span className="text-sm">{lucrare.contractNumber || "N/A"}</span>
+                          <ContractDisplay contractId={lucrare.contract} />
                         </div>
                       )}
                       <div className="flex justify-between">
@@ -692,7 +822,9 @@ export default function Lucrari() {
                       </p>
                     </div>
                     <div className="flex items-center justify-between">
-                      <Badge className={getFacturaColor(lucrare.statusFacturare)}>{lucrare.statusFacturare}</Badge>
+                      {userData?.role !== "tehnician" && (
+                        <Badge className={getFacturaColor(lucrare.statusFacturare)}>{lucrare.statusFacturare}</Badge>
+                      )}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="gap-1">

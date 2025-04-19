@@ -33,6 +33,9 @@ export function DataTableViewOptions<TData>({ table }: DataTableViewOptionsProps
           .getAllColumns()
           .filter((column) => typeof column.accessorFn !== "undefined" && column.getCanHide())
           .map((column) => {
+            // Obținem header-ul coloanei pentru afișare
+            const headerText = typeof column.columnDef.header === "string" ? column.columnDef.header : column.id
+
             return (
               <DropdownMenuCheckboxItem
                 key={column.id}
@@ -40,7 +43,7 @@ export function DataTableViewOptions<TData>({ table }: DataTableViewOptionsProps
                 checked={column.getIsVisible()}
                 onCheckedChange={(value) => column.toggleVisibility(!!value)}
               >
-                {column.id}
+                {headerText}
               </DropdownMenuCheckboxItem>
             )
           })}
