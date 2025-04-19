@@ -11,7 +11,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { format } from "date-fns"
 import { ro } from "date-fns/locale"
-import { CalendarIcon, Loader2, Clock } from "lucide-react"
+import { CalendarIcon, Loader2, Clock, Plus } from "lucide-react"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { orderBy, where, query, collection, onSnapshot } from "firebase/firestore"
 import type { Client, PersoanaContact } from "@/lib/firebase/firestore"
@@ -441,6 +441,72 @@ export function LucrareForm({
             </Select>
             <p className="text-xs text-muted-foreground">Puteți selecta mai mulți tehnicieni</p>
           </div>
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="client" className="text-sm font-medium">
+            Client *
+          </label>
+          <div className="flex gap-2">
+            <Select value={formData.client} onValueChange={(value) => handleSelectChange("client", value)}>
+              <SelectTrigger id="client" className={`flex-1 ${hasError("client") ? errorStyle : ""}`}>
+                <SelectValue placeholder={loadingClienti ? "Se încarcă..." : "Selectați clientul"} />
+              </SelectTrigger>
+              <SelectContent>
+                {clienti.map((client) => (
+                  <SelectItem key={client.id} value={client.nume}>
+                    {client.nume}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="icon" onClick={() => setIsAddClientDialogOpen(true)}>
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        {selectedClient && (
+          <div className="space-y-2">
+            <label htmlFor="persoanaContact" className="text-sm font-medium">
+              Persoană Contact *
+            </label>
+            <Select
+              value={formData.persoanaContact}
+              onValueChange={(value) => {
+                const contact = persoaneContact.find((c) => c.nume === value)
+                if (contact) {
+                  handleContactSelect(contact)
+                }
+              }}
+            >
+              <SelectTrigger id="persoanaContact" className={hasError("persoanaContact") ? errorStyle : ""}>
+                <SelectValue placeholder="Selectați persoana de contact" />
+              </SelectTrigger>
+              <SelectContent>
+                {persoaneContact.map((contact, index) => (
+                  <SelectItem key={index} value={contact.nume}>
+                    {contact.nume} {contact.functie ? `(${contact.functie})` : ""}{" "}
+                    {contact.telefon ? `- ${contact.telefon}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Selectați persoana de contact pentru această lucrare</p>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <label htmlFor="telefon" className="text-sm font-medium">
+            Telefon Contact *
+          </label>
+          <Input
+            id="telefon"
+            placeholder="Număr de telefon"
+            value={formData.telefon}
+            onChange={handleInputChange}
+            className={hasError("telefon") ? errorStyle : ""}
+          />
         </div>
 
         <div className="space-y-2">
