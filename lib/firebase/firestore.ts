@@ -31,6 +31,10 @@ export interface Lucrare {
   statusLucrare: string
   statusFacturare: string
   contract?: string
+  defectReclamat?: string
+  descriereInterventie?: string
+  semnaturaTehnician?: string
+  semnaturaBeneficiar?: string
   createdAt?: Timestamp
   updatedAt?: Timestamp
   createdBy?: string

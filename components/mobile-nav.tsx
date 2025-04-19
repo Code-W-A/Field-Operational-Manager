@@ -17,6 +17,7 @@ export function MobileNav() {
 
   // Verificăm dacă utilizatorul are rolul de admin
   const isAdmin = userData?.role === "admin"
+  const isTechnician = userData?.role === "technician"
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -55,17 +56,19 @@ export function MobileNav() {
             <ClipboardList className="h-5 w-5" />
             <span>Lucrări</span>
           </Link>
-          <Link
-            href="/dashboard/clienti"
-            onClick={() => setOpen(false)}
-            className={cn(
-              "flex items-center gap-2 rounded-md px-3 py-3 text-sm font-medium transition-colors",
-              pathname === "/dashboard/clienti" ? "bg-blue-100 text-blue-900" : "hover:bg-muted",
-            )}
-          >
-            <Users className="h-5 w-5" />
-            <span>Clienți</span>
-          </Link>
+          {!isTechnician && (
+            <Link
+              href="/dashboard/clienti"
+              onClick={() => setOpen(false)}
+              className={cn(
+                "flex items-center gap-2 rounded-md px-3 py-3 text-sm font-medium transition-colors",
+                pathname === "/dashboard/clienti" ? "bg-blue-100 text-blue-900" : "hover:bg-muted",
+              )}
+            >
+              <Users className="h-5 w-5" />
+              <span>Clienți</span>
+            </Link>
+          )}
           {isAdmin && (
             <>
               <Link

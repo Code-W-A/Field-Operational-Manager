@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import type { UserRole } from "@/lib/firebase/auth"
 
@@ -15,6 +15,7 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const { user, userData, loading } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
 
   useEffect(() => {
     if (!loading) {
@@ -31,9 +32,13 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
       } else if (allowedRoles && userData && !allowedRoles.includes(userData.role)) {
         console.log("User does not have required role, redirecting to dashboard")
         router.push("/dashboard")
+      } else if (userData?.role === "technician" && pathname?.includes("/dashboard/clienti")) {
+        // Prevent technicians from accessing the Clients page
+        console.log("Technician attempting to access Clients page, redirecting to dashboard")
+        router.push("/dashboard")
       }
     }
-  }, [user, userData, loading, router, allowedRoles])
+  }, [user, userData, loading, router, allowedRoles, pathname])
 
   if (loading) {
     return (

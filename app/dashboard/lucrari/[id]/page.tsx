@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
@@ -9,12 +9,15 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/components/ui/use-toast"
 import { ChevronLeft, FileText, Pencil, Trash2 } from "lucide-react"
 import { getLucrareById, updateLucrare, deleteLucrare } from "@/lib/firebase/firestore"
 import { LucrareForm } from "@/components/lucrare-form"
+import { TehnicianInterventionForm } from "@/components/tehnician-intervention-form"
 import { useAuth } from "@/contexts/AuthContext"
 import type { Lucrare } from "@/lib/firebase/firestore"
+import { useStableCallback } from "@/lib/utils/hooks"
 
 export default function LucrarePage({ params }: { params: { id: string } }) {
   const router = useRouter()
@@ -23,6 +26,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
   const [lucrare, setLucrare] = useState<Lucrare | null>(null)
   const [loading, setLoading] = useState(true)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState("detalii")
 
   // Încărcăm datele lucrării
   useEffect(() => {
@@ -46,7 +50,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
   }, [params.id])
 
   // Funcție pentru a actualiza o lucrare
-  const handleUpdateLucrare = async (data: Partial<Lucrare>) => {
+  const handleUpdateLucrare = useStableCallback(async (data: Partial<Lucrare>) => {
     if (!lucrare?.id) return
 
     try {
@@ -68,10 +72,10 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
         variant: "destructive",
       })
     }
-  }
+  })
 
   // Funcție pentru a șterge o lucrare
-  const handleDeleteLucrare = async () => {
+  const handleDeleteLucrare = useStableCallback(async () => {
     if (!lucrare?.id) return
 
     try {
@@ -89,12 +93,22 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
         variant: "destructive",
       })
     }
-  }
+  })
 
   // Funcție pentru a genera raportul
-  const handleGenerateReport = () => {
+  const handleGenerateReport = useCallback(() => {
     router.push(`/raport/${params.id}`)
-  }
+  }, [router, params.id])
+
+  // Funcție pentru a reîncărca datele lucrării
+  const refreshLucrare = useStableCallback(async () => {
+    try {
+      const data = await getLucrareById(params.id)
+      setLucrare(data)
+    } catch (error) {
+      console.error("Eroare la reîncărcarea lucrării:", error)
+    }
+  })
 
   if (loading) {
     return (
@@ -134,119 +148,153 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
         </div>
       </DashboardHeader>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Detalii lucrare</CardTitle>
-            <CardDescription>Informații despre lucrare</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm font-medium">Data emiterii:</p>
-                <p className="text-sm text-gray-500">{lucrare.dataEmiterii}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium">Data intervenție:</p>
-                <p className="text-sm text-gray-500">{lucrare.dataInterventie}</p>
-              </div>
-            </div>
-            <div>
-              <p className="text-sm font-medium">Tip lucrare:</p>
-              <p className="text-sm text-gray-500">{lucrare.tipLucrare}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium">Locație:</p>
-              <p className="text-sm text-gray-500">{lucrare.locatie}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium">Descriere:</p>
-              <p className="text-sm text-gray-500">{lucrare.descriere || "Fără descriere"}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium">Status lucrare:</p>
-              <Badge
-                variant={
-                  lucrare.statusLucrare.toLowerCase() === "în așteptare"
-                    ? "warning"
-                    : lucrare.statusLucrare.toLowerCase() === "în curs"
-                      ? "default"
-                      : "success"
-                }
-              >
-                {lucrare.statusLucrare}
-              </Badge>
-            </div>
-            {role !== "tehnician" && (
-              <div>
-                <p className="text-sm font-medium">Status facturare:</p>
-                <Badge
-                  variant={
-                    lucrare.statusFacturare.toLowerCase() === "nefacturat"
-                      ? "outline"
-                      : lucrare.statusFacturare.toLowerCase() === "facturat"
-                        ? "default"
-                        : "success"
-                  }
-                >
-                  {lucrare.statusFacturare}
-                </Badge>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2 md:w-auto md:grid-cols-2">
+          <TabsTrigger value="detalii">Detalii Lucrare</TabsTrigger>
+          {role === "tehnician" && <TabsTrigger value="interventie">Intervenție</TabsTrigger>}
+        </TabsList>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Informații client</CardTitle>
-            <CardDescription>Detalii despre client și persoana de contact</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <p className="text-sm font-medium">Client:</p>
-              <p className="text-sm text-gray-500">{lucrare.client}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium">Persoană contact:</p>
-              <p className="text-sm text-gray-500">{lucrare.persoanaContact}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium">Telefon:</p>
-              <p className="text-sm text-gray-500">{lucrare.telefon}</p>
-            </div>
-            <Separator />
-            <div>
-              <p className="text-sm font-medium">Tehnicieni asignați:</p>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {lucrare.tehnicieni.map((tehnician, index) => (
-                  <Badge key={index} variant="secondary">
-                    {tehnician}
+        <TabsContent value="detalii" className="mt-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Detalii lucrare</CardTitle>
+                <CardDescription>Informații despre lucrare</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium">Data emiterii:</p>
+                    <p className="text-sm text-gray-500">{lucrare.dataEmiterii}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Data intervenție:</p>
+                    <p className="text-sm text-gray-500">{lucrare.dataInterventie}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Tip lucrare:</p>
+                  <p className="text-sm text-gray-500">{lucrare.tipLucrare}</p>
+                </div>
+                {lucrare.defectReclamat && (
+                  <div>
+                    <p className="text-sm font-medium">Defect reclamat:</p>
+                    <p className="text-sm text-gray-500">{lucrare.defectReclamat}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-sm font-medium">Echipament:</p>
+                  <p className="text-sm text-gray-500">{lucrare.locatie}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Descriere:</p>
+                  <p className="text-sm text-gray-500">{lucrare.descriere || "Fără descriere"}</p>
+                </div>
+                {lucrare.descriereInterventie && (
+                  <div>
+                    <p className="text-sm font-medium">Descriere intervenție:</p>
+                    <p className="text-sm text-gray-500">{lucrare.descriereInterventie}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-sm font-medium">Status lucrare:</p>
+                  <Badge
+                    variant={
+                      lucrare.statusLucrare.toLowerCase() === "în așteptare"
+                        ? "warning"
+                        : lucrare.statusLucrare.toLowerCase() === "în curs"
+                          ? "default"
+                          : "success"
+                    }
+                  >
+                    {lucrare.statusLucrare}
                   </Badge>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter className="flex justify-between">
-            {(role === "admin" || role === "dispecer") && (
-              <Button variant="outline" onClick={() => setIsEditDialogOpen(true)}>
-                <Pencil className="mr-2 h-4 w-4" /> Editează
-              </Button>
-            )}
-            {role === "admin" && (
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  if (window.confirm("Sigur doriți să ștergeți această lucrare?")) {
-                    handleDeleteLucrare()
-                  }
-                }}
-              >
-                <Trash2 className="mr-2 h-4 w-4" /> Șterge
-              </Button>
-            )}
-          </CardFooter>
-        </Card>
-      </div>
+                </div>
+                {role !== "tehnician" && (
+                  <div>
+                    <p className="text-sm font-medium">Status facturare:</p>
+                    <Badge
+                      variant={
+                        lucrare.statusFacturare.toLowerCase() === "nefacturat"
+                          ? "outline"
+                          : lucrare.statusFacturare.toLowerCase() === "facturat"
+                            ? "default"
+                            : "success"
+                      }
+                    >
+                      {lucrare.statusFacturare}
+                    </Badge>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Informații client</CardTitle>
+                <CardDescription>Detalii despre client și persoana de contact</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <p className="text-sm font-medium">Client:</p>
+                  <p className="text-sm text-gray-500">{lucrare.client}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Persoană contact:</p>
+                  <p className="text-sm text-gray-500">{lucrare.persoanaContact}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Telefon:</p>
+                  <p className="text-sm text-gray-500">{lucrare.telefon}</p>
+                </div>
+                <Separator />
+                <div>
+                  <p className="text-sm font-medium">Tehnicieni asignați:</p>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {lucrare.tehnicieni.map((tehnician, index) => (
+                      <Badge key={index} variant="secondary">
+                        {tehnician}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter className="flex justify-between">
+                {(role === "admin" || role === "dispecer") && (
+                  <Button variant="outline" onClick={() => setIsEditDialogOpen(true)}>
+                    <Pencil className="mr-2 h-4 w-4" /> Editează
+                  </Button>
+                )}
+                {role === "admin" && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      if (window.confirm("Sigur doriți să ștergeți această lucrare?")) {
+                        handleDeleteLucrare()
+                      }
+                    }}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" /> Șterge
+                  </Button>
+                )}
+              </CardFooter>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {role === "tehnician" && (
+          <TabsContent value="interventie" className="mt-4">
+            <TehnicianInterventionForm
+              lucrareId={lucrare.id!}
+              initialData={{
+                descriereInterventie: lucrare.descriereInterventie,
+                statusLucrare: lucrare.statusLucrare,
+              }}
+              onUpdate={refreshLucrare}
+            />
+          </TabsContent>
+        )}
+      </Tabs>
 
       {/* Dialog pentru editare lucrare */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -255,9 +303,27 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
             <DialogTitle>Editează lucrare</DialogTitle>
           </DialogHeader>
           <LucrareForm
-            onSubmit={handleUpdateLucrare}
-            onCancel={() => setIsEditDialogOpen(false)}
-            initialData={lucrare}
+            isEdit={true}
+            dataEmiterii={new Date()}
+            setDataEmiterii={() => {}}
+            dataInterventie={new Date()}
+            setDataInterventie={() => {}}
+            formData={{
+              tipLucrare: lucrare.tipLucrare,
+              tehnicieni: lucrare.tehnicieni,
+              client: lucrare.client,
+              locatie: lucrare.locatie,
+              descriere: lucrare.descriere,
+              persoanaContact: lucrare.persoanaContact,
+              telefon: lucrare.telefon,
+              statusLucrare: lucrare.statusLucrare,
+              statusFacturare: lucrare.statusFacturare,
+              contract: lucrare.contract,
+              defectReclamat: lucrare.defectReclamat,
+            }}
+            handleInputChange={() => {}}
+            handleSelectChange={() => {}}
+            handleTehnicieniChange={() => {}}
           />
         </DialogContent>
       </Dialog>

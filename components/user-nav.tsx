@@ -74,9 +74,9 @@ export function UserNav() {
           <Button variant="ghost" className="relative h-8 flex items-center gap-2 rounded-full">
             <Avatar className="h-8 w-8">
               <AvatarImage src="/placeholder-user.jpg" alt="@user" />
-              <AvatarFallback>{userData?.displayName?.substring(0, 2) || "U"}</AvatarFallback>
+              <AvatarFallback>{userData?.displayName?.charAt(0) || "U"}</AvatarFallback>
             </Avatar>
-            <span className="hidden md:inline-block font-medium">{userData?.displayName || "Utilizator"}</span>
+            <span className="font-medium">{userData?.displayName || "Utilizator"}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-56" align="end" alignOffset={-10} forceMount>
