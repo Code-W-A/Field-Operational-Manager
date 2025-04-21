@@ -84,7 +84,7 @@ Echipa de interventie`,
       formData.append("pdfFile", pdfFile)
 
       // Adăugăm logo-ul companiei
-      formData.append("companyLogo", "/logo-placeholder.png")
+      formData.append("companyLogo", "/nrglogo.png") // Path relative to public folder
 
       // Trimitem cererea către API
       const response = await fetch("/api/send-email", {

@@ -11,7 +11,7 @@
 //   • Better handling of long text with proper wrapping
 // ---------------------------------------------------------------------------
 
-import { useState, forwardRef } from "react"
+import { useState, forwardRef, useEffect } from "react"
 import { jsPDF } from "jspdf"
 import { Button } from "@/components/ui/button"
 import { Download } from "lucide-react"
@@ -43,6 +43,62 @@ const DARK_GRAY = 210 // darker fill for headers
 export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProps>(({ lucrare, onGenerate }, ref) => {
   const [isGen, setIsGen] = useState(false)
   const [products, setProducts] = useState<Product[]>(lucrare?.products || [])
+  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null)
+  const [logoLoaded, setLogoLoaded] = useState(false)
+  const [logoError, setLogoError] = useState(false)
+
+  // Preload the logo image and convert to data URL
+  useEffect(() => {
+    // Simple NRG logo as base64 - this is a fallback that will always work
+    // This is a very basic placeholder logo - replace with your actual logo if needed
+    const fallbackLogo =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAABkCAYAAADDhn8LAAADsklEQVR4nO3dy27UQBCF4T7vwIINCIQQj8CCBYgbAgQIJO5PwCNwCUgIkEDiBQhrFizYAFIUy5E8GsfT7e7q7vN/UkuTiZNMprqrfLqSGQEAAAAAAAAAAAAAAAAAAAAAAAAAAADQpZnUDUBnTkk6J+m0pFOSjks6IumQpL2S9tj/+yDpvaR3kt5KeiPptaRXkl5K+tJpy9GKA5IuS7oi6aKkC5LOWlJMYknzXNJTSU8kPZb0Y+J7oiVnJN2UdE/SN0nrDV/fJd2VdMPagg7tl3RD0kNJP9V8UvS9fkq6L+m6pJkG7QQOSLoj6Zfan/xbX7/s3nRCYZqZpKuSXqj7xNj6emH3pjOLCR2V9EjdJ0HM66Hd+9BjZummpO/qPuHjXt/t3oeGzkv6qO6TvK3XR+sHGnBY0hN1n9RtvZ5YfzCh65K+qvtkbvv11fqDCc5J+qzuk7ir12frFyZwW90ncdfXLesXRnRU0jt1n7h9vN5Z/zCCmaSn6j5Z+3w9tX5iBDfUfZL2fb1W/mPzWdkv6aO6T9AhXh+snxjgmvJfFI99rVX+Y/RZ2afuk3LI1z3lP0afje/qPhGHfH1T/mP1WXim7pNw6Ncz5T9mn4Xryn+3eOzruvIfuw/eIeW/Wzz265DyH78P2i3ln3hjXbeU//h9sA5K+qT8E26s1yflvw0+WDeVf7KNfbGDPGBHlH+ijX0dUf7b4oN0XfknWVvXdeW/PT4o+5R/grV97VP+2+SDclH5J1fb10Xlv10+GDPlv8Xb1TXTgG33QbikYRPjv6Qnkh5IuivpD0l/Svpb0j+S/pL0u6TfJP1qP/9L0p+S/rD//0DSY0nfB7ThouiHDMZMwyZFcZb7oaTfJf0xoA1/2e8+tN8tzvIfMqAdM+U/jh+EmYZNiEeSrg1ow1VJjwe24ZryH8cPwkzDJsNY/8NnA9txVfmP4wdhpmGTYcxzrYY+5Zon3WDMNGwyMEEGZKZhk4EJMiAzDZsMTJABmWnYZGCCDMhMwyYDE2RAZho2GZggAzLTsMnABBmQmYZNBibIgMw0bDIwQQZkpmGTgQkyIDMNmwxMkAGZadhkYIIMyEzDJgMTZEBmGjYZmCADMtOwyTDWBJlp2LnWTJAOzTRsMox1LtRMw861ZoJ0aKZhk2GsE/VmGnauNROkQzMNmwxjnahfU/5j+EGYadgEKU7U+9/+98X//l/8738P+d//iv/9f8j//lf87/9D/ve/4n//H/K//xX/+/+Q//2v+N//h/zvf8X//j/kf/8r/vd/AAAAAAAAAAAAAAAAAAAAAAAAAAAAgAz9C5gVeUGpivY2AAAAAElFTkSuQmCC"
+
+    try {
+      // First try to load the image from the public folder
+      const img = new Image()
+      img.crossOrigin = "anonymous" // Important to avoid CORS issues with canvas
+
+      img.onload = () => {
+        // Create canvas to convert image to data URL
+        const canvas = document.createElement("canvas")
+        canvas.width = img.width
+        canvas.height = img.height
+
+        const ctx = canvas.getContext("2d")
+        if (ctx) {
+          ctx.drawImage(img, 0, 0)
+          try {
+            const dataUrl = canvas.toDataURL("image/png")
+            setLogoDataUrl(dataUrl)
+            setLogoLoaded(true)
+            console.log("Logo loaded successfully from public folder")
+          } catch (err) {
+            console.error("Error converting logo to data URL:", err)
+            // Use fallback logo
+            setLogoDataUrl(fallbackLogo)
+            setLogoLoaded(true)
+          }
+        }
+      }
+
+      img.onerror = (e) => {
+        console.error("Error loading logo image from public folder:", e)
+        // Use fallback logo
+        setLogoDataUrl(fallbackLogo)
+        setLogoLoaded(true)
+      }
+
+      // Use the correct path to the logo in the public folder
+      // The public folder is accessible at the root path in Next.js
+      img.src = "/nrglogo.png"
+    } catch (err) {
+      console.error("Error in logo loading process:", err)
+      // Use fallback logo
+      setLogoDataUrl(fallbackLogo)
+      setLogoLoaded(true)
+    }
+  }, [])
 
   const generatePDF = useStableCallback(async () => {
     if (!lucrare) return
@@ -130,12 +186,22 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // LOGO
       doc.setDrawColor(60).setLineWidth(STROKE)
       ;(doc as any).roundedRect(M + boxW + 2, currentY + 3, logoArea - 4, boxH - 6, 1.5, 1.5, "S")
-      if (lucrare.logoNRG) {
+
+      if (logoLoaded && logoDataUrl) {
         try {
-          doc.addImage(lucrare.logoNRG, "PNG", M + boxW + 4, currentY + 5, logoArea - 8, boxH - 10)
-        } catch {}
+          // Use the preloaded logo data URL
+          doc.addImage(logoDataUrl, "PNG", M + boxW + 4, currentY + 5, logoArea - 8, boxH - 10)
+        } catch (err) {
+          console.error("Error adding logo to PDF:", err)
+          // Fallback text if logo fails to load
+          doc
+            .setFontSize(14)
+            .setFont(undefined, "bold")
+            .setTextColor(60)
+            .text("NRG", M + boxW + logoArea / 2, currentY + boxH / 2, { align: "center" })
+        }
       } else {
-        // Fallback text if no logo
+        // Fallback text if logo wasn't loaded
         doc
           .setFontSize(14)
           .setFont(undefined, "bold")
