@@ -31,7 +31,7 @@ export function MobileNav() {
       <SheetContent side="left" className="flex flex-col w-full max-w-full sm:max-w-sm p-0">
         <div className="px-6 py-6 border-b">
           <Link href="/" className="flex items-center space-x-2" onClick={() => setOpen(false)}>
-            <span className="font-bold text-lg">Sistem Management Lucrări</span>
+            <span className="font-bold text-lg">Field Operational Manager</span>
           </Link>
         </div>
         <nav className="flex flex-col gap-1 px-4 py-4 flex-1">

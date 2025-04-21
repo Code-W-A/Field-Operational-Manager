@@ -50,7 +50,7 @@ export default function FirebaseCheckPage() {
         <CardHeader>
           <CardTitle>Verificare Configurare Firebase</CardTitle>
           <CardDescription>
-            Verificăm dacă toate variabilele de mediu necesare pentru Firebase sunt configurate corect.
+            Verificăm dacă toate variabilele de mediu necesare pentru Field Operational Manager sunt configurate corect.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

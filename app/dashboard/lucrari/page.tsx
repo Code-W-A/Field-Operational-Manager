@@ -340,17 +340,26 @@ export default function Lucrari() {
     }
   }
 
-  const handleViewDetails = (id: string) => {
-    router.push(`/dashboard/lucrari/${id}`)
+  // De asemenea, trebuie să actualizăm funcția handleViewDetails pentru a asigura consistența
+  const handleViewDetails = (lucrare: Lucrare) => {
+    if (!lucrare || !lucrare.id) {
+      console.error("ID-ul lucrării nu este valid:", lucrare)
+      toast({
+        title: "Eroare",
+        description: "ID-ul lucrării nu este valid",
+        variant: "destructive",
+      })
+      return
+    }
+
+    router.push(`/dashboard/lucrari/${lucrare.id}`)
   }
 
-  // Verificați și corectați funcția handleGenerateReport pentru a asigura că folosește ID-ul corect
-
   const handleGenerateReport = useCallback(
-    (id: string) => {
-      // Verificăm că id este un string valid
-      if (typeof id !== "string" || !id) {
-        console.error("ID-ul lucrării nu este valid:", id)
+    (lucrare: Lucrare) => {
+      // Verificăm că lucrare și lucrare.id sunt valide
+      if (!lucrare || !lucrare.id) {
+        console.error("ID-ul lucrării nu este valid:", lucrare)
         toast({
           title: "Eroare",
           description: "ID-ul lucrării nu este valid",
@@ -359,8 +368,8 @@ export default function Lucrari() {
         return
       }
 
-      // Redirecționăm către pagina de raport
-      router.push(`/raport/${id}`)
+      // Redirecționăm către pagina de raport cu ID-ul corect
+      router.push(`/raport/${lucrare.id}`)
     },
     [router],
   )
@@ -532,13 +541,13 @@ export default function Lucrari() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => handleViewDetails(row.original.id!)}>
+            <DropdownMenuItem onClick={() => handleViewDetails(row.original)}>
               <Eye className="mr-2 h-4 w-4" /> Vizualizează
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => handleEdit(row.original)}>
               <Pencil className="mr-2 h-4 w-4" /> Editează
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleGenerateReport(row.id!)}>
+            <DropdownMenuItem onClick={() => handleGenerateReport(row.original)}>
               <FileText className="mr-2 h-4 w-4" /> Generează Raport
             </DropdownMenuItem>
             {userData?.role === "admin" && (
@@ -672,7 +681,7 @@ export default function Lucrari() {
             columns={columns}
             data={filteredLucrari}
             defaultSort={{ id: "dataEmiterii", desc: true }}
-            onRowClick={handleViewDetails}
+            onRowClick={(lucrare) => handleViewDetails(lucrare)}
             table={tableInstance}
             setTable={setTableInstance}
           />
@@ -682,7 +691,7 @@ export default function Lucrari() {
               <Card
                 key={lucrare.id}
                 className="overflow-hidden cursor-pointer hover:shadow-md"
-                onClick={() => handleViewDetails(lucrare.id!)}
+                onClick={() => handleViewDetails(lucrare)}
               >
                 <CardContent className="p-0">
                   <div className="flex items-center justify-between border-b p-4">
@@ -761,7 +770,7 @@ export default function Lucrari() {
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation()
-                              handleViewDetails(lucrare.id!)
+                              handleViewDetails(lucrare)
                             }}
                           >
                             <Eye className="mr-2 h-4 w-4" /> Vizualizează
@@ -777,7 +786,7 @@ export default function Lucrari() {
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation()
-                              handleGenerateReport(lucrare.id!)
+                              handleGenerateReport(lucrare)
                             }}
                           >
                             <FileText className="mr-2 h-4 w-4" /> Generează Raport

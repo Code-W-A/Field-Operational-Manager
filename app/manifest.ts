@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next"
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Sistem Management Lucrări",
-    short_name: "SML",
+    name: "Field Operational Manager",
+    short_name: "FOM",
     description: "Aplicație pentru gestionarea lucrărilor de service",
     start_url: "/",
     display: "standalone",

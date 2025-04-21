@@ -6,14 +6,12 @@ import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/components/ui/use-toast"
 import { ChevronLeft, FileText, Pencil, Trash2 } from "lucide-react"
-import { getLucrareById, updateLucrare, deleteLucrare } from "@/lib/firebase/firestore"
-import { LucrareForm } from "@/components/lucrare-form"
+import { getLucrareById, deleteLucrare } from "@/lib/firebase/firestore"
 import { TehnicianInterventionForm } from "@/components/tehnician-intervention-form"
 import { useAuth } from "@/contexts/AuthContext"
 import type { Lucrare } from "@/lib/firebase/firestore"
@@ -26,7 +24,6 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
   const role = userData?.role || "tehnician"
   const [lucrare, setLucrare] = useState<Lucrare | null>(null)
   const [loading, setLoading] = useState(true)
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [activeTab, setActiveTab] = useState("detalii")
 
   // Încărcăm datele lucrării
@@ -69,31 +66,6 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
     }
   }, [loading, lucrare, userData, router])
 
-  // Funcție pentru a actualiza o lucrare
-  const handleUpdateLucrare = useStableCallback(async (data: Partial<Lucrare>) => {
-    if (!lucrare?.id) return
-
-    try {
-      await updateLucrare(lucrare.id, data)
-      setIsEditDialogOpen(false)
-
-      // Actualizăm datele locale
-      setLucrare((prev) => (prev ? { ...prev, ...data } : null))
-
-      toast({
-        title: "Lucrare actualizată",
-        description: "Lucrarea a fost actualizată cu succes.",
-      })
-    } catch (error) {
-      console.error("Eroare la actualizarea lucrării:", error)
-      toast({
-        title: "Eroare",
-        description: "A apărut o eroare la actualizarea lucrării.",
-        variant: "destructive",
-      })
-    }
-  })
-
   // Funcție pentru a șterge o lucrare
   const handleDeleteLucrare = useStableCallback(async () => {
     if (!lucrare?.id) return
@@ -114,6 +86,14 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
       })
     }
   })
+
+  // Funcție pentru a edita lucrarea - redirecționează către pagina de lucrări cu parametrul de editare
+  const handleEdit = useCallback(() => {
+    if (!lucrare?.id) return
+
+    // Redirecționăm către pagina de lucrări cu parametrul de editare
+    router.push(`/dashboard/lucrari?edit=${lucrare.id}`)
+  }, [router, lucrare])
 
   // Funcție pentru a genera raportul
   const handleGenerateReport = useCallback(() => {
@@ -297,7 +277,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
               </CardContent>
               <CardFooter className="flex justify-between">
                 {(role === "admin" || role === "dispecer") && (
-                  <Button variant="outline" onClick={() => setIsEditDialogOpen(true)}>
+                  <Button variant="outline" onClick={handleEdit}>
                     <Pencil className="mr-2 h-4 w-4" /> Editează
                   </Button>
                 )}
@@ -331,39 +311,6 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
           </TabsContent>
         )}
       </Tabs>
-
-      {/* Dialog pentru editare lucrare */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Editează lucrare</DialogTitle>
-          </DialogHeader>
-          <LucrareForm
-            isEdit={true}
-            dataEmiterii={new Date()}
-            setDataEmiterii={() => {}}
-            dataInterventie={new Date()}
-            setDataInterventie={() => {}}
-            formData={{
-              tipLucrare: lucrare.tipLucrare,
-              tehnicieni: lucrare.tehnicieni,
-              client: lucrare.client,
-              locatie: lucrare.locatie,
-              descriere: lucrare.descriere,
-              persoanaContact: lucrare.persoanaContact,
-              telefon: lucrare.telefon,
-              statusLucrare: lucrare.statusLucrare,
-              statusFacturare: lucrare.statusFacturare,
-              contract: lucrare.contract,
-              contractNumber: lucrare.contractNumber,
-              defectReclamat: lucrare.defectReclamat,
-            }}
-            handleInputChange={() => {}}
-            handleSelectChange={() => {}}
-            handleTehnicieniChange={() => {}}
-          />
-        </DialogContent>
-      </Dialog>
     </DashboardShell>
   )
 }

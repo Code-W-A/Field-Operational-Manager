@@ -9,8 +9,9 @@ import { MockDataProvider } from "@/contexts/MockDataContext"
 
 const inter = Inter({ subsets: ["latin"] })
 
+// Actualizăm titlul în metadata
 export const metadata: Metadata = {
-  title: "Sistem Management Lucrări",
+  title: "Field Operational Manager",
   description: "Aplicație pentru gestionarea lucrărilor de service",
   manifest: "/manifest.json",
     generator: 'v0.dev'
