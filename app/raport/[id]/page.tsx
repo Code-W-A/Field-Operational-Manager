@@ -110,6 +110,11 @@ export default function RaportPage({ params }: { params: { id: string } }) {
         setStep("semnare")
       } catch (err) {
         console.error("Eroare la actualizarea statusului lucrării:", err)
+        alert(
+          'A apărut o eroare  {\
+        console.error("Eroare la actualizarea statusului lucrării:',
+          err,
+        )
         alert("A apărut o eroare la actualizarea statusului lucrării.")
       }
       return
@@ -342,24 +347,6 @@ export default function RaportPage({ params }: { params: { id: string } }) {
               <div>
                 <h3 className="font-medium text-gray-500">Descriere Intervenție</h3>
                 <p className="whitespace-pre-line">{lucrare?.descriereInterventie || "Nu a fost specificată"}</p>
-              </div>
-
-              <div>
-                <h3 className="font-medium text-gray-500">Lucrări Efectuate</h3>
-                <ul className="list-inside list-disc">
-                  <li>Înlocuire panou deteriorat</li>
-                  <li>Reglare sistem de închidere</li>
-                  <li>Testare funcționalitate</li>
-                </ul>
-              </div>
-
-              <div>
-                <h3 className="font-medium text-gray-500">Materiale Utilizate</h3>
-                <ul className="list-inside list-disc">
-                  <li>Panou secțional 1000x500mm - 1 buc</li>
-                  <li>Set șuruburi fixare - 1 set</li>
-                  <li>Spray lubrifiant - 1 buc</li>
-                </ul>
               </div>
 
               <Separator />
