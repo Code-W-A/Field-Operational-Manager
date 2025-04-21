@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -16,7 +18,9 @@ import { ProductTableForm, type Product } from "@/components/product-table-form"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/components/ui/use-toast"
-import { jsPDF } from "jspdf"
+// Remove the autotable import since it's causing issues
+// import 'jspdf-autotable'
+import { ReportGenerator } from "@/components/report-generator"
 
 export default function RaportPage({ params }: { params: { id: string } }) {
   const router = useRouter()
@@ -42,6 +46,8 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null)
+
+  const reportGeneratorRef = useRef<React.ElementRef<typeof ReportGenerator>>(null)
 
   useEffect(() => {
     const fetchLucrare = async () => {
@@ -130,266 +136,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
       .replace(/Ț/g, "T")
 
   // Function to generate PDF and return blob
-  const generatePDF = useCallback(async () => {
-    if (!lucrare) return null
-
-    try {
-      // Create a new PDF document (A4 portrait)
-      const doc = new jsPDF({
-        format: "a4",
-        unit: "mm",
-        orientation: "portrait",
-      })
-
-      // Set page dimensions
-      const pageWidth = doc.internal.pageSize.width
-      const pageHeight = doc.internal.pageSize.height
-      const margin = 20
-
-      // Draw header boxes
-      doc.setDrawColor(0)
-      doc.setLineWidth(0.5)
-
-      // PRESTATOR box (left)
-      doc.rect(margin, margin, (pageWidth - 2 * margin) / 2 - 5, 40)
-      doc.setFontSize(10)
-      doc.setFont("helvetica", "bold")
-      doc.text("PRESTATOR", margin + 2, margin + 6)
-
-      // BENEFICIAR box (right)
-      doc.rect(margin + (pageWidth - 2 * margin) / 2 + 5, margin, (pageWidth - 2 * margin) / 2 - 5, 40)
-      doc.text("BENEFICIAR", margin + (pageWidth - 2 * margin) / 2 + 7, margin + 6)
-
-      // Add company info to PRESTATOR box
-      doc.setFont("helvetica", "normal")
-      doc.text("SC. NRG Access Systems S.R.L.", margin + 2, margin + 12)
-      doc.text("CUI: RO12345678", margin + 2, margin + 18)
-      doc.text("R.C.: J12/3456/2015", margin + 2, margin + 24)
-      doc.text("Adresa: Strada Exemplu", margin + 2, margin + 30)
-      doc.text("Banca Transilvania", margin + 2, margin + 36)
-      doc.text("RO12BTRLRONCRT0123456789", margin + 2, margin + 42)
-
-      // Add client info to BENEFICIAR box
-      const clientName = removeDiacritics(lucrare.client || "N/A")
-      doc.text(clientName, margin + (pageWidth - 2 * margin) / 2 + 7, margin + 12)
-      doc.text("R.C.: -", margin + (pageWidth - 2 * margin) / 2 + 7, margin + 18)
-      doc.text(
-        "Adresa: " + removeDiacritics(lucrare.locatie || "N/A"),
-        margin + (pageWidth - 2 * margin) / 2 + 7,
-        margin + 24,
-      )
-      doc.text("Banca: -", margin + (pageWidth - 2 * margin) / 2 + 7, margin + 30)
-      doc.text("Cont: -", margin + (pageWidth - 2 * margin) / 2 + 7, margin + 36)
-
-      // Add NRG logo in the center
-      // Since we don't have the actual logo, we'll add text as a placeholder
-      doc.setFontSize(24)
-      doc.setFont("helvetica", "bold")
-      doc.text("NRG", pageWidth / 2, margin + 30, { align: "center" })
-
-      // Add report title
-      doc.setFontSize(14)
-      doc.text("RAPORT", pageWidth / 2, margin + 55, { align: "center" })
-      doc.text("DE", pageWidth / 2, margin + 62, { align: "center" })
-      doc.text("INTERVENȚIE", pageWidth / 2, margin + 69, { align: "center" })
-
-      // Add date and time fields
-      const dateInterventie = removeDiacritics(lucrare.dataInterventie || "N/A").split(" ")[0]
-      const timeParts = (lucrare.dataInterventie || "").split(" ")[1]?.split(":") || ["", ""]
-      const timeArrival = timeParts.slice(0, 2).join(":")
-
-      doc.setFontSize(10)
-      doc.setFont("helvetica", "bold")
-      doc.text("Data intervenției:", margin, margin + 85)
-      doc.setFont("helvetica", "normal")
-      doc.text(dateInterventie, margin + 35, margin + 85)
-
-      doc.setFont("helvetica", "bold")
-      doc.text("Ora sosirii:", margin + 70, margin + 85)
-      doc.setFont("helvetica", "normal")
-      doc.text(timeArrival, margin + 95, margin + 85)
-
-      doc.setFont("helvetica", "bold")
-      doc.text("Ora plecării:", margin + 120, margin + 85)
-      doc.setFont("helvetica", "normal")
-      doc.text(timeArrival, margin + 145, margin + 85)
-
-      // Add findings section
-      doc.setFont("helvetica", "bold")
-      doc.text("Constatare la locație:", margin, margin + 95)
-      doc.setFont("helvetica", "normal")
-
-      // Split text into lines to fit the page width
-      const descriereText = removeDiacritics(lucrare.descriere || "N/A")
-      const descriereLines = doc.splitTextToSize(descriereText, pageWidth - 2 * margin)
-      doc.text(descriereLines, margin, margin + 102)
-
-      // Add intervention description
-      const yPosAfterDescriere = margin + 102 + descriereLines.length * 5
-
-      doc.setFont("helvetica", "bold")
-      doc.text("Descriere intervenție:", margin, yPosAfterDescriere + 10)
-      doc.setFont("helvetica", "normal")
-
-      const interventieText = removeDiacritics(lucrare.descriereInterventie || "N/A")
-      const interventieLines = doc.splitTextToSize(interventieText, pageWidth - 2 * margin)
-      doc.text(interventieLines, margin, yPosAfterDescriere + 17)
-
-      // Calculate position for the table
-      const yPosAfterInterventie = yPosAfterDescriere + 17 + interventieLines.length * 5 + 10
-
-      // Add products table
-      doc.setFont("helvetica", "bold")
-      doc.text("DATE ESTIMATIV", pageWidth / 2, yPosAfterInterventie, { align: "center" })
-
-      // Draw table
-      const tableTop = yPosAfterInterventie + 5
-      const tableWidth = pageWidth - 2 * margin
-      const colWidths = [10, 80, 15, 25, 25, 25] // Width for each column
-
-      // Calculate column positions
-      const colPos = [margin]
-      for (let i = 0; i < colWidths.length; i++) {
-        colPos.push(colPos[i] + colWidths[i])
-      }
-
-      // Draw table header
-      doc.rect(margin, tableTop, tableWidth, 8)
-
-      // Draw vertical lines for header
-      for (let i = 1; i < colPos.length - 1; i++) {
-        doc.line(colPos[i], tableTop, colPos[i], tableTop + 8)
-      }
-
-      // Add header text
-      doc.setFontSize(8)
-      doc.text("NR", margin + 5, tableTop + 5, { align: "center" })
-      doc.text("Denumire produs", colPos[1] + 40, tableTop + 5, { align: "center" })
-      doc.text("UM", colPos[2] + 7.5, tableTop + 5, { align: "center" })
-      doc.text("Cantitate", colPos[3] + 12.5, tableTop + 5, { align: "center" })
-      doc.text("Preț unitar", colPos[4] + 12.5, tableTop + 5, { align: "center" })
-      doc.text("Total", colPos[5] + 12.5, tableTop + 5, { align: "center" })
-
-      // Draw table rows (3 empty rows if no products)
-      const rowHeight = 8
-      let currentY = tableTop + 8
-
-      const rowsToDraw = Math.max(3, products.length)
-
-      for (let i = 0; i < rowsToDraw; i++) {
-        // Draw horizontal line
-        doc.line(margin, currentY, margin + tableWidth, currentY)
-
-        // Draw row
-        doc.rect(margin, currentY, tableWidth, rowHeight)
-
-        // Draw vertical lines
-        for (let j = 1; j < colPos.length - 1; j++) {
-          doc.line(colPos[j], currentY, colPos[j], currentY + rowHeight)
-        }
-
-        // Add product data if available
-        if (i < products.length) {
-          const product = products[i]
-          doc.setFontSize(8)
-          doc.setFont("helvetica", "normal")
-
-          // Number
-          doc.text((i + 1).toString(), margin + 5, currentY + 5, { align: "center" })
-
-          // Product name
-          const productName = removeDiacritics(product.name)
-          doc.text(productName, colPos[1] + 2, currentY + 5)
-
-          // UM
-          doc.text(product.um, colPos[2] + 7.5, currentY + 5, { align: "center" })
-
-          // Quantity
-          doc.text(product.quantity.toString(), colPos[3] + 12.5, currentY + 5, { align: "center" })
-
-          // Unit price
-          doc.text(product.price.toFixed(2), colPos[4] + 12.5, currentY + 5, { align: "center" })
-
-          // Total
-          const total = (product.quantity * product.price).toFixed(2)
-          doc.text(total, colPos[5] + 12.5, currentY + 5, { align: "center" })
-        }
-
-        currentY += rowHeight
-      }
-
-      // Draw bottom line of the last row
-      doc.line(margin, currentY, margin + tableWidth, currentY)
-
-      // Add totals section
-      currentY += 5
-
-      // Calculate totals
-      const subtotal =
-        products.length > 0 ? products.reduce((sum, product) => sum + product.quantity * product.price, 0) : 0
-      const totalWithVAT = subtotal * 1.19 // 19% VAT
-
-      // Draw total boxes
-      doc.rect(colPos[4], currentY, colPos[6] - colPos[4], 7)
-      doc.line(colPos[5], currentY, colPos[5], currentY + 7)
-      doc.setFont("helvetica", "bold")
-      doc.text("Total fără TVA", colPos[4] + 2, currentY + 5)
-      doc.setFont("helvetica", "normal")
-      doc.text(subtotal.toFixed(2), colPos[5] + 12.5, currentY + 5, { align: "center" })
-
-      currentY += 7
-
-      doc.rect(colPos[4], currentY, colPos[6] - colPos[4], 7)
-      doc.line(colPos[5], currentY, colPos[5], currentY + 7)
-      doc.setFont("helvetica", "bold")
-      doc.text("Total cu TVA", colPos[4] + 2, currentY + 5)
-      doc.setFont("helvetica", "normal")
-      doc.text(totalWithVAT.toFixed(2), colPos[5] + 12.5, currentY + 5, { align: "center" })
-
-      // Add signature fields
-      currentY += 20
-
-      doc.setFontSize(10)
-      doc.setFont("helvetica", "bold")
-      doc.text("Nume tehnician:", margin, currentY)
-      doc.text("Reprezentant beneficiar:", margin + 110, currentY)
-
-      currentY += 5
-      doc.setFont("helvetica", "normal")
-      const tehnicieniText = removeDiacritics(lucrare.tehnicieni?.join(", ") || "N/A")
-      doc.text(tehnicieniText, margin, currentY)
-      doc.text(removeDiacritics(lucrare.persoanaContact || "N/A"), margin + 110, currentY)
-
-      currentY += 10
-      doc.setFont("helvetica", "bold")
-      doc.text("Semnătură", margin, currentY)
-      doc.text("Semnătură", margin + 110, currentY)
-
-      // Add signatures if available
-      if (lucrare.semnaturaTehnician) {
-        try {
-          doc.addImage(lucrare.semnaturaTehnician, "PNG", margin, currentY + 2, 40, 20)
-        } catch (err) {
-          console.error("Eroare la adaugarea semnaturii tehnicianului:", err)
-        }
-      }
-
-      if (lucrare.semnaturaBeneficiar) {
-        try {
-          doc.addImage(lucrare.semnaturaBeneficiar, "PNG", margin + 110, currentY + 2, 40, 20)
-        } catch (err) {
-          console.error("Eroare la adaugarea semnaturii beneficiarului:", err)
-        }
-      }
-
-      // Get PDF as blob for email sending
-      const pdfBlob = doc.output("blob")
-      return pdfBlob
-    } catch (err) {
-      console.error("Eroare la generarea PDF-ului:", err)
-      return null
-    }
-  }, [lucrare, products])
+  // … restul importurilor şi declaraţiilor
 
   // Function to send email
   const sendEmail = useCallback(
@@ -500,25 +247,22 @@ export default function RaportPage({ params }: { params: { id: string } }) {
           emailDestinatar: email,
         })
 
+        // Inside the try block of the "semnare" step, replace the PDF generation code with:
         // Reîncărcăm datele actualizate
         const updatedLucrare = await getLucrareById(params.id)
         if (updatedLucrare) {
           setLucrare(updatedLucrare)
 
-          // Generate PDF
-          const pdfBlob = await generatePDF()
-          if (pdfBlob) {
-            setPdfBlob(pdfBlob)
-
-            // Send email
-            const emailSuccess = await sendEmail(pdfBlob)
-            setEmailSent(emailSuccess)
-
-            // Save PDF locally
-            const link = document.createElement("a")
-            link.href = URL.createObjectURL(pdfBlob)
-            link.download = `Raport_Interventie_${updatedLucrare.id}.pdf`
-            link.click()
+          // Generate PDF using the ReportGenerator component
+          if (reportGeneratorRef.current) {
+            reportGeneratorRef.current.click()
+          } else {
+            // Fallback if ref is not available
+            toast({
+              title: "Eroare",
+              description: "Nu s-a putut genera raportul PDF",
+              variant: "destructive",
+            })
           }
         }
 
@@ -546,24 +290,10 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   }, [])
 
   const handleDownloadPDF = useCallback(async () => {
-    if (pdfBlob) {
-      // If we already have the PDF blob, use it
-      const link = document.createElement("a")
-      link.href = URL.createObjectURL(pdfBlob)
-      link.download = `Raport_Interventie_${lucrare.id}.pdf`
-      link.click()
-    } else {
-      // Otherwise generate a new one
-      const newPdfBlob = await generatePDF()
-      if (newPdfBlob) {
-        setPdfBlob(newPdfBlob)
-        const link = document.createElement("a")
-        link.href = URL.createObjectURL(newPdfBlob)
-        link.download = `Raport_Interventie_${lucrare.id}.pdf`
-        link.click()
-      }
+    if (reportGeneratorRef.current) {
+      reportGeneratorRef.current.click()
     }
-  }, [pdfBlob, generatePDF, lucrare])
+  }, [])
 
   const handleResendEmail = useCallback(async () => {
     if (!email) {
@@ -573,14 +303,11 @@ export default function RaportPage({ params }: { params: { id: string } }) {
 
     setIsSubmitting(true)
     try {
-      let blob = pdfBlob
-      if (!blob) {
-        blob = await generatePDF()
-        if (blob) {
-          setPdfBlob(blob)
-        } else {
-          throw new Error("Nu s-a putut genera PDF-ul")
-        }
+      const blob = pdfBlob
+      if (!blob && reportGeneratorRef.current) {
+        // Trigger PDF generation through the ReportGenerator component
+        reportGeneratorRef.current.click()
+        return // The onGenerate callback will handle sending the email
       }
 
       if (blob) {
@@ -588,10 +315,15 @@ export default function RaportPage({ params }: { params: { id: string } }) {
       }
     } catch (error) {
       console.error("Eroare la retrimiterea emailului:", error)
+      toast({
+        title: "Eroare",
+        description: "A apărut o eroare la retrimiterea emailului",
+        variant: "destructive",
+      })
     } finally {
       setIsSubmitting(false)
     }
-  }, [email, pdfBlob, generatePDF, sendEmail])
+  }, [email, pdfBlob, sendEmail])
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
@@ -620,6 +352,20 @@ export default function RaportPage({ params }: { params: { id: string } }) {
                 <p className="text-center text-gray-500">
                   Raportul a fost generat și {emailSent ? "trimis pe email" : "poate fi descărcat sau trimis pe email"}.
                 </p>
+                {/* Add this inside the first div of the isSubmitted condition */}
+                <div className="hidden">
+                  <ReportGenerator
+                    ref={reportGeneratorRef}
+                    lucrare={lucrare}
+                    onGenerate={(blob) => {
+                      setPdfBlob(blob)
+                      // Send email automatically when PDF is generated
+                      sendEmail(blob).then((success) => {
+                        setEmailSent(success)
+                      })
+                    }}
+                  />
+                </div>
               </div>
 
               <div className="space-y-4">
