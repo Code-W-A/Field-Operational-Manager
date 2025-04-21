@@ -1,193 +1,184 @@
 "use client"
-
-import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Textarea } from "@/components/ui/textarea"
 import { Plus, Trash2 } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 
-export interface Product {
+export interface ProductItem {
   id: string
   name: string
   um: string
   quantity: number
   price: number
+  total: number
 }
 
 interface ProductTableFormProps {
-  products: Product[]
-  onProductsChange: (products: Product[]) => void
+  products: ProductItem[]
+  onChange: (products: ProductItem[]) => void
 }
 
-export function ProductTableForm({ products, onProductsChange }: ProductTableFormProps) {
-  const [newProduct, setNewProduct] = useState<Omit<Product, "id">>({
-    name: "",
-    um: "buc",
-    quantity: 1,
-    price: 0,
-  })
+export function ProductTableForm({ products, onChange }: ProductTableFormProps) {
+  // Funcție pentru a genera un ID unic
+  const generateId = () => `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
+  // Funcție pentru a adăuga un produs nou
   const addProduct = () => {
-    if (!newProduct.name) return
-
-    const product: Product = {
-      id: Date.now().toString(),
-      ...newProduct,
-    }
-
-    onProductsChange([...products, product])
-    setNewProduct({
+    const newProduct: ProductItem = {
+      id: generateId(),
       name: "",
       um: "buc",
       quantity: 1,
       price: 0,
-    })
+      total: 0,
+    }
+    onChange([...products, newProduct])
   }
 
+  // Funcție pentru a șterge un produs
   const removeProduct = (id: string) => {
-    onProductsChange(products.filter((product) => product.id !== id))
+    onChange(products.filter((product) => product.id !== id))
   }
 
-  const updateProduct = (id: string, field: keyof Omit<Product, "id">, value: string | number) => {
-    onProductsChange(
-      products.map((product) =>
-        product.id === id
-          ? {
-              ...product,
-              [field]: field === "quantity" || field === "price" ? Number.parseFloat(value as string) || 0 : value,
-            }
-          : product,
-      ),
-    )
+  // Funcție pentru a actualiza un produs
+  const updateProduct = (id: string, field: keyof ProductItem, value: any) => {
+    const updatedProducts = products.map((product) => {
+      if (product.id === id) {
+        const updatedProduct = { ...product, [field]: value }
+
+        // Recalculăm totalul dacă s-a modificat cantitatea sau prețul
+        if (field === "quantity" || field === "price") {
+          updatedProduct.total = updatedProduct.quantity * updatedProduct.price
+        }
+
+        return updatedProduct
+      }
+      return product
+    })
+
+    onChange(updatedProducts)
   }
 
-  const calculateTotal = (quantity: number, price: number) => {
-    return (quantity * price).toFixed(2)
-  }
-
-  const calculateSubtotal = () => {
-    return products.reduce((sum, product) => sum + product.quantity * product.price, 0).toFixed(2)
-  }
-
-  const calculateTotalWithVAT = () => {
-    const subtotal = Number.parseFloat(calculateSubtotal())
-    return (subtotal * 1.19).toFixed(2) // 19% TVA
-  }
+  // Calculăm totalul general
+  const totalWithoutVAT = products.reduce((sum, product) => sum + product.total, 0)
+  const totalWithVAT = totalWithoutVAT * 1.19 // Presupunem TVA 19%
 
   return (
-    <Card className="mt-6">
-      <CardHeader>
-        <CardTitle>Produse și servicii</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[40px]">Nr.</TableHead>
-                <TableHead>Denumire produse</TableHead>
-                <TableHead className="w-[80px]">UM</TableHead>
-                <TableHead className="w-[100px]">Cantitate</TableHead>
-                <TableHead className="w-[120px]">Preț unitar</TableHead>
-                <TableHead className="w-[120px]">Total</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {products.map((product, index) => (
-                <TableRow key={product.id}>
-                  <TableCell>{index + 1}</TableCell>
-                  <TableCell>
-                    <Input value={product.name} onChange={(e) => updateProduct(product.id, "name", e.target.value)} />
-                  </TableCell>
-                  <TableCell>
-                    <Input value={product.um} onChange={(e) => updateProduct(product.id, "um", e.target.value)} />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={product.quantity}
-                      onChange={(e) => updateProduct(product.id, "quantity", e.target.value)}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={product.price}
-                      onChange={(e) => updateProduct(product.id, "price", e.target.value)}
-                    />
-                  </TableCell>
-                  <TableCell className="font-medium">{calculateTotal(product.quantity, product.price)} RON</TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="icon" onClick={() => removeProduct(product.id)}>
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-              <TableRow>
-                <TableCell></TableCell>
-                <TableCell>
-                  <Input
-                    placeholder="Adaugă produs nou"
-                    value={newProduct.name}
-                    onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-                  />
-                </TableCell>
-                <TableCell>
-                  <Input value={newProduct.um} onChange={(e) => setNewProduct({ ...newProduct, um: e.target.value })} />
-                </TableCell>
-                <TableCell>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={newProduct.quantity}
-                    onChange={(e) => setNewProduct({ ...newProduct, quantity: Number.parseFloat(e.target.value) || 0 })}
-                  />
-                </TableCell>
-                <TableCell>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={newProduct.price}
-                    onChange={(e) => setNewProduct({ ...newProduct, price: Number.parseFloat(e.target.value) || 0 })}
-                  />
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    onClick={addProduct}
-                    disabled={!newProduct.name}
-                  >
-                    <Plus className="h-4 w-4 mr-1" /> Adaugă
-                  </Button>
-                </TableCell>
-                <TableCell></TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
+    <div className="space-y-6">
+      <h3 className="text-lg font-medium">Produse și servicii</h3>
 
-          <div className="flex flex-col items-end space-y-2 pt-4">
-            <div className="flex justify-between w-[240px]">
-              <span className="font-medium">Total fără TVA:</span>
-              <span>{calculateSubtotal()} RON</span>
-            </div>
-            <div className="flex justify-between w-[240px]">
-              <span className="font-medium">Total cu TVA (19%):</span>
-              <span className="font-bold">{calculateTotalWithVAT()} RON</span>
-            </div>
+      {products.length > 0 ? (
+        <div className="space-y-4">
+          {products.map((product, index) => (
+            <Card key={product.id} className="overflow-hidden">
+              <CardContent className="p-4">
+                <div className="flex justify-between items-start mb-3">
+                  <div className="font-medium">Produs #{index + 1}</div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeProduct(product.id)}
+                    className="h-8 w-8 text-red-500 hover:text-red-700"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor={`name-${product.id}`} className="block text-sm font-medium text-gray-700 mb-1">
+                      Denumire produs/serviciu
+                    </label>
+                    <Textarea
+                      id={`name-${product.id}`}
+                      value={product.name}
+                      onChange={(e) => updateProduct(product.id, "name", e.target.value)}
+                      placeholder="Descriere detaliată a produsului sau serviciului"
+                      className="min-h-[80px] resize-y"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <label htmlFor={`um-${product.id}`} className="block text-sm font-medium text-gray-700 mb-1">
+                        UM
+                      </label>
+                      <Input
+                        id={`um-${product.id}`}
+                        value={product.um}
+                        onChange={(e) => updateProduct(product.id, "um", e.target.value)}
+                        placeholder="buc"
+                      />
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor={`quantity-${product.id}`}
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Cantitate
+                      </label>
+                      <Input
+                        id={`quantity-${product.id}`}
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={product.quantity}
+                        onChange={(e) => updateProduct(product.id, "quantity", Number.parseFloat(e.target.value) || 0)}
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor={`price-${product.id}`} className="block text-sm font-medium text-gray-700 mb-1">
+                        Preț unitar
+                      </label>
+                      <Input
+                        id={`price-${product.id}`}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={product.price}
+                        onChange={(e) => updateProduct(product.id, "price", Number.parseFloat(e.target.value) || 0)}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Total</label>
+                      <div className="h-10 px-3 py-2 rounded-md border border-input bg-background text-sm font-medium flex items-center">
+                        {product.total.toFixed(2)} lei
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-8 border rounded-md bg-muted/20">
+          <p className="text-muted-foreground">
+            Nu există produse adăugate. Folosiți butonul de mai jos pentru a adăuga.
+          </p>
+        </div>
+      )}
+
+      <Button variant="outline" onClick={addProduct} className="gap-1">
+        <Plus className="h-4 w-4" /> Adaugă produs
+      </Button>
+
+      {products.length > 0 && (
+        <div className="flex flex-col items-end space-y-2 pt-4">
+          <div className="flex justify-between w-full max-w-[300px]">
+            <span className="font-medium">Total fără TVA:</span>
+            <span>{totalWithoutVAT.toFixed(2)} lei</span>
+          </div>
+          <div className="flex justify-between w-full max-w-[300px]">
+            <span className="font-medium">Total cu TVA (19%):</span>
+            <span className="font-bold">{totalWithVAT.toFixed(2)} lei</span>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      )}
+    </div>
   )
 }

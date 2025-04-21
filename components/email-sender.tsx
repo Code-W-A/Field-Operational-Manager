@@ -9,9 +9,10 @@ import { Send, Loader2 } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { ReportGenerator } from "@/components/report-generator"
 import type { Lucrare } from "@/lib/firebase/firestore"
+import type { ProductItem } from "@/lib/firebase/firestore"
 
 interface EmailSenderProps {
-  lucrare: Lucrare
+  lucrare: Lucrare & { products?: ProductItem[] }
   defaultEmail?: string
 }
 

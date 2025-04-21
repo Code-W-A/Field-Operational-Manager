@@ -1,17 +1,17 @@
-"use client"
+"use client";
 
-import { useState, forwardRef } from "react"
-import { jsPDF } from "jspdf"
-import { Button } from "@/components/ui/button"
-import { Download } from "lucide-react"
-import type { Lucrare } from "@/lib/firebase/firestore"
-import { useStableCallback } from "@/lib/utils/hooks"
-import { toast } from "@/components/ui/use-toast"
-import { ProductTableForm, type Product } from "./product-table-form"
+import { useState, forwardRef } from "react";
+import { jsPDF } from "jspdf";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
+import type { Lucrare } from "@/lib/firebase/firestore";
+import { useStableCallback } from "@/lib/utils/hooks";
+import { toast } from "@/components/ui/use-toast";
+import { ProductTableForm, type Product } from "./product-table-form";
 
 interface ReportGeneratorProps {
-  lucrare: Lucrare
-  onGenerate?: (pdf: Blob) => void
+  lucrare: Lucrare;
+  onGenerate?: (pdf: Blob) => void;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -32,314 +32,335 @@ const removeDiacritics = (text: string): string =>
     .replace(/Â/g, "A")
     .replace(/Î/g, "I")
     .replace(/Ș/g, "S")
-    .replace(/Ț/g, "T")
+    .replace(/Ț/g, "T");
 
 /* -------------------------------------------------------------------------- */
-/*                           MAIN REACT COMPONENT                             */
+/*                        LAYOUT CONSTANTS & UTILITIES                        */
 /* -------------------------------------------------------------------------- */
 
-export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProps>(({ lucrare, onGenerate }, ref) => {
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [products, setProducts] = useState<Product[]>([])
+// A4 portrait in jsPDF is 210 × 297 mm.  We keep everything inside a uniform
+// 20 mm margin to guarantee that nothing is cropped by printers.
+const PAGE_MARGIN = 20;
+const TABLE_COL_WIDTHS = [10, 80, 15, 20, 22.5, 22.5] as const; // mm, MUST sum to 170 (i.e. 210 − 2×20)
+const getColumnX = (index: number) => PAGE_MARGIN + TABLE_COL_WIDTHS.slice(0, index).reduce((a, b) => a + b, 0);
 
-  /* -------------------------- PDF GENERATION CORE ------------------------- */
-  const generatePDF = useStableCallback(async () => {
-    if (!lucrare) return
+export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProps>(
+  ({ lucrare, onGenerate }, ref) => {
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [products, setProducts] = useState<Product[]>([]);
 
-    setIsGenerating(true)
+    /* -------------------------- PDF GENERATION CORE ------------------------- */
+    const generatePDF = useStableCallback(async () => {
+      if (!lucrare) return;
 
-    try {
-      // Create a new PDF document
-      const doc = new jsPDF()
+      setIsGenerating(true);
 
-      // Set page margins
-      const margin = 20
-      const pageWidth = doc.internal.pageSize.width
-      const contentWidth = pageWidth - 2 * margin
+      try {
+        // Create a new PDF document.  We work in mm (default units).
+        const doc = new jsPDF({ format: "a4", unit: "mm" });
 
-      // Draw header boxes
-      doc.setDrawColor(0)
-      doc.setFillColor(255, 255, 255)
+        // Pre‑compute frequently used data
+        const pageW = doc.internal.pageSize.width; // 210 mm
+        const pageH = doc.internal.pageSize.height; // 297 mm
+        const contentW = pageW - 2 * PAGE_MARGIN; // 170 mm
 
-      // Left box - PRESTATOR
-      doc.rect(margin, margin, contentWidth / 2 - 5, 40, "S")
-      doc.setFontSize(10)
-      doc.setFont("helvetica", "bold")
-      doc.text("PRESTATOR", margin + contentWidth / 4 - 20, margin + 5, { align: "center" })
+        /* ------------------------------------------------------------------ */
+        /*                             PAGE HEADER                            */
+        /* ------------------------------------------------------------------ */
 
-      // Right box - BENEFICIAR
-      doc.rect(margin + contentWidth / 2 + 5, margin, contentWidth / 2 - 5, 40, "S")
-      doc.text("BENEFICIAR", margin + contentWidth / 2 + 5 + contentWidth / 4 - 20, margin + 5, { align: "center" })
+        // Header boxes (Prestator / Beneficiar)
+        doc.setDrawColor(0);
+        doc.setLineWidth(0.2);
+        const headerBoxH = 40;
 
-      // Add company info to PRESTATOR box
-      doc.setFont("helvetica", "normal")
-      doc.text("SC. NRG Access Systems S.R.L.", margin + 5, margin + 10)
-      doc.text("CUI: RO12345678", margin + 5, margin + 15)
-      doc.text("R.C.: J12/3456/2015", margin + 5, margin + 20)
-      doc.text("Adresa: Strada Exemplu", margin + 5, margin + 25)
-      doc.text("Banca: Transilvania", margin + 5, margin + 30)
-      doc.text("IBAN: RO12BTRLRONCRT0123456789", margin + 5, margin + 35)
+        // PRESTATOR
+        doc.rect(PAGE_MARGIN, PAGE_MARGIN, contentW / 2 - 2.5, headerBoxH, "S");
+        doc.setFontSize(10).setFont("helvetica", "bold");
+        doc.text("PRESTATOR", PAGE_MARGIN + (contentW / 4) - 2.5, PAGE_MARGIN + 6, { align: "center" });
 
-      // Add client info to BENEFICIAR box
-      const clientName = removeDiacritics(lucrare.client || "N/A")
-      const contactPerson = removeDiacritics(lucrare.persoanaContact || "N/A")
+        // BENEFICIAR
+        doc.rect(PAGE_MARGIN + contentW / 2 + 2.5, PAGE_MARGIN, contentW / 2 - 2.5, headerBoxH, "S");
+        doc.text(
+          "BENEFICIAR",
+          PAGE_MARGIN + contentW * 0.75 + 2.5,
+          PAGE_MARGIN + 6,
+          { align: "center" },
+        );
 
-      doc.text(clientName, margin + contentWidth / 2 + 10, margin + 10)
-      doc.text("CUI: -", margin + contentWidth / 2 + 10, margin + 15)
-      doc.text("R.C.: -", margin + contentWidth / 2 + 10, margin + 20)
-      doc.text("Adresa: " + removeDiacritics(lucrare.locatie || "N/A"), margin + contentWidth / 2 + 10, margin + 25)
-      doc.text("Cont: -", margin + contentWidth / 2 + 10, margin + 30)
+        // PRESTATOR details
+        doc.setFont("helvetica", "normal");
+        const prestatorDetails = [
+          "SC. NRG Access Systems S.R.L.",
+          "CUI: RO12345678",
+          "R.C.: J12/3456/2015",
+          "Adresa: Strada Exemplu",
+          "Banca: Transilvania",
+          "IBAN: RO12BTRLRONCRT0123456789",
+        ];
+        prestatorDetails.forEach((line, i) =>
+          doc.text(line, PAGE_MARGIN + 2, PAGE_MARGIN + 12 + i * 5),
+        );
 
-      // Add text as a placeholder for logo
-      doc.setFontSize(12)
-      doc.setFont("helvetica", "bold")
-      doc.text("FIELD OPERATIONAL MANAGER", pageWidth / 2, margin + 45, { align: "center" })
-      doc.setFont("helvetica", "normal")
-      doc.setFontSize(10)
-      doc.text("FOM", pageWidth / 2, margin + 50, { align: "center" })
+        // BENEFICIAR details
+        const beneficiarDetails = [
+          removeDiacritics(lucrare.client || "N/A"),
+          "CUI: -",
+          "R.C.: -",
+          `Adresa: ${removeDiacritics(lucrare.locatie || "N/A")}`,
+          "Cont: -",
+        ];
+        beneficiarDetails.forEach((line, i) =>
+          doc.text(line, PAGE_MARGIN + contentW / 2 + 4.5, PAGE_MARGIN + 12 + i * 5),
+        );
 
-      // Add title
-      doc.setFontSize(16)
-      doc.setFont("helvetica", "bold")
-      doc.text("RAPORT DE INTERVENTIE", pageWidth / 2, margin + 55, { align: "center" })
+        /* --------------------------- INTERNAL TITLE ------------------------ */
+        doc.setFontSize(12).setFont("helvetica", "bold");
+        doc.text("FIELD OPERATIONAL MANAGER", pageW / 2, PAGE_MARGIN + headerBoxH + 8, {
+          align: "center",
+        });
+        doc.setFontSize(10).text("FOM", pageW / 2, PAGE_MARGIN + headerBoxH + 14, { align: "center" });
 
-      // Add report number and date
-      doc.setFontSize(10)
-      doc.setFont("helvetica", "normal")
-      doc.text("Nr. Raport: " + (lucrare.id || "N/A"), margin, margin + 65)
+        doc.setFontSize(16).text("RAPORT DE INTERVENTIE", pageW / 2, PAGE_MARGIN + headerBoxH + 22, {
+          align: "center",
+        });
 
-      // Add date and time fields
-      const dateInterventie = removeDiacritics(lucrare.dataInterventie || "N/A")
-      const dateEmiterii = removeDiacritics(lucrare.dataEmiterii || "N/A")
-      const parts = dateInterventie.split(" ")
-      const datePart = parts[0] || "N/A"
-      const timePart = parts[1] || "N/A"
+        /* --------------------------- META SECTION -------------------------- */
+        const metaStartY = PAGE_MARGIN + headerBoxH + 32;
+        doc.setFontSize(10).setFont("helvetica", "normal");
+        doc.text(`Nr. Raport: ${lucrare.id || "N/A"}`, PAGE_MARGIN, metaStartY);
 
-      doc.text("Data emiterii: " + dateEmiterii, margin, margin + 70)
-      doc.text("Data interventiei: " + datePart, margin, margin + 75)
-      doc.text("Ora sosire: " + timePart, margin + 70, margin + 75)
-      doc.text("Ora plecare: " + timePart, margin + 140, margin + 75)
+        const dateInterventie = removeDiacritics(lucrare.dataInterventie || "N/A");
+        const [datePart = "N/A", timePart = "N/A"] = dateInterventie.split(" ");
 
-      // Add work type and contract info
-      doc.setFont("helvetica", "bold")
-      doc.text("Tip lucrare:", margin, margin + 85)
-      doc.setFont("helvetica", "normal")
-      doc.text(removeDiacritics(lucrare.tipLucrare || "N/A"), margin + 30, margin + 85)
+        doc.text(`Data emiterii: ${removeDiacritics(lucrare.dataEmiterii || "N/A")}`, PAGE_MARGIN, metaStartY + 5);
+        doc.text(`Data interventiei: ${datePart}`, PAGE_MARGIN, metaStartY + 10);
+        doc.text(`Ora sosire: ${timePart}`, PAGE_MARGIN + 70, metaStartY + 10);
+        doc.text(`Ora plecare: ${timePart}`, PAGE_MARGIN + 140, metaStartY + 10);
 
-      if (lucrare.tipLucrare === "Intervenție în contract" && lucrare.contractNumber) {
-        doc.setFont("helvetica", "bold")
-        doc.text("Contract:", margin + 100, margin + 85)
-        doc.setFont("helvetica", "normal")
-        doc.text(removeDiacritics(lucrare.contractNumber || "N/A"), margin + 130, margin + 85)
-      }
+        /* --------------------------- WORK DETAILS -------------------------- */
+        const workStartY = metaStartY + 18;
+        doc.setFont("helvetica", "bold").text("Tip lucrare:", PAGE_MARGIN, workStartY);
+        doc.setFont("helvetica", "normal").text(removeDiacritics(lucrare.tipLucrare || "N/A"), PAGE_MARGIN + 30, workStartY);
 
-      // Add technicians
-      doc.setFont("helvetica", "bold")
-      doc.text("Tehnicieni:", margin, margin + 90)
-      doc.setFont("helvetica", "normal")
-      const tehnicieniText = removeDiacritics(lucrare.tehnicieni?.join(", ") || "N/A")
-      doc.text(tehnicieniText, margin + 30, margin + 90)
-
-      // Add contact person and phone
-      doc.setFont("helvetica", "bold")
-      doc.text("Persoana contact:", margin, margin + 95)
-      doc.setFont("helvetica", "normal")
-      doc.text(contactPerson, margin + 50, margin + 95)
-
-      doc.setFont("helvetica", "bold")
-      doc.text("Telefon:", margin + 100, margin + 95)
-      doc.setFont("helvetica", "normal")
-      doc.text(removeDiacritics(lucrare.telefon || "N/A"), margin + 130, margin + 95)
-
-      // Add reported defect section
-      doc.setFont("helvetica", "bold")
-      doc.text("Defect reclamat:", margin, margin + 105)
-      doc.setFont("helvetica", "normal")
-
-      const defectText = removeDiacritics(lucrare.defectReclamat || "N/A")
-      const defectLines = doc.splitTextToSize(defectText, contentWidth)
-      doc.text(defectLines, margin, margin + 110)
-
-      // Add findings section
-      doc.setFont("helvetica", "bold")
-      doc.text("Constatare la locatie:", margin, margin + 125)
-      doc.setFont("helvetica", "normal")
-
-      const descriereText = removeDiacritics(lucrare.descriere || "N/A")
-      const descriereLines = doc.splitTextToSize(descriereText, contentWidth)
-      doc.text(descriereLines, margin, margin + 130)
-
-      // Add intervention description
-      doc.setFont("helvetica", "bold")
-      doc.text("Descriere interventie:", margin, margin + 145)
-      doc.setFont("helvetica", "normal")
-
-      const interventieText = removeDiacritics(lucrare.descriereInterventie || "N/A")
-      const interventieLines = doc.splitTextToSize(interventieText, contentWidth)
-      doc.text(interventieLines, margin, margin + 150)
-
-      // Add work status
-      doc.setFont("helvetica", "bold")
-      doc.text("Status lucrare:", margin, margin + 165)
-      doc.setFont("helvetica", "normal")
-      doc.text(removeDiacritics(lucrare.statusLucrare || "N/A"), margin + 40, margin + 165)
-
-      // Add billing status (if not technician)
-      doc.setFont("helvetica", "bold")
-      doc.text("Status facturare:", margin + 100, margin + 165)
-      doc.setFont("helvetica", "normal")
-      doc.text(removeDiacritics(lucrare.statusFacturare || "N/A"), margin + 150, margin + 165)
-
-      // Add products table
-      const tableTop = margin + 175
-      doc.setFont("helvetica", "bold")
-      doc.text("DATE ESTIMATIV", pageWidth / 2, tableTop - 5, { align: "center" })
-
-      // Draw table header
-      doc.rect(margin, tableTop, contentWidth, 10, "S")
-      doc.line(margin + 10, tableTop, margin + 10, tableTop + 40) // NR column
-      doc.line(margin + 90, tableTop, margin + 90, tableTop + 40) // Denumire produse column
-      doc.line(margin + 110, tableTop, margin + 110, tableTop + 40) // UM column
-      doc.line(margin + 140, tableTop, margin + 140, tableTop + 40) // Cantitate column
-      doc.line(margin + 170, tableTop, margin + 170, tableTop + 40) // Pret unitar column
-
-      // Table header text
-      doc.setFontSize(8)
-      doc.text("NR", margin + 5, tableTop + 5, { align: "center" })
-      doc.text("Denumire produse", margin + 50, tableTop + 5, { align: "center" })
-      doc.text("UM", margin + 100, tableTop + 5, { align: "center" })
-      doc.text("Cantitate", margin + 125, tableTop + 5, { align: "center" })
-      doc.text("Pret unitar", margin + 155, tableTop + 5, { align: "center" })
-      doc.text("Total", margin + 175, tableTop + 5, { align: "center" })
-
-      // Draw table rows with product data
-      const rowHeight = 10
-      let currentY = tableTop + 10
-
-      // Add products to table
-      products.forEach((product, index) => {
-        if (index > 0) {
-          doc.line(margin, currentY, margin + contentWidth, currentY)
+        if (lucrare.tipLucrare === "Intervenție în contract" && lucrare.contractNumber) {
+          doc.setFont("helvetica", "bold").text("Contract:", PAGE_MARGIN + 100, workStartY);
+          doc.setFont("helvetica", "normal").text(removeDiacritics(lucrare.contractNumber), PAGE_MARGIN + 130, workStartY);
         }
 
-        doc.setFontSize(8)
-        doc.text((index + 1).toString(), margin + 5, currentY + 5, { align: "center" })
-        doc.text(removeDiacritics(product.name), margin + 15, currentY + 5)
-        doc.text(product.um, margin + 100, currentY + 5, { align: "center" })
-        doc.text(product.quantity.toString(), margin + 125, currentY + 5, { align: "center" })
-        doc.text(product.price.toFixed(2), margin + 155, currentY + 5, { align: "center" })
+        doc.setFont("helvetica", "bold").text("Tehnicieni:", PAGE_MARGIN, workStartY + 5);
+        const tehnicieniText = removeDiacritics(lucrare.tehnicieni?.join(", ") || "N/A");
+        doc.setFont("helvetica", "normal").text(tehnicieniText, PAGE_MARGIN + 30, workStartY + 5);
 
-        const total = (product.quantity * product.price).toFixed(2)
-        doc.text(total, margin + 185, currentY + 5, { align: "center" })
+        doc.setFont("helvetica", "bold").text("Persoana contact:", PAGE_MARGIN, workStartY + 10);
+        const contactPerson = removeDiacritics(lucrare.persoanaContact || "N/A");
+        doc.setFont("helvetica", "normal").text(contactPerson, PAGE_MARGIN + 50, workStartY + 10);
 
-        currentY += rowHeight
-      })
+        doc.setFont("helvetica", "bold").text("Telefon:", PAGE_MARGIN + 100, workStartY + 10);
+        doc.setFont("helvetica", "normal").text(removeDiacritics(lucrare.telefon || "N/A"), PAGE_MARGIN + 130, workStartY + 10);
 
-      // Fill remaining rows if needed
-      const maxRows = 3
-      const emptyRows = Math.max(0, maxRows - products.length)
+        /* ----------------------------- TEXT AREAS -------------------------- */
+        const addBlock = (label: string, text: string, startY: number): number => {
+          doc.setFont("helvetica", "bold").text(label, PAGE_MARGIN, startY);
+          doc.setFont("helvetica", "normal");
+          const lines = doc.splitTextToSize(text, contentW);
+          doc.text(lines, PAGE_MARGIN, startY + 5);
+          return startY + 5 + lines.length * 5;
+        };
 
-      for (let i = 0; i < emptyRows; i++) {
-        doc.line(margin, currentY, margin + contentWidth, currentY)
-        currentY += rowHeight
-      }
+        let currentY = workStartY + 18;
+        currentY = addBlock("Defect reclamat:", removeDiacritics(lucrare.defectReclamat || "N/A"), currentY);
+        currentY = addBlock("Constatare la locatie:", removeDiacritics(lucrare.descriere || "N/A"), currentY + 5);
+        currentY = addBlock("Descriere interventie:", removeDiacritics(lucrare.descriereInterventie || "N/A"), currentY + 5);
 
-      // Draw table footer
-      doc.line(margin, tableTop + 40, margin + contentWidth, tableTop + 40)
-      doc.line(margin, tableTop + 50, margin + contentWidth, tableTop + 50)
-      doc.line(margin, tableTop + 60, margin + contentWidth, tableTop + 60)
+        doc.setFont("helvetica", "bold").text("Status lucrare:", PAGE_MARGIN, currentY + 5);
+        doc.setFont("helvetica", "normal").text(removeDiacritics(lucrare.statusLucrare || "N/A"), PAGE_MARGIN + 40, currentY + 5);
 
-      // Calculate totals
-      const subtotal = products.reduce((sum, product) => sum + product.quantity * product.price, 0)
-      const totalWithVAT = subtotal * 1.19 // 19% TVA
+        doc.setFont("helvetica", "bold").text("Status facturare:", PAGE_MARGIN + 100, currentY + 5);
+        doc.setFont("helvetica", "normal").text(removeDiacritics(lucrare.statusFacturare || "N/A"), PAGE_MARGIN + 150, currentY + 5);
 
-      // Table footer text
-      doc.text("Total fara TVA", margin + 140, tableTop + 45, { align: "right" })
-      doc.text(subtotal.toFixed(2) + " RON", margin + 185, tableTop + 45, { align: "center" })
+        currentY += 15;
 
-      doc.text("Total cu TVA", margin + 140, tableTop + 55, { align: "right" })
-      doc.text(totalWithVAT.toFixed(2) + " RON", margin + 185, tableTop + 55, { align: "center" })
+        /* ------------------------------------------------------------------ */
+        /*                              PRODUCTS TABLE                        */
+        /* ------------------------------------------------------------------ */
 
-      // Add signature fields
-      const signatureTop = tableTop + 80
+        const tableHeaderY = currentY + 10;
+        const headerHeight = 8;
 
-      doc.setFontSize(10)
-      doc.text("Nume tehnician:", margin, signatureTop)
-      doc.text("Reprezentant beneficiar:", margin + 120, signatureTop)
+        doc.setFont("helvetica", "bold").setFontSize(12);
+        doc.text("DATE ESTIMATIV", pageW / 2, tableHeaderY - 4, { align: "center" });
 
-      doc.text("Semnatura:", margin, signatureTop + 20)
-      doc.text("Semnatura:", margin + 120, signatureTop + 20)
+        // Table header background
+        doc.setFillColor(240);
+        doc.rect(PAGE_MARGIN, tableHeaderY, contentW, headerHeight, "FD");
 
-      // Add technician name
-      doc.text(tehnicieniText, margin, signatureTop + 5)
+        // Column titles
+        const colTitles = [
+          "NR",
+          "Denumire produse",
+          "UM",
+          "Cantitate",
+          "Pret unitar",
+          "Total",
+        ];
+        doc.setFontSize(8);
+        colTitles.forEach((title, i) => {
+          const xCenter = getColumnX(i) + TABLE_COL_WIDTHS[i] / 2;
+          doc.setFont("helvetica", "bold").text(title, xCenter, tableHeaderY + 5, { align: "center" });
+        });
 
-      // Add beneficiary name
-      doc.text(contactPerson, margin + 120, signatureTop + 5)
-
-      // Add signatures if available
-      if (lucrare.semnaturaTehnician) {
-        try {
-          doc.addImage(lucrare.semnaturaTehnician, "PNG", margin, signatureTop + 25, 60, 30)
-        } catch (err) {
-          console.error("Eroare la adaugarea semnaturii tehnicianului:", err)
+        // Vertical lines (table header)
+        for (let i = 0; i <= TABLE_COL_WIDTHS.length; i++) {
+          const x = getColumnX(i);
+          doc.line(x, tableHeaderY, x, tableHeaderY + headerHeight);
         }
-      }
+        // Bottom line of header
+        doc.line(PAGE_MARGIN, tableHeaderY + headerHeight, PAGE_MARGIN + contentW, tableHeaderY + headerHeight);
 
-      if (lucrare.semnaturaBeneficiar) {
-        try {
-          doc.addImage(lucrare.semnaturaBeneficiar, "PNG", margin + 120, signatureTop + 25, 60, 30)
-        } catch (err) {
-          console.error("Eroare la adaugarea semnaturii beneficiarului:", err)
+        /* ------------------------- TABLE BODY ----------------------------- */
+        let rowY = tableHeaderY + headerHeight; // first row top edge
+        const maxRowBottom = pageH - PAGE_MARGIN - 60; // leave room for totals & signatures
+
+        const ensurePageSpace = (rowHeight: number) => {
+          if (rowY + rowHeight > maxRowBottom) {
+            doc.line(PAGE_MARGIN, rowY, PAGE_MARGIN + contentW, rowY); // close last row before break
+            doc.addPage();
+            // reset positions
+            rowY = PAGE_MARGIN;
+            // redraw header on new page
+            doc.setFillColor(240);
+            doc.rect(PAGE_MARGIN, rowY, contentW, headerHeight, "FD");
+            colTitles.forEach((title, i) => {
+              const xCenter = getColumnX(i);
+              doc.setFont("helvetica", "bold").text(title, xCenter + TABLE_COL_WIDTHS[i] / 2, rowY + 5, { align: "center" });
+              doc.line(getColumnX(i), rowY, getColumnX(i), rowY + headerHeight);
+            });
+            doc.line(PAGE_MARGIN, rowY + headerHeight, PAGE_MARGIN + contentW, rowY + headerHeight);
+            rowY += headerHeight; // space for new rows
+          }
+        };
+
+        doc.setFont("helvetica", "normal");
+        products.forEach((prod, idx) => {
+          const nameLines = doc.splitTextToSize(removeDiacritics(prod.name), TABLE_COL_WIDTHS[1] - 2);
+          const rowHeight = Math.max(8, nameLines.length * 4 + 2); // dynamic height
+
+          ensurePageSpace(rowHeight);
+
+          // Horizontal top line of the row
+          doc.line(PAGE_MARGIN, rowY, PAGE_MARGIN + contentW, rowY);
+
+          // Cell verticals for the row
+          for (let i = 0; i <= TABLE_COL_WIDTHS.length; i++) {
+            const x = getColumnX(i);
+            doc.line(x, rowY, x, rowY + rowHeight);
+          }
+
+          // Row content
+          doc.setFontSize(8);
+          const cellCenter = (colIndex: number) => getColumnX(colIndex) + TABLE_COL_WIDTHS[colIndex] / 2;
+          doc.text(String(idx + 1), cellCenter(0), rowY + 4, { align: "center" });
+
+          nameLines.forEach((line, i) => {
+            doc.text(line, getColumnX(1) + 1, rowY + 4 + i * 4);
+          });
+
+          doc.text(prod.um, cellCenter(2), rowY + 4, { align: "center" });
+          doc.text(String(prod.quantity), cellCenter(3), rowY + 4, { align: "center" });
+          doc.text(prod.price.toFixed(2), cellCenter(4), rowY + 4, { align: "center" });
+          const total = (prod.quantity * prod.price).toFixed(2);
+          doc.text(total, cellCenter(5), rowY + 4, { align: "center" });
+
+          rowY += rowHeight;
+        });
+
+        // Bottom border of the last row
+        doc.line(PAGE_MARGIN, rowY, PAGE_MARGIN + contentW, rowY);
+
+        /* ----------------------------- TABLE FOOTER ------------------------ */
+        const subtotal = products.reduce((s, p) => s + p.quantity * p.price, 0);
+        const totalWithVAT = subtotal * 1.19;
+
+        const totalsY = rowY + 8;
+        doc.setFont("helvetica", "bold").text("Total fara TVA:", PAGE_MARGIN + 120, totalsY, { align: "right" });
+        doc.setFont("helvetica", "normal").text(subtotal.toFixed(2) + " RON", PAGE_MARGIN + 125, totalsY);
+
+        doc.setFont("helvetica", "bold").text("Total cu TVA (19%):", PAGE_MARGIN + 120, totalsY + 5, { align: "right" });
+        doc.setFont("helvetica", "normal").text(totalWithVAT.toFixed(2) + " RON", PAGE_MARGIN + 125, totalsY + 5);
+
+        /* --------------------------- SIGNATURES --------------------------- */
+        const sigY = totalsY + 20;
+        doc.setFontSize(10);
+        doc.text("Nume tehnician:", PAGE_MARGIN, sigY);
+        doc.text("Reprezentant beneficiar:", PAGE_MARGIN + 105, sigY);
+
+        doc.text("Semnatura:", PAGE_MARGIN, sigY + 20);
+        doc.text("Semnatura:", PAGE_MARGIN + 105, sigY + 20);
+
+        doc.text(tehnicieniText, PAGE_MARGIN, sigY + 6);
+        doc.text(contactPerson, PAGE_MARGIN + 105, sigY + 6);
+
+        if (lucrare.semnaturaTehnician) {
+          try {
+            doc.addImage(lucrare.semnaturaTehnician, "PNG", PAGE_MARGIN, sigY + 22, 60, 30);
+          } catch (err) {
+            console.error("Eroare la adaugarea semnaturii tehnicianului:", err);
+          }
         }
+        if (lucrare.semnaturaBeneficiar) {
+          try {
+            doc.addImage(lucrare.semnaturaBeneficiar, "PNG", PAGE_MARGIN + 105, sigY + 22, 60, 30);
+          } catch (err) {
+            console.error("Eroare la adaugarea semnaturii beneficiarului:", err);
+          }
+        }
+
+        /* ---------------------------- FINALISE ---------------------------- */
+        const pdfBlob = doc.output("blob");
+        onGenerate?.(pdfBlob);
+        doc.save(`Raport_Interventie_${lucrare.id}.pdf`);
+
+        toast({
+          title: "PDF generat cu succes",
+          description: "Raportul a fost generat si descarcat.",
+        });
+
+        return pdfBlob;
+      } catch (err) {
+        console.error("Eroare la generarea PDF‑ului:", err);
+        toast({
+          title: "Eroare",
+          description: "A aparut o eroare la generarea raportului PDF.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsGenerating(false);
       }
+    });
 
-      // Get PDF as blob for email sending
-      const pdfBlob = doc.output("blob")
+    /* ----------------------- RENDER COMPONENT ---------------------------- */
+    return (
+      <div className="space-y-4">
+        <ProductTableForm products={products} onProductsChange={setProducts} />
 
-      // Call onGenerate callback if it exists
-      if (onGenerate) {
-        onGenerate(pdfBlob)
-      }
-
-      // Save PDF
-      doc.save(`Raport_Interventie_${lucrare.id}.pdf`)
-
-      toast({
-        title: "PDF generat cu succes",
-        description: "Raportul a fost generat si descarcat.",
-      })
-
-      return pdfBlob
-    } catch (err) {
-      console.error("Eroare la generarea PDF-ului:", err)
-      toast({
-        title: "Eroare",
-        description: "A aparut o eroare la generarea raportului PDF.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsGenerating(false)
-    }
-  })
-
-  /* ----------------------- RENDER COMPONENT ---------------------------- */
-  return (
-    <div className="space-y-4">
-      <ProductTableForm products={products} onProductsChange={setProducts} />
-
-      <div className="flex justify-center mt-6">
-        <Button
-          ref={ref}
-          onClick={generatePDF}
-          disabled={isGenerating || !lucrare?.semnaturaTehnician || !lucrare?.semnaturaBeneficiar}
-          className="gap-2"
-        >
-          <Download className="h-4 w-4" />
-          {isGenerating ? "Se generează..." : "Descarcă PDF"}
-        </Button>
+        <div className="flex justify-center mt-6">
+          <Button
+            ref={ref}
+            onClick={generatePDF}
+            disabled={
+              isGenerating ||
+              !lucrare?.semnaturaTehnician ||
+              !lucrare?.semnaturaBeneficiar
+            }
+            className="gap-2"
+          >
+            <Download className="h-4 w-4" />
+            {isGenerating ? "Se generează..." : "Descarcă PDF"}
+          </Button>
+        </div>
       </div>
-    </div>
-  )
-})
+    );
+  },
+);
 
-ReportGenerator.displayName = "ReportGenerator"
+ReportGenerator.displayName = "ReportGenerator";
