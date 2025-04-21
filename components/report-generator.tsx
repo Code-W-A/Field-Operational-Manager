@@ -1,234 +1,275 @@
 "use client"
 
 import { useState } from "react"
+import { jsPDF } from "jspdf"
 import { Button } from "@/components/ui/button"
 import { Download } from "lucide-react"
-import { jsPDF } from "jspdf"
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { useStableCallback } from "@/lib/utils/hooks"
 import { toast } from "@/components/ui/use-toast"
 
 interface ReportGeneratorProps {
   lucrare: Lucrare
-  onGenerate?: (pdfBlob: Blob) => void
+  onGenerate?: (pdf: Blob) => void
 }
+
+/* -------------------------------------------------------------------------- */
+/*                              HELPER FUNCTION                               */
+/* -------------------------------------------------------------------------- */
+
+// jsPDF does not embed a full‑latin font by default; we strip Romanian
+// diacritics so we can use the built‑in Helvetica.  Replace this with a custom
+// TTF if you want to keep diacritics intact.
+const removeDiacritics = (text: string): string =>
+  text
+    .replace(/ă/g, "a")
+    .replace(/â/g, "a")
+    .replace(/î/g, "i")
+    .replace(/ș/g, "s")
+    .replace(/ț/g, "t")
+    .replace(/Ă/g, "A")
+    .replace(/Â/g, "A")
+    .replace(/Î/g, "I")
+    .replace(/Ș/g, "S")
+    .replace(/Ț/g, "T")
+
+/* -------------------------------------------------------------------------- */
+/*                           MAIN REACT COMPONENT                             */
+/* -------------------------------------------------------------------------- */
 
 export function ReportGenerator({ lucrare, onGenerate }: ReportGeneratorProps) {
   const [isGenerating, setIsGenerating] = useState(false)
 
-  // Use useStableCallback to ensure we always have the latest lucrare
-  // while maintaining a stable function reference
+  /* -------------------------- PDF GENERATION CORE ------------------------- */
   const generatePDF = useStableCallback(async () => {
     if (!lucrare) return
 
     setIsGenerating(true)
 
     try {
-      // Create a new PDF document
-      const doc = new jsPDF()
+      /* ------------------------- DOCUMENT BASICS ------------------------- */
+      const doc = new jsPDF({ format: "a4", unit: "mm" })
+      const margin = 12
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const contentWidth = pageWidth - margin * 2
+      const pageHeight = doc.internal.pageSize.getHeight()
 
-      // Helper function to remove Romanian diacritics
-      const removeDiacritics = (text) => {
-        return text
-          .replace(/ă/g, "a")
-          .replace(/â/g, "a")
-          .replace(/î/g, "i")
-          .replace(/ș/g, "s")
-          .replace(/ț/g, "t")
-          .replace(/Ă/g, "A")
-          .replace(/Â/g, "A")
-          .replace(/Î/g, "I")
-          .replace(/Ș/g, "S")
-          .replace(/Ț/g, "T")
-      }
-
-      // Set page margins
-      const margin = 20
-      const pageWidth = doc.internal.pageSize.width
-      const contentWidth = pageWidth - 2 * margin
-
-      // Draw header boxes
-      doc.setDrawColor(0)
-      doc.setFillColor(255, 255, 255)
-
-      // Left box - PRESTATOR
-      doc.rect(margin, margin, contentWidth / 2 - 5, 40, "S")
-      doc.setFontSize(10)
-      doc.setFont("helvetica", "bold")
-      doc.text("PRESTATOR", margin + contentWidth / 4 - 20, margin + 5, { align: "center" })
-
-      // Right box - BENEFICIAR
-      doc.rect(margin + contentWidth / 2 + 5, margin, contentWidth / 2 - 5, 40, "S")
-      doc.text("BENEFICIAR", margin + contentWidth / 2 + 5 + contentWidth / 4 - 20, margin + 5, { align: "center" })
-
-      // Add company info to PRESTATOR box
+      /* ------------------------ SHARED FONT SETUP ------------------------ */
       doc.setFont("helvetica", "normal")
-      doc.text("SC. NRG Access Systems S.R.L.", margin + 5, margin + 10)
-      doc.text("CUI: RO12345678", margin + 5, margin + 15)
-      doc.text("R.C.: J12/3456/2015", margin + 5, margin + 20)
-      doc.text("Adresa: Strada Exemplu", margin + 5, margin + 25)
-      doc.text("Banca: Transilvania", margin + 5, margin + 30)
-      doc.text("IBAN: RO12BTRLRONCRT0123456789", margin + 5, margin + 35)
 
-      // Add client info to BENEFICIAR box
-      const clientName = removeDiacritics(lucrare.client || "N/A")
-      const contactPerson = removeDiacritics(lucrare.persoanaContact || "N/A")
+      /* --------------------------- HEADER BOXES -------------------------- */
+      const headerBoxHeight = 32
+      const boxGap = 4
+      const leftBoxWidth = contentWidth / 2 - boxGap
+      const rightBoxX = margin + leftBoxWidth + boxGap * 2
 
-      doc.text(clientName, margin + contentWidth / 2 + 10, margin + 10)
-      doc.text("CUI: -", margin + contentWidth / 2 + 10, margin + 15)
-      doc.text("R.C.: -", margin + contentWidth / 2 + 10, margin + 20)
-      doc.text("Adresa: " + removeDiacritics(lucrare.locatie || "N/A"), margin + contentWidth / 2 + 10, margin + 25)
-      doc.text("Cont: -", margin + contentWidth / 2 + 10, margin + 30)
+      // Draw rectangles
+      doc.rect(margin, margin, leftBoxWidth, headerBoxHeight)
+      doc.rect(rightBoxX, margin, leftBoxWidth, headerBoxHeight)
 
-      // Add NRG logo
+      // Section titles
+      doc.setFontSize(10).setFont(undefined, "bold")
+      doc.text("PRESTATOR", margin + leftBoxWidth / 2, margin + 5, {
+        align: "center",
+      })
+      doc.text("BENEFICIAR", rightBoxX + leftBoxWidth / 2, margin + 5, {
+        align: "center",
+      })
+
+      // Prestator details (static)
+      doc.setFontSize(9).setFont(undefined, "normal")
+      const prestatorLines = [
+        "SC NRG Access Systems S.R.L.",
+        "CUI: RO34729143",
+        "R.C.: J04/599/2015",
+        "Banca: Transilvania",
+        "IBAN: RO79BTRLROCRT0345549801",
+        "Chiajna, Ilfov",
+      ]
+      prestatorLines.forEach((l, i) =>
+        doc.text(l, margin + 2, margin + 10 + i * 4)
+      )
+
+      // Beneficiar details (dynamic)
+      const beneficiarLines = [
+        removeDiacritics(lucrare.client ?? "-"),
+        `CUI: ${lucrare.clientCui ?? "-"}`,
+        `R.C.: ${lucrare.clientRc ?? "-"}`,
+        `Adresa: ${removeDiacritics(lucrare.locatie ?? "-")}`,
+        "Cont: -",
+      ]
+      beneficiarLines.forEach((l, i) =>
+        doc.text(l, rightBoxX + 2, margin + 10 + i * 4)
+      )
+
+      /* ------------------------- COMPANY LOGO --------------------------- */
       try {
         const img = new Image()
-        img.crossOrigin = "anonymous"
-
-        await new Promise((resolve, reject) => {
-          img.onload = resolve
-          img.onerror = reject
-          img.src = "/logo-placeholder.png"
+        img.src = "/logo-placeholder.png" // replace with real path
+        await new Promise((res, rej) => {
+          img.onload = res
+          img.onerror = rej
         })
-
-        // Calculate dimensions to maintain aspect ratio
-        const logoWidth = 40
+        const logoWidth = 42
         const logoHeight = (img.height * logoWidth) / img.width
-
-        // Add logo in the center
-        doc.addImage(img, "PNG", pageWidth / 2 - logoWidth / 2, margin + 42, logoWidth, logoHeight)
-      } catch (err) {
-        console.error("Eroare la adaugarea logo-ului:", err)
+        doc.addImage(
+          img,
+          "PNG",
+          pageWidth / 2 - logoWidth / 2,
+          margin + headerBoxHeight + 2,
+          logoWidth,
+          logoHeight
+        )
+      } catch {
+        /* silent – logo is optional */
       }
 
-      // Add title
-      doc.setFontSize(16)
-      doc.setFont("helvetica", "bold")
-      doc.text("RAPORT DE INTERVENTIE", pageWidth / 2, margin + 55, { align: "center" })
+      /* -------------------------- MAIN TITLE ---------------------------- */
+      doc.setFont(undefined, "bold").setFontSize(15)
+      doc.text(
+        "RAPORT DE INTERVENTIE",
+        pageWidth / 2,
+        margin + headerBoxHeight + 18,
+        { align: "center" }
+      )
 
-      // Add date and time fields
-      doc.setFontSize(10)
-      doc.setFont("helvetica", "normal")
+      /* ------------------ DATE / TIME (3 inline fields) ----------------- */
+      doc.setFontSize(10).setFont(undefined, "normal")
+      const yMeta = margin + headerBoxHeight + 30
+      const fieldW = (contentWidth - 2 * boxGap) / 3
 
-      const dateInterventie = removeDiacritics(lucrare.dataInterventie || "N/A")
-      const parts = dateInterventie.split(" ")
-      const datePart = parts[0] || "N/A"
-      const timePart = parts[1] || "N/A"
+      const [dataInterventie = "-", oraSosire = "-", oraPlecare = "-"] = (
+        removeDiacritics(lucrare.dataInterventie || "-- --:--").split(" ") as string[]
+      )
 
-      doc.text("Data interventiei: " + datePart, margin, margin + 70)
-      doc.text("Ora sosire: " + timePart, margin + 70, margin + 70)
-      doc.text("Ora plecare: " + timePart, margin + 140, margin + 70)
+      const metaFields = [
+        [`Data interventiei:`, dataInterventie],
+        [`Ora sosire:`, oraSosire],
+        [`Ora plecare:`, oraPlecare],
+      ] as const
 
-      // Add findings section
-      doc.setFont("helvetica", "bold")
-      doc.text("Constatare la locatie:", margin, margin + 85)
-      doc.setFont("helvetica", "normal")
+      metaFields.forEach(([label, value], i) => {
+        const xStart = margin + i * (fieldW + boxGap)
+        doc.text(`${label} ${value}`, xStart, yMeta)
+        // underline field
+        doc.line(xStart, yMeta + 1, xStart + fieldW, yMeta + 1)
+      })
 
-      const defectText = removeDiacritics(lucrare.defectReclamat || "N/A")
-      const defectLines = doc.splitTextToSize(defectText, contentWidth)
-      doc.text(defectLines, margin, margin + 90)
-
-      // Add intervention description
-      doc.setFont("helvetica", "bold")
-      doc.text("Descriere interventie:", margin, margin + 110)
-      doc.setFont("helvetica", "normal")
-
-      const interventieText = removeDiacritics(lucrare.descriereInterventie || "N/A")
-      const interventieLines = doc.splitTextToSize(interventieText, contentWidth)
-      doc.text(interventieLines, margin, margin + 115)
-
-      // Add estimated data table
-      const tableTop = margin + 140
-      doc.setFont("helvetica", "bold")
-      doc.text("DATE ESTIMATIV", pageWidth / 2, tableTop - 5, { align: "center" })
-
-      // Draw table header
-      doc.rect(margin, tableTop, contentWidth, 10, "S")
-      doc.line(margin + 10, tableTop, margin + 10, tableTop + 40) // NR column
-      doc.line(margin + 90, tableTop, margin + 90, tableTop + 40) // Denumire produse column
-      doc.line(margin + 110, tableTop, margin + 110, tableTop + 40) // UM column
-      doc.line(margin + 140, tableTop, margin + 140, tableTop + 40) // Cantitate column
-      doc.line(margin + 170, tableTop, margin + 170, tableTop + 40) // Pret unitar column
-
-      // Table header text
-      doc.setFontSize(8)
-      doc.text("NR", margin + 5, tableTop + 5, { align: "center" })
-      doc.text("Denumire produse", margin + 50, tableTop + 5, { align: "center" })
-      doc.text("UM", margin + 100, tableTop + 5, { align: "center" })
-      doc.text("Cantitate", margin + 125, tableTop + 5, { align: "center" })
-      doc.text("Pret unitar", margin + 155, tableTop + 5, { align: "center" })
-      doc.text("Total", margin + 175, tableTop + 5, { align: "center" })
-
-      // Draw table rows (3 empty rows)
-      for (let i = 0; i < 3; i++) {
-        doc.line(margin, tableTop + 10 + i * 10, margin + contentWidth, tableTop + 10 + i * 10)
+      /* ----------------------- FINDINGS SECTION ------------------------- */
+      let cursorY = yMeta + 10
+      const drawSection = (
+        title: string,
+        body: string,
+        maxHeight = 35
+      ) => {
+        doc.setFont(undefined, "bold").text(title, margin, cursorY)
+        doc.setFont(undefined, "normal")
+        const lines = doc.splitTextToSize(removeDiacritics(body), contentWidth)
+        doc.text(lines, margin, cursorY + 5)
+        cursorY += Math.min(maxHeight, lines.length * 4 + 8)
       }
 
-      // Draw table footer
-      doc.line(margin, tableTop + 40, margin + contentWidth, tableTop + 40)
-      doc.line(margin, tableTop + 50, margin + contentWidth, tableTop + 50)
-      doc.line(margin, tableTop + 60, margin + contentWidth, tableTop + 60)
+      drawSection("Constatare la locatie:", lucrare.defectReclamat || "-")
+      drawSection("Descriere interventie:", lucrare.descriereInterventie || "-")
 
-      // Table footer text
-      doc.text("Total fara TVA", margin + 140, tableTop + 45, { align: "right" })
-      doc.text("Total cu TVA", margin + 140, tableTop + 55, { align: "right" })
+      /* ---------------------- ESTIMATE TABLE ---------------------------- */
+      cursorY += 4
+      doc.setFont(undefined, "bold").text("DEVIZ ESTIMATIV", pageWidth / 2, cursorY, {
+        align: "center",
+      })
+      cursorY += 3
 
-      // Add signature fields
-      const signatureTop = tableTop + 80
+      // table dimensions
+      const rowHeight = 8
+      const tableRows = 4 // header + 3 blanks
+      const tableHeight = rowHeight * tableRows
 
-      doc.setFontSize(10)
-      doc.text("Nume tehnician:", margin, signatureTop)
-      doc.text("Reprezentant beneficiar:", margin + 120, signatureTop)
+      // column positions (mirroring physical form)
+      const colX = [0, 10, 90, 110, 140, 170, contentWidth]
+        .map((v) => margin + v)
+        .slice(0, 7)
 
-      doc.text("Semnatura:", margin, signatureTop + 20)
-      doc.text("Semnatura:", margin + 120, signatureTop + 20)
-
-      // Add technician name
-      const tehnicianText = removeDiacritics(lucrare.tehnicieni?.join(", ") || "N/A")
-      doc.text(tehnicianText, margin, signatureTop + 5)
-
-      // Add beneficiary name
-      doc.text(contactPerson, margin + 120, signatureTop + 5)
-
-      // Add signatures if available
-      if (lucrare.semnaturaTehnician) {
-        try {
-          doc.addImage(lucrare.semnaturaTehnician, "PNG", margin, signatureTop + 25, 60, 30)
-        } catch (err) {
-          console.error("Eroare la adaugarea semnaturii tehnicianului:", err)
-        }
+      // outer border
+      doc.rect(colX[0], cursorY, contentWidth, tableHeight)
+      // inner vertical lines
+      for (let i = 1; i < colX.length - 1; i++) {
+        doc.line(colX[i], cursorY, colX[i], cursorY + tableHeight)
       }
+      // horizontal header line
+      doc.line(colX[0], cursorY + rowHeight, colX[colX.length - 1], cursorY + rowHeight)
 
-      if (lucrare.semnaturaBeneficiar) {
-        try {
-          doc.addImage(lucrare.semnaturaBeneficiar, "PNG", margin + 120, signatureTop + 25, 60, 30)
-        } catch (err) {
-          console.error("Eroare la adaugarea semnaturii beneficiarului:", err)
-        }
-      }
+      // header text
+      doc.setFontSize(8).setFont(undefined, "bold")
+      const headerLabels = [
+        "NR",
+        "Denumire produse",
+        "UM",
+        "Cantitate",
+        "Pret unitar",
+        "Total",
+      ]
+      headerLabels.forEach((lbl, idx) => {
+        const x = (colX[idx] + colX[idx + 1]) / 2
+        doc.text(lbl, x, cursorY + 5, { align: "center" })
+      })
 
-      // Get PDF as blob for email sending
+      cursorY += tableHeight + 6
+
+      /* ------------------------ SIGNATURE BLOCK ------------------------- */
+      const sigBlockTop = cursorY
+      const sigBlockHeight = 30
+
+      const leftSigX = margin
+      const rightSigX = margin + contentWidth / 2 + 10
+
+      doc.setFont(undefined, "normal").setFontSize(10)
+      doc.text("Nume tehnician:", leftSigX, sigBlockTop)
+      doc.text("Reprezentant beneficiar:", rightSigX, sigBlockTop)
+      doc.text(removeDiacritics(lucrare.tehnicieni?.join(", ") || "-"), leftSigX, sigBlockTop + 5)
+      doc.text(removeDiacritics(lucrare.persoanaContact || "-"), rightSigX, sigBlockTop + 5)
+
+      doc.text("Semnatura:", leftSigX, sigBlockTop + 15)
+      doc.text("Semnatura:", rightSigX, sigBlockTop + 15)
+
+      // Draw signature images if available
+      try {
+        if (lucrare.semnaturaTehnician)
+          doc.addImage(
+            lucrare.semnaturaTehnician,
+            "PNG",
+            leftSigX,
+            sigBlockTop + 17,
+            60,
+            20
+          )
+      } catch {/* ignore */}
+
+      try {
+        if (lucrare.semnaturaBeneficiar)
+          doc.addImage(
+            lucrare.semnaturaBeneficiar,
+            "PNG",
+            rightSigX,
+            sigBlockTop + 17,
+            60,
+            20
+          )
+      } catch {/* ignore */}
+
+      /* --------------------- OUTPUT / CALLBACK -------------------------- */
       const pdfBlob = doc.output("blob")
-
-      // Call onGenerate callback if it exists
-      if (onGenerate) {
-        onGenerate(pdfBlob)
-      }
-
-      // Save PDF
       doc.save(`Raport_Interventie_${lucrare.id}.pdf`)
+      onGenerate?.(pdfBlob)
 
       toast({
         title: "PDF generat cu succes",
-        description: "Raportul a fost generat si descarcat.",
+        description: "Raportul a fost descarcat.",
       })
-
-      return pdfBlob
-    } catch (err) {
-      console.error("Eroare la generarea PDF-ului:", err)
+    } catch (e) {
+      console.error(e)
       toast({
-        title: "Eroare",
-        description: "A aparut o eroare la generarea raportului PDF.",
+        title: "Eroare la generarea PDF‑ului",
+        description: "Verificati consola pentru detalii.",
         variant: "destructive",
       })
     } finally {
@@ -236,10 +277,15 @@ export function ReportGenerator({ lucrare, onGenerate }: ReportGeneratorProps) {
     }
   })
 
+  /* ----------------------- RENDER COMPONENT ---------------------------- */
   return (
     <Button
       onClick={generatePDF}
-      disabled={isGenerating || !lucrare?.semnaturaTehnician || !lucrare?.semnaturaBeneficiar}
+      disabled={
+        isGenerating ||
+        !lucrare?.semnaturaTehnician ||
+        !lucrare?.semnaturaBeneficiar
+      }
       className="gap-2"
     >
       <Download className="h-4 w-4" />

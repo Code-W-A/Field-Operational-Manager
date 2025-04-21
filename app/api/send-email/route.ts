@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
 
     // Configurăm opțiunile emailului
     const mailOptions = {
-      from: `"${senderName || "Sistem Management Lucrari"}" <${process.env.EMAIL_USER}>`,
+      from: `"${senderName || "Field Operational Manager"}" <${process.env.EMAIL_USER}>`,
       to,
       subject,
       text: message || "Va transmitem atasat raportul de interventie.",
