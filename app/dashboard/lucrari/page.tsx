@@ -538,7 +538,7 @@ export default function Lucrari() {
             <DropdownMenuItem onClick={() => handleEdit(row.original)}>
               <Pencil className="mr-2 h-4 w-4" /> Editează
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleGenerateReport(row.original.id!)}>
+            <DropdownMenuItem onClick={() => handleGenerateReport(row.id!)}>
               <FileText className="mr-2 h-4 w-4" /> Generează Raport
             </DropdownMenuItem>
             {userData?.role === "admin" && (
