@@ -98,7 +98,6 @@ export default function Lucrari() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<string[]>([])
-  const [filtersVisible, setFiltersVisible] = useState(false)
   const [tableInstance, setTableInstance] = useState<any>(null)
 
   // Obținem lucrările din Firebase
@@ -395,38 +394,41 @@ export default function Lucrari() {
       accessorKey: "dataEmiterii",
       header: "Data Emiterii",
       enableHiding: true,
+      enableFiltering: true,
     },
     {
       accessorKey: "dataInterventie",
       header: "Data solicitată intervenție",
       enableHiding: true,
+      enableFiltering: true,
     },
     {
       accessorKey: "tipLucrare",
       header: "Tip Lucrare",
       enableHiding: true,
+      enableFiltering: true,
       cell: ({ row }: any) => (
         <Badge variant="outline" className={getTipLucrareColor(row.original.tipLucrare)}>
           {row.original.tipLucrare}
         </Badge>
       ),
     },
-    // Adăugăm coloana pentru defect reclamat
     {
       accessorKey: "defectReclamat",
       header: "Defect reclamat",
       enableHiding: true,
+      enableFiltering: true,
       cell: ({ row }: any) => (
         <div className="max-w-[200px] truncate" title={row.original.defectReclamat}>
           {row.original.defectReclamat || "-"}
         </div>
       ),
     },
-    // Coloana pentru contract după tipLucrare
     {
       accessorKey: "contract",
       header: "Contract",
       enableHiding: true,
+      enableFiltering: true,
       cell: ({ row }: any) => {
         if (row.original.tipLucrare !== "Intervenție în contract") return null
         return <ContractDisplay contractId={row.original.contract} />
@@ -436,6 +438,7 @@ export default function Lucrari() {
       accessorKey: "tehnicieni",
       header: "Tehnicieni",
       enableHiding: true,
+      enableFiltering: true,
       cell: ({ row }: any) => (
         <div className="flex flex-wrap gap-1">
           {row.original.tehnicieni.map((tehnician: string, index: number) => (
@@ -450,16 +453,19 @@ export default function Lucrari() {
       accessorKey: "client",
       header: "Client",
       enableHiding: true,
+      enableFiltering: true,
     },
     {
       accessorKey: "locatie",
       header: "Echipament",
       enableHiding: true,
+      enableFiltering: true,
     },
     {
       accessorKey: "descriere",
       header: "Descriere",
       enableHiding: true,
+      enableFiltering: true,
       cell: ({ row }: any) => (
         <div className="max-w-[200px] truncate" title={row.original.descriere}>
           {row.original.descriere}
@@ -470,16 +476,19 @@ export default function Lucrari() {
       accessorKey: "persoanaContact",
       header: "Persoană Contact",
       enableHiding: true,
+      enableFiltering: true,
     },
     {
       accessorKey: "telefon",
       header: "Telefon",
       enableHiding: true,
+      enableFiltering: true,
     },
     {
       accessorKey: "statusLucrare",
       header: "Status Lucrare",
       enableHiding: true,
+      enableFiltering: true,
       cell: ({ row }: any) => (
         <Badge className={getStatusColor(row.original.statusLucrare)}>{row.original.statusLucrare}</Badge>
       ),
@@ -488,15 +497,15 @@ export default function Lucrari() {
       accessorKey: "statusFacturare",
       header: "Status Facturare",
       enableHiding: true,
+      enableFiltering: true,
       cell: ({ row }: any) => (
         <Badge className={getFacturaColor(row.original.statusFacturare)}>{row.original.statusFacturare}</Badge>
       ),
-      enableSorting: userData?.role !== "tehnician",
-      enableColumnFilter: userData?.role !== "tehnician",
     },
     {
       id: "actions",
       enableHiding: false,
+      enableFiltering: false,
       cell: ({ row }: any) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -522,80 +531,6 @@ export default function Lucrari() {
           </DropdownMenuContent>
         </DropdownMenu>
       ),
-    },
-  ]
-
-  // Definim opțiunile de filtrare pentru DataTable
-  const filterableColumns = [
-    {
-      id: "statusLucrare",
-      title: "Status Lucrare",
-      options: [
-        { label: "În așteptare", value: "în așteptare" },
-        { label: "În curs", value: "în curs" },
-        { label: "Finalizat", value: "finalizat" },
-      ],
-    },
-    {
-      id: "tipLucrare",
-      title: "Tip Lucrare",
-      options: [
-        { label: "Intervenție contra cost", value: "Intervenție contra cost" },
-        { label: "Pregătire în atelier", value: "Pregătire în atelier" },
-        { label: "Instalare", value: "Instalare" },
-        { label: "Intervenție în contract", value: "Intervenție în contract" },
-        { label: "Re-Intervenție", value: "Re-Intervenție" },
-        { label: "Intervenție garanție", value: "Intervenție garanție" },
-        { label: "Predare lucrare", value: "Predare lucrare" },
-      ],
-    },
-    {
-      id: "statusFacturare",
-      title: "Status Facturare",
-      options: [
-        { label: "Facturat", value: "facturat" },
-        { label: "Nefacturat", value: "nefacturat" },
-        { label: "Nu se facturează", value: "nu se facturează" },
-      ],
-    },
-  ]
-
-  // Adăugăm filtre avansate
-  const advancedFilters = [
-    {
-      id: "client",
-      title: "Client",
-      type: "text",
-    },
-    {
-      id: "persoanaContact",
-      title: "Persoană Contact",
-      type: "text",
-    },
-    {
-      id: "telefon",
-      title: "Telefon",
-      type: "text",
-    },
-    {
-      id: "locatie",
-      title: "Echipament",
-      type: "text",
-    },
-    {
-      id: "descriere",
-      title: "Descriere",
-      type: "text",
-    },
-    {
-      id: "defectReclamat",
-      title: "Defect Reclamat",
-      type: "text",
-    },
-    {
-      id: "tehnicieni",
-      title: "Tehnicieni",
-      type: "text",
     },
   ]
 
@@ -700,19 +635,6 @@ export default function Lucrari() {
               </TabsList>
             </Tabs>
           </div>
-
-          {!loading && !fetchError && (
-            <div className="flex flex-wrap items-center gap-2">
-              <DataTable.Filters
-                columns={columns}
-                data={filteredLucrari}
-                searchPlaceholder="Caută în toate câmpurile..."
-                filterableColumns={filterableColumns}
-                dateRangeColumn="dataInterventie"
-                advancedFilters={advancedFilters}
-              />
-            </div>
-          )}
         </div>
 
         {loading ? (
@@ -731,12 +653,7 @@ export default function Lucrari() {
           <DataTable
             columns={columns}
             data={filteredLucrari}
-            searchPlaceholder="Caută în toate câmpurile..."
-            filterableColumns={filterableColumns}
-            dateRangeColumn="dataInterventie"
-            advancedFilters={advancedFilters}
             defaultSort={{ id: "dataEmiterii", desc: true }}
-            showFilters={false}
             onRowClick={handleViewDetails}
             table={tableInstance}
             setTable={setTableInstance}

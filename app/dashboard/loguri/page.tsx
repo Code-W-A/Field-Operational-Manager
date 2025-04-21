@@ -20,8 +20,6 @@ export default function Loguri() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [table, setTable] = useState<any>(null)
-  const [globalFilter, setGlobalFilter] = useState("")
-  const [filtersVisible, setFiltersVisible] = useState(false)
 
   // Detectăm dacă suntem pe un dispozitiv mobil
   const isMobile = useMediaQuery("(max-width: 768px)")
@@ -99,76 +97,35 @@ export default function Loguri() {
     {
       accessorKey: "timestamp",
       header: "Timestamp",
+      enableFiltering: true,
       cell: ({ row }: any) => <span className="font-mono text-sm">{formatDate(row.original.timestamp)}</span>,
     },
     {
       accessorKey: "utilizator",
       header: "Utilizator",
+      enableFiltering: true,
     },
     {
       accessorKey: "actiune",
       header: "Acțiune",
+      enableFiltering: true,
     },
     {
       accessorKey: "detalii",
       header: "Detalii",
+      enableFiltering: true,
       cell: ({ row }: any) => <div className="max-w-[300px]">{row.original.detalii}</div>,
     },
     {
       accessorKey: "tip",
       header: "Tip",
+      enableFiltering: true,
       cell: ({ row }: any) => <Badge className={getTipColor(row.original.tip)}>{row.original.tip}</Badge>,
     },
     {
       accessorKey: "categorie",
       header: "Categorie",
-    },
-  ]
-
-  // Definim opțiunile de filtrare pentru DataTable
-  const filterableColumns = [
-    {
-      id: "tip",
-      title: "Tip Log",
-      options: [
-        { label: "Informație", value: "informație" },
-        { label: "Avertisment", value: "avertisment" },
-        { label: "Eroare", value: "eroare" },
-      ],
-    },
-    {
-      id: "actiune",
-      title: "Acțiune",
-      options: [
-        { label: "Adăugare", value: "Adăugare" },
-        { label: "Actualizare", value: "Actualizare" },
-        { label: "Ștergere", value: "Ștergere" },
-        { label: "Autentificare", value: "Autentificare" },
-      ],
-    },
-    {
-      id: "categorie",
-      title: "Categorie",
-      options: [
-        { label: "Date", value: "Date" },
-        { label: "Autentificare", value: "Autentificare" },
-        { label: "Sistem", value: "Sistem" },
-        { label: "Fișiere", value: "Fișiere" },
-      ],
-    },
-  ]
-
-  // Adăugăm filtre avansate
-  const advancedFilters = [
-    {
-      id: "utilizator",
-      title: "Utilizator",
-      type: "text",
-    },
-    {
-      id: "detalii",
-      title: "Detalii",
-      type: "text",
+      enableFiltering: true,
     },
   ]
 
@@ -189,20 +146,6 @@ export default function Loguri() {
               </TabsList>
             </Tabs>
           </div>
-
-          {!loading && !error && (
-            <div className="flex flex-wrap gap-2">
-              <DataTable.Filters
-                columns={columns}
-                data={logs}
-                searchColumn="detalii"
-                searchPlaceholder="Caută în loguri..."
-                filterableColumns={filterableColumns}
-                dateRangeColumn="timestamp"
-                advancedFilters={advancedFilters}
-              />
-            </div>
-          )}
         </div>
 
         {loading ? (
@@ -219,13 +162,7 @@ export default function Loguri() {
           <DataTable
             columns={columns}
             data={logs}
-            searchColumn="detalii"
-            searchPlaceholder="Caută în loguri..."
-            filterableColumns={filterableColumns}
-            dateRangeColumn="timestamp"
-            advancedFilters={advancedFilters}
             defaultSort={{ id: "timestamp", desc: true }}
-            showFilters={false}
             table={table}
             setTable={setTable}
           />

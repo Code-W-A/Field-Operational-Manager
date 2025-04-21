@@ -53,13 +53,13 @@ export default function Utilizatori() {
   const [userToDelete, setUserToDelete] = useState<UserData | null>(null)
   const [table, setTable] = useState<any>(null)
 
-  // Adăugăm state pentru activeTab
+  // Add state for activeTab
   const [activeTab, setActiveTab] = useState("tabel")
 
-  // Detectăm dacă suntem pe un dispozitiv mobil
+  // Detect if we're on a mobile device
   const isMobile = useMediaQuery("(max-width: 768px)")
 
-  // Încărcăm utilizatorii din Firebase
+  // Get users from Firebase
   const fetchUtilizatori = async () => {
     try {
       setLoading(true)
@@ -85,7 +85,7 @@ export default function Utilizatori() {
     fetchUtilizatori()
   }, [])
 
-  // Setăm automat vizualizarea cu carduri pe mobil
+  // Automatically set card view on mobile
   useEffect(() => {
     if (isMobile) {
       setActiveTab("carduri")
@@ -108,7 +108,7 @@ export default function Utilizatori() {
       setIsSubmitting(true)
       setFormError(null)
 
-      // Validare
+      // Validation
       if (!formData.email || !formData.password || !formData.displayName || !formData.role) {
         setFormError("Vă rugăm să completați toate câmpurile obligatorii")
         setIsSubmitting(false)
@@ -127,13 +127,13 @@ export default function Utilizatori() {
         return
       }
 
-      // Înregistrăm utilizatorul
+      // Register the user
       await registerUser(formData.email, formData.password, formData.displayName, formData.role, formData.telefon)
 
-      // Reîncărcăm lista de utilizatori
+      // Reload the user list
       await fetchUtilizatori()
 
-      // Închidem dialogul și resetăm formularul
+      // Close the dialog and reset the form
       setIsAddDialogOpen(false)
       setFormData({
         email: "",
@@ -225,25 +225,29 @@ export default function Utilizatori() {
     }
   }
 
-  // Definim coloanele pentru DataTable
+  // Define columns for DataTable
   const columns = [
     {
       accessorKey: "displayName",
       header: "Nume",
+      enableFiltering: true,
       cell: ({ row }: any) => <span className="font-medium">{row.original.displayName}</span>,
     },
     {
       accessorKey: "email",
       header: "Email",
+      enableFiltering: true,
     },
     {
       accessorKey: "telefon",
       header: "Telefon",
+      enableFiltering: true,
       cell: ({ row }: any) => <span>{row.original.telefon || "N/A"}</span>,
     },
     {
       accessorKey: "role",
       header: "Rol",
+      enableFiltering: true,
       cell: ({ row }: any) => (
         <Badge className={getRolColor(row.original.role)}>
           {row.original.role === "admin"
@@ -257,15 +261,18 @@ export default function Utilizatori() {
     {
       accessorKey: "status",
       header: "Status",
+      enableFiltering: true,
       cell: () => <Badge className={getStatusColor("Activ")}>Activ</Badge>,
     },
     {
       accessorKey: "lastLogin",
       header: "Ultima Autentificare",
+      enableFiltering: true,
       cell: ({ row }: any) => <span>{formatDate(row.original.lastLogin)}</span>,
     },
     {
       id: "actions",
+      enableFiltering: false,
       cell: ({ row }: any) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -302,38 +309,6 @@ export default function Utilizatori() {
           </DropdownMenuContent>
         </DropdownMenu>
       ),
-    },
-  ]
-
-  // Definim opțiunile de filtrare pentru DataTable
-  const filterableColumns = [
-    {
-      id: "role",
-      title: "Rol",
-      options: [
-        { label: "Administrator", value: "admin" },
-        { label: "Dispecer", value: "dispecer" },
-        { label: "Tehnician", value: "tehnician" },
-      ],
-    },
-  ]
-
-  // Adăugăm filtre avansate
-  const advancedFilters = [
-    {
-      id: "displayName",
-      title: "Nume",
-      type: "text",
-    },
-    {
-      id: "email",
-      title: "Email",
-      type: "text",
-    },
-    {
-      id: "telefon",
-      title: "Telefon",
-      type: "text",
     },
   ]
 
@@ -508,19 +483,6 @@ export default function Utilizatori() {
               </TabsList>
             </Tabs>
           </div>
-
-          {!loading && !error && (
-            <div className="flex flex-wrap gap-2">
-              <DataTable.Filters
-                columns={columns}
-                data={utilizatori}
-                searchColumn="displayName"
-                searchPlaceholder="Caută utilizator..."
-                filterableColumns={filterableColumns}
-                advancedFilters={advancedFilters}
-              />
-            </div>
-          )}
         </div>
 
         {loading ? (
@@ -537,11 +499,7 @@ export default function Utilizatori() {
           <DataTable
             columns={columns}
             data={utilizatori}
-            searchColumn="displayName"
-            searchPlaceholder="Caută utilizator..."
-            filterableColumns={filterableColumns}
-            advancedFilters={advancedFilters}
-            showFilters={false}
+            defaultSort={{ id: "displayName", desc: false }}
             table={table}
             setTable={setTable}
           />

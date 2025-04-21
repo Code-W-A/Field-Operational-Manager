@@ -41,18 +41,16 @@ export default function Clienti() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
 
-  // Adăugăm state pentru activeTab
+  // Add state for activeTab
   const [activeTab, setActiveTab] = useState("tabel")
-  const [globalFilter, setGlobalFilter] = useState("")
-  const [filtersVisible, setFiltersVisible] = useState(false)
 
-  // Detectăm dacă suntem pe un dispozitiv mobil
+  // Detect if we're on a mobile device
   const isMobile = useMediaQuery("(max-width: 768px)")
 
-  // Obținem clienții din Firebase
+  // Get clients from Firebase
   const { clienti, loading, error: fetchError, refreshData } = useClientLucrari()
 
-  // Setăm automat vizualizarea cu carduri pe mobil
+  // Automatically set card view on mobile
   useEffect(() => {
     if (isMobile) {
       setActiveTab("carduri")
@@ -61,7 +59,7 @@ export default function Clienti() {
     }
   }, [isMobile])
 
-  // Verificăm dacă avem un ID de client pentru editare din URL
+  // Check if we have a client ID for editing from URL
   useEffect(() => {
     const fetchClientForEdit = async () => {
       if (editId) {
@@ -86,7 +84,7 @@ export default function Clienti() {
     if (window.confirm("Sunteți sigur că doriți să ștergeți acest client?")) {
       try {
         await deleteClient(id)
-        // Reîmprospătăm datele după ștergere
+        // Refresh data after deletion
         refreshData()
       } catch (err) {
         console.error("Eroare la ștergerea clientului:", err)
@@ -95,9 +93,9 @@ export default function Clienti() {
     }
   }
 
-  // Modificăm funcția handleEdit pentru a include parametrul de eveniment și a preveni propagarea
+  // Modify handleEdit function to include event parameter and prevent propagation
   const handleEdit = (client: Client, e?: React.MouseEvent) => {
-    // Prevenim propagarea evenimentului dacă există
+    // Prevent event propagation if event exists
     if (e) {
       e.stopPropagation()
     }
@@ -105,17 +103,17 @@ export default function Clienti() {
     setSelectedClient(client)
     setIsEditDialogOpen(true)
 
-    // Adăugăm parametrul edit în URL fără a reîncărca pagina
+    // Add edit parameter to URL without page reload
     const url = new URL(window.location.href)
     url.searchParams.set("edit", client.id || "")
     window.history.pushState({}, "", url.toString())
   }
 
-  // Modificăm funcția handleEditDialogClose pentru a gestiona corect închiderea dialogului
+  // Modify handleEditDialogClose function to properly handle dialog closure
   const handleEditDialogClose = () => {
     setIsEditDialogOpen(false)
 
-    // Eliminăm parametrul "edit" din URL
+    // Remove "edit" parameter from URL
     if (editId) {
       const url = new URL(window.location.href)
       url.searchParams.delete("edit")
@@ -127,43 +125,49 @@ export default function Clienti() {
     router.push(`/dashboard/clienti/${id}`)
   }
 
-  // Modificăm funcția handleEditSuccess pentru a reîmprospăta datele
+  // Modify handleEditSuccess function to refresh data
   const handleEditSuccess = () => {
     handleEditDialogClose()
-    refreshData() // Adăugăm apelul către refreshData
+    refreshData() // Add call to refreshData
   }
 
-  // Definim coloanele pentru DataTable
+  // Define columns for DataTable
   const columns = [
     {
       accessorKey: "nume",
       header: "Nume Companie",
+      enableFiltering: true,
       cell: ({ row }: any) => <span className="font-medium">{row.original.nume}</span>,
     },
     {
       accessorKey: "adresa",
       header: "Adresă",
+      enableFiltering: true,
     },
     {
       accessorKey: "persoanaContact",
       header: "Persoană Contact",
+      enableFiltering: true,
     },
     {
       accessorKey: "telefon",
       header: "Telefon",
+      enableFiltering: true,
     },
     {
       accessorKey: "email",
       header: "Email",
+      enableFiltering: true,
     },
     {
       accessorKey: "numarLucrari",
       header: "Lucrări",
+      enableFiltering: true,
       cell: ({ row }: any) => <span>{row.original.numarLucrari || 0}</span>,
-      filterFn: "numLucrariFilter", // Folosim filtrul personalizat definit în data-table.tsx
     },
     {
       id: "actions",
+      enableFiltering: false,
       cell: ({ row }: any) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -204,48 +208,6 @@ export default function Clienti() {
     },
   ]
 
-  // Definim opțiunile de filtrare pentru DataTable
-  const filterableColumns = [
-    {
-      id: "numarLucrari",
-      title: "Număr Lucrări",
-      options: [
-        { label: "Fără lucrări", value: "0" },
-        { label: "1-5 lucrări", value: "1-5" },
-        { label: "Peste 5 lucrări", value: "5+" },
-      ],
-    },
-  ]
-
-  // Adăugăm filtre avansate
-  const advancedFilters = [
-    {
-      id: "nume",
-      title: "Nume Companie",
-      type: "text",
-    },
-    {
-      id: "adresa",
-      title: "Adresă",
-      type: "text",
-    },
-    {
-      id: "persoanaContact",
-      title: "Persoană Contact",
-      type: "text",
-    },
-    {
-      id: "telefon",
-      title: "Telefon",
-      type: "text",
-    },
-    {
-      id: "email",
-      title: "Email",
-      type: "text",
-    },
-  ]
-
   return (
     <DashboardShell>
       <DashboardHeader heading="Clienți" text="Gestionați baza de date a clienților">
@@ -263,7 +225,7 @@ export default function Clienti() {
             <ClientForm
               onSuccess={(clientName) => {
                 setIsAddDialogOpen(false)
-                refreshData() // Reîmprospătăm datele după adăugare
+                refreshData() // Refresh data after addition
               }}
               onCancel={() => setIsAddDialogOpen(false)}
             />
@@ -271,7 +233,7 @@ export default function Clienti() {
         </Dialog>
       </DashboardHeader>
 
-      {/* Dialog pentru editarea clientului */}
+      {/* Dialog for editing the client */}
       <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogClose}>
         <DialogContent className="w-[calc(100%-2rem)] max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -281,7 +243,7 @@ export default function Clienti() {
           {selectedClient && (
             <ClientEditForm
               client={selectedClient}
-              onSuccess={handleEditSuccess} // Modificăm pentru a apela handleEditSuccess
+              onSuccess={handleEditSuccess} // Modified to call handleEditSuccess
               onCancel={() => {
                 handleEditDialogClose()
               }}
@@ -300,19 +262,6 @@ export default function Clienti() {
               </TabsList>
             </Tabs>
           </div>
-
-          {!loading && !fetchError && (
-            <div className="flex flex-wrap gap-2">
-              <DataTable.Filters
-                columns={columns}
-                data={clienti}
-                searchColumn="nume"
-                searchPlaceholder="Caută client..."
-                filterableColumns={filterableColumns}
-                advancedFilters={advancedFilters}
-              />
-            </div>
-          )}
         </div>
 
         {loading ? (
@@ -331,12 +280,7 @@ export default function Clienti() {
           <DataTable
             columns={columns}
             data={clienti}
-            searchColumn="nume"
-            searchPlaceholder="Caută client..."
-            filterableColumns={filterableColumns}
-            advancedFilters={advancedFilters}
             onRowClick={(client) => handleViewDetails(client.id!)}
-            showFilters={false}
             table={table}
             setTable={setTable}
           />

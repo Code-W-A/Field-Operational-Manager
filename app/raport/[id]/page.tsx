@@ -11,6 +11,7 @@ import { getLucrareById, updateLucrare } from "@/lib/firebase/firestore"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ReportGenerator } from "@/components/report-generator"
+import { EmailSender } from "@/components/email-sender"
 import { useAuth } from "@/contexts/AuthContext"
 import { useStableCallback } from "@/lib/utils/hooks"
 
@@ -40,6 +41,12 @@ export default function RaportPage({ params }: { params: { id: string } }) {
         if (data) {
           setLucrare(data)
           setStatusLucrare(data.statusLucrare)
+
+          // Dacă lucrarea are deja semnături, trecem direct la pasul finalizat
+          if (data.semnaturaTehnician && data.semnaturaBeneficiar) {
+            setIsSubmitted(true)
+            setStep("finalizat")
+          }
         } else {
           setError("Lucrarea nu a fost găsită")
         }
@@ -54,9 +61,6 @@ export default function RaportPage({ params }: { params: { id: string } }) {
     fetchLucrare()
   }, [params.id])
 
-  // Adăugăm verificarea accesului pentru tehnicieni
-  // Adăugăm acest cod după încărcarea lucrării
-
   // Verificăm dacă tehnicianul are acces la această lucrare
   useEffect(() => {
     const checkAccess = async () => {
@@ -65,7 +69,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
         lucrare &&
         userData?.role === "tehnician" &&
         userData?.displayName &&
-        lucrare.tehnicieni && // Ensure lucrare.tehnicieni exists before using includes
+        lucrare.tehnicieni &&
         !lucrare.tehnicieni.includes(userData.displayName)
       ) {
         // Tehnicianul nu este alocat la această lucrare, redirecționăm la dashboard
@@ -178,20 +182,34 @@ export default function RaportPage({ params }: { params: { id: string } }) {
         </CardHeader>
         <CardContent className="space-y-6">
           {isSubmitted ? (
-            <div className="flex flex-col items-center justify-center space-y-4 py-12">
-              <div className="rounded-full bg-green-100 p-3">
-                <Check className="h-8 w-8 text-green-600" />
+            <div className="space-y-6">
+              <div className="flex flex-col items-center justify-center space-y-4 py-6">
+                <div className="rounded-full bg-green-100 p-3">
+                  <Check className="h-8 w-8 text-green-600" />
+                </div>
+                <h2 className="text-xl font-semibold">Raport Finalizat cu Succes!</h2>
+                <p className="text-center text-gray-500">
+                  Raportul a fost generat și poate fi descărcat sau trimis pe email.
+                </p>
               </div>
-              <h2 className="text-xl font-semibold">Raport Finalizat cu Succes!</h2>
-              <p className="text-center text-gray-500">
-                Raportul a fost generat și poate fi descărcat sau trimis pe email.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-2 mt-4">
-                <ReportGenerator lucrare={lucrare} />
-                <Button className="gap-2">
-                  <Send className="h-4 w-4" /> Trimite pe Email
-                </Button>
-              </div>
+
+              <Tabs defaultValue="descarca" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="descarca">Descarcă PDF</TabsTrigger>
+                  <TabsTrigger value="email">Trimite pe Email</TabsTrigger>
+                </TabsList>
+                <TabsContent value="descarca" className="mt-4 space-y-4">
+                  <div className="flex justify-center">
+                    <ReportGenerator lucrare={lucrare} />
+                  </div>
+                </TabsContent>
+                <TabsContent value="email" className="mt-4">
+                  <EmailSender
+                    lucrare={lucrare}
+                    defaultEmail={lucrare.client && lucrare.client.email ? lucrare.client.email : ""}
+                  />
+                </TabsContent>
+              </Tabs>
             </div>
           ) : step === "verificare" ? (
             <Tabs defaultValue="detalii" value={activeTab} onValueChange={setActiveTab}>

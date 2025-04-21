@@ -1,20 +1,40 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Download } from "lucide-react"
 import { jsPDF } from "jspdf"
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { useStableCallback } from "@/lib/utils/hooks"
+import { toast } from "@/components/ui/use-toast"
+import { getFileUrl } from "@/lib/firebase/storage"
 
 interface ReportGeneratorProps {
   lucrare: Lucrare
+  onGenerate?: (pdfBlob: Blob) => void
 }
 
-export function ReportGenerator({ lucrare }: ReportGeneratorProps) {
+export function ReportGenerator({ lucrare, onGenerate }: ReportGeneratorProps) {
   const [isGenerating, setIsGenerating] = useState(false)
+  const [companyLogo, setCompanyLogo] = useState<string | null>(null)
 
-  // Use useStableCallback instead of useEffectEvent to ensure we always have the latest lucrare
+  // Încărcăm logo-ul companiei
+  useEffect(() => {
+    const fetchLogo = async () => {
+      try {
+        const logoUrl = await getFileUrl("settings/company-logo.png").catch(() => null)
+        if (logoUrl) {
+          setCompanyLogo(logoUrl)
+        }
+      } catch (error) {
+        console.error("Eroare la încărcarea logo-ului:", error)
+      }
+    }
+
+    fetchLogo()
+  }, [])
+
+  // Use useStableCallback to ensure we always have the latest lucrare
   // while maintaining a stable function reference
   const generatePDF = useStableCallback(async () => {
     if (!lucrare) return
@@ -24,6 +44,30 @@ export function ReportGenerator({ lucrare }: ReportGeneratorProps) {
     try {
       // Creăm un nou document PDF
       const doc = new jsPDF()
+
+      // Adăugăm logo-ul companiei dacă există
+      if (companyLogo) {
+        try {
+          // Încărcăm imaginea logo-ului
+          const img = new Image()
+          img.crossOrigin = "anonymous"
+
+          await new Promise((resolve, reject) => {
+            img.onload = resolve
+            img.onerror = reject
+            img.src = companyLogo
+          })
+
+          // Calculăm dimensiunile pentru a păstra raportul de aspect
+          const imgWidth = 40
+          const imgHeight = (img.height * imgWidth) / img.width
+
+          // Adăugăm logo-ul în colțul din stânga sus
+          doc.addImage(img, "PNG", 20, 10, imgWidth, imgHeight)
+        } catch (err) {
+          console.error("Eroare la adăugarea logo-ului în PDF:", err)
+        }
+      }
 
       // Adăugăm antetul
       doc.setFontSize(20)
@@ -56,9 +100,7 @@ export function ReportGenerator({ lucrare }: ReportGeneratorProps) {
       doc.setFontSize(14)
       doc.text("Detalii Lucrare", 20, 110)
 
-      // Actualizăm generarea PDF-ului pentru a include numărul contractului
-
-      // În secțiunea "Detalii Lucrare", adăugăm numărul contractului dacă tipul lucrării este "Intervenție în contract"
+      // În secțiunea "Detalii Lucrare", adăugăm numărul contractului
       doc.setFontSize(12)
       doc.text(`Tip lucrare: ${lucrare.tipLucrare}`, 20, 120)
       if (lucrare.tipLucrare === "Intervenție în contract") {
@@ -159,11 +201,30 @@ export function ReportGenerator({ lucrare }: ReportGeneratorProps) {
         doc.text(`Pagina ${i} din ${pageCount}`, 105, 285, { align: "center" })
       }
 
+      // Obținem PDF-ul ca blob pentru a-l putea trimite prin email
+      const pdfBlob = doc.output("blob")
+
+      // Apelăm callback-ul onGenerate dacă există
+      if (onGenerate) {
+        onGenerate(pdfBlob)
+      }
+
       // Salvăm PDF-ul
       doc.save(`Raport_Interventie_${lucrare.id}.pdf`)
+
+      toast({
+        title: "PDF generat cu succes",
+        description: "Raportul a fost generat și descărcat.",
+      })
+
+      return pdfBlob
     } catch (err) {
       console.error("Eroare la generarea PDF-ului:", err)
-      alert("A apărut o eroare la generarea raportului PDF.")
+      toast({
+        title: "Eroare",
+        description: "A apărut o eroare la generarea raportului PDF.",
+        variant: "destructive",
+      })
     } finally {
       setIsGenerating(false)
     }

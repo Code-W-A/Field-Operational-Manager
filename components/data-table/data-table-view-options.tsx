@@ -12,24 +12,36 @@ import {
 import type { Table } from "@tanstack/react-table"
 import { Settings2, Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useEffect, useState } from "react"
 
 interface DataTableViewOptionsProps<TData> {
   table: Table<TData>
 }
 
 export function DataTableViewOptions<TData>({ table }: DataTableViewOptionsProps<TData>) {
+  const [mounted, setMounted] = useState(false)
+
+  // Setăm mounted la true după ce componenta este montată pentru a evita probleme de hidratare
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   // Obținem coloanele care pot fi ascunse
-  const hideableColumns = table
-    .getAllColumns()
-    .filter((column) => typeof column.accessorFn !== "undefined" && column.getCanHide())
+  const hideableColumns = table.getAllColumns().filter((column) => column.getCanHide())
 
   // Calculăm numărul de coloane ascunse
   const hiddenColumnsCount = hideableColumns.filter((column) => !column.getIsVisible()).length
 
-  // Funcție pentru a afișa/ascunde toate coloanele
+  // Comutăm vizibilitatea pentru toate coloanele
   const toggleAllColumns = (visible: boolean) => {
-    hideableColumns.forEach((column) => column.toggleVisibility(visible))
+    table.getAllColumns().forEach((column) => {
+      if (column.getCanHide()) {
+        column.toggleVisibility(visible)
+      }
+    })
   }
+
+  if (!mounted) return null
 
   return (
     <DropdownMenu>
@@ -49,7 +61,7 @@ export function DataTableViewOptions<TData>({ table }: DataTableViewOptionsProps
         <DropdownMenuSeparator />
         <div className="max-h-[300px] overflow-y-auto px-1">
           {hideableColumns.map((column) => {
-            // Obținem header-ul coloanei pentru afișare
+            // Obținem textul header-ului coloanei pentru afișare
             const headerText =
               typeof column.columnDef.header === "string"
                 ? column.columnDef.header
