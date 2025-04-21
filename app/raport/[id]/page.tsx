@@ -480,7 +480,6 @@ export default function RaportPage({ params }: { params: { id: string } }) {
           description: `Raportul a fost trimis la adresa ${email}`,
         })
 
-        setEmailSent(true)
         return true
       } catch (error) {
         console.error("Eroare la trimiterea emailului:", error)
@@ -563,7 +562,8 @@ export default function RaportPage({ params }: { params: { id: string } }) {
             setPdfBlob(pdfBlob)
 
             // Send email
-            await sendEmail(pdfBlob)
+            const emailSuccess = await sendEmail(pdfBlob)
+            setEmailSent(emailSuccess)
 
             // Save PDF locally
             const link = document.createElement("a")
