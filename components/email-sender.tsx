@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -9,7 +9,6 @@ import { Send, Loader2 } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { ReportGenerator } from "@/components/report-generator"
 import type { Lucrare } from "@/lib/firebase/firestore"
-import { getFileUrl } from "@/lib/firebase/storage"
 
 interface EmailSenderProps {
   lucrare: Lucrare
@@ -18,36 +17,19 @@ interface EmailSenderProps {
 
 export function EmailSender({ lucrare, defaultEmail = "" }: EmailSenderProps) {
   const [email, setEmail] = useState(defaultEmail)
-  const [subject, setSubject] = useState(`Raport Intervenție - ${lucrare.client} - ${lucrare.dataInterventie}`)
+  const [subject, setSubject] = useState(`Raport Interventie - ${lucrare.client} - ${lucrare.dataInterventie}`)
   const [message, setMessage] = useState(
-    `Stimată/Stimate ${lucrare.persoanaContact},
+    `Stimata/Stimate ${lucrare.persoanaContact},
 
-Vă transmitem atașat raportul de intervenție pentru lucrarea efectuată în data de ${lucrare.dataInterventie}.
+Va transmitem atasat raportul de interventie pentru lucrarea efectuata in data de ${lucrare.dataInterventie}.
 
-Cu stimă,
-Echipa de intervenție`,
+Cu stima,
+Echipa de interventie`,
   )
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null)
-  const [companyLogo, setCompanyLogo] = useState<string | null>(null)
   const reportGeneratorRef = useRef<HTMLButtonElement>(null)
-
-  // Încărcăm logo-ul companiei
-  useEffect(() => {
-    const fetchLogo = async () => {
-      try {
-        const logoUrl = await getFileUrl("settings/company-logo.png").catch(() => null)
-        if (logoUrl) {
-          setCompanyLogo(logoUrl)
-        }
-      } catch (error) {
-        console.error("Eroare la încărcarea logo-ului:", error)
-      }
-    }
-
-    fetchLogo()
-  }, [])
 
   const handleGeneratePDF = (blob: Blob) => {
     setPdfBlob(blob)
@@ -81,7 +63,7 @@ Echipa de intervenție`,
       }
       toast({
         title: "Generare PDF",
-        description: "Vă rugăm să generați mai întâi PDF-ul",
+        description: "Va rugam sa generati mai intai PDF-ul",
       })
       return
     }
@@ -94,16 +76,14 @@ Echipa de intervenție`,
       formData.append("to", email)
       formData.append("subject", subject)
       formData.append("message", message)
-      formData.append("senderName", `Echipa de intervenție - ${lucrare.tehnicieni?.join(", ")}`)
+      formData.append("senderName", `Echipa de interventie - ${lucrare.tehnicieni?.join(", ")}`)
 
       // Adăugăm PDF-ul ca fișier
       const pdfFile = new File([pdfBlob], `Raport_Interventie_${lucrare.id}.pdf`, { type: "application/pdf" })
       formData.append("pdfFile", pdfFile)
 
-      // Adăugăm logo-ul companiei dacă există
-      if (companyLogo) {
-        formData.append("companyLogo", companyLogo)
-      }
+      // Adăugăm logo-ul companiei
+      formData.append("companyLogo", "/logo-placeholder.png")
 
       // Trimitem cererea către API
       const response = await fetch("/api/send-email", {
@@ -114,7 +94,7 @@ Echipa de intervenție`,
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || "A apărut o eroare la trimiterea emailului")
+        throw new Error(data.error || "A aparut o eroare la trimiterea emailului")
       }
 
       toast({
@@ -125,7 +105,7 @@ Echipa de intervenție`,
       console.error("Eroare la trimiterea emailului:", error)
       toast({
         title: "Eroare",
-        description: error instanceof Error ? error.message : "A apărut o eroare la trimiterea emailului",
+        description: error instanceof Error ? error.message : "A aparut o eroare la trimiterea emailului",
         variant: "destructive",
       })
     } finally {
@@ -166,7 +146,7 @@ Echipa de intervenție`,
         <Label htmlFor="message">Mesaj</Label>
         <Textarea
           id="message"
-          placeholder="Introduceți mesajul"
+          placeholder="Introduceti mesajul"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           rows={6}
@@ -186,7 +166,7 @@ Echipa de intervenție`,
                   setIsGenerating(false)
                   toast({
                     title: "PDF generat cu succes",
-                    description: "Acum puteți trimite emailul",
+                    description: "Acum puteti trimite emailul",
                   })
                 },
               })

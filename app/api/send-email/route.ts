@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import nodemailer from "nodemailer"
 import { addLog } from "@/lib/firebase/firestore"
+import path from "path"
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,11 +12,10 @@ export async function POST(request: NextRequest) {
     const message = formData.get("message") as string
     const senderName = formData.get("senderName") as string
     const pdfFile = formData.get("pdfFile") as File
-    const companyLogo = formData.get("companyLogo") as string
 
     if (!to || !subject || !pdfFile) {
       return NextResponse.json(
-        { error: "Adresa de email, subiectul și fișierul PDF sunt obligatorii" },
+        { error: "Adresa de email, subiectul si fisierul PDF sunt obligatorii" },
         { status: 400 },
       )
     }
@@ -34,42 +34,37 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await pdfFile.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
-    // Construim HTML-ul pentru email, incluzând logo-ul dacă există
-    let htmlContent = `
-     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-   `
-
-    // Adăugăm logo-ul companiei dacă există
-    if (companyLogo) {
-      htmlContent += `
-       <div style="text-align: center; margin-bottom: 20px;">
-         <img src="${companyLogo}" alt="Logo companie" style="max-width: 200px; max-height: 80px;" />
-       </div>
-     `
-    }
-
-    // Continuăm cu restul conținutului
-    htmlContent += `
-       <h2 style="color: #0f56b3;">Raport de Intervenție</h2>
-       <p>${message || "Vă transmitem atașat raportul de intervenție."}</p>
-       <p>Raportul este atașat în format PDF.</p>
-       <hr style="border: 1px solid #eee; margin: 20px 0;" />
-       <p style="color: #666; font-size: 12px;">Acest email a fost generat automat. Vă rugăm să nu răspundeți la acest email.</p>
-     </div>
-   `
+    // Construim HTML-ul pentru email
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <img src="cid:company-logo" alt="Logo companie" style="max-width: 200px; max-height: 80px;" />
+        </div>
+        <h2 style="color: #0f56b3;">Raport de Interventie</h2>
+        <p>${message || "Va transmitem atasat raportul de interventie."}</p>
+        <p>Raportul este atasat in format PDF.</p>
+        <hr style="border: 1px solid #eee; margin: 20px 0;" />
+        <p style="color: #666; font-size: 12px;">Acest email a fost generat automat. Va rugam sa nu raspundeti la acest email.</p>
+      </div>
+    `
 
     // Configurăm opțiunile emailului
     const mailOptions = {
-      from: `"${senderName || "Sistem Management Lucrări"}" <${process.env.EMAIL_USER}>`,
+      from: `"${senderName || "Sistem Management Lucrari"}" <${process.env.EMAIL_USER}>`,
       to,
       subject,
-      text: message || "Vă transmitem atașat raportul de intervenție.",
+      text: message || "Va transmitem atasat raportul de interventie.",
       html: htmlContent,
       attachments: [
         {
           filename: pdfFile.name || "raport_interventie.pdf",
           content: buffer,
           contentType: "application/pdf",
+        },
+        {
+          filename: "logo.png",
+          path: path.join(process.cwd(), "public", "logo-placeholder.png"),
+          cid: "company-logo",
         },
       ],
     }
@@ -80,8 +75,8 @@ export async function POST(request: NextRequest) {
     // Adăugăm un log pentru trimiterea emailului
     await addLog(
       "Trimitere email",
-      `A fost trimis un email cu raportul de intervenție către ${to}`,
-      "Informație",
+      `A fost trimis un email cu raportul de interventie catre ${to}`,
+      "Informatie",
       "Email",
     )
 
@@ -89,6 +84,6 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Eroare la trimiterea emailului:", error)
 
-    return NextResponse.json({ error: "A apărut o eroare la trimiterea emailului" }, { status: 500 })
+    return NextResponse.json({ error: "A aparut o eroare la trimiterea emailului" }, { status: 500 })
   }
 }

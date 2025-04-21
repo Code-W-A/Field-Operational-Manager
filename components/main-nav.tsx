@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { ClipboardList, Users, Settings, FileText, Home, Cog } from "lucide-react"
+import { ClipboardList, Users, Settings, FileText, Home } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 
 export function MainNav() {
@@ -72,16 +72,6 @@ export function MainNav() {
             >
               <FileText className="h-4 w-4" />
               <span>Loguri</span>
-            </Link>
-            <Link
-              href="/dashboard/setari"
-              className={cn(
-                "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
-                pathname === "/dashboard/setari" ? "text-primary" : "text-muted-foreground",
-              )}
-            >
-              <Cog className="h-4 w-4" />
-              <span>Setări</span>
             </Link>
           </>
         )}

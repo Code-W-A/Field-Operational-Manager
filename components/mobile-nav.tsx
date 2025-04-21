@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Menu } from "lucide-react"
 // Adăugăm importul pentru Cog
-import { ClipboardList, Users, Settings, FileText, Home, LogOut, Cog } from "lucide-react"
+import { ClipboardList, Users, Settings, FileText, Home, LogOut } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 
 export function MobileNav() {
@@ -93,17 +93,6 @@ export function MobileNav() {
               >
                 <FileText className="h-5 w-5" />
                 <span>Loguri</span>
-              </Link>
-              <Link
-                href="/dashboard/setari"
-                onClick={() => setOpen(false)}
-                className={cn(
-                  "flex items-center gap-2 rounded-md px-3 py-3 text-sm font-medium transition-colors",
-                  pathname === "/dashboard/setari" ? "bg-blue-100 text-blue-900" : "hover:bg-muted",
-                )}
-              >
-                <Cog className="h-5 w-5" />
-                <span>Setări</span>
               </Link>
             </>
           )}

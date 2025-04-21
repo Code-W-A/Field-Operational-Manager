@@ -1,13 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Download } from "lucide-react"
 import { jsPDF } from "jspdf"
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { useStableCallback } from "@/lib/utils/hooks"
 import { toast } from "@/components/ui/use-toast"
-import { getFileUrl } from "@/lib/firebase/storage"
 
 interface ReportGeneratorProps {
   lucrare: Lucrare
@@ -16,23 +15,6 @@ interface ReportGeneratorProps {
 
 export function ReportGenerator({ lucrare, onGenerate }: ReportGeneratorProps) {
   const [isGenerating, setIsGenerating] = useState(false)
-  const [companyLogo, setCompanyLogo] = useState<string | null>(null)
-
-  // Încărcăm logo-ul companiei
-  useEffect(() => {
-    const fetchLogo = async () => {
-      try {
-        const logoUrl = await getFileUrl("settings/company-logo.png").catch(() => null)
-        if (logoUrl) {
-          setCompanyLogo(logoUrl)
-        }
-      } catch (error) {
-        console.error("Eroare la încărcarea logo-ului:", error)
-      }
-    }
-
-    fetchLogo()
-  }, [])
 
   // Use useStableCallback to ensure we always have the latest lucrare
   // while maintaining a stable function reference
@@ -81,7 +63,7 @@ export function ReportGenerator({ lucrare, onGenerate }: ReportGeneratorProps) {
 
       // Add company info to PRESTATOR box
       doc.setFont("helvetica", "normal")
-      doc.text("SC. Compania Dvs. S.R.L.", margin + 5, margin + 10)
+      doc.text("SC. NRG Access Systems S.R.L.", margin + 5, margin + 10)
       doc.text("CUI: RO12345678", margin + 5, margin + 15)
       doc.text("R.C.: J12/3456/2015", margin + 5, margin + 20)
       doc.text("Adresa: Strada Exemplu", margin + 5, margin + 25)
@@ -97,6 +79,27 @@ export function ReportGenerator({ lucrare, onGenerate }: ReportGeneratorProps) {
       doc.text("R.C.: -", margin + contentWidth / 2 + 10, margin + 20)
       doc.text("Adresa: " + removeDiacritics(lucrare.locatie || "N/A"), margin + contentWidth / 2 + 10, margin + 25)
       doc.text("Cont: -", margin + contentWidth / 2 + 10, margin + 30)
+
+      // Add NRG logo
+      try {
+        const img = new Image()
+        img.crossOrigin = "anonymous"
+
+        await new Promise((resolve, reject) => {
+          img.onload = resolve
+          img.onerror = reject
+          img.src = "/logo-placeholder.png"
+        })
+
+        // Calculate dimensions to maintain aspect ratio
+        const logoWidth = 40
+        const logoHeight = (img.height * logoWidth) / img.width
+
+        // Add logo in the center
+        doc.addImage(img, "PNG", pageWidth / 2 - logoWidth / 2, margin + 42, logoWidth, logoHeight)
+      } catch (err) {
+        console.error("Eroare la adaugarea logo-ului:", err)
+      }
 
       // Add title
       doc.setFontSize(16)
