@@ -16,10 +16,10 @@ export interface ProductItem {
 
 interface ProductTableFormProps {
   products: ProductItem[]
-  onChange: (products: ProductItem[]) => void
+  onProductsChange: (products: ProductItem[]) => void
 }
 
-export function ProductTableForm({ products, onChange }: ProductTableFormProps) {
+export function ProductTableForm({ products, onProductsChange }: ProductTableFormProps) {
   // Funcție pentru a genera un ID unic
   const generateId = () => `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
@@ -33,12 +33,12 @@ export function ProductTableForm({ products, onChange }: ProductTableFormProps) 
       price: 0,
       total: 0,
     }
-    onChange([...products, newProduct])
+    onProductsChange([...products, newProduct])
   }
 
   // Funcție pentru a șterge un produs
   const removeProduct = (id: string) => {
-    onChange(products.filter((product) => product.id !== id))
+    onProductsChange(products.filter((product) => product.id !== id))
   }
 
   // Funcție pentru a actualiza un produs
@@ -57,7 +57,7 @@ export function ProductTableForm({ products, onChange }: ProductTableFormProps) 
       return product
     })
 
-    onChange(updatedProducts)
+    onProductsChange(updatedProducts)
   }
 
   // Calculăm totalul general

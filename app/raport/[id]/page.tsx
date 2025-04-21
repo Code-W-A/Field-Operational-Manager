@@ -317,61 +317,57 @@ export default function RaportPage({ params }: { params: { id: string } }) {
       let currentY = tableStartY + 10
       const maxTableHeight = 100 // Maximum height for the products table
 
-      // Calculate total height needed for all products
-      const totalProductsHeight = products.length * productRowHeight
-
-      // Adjust row height if we have too many products
-      const adjustedRowHeight = Math.min(productRowHeight, maxTableHeight / Math.max(1, products.length))
-
-      products.forEach((product, index) => {
-        // Draw row borders
-        doc.line(margin, currentY, margin + tableWidth, currentY) // Top border
-        doc.line(margin, currentY, margin, currentY + adjustedRowHeight) // Left border
-        doc.line(margin + 10, currentY, margin + 10, currentY + adjustedRowHeight) // After NR
-        doc.line(margin + 110, currentY, margin + 110, currentY + adjustedRowHeight) // After Denumire
-        doc.line(margin + 130, currentY, margin + 130, currentY + adjustedRowHeight) // After UM
-        doc.line(margin + 155, currentY, margin + 155, currentY + adjustedRowHeight) // After Cantitate
-        doc.line(margin + 180, currentY, margin + 180, currentY + adjustedRowHeight) // After Pret
-        doc.line(margin + tableWidth, currentY, margin + tableWidth, currentY + adjustedRowHeight) // Right border
-
-        // Add product data
-        doc.setFontSize(8)
-        doc.setFont("helvetica", "normal")
-
-        // Number
-        doc.text((index + 1).toString(), margin + 5, currentY + 5, { align: "center" })
-
-        // Product name - handle long text with wrapping
-        const productName = removeDiacritics(product.name)
-        const nameLines = doc.splitTextToSize(productName, 95) // Width for product name
-        const lineHeight = 3.5
-        nameLines.forEach((line, i) => {
-          if (i < 3) {
-            // Limit to 3 lines to prevent overflow
-            doc.text(line, margin + 12, currentY + 5 + i * lineHeight)
-          }
-        })
-
-        // Other fields
-        doc.text(product.um, margin + 120, currentY + 5, { align: "center" })
-        doc.text(product.quantity.toString(), margin + 142, currentY + 5, { align: "center" })
-        doc.text(product.price.toFixed(2), margin + 167, currentY + 5, { align: "center" })
-
-        const total = (product.quantity * product.price).toFixed(2)
-        doc.text(total, margin + 190, currentY + 5, { align: "center" })
-
-        currentY += adjustedRowHeight
-      })
-
-      // Draw bottom border of the last row
-      doc.line(margin, currentY, margin + tableWidth, currentY)
-
-      // Add empty rows if needed (to maintain consistent table size)
+      // If there are no products, still draw an empty table with at least 3 rows
       const minRows = 3
-      if (products.length < minRows) {
-        const emptyRows = minRows - products.length
-        for (let i = 0; i < emptyRows; i++) {
+      const emptyRows = Math.max(minRows, products.length)
+      const adjustedRowHeight = Math.min(productRowHeight, maxTableHeight / Math.max(1, emptyRows))
+
+      if (products.length > 0) {
+        // Draw products if there are any
+        products.forEach((product, index) => {
           // Draw row borders
+          doc.line(margin, currentY, margin + tableWidth, currentY) // Top border
+          doc.line(margin, currentY, margin, currentY + adjustedRowHeight) // Left border
+          doc.line(margin + 10, currentY, margin + 10, currentY + adjustedRowHeight) // After NR
+          doc.line(margin + 110, currentY, margin + 110, currentY + adjustedRowHeight) // After Denumire
+          doc.line(margin + 130, currentY, margin + 130, currentY + adjustedRowHeight) // After UM
+          doc.line(margin + 155, currentY, margin + 155, currentY + adjustedRowHeight) // After Cantitate
+          doc.line(margin + 180, currentY, margin + 180, currentY + adjustedRowHeight) // After Pret
+          doc.line(margin + tableWidth, currentY, margin + tableWidth, currentY + adjustedRowHeight) // Right border
+
+          // Add product data
+          doc.setFontSize(8)
+          doc.setFont("helvetica", "normal")
+
+          // Number
+          doc.text((index + 1).toString(), margin + 5, currentY + 5, { align: "center" })
+
+          // Product name - handle long text with wrapping
+          const productName = removeDiacritics(product.name)
+          const nameLines = doc.splitTextToSize(productName, 95) // Width for product name
+          const lineHeight = 3.5
+          nameLines.forEach((line, i) => {
+            if (i < 3) {
+              // Limit to 3 lines to prevent overflow
+              doc.text(line, margin + 12, currentY + 5 + i * lineHeight)
+            }
+          })
+
+          // Other fields
+          doc.text(product.um, margin + 120, currentY + 5, { align: "center" })
+          doc.text(product.quantity.toString(), margin + 142, currentY + 5, { align: "center" })
+          doc.text(product.price.toFixed(2), margin + 167, currentY + 5, { align: "center" })
+
+          const total = (product.quantity * product.price).toFixed(2)
+          doc.text(total, margin + 190, currentY + 5, { align: "center" })
+
+          currentY += adjustedRowHeight
+        })
+      } else {
+        // Draw empty rows if there are no products
+        for (let i = 0; i < minRows; i++) {
+          // Draw row borders
+          doc.line(margin, currentY, margin + tableWidth, currentY) // Top border
           doc.line(margin, currentY, margin, currentY + adjustedRowHeight) // Left border
           doc.line(margin + 10, currentY, margin + 10, currentY + adjustedRowHeight) // After NR
           doc.line(margin + 110, currentY, margin + 110, currentY + adjustedRowHeight) // After Denumire
@@ -381,12 +377,15 @@ export default function RaportPage({ params }: { params: { id: string } }) {
           doc.line(margin + tableWidth, currentY, margin + tableWidth, currentY + adjustedRowHeight) // Right border
 
           currentY += adjustedRowHeight
-          doc.line(margin, currentY, margin + tableWidth, currentY) // Bottom border
         }
       }
 
-      // Calculate totals
-      const subtotal = products.reduce((sum, product) => sum + product.quantity * product.price, 0)
+      // Draw bottom border of the last row
+      doc.line(margin, currentY, margin + tableWidth, currentY)
+
+      // Calculate totals - handle empty products case
+      const subtotal =
+        products.length > 0 ? products.reduce((sum, product) => sum + product.quantity * product.price, 0) : 0
       const totalWithVAT = subtotal * 1.19 // 19% TVA
 
       // Add totals section
@@ -532,10 +531,11 @@ export default function RaportPage({ params }: { params: { id: string } }) {
         return
       }
 
-      if (products.length === 0) {
-        alert("Vă rugăm să adăugați cel puțin un produs în tabel.")
-        return
-      }
+      // Remove the products validation check
+      // if (products.length === 0) {
+      //   alert("Vă rugăm să adăugați cel puțin un produs în tabel.")
+      //   return
+      // }
 
       setIsSubmitting(true)
 
@@ -922,9 +922,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
               onClick={handleSubmit}
               disabled={
                 isSubmitting ||
-                (step === "verificare"
-                  ? statusLucrare !== "Finalizat"
-                  : !isTechSigned || !isClientSigned || !email || products.length === 0)
+                (step === "verificare" ? statusLucrare !== "Finalizat" : !isTechSigned || !isClientSigned || !email)
               }
             >
               {isSubmitting ? (
