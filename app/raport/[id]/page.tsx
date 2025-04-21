@@ -134,292 +134,241 @@ export default function RaportPage({ params }: { params: { id: string } }) {
     if (!lucrare) return null
 
     try {
-      // Create a new PDF document
-      const doc = new jsPDF()
+      // Create a new PDF document (A4 portrait)
+      const doc = new jsPDF({
+        format: "a4",
+        unit: "mm",
+        orientation: "portrait",
+      })
 
-      // Set page margins
-      const margin = 20
+      // Set page dimensions
       const pageWidth = doc.internal.pageSize.width
-      const contentWidth = pageWidth - 2 * margin
+      const pageHeight = doc.internal.pageSize.height
+      const margin = 20
 
       // Draw header boxes
       doc.setDrawColor(0)
-      doc.setFillColor(255, 255, 255)
+      doc.setLineWidth(0.5)
 
-      // Left box - PRESTATOR
-      doc.rect(margin, margin, contentWidth / 2 - 5, 40, "S")
+      // PRESTATOR box (left)
+      doc.rect(margin, margin, (pageWidth - 2 * margin) / 2 - 5, 40)
       doc.setFontSize(10)
       doc.setFont("helvetica", "bold")
-      doc.text("PRESTATOR", margin + contentWidth / 4 - 20, margin + 5, { align: "center" })
+      doc.text("PRESTATOR", margin + 2, margin + 6)
 
-      // Right box - BENEFICIAR
-      doc.rect(margin + contentWidth / 2 + 5, margin, contentWidth / 2 - 5, 40, "S")
-      doc.text("BENEFICIAR", margin + contentWidth / 2 + 5 + contentWidth / 4 - 20, margin + 5, { align: "center" })
+      // BENEFICIAR box (right)
+      doc.rect(margin + (pageWidth - 2 * margin) / 2 + 5, margin, (pageWidth - 2 * margin) / 2 - 5, 40)
+      doc.text("BENEFICIAR", margin + (pageWidth - 2 * margin) / 2 + 7, margin + 6)
 
       // Add company info to PRESTATOR box
       doc.setFont("helvetica", "normal")
-      doc.text("SC. NRG Access Systems S.R.L.", margin + 5, margin + 10)
-      doc.text("CUI: RO12345678", margin + 5, margin + 15)
-      doc.text("R.C.: J12/3456/2015", margin + 5, margin + 20)
-      doc.text("Adresa: Strada Exemplu", margin + 5, margin + 25)
-      doc.text("Banca: Transilvania", margin + 5, margin + 30)
-      doc.text("IBAN: RO12BTRLRONCRT0123456789", margin + 5, margin + 35)
+      doc.text("SC. NRG Access Systems S.R.L.", margin + 2, margin + 12)
+      doc.text("CUI: RO12345678", margin + 2, margin + 18)
+      doc.text("R.C.: J12/3456/2015", margin + 2, margin + 24)
+      doc.text("Adresa: Strada Exemplu", margin + 2, margin + 30)
+      doc.text("Banca Transilvania", margin + 2, margin + 36)
+      doc.text("RO12BTRLRONCRT0123456789", margin + 2, margin + 42)
 
       // Add client info to BENEFICIAR box
       const clientName = removeDiacritics(lucrare.client || "N/A")
-      const contactPerson = removeDiacritics(lucrare.persoanaContact || "N/A")
+      doc.text(clientName, margin + (pageWidth - 2 * margin) / 2 + 7, margin + 12)
+      doc.text("R.C.: -", margin + (pageWidth - 2 * margin) / 2 + 7, margin + 18)
+      doc.text(
+        "Adresa: " + removeDiacritics(lucrare.locatie || "N/A"),
+        margin + (pageWidth - 2 * margin) / 2 + 7,
+        margin + 24,
+      )
+      doc.text("Banca: -", margin + (pageWidth - 2 * margin) / 2 + 7, margin + 30)
+      doc.text("Cont: -", margin + (pageWidth - 2 * margin) / 2 + 7, margin + 36)
 
-      doc.text(clientName, margin + contentWidth / 2 + 10, margin + 10)
-      doc.text("CUI: -", margin + contentWidth / 2 + 10, margin + 15)
-      doc.text("R.C.: -", margin + contentWidth / 2 + 10, margin + 20)
-      doc.text("Adresa: " + removeDiacritics(lucrare.locatie || "N/A"), margin + contentWidth / 2 + 10, margin + 25)
-      doc.text("Cont: -", margin + contentWidth / 2 + 10, margin + 30)
-
-      // Add text as a placeholder for logo
-      doc.setFontSize(12)
+      // Add NRG logo in the center
+      // Since we don't have the actual logo, we'll add text as a placeholder
+      doc.setFontSize(24)
       doc.setFont("helvetica", "bold")
-      doc.text("FIELD OPERATIONAL MANAGER", pageWidth / 2, margin + 45, { align: "center" })
-      doc.setFont("helvetica", "normal")
-      doc.setFontSize(10)
-      doc.text("FOM", pageWidth / 2, margin + 50, { align: "center" })
+      doc.text("NRG", pageWidth / 2, margin + 30, { align: "center" })
 
-      // Add title
-      doc.setFontSize(16)
-      doc.setFont("helvetica", "bold")
-      doc.text("RAPORT DE INTERVENTIE", pageWidth / 2, margin + 55, { align: "center" })
-
-      // Add report number and date
-      doc.setFontSize(10)
-      doc.setFont("helvetica", "normal")
-      doc.text("Nr. Raport: " + (lucrare.id || "N/A"), margin, margin + 65)
+      // Add report title
+      doc.setFontSize(14)
+      doc.text("RAPORT", pageWidth / 2, margin + 55, { align: "center" })
+      doc.text("DE", pageWidth / 2, margin + 62, { align: "center" })
+      doc.text("INTERVENȚIE", pageWidth / 2, margin + 69, { align: "center" })
 
       // Add date and time fields
-      const dateInterventie = removeDiacritics(lucrare.dataInterventie || "N/A")
-      const dateEmiterii = removeDiacritics(lucrare.dataEmiterii || "N/A")
-      const parts = dateInterventie.split(" ")
-      const datePart = parts[0] || "N/A"
-      const timePart = parts[1] || "N/A"
+      const dateInterventie = removeDiacritics(lucrare.dataInterventie || "N/A").split(" ")[0]
+      const timeParts = (lucrare.dataInterventie || "").split(" ")[1]?.split(":") || ["", ""]
+      const timeArrival = timeParts.slice(0, 2).join(":")
 
-      doc.text("Data emiterii: " + dateEmiterii, margin, margin + 70)
-      doc.text("Data interventiei: " + datePart, margin, margin + 75)
-      doc.text("Ora sosire: " + timePart, margin + 70, margin + 75)
-      doc.text("Ora plecare: " + timePart, margin + 140, margin + 75)
-
-      // Add work type and contract info
+      doc.setFontSize(10)
       doc.setFont("helvetica", "bold")
-      doc.text("Tip lucrare:", margin, margin + 85)
+      doc.text("Data intervenției:", margin, margin + 85)
       doc.setFont("helvetica", "normal")
-      doc.text(removeDiacritics(lucrare.tipLucrare || "N/A"), margin + 30, margin + 85)
-
-      if (lucrare.tipLucrare === "Intervenție în contract" && lucrare.contractNumber) {
-        doc.setFont("helvetica", "bold")
-        doc.text("Contract:", margin + 100, margin + 85)
-        doc.setFont("helvetica", "normal")
-        doc.text(removeDiacritics(lucrare.contractNumber || "N/A"), margin + 130, margin + 85)
-      }
-
-      // Add technicians
-      doc.setFont("helvetica", "bold")
-      doc.text("Tehnicieni:", margin, margin + 90)
-      doc.setFont("helvetica", "normal")
-      const tehnicieniText = removeDiacritics(lucrare.tehnicieni?.join(", ") || "N/A")
-      doc.text(tehnicieniText, margin + 30, margin + 90)
-
-      // Add contact person and phone
-      doc.setFont("helvetica", "bold")
-      doc.text("Persoana contact:", margin, margin + 95)
-      doc.setFont("helvetica", "normal")
-      doc.text(contactPerson, margin + 50, margin + 95)
+      doc.text(dateInterventie, margin + 35, margin + 85)
 
       doc.setFont("helvetica", "bold")
-      doc.text("Telefon:", margin + 100, margin + 95)
+      doc.text("Ora sosirii:", margin + 70, margin + 85)
       doc.setFont("helvetica", "normal")
-      doc.text(removeDiacritics(lucrare.telefon || "N/A"), margin + 130, margin + 95)
+      doc.text(timeArrival, margin + 95, margin + 85)
 
-      // Add reported defect section
       doc.setFont("helvetica", "bold")
-      doc.text("Defect reclamat:", margin, margin + 105)
+      doc.text("Ora plecării:", margin + 120, margin + 85)
       doc.setFont("helvetica", "normal")
-
-      const defectText = removeDiacritics(lucrare.defectReclamat || "N/A")
-      const defectLines = doc.splitTextToSize(defectText, contentWidth)
-      doc.text(defectLines, margin, margin + 110)
+      doc.text(timeArrival, margin + 145, margin + 85)
 
       // Add findings section
       doc.setFont("helvetica", "bold")
-      doc.text("Constatare la locatie:", margin, margin + 125)
+      doc.text("Constatare la locație:", margin, margin + 95)
       doc.setFont("helvetica", "normal")
 
+      // Split text into lines to fit the page width
       const descriereText = removeDiacritics(lucrare.descriere || "N/A")
-      const descriereLines = doc.splitTextToSize(descriereText, contentWidth)
-      doc.text(descriereLines, margin, margin + 130)
+      const descriereLines = doc.splitTextToSize(descriereText, pageWidth - 2 * margin)
+      doc.text(descriereLines, margin, margin + 102)
 
       // Add intervention description
+      const yPosAfterDescriere = margin + 102 + descriereLines.length * 5
+
       doc.setFont("helvetica", "bold")
-      doc.text("Descriere interventie:", margin, margin + 145)
+      doc.text("Descriere intervenție:", margin, yPosAfterDescriere + 10)
       doc.setFont("helvetica", "normal")
 
       const interventieText = removeDiacritics(lucrare.descriereInterventie || "N/A")
-      const interventieLines = doc.splitTextToSize(interventieText, contentWidth)
-      doc.text(interventieLines, margin, margin + 150)
+      const interventieLines = doc.splitTextToSize(interventieText, pageWidth - 2 * margin)
+      doc.text(interventieLines, margin, yPosAfterDescriere + 17)
 
-      // Add work status
-      doc.setFont("helvetica", "bold")
-      doc.text("Status lucrare:", margin, margin + 165)
-      doc.setFont("helvetica", "normal")
-      doc.text(removeDiacritics(lucrare.statusLucrare || "N/A"), margin + 40, margin + 165)
-
-      // Add billing status (if not technician)
-      doc.setFont("helvetica", "bold")
-      doc.text("Status facturare:", margin + 100, margin + 165)
-      doc.setFont("helvetica", "normal")
-      doc.text(removeDiacritics(lucrare.statusFacturare || "N/A"), margin + 150, margin + 165)
+      // Calculate position for the table
+      const yPosAfterInterventie = yPosAfterDescriere + 17 + interventieLines.length * 5 + 10
 
       // Add products table
-      const tableTop = margin + 175
       doc.setFont("helvetica", "bold")
-      doc.text("DATE ESTIMATIV", pageWidth / 2, tableTop - 5, { align: "center" })
+      doc.text("DATE ESTIMATIV", pageWidth / 2, yPosAfterInterventie, { align: "center" })
 
-      // Calculate table dimensions
-      const tableStartY = tableTop
-      const tableWidth = contentWidth
-      const productRowHeight = 20 // Increased height for product rows
+      // Draw table
+      const tableTop = yPosAfterInterventie + 5
+      const tableWidth = pageWidth - 2 * margin
+      const colWidths = [10, 80, 15, 25, 25, 25] // Width for each column
+
+      // Calculate column positions
+      const colPos = [margin]
+      for (let i = 0; i < colWidths.length; i++) {
+        colPos.push(colPos[i] + colWidths[i])
+      }
 
       // Draw table header
-      doc.setFillColor(240, 240, 240)
-      doc.rect(margin, tableStartY, tableWidth, 10, "FD")
-      doc.setDrawColor(0)
-      doc.setLineWidth(0.1)
-
-      // Table header text
-      doc.setFontSize(8)
-      doc.setFont("helvetica", "bold")
-      doc.text("NR", margin + 5, tableStartY + 6, { align: "center" })
-      doc.text("Denumire produse", margin + 50, tableStartY + 6, { align: "center" })
-      doc.text("UM", margin + 120, tableStartY + 6, { align: "center" })
-      doc.text("Cantitate", margin + 140, tableStartY + 6, { align: "center" })
-      doc.text("Pret unitar", margin + 165, tableStartY + 6, { align: "center" })
-      doc.text("Total", margin + 185, tableStartY + 6, { align: "center" })
+      doc.rect(margin, tableTop, tableWidth, 8)
 
       // Draw vertical lines for header
-      doc.line(margin, tableStartY, margin, tableStartY + 10)
-      doc.line(margin + 10, tableStartY, margin + 10, tableStartY + 10)
-      doc.line(margin + 110, tableStartY, margin + 110, tableStartY + 10)
-      doc.line(margin + 130, tableStartY, margin + 130, tableStartY + 10)
-      doc.line(margin + 155, tableStartY, margin + 155, tableStartY + 10)
-      doc.line(margin + 180, tableStartY, margin + 180, tableStartY + 10)
-      doc.line(margin + tableWidth, tableStartY, margin + tableWidth, tableStartY + 10)
+      for (let i = 1; i < colPos.length - 1; i++) {
+        doc.line(colPos[i], tableTop, colPos[i], tableTop + 8)
+      }
 
-      // Draw horizontal line after header
-      doc.line(margin, tableStartY + 10, margin + tableWidth, tableStartY + 10)
+      // Add header text
+      doc.setFontSize(8)
+      doc.text("NR", margin + 5, tableTop + 5, { align: "center" })
+      doc.text("Denumire produs", colPos[1] + 40, tableTop + 5, { align: "center" })
+      doc.text("UM", colPos[2] + 7.5, tableTop + 5, { align: "center" })
+      doc.text("Cantitate", colPos[3] + 12.5, tableTop + 5, { align: "center" })
+      doc.text("Preț unitar", colPos[4] + 12.5, tableTop + 5, { align: "center" })
+      doc.text("Total", colPos[5] + 12.5, tableTop + 5, { align: "center" })
 
-      // Add products to table
-      let currentY = tableStartY + 10
-      const maxTableHeight = 100 // Maximum height for the products table
+      // Draw table rows (3 empty rows if no products)
+      const rowHeight = 8
+      let currentY = tableTop + 8
 
-      // If there are no products, still draw an empty table with at least 3 rows
-      const minRows = 3
-      const emptyRows = Math.max(minRows, products.length)
-      const adjustedRowHeight = Math.min(productRowHeight, maxTableHeight / Math.max(1, emptyRows))
+      const rowsToDraw = Math.max(3, products.length)
 
-      if (products.length > 0) {
-        // Draw products if there are any
-        products.forEach((product, index) => {
-          // Draw row borders
-          doc.line(margin, currentY, margin + tableWidth, currentY) // Top border
-          doc.line(margin, currentY, margin, currentY + adjustedRowHeight) // Left border
-          doc.line(margin + 10, currentY, margin + 10, currentY + adjustedRowHeight) // After NR
-          doc.line(margin + 110, currentY, margin + 110, currentY + adjustedRowHeight) // After Denumire
-          doc.line(margin + 130, currentY, margin + 130, currentY + adjustedRowHeight) // After UM
-          doc.line(margin + 155, currentY, margin + 155, currentY + adjustedRowHeight) // After Cantitate
-          doc.line(margin + 180, currentY, margin + 180, currentY + adjustedRowHeight) // After Pret
-          doc.line(margin + tableWidth, currentY, margin + tableWidth, currentY + adjustedRowHeight) // Right border
+      for (let i = 0; i < rowsToDraw; i++) {
+        // Draw horizontal line
+        doc.line(margin, currentY, margin + tableWidth, currentY)
 
-          // Add product data
+        // Draw row
+        doc.rect(margin, currentY, tableWidth, rowHeight)
+
+        // Draw vertical lines
+        for (let j = 1; j < colPos.length - 1; j++) {
+          doc.line(colPos[j], currentY, colPos[j], currentY + rowHeight)
+        }
+
+        // Add product data if available
+        if (i < products.length) {
+          const product = products[i]
           doc.setFontSize(8)
           doc.setFont("helvetica", "normal")
 
           // Number
-          doc.text((index + 1).toString(), margin + 5, currentY + 5, { align: "center" })
+          doc.text((i + 1).toString(), margin + 5, currentY + 5, { align: "center" })
 
-          // Product name - handle long text with wrapping
+          // Product name
           const productName = removeDiacritics(product.name)
-          const nameLines = doc.splitTextToSize(productName, 95) // Width for product name
-          const lineHeight = 3.5
-          nameLines.forEach((line, i) => {
-            if (i < 3) {
-              // Limit to 3 lines to prevent overflow
-              doc.text(line, margin + 12, currentY + 5 + i * lineHeight)
-            }
-          })
+          doc.text(productName, colPos[1] + 2, currentY + 5)
 
-          // Other fields
-          doc.text(product.um, margin + 120, currentY + 5, { align: "center" })
-          doc.text(product.quantity.toString(), margin + 142, currentY + 5, { align: "center" })
-          doc.text(product.price.toFixed(2), margin + 167, currentY + 5, { align: "center" })
+          // UM
+          doc.text(product.um, colPos[2] + 7.5, currentY + 5, { align: "center" })
 
+          // Quantity
+          doc.text(product.quantity.toString(), colPos[3] + 12.5, currentY + 5, { align: "center" })
+
+          // Unit price
+          doc.text(product.price.toFixed(2), colPos[4] + 12.5, currentY + 5, { align: "center" })
+
+          // Total
           const total = (product.quantity * product.price).toFixed(2)
-          doc.text(total, margin + 190, currentY + 5, { align: "center" })
-
-          currentY += adjustedRowHeight
-        })
-      } else {
-        // Draw empty rows if there are no products
-        for (let i = 0; i < minRows; i++) {
-          // Draw row borders
-          doc.line(margin, currentY, margin + tableWidth, currentY) // Top border
-          doc.line(margin, currentY, margin, currentY + adjustedRowHeight) // Left border
-          doc.line(margin + 10, currentY, margin + 10, currentY + adjustedRowHeight) // After NR
-          doc.line(margin + 110, currentY, margin + 110, currentY + adjustedRowHeight) // After Denumire
-          doc.line(margin + 130, currentY, margin + 130, currentY + adjustedRowHeight) // After UM
-          doc.line(margin + 155, currentY, margin + 155, currentY + adjustedRowHeight) // After Cantitate
-          doc.line(margin + 180, currentY, margin + 180, currentY + adjustedRowHeight) // After Pret
-          doc.line(margin + tableWidth, currentY, margin + tableWidth, currentY + adjustedRowHeight) // Right border
-
-          currentY += adjustedRowHeight
+          doc.text(total, colPos[5] + 12.5, currentY + 5, { align: "center" })
         }
+
+        currentY += rowHeight
       }
 
-      // Draw bottom border of the last row
+      // Draw bottom line of the last row
       doc.line(margin, currentY, margin + tableWidth, currentY)
 
-      // Calculate totals - handle empty products case
+      // Add totals section
+      currentY += 5
+
+      // Calculate totals
       const subtotal =
         products.length > 0 ? products.reduce((sum, product) => sum + product.quantity * product.price, 0) : 0
-      const totalWithVAT = subtotal * 1.19 // 19% TVA
+      const totalWithVAT = subtotal * 1.19 // 19% VAT
 
-      // Add totals section
-      const totalsY = currentY + 10
+      // Draw total boxes
+      doc.rect(colPos[4], currentY, colPos[6] - colPos[4], 7)
+      doc.line(colPos[5], currentY, colPos[5], currentY + 7)
       doc.setFont("helvetica", "bold")
-      doc.text("Total fara TVA:", margin + 140, totalsY, { align: "right" })
+      doc.text("Total fără TVA", colPos[4] + 2, currentY + 5)
       doc.setFont("helvetica", "normal")
-      doc.text(subtotal.toFixed(2) + " RON", margin + 190, totalsY, { align: "center" })
+      doc.text(subtotal.toFixed(2), colPos[5] + 12.5, currentY + 5, { align: "center" })
 
+      currentY += 7
+
+      doc.rect(colPos[4], currentY, colPos[6] - colPos[4], 7)
+      doc.line(colPos[5], currentY, colPos[5], currentY + 7)
       doc.setFont("helvetica", "bold")
-      doc.text("Total cu TVA (19%):", margin + 140, totalsY + 10, { align: "right" })
+      doc.text("Total cu TVA", colPos[4] + 2, currentY + 5)
       doc.setFont("helvetica", "normal")
-      doc.text(totalWithVAT.toFixed(2) + " RON", margin + 190, totalsY + 10, { align: "center" })
+      doc.text(totalWithVAT.toFixed(2), colPos[5] + 12.5, currentY + 5, { align: "center" })
 
       // Add signature fields
-      const signatureTop = totalsY + 30
+      currentY += 20
 
       doc.setFontSize(10)
-      doc.text("Nume tehnician:", margin, signatureTop)
-      doc.text("Reprezentant beneficiar:", margin + 120, signatureTop)
+      doc.setFont("helvetica", "bold")
+      doc.text("Nume tehnician:", margin, currentY)
+      doc.text("Reprezentant beneficiar:", margin + 110, currentY)
 
-      doc.text("Semnatura:", margin, signatureTop + 20)
-      doc.text("Semnatura:", margin + 120, signatureTop + 20)
+      currentY += 5
+      doc.setFont("helvetica", "normal")
+      const tehnicieniText = removeDiacritics(lucrare.tehnicieni?.join(", ") || "N/A")
+      doc.text(tehnicieniText, margin, currentY)
+      doc.text(removeDiacritics(lucrare.persoanaContact || "N/A"), margin + 110, currentY)
 
-      // Add technician name
-      doc.text(tehnicieniText, margin, signatureTop + 5)
-
-      // Add beneficiary name
-      doc.text(contactPerson, margin + 120, signatureTop + 5)
+      currentY += 10
+      doc.setFont("helvetica", "bold")
+      doc.text("Semnătură", margin, currentY)
+      doc.text("Semnătură", margin + 110, currentY)
 
       // Add signatures if available
       if (lucrare.semnaturaTehnician) {
         try {
-          doc.addImage(lucrare.semnaturaTehnician, "PNG", margin, signatureTop + 25, 60, 30)
+          doc.addImage(lucrare.semnaturaTehnician, "PNG", margin, currentY + 2, 40, 20)
         } catch (err) {
           console.error("Eroare la adaugarea semnaturii tehnicianului:", err)
         }
@@ -427,7 +376,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
 
       if (lucrare.semnaturaBeneficiar) {
         try {
-          doc.addImage(lucrare.semnaturaBeneficiar, "PNG", margin + 120, signatureTop + 25, 60, 30)
+          doc.addImage(lucrare.semnaturaBeneficiar, "PNG", margin + 110, currentY + 2, 40, 20)
         } catch (err) {
           console.error("Eroare la adaugarea semnaturii beneficiarului:", err)
         }
