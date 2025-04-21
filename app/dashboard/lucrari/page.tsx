@@ -2,7 +2,7 @@
 
 import { DialogTrigger } from "@/components/ui/dialog"
 import type React from "react"
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
@@ -31,6 +31,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { doc, getDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
+import { toast } from "@/components/ui/use-toast"
 
 const ContractDisplay: React.FC<{ contractId: string | undefined }> = ({ contractId }) => {
   const [contractNumber, setContractNumber] = useState<string | null>(null)
@@ -343,9 +344,26 @@ export default function Lucrari() {
     router.push(`/dashboard/lucrari/${id}`)
   }
 
-  const handleGenerateReport = (id: string) => {
-    router.push(`/raport/${id}`)
-  }
+  // Verificați și corectați funcția handleGenerateReport pentru a asigura că folosește ID-ul corect
+
+  const handleGenerateReport = useCallback(
+    (id: string) => {
+      // Verificăm că id este un string valid
+      if (typeof id !== "string" || !id) {
+        console.error("ID-ul lucrării nu este valid:", id)
+        toast({
+          title: "Eroare",
+          description: "ID-ul lucrării nu este valid",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Redirecționăm către pagina de raport
+      router.push(`/raport/${id}`)
+    },
+    [router],
+  )
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {

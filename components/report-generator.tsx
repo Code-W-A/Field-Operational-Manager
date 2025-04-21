@@ -42,179 +42,182 @@ export function ReportGenerator({ lucrare, onGenerate }: ReportGeneratorProps) {
     setIsGenerating(true)
 
     try {
-      // Creăm un nou document PDF
+      // Create a new PDF document
       const doc = new jsPDF()
 
-      // Adăugăm logo-ul companiei dacă există
-      if (companyLogo) {
-        try {
-          // Încărcăm imaginea logo-ului
-          const img = new Image()
-          img.crossOrigin = "anonymous"
-
-          await new Promise((resolve, reject) => {
-            img.onload = resolve
-            img.onerror = reject
-            img.src = companyLogo
-          })
-
-          // Calculăm dimensiunile pentru a păstra raportul de aspect
-          const imgWidth = 40
-          const imgHeight = (img.height * imgWidth) / img.width
-
-          // Adăugăm logo-ul în colțul din stânga sus
-          doc.addImage(img, "PNG", 20, 10, imgWidth, imgHeight)
-        } catch (err) {
-          console.error("Eroare la adăugarea logo-ului în PDF:", err)
-        }
+      // Helper function to remove Romanian diacritics
+      const removeDiacritics = (text) => {
+        return text
+          .replace(/ă/g, "a")
+          .replace(/â/g, "a")
+          .replace(/î/g, "i")
+          .replace(/ș/g, "s")
+          .replace(/ț/g, "t")
+          .replace(/Ă/g, "A")
+          .replace(/Â/g, "A")
+          .replace(/Î/g, "I")
+          .replace(/Ș/g, "S")
+          .replace(/Ț/g, "T")
       }
 
-      // Adăugăm antetul
-      doc.setFontSize(20)
-      doc.setTextColor(0, 0, 255)
-      doc.text("RAPORT DE INTERVENȚIE", 105, 20, { align: "center" })
+      // Set page margins
+      const margin = 20
+      const pageWidth = doc.internal.pageSize.width
+      const contentWidth = pageWidth - 2 * margin
 
-      // Adăugăm numărul raportului
-      doc.setFontSize(12)
-      doc.setTextColor(0, 0, 0)
-      doc.text(`Nr. ${lucrare.id}`, 105, 30, { align: "center" })
+      // Draw header boxes
+      doc.setDrawColor(0)
+      doc.setFillColor(255, 255, 255)
 
-      // Adăugăm data
-      doc.text(`Data: ${lucrare.dataInterventie}`, 105, 40, { align: "center" })
+      // Left box - PRESTATOR
+      doc.rect(margin, margin, contentWidth / 2 - 5, 40, "S")
+      doc.setFontSize(10)
+      doc.setFont("helvetica", "bold")
+      doc.text("PRESTATOR", margin + contentWidth / 4 - 20, margin + 5, { align: "center" })
 
-      // Adăugăm linie de separare
-      doc.setDrawColor(0, 0, 255)
-      doc.line(20, 45, 190, 45)
+      // Right box - BENEFICIAR
+      doc.rect(margin + contentWidth / 2 + 5, margin, contentWidth / 2 - 5, 40, "S")
+      doc.text("BENEFICIAR", margin + contentWidth / 2 + 5 + contentWidth / 4 - 20, margin + 5, { align: "center" })
 
-      // Adăugăm informațiile despre client
-      doc.setFontSize(14)
-      doc.text("Informații Client", 20, 55)
+      // Add company info to PRESTATOR box
+      doc.setFont("helvetica", "normal")
+      doc.text("SC. Compania Dvs. S.R.L.", margin + 5, margin + 10)
+      doc.text("CUI: RO12345678", margin + 5, margin + 15)
+      doc.text("R.C.: J12/3456/2015", margin + 5, margin + 20)
+      doc.text("Adresa: Strada Exemplu", margin + 5, margin + 25)
+      doc.text("Banca: Transilvania", margin + 5, margin + 30)
+      doc.text("IBAN: RO12BTRLRONCRT0123456789", margin + 5, margin + 35)
 
-      doc.setFontSize(12)
-      doc.text(`Client: ${lucrare.client}`, 20, 65)
-      doc.text(`Locație: ${lucrare.locatie}`, 20, 75)
-      doc.text(`Persoană contact: ${lucrare.persoanaContact}`, 20, 85)
-      doc.text(`Telefon: ${lucrare.telefon}`, 20, 95)
+      // Add client info to BENEFICIAR box
+      const clientName = removeDiacritics(lucrare.client || "N/A")
+      const contactPerson = removeDiacritics(lucrare.persoanaContact || "N/A")
 
-      // Adăugăm informațiile despre lucrare
-      doc.setFontSize(14)
-      doc.text("Detalii Lucrare", 20, 110)
+      doc.text(clientName, margin + contentWidth / 2 + 10, margin + 10)
+      doc.text("CUI: -", margin + contentWidth / 2 + 10, margin + 15)
+      doc.text("R.C.: -", margin + contentWidth / 2 + 10, margin + 20)
+      doc.text("Adresa: " + removeDiacritics(lucrare.locatie || "N/A"), margin + contentWidth / 2 + 10, margin + 25)
+      doc.text("Cont: -", margin + contentWidth / 2 + 10, margin + 30)
 
-      // În secțiunea "Detalii Lucrare", adăugăm numărul contractului
-      doc.setFontSize(12)
-      doc.text(`Tip lucrare: ${lucrare.tipLucrare}`, 20, 120)
-      if (lucrare.tipLucrare === "Intervenție în contract") {
-        doc.text(`Contract: ${lucrare.contractNumber || "N/A"}`, 20, 130)
-        doc.text(`Tehnician: ${lucrare.tehnicieni?.join(", ")}`, 20, 140)
-      } else {
-        doc.text(`Tehnician: ${lucrare.tehnicieni?.join(", ")}`, 20, 130)
+      // Add title
+      doc.setFontSize(16)
+      doc.setFont("helvetica", "bold")
+      doc.text("RAPORT DE INTERVENTIE", pageWidth / 2, margin + 55, { align: "center" })
+
+      // Add date and time fields
+      doc.setFontSize(10)
+      doc.setFont("helvetica", "normal")
+
+      const dateInterventie = removeDiacritics(lucrare.dataInterventie || "N/A")
+      const parts = dateInterventie.split(" ")
+      const datePart = parts[0] || "N/A"
+      const timePart = parts[1] || "N/A"
+
+      doc.text("Data interventiei: " + datePart, margin, margin + 70)
+      doc.text("Ora sosire: " + timePart, margin + 70, margin + 70)
+      doc.text("Ora plecare: " + timePart, margin + 140, margin + 70)
+
+      // Add findings section
+      doc.setFont("helvetica", "bold")
+      doc.text("Constatare la locatie:", margin, margin + 85)
+      doc.setFont("helvetica", "normal")
+
+      const defectText = removeDiacritics(lucrare.defectReclamat || "N/A")
+      const defectLines = doc.splitTextToSize(defectText, contentWidth)
+      doc.text(defectLines, margin, margin + 90)
+
+      // Add intervention description
+      doc.setFont("helvetica", "bold")
+      doc.text("Descriere interventie:", margin, margin + 110)
+      doc.setFont("helvetica", "normal")
+
+      const interventieText = removeDiacritics(lucrare.descriereInterventie || "N/A")
+      const interventieLines = doc.splitTextToSize(interventieText, contentWidth)
+      doc.text(interventieLines, margin, margin + 115)
+
+      // Add estimated data table
+      const tableTop = margin + 140
+      doc.setFont("helvetica", "bold")
+      doc.text("DATE ESTIMATIV", pageWidth / 2, tableTop - 5, { align: "center" })
+
+      // Draw table header
+      doc.rect(margin, tableTop, contentWidth, 10, "S")
+      doc.line(margin + 10, tableTop, margin + 10, tableTop + 40) // NR column
+      doc.line(margin + 90, tableTop, margin + 90, tableTop + 40) // Denumire produse column
+      doc.line(margin + 110, tableTop, margin + 110, tableTop + 40) // UM column
+      doc.line(margin + 140, tableTop, margin + 140, tableTop + 40) // Cantitate column
+      doc.line(margin + 170, tableTop, margin + 170, tableTop + 40) // Pret unitar column
+
+      // Table header text
+      doc.setFontSize(8)
+      doc.text("NR", margin + 5, tableTop + 5, { align: "center" })
+      doc.text("Denumire produse", margin + 50, tableTop + 5, { align: "center" })
+      doc.text("UM", margin + 100, tableTop + 5, { align: "center" })
+      doc.text("Cantitate", margin + 125, tableTop + 5, { align: "center" })
+      doc.text("Pret unitar", margin + 155, tableTop + 5, { align: "center" })
+      doc.text("Total", margin + 175, tableTop + 5, { align: "center" })
+
+      // Draw table rows (3 empty rows)
+      for (let i = 0; i < 3; i++) {
+        doc.line(margin, tableTop + 10 + i * 10, margin + contentWidth, tableTop + 10 + i * 10)
       }
 
-      // Ajustăm poziția pentru defectul reclamat în funcție de prezența contractului
-      const yPosDefect = lucrare.tipLucrare === "Intervenție în contract" ? 155 : 145
+      // Draw table footer
+      doc.line(margin, tableTop + 40, margin + contentWidth, tableTop + 40)
+      doc.line(margin, tableTop + 50, margin + contentWidth, tableTop + 50)
+      doc.line(margin, tableTop + 60, margin + contentWidth, tableTop + 60)
 
-      // Adăugăm defectul reclamat
-      doc.setFontSize(14)
-      doc.text("Defect Reclamat", 20, yPosDefect)
+      // Table footer text
+      doc.text("Total fara TVA", margin + 140, tableTop + 45, { align: "right" })
+      doc.text("Total cu TVA", margin + 140, tableTop + 55, { align: "right" })
 
-      doc.setFontSize(12)
-      const defectLines = doc.splitTextToSize(lucrare.defectReclamat || "Nu a fost specificat", 170)
-      doc.text(defectLines, 20, yPosDefect + 10)
+      // Add signature fields
+      const signatureTop = tableTop + 80
 
-      // Adăugăm descrierea lucrării
-      let yPos = yPosDefect + 10 + defectLines.length * 7
+      doc.setFontSize(10)
+      doc.text("Nume tehnician:", margin, signatureTop)
+      doc.text("Reprezentant beneficiar:", margin + 120, signatureTop)
 
-      doc.setFontSize(14)
-      doc.text("Descriere Lucrare", 20, yPos)
+      doc.text("Semnatura:", margin, signatureTop + 20)
+      doc.text("Semnatura:", margin + 120, signatureTop + 20)
 
-      doc.setFontSize(12)
-      const descriereLines = doc.splitTextToSize(lucrare.descriere || "Nu a fost specificată", 170)
-      doc.text(descriereLines, 20, yPos + 10)
+      // Add technician name
+      const tehnicianText = removeDiacritics(lucrare.tehnicieni?.join(", ") || "N/A")
+      doc.text(tehnicianText, margin, signatureTop + 5)
 
-      // Adăugăm descrierea intervenției
-      yPos = yPos + 10 + descriereLines.length * 7
+      // Add beneficiary name
+      doc.text(contactPerson, margin + 120, signatureTop + 5)
 
-      doc.setFontSize(14)
-      doc.text("Descriere Intervenție", 20, yPos)
-
-      doc.setFontSize(12)
-      const interventieLines = doc.splitTextToSize(lucrare.descriereInterventie || "Nu a fost specificată", 170)
-      doc.text(interventieLines, 20, yPos + 10)
-
-      // Verificăm dacă avem nevoie de o pagină nouă pentru semnături
-      yPos = yPos + 10 + interventieLines.length * 7 + 20
-
-      if (yPos > 250) {
-        doc.addPage()
-        yPos = 20
-      }
-
-      // Adăugăm semnăturile
-      doc.setFontSize(14)
-      doc.text("Semnături", 105, yPos, { align: "center" })
-
-      // Adăugăm semnătura tehnicianului
+      // Add signatures if available
       if (lucrare.semnaturaTehnician) {
-        doc.setFontSize(12)
-        doc.text("Semnătură Tehnician", 60, yPos + 10, { align: "center" })
-
-        // Adăugăm imaginea semnăturii
         try {
-          doc.addImage(lucrare.semnaturaTehnician, "PNG", 20, yPos + 15, 80, 40)
+          doc.addImage(lucrare.semnaturaTehnician, "PNG", margin, signatureTop + 25, 60, 30)
         } catch (err) {
-          console.error("Eroare la adăugarea semnăturii tehnicianului:", err)
-          doc.text("Eroare la încărcarea semnăturii", 60, yPos + 35, { align: "center" })
+          console.error("Eroare la adaugarea semnaturii tehnicianului:", err)
         }
-
-        // Adăugăm numele tehnicianului sub semnătură
-        doc.text(lucrare.tehnicieni?.join(", ") || "", 60, yPos + 60, { align: "center" })
-      } else {
-        doc.setFontSize(12)
-        doc.text("Semnătură Tehnician lipsă", 60, yPos + 35, { align: "center" })
       }
 
-      // Adăugăm semnătura beneficiarului
       if (lucrare.semnaturaBeneficiar) {
-        doc.setFontSize(12)
-        doc.text("Semnătură Beneficiar", 150, yPos + 10, { align: "center" })
-
-        // Adăugăm imaginea semnăturii
         try {
-          doc.addImage(lucrare.semnaturaBeneficiar, "PNG", 110, yPos + 15, 80, 40)
+          doc.addImage(lucrare.semnaturaBeneficiar, "PNG", margin + 120, signatureTop + 25, 60, 30)
         } catch (err) {
-          console.error("Eroare la adăugarea semnăturii beneficiarului:", err)
-          doc.text("Eroare la încărcarea semnăturii", 150, yPos + 35, { align: "center" })
+          console.error("Eroare la adaugarea semnaturii beneficiarului:", err)
         }
-
-        // Adăugăm numele beneficiarului sub semnătură
-        doc.text(lucrare.persoanaContact || "", 150, yPos + 60, { align: "center" })
-      } else {
-        doc.setFontSize(12)
-        doc.text("Semnătură Beneficiar lipsă", 150, yPos + 35, { align: "center" })
       }
 
-      // Adăugăm footer
-      const pageCount = doc.getNumberOfPages()
-      for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i)
-        doc.setFontSize(10)
-        doc.text(`Pagina ${i} din ${pageCount}`, 105, 285, { align: "center" })
-      }
-
-      // Obținem PDF-ul ca blob pentru a-l putea trimite prin email
+      // Get PDF as blob for email sending
       const pdfBlob = doc.output("blob")
 
-      // Apelăm callback-ul onGenerate dacă există
+      // Call onGenerate callback if it exists
       if (onGenerate) {
         onGenerate(pdfBlob)
       }
 
-      // Salvăm PDF-ul
+      // Save PDF
       doc.save(`Raport_Interventie_${lucrare.id}.pdf`)
 
       toast({
         title: "PDF generat cu succes",
-        description: "Raportul a fost generat și descărcat.",
+        description: "Raportul a fost generat si descarcat.",
       })
 
       return pdfBlob
@@ -222,7 +225,7 @@ export function ReportGenerator({ lucrare, onGenerate }: ReportGeneratorProps) {
       console.error("Eroare la generarea PDF-ului:", err)
       toast({
         title: "Eroare",
-        description: "A apărut o eroare la generarea raportului PDF.",
+        description: "A aparut o eroare la generarea raportului PDF.",
         variant: "destructive",
       })
     } finally {

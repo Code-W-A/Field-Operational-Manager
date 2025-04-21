@@ -117,8 +117,18 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
 
   // Funcție pentru a genera raportul
   const handleGenerateReport = useCallback(() => {
-    router.push(`/raport/${params.id}`)
-  }, [router, params.id])
+    if (!lucrare?.id) {
+      console.error("ID-ul lucrării lipsește:", lucrare)
+      toast({
+        title: "Eroare",
+        description: "ID-ul lucrării lipsește",
+        variant: "destructive",
+      })
+      return
+    }
+
+    router.push(`/raport/${lucrare.id}`)
+  }, [router, lucrare])
 
   // Funcție pentru a reîncărca datele lucrării
   const refreshLucrare = useStableCallback(async () => {
