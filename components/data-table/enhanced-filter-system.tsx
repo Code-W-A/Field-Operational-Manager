@@ -575,43 +575,7 @@ export function EnhancedFilterSystem<TData>({ table }: EnhancedFilterSystemProps
                   <h4 className="font-medium text-blue-800">Filtre</h4>
                   <p className="text-sm text-muted-foreground">Filtrați datele după criterii specifice</p>
                 </div>
-                <div className="flex gap-1">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => setIsSaveDialogOpen(true)}
-                          disabled={filterConditions.length === 0}
-                        >
-                          <Save className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                 
-                    </Tooltip>
-                  </TooltipProvider>
-
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => setIsLoadDialogOpen(true)}
-                          disabled={savedFilters.length === 0}
-                        >
-                          <FolderOpen className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Încarcă un filtru salvat</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
+           
               </div>
             </div>
 
