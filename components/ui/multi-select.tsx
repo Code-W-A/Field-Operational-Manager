@@ -32,6 +32,8 @@ export function MultiSelect({
   emptyText = "Nu există opțiuni disponibile",
 }: MultiSelectProps) {
   const [open, setOpen] = React.useState(false)
+  // Adăugăm un state pentru a controla valoarea input-ului de căutare
+  const [inputValue, setInputValue] = React.useState("")
 
   // Funcție pentru a elimina o valoare selectată
   const handleUnselect = (value: string) => {
@@ -101,7 +103,8 @@ export function MultiSelect({
       </PopoverTrigger>
       <PopoverContent className="w-full p-0" align="start">
         <Command className="max-h-[300px]">
-          <CommandInput placeholder="Caută opțiuni..." />
+          {/* Modificăm CommandInput pentru a fi controlat */}
+          <CommandInput placeholder="Caută opțiuni..." value={inputValue} onValueChange={setInputValue} />
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
             <CommandGroup>

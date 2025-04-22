@@ -16,7 +16,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DataTablePagination } from "./data-table-pagination"
 import { DataTableViewOptions } from "./data-table-view-options"
-import { DataTableFilterSystem } from "./data-table-filter-system"
+import { EnhancedFilterSystem } from "./enhanced-filter-system"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -217,10 +217,38 @@ export function DataTable<TData, TValue>({
     }
   }, [table, setExternalTable])
 
+  const handleGlobalFilterChange = (value: string) => {
+    setGlobalFilter(value)
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-4">
-        <DataTableFilterSystem table={table} />
+        <div className="flex flex-col sm:flex-row gap-2">
+          {/* Global search */}
+          <div className="relative flex-1">
+            <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+            <Input
+              placeholder="Caută în toate coloanele..."
+              value={globalFilter}
+              onChange={(e) => handleGlobalFilterChange(e.target.value)}
+              className="pl-8"
+            />
+            {globalFilter && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute right-1 top-1/2 h-6 w-6 -translate-y-1/2 p-0"
+                onClick={() => handleGlobalFilterChange("")}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+
+          <EnhancedFilterSystem table={table} />
+        </div>
+
         <div className="flex justify-end">
           <DataTableViewOptions table={table} />
         </div>
@@ -281,3 +309,8 @@ export function DataTable<TData, TValue>({
     </div>
   )
 }
+
+// Add missing imports
+import { Search, X } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
