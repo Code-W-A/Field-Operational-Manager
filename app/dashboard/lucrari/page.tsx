@@ -1,7 +1,6 @@
 "use client"
 
 import { DialogTrigger } from "@/components/ui/dialog"
-import type React from "react"
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -17,10 +16,10 @@ import { Badge } from "@/components/ui/badge"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { format, parse } from "date-fns"
-import { Plus, MoreHorizontal, FileText, Eye, Pencil, Trash2, Loader2, AlertCircle } from "lucide-react"
+import { Plus, MoreHorizontal, FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Search, X } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
-import { type Lucrare, addLucrare, deleteLucrare, updateLucrare, getLucrareById } from "@/lib/firebase/firestore"
+import { addLucrare, deleteLucrare, updateLucrare, getLucrareById } from "@/lib/firebase/firestore"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { orderBy } from "firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
@@ -32,9 +31,12 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { doc, getDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { toast } from "@/components/ui/use-toast"
+import { Input } from "@/components/ui/input"
+import { EnhancedFilterSystem } from "@/components/data-table/enhanced-filter-system"
+import { DataTableViewOptions } from "@/components/data-table/data-table-view-options"
 
-const ContractDisplay: React.FC<{ contractId: string | undefined }> = ({ contractId }) => {
-  const [contractNumber, setContractNumber] = useState<string | null>(null)
+const ContractDisplay = ({ contractId }) => {
+  const [contractNumber, setContractNumber] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -79,13 +81,13 @@ export default function Lucrari() {
   const { userData } = useAuth()
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [dataEmiterii, setDataEmiterii] = useState<Date | undefined>(new Date())
-  const [dataInterventie, setDataInterventie] = useState<Date | undefined>(new Date())
+  const [dataEmiterii, setDataEmiterii] = useState(new Date())
+  const [dataInterventie, setDataInterventie] = useState(new Date())
   const [activeTab, setActiveTab] = useState("tabel")
-  const [selectedLucrare, setSelectedLucrare] = useState<Lucrare | null>(null)
+  const [selectedLucrare, setSelectedLucrare] = useState(null)
   const [formData, setFormData] = useState({
     tipLucrare: "",
-    tehnicieni: [] as string[],
+    tehnicieni: [],
     client: "",
     locatie: "",
     descriere: "",
@@ -97,21 +99,21 @@ export default function Lucrari() {
     defectReclamat: "",
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [fieldErrors, setFieldErrors] = useState<string[]>([])
-  const [tableInstance, setTableInstance] = useState<any>(null)
+  const [error, setError] = useState(null)
+  const [fieldErrors, setFieldErrors] = useState([])
+  const [tableInstance, setTableInstance] = useState(null)
 
   // Obținem lucrările din Firebase
   const {
     data: lucrari,
     loading,
     error: fetchError,
-  } = useFirebaseCollection<Lucrare>("lucrari", [orderBy("dataEmiterii", "desc")])
+  } = useFirebaseCollection("lucrari", [orderBy("dataEmiterii", "desc")])
 
   // Filtrăm lucrările pentru tehnicieni
   const filteredLucrari = useMemo(() => {
     if (userData?.role === "tehnician" && userData?.displayName) {
-      return lucrari.filter((lucrare) => lucrare.tehnicieni.includes(userData.displayName!))
+      return lucrari.filter((lucrare) => lucrare.tehnicieni.includes(userData.displayName))
     }
     return lucrari
   }, [lucrari, userData?.role, userData?.displayName])
@@ -164,16 +166,16 @@ export default function Lucrari() {
     }
   }, [tableInstance, userData?.role])
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (e) => {
     const { id, value } = e.target
     setFormData((prev) => ({ ...prev, [id]: value }))
   }
 
-  const handleSelectChange = (id: string, value: string) => {
+  const handleSelectChange = (id, value) => {
     setFormData((prev) => ({ ...prev, [id]: value }))
   }
 
-  const handleTehnicieniChange = (value: string) => {
+  const handleTehnicieniChange = (value) => {
     // Verificăm dacă tehnicianul este deja selectat
     if (formData.tehnicieni.includes(value)) {
       // Dacă da, îl eliminăm
@@ -211,7 +213,7 @@ export default function Lucrari() {
   }
 
   const validateForm = () => {
-    const errors: string[] = []
+    const errors = []
 
     if (!dataEmiterii) errors.push("dataEmiterii")
     if (!dataInterventie) errors.push("dataInterventie")
@@ -239,9 +241,9 @@ export default function Lucrari() {
         return
       }
 
-      const newLucrare: Omit<Lucrare, "id"> = {
-        dataEmiterii: format(dataEmiterii!, "dd.MM.yyyy HH:mm"),
-        dataInterventie: format(dataInterventie!, "dd.MM.yyyy HH:mm"),
+      const newLucrare = {
+        dataEmiterii: format(dataEmiterii, "dd.MM.yyyy HH:mm"),
+        dataInterventie: format(dataInterventie, "dd.MM.yyyy HH:mm"),
         ...formData,
       }
 
@@ -256,7 +258,7 @@ export default function Lucrari() {
     }
   }
 
-  const handleEdit = (lucrare: Lucrare) => {
+  const handleEdit = (lucrare) => {
     setSelectedLucrare(lucrare)
 
     // Convertim string-urile de dată în obiecte Date
@@ -307,9 +309,9 @@ export default function Lucrari() {
         return
       }
 
-      const updatedLucrare: Partial<Lucrare> = {
-        dataEmiterii: format(dataEmiterii!, "dd.MM.yyyy HH:mm"),
-        dataInterventie: format(dataInterventie!, "dd.MM.yyyy HH:mm"),
+      const updatedLucrare = {
+        dataEmiterii: format(dataEmiterii, "dd.MM.yyyy HH:mm"),
+        dataInterventie: format(dataInterventie, "dd.MM.yyyy HH:mm"),
         ...formData,
       }
 
@@ -329,7 +331,7 @@ export default function Lucrari() {
     }
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id) => {
     if (window.confirm("Sunteți sigur că doriți să ștergeți această lucrare?")) {
       try {
         await deleteLucrare(id)
@@ -341,7 +343,7 @@ export default function Lucrari() {
   }
 
   // De asemenea, trebuie să actualizăm funcția handleViewDetails pentru a asigura consistența
-  const handleViewDetails = (lucrare: Lucrare) => {
+  const handleViewDetails = (lucrare) => {
     if (!lucrare || !lucrare.id) {
       console.error("ID-ul lucrării nu este valid:", lucrare)
       toast({
@@ -356,7 +358,7 @@ export default function Lucrari() {
   }
 
   const handleGenerateReport = useCallback(
-    (lucrare: Lucrare) => {
+    (lucrare) => {
       // Verificăm că lucrare și lucrare.id sunt valide
       if (!lucrare || !lucrare.id) {
         console.error("ID-ul lucrării nu este valid:", lucrare)
@@ -374,7 +376,7 @@ export default function Lucrari() {
     [router],
   )
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status) => {
     switch (status.toLowerCase()) {
       case "în așteptare":
         return "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
@@ -387,7 +389,7 @@ export default function Lucrari() {
     }
   }
 
-  const getFacturaColor = (status: string) => {
+  const getFacturaColor = (status) => {
     switch (status.toLowerCase()) {
       case "facturat":
         return "bg-green-100 text-green-800 hover:bg-green-200"
@@ -400,7 +402,7 @@ export default function Lucrari() {
     }
   }
 
-  const getTipLucrareColor = (tip: string) => {
+  const getTipLucrareColor = (tip) => {
     switch (tip.toLowerCase()) {
       case "contra cost":
         return "bg-red-50 text-red-700 border-red-200"
@@ -434,7 +436,7 @@ export default function Lucrari() {
       header: "Tip Lucrare",
       enableHiding: true,
       enableFiltering: true,
-      cell: ({ row }: any) => (
+      cell: ({ row }) => (
         <Badge variant="outline" className={getTipLucrareColor(row.original.tipLucrare)}>
           {row.original.tipLucrare}
         </Badge>
@@ -445,7 +447,7 @@ export default function Lucrari() {
       header: "Defect reclamat",
       enableHiding: true,
       enableFiltering: true,
-      cell: ({ row }: any) => (
+      cell: ({ row }) => (
         <div className="max-w-[200px] truncate" title={row.original.defectReclamat}>
           {row.original.defectReclamat || "-"}
         </div>
@@ -456,7 +458,7 @@ export default function Lucrari() {
       header: "Contract",
       enableHiding: true,
       enableFiltering: true,
-      cell: ({ row }: any) => {
+      cell: ({ row }) => {
         if (row.original.tipLucrare !== "Intervenție în contract") return null
         return <ContractDisplay contractId={row.original.contract} />
       },
@@ -466,9 +468,9 @@ export default function Lucrari() {
       header: "Tehnicieni",
       enableHiding: true,
       enableFiltering: true,
-      cell: ({ row }: any) => (
+      cell: ({ row }) => (
         <div className="flex flex-wrap gap-1">
-          {row.original.tehnicieni.map((tehnician: string, index: number) => (
+          {row.original.tehnicieni.map((tehnician, index) => (
             <Badge key={index} variant="secondary" className="bg-gray-100">
               {tehnician}
             </Badge>
@@ -493,7 +495,7 @@ export default function Lucrari() {
       header: "Descriere",
       enableHiding: true,
       enableFiltering: true,
-      cell: ({ row }: any) => (
+      cell: ({ row }) => (
         <div className="max-w-[200px] truncate" title={row.original.descriere}>
           {row.original.descriere}
         </div>
@@ -516,7 +518,7 @@ export default function Lucrari() {
       header: "Status Lucrare",
       enableHiding: true,
       enableFiltering: true,
-      cell: ({ row }: any) => (
+      cell: ({ row }) => (
         <Badge className={getStatusColor(row.original.statusLucrare)}>{row.original.statusLucrare}</Badge>
       ),
     },
@@ -525,7 +527,7 @@ export default function Lucrari() {
       header: "Status Facturare",
       enableHiding: true,
       enableFiltering: true,
-      cell: ({ row }: any) => (
+      cell: ({ row }) => (
         <Badge className={getFacturaColor(row.original.statusFacturare)}>{row.original.statusFacturare}</Badge>
       ),
     },
@@ -533,7 +535,7 @@ export default function Lucrari() {
       id: "actions",
       enableHiding: false,
       enableFiltering: false,
-      cell: ({ row }: any) => (
+      cell: ({ row }) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon">
@@ -551,7 +553,7 @@ export default function Lucrari() {
               <FileText className="mr-2 h-4 w-4" /> Generează Raport
             </DropdownMenuItem>
             {userData?.role === "admin" && (
-              <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(row.original.id!)}>
+              <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(row.original.id)}>
                 <Trash2 className="mr-2 h-4 w-4" /> Șterge
               </DropdownMenuItem>
             )}
@@ -664,6 +666,37 @@ export default function Lucrari() {
           </div>
         </div>
 
+        {/* Adăugăm filtrele și căutarea aici, indiferent de modul de vizualizare */}
+        {!loading && !fetchError && (
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row gap-2 justify-between">
+              <div className="relative flex-1">
+                <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+                <Input
+                  placeholder="Caută în toate coloanele..."
+                  value={tableInstance?.getState().globalFilter || ""}
+                  onChange={(e) => tableInstance?.setGlobalFilter(e.target.value)}
+                  className="pl-8"
+                />
+                {tableInstance?.getState().globalFilter && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-1 top-1/2 h-6 w-6 -translate-y-1/2 p-0"
+                    onClick={() => tableInstance?.setGlobalFilter("")}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+
+              {tableInstance && <EnhancedFilterSystem table={tableInstance} />}
+
+              <div className="flex justify-end">{tableInstance && <DataTableViewOptions table={tableInstance} />}</div>
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <div className="flex justify-center items-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
@@ -677,14 +710,17 @@ export default function Lucrari() {
             </AlertDescription>
           </Alert>
         ) : activeTab === "tabel" ? (
-          <DataTable
-            columns={columns}
-            data={filteredLucrari}
-            defaultSort={{ id: "dataEmiterii", desc: true }}
-            onRowClick={(lucrare) => handleViewDetails(lucrare)}
-            table={tableInstance}
-            setTable={setTableInstance}
-          />
+          <div className="rounded-md border">
+            <DataTable
+              columns={columns}
+              data={filteredLucrari}
+              defaultSort={{ id: "dataEmiterii", desc: true }}
+              onRowClick={(lucrare) => handleViewDetails(lucrare)}
+              table={tableInstance}
+              setTable={setTableInstance}
+              showFilters={false}
+            />
+          </div>
         ) : (
           <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3">
             {filteredLucrari.map((lucrare) => (
@@ -796,7 +832,7 @@ export default function Lucrari() {
                               className="text-red-600"
                               onClick={(e) => {
                                 e.stopPropagation()
-                                handleDelete(lucrare.id!)
+                                handleDelete(lucrare.id)
                               }}
                             >
                               <Trash2 className="mr-2 h-4 w-4" /> Șterge

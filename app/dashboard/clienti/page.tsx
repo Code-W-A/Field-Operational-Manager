@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
-import { Plus, Eye, Pencil, Trash2, Loader2, AlertCircle } from "lucide-react"
+import { Plus, Eye, Pencil, Trash2, Loader2, AlertCircle, Search, X } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/contexts/AuthContext"
 import { useClientLucrari } from "@/hooks/use-client-lucrari"
@@ -28,6 +28,9 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { Badge } from "@/components/ui/badge"
 import { ClientForm } from "@/components/client-form"
+import { Input } from "@/components/ui/input"
+import { EnhancedFilterSystem } from "@/components/data-table/enhanced-filter-system"
+import { DataTableViewOptions } from "@/components/data-table/data-table-view-options"
 
 export default function Clienti() {
   const { userData } = useAuth()
@@ -264,6 +267,37 @@ export default function Clienti() {
           </div>
         </div>
 
+        {/* Adăugăm filtrele și căutarea aici, indiferent de modul de vizualizare */}
+        {!loading && !fetchError && (
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row gap-2 justify-between">
+              <div className="relative flex-1">
+                <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+                <Input
+                  placeholder="Caută în toate coloanele..."
+                  value={table?.getState().globalFilter || ""}
+                  onChange={(e) => table?.setGlobalFilter(e.target.value)}
+                  className="pl-8"
+                />
+                {table?.getState().globalFilter && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-1 top-1/2 h-6 w-6 -translate-y-1/2 p-0"
+                    onClick={() => table?.setGlobalFilter("")}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+
+              {table && <EnhancedFilterSystem table={table} />}
+
+              <div className="flex justify-end">{table && <DataTableViewOptions table={table} />}</div>
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <div className="flex justify-center items-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
@@ -277,13 +311,16 @@ export default function Clienti() {
             </AlertDescription>
           </Alert>
         ) : activeTab === "tabel" ? (
-          <DataTable
-            columns={columns}
-            data={clienti}
-            onRowClick={(client) => handleViewDetails(client.id!)}
-            table={table}
-            setTable={setTable}
-          />
+          <div className="rounded-md border">
+            <DataTable
+              columns={columns}
+              data={clienti}
+              onRowClick={(client) => handleViewDetails(client.id!)}
+              table={table}
+              setTable={setTable}
+              showFilters={false}
+            />
+          </div>
         ) : (
           <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3">
             {clienti.map((client) => (

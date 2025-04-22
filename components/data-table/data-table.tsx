@@ -25,6 +25,7 @@ interface DataTableProps<TData, TValue> {
   onRowClick?: (row: TData) => void
   table?: any
   setTable?: (table: any) => void
+  showFilters?: boolean // Adăugăm acest prop
 }
 
 export function DataTable<TData, TValue>({
@@ -34,6 +35,7 @@ export function DataTable<TData, TValue>({
   onRowClick,
   table: externalTable,
   setTable: setExternalTable,
+  showFilters = true, // Valoarea implicită este true
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>(defaultSort ? [defaultSort] : [])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
@@ -223,36 +225,38 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col sm:flex-row gap-2">
-          {/* Global search */}
-          <div className="relative flex-1">
-            <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-            <Input
-              placeholder="Caută în toate coloanele..."
-              value={globalFilter}
-              onChange={(e) => handleGlobalFilterChange(e.target.value)}
-              className="pl-8"
-            />
-            {globalFilter && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="absolute right-1 top-1/2 h-6 w-6 -translate-y-1/2 p-0"
-                onClick={() => handleGlobalFilterChange("")}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
+      {showFilters && (
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row gap-2">
+            {/* Global search */}
+            <div className="relative flex-1">
+              <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+              <Input
+                placeholder="Caută în toate coloanele..."
+                value={globalFilter}
+                onChange={(e) => handleGlobalFilterChange(e.target.value)}
+                className="pl-8"
+              />
+              {globalFilter && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-1 top-1/2 h-6 w-6 -translate-y-1/2 p-0"
+                  onClick={() => handleGlobalFilterChange("")}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+
+            <EnhancedFilterSystem table={table} />
           </div>
 
-          <EnhancedFilterSystem table={table} />
+          <div className="flex justify-end">
+            <DataTableViewOptions table={table} />
+          </div>
         </div>
-
-        <div className="flex justify-end">
-          <DataTableViewOptions table={table} />
-        </div>
-      </div>
+      )}
 
       <div className="rounded-md border">
         <Table>
