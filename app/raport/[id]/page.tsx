@@ -192,6 +192,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
 
   // Use useStableCallback to ensure we have access to the latest state values
   // without causing unnecessary re-renders
+  // În funcția handleSubmit, când se salvează semnăturile
   const handleSubmit = useStableCallback(async () => {
     if (step === "verificare") {
       if (statusLucrare !== "Finalizat") {
@@ -225,12 +226,6 @@ export default function RaportPage({ params }: { params: { id: string } }) {
         alert("Vă rugăm să introduceți adresa de email pentru trimiterea raportului.")
         return
       }
-
-      // Remove the products validation check
-      // if (products.length === 0) {
-      //   alert("Vă rugăm să adăugați cel puțin un produs în tabel.")
-      //   return
-      // }
 
       setIsSubmitting(true)
 
@@ -477,23 +472,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
                   <p className="whitespace-pre-line">{lucrare?.descriereInterventie || "Nu a fost specificată"}</p>
                 </div>
 
-                <div>
-                  <h3 className="font-medium text-gray-500">Lucrări Efectuate</h3>
-                  <ul className="list-inside list-disc">
-                    <li>Înlocuire panou deteriorat</li>
-                    <li>Reglare sistem de închidere</li>
-                    <li>Testare funcționalitate</li>
-                  </ul>
-                </div>
-
-                <div>
-                  <h3 className="font-medium text-gray-500">Materiale Utilizate</h3>
-                  <ul className="list-inside list-disc">
-                    <li>Panou secțional 1000x500mm - 1 buc</li>
-                    <li>Set șuruburi fixare - 1 set</li>
-                    <li>Spray lubrifiant - 1 buc</li>
-                  </ul>
-                </div>
+          
               </TabsContent>
             </Tabs>
           ) : (

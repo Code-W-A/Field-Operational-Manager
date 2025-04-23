@@ -95,13 +95,13 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
     router.push(`/dashboard/lucrari?edit=${lucrare.id}`)
   }, [router, lucrare])
 
-  // Funcție pentru a genera raportul
+  // Modificăm funcția handleGenerateReport pentru a naviga către pagina de raport
   const handleGenerateReport = useCallback(() => {
     if (!lucrare?.id) {
       console.error("ID-ul lucrării lipsește:", lucrare)
       toast({
         title: "Eroare",
-        description: "ID-ul lucrării lipsește",
+        description: "ID-ul lucrării nu este valid",
         variant: "destructive",
       })
       return
@@ -145,16 +145,16 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
 
   return (
     <DashboardShell>
+      {/* Modificăm secțiunea de butoane din DashboardHeader pentru a adăuga butonul "Generează raport"
+      indiferent de statusul lucrării */}
       <DashboardHeader heading={`Lucrare: ${lucrare.tipLucrare}`} text={`Client: ${lucrare.client}`}>
         <div className="flex space-x-2">
           <Button variant="outline" onClick={() => router.push("/dashboard/lucrari")}>
             <ChevronLeft className="mr-2 h-4 w-4" /> Înapoi
           </Button>
-          {lucrare.statusLucrare.toLowerCase() === "finalizat" && (
-            <Button onClick={handleGenerateReport}>
-              <FileText className="mr-2 h-4 w-4" /> Generează raport
-            </Button>
-          )}
+          <Button onClick={handleGenerateReport}>
+            <FileText className="mr-2 h-4 w-4" /> Generează raport
+          </Button>
         </div>
       </DashboardHeader>
 

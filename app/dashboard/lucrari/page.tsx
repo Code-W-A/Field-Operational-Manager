@@ -490,6 +490,7 @@ export default function Lucrari() {
       enableHiding: true,
       enableFiltering: true,
     },
+
     {
       accessorKey: "statusLucrare",
       header: "Status Lucrare",

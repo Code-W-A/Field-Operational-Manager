@@ -101,25 +101,7 @@ export function LucrareForm({
   const [persoaneContact, setPersoaneContact] = useState<PersoanaContact[]>([])
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
 
-  // Actualizăm ora când se schimbă data emiterii
-  useEffect(() => {
-    if (dataEmiterii) {
-      // Păstrăm ora curentă dacă data se schimbă
-      const currentTime = timeEmiterii || format(new Date(), "HH:mm")
-      setTimeEmiterii(currentTime)
-    }
-  }, [dataEmiterii])
-
-  // Actualizăm ora când se schimbă data intervenției
-  useEffect(() => {
-    if (dataInterventie) {
-      // Păstrăm ora curentă dacă data se schimbă
-      const currentTime = timeInterventie || format(new Date(), "HH:mm")
-      setTimeInterventie(currentTime)
-    }
-  }, [dataInterventie])
-
-  // Actualizăm data completă când se schimbă ora emiterii
+  // Actualizăm funcția handleTimeEmiteriiChange pentru a folosi formatul de 24 de ore
   const handleTimeEmiteriiChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTime = e.target.value
     setTimeEmiterii(newTime)
@@ -133,7 +115,7 @@ export function LucrareForm({
     }
   }
 
-  // Actualizăm data completă când se schimbă ora intervenției
+  // Actualizăm funcția handleTimeInterventieChange pentru a folosi formatul de 24 de ore
   const handleTimeInterventieChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTime = e.target.value
     setTimeInterventie(newTime)
@@ -146,6 +128,24 @@ export function LucrareForm({
       setDataInterventie(newDate)
     }
   }
+
+  // Actualizăm efectul pentru a folosi formatul de 24 de ore
+  useEffect(() => {
+    if (dataEmiterii) {
+      // Păstrăm ora curentă dacă data se schimbă
+      const currentTime = timeEmiterii || format(new Date(), "HH:mm")
+      setTimeEmiterii(currentTime)
+    }
+  }, [dataEmiterii])
+
+  // Actualizăm efectul pentru a folosi formatul de 24 de ore
+  useEffect(() => {
+    if (dataInterventie) {
+      // Păstrăm ora curentă dacă data se schimbă
+      const currentTime = timeInterventie || format(new Date(), "HH:mm")
+      setTimeInterventie(currentTime)
+    }
+  }, [dataInterventie])
 
   // Obținem clienții din Firestore
   const { data: clienti, loading: loadingClienti } = useFirebaseCollection<Client>("clienti", [orderBy("nume", "asc")])
