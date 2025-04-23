@@ -491,29 +491,6 @@ export default function Lucrari() {
       enableFiltering: true,
     },
     {
-      accessorKey: "descriere",
-      header: "Descriere",
-      enableHiding: true,
-      enableFiltering: true,
-      cell: ({ row }) => (
-        <div className="max-w-[200px] truncate" title={row.original.descriere}>
-          {row.original.descriere}
-        </div>
-      ),
-    },
-    {
-      accessorKey: "persoanaContact",
-      header: "Persoană Contact",
-      enableHiding: true,
-      enableFiltering: true,
-    },
-    {
-      accessorKey: "telefon",
-      header: "Telefon",
-      enableHiding: true,
-      enableFiltering: true,
-    },
-    {
       accessorKey: "statusLucrare",
       header: "Status Lucrare",
       enableHiding: true,

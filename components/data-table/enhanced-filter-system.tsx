@@ -569,7 +569,7 @@ export function EnhancedFilterSystem<TData>({ table }: EnhancedFilterSystemProps
       <Dialog open={isFilterDialogOpen} onOpenChange={setIsFilterDialogOpen}>
         <DialogContent className="sm:max-w-[600px] max-w-[95vw] max-h-[90vh] overflow-y-auto p-0">
           <DialogHeader className="p-4 border-b bg-gradient-to-r from-blue-50 to-white">
-            <DialogTitle className="text-blue-800">Filtre avansate</DialogTitle>
+            <DialogTitle className="text-blue-800">Filtre</DialogTitle>
             <DialogDescription>
               Filtrați datele după criterii specifice pentru a găsi informațiile dorite
             </DialogDescription>
@@ -582,10 +582,7 @@ export function EnhancedFilterSystem<TData>({ table }: EnhancedFilterSystemProps
                   <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5" />
                   Filtrare rapidă
                 </TabsTrigger>
-                <TabsTrigger value="advanced" className="text-sm">
-                  <Settings className="h-3.5 w-3.5 mr-1.5" />
-                  Filtrare avansată
-                </TabsTrigger>
+          
               </TabsList>
             </div>
 
