@@ -8,7 +8,6 @@ import {
   Plus,
   Save,
   Trash2,
-  FolderOpen,
   Check,
   Settings,
   SlidersHorizontal,
@@ -45,7 +44,6 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import type { Table } from "@tanstack/react-table"
 
 interface EnhancedFilterSystemProps<TData> {
@@ -81,9 +79,10 @@ interface SavedFilter {
   createdAt: number
 }
 
+// Modificăm funcția principală pentru a folosi Dialog în loc de Popover
 export function EnhancedFilterSystem<TData>({ table }: EnhancedFilterSystemProps<TData>) {
   const [mounted, setMounted] = useState(false)
-  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false)
+  const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false) // Redenumim din isFilterPanelOpen
   const [activeTab, setActiveTab] = useState<string>("quick")
   const [globalFilter, setGlobalFilter] = useState("")
   const [filterConditions, setFilterConditions] = useState<FilterCondition[]>([])
@@ -544,419 +543,418 @@ export function EnhancedFilterSystem<TData>({ table }: EnhancedFilterSystemProps
     return Object.entries(groups).filter(([_, columns]) => columns.length > 0)
   }, [filterableColumns])
 
+  // Înlocuim secțiunea de render cu Dialog în loc de Popover
   if (!mounted) return null
 
   return (
     <div className="space-y-4">
-      {/* Top filter bar */}
-      <div className="flex flex-col sm:flex-row gap-2">
-        {/* Filter button */}
-        <Popover open={isFilterPanelOpen} onOpenChange={setIsFilterPanelOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-9 gap-1 transition-all duration-200 relative",
-                filterConditions.length > 0 && "border-blue-500 text-blue-600 bg-blue-50 hover:bg-blue-100",
-              )}
-            >
-              <Filter className={cn("h-4 w-4 mr-1 transition-all", filterConditions.length > 0 && "text-blue-600")} />
-              <span>Filtre</span>
-              {filterConditions.length > 0 && (
-                <Badge className="ml-1 bg-blue-600 text-white hover:bg-blue-700">{filterConditions.length}</Badge>
-              )}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-[450px] p-0 shadow-lg border-blue-100">
-            <div className="p-4 border-b bg-gradient-to-r from-blue-50 to-white">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h4 className="font-medium text-blue-800">Filtre</h4>
-                  <p className="text-sm text-muted-foreground">Filtrați datele după criterii specifice</p>
-                </div>
-           
-              </div>
+      {/* Buton pentru deschiderea dialogului de filtrare */}
+      <Button
+        variant="outline"
+        size="sm"
+        className={cn(
+          "h-9 gap-1 transition-all duration-200 relative",
+          filterConditions.length > 0 && "border-blue-500 text-blue-600 bg-blue-50 hover:bg-blue-100",
+        )}
+        onClick={() => setIsFilterDialogOpen(true)}
+      >
+        <Filter className={cn("h-4 w-4 mr-1 transition-all", filterConditions.length > 0 && "text-blue-600")} />
+        <span>Filtre</span>
+        {filterConditions.length > 0 && (
+          <Badge className="ml-1 bg-blue-600 text-white hover:bg-blue-700">{filterConditions.length}</Badge>
+        )}
+      </Button>
+
+      {/* Dialog pentru filtrare - înlocuiește Popover */}
+      <Dialog open={isFilterDialogOpen} onOpenChange={setIsFilterDialogOpen}>
+        <DialogContent className="sm:max-w-[600px] max-w-[95vw] max-h-[90vh] overflow-y-auto p-0">
+          <DialogHeader className="p-4 border-b bg-gradient-to-r from-blue-50 to-white">
+            <DialogTitle className="text-blue-800">Filtre avansate</DialogTitle>
+            <DialogDescription>
+              Filtrați datele după criterii specifice pentru a găsi informațiile dorite
+            </DialogDescription>
+          </DialogHeader>
+
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <div className="px-4 pt-4">
+              <TabsList className="grid w-full grid-cols-2 p-1">
+                <TabsTrigger value="quick" className="text-sm">
+                  <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5" />
+                  Filtrare rapidă
+                </TabsTrigger>
+                <TabsTrigger value="advanced" className="text-sm">
+                  <Settings className="h-3.5 w-3.5 mr-1.5" />
+                  Filtrare avansată
+                </TabsTrigger>
+              </TabsList>
             </div>
 
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <div className="px-2 pt-2">
-                <TabsList className="grid w-full grid-cols-2 p-1">
-                  <TabsTrigger value="quick" className="text-sm">
-                    <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5" />
-                    Filtrare rapidă
-                  </TabsTrigger>
-         
-                </TabsList>
-              </div>
+            {/* Quick filter tab */}
+            <TabsContent value="quick" className="p-4">
+              <div className="max-h-[60vh] overflow-y-auto pr-1 space-y-1">
+                {groupedColumns.map(([groupName, columns]) => (
+                  <div key={groupName} className="mb-4">
+                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1 px-2">
+                      {groupName}
+                    </div>
+                    <Accordion type="multiple" className="w-full">
+                      {columns.map((column) => {
+                        const columnId = column.id
+                        const headerText = getColumnDisplayName(columnId)
+                        const dataType = getColumnDataType(columnId)
 
-              {/* Quick filter tab */}
-              <TabsContent value="quick" className="p-2">
-                <div className="max-h-[400px] overflow-y-auto pr-1 space-y-1">
-                  {groupedColumns.map(([groupName, columns]) => (
-                    <div key={groupName} className="mb-2">
-                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1 px-2">
-                        {groupName}
-                      </div>
-                      <Accordion type="multiple" className="w-full">
-                        {columns.map((column) => {
-                          const columnId = column.id
-                          const headerText = getColumnDisplayName(columnId)
-                          const dataType = getColumnDataType(columnId)
+                        // Check if column has active filters
+                        const hasActiveFilter = filterConditions.some((c) => c.column === columnId)
+                        const isHighlighted = lastAppliedFilter === columnId && isApplyingFilter
 
-                          // Check if column has active filters
-                          const hasActiveFilter = filterConditions.some((c) => c.column === columnId)
-                          const isHighlighted = lastAppliedFilter === columnId && isApplyingFilter
-
-                          return (
-                            <AccordionItem
-                              key={columnId}
-                              value={columnId}
+                        return (
+                          <AccordionItem
+                            key={columnId}
+                            value={columnId}
+                            className={cn(
+                              "border border-transparent rounded-md mb-1 overflow-hidden transition-all duration-300",
+                              hasActiveFilter && "border-blue-200 bg-blue-50",
+                              isHighlighted && "border-blue-400 bg-blue-100 shadow-sm",
+                            )}
+                          >
+                            <AccordionTrigger
                               className={cn(
-                                "border border-transparent rounded-md mb-1 overflow-hidden transition-all duration-300",
-                                hasActiveFilter && "border-blue-200 bg-blue-50",
-                                isHighlighted && "border-blue-400 bg-blue-100 shadow-sm",
+                                "px-3 py-2 text-sm hover:no-underline rounded-md",
+                                hasActiveFilter && "text-blue-700 font-medium",
+                                isHighlighted && "text-blue-800 font-medium",
                               )}
                             >
-                              <AccordionTrigger
-                                className={cn(
-                                  "px-3 py-2 text-sm hover:no-underline rounded-md",
-                                  hasActiveFilter && "text-blue-700 font-medium",
-                                  isHighlighted && "text-blue-800 font-medium",
+                              <div className="flex items-center gap-2">
+                                <span>{headerText}</span>
+                                {hasActiveFilter && (
+                                  <Badge className="bg-blue-600 text-white hover:bg-blue-700">Activ</Badge>
                                 )}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <span>{headerText}</span>
-                                  {hasActiveFilter && (
-                                    <Badge className="bg-blue-600 text-white hover:bg-blue-700">Activ</Badge>
-                                  )}
-                                </div>
-                              </AccordionTrigger>
-                              <AccordionContent className="px-3 pb-3 pt-1">
-                                {dataType === "date" ? (
-                                  <div className="space-y-2">
-                                    <Calendar
-                                      mode="single"
-                                      selected={column.getFilterValue() as Date}
-                                      onSelect={(date) => {
-                                        if (date) {
-                                          const condition: FilterCondition = {
-                                            id: `${columnId}-${Date.now()}`,
-                                            column: columnId,
-                                            operator: "equals",
-                                            value: date,
-                                          }
-                                          setFilterConditions([
-                                            ...filterConditions.filter((c) => c.column !== columnId),
-                                            condition,
-                                          ])
-                                          column.setFilterValue(date)
-                                          animateFilterApplication(columnId)
-                                        } else {
-                                          setFilterConditions(filterConditions.filter((c) => c.column !== columnId))
-                                          column.setFilterValue(undefined)
+                              </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="px-3 pb-3 pt-1">
+                              {dataType === "date" ? (
+                                <div className="space-y-2">
+                                  <Calendar
+                                    mode="single"
+                                    selected={column.getFilterValue() as Date}
+                                    onSelect={(date) => {
+                                      if (date) {
+                                        const condition: FilterCondition = {
+                                          id: `${columnId}-${Date.now()}`,
+                                          column: columnId,
+                                          operator: "equals",
+                                          value: date,
                                         }
-                                      }}
-                                      locale={ro}
-                                      className="border rounded-md p-2"
-                                    />
-                                  </div>
-                                ) : (
-                                  <div className="space-y-2">
-                                    <MultiSelectFilter
-                                      options={columnOptions[columnId] || []}
-                                      selected={
-                                        Array.isArray(column.getFilterValue())
-                                          ? column.getFilterValue()
-                                          : column.getFilterValue()
-                                            ? [String(column.getFilterValue())]
-                                            : []
+                                        setFilterConditions([
+                                          ...filterConditions.filter((c) => c.column !== columnId),
+                                          condition,
+                                        ])
+                                        column.setFilterValue(date)
+                                        animateFilterApplication(columnId)
+                                      } else {
+                                        setFilterConditions(filterConditions.filter((c) => c.column !== columnId))
+                                        column.setFilterValue(undefined)
                                       }
-                                      onChange={(selected) => {
-                                        if (selected.length > 0) {
-                                          const condition: FilterCondition = {
-                                            id: `${columnId}-${Date.now()}`,
-                                            column: columnId,
-                                            operator: "in",
-                                            value: selected,
-                                          }
-                                          setFilterConditions([
-                                            ...filterConditions.filter((c) => c.column !== columnId),
-                                            condition,
-                                          ])
-                                          column.setFilterValue(selected)
-                                          animateFilterApplication(columnId)
-                                        } else {
-                                          setFilterConditions(filterConditions.filter((c) => c.column !== columnId))
-                                          column.setFilterValue(undefined)
+                                    }}
+                                    locale={ro}
+                                    className="border rounded-md p-2"
+                                  />
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  <MultiSelectFilter
+                                    options={columnOptions[columnId] || []}
+                                    selected={
+                                      Array.isArray(column.getFilterValue())
+                                        ? column.getFilterValue()
+                                        : column.getFilterValue()
+                                          ? [String(column.getFilterValue())]
+                                          : []
+                                    }
+                                    onChange={(selected) => {
+                                      if (selected.length > 0) {
+                                        const condition: FilterCondition = {
+                                          id: `${columnId}-${Date.now()}`,
+                                          column: columnId,
+                                          operator: "in",
+                                          value: selected,
                                         }
-                                      }}
-                                      placeholder={`Selectați ${headerText.toLowerCase()}`}
-                                      emptyText={`Nu există opțiuni pentru ${headerText.toLowerCase()}`}
-                                    />
-                                  </div>
-                                )}
-                              </AccordionContent>
-                            </AccordionItem>
-                          )
-                        })}
-                      </Accordion>
-                    </div>
-                  ))}
-                </div>
-              </TabsContent>
+                                        setFilterConditions([
+                                          ...filterConditions.filter((c) => c.column !== columnId),
+                                          condition,
+                                        ])
+                                        column.setFilterValue(selected)
+                                        animateFilterApplication(columnId)
+                                      } else {
+                                        setFilterConditions(filterConditions.filter((c) => c.column !== columnId))
+                                        column.setFilterValue(undefined)
+                                      }
+                                    }}
+                                    placeholder={`Selectați ${headerText.toLowerCase()}`}
+                                    emptyText={`Nu există opțiuni pentru ${headerText.toLowerCase()}`}
+                                  />
+                                </div>
+                              )}
+                            </AccordionContent>
+                          </AccordionItem>
+                        )
+                      })}
+                    </Accordion>
+                  </div>
+                ))}
+              </div>
+            </TabsContent>
 
-              {/* Advanced filter tab */}
-              <TabsContent value="advanced" className="p-2">
-                <Card className="mb-4 border-blue-100">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-blue-800">Adaugă condiție de filtrare</CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-3 space-y-3">
-                    <div className="grid grid-cols-1 gap-2">
+            {/* Advanced filter tab */}
+            <TabsContent value="advanced" className="p-4">
+              <Card className="mb-4 border-blue-100">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-blue-800">Adaugă condiție de filtrare</CardTitle>
+                </CardHeader>
+                <CardContent className="p-3 space-y-3">
+                  <div className="grid grid-cols-1 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium">Coloană</label>
+                      <Select
+                        value={newCondition.column}
+                        onValueChange={(value) =>
+                          setNewCondition({
+                            ...newCondition,
+                            column: value,
+                            operator: undefined,
+                            value: undefined,
+                            valueEnd: undefined,
+                          })
+                        }
+                      >
+                        <SelectTrigger className="bg-white">
+                          <SelectValue placeholder="Selectați coloana" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {groupedColumns.map(([groupName, columns]) => (
+                            <SelectGroup key={groupName}>
+                              <SelectLabel>{groupName}</SelectLabel>
+                              {columns.map((column) => (
+                                <SelectItem key={column.id} value={column.id}>
+                                  {getColumnDisplayName(column.id)}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {newCondition.column && (
                       <div className="space-y-1">
-                        <label className="text-sm font-medium">Coloană</label>
+                        <label className="text-sm font-medium">Operator</label>
                         <Select
-                          value={newCondition.column}
+                          value={newCondition.operator}
                           onValueChange={(value) =>
                             setNewCondition({
                               ...newCondition,
-                              column: value,
-                              operator: undefined,
+                              operator: value as FilterOperator,
                               value: undefined,
                               valueEnd: undefined,
                             })
                           }
                         >
                           <SelectTrigger className="bg-white">
-                            <SelectValue placeholder="Selectați coloana" />
+                            <SelectValue placeholder="Selectați operatorul" />
                           </SelectTrigger>
                           <SelectContent>
-                            {groupedColumns.map(([groupName, columns]) => (
-                              <SelectGroup key={groupName}>
-                                <SelectLabel>{groupName}</SelectLabel>
-                                {columns.map((column) => (
-                                  <SelectItem key={column.id} value={column.id}>
-                                    {getColumnDisplayName(column.id)}
-                                  </SelectItem>
-                                ))}
-                              </SelectGroup>
+                            {getOperatorsForColumn(newCondition.column).map((op) => (
+                              <SelectItem key={op.value} value={op.value}>
+                                {op.label}
+                              </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
+                    )}
 
-                      {newCondition.column && (
+                    {newCondition.column &&
+                      newCondition.operator &&
+                      !["isNull", "isNotNull"].includes(newCondition.operator) && (
                         <div className="space-y-1">
-                          <label className="text-sm font-medium">Operator</label>
-                          <Select
-                            value={newCondition.operator}
-                            onValueChange={(value) =>
-                              setNewCondition({
-                                ...newCondition,
-                                operator: value as FilterOperator,
-                                value: undefined,
-                                valueEnd: undefined,
-                              })
-                            }
-                          >
-                            <SelectTrigger className="bg-white">
-                              <SelectValue placeholder="Selectați operatorul" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {getOperatorsForColumn(newCondition.column).map((op) => (
-                                <SelectItem key={op.value} value={op.value}>
-                                  {op.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <label className="text-sm font-medium">Valoare</label>
+                          {getColumnDataType(newCondition.column) === "date" ? (
+                            <div className="flex flex-col space-y-2">
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    className="w-full justify-start text-left font-normal bg-white"
+                                  >
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {newCondition.value instanceof Date ? (
+                                      format(newCondition.value, "dd.MM.yyyy", { locale: ro })
+                                    ) : (
+                                      <span>Selectați data</span>
+                                    )}
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0">
+                                  <Calendar
+                                    mode="single"
+                                    selected={newCondition.value as Date}
+                                    onSelect={(date) =>
+                                      setNewCondition({
+                                        ...newCondition,
+                                        value: date,
+                                      })
+                                    }
+                                    initialFocus
+                                  />
+                                </PopoverContent>
+                              </Popover>
+
+                              {newCondition.operator === "between" && (
+                                <>
+                                  <label className="text-sm font-medium">Până la</label>
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <Button
+                                        variant="outline"
+                                        className="w-full justify-start text-left font-normal bg-white"
+                                      >
+                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                        {newCondition.valueEnd instanceof Date ? (
+                                          format(newCondition.valueEnd, "dd.MM.yyyy", { locale: ro })
+                                        ) : (
+                                          <span>Selectați data</span>
+                                        )}
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0">
+                                      <Calendar
+                                        mode="single"
+                                        selected={newCondition.valueEnd as Date}
+                                        onSelect={(date) =>
+                                          setNewCondition({
+                                            ...newCondition,
+                                            valueEnd: date,
+                                          })
+                                        }
+                                        initialFocus
+                                      />
+                                    </PopoverContent>
+                                  </Popover>
+                                </>
+                              )}
+                            </div>
+                          ) : newCondition.operator === "in" ? (
+                            <MultiSelectFilter
+                              options={columnOptions[newCondition.column] || []}
+                              selected={Array.isArray(newCondition.value) ? newCondition.value : []}
+                              onChange={(selected) =>
+                                setNewCondition({
+                                  ...newCondition,
+                                  value: selected,
+                                })
+                              }
+                              placeholder="Selectați valorile"
+                              emptyText="Nu există opțiuni disponibile"
+                            />
+                          ) : (
+                            <Input
+                              type={getColumnDataType(newCondition.column) === "number" ? "number" : "text"}
+                              value={newCondition.value || ""}
+                              onChange={(e) =>
+                                setNewCondition({
+                                  ...newCondition,
+                                  value: e.target.value,
+                                })
+                              }
+                              placeholder="Introduceți valoarea"
+                              className="bg-white"
+                            />
+                          )}
                         </div>
                       )}
+                  </div>
 
-                      {newCondition.column &&
-                        newCondition.operator &&
-                        !["isNull", "isNotNull"].includes(newCondition.operator) && (
-                          <div className="space-y-1">
-                            <label className="text-sm font-medium">Valoare</label>
-                            {getColumnDataType(newCondition.column) === "date" ? (
-                              <div className="flex flex-col space-y-2">
-                                <Popover>
-                                  <PopoverTrigger asChild>
-                                    <Button
-                                      variant="outline"
-                                      className="w-full justify-start text-left font-normal bg-white"
-                                    >
-                                      <CalendarIcon className="mr-2 h-4 w-4" />
-                                      {newCondition.value instanceof Date ? (
-                                        format(newCondition.value, "dd.MM.yyyy", { locale: ro })
-                                      ) : (
-                                        <span>Selectați data</span>
-                                      )}
-                                    </Button>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-auto p-0">
-                                    <Calendar
-                                      mode="single"
-                                      selected={newCondition.value as Date}
-                                      onSelect={(date) =>
-                                        setNewCondition({
-                                          ...newCondition,
-                                          value: date,
-                                        })
-                                      }
-                                      initialFocus
-                                    />
-                                  </PopoverContent>
-                                </Popover>
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      onClick={addFilterCondition}
+                      disabled={
+                        !newCondition.column ||
+                        !newCondition.operator ||
+                        (["isNull", "isNotNull"].includes(newCondition.operator as string)
+                          ? false
+                          : !newCondition.value) ||
+                        (newCondition.operator === "between" && !newCondition.valueEnd)
+                      }
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      <Plus className="h-4 w-4 mr-1" /> Adaugă filtru
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
 
-                                {newCondition.operator === "between" && (
-                                  <>
-                                    <label className="text-sm font-medium">Până la</label>
-                                    <Popover>
-                                      <PopoverTrigger asChild>
-                                        <Button
-                                          variant="outline"
-                                          className="w-full justify-start text-left font-normal bg-white"
-                                        >
-                                          <CalendarIcon className="mr-2 h-4 w-4" />
-                                          {newCondition.valueEnd instanceof Date ? (
-                                            format(newCondition.valueEnd, "dd.MM.yyyy", { locale: ro })
-                                          ) : (
-                                            <span>Selectați data</span>
-                                          )}
-                                        </Button>
-                                      </PopoverTrigger>
-                                      <PopoverContent className="w-auto p-0">
-                                        <Calendar
-                                          mode="single"
-                                          selected={newCondition.valueEnd as Date}
-                                          onSelect={(date) =>
-                                            setNewCondition({
-                                              ...newCondition,
-                                              valueEnd: date,
-                                            })
-                                          }
-                                          initialFocus
-                                        />
-                                      </PopoverContent>
-                                    </Popover>
-                                  </>
-                                )}
-                              </div>
-                            ) : newCondition.operator === "in" ? (
-                              <MultiSelectFilter
-                                options={columnOptions[newCondition.column] || []}
-                                selected={Array.isArray(newCondition.value) ? newCondition.value : []}
-                                onChange={(selected) =>
-                                  setNewCondition({
-                                    ...newCondition,
-                                    value: selected,
-                                  })
-                                }
-                                placeholder="Selectați valorile"
-                                emptyText="Nu există opțiuni disponibile"
-                              />
-                            ) : (
-                              <Input
-                                type={getColumnDataType(newCondition.column) === "number" ? "number" : "text"}
-                                value={newCondition.value || ""}
-                                onChange={(e) =>
-                                  setNewCondition({
-                                    ...newCondition,
-                                    value: e.target.value,
-                                  })
-                                }
-                                placeholder="Introduceți valoarea"
-                                className="bg-white"
-                              />
-                            )}
-                          </div>
+              {/* Active filters */}
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium text-blue-800 px-1">Filtre active</h3>
+                {filterConditions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground px-1">Nu există filtre active</p>
+                ) : (
+                  <div className="space-y-2">
+                    {filterConditions.map((condition) => (
+                      <div
+                        key={condition.id}
+                        className={cn(
+                          "flex items-center justify-between p-2 rounded-md",
+                          lastAppliedFilter === condition.column && isApplyingFilter
+                            ? "bg-blue-100 border border-blue-300"
+                            : "bg-blue-50 border border-blue-200",
                         )}
-                    </div>
-
-                    <div className="flex justify-end">
-                      <Button
-                        size="sm"
-                        onClick={addFilterCondition}
-                        disabled={
-                          !newCondition.column ||
-                          !newCondition.operator ||
-                          (["isNull", "isNotNull"].includes(newCondition.operator as string)
-                            ? false
-                            : !newCondition.value) ||
-                          (newCondition.operator === "between" && !newCondition.valueEnd)
-                        }
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
                       >
-                        <Plus className="h-4 w-4 mr-1" /> Adaugă filtru
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Active filters */}
-                <div className="space-y-2">
-                  <h3 className="text-sm font-medium text-blue-800 px-1">Filtre active</h3>
-                  {filterConditions.length === 0 ? (
-                    <p className="text-sm text-muted-foreground px-1">Nu există filtre active</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {filterConditions.map((condition) => (
-                        <div
-                          key={condition.id}
-                          className={cn(
-                            "flex items-center justify-between p-2 rounded-md",
-                            lastAppliedFilter === condition.column && isApplyingFilter
-                              ? "bg-blue-100 border border-blue-300"
-                              : "bg-blue-50 border border-blue-200",
-                          )}
-                        >
-                          <div className="text-sm">
-                            <span className="font-medium text-blue-800">{getColumnDisplayName(condition.column)}</span>
-                            <span className="mx-1 text-muted-foreground">
-                              {getOperatorDisplayText(condition.operator)}
-                            </span>
-                            <span className="text-blue-700">{formatFilterValue(condition)}</span>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 text-blue-700 hover:text-blue-900 hover:bg-blue-100"
-                            onClick={() => removeFilterCondition(condition.id)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
+                        <div className="text-sm">
+                          <span className="font-medium text-blue-800">{getColumnDisplayName(condition.column)}</span>
+                          <span className="mx-1 text-muted-foreground">
+                            {getOperatorDisplayText(condition.operator)}
+                          </span>
+                          <span className="text-blue-700">{formatFilterValue(condition)}</span>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </TabsContent>
-            </Tabs>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-blue-700 hover:text-blue-900 hover:bg-blue-100"
+                          onClick={() => removeFilterCondition(condition.id)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
 
-            <div className="p-2 border-t flex justify-between">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearAllFilters}
-                disabled={filterConditions.length === 0 && !globalFilter}
-                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-              >
-                <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                Resetează toate
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => setIsFilterPanelOpen(false)}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                Aplică
-              </Button>
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
+          <DialogFooter className="p-4 border-t flex justify-between">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearAllFilters}
+              disabled={filterConditions.length === 0 && !globalFilter}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              <RefreshCw className="h-3.5 w-3.5 mr-1" />
+              Resetează toate
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => setIsFilterDialogOpen(false)}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Aplică
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Active filters display */}
       {(filterConditions.length > 0 || globalFilter) && (
@@ -997,6 +995,7 @@ export function EnhancedFilterSystem<TData>({ table }: EnhancedFilterSystemProps
         </div>
       )}
 
+      {/* Păstrăm dialogurile existente pentru salvare și încărcare filtre */}
       {/* Save Filter Dialog */}
       <Dialog open={isSaveDialogOpen} onOpenChange={setIsSaveDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">

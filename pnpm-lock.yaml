@@ -121,7 +121,7 @@ importers:
         version: 11.6.0
       firebase-admin:
         specifier: latest
-        version: 13.2.0
+        version: 13.3.0
       input-otp:
         specifier: 1.4.1
         version: 1.4.1(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
@@ -1858,8 +1858,8 @@ packages:
     resolution: {integrity: sha512-YsGpe3WHLK8ZYi4tWDg2Jy3ebRz2rXowDxnld4bkQB00cc/1Zw9AWnC0i9ztDJitivtQvaI9KaLyKrc+hBW0yg==}
     engines: {node: '>=8'}
 
-  firebase-admin@13.2.0:
-    resolution: {integrity: sha512-qQBTKo0QWCDaWwISry989pr8YfZSSk00rNCKaucjOgltEm3cCYzEe4rODqBd1uUwma+Iu5jtAzg89Nfsjr3fGg==}
+  firebase-admin@13.3.0:
+    resolution: {integrity: sha512-MFxv86Aw2rjM/TpKwU86jN7YUFfN1jy6mREYZTLL1aW1rCpZFi4c70b9U12J9Xa4RbJkiXpWBAwth9IVSqR91A==}
     engines: {node: '>=18'}
 
   firebase@11.6.0:
@@ -4581,7 +4581,7 @@ snapshots:
     dependencies:
       to-regex-range: 5.0.1
 
-  firebase-admin@13.2.0:
+  firebase-admin@13.3.0:
     dependencies:
       '@fastify/busboy': 3.1.1
       '@firebase/database-compat': 2.0.5
