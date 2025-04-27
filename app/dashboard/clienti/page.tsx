@@ -276,7 +276,10 @@ export default function Clienti() {
                 <Input
                   placeholder="Caută în toate coloanele..."
                   value={table?.getState().globalFilter || ""}
-                  onChange={(e) => table?.setGlobalFilter(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    table?.setGlobalFilter(value)
+                  }}
                   className="pl-8"
                 />
                 {table?.getState().globalFilter && (
@@ -284,7 +287,9 @@ export default function Clienti() {
                     variant="ghost"
                     size="sm"
                     className="absolute right-1 top-1/2 h-6 w-6 -translate-y-1/2 p-0"
-                    onClick={() => table?.setGlobalFilter("")}
+                    onClick={() => {
+                      table?.setGlobalFilter("")
+                    }}
                   >
                     <X className="h-4 w-4" />
                   </Button>

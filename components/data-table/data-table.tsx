@@ -67,19 +67,28 @@ export function DataTable<TData, TValue>({
     globalFilterFn: (row, columnId, filterValue) => {
       const safeValue = (() => {
         const value = row.getValue(columnId)
-        // Check if value is a Date object
+
+        // Verificăm dacă valoarea este null sau undefined
+        if (value === null || value === undefined) return ""
+
+        // Verificăm dacă valoarea este un obiect Date
         if (value instanceof Date) {
           return value.toLocaleDateString("ro-RO")
         }
-        // Check if value is an array
+
+        // Verificăm dacă valoarea este un array
         if (Array.isArray(value)) {
           return value.join(" ")
         }
-        // Convert to string for searching
-        return String(value ?? "").toLowerCase()
+
+        // Convertim la string pentru căutare
+        return String(value).toLowerCase()
       })()
 
-      return safeValue.includes(String(filterValue).toLowerCase())
+      const searchValue = String(filterValue).toLowerCase()
+
+      // Verificăm dacă valoarea conține textul căutat
+      return safeValue.includes(searchValue)
     },
     filterFns: {
       // Multi-select filter function
