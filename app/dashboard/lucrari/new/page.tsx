@@ -9,10 +9,7 @@ import { DashboardShell } from "@/components/dashboard-shell"
 import { addLucrare } from "@/lib/firebase/firestore"
 import { toast } from "@/components/ui/use-toast"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { getClientById } from "@/lib/firebase/firestore"
-import { collection, query, where, getDocs } from "firebase/firestore"
-import { db } from "@/lib/firebase/config"
-import { sendWorkOrderNotifications } from "@/components/work-order-notification-service"
+import { format } from "date-fns"
 
 export default function NewLucrarePage() {
   const router = useRouter()
@@ -76,22 +73,10 @@ export default function NewLucrarePage() {
     try {
       setIsSubmitting(true)
 
-      // Format dates
-      const formattedDataEmiterii = dataEmiterii
-        ? `${dataEmiterii.toLocaleDateString("ro-RO", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-          })} ${dataEmiterii.toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" })}`
-        : ""
+      // Format dates using 24-hour format
+      const formattedDataEmiterii = dataEmiterii ? format(dataEmiterii, "dd.MM.yyyy HH:mm") : ""
 
-      const formattedDataInterventie = dataInterventie
-        ? `${dataInterventie.toLocaleDateString("ro-RO", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-          })} ${dataInterventie.toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" })}`
-        : ""
+      const formattedDataInterventie = dataInterventie ? format(dataInterventie, "dd.MM.yyyy HH:mm") : ""
 
       // Create work order data
       const lucrareData = {
@@ -112,42 +97,7 @@ export default function NewLucrarePage() {
       }
 
       // Add work order to Firestore
-      const workOrderId = await addLucrare(lucrareData)
-
-      // Get the client data
-      const client = await getClientById(formData.client)
-
-      // Get technician data (email addresses)
-      const technicianEmails = await Promise.all(
-        formData.tehnicieni.map(async (techName) => {
-          const techQuery = query(collection(db, "users"), where("displayName", "==", techName))
-
-          const querySnapshot = await getDocs(techQuery)
-          if (!querySnapshot.empty) {
-            const techDoc = querySnapshot.docs[0]
-            return {
-              displayName: techDoc.data().displayName,
-              email: techDoc.data().email,
-            }
-          }
-          return { displayName: techName, email: "" }
-        }),
-      )
-
-      // Send notifications
-      if (client && workOrderId) {
-        const lucrareWithId = { ...lucrareData, id: workOrderId }
-        const notificationResult = await sendWorkOrderNotifications(
-          lucrareWithId,
-          client,
-          technicianEmails.filter((tech) => tech.email), // Filter out technicians without email
-        )
-
-        if (!notificationResult.success) {
-          console.warn("Notificare eșuată:", notificationResult.message)
-          // We continue even if notifications fail
-        }
-      }
+      await addLucrare(lucrareData)
 
       toast({
         title: "Lucrare adăugată",

@@ -11,7 +11,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { format } from "date-fns"
 import { ro } from "date-fns/locale"
-import { CalendarIcon, Loader2, Clock, Plus } from "lucide-react"
+import { CalendarIcon, Loader2, Plus } from "lucide-react"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { orderBy, where, query, collection, onSnapshot } from "firebase/firestore"
 import type { Client, PersoanaContact } from "@/lib/firebase/firestore"
@@ -21,10 +21,9 @@ import { ContractSelect } from "./contract-select"
 // Importăm componenta ClientForm
 import { ClientForm } from "./client-form"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-
-// Add the following import at the top of the file:
-import { sendWorkOrderNotifications } from "./work-order-notification-service"
-import { formatWorkOrderCode } from "@/lib/utils/work-order-utils"
+import { formatDateTime24, formatTime24 } from "@/lib/utils/time-format"
+// Replace the imports at the top to include our TimeSelector component:
+import { TimeSelector } from "./time-selector"
 
 // Define the Lucrare type
 interface Lucrare {
@@ -69,7 +68,7 @@ interface LucrareFormProps {
   handleSelectChange: (id: string, value: string) => void
   handleTehnicieniChange: (value: string) => void
   fieldErrors?: string[]
-  onSubmit?: (data: Partial<Lucrare>, workOrderId?: string) => Promise<void>
+  onSubmit?: (data: Partial<Lucrare>) => Promise<void>
   onCancel?: () => void
   initialData?: Lucrare | null
 }
@@ -94,10 +93,10 @@ export function LucrareForm({
   const [tehnicieni, setTehnicieni] = useState<any[]>([])
   const [loadingTehnicieni, setLoadingTehnicieni] = useState(true)
   const [timeEmiterii, setTimeEmiterii] = useState<string>(
-    dataEmiterii ? format(dataEmiterii, "HH:mm") : format(new Date(), "HH:mm"),
+    dataEmiterii ? formatTime24(dataEmiterii) : formatTime24(new Date()),
   )
   const [timeInterventie, setTimeInterventie] = useState<string>(
-    dataInterventie ? format(dataInterventie, "HH:mm") : format(new Date(), "HH:mm"),
+    dataInterventie ? formatTime24(dataInterventie) : formatTime24(new Date()),
   )
   const [error, setError] = useState<string | null>(null)
 
@@ -137,19 +136,19 @@ export function LucrareForm({
   useEffect(() => {
     if (dataEmiterii) {
       // Păstrăm ora curentă dacă data se schimbă
-      const currentTime = timeEmiterii || format(new Date(), "HH:mm")
+      const currentTime = timeEmiterii || formatTime24(new Date())
       setTimeEmiterii(currentTime)
     }
-  }, [dataEmiterii])
+  }, [dataEmiterii, timeEmiterii])
 
   // Actualizăm efectul pentru a folosi formatul de 24 de ore
   useEffect(() => {
     if (dataInterventie) {
       // Păstrăm ora curentă dacă data se schimbă
-      const currentTime = timeInterventie || format(new Date(), "HH:mm")
+      const currentTime = timeInterventie || formatTime24(new Date())
       setTimeInterventie(currentTime)
     }
-  }, [dataInterventie])
+  }, [dataInterventie, timeInterventie])
 
   // Obținem clienții din Firestore
   const { data: clienti, loading: loadingClienti } = useFirebaseCollection<Client>("clienti", [orderBy("nume", "asc")])
@@ -261,7 +260,7 @@ export function LucrareForm({
   }
 
   // Add a submit handler if onSubmit is provided
-  const handleSubmit = async (workOrderId?: string) => {
+  const handleSubmit = async () => {
     if (!onSubmit) return
 
     if (!validateForm()) {
@@ -270,8 +269,8 @@ export function LucrareForm({
     }
 
     const updatedData: Partial<Lucrare> = {
-      dataEmiterii: dataEmiterii ? format(dataEmiterii, "dd.MM.yyyy HH:mm") : "",
-      dataInterventie: dataInterventie ? format(dataInterventie, "dd.MM.yyyy HH:mm") : "",
+      dataEmiterii: dataEmiterii ? formatDateTime24(dataEmiterii) : "",
+      dataInterventie: dataInterventie ? formatDateTime24(dataInterventie) : "",
       tipLucrare: formData.tipLucrare,
       tehnicieni: formData.tehnicieni,
       client: formData.client,
@@ -286,26 +285,10 @@ export function LucrareForm({
       defectReclamat: formData.defectReclamat,
     }
 
-    await onSubmit(updatedData, workOrderId)
-
-    // After successful work order creation, add this code:
-    try {
-      // Prepare work order data for notification
-      const notificationData = {
-        ...formData, // or whatever your work order data variable is called
-        id: workOrderId, // the ID of the newly created work order
-        workOrderNumber: formatWorkOrderCode(workOrderId), // format the work order ID as a code
-      }
-
-      // Send notifications
-      await sendWorkOrderNotifications(notificationData)
-    } catch (error) {
-      console.error("Failed to send work order notifications:", error)
-      // Don't block the UI flow if notifications fail
-    }
+    await onSubmit(updatedData)
   }
 
-  // ... rest of the component
+  // Remove the custom TimeSelector component defined inside LucrareForm
 
   // Add buttons at the end if onSubmit and onCancel are provided
   return (
@@ -335,17 +318,23 @@ export function LucrareForm({
                   </PopoverContent>
                 </Popover>
               </div>
+              {/* Replace the time input sections with our new TimeSelector component: */}
+              {/* For the Data Emiterii section: */}
               <div className="relative sm:w-1/3">
-                <Clock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-                <Input
-                  type="time"
+                <TimeSelector
                   value={timeEmiterii}
-                  onChange={handleTimeEmiteriiChange}
-                  onClick={(e) => (e.target as HTMLInputElement).select()}
-                  className="pl-10"
-                  aria-label="Ora emiterii"
-                  step="60"
-                  lang="ro"
+                  onChange={(newTime) => {
+                    setTimeEmiterii(newTime)
+                    if (dataEmiterii) {
+                      const [hours, minutes] = newTime.split(":").map(Number)
+                      const newDate = new Date(dataEmiterii)
+                      newDate.setHours(hours, minutes)
+                      setDataEmiterii(newDate)
+                    }
+                  }}
+                  label="Ora emiterii"
+                  id="timeEmiterii"
+                  hasError={hasError("dataEmiterii")}
                 />
               </div>
             </div>
@@ -378,17 +367,23 @@ export function LucrareForm({
                   </PopoverContent>
                 </Popover>
               </div>
+              {/* Replace the time input sections with our new TimeSelector component: */}
+              {/* For the Data Intervenție section: */}
               <div className="relative sm:w-1/3">
-                <Clock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-                <Input
-                  type="time"
+                <TimeSelector
                   value={timeInterventie}
-                  onChange={handleTimeInterventieChange}
-                  onClick={(e) => (e.target as HTMLInputElement).select()}
-                  className="pl-10"
-                  aria-label="Ora intervenției"
-                  step="60"
-                  lang="ro"
+                  onChange={(newTime) => {
+                    setTimeInterventie(newTime)
+                    if (dataInterventie) {
+                      const [hours, minutes] = newTime.split(":").map(Number)
+                      const newDate = new Date(dataInterventie)
+                      newDate.setHours(hours, minutes)
+                      setDataInterventie(newDate)
+                    }
+                  }}
+                  label="Ora intervenției"
+                  id="timeInterventie"
+                  hasError={hasError("dataInterventie")}
                 />
               </div>
             </div>
@@ -637,7 +632,7 @@ export function LucrareForm({
               Anulează
             </Button>
           )}
-          {onSubmit && <Button onClick={() => handleSubmit()}>Salvează</Button>}
+          {onSubmit && <Button onClick={handleSubmit}>Salvează</Button>}
         </div>
       )}
     </div>
