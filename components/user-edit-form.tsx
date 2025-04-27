@@ -75,13 +75,6 @@ export function UserEditForm({ user, onSuccess, onCancel }: UserEditFormProps) {
     return emailRegex.test(email)
   }
 
-  // Validare parolă
-  const validatePassword = (password: string): boolean => {
-    // Minim 8 caractere, cel puțin o literă și un număr
-    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/
-    return passwordRegex.test(password)
-  }
-
   // Modificăm funcția handleSubmit pentru a actualiza și email-ul
   const handleSubmit = async () => {
     setIsSubmitting(true)
@@ -158,15 +151,16 @@ export function UserEditForm({ user, onSuccess, onCancel }: UserEditFormProps) {
     setPasswordError(null)
     setPasswordSuccess(null)
 
-    // Validare parole
+    // Validare parole - verificăm doar dacă coincid
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       setPasswordError("Parolele nu coincid")
       setIsResettingPassword(false)
       return
     }
 
-    if (!validatePassword(passwordData.newPassword)) {
-      setPasswordError("Parola trebuie să aibă minim 8 caractere, cel puțin o literă și un număr")
+    // Verificăm doar dacă parola nu este goală
+    if (!passwordData.newPassword) {
+      setPasswordError("Parola nu poate fi goală")
       setIsResettingPassword(false)
       return
     }
@@ -178,8 +172,8 @@ export function UserEditForm({ user, onSuccess, onCancel }: UserEditFormProps) {
     }
 
     try {
-      // Apelăm API-ul pentru a actualiza parola
-      const response = await fetch("/api/users/update-password", {
+      // Folosim noul endpoint pentru resetarea parolei
+      const response = await fetch("/api/users/reset-password", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -190,10 +184,31 @@ export function UserEditForm({ user, onSuccess, onCancel }: UserEditFormProps) {
         }),
       })
 
-      const data = await response.json()
-
+      // Verificăm statusul răspunsului înainte de a încerca să parsăm JSON
       if (!response.ok) {
-        throw new Error(data.error || "A apărut o eroare la actualizarea parolei")
+        // Încercăm să obținem textul răspunsului pentru a vedea eroarea
+        const errorText = await response.text()
+        console.error("Server error response:", errorText)
+
+        // Încercăm să parsăm răspunsul ca JSON, dar avem un fallback
+        let errorData
+        try {
+          errorData = JSON.parse(errorText)
+          throw new Error(errorData.error || "A apărut o eroare la actualizarea parolei")
+        } catch (parseError) {
+          // Dacă nu putem parsa JSON, folosim textul brut
+          throw new Error(`Eroare server: ${response.status} ${response.statusText}`)
+        }
+      }
+
+      // Dacă răspunsul este ok, încercăm să parsăm JSON
+      let data
+      try {
+        data = await response.json()
+      } catch (parseError) {
+        console.error("Error parsing JSON response:", parseError)
+        // Dacă nu putem parsa JSON dar răspunsul este ok, considerăm că a fost succes
+        data = { success: true, message: "Parola a fost actualizată cu succes" }
       }
 
       // Resetăm câmpurile de parolă
@@ -202,7 +217,7 @@ export function UserEditForm({ user, onSuccess, onCancel }: UserEditFormProps) {
         confirmPassword: "",
       })
 
-      setPasswordSuccess("Parola a fost actualizată cu succes")
+      setPasswordSuccess(data.message || "Parola a fost actualizată cu succes")
 
       // Închide dialogul după 2 secunde
       setTimeout(() => {
@@ -342,9 +357,6 @@ export function UserEditForm({ user, onSuccess, onCancel }: UserEditFormProps) {
                 value={passwordData.newPassword}
                 onChange={handlePasswordInputChange}
               />
-              <p className="text-xs text-muted-foreground">
-                Parola trebuie să aibă minim 8 caractere, cel puțin o literă și un număr.
-              </p>
             </div>
 
             <div className="space-y-2">
