@@ -471,8 +471,6 @@ export default function RaportPage({ params }: { params: { id: string } }) {
                   <h3 className="font-medium text-gray-500">Descriere Intervenție</h3>
                   <p className="whitespace-pre-line">{lucrare?.descriereInterventie || "Nu a fost specificată"}</p>
                 </div>
-
-          
               </TabsContent>
             </Tabs>
           ) : (

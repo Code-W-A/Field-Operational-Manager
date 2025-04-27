@@ -9,7 +9,6 @@ import {
   Save,
   Trash2,
   Check,
-  Settings,
   SlidersHorizontal,
   RefreshCw,
 } from "lucide-react"
@@ -582,7 +581,6 @@ export function EnhancedFilterSystem<TData>({ table }: EnhancedFilterSystemProps
                   <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5" />
                   Filtrare rapidă
                 </TabsTrigger>
-          
               </TabsList>
             </div>
 

@@ -17,15 +17,26 @@ export function useClientLucrari() {
       setLoading(true)
 
       if (isPreview) {
-        // Folosim datele mock
-        setClienti(mockClienti)
+        // Calculate work counts for mock data
+        const clientsWithWorkCount = mockClienti.map((client) => {
+          const workCount = mockLucrari.filter((lucrare) => lucrare.client === client.nume).length
+          return { ...client, numarLucrari: workCount }
+        })
+
+        setClienti(clientsWithWorkCount)
         setLucrari(mockLucrari)
       } else {
-        // Obținem datele reale din Firestore
+        // Get real data from Firestore
         const clientiData = await getClienti()
         const lucrariData = await getLucrari()
 
-        setClienti(clientiData)
+        // Calculate the number of works for each client
+        const clientsWithWorkCount = clientiData.map((client) => {
+          const workCount = lucrariData.filter((lucrare) => lucrare.client === client.nume).length
+          return { ...client, numarLucrari: workCount }
+        })
+
+        setClienti(clientsWithWorkCount)
         setLucrari(lucrariData)
       }
 
@@ -44,21 +55,32 @@ export function useClientLucrari() {
     const fetchData = async () => {
       try {
         if (isPreview) {
-          // Folosim datele mock
+          // For mock data, calculate the number of works for each client
+          const clientsWithWorkCount = mockClienti.map((client) => {
+            const workCount = mockLucrari.filter((lucrare) => lucrare.client === client.nume).length
+            return { ...client, numarLucrari: workCount }
+          })
+
           if (isMounted) {
-            setClienti(mockClienti)
+            setClienti(clientsWithWorkCount)
             setLucrari(mockLucrari)
             setLoading(false)
           }
           return
         }
 
-        // Obținem datele reale din Firestore
+        // Get real data from Firestore
         const clientiData = await getClienti()
         const lucrariData = await getLucrari()
 
+        // Calculate the number of works for each client
+        const clientsWithWorkCount = clientiData.map((client) => {
+          const workCount = lucrariData.filter((lucrare) => lucrare.client === client.nume).length
+          return { ...client, numarLucrari: workCount }
+        })
+
         if (isMounted) {
-          setClienti(clientiData)
+          setClienti(clientsWithWorkCount)
           setLucrari(lucrariData)
           setLoading(false)
         }

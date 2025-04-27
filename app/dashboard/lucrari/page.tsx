@@ -15,8 +15,8 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
-import { format, parse } from "date-fns"
-import { Plus, MoreHorizontal, FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Search, X } from "lucide-react"
+import { format, parse, isAfter, isBefore } from "date-fns"
+import { MoreHorizontal, FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { addLucrare, deleteLucrare, updateLucrare, getLucrareById } from "@/lib/firebase/firestore"
@@ -31,9 +31,11 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { doc, getDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { toast } from "@/components/ui/use-toast"
-import { Input } from "@/components/ui/input"
-import { EnhancedFilterSystem } from "@/components/data-table/enhanced-filter-system"
-import { DataTableViewOptions } from "@/components/data-table/data-table-view-options"
+import { UniversalSearch } from "@/components/universal-search"
+import { FilterButton } from "@/components/filter-button"
+import { FilterModal, type FilterOption } from "@/components/filter-modal"
+import { ColumnSelectionButton } from "@/components/column-selection-button"
+import { ColumnSelectionModal } from "@/components/column-selection-modal"
 
 const ContractDisplay = ({ contractId }) => {
   const [contractNumber, setContractNumber] = useState(null)
@@ -102,6 +104,12 @@ export default function Lucrari() {
   const [error, setError] = useState(null)
   const [fieldErrors, setFieldErrors] = useState([])
   const [tableInstance, setTableInstance] = useState(null)
+  const [searchText, setSearchText] = useState("")
+  const [filteredData, setFilteredData] = useState([])
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
+  const [activeFilters, setActiveFilters] = useState<FilterOption[]>([])
+  const [isColumnModalOpen, setIsColumnModalOpen] = useState(false)
+  const [columnOptions, setColumnOptions] = useState<any[]>([])
 
   // Obținem lucrările din Firebase
   const {
@@ -117,6 +125,211 @@ export default function Lucrari() {
     }
     return lucrari
   }, [lucrari, userData?.role, userData?.displayName])
+
+  // Obținem opțiunile unice pentru filtre
+  const filterOptions = useMemo(() => {
+    // Extragem toate valorile unice pentru tipuri de lucrări
+    const tipuriLucrare = Array.from(new Set(filteredLucrari.map((lucrare) => lucrare.tipLucrare))).map((tip) => ({
+      value: tip,
+      label: tip,
+    }))
+
+    // Extragem toți tehnicienii unici
+    const tehnicieni = Array.from(new Set(filteredLucrari.flatMap((lucrare) => lucrare.tehnicieni))).map(
+      (tehnician) => ({
+        value: tehnician,
+        label: tehnician,
+      }),
+    )
+
+    // Extragem toți clienții unici
+    const clienti = Array.from(new Set(filteredLucrari.map((lucrare) => lucrare.client))).map((client) => ({
+      value: client,
+      label: client,
+    }))
+
+    // Extragem toate statusurile de lucrare unice
+    const statusuriLucrare = Array.from(new Set(filteredLucrari.map((lucrare) => lucrare.statusLucrare))).map(
+      (status) => ({
+        value: status,
+        label: status,
+      }),
+    )
+
+    // Extragem toate statusurile de facturare unice
+    const statusuriFacturare = Array.from(new Set(filteredLucrari.map((lucrare) => lucrare.statusFacturare))).map(
+      (status) => ({
+        value: status,
+        label: status,
+      }),
+    )
+
+    return [
+      {
+        id: "dataEmiterii",
+        label: "Data emiterii",
+        type: "dateRange",
+        value: null,
+      },
+      {
+        id: "dataInterventie",
+        label: "Data intervenție",
+        type: "dateRange",
+        value: null,
+      },
+      {
+        id: "tipLucrare",
+        label: "Tip lucrare",
+        type: "multiselect",
+        options: tipuriLucrare,
+        value: [],
+      },
+      {
+        id: "tehnicieni",
+        label: "Tehnicieni",
+        type: "multiselect",
+        options: tehnicieni,
+        value: [],
+      },
+      {
+        id: "client",
+        label: "Client",
+        type: "multiselect",
+        options: clienti,
+        value: [],
+      },
+      {
+        id: "statusLucrare",
+        label: "Status lucrare",
+        type: "multiselect",
+        options: statusuriLucrare,
+        value: [],
+      },
+      {
+        id: "statusFacturare",
+        label: "Status facturare",
+        type: "multiselect",
+        options: statusuriFacturare,
+        value: [],
+      },
+    ]
+  }, [filteredLucrari])
+
+  // Aplicăm filtrele active
+  const applyFilters = useCallback(
+    (data) => {
+      if (!activeFilters.length) return data
+
+      return data.filter((item) => {
+        return activeFilters.every((filter) => {
+          // Dacă filtrul nu are valoare, îl ignorăm
+          if (!filter.value || (Array.isArray(filter.value) && filter.value.length === 0)) {
+            return true
+          }
+
+          switch (filter.id) {
+            case "dataEmiterii":
+              if (filter.value.from || filter.value.to) {
+                try {
+                  const itemDate = parse(item.dataEmiterii, "dd.MM.yyyy HH:mm", new Date())
+
+                  if (filter.value.from) {
+                    const fromDate = new Date(filter.value.from)
+                    fromDate.setHours(0, 0, 0, 0)
+                    if (isBefore(itemDate, fromDate)) return false
+                  }
+
+                  if (filter.value.to) {
+                    const toDate = new Date(filter.value.to)
+                    toDate.setHours(23, 59, 59, 999)
+                    if (isAfter(itemDate, toDate)) return false
+                  }
+
+                  return true
+                } catch (error) {
+                  console.error("Eroare la parsarea datei:", error)
+                  return true
+                }
+              }
+              return true
+
+            case "dataInterventie":
+              if (filter.value.from || filter.value.to) {
+                try {
+                  const itemDate = parse(item.dataInterventie, "dd.MM.yyyy HH:mm", new Date())
+
+                  if (filter.value.from) {
+                    const fromDate = new Date(filter.value.from)
+                    fromDate.setHours(0, 0, 0, 0)
+                    if (isBefore(itemDate, fromDate)) return false
+                  }
+
+                  if (filter.value.to) {
+                    const toDate = new Date(filter.value.to)
+                    toDate.setHours(23, 59, 59, 999)
+                    if (isAfter(itemDate, toDate)) return false
+                  }
+
+                  return true
+                } catch (error) {
+                  console.error("Eroare la parsarea datei:", error)
+                  return true
+                }
+              }
+              return true
+
+            case "tehnicieni":
+              // Verificăm dacă există o intersecție între tehnicienii selectați și cei ai lucrării
+              return filter.value.some((tehnician) => item.tehnicieni.includes(tehnician))
+
+            default:
+              // Pentru filtrele multiselect (tipLucrare, client, statusLucrare, statusFacturare)
+              if (Array.isArray(filter.value)) {
+                return filter.value.includes(item[filter.id])
+              }
+              return true
+          }
+        })
+      })
+    },
+    [activeFilters],
+  )
+
+  // Aplicăm filtrarea manuală pe baza textului de căutare și a filtrelor active
+  useEffect(() => {
+    if (!searchText.trim() && !activeFilters.length) {
+      setFilteredData(filteredLucrari)
+      return
+    }
+
+    let filtered = filteredLucrari
+
+    // Aplicăm filtrele active
+    if (activeFilters.length) {
+      filtered = applyFilters(filtered)
+    }
+
+    // Aplicăm căutarea globală
+    if (searchText.trim()) {
+      const lowercasedFilter = searchText.toLowerCase()
+      filtered = filtered.filter((item) => {
+        return Object.keys(item).some((key) => {
+          const value = item[key]
+          if (value === null || value === undefined) return false
+
+          // Gestionăm array-uri (cum ar fi tehnicieni)
+          if (Array.isArray(value)) {
+            return value.some((v) => String(v).toLowerCase().includes(lowercasedFilter))
+          }
+
+          // Convertim la string pentru căutare
+          return String(value).toLowerCase().includes(lowercasedFilter)
+        })
+      })
+    }
+
+    setFilteredData(filtered)
+  }, [searchText, filteredLucrari, activeFilters, applyFilters])
 
   // Detectăm dacă suntem pe un dispozitiv mobil
   const isMobile = useMediaQuery("(max-width: 768px)")
@@ -165,6 +378,74 @@ export default function Lucrari() {
       }
     }
   }, [tableInstance, userData?.role])
+
+  // Inițializăm datele filtrate
+  useEffect(() => {
+    setFilteredData(filteredLucrari)
+  }, [filteredLucrari])
+
+  // Populate column options when table is available
+  useEffect(() => {
+    if (tableInstance) {
+      const allColumns = tableInstance.getAllColumns()
+      const options = allColumns
+        .filter((column) => column.getCanHide())
+        .map((column) => ({
+          id: column.id,
+          label:
+            typeof column.columnDef.header === "string"
+              ? column.columnDef.header
+              : column.id.charAt(0).toUpperCase() + column.id.slice(1),
+          isVisible: column.getIsVisible(),
+        }))
+      setColumnOptions(options)
+    }
+  }, [tableInstance, isColumnModalOpen])
+
+  const handleToggleColumn = (columnId: string) => {
+    if (!tableInstance) return
+
+    const column = tableInstance.getColumn(columnId)
+    if (column) {
+      column.toggleVisibility(!column.getIsVisible())
+
+      // Update options state to reflect changes
+      setColumnOptions((prev) =>
+        prev.map((option) => (option.id === columnId ? { ...option, isVisible: !option.isVisible } : option)),
+      )
+    }
+  }
+
+  const handleSelectAllColumns = () => {
+    if (!tableInstance) return
+
+    tableInstance.getAllColumns().forEach((column) => {
+      if (column.getCanHide()) {
+        column.toggleVisibility(true)
+      }
+    })
+
+    // Update all options to visible
+    setColumnOptions((prev) => prev.map((option) => ({ ...option, isVisible: true })))
+  }
+
+  const handleDeselectAllColumns = () => {
+    if (!tableInstance) return
+
+    tableInstance.getAllColumns().forEach((column) => {
+      if (column.getCanHide() && column.id !== "actions") {
+        column.toggleVisibility(false)
+      }
+    })
+
+    // Update all options except actions to not visible
+    setColumnOptions((prev) =>
+      prev.map((option) => ({
+        ...option,
+        isVisible: option.id === "actions" ? true : false,
+      })),
+    )
+  }
 
   const handleInputChange = (e) => {
     const { id, value } = e.target
@@ -375,6 +656,25 @@ export default function Lucrari() {
     },
     [router],
   )
+
+  const handleApplyFilters = (filters) => {
+    // Filtrăm doar filtrele care au valori
+    const filtersWithValues = filters.filter((filter) => {
+      if (filter.type === "dateRange") {
+        return filter.value && (filter.value.from || filter.value.to)
+      }
+      if (Array.isArray(filter.value)) {
+        return filter.value.length > 0
+      }
+      return filter.value
+    })
+
+    setActiveFilters(filtersWithValues)
+  }
+
+  const handleResetFilters = () => {
+    setActiveFilters([])
+  }
 
   const getStatusColor = (status) => {
     switch (status.toLowerCase()) {
@@ -644,41 +944,38 @@ export default function Lucrari() {
           </div>
         </div>
 
-        {/* Adăugăm filtrele și căutarea aici, indiferent de modul de vizualizare */}
-        {!loading && !fetchError && (
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col sm:flex-row gap-2 justify-between">
-              <div className="relative flex-1">
-                <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-                <Input
-                  placeholder="Caută în toate coloanele..."
-                  value={tableInstance?.getState().globalFilter || ""}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    tableInstance?.setGlobalFilter(value)
-                  }}
-                  className="pl-8"
-                />
-                {tableInstance?.getState().globalFilter && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-1 top-1/2 h-6 w-6 -translate-y-1/2 p-0"
-                    onClick={() => {
-                      tableInstance?.setGlobalFilter("")
-                    }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-
-              {tableInstance && <EnhancedFilterSystem table={tableInstance} />}
-
-              <div className="flex justify-end">{tableInstance && <DataTableViewOptions table={tableInstance} />}</div>
-            </div>
+        {/* Adăugăm câmpul de căutare universal și butonul de filtrare */}
+        <div className="flex flex-col sm:flex-row gap-2">
+          <UniversalSearch onSearch={setSearchText} className="flex-1" />
+          <div className="flex gap-2">
+            <FilterButton onClick={() => setIsFilterModalOpen(true)} activeFilters={activeFilters.length} />
+            <ColumnSelectionButton
+              onClick={() => setIsColumnModalOpen(true)}
+              hiddenColumnsCount={columnOptions.filter((col) => !col.isVisible).length}
+            />
           </div>
-        )}
+        </div>
+
+        {/* Modal de filtrare */}
+        <FilterModal
+          isOpen={isFilterModalOpen}
+          onClose={() => setIsFilterModalOpen(false)}
+          title="Filtrare lucrări"
+          filterOptions={filterOptions}
+          onApplyFilters={handleApplyFilters}
+          onResetFilters={handleResetFilters}
+        />
+
+        {/* Modal de selecție coloane */}
+        <ColumnSelectionModal
+          isOpen={isColumnModalOpen}
+          onClose={() => setIsColumnModalOpen(false)}
+          title="Vizibilitate coloane"
+          columns={columnOptions}
+          onToggleColumn={handleToggleColumn}
+          onSelectAll={handleSelectAllColumns}
+          onDeselectAll={handleDeselectAllColumns}
+        />
 
         {loading ? (
           <div className="flex justify-center items-center py-12">
@@ -696,7 +993,7 @@ export default function Lucrari() {
           <div className="rounded-md border">
             <DataTable
               columns={columns}
-              data={filteredLucrari}
+              data={filteredData}
               defaultSort={{ id: "dataEmiterii", desc: true }}
               onRowClick={(lucrare) => handleViewDetails(lucrare)}
               table={tableInstance}
@@ -706,7 +1003,7 @@ export default function Lucrari() {
           </div>
         ) : (
           <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredLucrari.map((lucrare) => (
+            {filteredData.map((lucrare) => (
               <Card
                 key={lucrare.id}
                 className="overflow-hidden cursor-pointer hover:shadow-md"
@@ -828,7 +1125,7 @@ export default function Lucrari() {
                 </CardContent>
               </Card>
             ))}
-            {filteredLucrari.length === 0 && (
+            {filteredData.length === 0 && (
               <div className="col-span-full text-center py-10">
                 <p className="text-muted-foreground">Nu există lucrări care să corespundă criteriilor de căutare.</p>
               </div>

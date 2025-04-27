@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
-import { Plus, Eye, Pencil, Trash2, Loader2, AlertCircle, Search, X } from "lucide-react"
+import { Eye, Pencil, Trash2, Loader2, AlertCircle, Plus } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/contexts/AuthContext"
 import { useClientLucrari } from "@/hooks/use-client-lucrari"
@@ -28,15 +28,23 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { Badge } from "@/components/ui/badge"
 import { ClientForm } from "@/components/client-form"
-import { Input } from "@/components/ui/input"
-import { EnhancedFilterSystem } from "@/components/data-table/enhanced-filter-system"
-import { DataTableViewOptions } from "@/components/data-table/data-table-view-options"
+import { UniversalSearch } from "@/components/universal-search"
+import { ColumnSelectionButton } from "@/components/column-selection-button"
+import { ColumnSelectionModal } from "@/components/column-selection-modal"
+import { FilterButton } from "@/components/filter-button"
+import { FilterModal, type FilterOption } from "@/components/filter-modal"
 
 export default function Clienti() {
   const { userData } = useAuth()
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [table, setTable] = useState<any>(null)
+  const [searchText, setSearchText] = useState("")
+  const [filteredData, setFilteredData] = useState<Client[]>([])
+  const [isColumnModalOpen, setIsColumnModalOpen] = useState(false)
+  const [columnOptions, setColumnOptions] = useState<any[]>([])
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
+  const [activeFilters, setActiveFilters] = useState<FilterOption[]>([])
 
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -52,6 +60,90 @@ export default function Clienti() {
 
   // Get clients from Firebase
   const { clienti, loading, error: fetchError, refreshData } = useClientLucrari()
+
+  // Define filter options based on client data
+  const filterOptions = useMemo(() => {
+    // Get unique work counts and sort them
+    const uniqueWorkCounts = Array.from(new Set(clienti.map((client) => client.numarLucrari || 0))).sort(
+      (a, b) => a - b,
+    )
+
+    // Create options for the multiselect filter
+    const numarLucrariOptions = uniqueWorkCounts.map((count) => ({
+      value: count.toString(),
+      label: count === 0 ? "0 lucrari" : count === 1 ? "1 lucrare" : `${count} lucrari`,
+    }))
+
+    return [
+      {
+        id: "numarLucrari",
+        label: "Număr lucrări",
+        type: "multiselect",
+        options: numarLucrariOptions,
+        value: [],
+      },
+    ]
+  }, [clienti])
+
+  // Apply active filters
+  const applyFilters = useCallback(
+    (data: Client[]) => {
+      if (!activeFilters.length) return data
+
+      return data.filter((item) => {
+        return activeFilters.every((filter) => {
+          // If filter has no value, ignore it
+          if (!filter.value || (Array.isArray(filter.value) && filter.value.length === 0)) {
+            return true
+          }
+
+          switch (filter.id) {
+            case "numarLucrari":
+              // For multiselect filters
+              if (Array.isArray(filter.value)) {
+                return filter.value.includes((item.numarLucrari || 0).toString())
+              }
+              return true
+
+            default:
+              return true
+          }
+        })
+      })
+    },
+    [activeFilters],
+  )
+
+  // Apply manual filtering based on search text and active filters
+  useEffect(() => {
+    let filtered = clienti
+
+    // Apply active filters
+    if (activeFilters.length) {
+      filtered = applyFilters(filtered)
+    }
+
+    // Apply global search
+    if (searchText.trim()) {
+      const lowercasedFilter = searchText.toLowerCase()
+      filtered = filtered.filter((item) => {
+        return Object.keys(item).some((key) => {
+          const value = item[key]
+          if (value === null || value === undefined) return false
+
+          // Handle arrays (if any)
+          if (Array.isArray(value)) {
+            return value.some((v) => String(v).toLowerCase().includes(lowercasedFilter))
+          }
+
+          // Convert to string for search
+          return String(value).toLowerCase().includes(lowercasedFilter)
+        })
+      })
+    }
+
+    setFilteredData(filtered)
+  }, [searchText, clienti, activeFilters, applyFilters])
 
   // Automatically set card view on mobile
   useEffect(() => {
@@ -82,6 +174,93 @@ export default function Clienti() {
       fetchClientForEdit()
     }
   }, [editId, clienti])
+
+  // Initialize filtered data
+  useEffect(() => {
+    setFilteredData(clienti)
+  }, [clienti])
+
+  // Populate column options when table is available
+  useEffect(() => {
+    if (table) {
+      const allColumns = table.getAllColumns()
+      const options = allColumns
+        .filter((column) => column.getCanHide())
+        .map((column) => ({
+          id: column.id,
+          label:
+            typeof column.columnDef.header === "string"
+              ? column.columnDef.header
+              : column.id.charAt(0).toUpperCase() + column.id.slice(1),
+          isVisible: column.getIsVisible(),
+        }))
+      setColumnOptions(options)
+    }
+  }, [table, isColumnModalOpen])
+
+  const handleToggleColumn = (columnId: string) => {
+    if (!table) return
+
+    const column = table.getColumn(columnId)
+    if (column) {
+      column.toggleVisibility(!column.getIsVisible())
+
+      // Update options state to reflect changes
+      setColumnOptions((prev) =>
+        prev.map((option) => (option.id === columnId ? { ...option, isVisible: !option.isVisible } : option)),
+      )
+    }
+  }
+
+  const handleSelectAllColumns = () => {
+    if (!table) return
+
+    table.getAllColumns().forEach((column) => {
+      if (column.getCanHide()) {
+        column.toggleVisibility(true)
+      }
+    })
+
+    // Update all options to visible
+    setColumnOptions((prev) => prev.map((option) => ({ ...option, isVisible: true })))
+  }
+
+  const handleDeselectAllColumns = () => {
+    if (!table) return
+
+    table.getAllColumns().forEach((column) => {
+      if (column.getCanHide() && column.id !== "actions") {
+        column.toggleVisibility(false)
+      }
+    })
+
+    // Update all options except actions to not visible
+    setColumnOptions((prev) =>
+      prev.map((option) => ({
+        ...option,
+        isVisible: option.id === "actions" ? true : false,
+      })),
+    )
+  }
+
+  const handleApplyFilters = (filters: FilterOption[]) => {
+    // Filter only filters that have values
+    const filtersWithValues = filters.filter((filter) => {
+      if (filter.type === "dateRange") {
+        return filter.value && (filter.value.from || filter.value.to)
+      }
+      if (Array.isArray(filter.value)) {
+        return filter.value.length > 0
+      }
+      return filter.value
+    })
+
+    setActiveFilters(filtersWithValues)
+  }
+
+  const handleResetFilters = () => {
+    setActiveFilters([])
+  }
 
   const handleDelete = async (id: string) => {
     if (window.confirm("Sunteți sigur că doriți să ștergeți acest client?")) {
@@ -267,41 +446,38 @@ export default function Clienti() {
           </div>
         </div>
 
-        {/* Adăugăm filtrele și căutarea aici, indiferent de modul de vizualizare */}
-        {!loading && !fetchError && (
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col sm:flex-row gap-2 justify-between">
-              <div className="relative flex-1">
-                <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-                <Input
-                  placeholder="Caută în toate coloanele..."
-                  value={table?.getState().globalFilter || ""}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    table?.setGlobalFilter(value)
-                  }}
-                  className="pl-8"
-                />
-                {table?.getState().globalFilter && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-1 top-1/2 h-6 w-6 -translate-y-1/2 p-0"
-                    onClick={() => {
-                      table?.setGlobalFilter("")
-                    }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-
-              {table && <EnhancedFilterSystem table={table} />}
-
-              <div className="flex justify-end">{table && <DataTableViewOptions table={table} />}</div>
-            </div>
+        {/* Adăugăm câmpul de căutare universal și butoanele de filtrare și selecție coloane */}
+        <div className="flex flex-col sm:flex-row gap-2">
+          <UniversalSearch onSearch={setSearchText} className="flex-1" />
+          <div className="flex gap-2">
+            <FilterButton onClick={() => setIsFilterModalOpen(true)} activeFilters={activeFilters.length} />
+            <ColumnSelectionButton
+              onClick={() => setIsColumnModalOpen(true)}
+              hiddenColumnsCount={columnOptions.filter((col) => !col.isVisible).length}
+            />
           </div>
-        )}
+        </div>
+
+        {/* Modal de filtrare */}
+        <FilterModal
+          isOpen={isFilterModalOpen}
+          onClose={() => setIsFilterModalOpen(false)}
+          title="Filtrare clienți"
+          filterOptions={filterOptions}
+          onApplyFilters={handleApplyFilters}
+          onResetFilters={handleResetFilters}
+        />
+
+        {/* Modal de selecție coloane */}
+        <ColumnSelectionModal
+          isOpen={isColumnModalOpen}
+          onClose={() => setIsColumnModalOpen(false)}
+          title="Vizibilitate coloane"
+          columns={columnOptions}
+          onToggleColumn={handleToggleColumn}
+          onSelectAll={handleSelectAllColumns}
+          onDeselectAll={handleDeselectAllColumns}
+        />
 
         {loading ? (
           <div className="flex justify-center items-center py-12">
@@ -319,7 +495,7 @@ export default function Clienti() {
           <div className="rounded-md border">
             <DataTable
               columns={columns}
-              data={clienti}
+              data={filteredData}
               onRowClick={(client) => handleViewDetails(client.id!)}
               table={table}
               setTable={setTable}
@@ -328,7 +504,7 @@ export default function Clienti() {
           </div>
         ) : (
           <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3">
-            {clienti.map((client) => (
+            {filteredData.map((client) => (
               <Card
                 key={client.id}
                 className="overflow-hidden cursor-pointer hover:shadow-md"
@@ -340,7 +516,13 @@ export default function Clienti() {
                       <h3 className="font-medium">{client.nume}</h3>
                       <p className="text-sm text-muted-foreground">{client.adresa || "Fără adresă"}</p>
                     </div>
-                    <Badge variant="outline">{client.numarLucrari || 0} lucrări</Badge>
+                    <Badge variant="outline">
+                      {client.numarLucrari === 0
+                        ? "Fără lucrări"
+                        : client.numarLucrari === 1
+                          ? "1 lucrare"
+                          : `${client.numarLucrari} lucrari`}
+                    </Badge>
                   </div>
                   <div className="p-4">
                     <div className="mb-4 space-y-2">
@@ -399,6 +581,11 @@ export default function Clienti() {
                 </CardContent>
               </Card>
             ))}
+            {filteredData.length === 0 && (
+              <div className="col-span-full text-center py-10">
+                <p className="text-muted-foreground">Nu există clienți care să corespundă criteriilor de căutare.</p>
+              </div>
+            )}
           </div>
         )}
       </div>

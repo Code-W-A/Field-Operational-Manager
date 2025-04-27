@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -30,6 +30,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useMediaQuery } from "@/hooks/use-media-query"
+import { UniversalSearch } from "@/components/universal-search"
+import { ColumnSelectionButton } from "@/components/column-selection-button"
+import { ColumnSelectionModal } from "@/components/column-selection-modal"
+import { FilterButton } from "@/components/filter-button"
+import { FilterModal, type FilterOption } from "@/components/filter-modal"
 
 export default function Utilizatori() {
   const { userData: currentUser } = useAuth()
@@ -52,6 +57,12 @@ export default function Utilizatori() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [userToDelete, setUserToDelete] = useState<UserData | null>(null)
   const [table, setTable] = useState<any>(null)
+  const [searchText, setSearchText] = useState("")
+  const [filteredData, setFilteredData] = useState<UserData[]>([])
+  const [isColumnModalOpen, setIsColumnModalOpen] = useState(false)
+  const [columnOptions, setColumnOptions] = useState<any[]>([])
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
+  const [activeFilters, setActiveFilters] = useState<FilterOption[]>([])
 
   // Add state for activeTab
   const [activeTab, setActiveTab] = useState("tabel")
@@ -72,6 +83,7 @@ export default function Utilizatori() {
       })
 
       setUtilizatori(users)
+      setFilteredData(users) // Inițializăm datele filtrate
       setError(null)
     } catch (err) {
       console.error("Eroare la încărcarea utilizatorilor:", err)
@@ -84,6 +96,119 @@ export default function Utilizatori() {
   useEffect(() => {
     fetchUtilizatori()
   }, [])
+
+  // Define filter options based on user data
+  const filterOptions = useMemo(() => {
+    // Extract unique roles for multiselect filter
+    const roleOptions = Array.from(new Set(utilizatori.map((user) => user.role))).map((role) => ({
+      value: role,
+      label: role === "admin" ? "Administrator" : role === "dispecer" ? "Dispecer" : "Tehnician",
+    }))
+
+    // Create a date range for last login
+    return [
+      {
+        id: "role",
+        label: "Rol",
+        type: "multiselect",
+        options: roleOptions,
+        value: [],
+      },
+      {
+        id: "lastLogin",
+        label: "Ultima autentificare",
+        type: "dateRange",
+        value: null,
+      },
+    ]
+  }, [utilizatori])
+
+  // Apply active filters
+  const applyFilters = useCallback(
+    (data: UserData[]) => {
+      if (!activeFilters.length) return data
+
+      return data.filter((item) => {
+        return activeFilters.every((filter) => {
+          // If filter has no value, ignore it
+          if (!filter.value || (Array.isArray(filter.value) && filter.value.length === 0)) {
+            return true
+          }
+
+          switch (filter.id) {
+            case "role":
+              // For multiselect filters
+              if (Array.isArray(filter.value)) {
+                return filter.value.includes(item.role)
+              }
+              return true
+
+            case "lastLogin":
+              if (filter.value.from || filter.value.to) {
+                try {
+                  if (!item.lastLogin) return false
+
+                  const itemDate = item.lastLogin.toDate ? item.lastLogin.toDate() : new Date(item.lastLogin)
+
+                  if (filter.value.from) {
+                    const fromDate = new Date(filter.value.from)
+                    fromDate.setHours(0, 0, 0, 0)
+                    if (itemDate < fromDate) return false
+                  }
+
+                  if (filter.value.to) {
+                    const toDate = new Date(filter.value.to)
+                    toDate.setHours(23, 59, 59, 999)
+                    if (itemDate > toDate) return false
+                  }
+
+                  return true
+                } catch (error) {
+                  console.error("Eroare la parsarea datei:", error)
+                  return true
+                }
+              }
+              return true
+
+            default:
+              return true
+          }
+        })
+      })
+    },
+    [activeFilters],
+  )
+
+  // Apply manual filtering based on search text and active filters
+  useEffect(() => {
+    let filtered = utilizatori
+
+    // Apply active filters
+    if (activeFilters.length) {
+      filtered = applyFilters(filtered)
+    }
+
+    // Apply global search
+    if (searchText.trim()) {
+      const lowercasedFilter = searchText.toLowerCase()
+      filtered = filtered.filter((item) => {
+        return Object.keys(item).some((key) => {
+          const value = item[key]
+          if (value === null || value === undefined) return false
+
+          // Handle arrays (if any)
+          if (Array.isArray(value)) {
+            return value.some((v) => String(v).toLowerCase().includes(lowercasedFilter))
+          }
+
+          // Convert to string for search
+          return String(value).toLowerCase().includes(lowercasedFilter)
+        })
+      })
+    }
+
+    setFilteredData(filtered)
+  }, [searchText, utilizatori, activeFilters, applyFilters])
 
   // Automatically set card view on mobile
   useEffect(() => {
@@ -156,6 +281,25 @@ export default function Utilizatori() {
     }
   }
 
+  const handleApplyFilters = (filters: FilterOption[]) => {
+    // Filter only filters that have values
+    const filtersWithValues = filters.filter((filter) => {
+      if (filter.type === "dateRange") {
+        return filter.value && (filter.value.from || filter.value.to)
+      }
+      if (Array.isArray(filter.value)) {
+        return filter.value.length > 0
+      }
+      return filter.value
+    })
+
+    setActiveFilters(filtersWithValues)
+  }
+
+  const handleResetFilters = () => {
+    setActiveFilters([])
+  }
+
   const handleEdit = (user: UserData) => {
     setSelectedUser(user)
     setIsEditDialogOpen(true)
@@ -186,6 +330,69 @@ export default function Utilizatori() {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  // Populate column options when table is available
+  useEffect(() => {
+    if (table) {
+      const allColumns = table.getAllColumns()
+      const options = allColumns
+        .filter((column) => column.getCanHide())
+        .map((column) => ({
+          id: column.id,
+          label:
+            typeof column.columnDef.header === "string"
+              ? column.columnDef.header
+              : column.id.charAt(0).toUpperCase() + column.id.slice(1),
+          isVisible: column.getIsVisible(),
+        }))
+      setColumnOptions(options)
+    }
+  }, [table, isColumnModalOpen])
+
+  const handleToggleColumn = (columnId: string) => {
+    if (!table) return
+
+    const column = table.getColumn(columnId)
+    if (column) {
+      column.toggleVisibility(!column.getIsVisible())
+
+      // Update options state to reflect changes
+      setColumnOptions((prev) =>
+        prev.map((option) => (option.id === columnId ? { ...option, isVisible: !option.isVisible } : option)),
+      )
+    }
+  }
+
+  const handleSelectAllColumns = () => {
+    if (!table) return
+
+    table.getAllColumns().forEach((column) => {
+      if (column.getCanHide()) {
+        column.toggleVisibility(true)
+      }
+    })
+
+    // Update all options to visible
+    setColumnOptions((prev) => prev.map((option) => ({ ...option, isVisible: true })))
+  }
+
+  const handleDeselectAllColumns = () => {
+    if (!table) return
+
+    table.getAllColumns().forEach((column) => {
+      if (column.getCanHide() && column.id !== "actions") {
+        column.toggleVisibility(false)
+      }
+    })
+
+    // Update all options except actions to not visible
+    setColumnOptions((prev) =>
+      prev.map((option) => ({
+        ...option,
+        isVisible: option.id === "actions" ? true : false,
+      })),
+    )
   }
 
   const getRolColor = (rol: string) => {
@@ -226,91 +433,94 @@ export default function Utilizatori() {
   }
 
   // Define columns for DataTable
-  const columns = [
-    {
-      accessorKey: "displayName",
-      header: "Nume",
-      enableFiltering: true,
-      cell: ({ row }: any) => <span className="font-medium">{row.original.displayName}</span>,
-    },
-    {
-      accessorKey: "email",
-      header: "Email",
-      enableFiltering: true,
-    },
-    {
-      accessorKey: "telefon",
-      header: "Telefon",
-      enableFiltering: true,
-      cell: ({ row }: any) => <span>{row.original.telefon || "N/A"}</span>,
-    },
-    {
-      accessorKey: "role",
-      header: "Rol",
-      enableFiltering: true,
-      cell: ({ row }: any) => (
-        <Badge className={getRolColor(row.original.role)}>
-          {row.original.role === "admin"
-            ? "Administrator"
-            : row.original.role === "dispecer"
-              ? "Dispecer"
-              : "Tehnician"}
-        </Badge>
-      ),
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      enableFiltering: true,
-      cell: () => <Badge className={getStatusColor("Activ")}>Activ</Badge>,
-    },
-    {
-      accessorKey: "lastLogin",
-      header: "Ultima Autentificare",
-      enableFiltering: true,
-      cell: ({ row }: any) => <span>{formatDate(row.original.lastLogin)}</span>,
-    },
-    {
-      id: "actions",
-      enableFiltering: false,
-      cell: ({ row }: any) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-4 w-4"
+  const columns = useMemo(
+    () => [
+      {
+        accessorKey: "displayName",
+        header: "Nume",
+        enableFiltering: true,
+        cell: ({ row }: any) => <span className="font-medium">{row.original.displayName}</span>,
+      },
+      {
+        accessorKey: "email",
+        header: "Email",
+        enableFiltering: true,
+      },
+      {
+        accessorKey: "telefon",
+        header: "Telefon",
+        enableFiltering: true,
+        cell: ({ row }: any) => <span>{row.original.telefon || "N/A"}</span>,
+      },
+      {
+        accessorKey: "role",
+        header: "Rol",
+        enableFiltering: true,
+        cell: ({ row }: any) => (
+          <Badge className={getRolColor(row.original.role)}>
+            {row.original.role === "admin"
+              ? "Administrator"
+              : row.original.role === "dispecer"
+                ? "Dispecer"
+                : "Tehnician"}
+          </Badge>
+        ),
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        enableFiltering: true,
+        cell: () => <Badge className={getStatusColor("Activ")}>Activ</Badge>,
+      },
+      {
+        accessorKey: "lastLogin",
+        header: "Ultima Autentificare",
+        enableFiltering: true,
+        cell: ({ row }: any) => <span>{formatDate(row.original.lastLogin)}</span>,
+      },
+      {
+        id: "actions",
+        enableFiltering: false,
+        cell: ({ row }: any) => (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-4 w-4"
+                >
+                  <circle cx="12" cy="12" r="1" />
+                  <circle cx="19" cy="12" r="1" />
+                  <circle cx="5" cy="12" r="1" />
+                </svg>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handleEdit(row.original)}>
+                <Pencil className="mr-2 h-4 w-4" /> Editează
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-red-600"
+                onClick={() => handleDeleteClick(row.original)}
+                disabled={row.original.uid === currentUser?.uid}
               >
-                <circle cx="12" cy="12" r="1" />
-                <circle cx="19" cy="12" r="1" />
-                <circle cx="5" cy="12" r="1" />
-              </svg>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => handleEdit(row.original)}>
-              <Pencil className="mr-2 h-4 w-4" /> Editează
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-red-600"
-              onClick={() => handleDeleteClick(row.original)}
-              disabled={row.original.uid === currentUser?.uid}
-            >
-              <Trash2 className="mr-2 h-4 w-4" /> Șterge
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
-    },
-  ]
+                <Trash2 className="mr-2 h-4 w-4" /> Șterge
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ),
+      },
+    ],
+    [currentUser?.uid],
+  )
 
   return (
     <DashboardShell>
@@ -485,6 +695,39 @@ export default function Utilizatori() {
           </div>
         </div>
 
+        {/* Adăugăm câmpul de căutare universal și butoanele de filtrare și selecție coloane */}
+        <div className="flex flex-col sm:flex-row gap-2">
+          <UniversalSearch onSearch={setSearchText} className="flex-1" />
+          <div className="flex gap-2">
+            <FilterButton onClick={() => setIsFilterModalOpen(true)} activeFilters={activeFilters.length} />
+            <ColumnSelectionButton
+              onClick={() => setIsColumnModalOpen(true)}
+              hiddenColumnsCount={columnOptions.filter((col) => !col.isVisible).length}
+            />
+          </div>
+        </div>
+
+        {/* Modal de filtrare */}
+        <FilterModal
+          isOpen={isFilterModalOpen}
+          onClose={() => setIsFilterModalOpen(false)}
+          title="Filtrare utilizatori"
+          filterOptions={filterOptions}
+          onApplyFilters={handleApplyFilters}
+          onResetFilters={handleResetFilters}
+        />
+
+        {/* Modal de selecție coloane */}
+        <ColumnSelectionModal
+          isOpen={isColumnModalOpen}
+          onClose={() => setIsColumnModalOpen(false)}
+          title="Vizibilitate coloane"
+          columns={columnOptions}
+          onToggleColumn={handleToggleColumn}
+          onSelectAll={handleSelectAllColumns}
+          onDeselectAll={handleDeselectAllColumns}
+        />
+
         {loading ? (
           <div className="flex justify-center items-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
@@ -498,14 +741,14 @@ export default function Utilizatori() {
         ) : activeTab === "tabel" ? (
           <DataTable
             columns={columns}
-            data={utilizatori}
+            data={filteredData}
             defaultSort={{ id: "displayName", desc: false }}
-            table={table}
             setTable={setTable}
+            showFilters={false}
           />
         ) : (
           <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3">
-            {utilizatori.map((user) => (
+            {filteredData.map((user) => (
               <Card key={user.uid} className="overflow-hidden">
                 <CardContent className="p-0">
                   <div className="flex items-center justify-between border-b p-4">
@@ -555,6 +798,13 @@ export default function Utilizatori() {
                 </CardContent>
               </Card>
             ))}
+            {filteredData.length === 0 && (
+              <div className="col-span-full text-center py-10">
+                <p className="text-muted-foreground">
+                  Nu există utilizatori care să corespundă criteriilor de căutare.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>
