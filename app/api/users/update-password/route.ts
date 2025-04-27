@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
-import { getAuth } from "firebase-admin/auth"
 import { adminAuth } from "@/lib/firebase/admin"
+import { doc, serverTimestamp, setDoc } from "firebase/firestore"
+import { db } from "@/lib/firebase/config"
 
 export async function POST(request: Request) {
   try {
@@ -13,7 +14,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
     }
 
-    const { userId, newPassword } = body
+    const { userId, newPassword, adminUser } = body
 
     if (!userId || !newPassword) {
       return NextResponse.json({ error: "ID-ul utilizatorului și noua parolă sunt obligatorii" }, { status: 400 })
@@ -27,8 +28,21 @@ export async function POST(request: Request) {
 
     // Actualizăm parola utilizatorului în Firebase Auth
     try {
-      await getAuth().updateUser(userId, {
+      await adminAuth.updateUser(userId, {
         password: newPassword,
+      })
+
+      // Log the password change action
+      const logRef = doc(db, "logs", `password_reset_${Date.now()}`)
+      await setDoc(logRef, {
+        timestamp: serverTimestamp(),
+        action: "Resetare parolă",
+        details: `Parola utilizatorului cu ID ${userId} a fost resetată`,
+        performedBy: adminUser?.displayName || adminUser?.email || "Administrator",
+        performedById: adminUser?.uid || "system",
+        targetUserId: userId,
+        type: "Informație",
+        category: "Autentificare",
       })
     } catch (firebaseError: any) {
       console.error("Firebase Auth error:", firebaseError)

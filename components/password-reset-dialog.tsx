@@ -83,7 +83,7 @@ export function PasswordResetDialog({ user, open, onOpenChange, onSuccess }: Pas
     try {
       console.log("Starting password reset for user:", user.uid)
 
-      // Folosim noua funcție directă pentru actualizarea parolei
+      // Folosim funcția actualizată pentru resetarea parolei
       const result = await updateUserPassword(user.uid, passwordData.newPassword)
 
       console.log("Password reset result:", result)
