@@ -2,74 +2,67 @@
  * Service for sending work order notifications
  */
 
-import type { Lucrare } from "@/lib/firebase/firestore"
-import type { Client } from "@/lib/firebase/firestore"
-
-interface NotificationResult {
-  success: boolean
-  message: string
-}
-
 /**
  * Sends notifications for a new work order
- * @param workOrder The work order data
- * @param client The client data
- * @param technicians Array of technician data
+ * @param workOrderData The work order data
  * @returns Promise with notification result
  */
-export async function sendWorkOrderNotifications(
-  workOrder: Lucrare,
-  client: Client,
-  technicians: Array<{ displayName: string; email: string }>,
-): Promise<NotificationResult> {
+export async function sendWorkOrderNotifications(workOrderData: any) {
   try {
-    // Prepare the request data
-    const requestData = {
-      workOrderId: workOrder.id || "",
-      client: {
-        name: client.nume,
-        email: client.email,
-        contactPerson: workOrder.persoanaContact,
-      },
-      technicians: technicians.map((tech) => ({
-        name: tech.displayName || "",
-        email: tech.email || "",
-      })),
-      details: {
-        issueDate: workOrder.dataEmiterii,
-        interventionDate: workOrder.dataInterventie,
-        workType: workOrder.tipLucrare,
-        location: workOrder.locatie,
-        description: workOrder.descriere,
-        reportedIssue: workOrder.defectReclamat,
-        status: workOrder.statusLucrare,
-      },
+    // Extract client information
+    const client = {
+      name: workOrderData.client?.name || "",
+      email: workOrderData.client?.email || "",
+      contactPerson: workOrderData.client?.contactPerson || workOrderData.client?.name || "",
     }
 
-    // Send the notification request
+    // Extract technician information
+    const technicians = Array.isArray(workOrderData.technicians)
+      ? workOrderData.technicians.map((tech) => ({
+          name: tech.name || "",
+          email: tech.email || "",
+        }))
+      : []
+
+    // Extract work order details
+    const details = {
+      issueDate: workOrderData.issueDate || new Date().toLocaleDateString("ro-RO"),
+      interventionDate: workOrderData.interventionDate || "",
+      workType: workOrderData.workType || "",
+      location: workOrderData.location || "",
+      description: workOrderData.description || "",
+      reportedIssue: workOrderData.reportedIssue || "",
+      status: workOrderData.status || "Programat",
+    }
+
+    // Prepare notification data
+    const notificationData = {
+      workOrderId: workOrderData.id || "",
+      workOrderNumber: workOrderData.workOrderNumber || workOrderData.number || "",
+      client,
+      technicians,
+      details,
+    }
+
+    // Send notification
     const response = await fetch("/api/notifications/work-order", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(requestData),
+      body: JSON.stringify(notificationData),
     })
 
-    const data = await response.json()
+    const result = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error || "A apărut o eroare la trimiterea notificărilor")
+      console.error("Failed to send notifications:", result.error)
+      return { success: false, error: result.error }
     }
 
-    return {
-      success: true,
-      message: "Notificările au fost trimise cu succes",
-    }
+    return { success: true, result }
   } catch (error) {
-    console.error("Eroare la trimiterea notificărilor:", error)
-    return {
-      success: false,
-      message: error instanceof Error ? error.message : "A apărut o eroare la trimiterea notificărilor",
-    }
+    console.error("Error sending work order notifications:", error)
+    return { success: false, error: error.message }
   }
 }

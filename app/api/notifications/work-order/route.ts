@@ -186,31 +186,33 @@ function generateTechnicianEmailContent(data: WorkOrderNotificationRequest, tech
   `
 }
 
-// Generate email content for clients
+// Update the generateClientEmailContent function to match the requested format:
+
 function generateClientEmailContent(data: WorkOrderNotificationRequest): string {
+  // Get the first technician as the main representative
+  const mainTechnician = data.technicians && data.technicians.length > 0 ? data.technicians[0].name : "un reprezentant"
+
+  // Format the intervention date
+  const formattedDate = data.details.interventionDate || ""
+
+  // Get the work order number or ID
+  const workOrderCode = data.workOrderNumber || data.workOrderId || ""
+
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eaeaea; border-radius: 5px;">
       <div style="text-align: center; margin-bottom: 20px;">
         <img src="cid:company-logo" alt="Logo companie" style="max-width: 200px; max-height: 80px;" />
       </div>
       
-      <h2 style="color: #0f56b3; border-bottom: 1px solid #eaeaea; padding-bottom: 10px;">Confirmare Lucrare Programată</h2>
-      
-      <p>Bună ziua, <strong>${data.client.contactPerson}</strong>,</p>
-      
-      <p>Vă informăm că a fost programată o intervenție pentru compania dumneavoastră cu următoarele detalii:</p>
-      
-      <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 15px 0;">
-        <p><strong>Data intervenției:</strong> ${data.details.interventionDate}</p>
-        <p><strong>Tip lucrare:</strong> ${data.details.workType}</p>
-        <p><strong>Locație/Echipament:</strong> ${data.details.location}</p>
-        ${data.details.reportedIssue ? `<p><strong>Defect reclamat:</strong> ${data.details.reportedIssue}</p>` : ""}
-        <p><strong>Tehnician(i) asignat(i):</strong> ${data.technicians.map((t) => t.name).join(", ")}</p>
+      <div style="margin: 15px 0; line-height: 1.5;">
+        <p>Bună ziua,</p>
+        
+        <p>Sesizarea dumneavoastră a fost înregistrată cu COD-ul <strong>${workOrderCode}</strong> și preluată de reprezentantul zonal <strong>${mainTechnician}</strong>.</p>
+        
+        <p>Acesta va interveni până cel mai târziu ${formattedDate}.</p>
+        
+        <p>Cu stimă!</p>
       </div>
-      
-      <p>Vă mulțumim pentru colaborare și vă asigurăm că echipa noastră va fi la dispoziția dumneavoastră la data și ora stabilite.</p>
-      
-      <p>Pentru orice întrebări sau modificări, vă rugăm să ne contactați.</p>
       
       <div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #eaeaea; font-size: 12px; color: #666;">
         <p>Acest email a fost generat automat. Vă rugăm să nu răspundeți la acest email.</p>

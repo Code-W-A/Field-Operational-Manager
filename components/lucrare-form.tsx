@@ -22,6 +22,10 @@ import { ContractSelect } from "./contract-select"
 import { ClientForm } from "./client-form"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
+// Add the following import at the top of the file:
+import { sendWorkOrderNotifications } from "./work-order-notification-service"
+import { formatWorkOrderCode } from "@/lib/utils/work-order-utils"
+
 // Define the Lucrare type
 interface Lucrare {
   dataEmiterii: string
@@ -65,7 +69,7 @@ interface LucrareFormProps {
   handleSelectChange: (id: string, value: string) => void
   handleTehnicieniChange: (value: string) => void
   fieldErrors?: string[]
-  onSubmit?: (data: Partial<Lucrare>) => Promise<void>
+  onSubmit?: (data: Partial<Lucrare>, workOrderId?: string) => Promise<void>
   onCancel?: () => void
   initialData?: Lucrare | null
 }
@@ -257,7 +261,7 @@ export function LucrareForm({
   }
 
   // Add a submit handler if onSubmit is provided
-  const handleSubmit = async () => {
+  const handleSubmit = async (workOrderId?: string) => {
     if (!onSubmit) return
 
     if (!validateForm()) {
@@ -282,7 +286,23 @@ export function LucrareForm({
       defectReclamat: formData.defectReclamat,
     }
 
-    await onSubmit(updatedData)
+    await onSubmit(updatedData, workOrderId)
+
+    // After successful work order creation, add this code:
+    try {
+      // Prepare work order data for notification
+      const notificationData = {
+        ...formData, // or whatever your work order data variable is called
+        id: workOrderId, // the ID of the newly created work order
+        workOrderNumber: formatWorkOrderCode(workOrderId), // format the work order ID as a code
+      }
+
+      // Send notifications
+      await sendWorkOrderNotifications(notificationData)
+    } catch (error) {
+      console.error("Failed to send work order notifications:", error)
+      // Don't block the UI flow if notifications fail
+    }
   }
 
   // ... rest of the component
@@ -617,7 +637,7 @@ export function LucrareForm({
               Anulează
             </Button>
           )}
-          {onSubmit && <Button onClick={handleSubmit}>Salvează</Button>}
+          {onSubmit && <Button onClick={() => handleSubmit()}>Salvează</Button>}
         </div>
       )}
     </div>
