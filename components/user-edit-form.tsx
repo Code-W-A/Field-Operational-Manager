@@ -1,214 +1,206 @@
 "use client"
 
-import type React from "react"
 import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
+import * as z from "zod"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, Loader2 } from "lucide-react"
+import { toast } from "@/hooks/use-toast"
+import { updateUserEmail } from "@/lib/firebase/auth"
+import { Key } from "lucide-react"
+import { PasswordResetDialog } from "./password-reset-dialog"
 import { doc, updateDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
-import type { UserData, UserRole } from "@/lib/firebase/auth"
-import { updateUserEmail } from "@/lib/firebase/auth"
 
-interface UserEditFormProps {
-  user: UserData
-  onSuccess?: () => void
-  onCancel?: () => void
-}
+// Schema de validare pentru formular
+const formSchema = z.object({
+  displayName: z.string().min(2, {
+    message: "Numele trebuie să aibă cel puțin 2 caractere.",
+  }),
+  email: z.string().email({
+    message: "Vă rugăm să introduceți o adresă de email validă.",
+  }),
+  role: z.string(),
+  phoneNumber: z.string().optional(),
+  notes: z.string().optional(),
+})
 
-export function UserEditForm({ user, onSuccess, onCancel }: UserEditFormProps) {
-  // Modificăm starea formData pentru a include email-ul
-  const [formData, setFormData] = useState({
-    displayName: user.displayName || "",
-    email: user.email || "",
-    telefon: user.telefon || "",
-    role: user.role || ("tehnician" as UserRole),
-  })
+export function UserEditForm({ user, onSuccess }: { user: any; onSuccess?: () => void }) {
+  const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [fieldErrors, setFieldErrors] = useState<string[]>([])
-  const [emailChanged, setEmailChanged] = useState(false)
+  const [isPasswordResetOpen, setIsPasswordResetOpen] = useState(false)
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { id, value } = e.target
+  // Inițializăm formularul cu valorile utilizatorului
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      displayName: user.displayName || "",
+      email: user.email || "",
+      role: user.role || "tehnician",
+      phoneNumber: user.phoneNumber || "",
+      notes: user.notes || "",
+    },
+  })
 
-    // Verificăm dacă email-ul a fost modificat
-    if (id === "email" && value !== user.email) {
-      setEmailChanged(true)
-    } else if (id === "email" && value === user.email) {
-      setEmailChanged(false)
-    }
-
-    setFormData((prev) => ({ ...prev, [id]: value }))
-  }
-
-  const handleSelectChange = (value: string) => {
-    setFormData((prev) => ({ ...prev, role: value as UserRole }))
-  }
-
-  // Validare email
-  const validateEmail = (email: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    return emailRegex.test(email)
-  }
-
-  // Modificăm funcția handleSubmit pentru a actualiza și email-ul
-  const handleSubmit = async () => {
+  // Funcția pentru trimiterea formularului
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsSubmitting(true)
-    setError(null)
-
-    // Resetăm erorile de câmp
-    const errors: string[] = []
-
-    // Verificăm câmpurile obligatorii
-    if (!formData.displayName) errors.push("displayName")
-    if (!formData.email) errors.push("email")
-
-    // Validăm formatul email-ului
-    if (formData.email && !validateEmail(formData.email)) {
-      errors.push("email")
-      setError("Adresa de email nu este validă")
-      setIsSubmitting(false)
-      setFieldErrors(errors)
-      return
-    }
-
-    setFieldErrors(errors)
-
-    if (errors.length > 0) {
-      setError("Vă rugăm să completați toate câmpurile obligatorii")
-      setIsSubmitting(false)
-      return
-    }
-
-    if (!user.uid) {
-      setError("ID-ul utilizatorului lipsește")
-      setIsSubmitting(false)
-      return
-    }
 
     try {
-      // Verificăm dacă email-ul a fost modificat
-      const emailWasChanged = formData.email !== user.email
+      // Verificăm dacă emailul s-a schimbat
+      if (values.email !== user.email) {
+        await updateUserEmail(user.uid, values.email)
+      }
 
-      // Actualizăm documentul utilizatorului în Firestore pentru câmpurile care nu sunt email
+      // Actualizăm datele utilizatorului în Firestore
+      // Acest cod ar trebui să fie adaptat la structura aplicației tale
       const userRef = doc(db, "users", user.uid)
       await updateDoc(userRef, {
-        displayName: formData.displayName,
-        telefon: formData.telefon,
-        role: formData.role,
+        displayName: values.displayName,
+        email: values.email,
+        role: values.role,
+        phoneNumber: values.phoneNumber || "",
+        notes: values.notes || "",
         updatedAt: new Date(),
       })
 
-      // Dacă email-ul a fost modificat, îl actualizăm separat
-      if (emailWasChanged) {
-        await updateUserEmail(user.uid, formData.email)
-      }
+      toast({
+        title: "Utilizator actualizat",
+        description: "Datele utilizatorului au fost actualizate cu succes.",
+      })
 
-      // Notificăm componenta părinte despre succesul actualizării
       if (onSuccess) {
         onSuccess()
       }
-    } catch (err: any) {
-      console.error("Eroare la actualizarea utilizatorului:", err)
-
-      // Gestionăm erorile specifice
-      if (err.message && err.message.includes("email este deja utilizat")) {
-        setError("Acest email este deja utilizat de alt cont")
-      } else {
-        setError("A apărut o eroare la actualizarea utilizatorului. Încercați din nou.")
-      }
+    } catch (error: any) {
+      console.error("Eroare la actualizarea utilizatorului:", error)
+      toast({
+        variant: "destructive",
+        title: "Eroare",
+        description: error.message || "A apărut o eroare la actualizarea utilizatorului.",
+      })
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  // Verificăm dacă un câmp are eroare
-  const hasError = (fieldName: string) => fieldErrors.includes(fieldName)
-
-  // Stilul pentru câmpurile cu eroare
-  const errorStyle = "border-red-500 focus-visible:ring-red-500"
-
   return (
-    <div className="space-y-4">
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+    <div className="space-y-6">
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <FormField
+            control={form.control}
+            name="displayName"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Nume complet</FormLabel>
+                <FormControl>
+                  <Input placeholder="Nume complet" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-      <div className="space-y-2">
-        <label htmlFor="displayName" className="text-sm font-medium">
-          Nume Complet *
-        </label>
-        <Input
-          id="displayName"
-          placeholder="Introduceți numele complet"
-          value={formData.displayName}
-          onChange={handleInputChange}
-          className={hasError("displayName") ? errorStyle : ""}
-        />
-      </div>
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input type="email" placeholder="Email" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-      {/* Modificăm secțiunea de email din formular pentru a permite editarea */}
-      <div className="space-y-2">
-        <label htmlFor="email" className="text-sm font-medium">
-          Email *
-        </label>
-        <Input
-          id="email"
-          type="email"
-          value={formData.email}
-          onChange={handleInputChange}
-          className={hasError("email") ? errorStyle : ""}
-        />
-        {emailChanged && (
-          <p className="text-xs text-amber-600">
-            Atenție: Schimbarea email-ului va necesita ca utilizatorul să se autentifice cu noul email.
-          </p>
-        )}
-      </div>
+          <FormField
+            control={form.control}
+            name="role"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Rol</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selectați un rol" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="admin">Administrator</SelectItem>
+                    <SelectItem value="dispecer">Dispecer</SelectItem>
+                    <SelectItem value="tehnician">Tehnician</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-      <div className="space-y-2">
-        <label htmlFor="telefon" className="text-sm font-medium">
-          Telefon
-        </label>
-        <Input id="telefon" placeholder="Număr de telefon" value={formData.telefon} onChange={handleInputChange} />
-      </div>
+          <FormField
+            control={form.control}
+            name="phoneNumber"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Număr de telefon</FormLabel>
+                <FormControl>
+                  <Input placeholder="Număr de telefon" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-      <div className="space-y-2">
-        <label htmlFor="role" className="text-sm font-medium">
-          Rol *
-        </label>
-        <Select value={formData.role} onValueChange={handleSelectChange}>
-          <SelectTrigger id="role" className={hasError("role") ? errorStyle : ""}>
-            <SelectValue placeholder="Selectați rolul" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="admin">Administrator</SelectItem>
-            <SelectItem value="dispecer">Dispecer</SelectItem>
-            <SelectItem value="tehnician">Tehnician</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+          <FormField
+            control={form.control}
+            name="notes"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Note</FormLabel>
+                <FormControl>
+                  <Textarea placeholder="Note despre utilizator" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-        <Button variant="outline" onClick={onCancel}>
-          Anulează
-        </Button>
-        <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSubmit} disabled={isSubmitting}>
-          {isSubmitting ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
-            </>
-          ) : (
-            "Salvează"
-          )}
-        </Button>
-      </div>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Se salvează..." : "Salvează modificările"}
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsPasswordResetOpen(true)}
+              className="flex items-center gap-2"
+            >
+              <Key className="h-4 w-4" />
+              Resetare parolă
+            </Button>
+          </div>
+        </form>
+      </Form>
+
+      <PasswordResetDialog
+        user={user}
+        open={isPasswordResetOpen}
+        onOpenChange={setIsPasswordResetOpen}
+        onSuccess={() => {
+          toast({
+            title: "Parolă resetată",
+            description: "Parola utilizatorului a fost resetată cu succes.",
+          })
+        }}
+      />
     </div>
   )
 }
