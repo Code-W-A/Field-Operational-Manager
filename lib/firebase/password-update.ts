@@ -1,14 +1,11 @@
 import { auth } from "./config"
 
-export async function updateUserPassword(userId: string, newPassword: string) {
+export const updateUserPassword = async (userId: string, newPassword: string): Promise<void> => {
   try {
     // Get the current admin user
     const adminUser = auth.currentUser
-    if (!adminUser) {
-      throw new Error("Nu sunteți autentificat")
-    }
 
-    // Use our API route to update the password
+    // Call the API to update the password
     const response = await fetch("/api/users/update-password", {
       method: "POST",
       headers: {
@@ -17,23 +14,25 @@ export async function updateUserPassword(userId: string, newPassword: string) {
       body: JSON.stringify({
         userId,
         newPassword,
-        adminUser: {
-          uid: adminUser.uid,
-          email: adminUser.email,
-          displayName: adminUser.displayName,
-        },
+        adminUser: adminUser
+          ? {
+              uid: adminUser.uid,
+              email: adminUser.email,
+              displayName: adminUser.displayName,
+            }
+          : null,
       }),
     })
 
+    const data = await response.json()
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `Server error: ${response.status}`)
+      throw new Error(data.error || "A apărut o eroare la actualizarea parolei")
     }
 
-    const result = await response.json()
-    return { success: true, message: result.message || "Parola a fost actualizată cu succes" }
-  } catch (error: any) {
-    console.error("Error updating password:", error)
-    throw new Error(error.message || "A apărut o eroare la actualizarea parolei")
+    return Promise.resolve()
+  } catch (error) {
+    console.error("Eroare la actualizarea parolei utilizatorului:", error)
+    throw error
   }
 }

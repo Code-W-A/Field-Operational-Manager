@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
-import { adminAuth } from "@/lib/firebase/admin"
-import { doc, serverTimestamp, setDoc } from "firebase/firestore"
-import { db } from "@/lib/firebase/config"
+import { adminAuth, adminDb } from "@/lib/firebase/admin"
+import { Timestamp } from "firebase-admin/firestore"
 
 export async function POST(request: Request) {
   try {
@@ -32,17 +31,16 @@ export async function POST(request: Request) {
         password: newPassword,
       })
 
-      // Log the password change action
-      const logRef = doc(db, "logs", `password_reset_${Date.now()}`)
-      await setDoc(logRef, {
-        timestamp: serverTimestamp(),
-        action: "Resetare parolă",
-        details: `Parola utilizatorului cu ID ${userId} a fost resetată`,
-        performedBy: adminUser?.displayName || adminUser?.email || "Administrator",
-        performedById: adminUser?.uid || "system",
-        targetUserId: userId,
-        type: "Informație",
-        category: "Autentificare",
+      // Log the password change action using Admin SDK
+      const logRef = adminDb.collection("logs").doc(`password_reset_${Date.now()}`)
+      await logRef.set({
+        timestamp: Timestamp.now(),
+        actiune: "Resetare parolă",
+        detalii: `Parola utilizatorului cu ID ${userId} a fost resetată`,
+        utilizator: adminUser?.displayName || adminUser?.email || "Administrator",
+        utilizatorId: adminUser?.uid || "system",
+        tip: "Informație",
+        categorie: "Autentificare",
       })
     } catch (firebaseError: any) {
       console.error("Firebase Auth error:", firebaseError)
