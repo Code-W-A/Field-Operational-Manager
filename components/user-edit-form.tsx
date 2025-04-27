@@ -6,19 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, Loader2, KeyRound } from "lucide-react"
+import { AlertCircle, Loader2 } from "lucide-react"
 import { doc, updateDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import type { UserData, UserRole } from "@/lib/firebase/auth"
 import { updateUserEmail } from "@/lib/firebase/auth"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 
 interface UserEditFormProps {
   user: UserData
@@ -38,14 +30,6 @@ export function UserEditForm({ user, onSuccess, onCancel }: UserEditFormProps) {
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<string[]>([])
   const [emailChanged, setEmailChanged] = useState(false)
-  const [isPasswordResetOpen, setIsPasswordResetOpen] = useState(false)
-  const [passwordData, setPasswordData] = useState({
-    newPassword: "",
-    confirmPassword: "",
-  })
-  const [passwordError, setPasswordError] = useState<string | null>(null)
-  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null)
-  const [isResettingPassword, setIsResettingPassword] = useState(false)
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target
@@ -58,11 +42,6 @@ export function UserEditForm({ user, onSuccess, onCancel }: UserEditFormProps) {
     }
 
     setFormData((prev) => ({ ...prev, [id]: value }))
-  }
-
-  const handlePasswordInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { id, value } = e.target
-    setPasswordData((prev) => ({ ...prev, [id]: value }))
   }
 
   const handleSelectChange = (value: string) => {
@@ -146,92 +125,6 @@ export function UserEditForm({ user, onSuccess, onCancel }: UserEditFormProps) {
     }
   }
 
-  const handlePasswordReset = async () => {
-    setIsResettingPassword(true)
-    setPasswordError(null)
-    setPasswordSuccess(null)
-
-    // Validare parole - verificăm doar dacă coincid
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setPasswordError("Parolele nu coincid")
-      setIsResettingPassword(false)
-      return
-    }
-
-    // Verificăm doar dacă parola nu este goală
-    if (!passwordData.newPassword) {
-      setPasswordError("Parola nu poate fi goală")
-      setIsResettingPassword(false)
-      return
-    }
-
-    if (!user.uid) {
-      setPasswordError("ID-ul utilizatorului lipsește")
-      setIsResettingPassword(false)
-      return
-    }
-
-    try {
-      // Folosim noul endpoint pentru resetarea parolei
-      const response = await fetch("/api/users/reset-password", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          userId: user.uid,
-          newPassword: passwordData.newPassword,
-        }),
-      })
-
-      // Verificăm statusul răspunsului înainte de a încerca să parsăm JSON
-      if (!response.ok) {
-        // Încercăm să obținem textul răspunsului pentru a vedea eroarea
-        const errorText = await response.text()
-        console.error("Server error response:", errorText)
-
-        // Încercăm să parsăm răspunsul ca JSON, dar avem un fallback
-        let errorData
-        try {
-          errorData = JSON.parse(errorText)
-          throw new Error(errorData.error || "A apărut o eroare la actualizarea parolei")
-        } catch (parseError) {
-          // Dacă nu putem parsa JSON, folosim textul brut
-          throw new Error(`Eroare server: ${response.status} ${response.statusText}`)
-        }
-      }
-
-      // Dacă răspunsul este ok, încercăm să parsăm JSON
-      let data
-      try {
-        data = await response.json()
-      } catch (parseError) {
-        console.error("Error parsing JSON response:", parseError)
-        // Dacă nu putem parsa JSON dar răspunsul este ok, considerăm că a fost succes
-        data = { success: true, message: "Parola a fost actualizată cu succes" }
-      }
-
-      // Resetăm câmpurile de parolă
-      setPasswordData({
-        newPassword: "",
-        confirmPassword: "",
-      })
-
-      setPasswordSuccess(data.message || "Parola a fost actualizată cu succes")
-
-      // Închide dialogul după 2 secunde
-      setTimeout(() => {
-        setIsPasswordResetOpen(false)
-        setPasswordSuccess(null)
-      }, 2000)
-    } catch (err: any) {
-      console.error("Eroare la actualizarea parolei:", err)
-      setPasswordError(err.message || "A apărut o eroare la actualizarea parolei")
-    } finally {
-      setIsResettingPassword(false)
-    }
-  }
-
   // Verificăm dacă un câmp are eroare
   const hasError = (fieldName: string) => fieldErrors.includes(fieldName)
 
@@ -302,97 +195,20 @@ export function UserEditForm({ user, onSuccess, onCancel }: UserEditFormProps) {
         </Select>
       </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
-        <Button variant="outline" onClick={() => setIsPasswordResetOpen(true)} className="flex items-center gap-2">
-          <KeyRound className="h-4 w-4" />
-          Resetare parolă
+      <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+        <Button variant="outline" onClick={onCancel}>
+          Anulează
         </Button>
-
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Button variant="outline" onClick={onCancel}>
-            Anulează
-          </Button>
-          <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
-              </>
-            ) : (
-              "Salvează"
-            )}
-          </Button>
-        </div>
+        <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSubmit} disabled={isSubmitting}>
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
+            </>
+          ) : (
+            "Salvează"
+          )}
+        </Button>
       </div>
-
-      {/* Dialog pentru resetarea parolei */}
-      <Dialog open={isPasswordResetOpen} onOpenChange={setIsPasswordResetOpen}>
-        <DialogContent className="w-[calc(100%-2rem)] max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Resetare parolă</DialogTitle>
-            <DialogDescription>Introduceți noua parolă pentru utilizatorul {user.displayName}</DialogDescription>
-          </DialogHeader>
-
-          {passwordError && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{passwordError}</AlertDescription>
-            </Alert>
-          )}
-
-          {passwordSuccess && (
-            <Alert className="bg-green-50 border-green-200 text-green-800">
-              <AlertDescription>{passwordSuccess}</AlertDescription>
-            </Alert>
-          )}
-
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <label htmlFor="newPassword" className="text-sm font-medium">
-                Parolă nouă
-              </label>
-              <Input
-                id="newPassword"
-                type="password"
-                placeholder="Introduceți parola nouă"
-                value={passwordData.newPassword}
-                onChange={handlePasswordInputChange}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor="confirmPassword" className="text-sm font-medium">
-                Confirmare parolă
-              </label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                placeholder="Confirmați parola nouă"
-                value={passwordData.confirmPassword}
-                onChange={handlePasswordInputChange}
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button variant="outline" onClick={() => setIsPasswordResetOpen(false)}>
-              Anulează
-            </Button>
-            <Button
-              className="bg-blue-600 hover:bg-blue-700"
-              onClick={handlePasswordReset}
-              disabled={isResettingPassword}
-            >
-              {isResettingPassword ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
-                </>
-              ) : (
-                "Resetează parola"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
