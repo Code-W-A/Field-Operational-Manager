@@ -91,7 +91,7 @@ export function PasswordResetDialog({ user, open, onOpenChange, onSuccess }: Pas
       // Resetăm câmpurile de parolă
       resetForm()
 
-      setPasswordSuccess(result.message || "Parola a fost actualizată cu succes")
+      setPasswordSuccess(result.message)
 
       // Închide dialogul după 2 secunde
       setTimeout(() => {

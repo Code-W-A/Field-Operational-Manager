@@ -1,6 +1,11 @@
 import { auth } from "./config"
 
-export const updateUserPassword = async (userId: string, newPassword: string): Promise<void> => {
+interface PasswordUpdateResult {
+  success: boolean
+  message: string
+}
+
+export async function updateUserPassword(userId: string, newPassword: string): Promise<PasswordUpdateResult> {
   try {
     // Get the current admin user
     const adminUser = auth.currentUser
@@ -30,9 +35,12 @@ export const updateUserPassword = async (userId: string, newPassword: string): P
       throw new Error(data.error || "A apărut o eroare la actualizarea parolei")
     }
 
-    return Promise.resolve()
-  } catch (error) {
+    return {
+      success: true,
+      message: data.message || "Parola a fost actualizată cu succes",
+    }
+  } catch (error: any) {
     console.error("Eroare la actualizarea parolei utilizatorului:", error)
-    throw error
+    throw new Error(error.message || "A apărut o eroare la actualizarea parolei")
   }
 }
