@@ -64,9 +64,9 @@
     "react-signature-canvas": "latest",
     "@tanstack/react-table": "latest",
     "jspdf": "latest",
+    "firebase-admin": "latest",
     "nodemailer": "latest",
-    "path": "latest",
-    "firebase-admin": "latest"
+    "path": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",

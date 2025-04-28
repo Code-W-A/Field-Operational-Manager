@@ -20,14 +20,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Configurăm transportorul de email (Gmail)
+    // Configurăm transportorul de email (Client Email Server)
     const transporter = nodemailer.createTransport({
-      service: "gmail",
+      host: "mail.nrg-acces.ro",
+      port: 465,
+      secure: true, // true for 465, false for other ports
       auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD,
+        user: "fom@nrg-acces.ro",
+        pass: "FOM@nrg25",
       },
-      secure: true,
     })
 
     // Convertim fișierul PDF în buffer pentru atașament
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     // Configurăm opțiunile emailului
     const mailOptions = {
-      from: `"${senderName || "Field Operational Manager"}" <${process.env.EMAIL_USER}>`,
+      from: `"${senderName || "Field Operational Manager"}" <fom@nrg-acces.ro>`,
       to,
       subject,
       text: message || "Va transmitem atasat raportul de interventie.",
