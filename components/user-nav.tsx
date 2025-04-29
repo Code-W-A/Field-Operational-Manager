@@ -16,14 +16,16 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { useRouter } from "next/navigation"
-import { LogOut, User } from "lucide-react"
+import { LogOut, User, LockKeyhole } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { signOut } from "@/lib/firebase/auth"
+import { UserPasswordChangeDialog } from "@/components/user-password-change-dialog"
 
 export function UserNav() {
   const router = useRouter()
   const { user, userData } = useAuth()
   const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const [isPasswordChangeOpen, setIsPasswordChangeOpen] = useState(false)
 
   const handleSignOut = async () => {
     try {
@@ -92,6 +94,10 @@ export function UserNav() {
               <User className="mr-2 h-4 w-4" />
               <span>Profil</span>
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setIsPasswordChangeOpen(true)}>
+              <LockKeyhole className="mr-2 h-4 w-4" />
+              <span>Schimbare parolă</span>
+            </DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={handleSignOut}>
@@ -147,6 +153,9 @@ export function UserNav() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog pentru schimbarea parolei */}
+      <UserPasswordChangeDialog open={isPasswordChangeOpen} onOpenChange={setIsPasswordChangeOpen} />
     </>
   )
 }

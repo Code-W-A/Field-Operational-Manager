@@ -13,6 +13,7 @@ import { signIn } from "@/lib/firebase/auth"
 import { useAuth } from "@/contexts/AuthContext"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useMockData } from "@/contexts/MockDataContext"
+import { ForgotPasswordDialog } from "@/components/forgot-password-dialog"
 
 export default function Login() {
   const router = useRouter()
@@ -22,6 +23,7 @@ export default function Login() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false)
 
   useEffect(() => {
     if (!loading && user) {
@@ -157,9 +159,15 @@ export default function Login() {
           </form>
         </CardContent>
         <CardFooter className="flex justify-center">
-          <p className="text-sm text-gray-500">Ați uitat parola? Contactați administratorul sistemului</p>
+          <p className="text-sm text-gray-500">
+            Ați uitat parola?{" "}
+            <Button variant="link" className="p-0 h-auto text-blue-600" onClick={() => setForgotPasswordOpen(true)}>
+              Resetați parola
+            </Button>
+          </p>
         </CardFooter>
       </Card>
+      <ForgotPasswordDialog open={forgotPasswordOpen} onOpenChange={setForgotPasswordOpen} />
     </div>
   )
 }
