@@ -38,12 +38,13 @@ export async function POST(request: NextRequest) {
 
     // Configure email transporter
     const transporter = nodemailer.createTransport({
-      service: "gmail",
+      host: "mail.nrg-acces.ro",
+      port: 465,
+      secure: true, // true for 465, false for other ports
       auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD,
+        user: "fom@nrg-acces.ro",
+        pass: "FOM@nrg25",
       },
-      secure: true,
     })
 
     // Get the logo path

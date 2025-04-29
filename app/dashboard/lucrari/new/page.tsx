@@ -10,6 +10,7 @@ import { addLucrare } from "@/lib/firebase/firestore"
 import { toast } from "@/components/ui/use-toast"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { format } from "date-fns"
+import { sendWorkOrderNotifications } from "@/components/work-order-notification-service"
 
 export default function NewLucrarePage() {
   const router = useRouter()
@@ -97,12 +98,28 @@ export default function NewLucrarePage() {
       }
 
       // Add work order to Firestore
-      await addLucrare(lucrareData)
+      const workOrderId = await addLucrare(lucrareData)
 
       toast({
         title: "Lucrare adăugată",
         description: "Lucrarea a fost adăugată cu succes",
       })
+
+      try {
+        // Send notifications to client and technicians
+        const notificationResult = await sendWorkOrderNotifications({
+          ...formData,
+          id: workOrderId, // Make sure workOrderId is the ID of the newly created work order
+        })
+
+        if (notificationResult.success) {
+          console.log("Notifications sent successfully")
+        } else {
+          console.error("Failed to send notifications:", notificationResult.error)
+        }
+      } catch (error) {
+        console.error("Error sending notifications:", error)
+      }
 
       // Redirect to work orders list
       router.push("/dashboard/lucrari")

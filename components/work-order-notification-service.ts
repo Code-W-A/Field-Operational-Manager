@@ -9,30 +9,54 @@
  */
 export async function sendWorkOrderNotifications(workOrderData: any) {
   try {
-    // Extract client information
+    // Extract client information from the client object or from direct properties
+    const clientName = workOrderData.client?.nume || workOrderData.client || ""
+    const clientEmail = workOrderData.client?.email || workOrderData.clientEmail || ""
+    const contactPerson = workOrderData.client?.persoanaContact || workOrderData.persoanaContact || clientName || ""
+
     const client = {
-      name: workOrderData.client?.name || "",
-      email: workOrderData.client?.email || "",
-      contactPerson: workOrderData.client?.contactPerson || workOrderData.client?.name || "",
+      name: clientName,
+      email: clientEmail,
+      contactPerson: contactPerson,
     }
 
     // Extract technician information
-    const technicians = Array.isArray(workOrderData.technicians)
-      ? workOrderData.technicians.map((tech) => ({
-          name: tech.name || "",
-          email: tech.email || "",
-        }))
+    // First check if technicians is an array of objects or an array of strings
+    const technicians = Array.isArray(workOrderData.tehnicieni)
+      ? workOrderData.tehnicieni.map((tech: any) => {
+          if (typeof tech === "string") {
+            // If it's just a string (name), we need to find the email from somewhere
+            // This is a placeholder - you'll need to implement a way to get emails for technician names
+            return {
+              name: tech,
+              email: "", // This will need to be populated from your user database
+            }
+          } else {
+            // If it's an object, extract name and email
+            return {
+              name: tech.name || tech.displayName || "",
+              email: tech.email || "",
+            }
+          }
+        })
       : []
+
+    // If we have technician names but no emails, try to fetch them
+    if (technicians.some((tech) => !tech.email)) {
+      console.log("Some technicians don't have email addresses. Attempting to fetch them...")
+      // This would be a good place to fetch technician emails from your database
+      // For now, we'll just log a warning
+    }
 
     // Extract work order details
     const details = {
-      issueDate: workOrderData.issueDate || new Date().toLocaleDateString("ro-RO"),
-      interventionDate: workOrderData.interventionDate || "",
-      workType: workOrderData.workType || "",
-      location: workOrderData.location || "",
-      description: workOrderData.description || "",
-      reportedIssue: workOrderData.reportedIssue || "",
-      status: workOrderData.status || "Programat",
+      issueDate: workOrderData.dataEmiterii || new Date().toLocaleDateString("ro-RO"),
+      interventionDate: workOrderData.dataInterventie || "",
+      workType: workOrderData.tipLucrare || "",
+      location: workOrderData.locatie || "",
+      description: workOrderData.descriere || "",
+      reportedIssue: workOrderData.defectReclamat || "",
+      status: workOrderData.statusLucrare || "Programat",
     }
 
     // Prepare notification data
@@ -43,6 +67,8 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
       technicians,
       details,
     }
+
+    console.log("Sending notification with data:", JSON.stringify(notificationData))
 
     // Send notification
     const response = await fetch("/api/notifications/work-order", {
