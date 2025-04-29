@@ -747,7 +747,7 @@ export default function Utilizatori() {
             showFilters={false}
           />
         ) : (
-          <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3 w-full overflow-auto">
             {filteredData.map((user) => (
               <Card key={user.uid} className="overflow-hidden">
                 <CardContent className="p-0">

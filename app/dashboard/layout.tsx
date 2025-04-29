@@ -6,5 +6,9 @@ export default function DashboardLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  return <ProtectedRoute>{children}</ProtectedRoute>
+  return (
+    <ProtectedRoute>
+      <div className="h-full w-full overflow-auto">{children}</div>
+    </ProtectedRoute>
+  )
 }

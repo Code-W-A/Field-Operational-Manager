@@ -433,7 +433,7 @@ export default function Loguri() {
             showFilters={false}
           />
         ) : (
-          <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3 w-full overflow-auto">
             {filteredData.map((log) => (
               <Card key={log.id}>
                 <CardContent className="p-4">
