@@ -145,83 +145,139 @@ html.modal-open body {
   scroll-behavior: smooth;
 }
 
-/* Calendar styling fixes */
+/* Calendar styling improvements */
 .rdp {
-  margin: 0;
+  margin: 0 !important;
+  --rdp-accent-color: hsl(var(--primary));
+  --rdp-background-color: hsl(var(--accent));
 }
 
-/* Ensure calendar is above other elements but maintain styling */
-[data-radix-popper-content-wrapper] {
-  z-index: 200 !important;
-}
-
-/* Fix for popover content */
-[role="dialog"] {
-  pointer-events: auto !important;
-}
-
-/* Calendar container styling */
+/* Calendar container */
 .rdp-months {
-  display: flex;
-  justify-content: center;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 16px;
 }
 
-/* Calendar day styling */
-.rdp-day {
-  width: 36px;
-  height: 36px;
-  border-radius: 4px;
-  cursor: pointer !important;
+/* Calendar header */
+.rdp-caption {
+  position: relative;
+  padding: 0 8px;
+  margin-bottom: 12px;
 }
 
-/* Selected day styling */
-.rdp-day_selected {
-  background-color: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
-}
-
-/* Today styling */
-.rdp-day_today {
-  background-color: hsl(var(--accent));
-  color: hsl(var(--accent-foreground));
-  font-weight: bold;
+.rdp-caption_label {
+  font-weight: 600;
+  font-size: 1rem;
+  color: hsl(var(--foreground));
+  text-align: center;
+  width: 100%;
 }
 
 /* Calendar navigation buttons */
 .rdp-nav_button {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
   width: 28px;
   height: 28px;
   padding: 0;
   border-radius: 4px;
+  background-color: transparent;
+  color: hsl(var(--foreground));
   cursor: pointer !important;
 }
 
-/* Month caption styling */
-.rdp-caption {
+.rdp-nav_button:hover {
+  background-color: hsl(var(--accent));
+}
+
+/* Calendar day cells */
+.rdp-cell {
+  padding: 0;
+  text-align: center;
+}
+
+.rdp-day {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 8px;
-  margin-bottom: 8px;
+  justify-content: center;
+  cursor: pointer !important;
+  font-size: 0.875rem;
+  color: hsl(var(--foreground));
+  margin: 0 auto;
 }
 
-.rdp-caption_label {
+.rdp-day:hover:not(.rdp-day_selected) {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+.rdp-day_selected {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
   font-weight: 500;
-  font-size: 1rem;
 }
 
-/* Week day names styling */
+.rdp-day_today {
+  border: 1px solid hsl(var(--primary));
+  font-weight: 500;
+}
+
+/* Week day names */
 .rdp-head_cell {
   font-weight: 500;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: hsl(var(--muted-foreground));
-  text-align: center;
-  padding: 0;
-  margin-bottom: 4px;
+  text-transform: uppercase;
+  padding-bottom: 8px;
 }
 
-/* Calendar table styling */
-.rdp-table {
-  border-collapse: separate;
-  border-spacing: 2px;
+/* Fix z-index issues */
+[data-radix-popper-content-wrapper] {
+  z-index: 200 !important;
+}
+
+/* Ensure calendar is properly contained */
+.rdp-wrapper {
+  padding: 0;
+}
+
+/* Ensure calendar days are clickable */
+.rdp-day,
+.rdp-day_selected,
+.rdp-day_today {
+  pointer-events: auto !important;
+}
+
+/* Fix for calendar month navigation */
+.rdp-nav_button {
+  pointer-events: auto !important;
+}
+
+/* Popover styling for calendar */
+[role="dialog"][data-state="open"] {
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Ensure popover content has proper styling */
+[data-radix-popper-content] {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }

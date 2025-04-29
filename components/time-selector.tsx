@@ -85,16 +85,12 @@ export function TimeSelector({ value, onChange, label, id, hasError = false }: T
               hasError && "border-red-500 focus-visible:ring-red-500",
             )}
             aria-label={label}
-            onClick={(e) => {
-              e.stopPropagation()
-              setOpen(true)
-            }}
           >
             {hour || "00"}:{minute || "00"}
           </Button>
         </PopoverTrigger>
         <PopoverContent
-          className="w-64 p-2 z-[200]"
+          className="w-64 p-3 shadow-md rounded-md"
           align="start"
           onInteractOutside={(e) => {
             e.preventDefault()
@@ -104,23 +100,23 @@ export function TimeSelector({ value, onChange, label, id, hasError = false }: T
             e.preventDefault()
           }}
         >
-          <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between">
+          <div className="space-y-3">
+            <div className="flex justify-between border-b pb-2">
               <div className="text-sm font-medium">Ore</div>
               <div className="text-sm font-medium">Minute</div>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               <div
                 ref={hoursContainerRef}
-                className="h-[200px] overflow-y-auto pr-2 border-r scrollbar-thin time-selector-scroll"
+                className="h-[200px] overflow-y-auto pr-3 border-r scrollbar-thin time-selector-scroll"
               >
                 {hours.map((h) => (
                   <div
                     key={h}
                     ref={h === hour ? selectedHourRef : null}
                     className={cn(
-                      "cursor-pointer px-2 py-1 rounded hover:bg-gray-100",
-                      h === hour && "bg-gray-100 font-medium",
+                      "cursor-pointer px-3 py-1.5 rounded-md hover:bg-gray-100 transition-colors",
+                      h === hour && "bg-primary text-primary-foreground font-medium",
                     )}
                     onClick={() => handleTimeSelection(h, minute || "00")}
                   >
@@ -130,15 +126,15 @@ export function TimeSelector({ value, onChange, label, id, hasError = false }: T
               </div>
               <div
                 ref={minutesContainerRef}
-                className="h-[200px] overflow-y-auto pl-2 scrollbar-thin time-selector-scroll"
+                className="h-[200px] overflow-y-auto pl-3 scrollbar-thin time-selector-scroll"
               >
                 {minutes.map((m) => (
                   <div
                     key={m}
                     ref={m === minute ? selectedMinuteRef : null}
                     className={cn(
-                      "cursor-pointer px-2 py-1 rounded hover:bg-gray-100",
-                      m === minute && "bg-gray-100 font-medium",
+                      "cursor-pointer px-3 py-1.5 rounded-md hover:bg-gray-100 transition-colors",
+                      m === minute && "bg-primary text-primary-foreground font-medium",
                     )}
                     onClick={() => handleTimeSelection(hour || "00", m)}
                   >

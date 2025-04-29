@@ -360,9 +360,6 @@ export function LucrareForm({
                       type="button"
                       variant="outline"
                       className={`w-full justify-start text-left font-normal ${hasError("dataEmiterii") ? errorStyle : ""}`}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                      }}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {dataEmiterii ? format(dataEmiterii, "dd.MM.yyyy", { locale: ro }) : <span>Selectați data</span>}
@@ -371,14 +368,9 @@ export function LucrareForm({
                   <PopoverContent
                     className="w-auto p-0"
                     align="start"
-                    onInteractOutside={(e) => {
-                      e.preventDefault()
-                    }}
+                    onInteractOutside={(e) => e.preventDefault()}
                     onEscapeKeyDown={() => setDateEmiteriiOpen(false)}
-                    onPointerDownOutside={(e) => {
-                      e.preventDefault()
-                    }}
-                    onClick={(e) => e.stopPropagation()}
+                    onPointerDownOutside={(e) => e.preventDefault()}
                   >
                     <Calendar
                       mode="single"
@@ -416,9 +408,6 @@ export function LucrareForm({
                       type="button"
                       variant="outline"
                       className={`w-full justify-start text-left font-normal ${hasError("dataInterventie") ? errorStyle : ""}`}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                      }}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {dataInterventie ? (
@@ -431,14 +420,9 @@ export function LucrareForm({
                   <PopoverContent
                     className="w-auto p-0"
                     align="start"
-                    onInteractOutside={(e) => {
-                      e.preventDefault()
-                    }}
+                    onInteractOutside={(e) => e.preventDefault()}
                     onEscapeKeyDown={() => setDateInterventieOpen(false)}
-                    onPointerDownOutside={(e) => {
-                      e.preventDefault()
-                    }}
-                    onClick={(e) => e.stopPropagation()}
+                    onPointerDownOutside={(e) => e.preventDefault()}
                   >
                     <Calendar
                       mode="single"
