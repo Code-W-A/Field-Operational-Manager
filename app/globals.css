@@ -146,118 +146,18 @@ html.modal-open body {
   scroll-behavior: smooth;
 }
 
-/* Calendar styling improvements */
-.rdp {
-  margin: 0 !important;
-  --rdp-accent-color: hsl(var(--primary));
-  --rdp-background-color: hsl(var(--accent));
-}
-
-/* Calendar container */
-.rdp-months {
+/* Simple calendar styling */
+.calendar-popover-content {
+  z-index: 9999 !important;
   background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  padding: 16px;
-}
-
-/* Calendar header */
-.rdp-caption {
-  position: relative;
-  padding: 0 8px;
-  margin-bottom: 12px;
-}
-
-.rdp-caption_label {
-  font-weight: 600;
-  font-size: 1rem;
-  color: hsl(var(--foreground));
-  text-align: center;
-  width: 100%;
-}
-
-/* Calendar navigation buttons */
-.rdp-nav_button {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border-radius: 4px;
-  background-color: transparent;
-  color: hsl(var(--foreground));
-  cursor: pointer !important;
-}
-
-.rdp-nav_button:hover {
-  background-color: hsl(var(--accent));
-}
-
-/* Calendar day cells */
-.rdp-cell {
-  padding: 0;
-  text-align: center;
-}
-
-.rdp-day {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer !important;
-  font-size: 0.875rem;
-  color: hsl(var(--foreground));
-  margin: 0 auto;
-}
-
-.rdp-day:hover:not(.rdp-day_selected) {
-  background-color: hsl(var(--accent));
-  color: hsl(var(--accent-foreground));
-}
-
-.rdp-day_selected {
-  background-color: hsl(var(--primary)) !important;
-  color: hsl(var(--primary-foreground)) !important;
-  font-weight: 500;
-}
-
-.rdp-day_today {
-  border: 1px solid hsl(var(--primary));
-  font-weight: 500;
-}
-
-/* Week day names */
-.rdp-head_cell {
-  font-weight: 500;
-  font-size: 0.75rem;
-  color: hsl(var(--muted-foreground));
-  text-transform: uppercase;
-  padding-bottom: 8px;
+  border-radius: 0.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
 }
 
 /* Fix z-index issues */
 [data-radix-popper-content-wrapper] {
   z-index: var(--calendar-z-index) !important;
-}
-
-/* Ensure calendar is properly contained */
-.rdp-wrapper {
-  padding: 0;
-}
-
-/* Ensure calendar days are clickable */
-.rdp-day,
-.rdp-day_selected,
-.rdp-day_today {
-  pointer-events: auto !important;
-}
-
-/* Fix for calendar month navigation */
-.rdp-nav_button {
-  pointer-events: auto !important;
 }
 
 /* Popover styling for calendar */
@@ -276,11 +176,65 @@ html.modal-open body {
   }
 }
 
-/* Ensure popover content has proper styling */
-[data-radix-popper-content] {
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+/* Calendar month transition animations */
+@keyframes slideInLeft {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutLeft {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+.slide-in-left {
+  animation: slideInLeft 0.3s forwards;
+}
+
+.slide-in-right {
+  animation: slideInRight 0.3s forwards;
+}
+
+.slide-out-left {
+  animation: slideOutLeft 0.3s forwards;
+}
+
+.slide-out-right {
+  animation: slideOutRight 0.3s forwards;
 }
 
 /* Fix for mobile scrolling */
@@ -315,12 +269,129 @@ body {
   z-index: 9999 !important;
 }
 
-/* Fix for calendar popover in modals */
-.calendar-popover-content {
-  z-index: 9999 !important;
-}
-
 /* Ensure calendar is properly positioned */
 .calendar-popover {
   position: relative !important;
+}
+
+/* Custom date picker styles */
+.custom-date-picker {
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.date-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.date-cell {
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 50%;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+.date-cell:hover:not(.date-cell-selected):not(.date-cell-disabled) {
+  background-color: hsl(var(--accent));
+}
+
+.date-cell-selected {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.date-cell-today:not(.date-cell-selected) {
+  border: 1px solid hsl(var(--primary));
+}
+
+.date-cell-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.date-cell-outside {
+  opacity: 0.5;
+}
+
+/* Custom calendar styles */
+.calendar-container {
+  position: relative;
+  width: 100%;
+  max-width: 300px;
+  background-color: white;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  padding: 0.5rem;
+}
+
+.calendar-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.calendar-day:hover:not(.calendar-day-selected):not(.calendar-day-disabled) {
+  background-color: hsl(var(--accent));
+}
+
+.calendar-day-selected {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.calendar-day-today:not(.calendar-day-selected) {
+  border: 1px solid hsl(var(--primary));
+}
+
+.calendar-day-outside {
+  opacity: 0.5;
+}
+
+.calendar-day-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Animation for month transitions */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.calendar-month-animate {
+  animation: fadeIn 0.2s ease-out;
 }

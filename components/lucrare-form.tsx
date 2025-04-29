@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { format } from "date-fns"
 import { ro } from "date-fns/locale"
@@ -22,8 +21,10 @@ import { ContractSelect } from "./contract-select"
 import { ClientForm } from "./client-form"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { formatDateTime24, formatTime24 } from "@/lib/utils/time-format"
-// Replace the imports at the top to include our TimeSelector component:
+// Import the TimeSelector component
 import { TimeSelector } from "./time-selector"
+// Import our new CustomDatePicker component
+import { CustomDatePicker } from "./custom-date-picker"
 
 // Define the Lucrare type
 interface Lucrare {
@@ -125,9 +126,6 @@ export function LucrareForm({
       }
 
       setDataEmiterii(newDate)
-
-      // Close the popover after selection with a slight delay
-      setTimeout(() => setDateEmiteriiOpen(false), 100)
     },
     [dataEmiterii, setDataEmiterii],
   )
@@ -148,9 +146,6 @@ export function LucrareForm({
       }
 
       setDataInterventie(newDate)
-
-      // Close the popover after selection with a slight delay
-      setTimeout(() => setDateInterventieOpen(false), 100)
     },
     [dataInterventie, setDataInterventie],
   )
@@ -347,13 +342,13 @@ export function LucrareForm({
       {error && <div className="text-red-500 mb-4">{error}</div>}
       <div className="grid gap-4 py-4">
         <div className="grid grid-cols-1 gap-6">
-          {/* Data Emiterii */}
+          {/* Data Emiterii - Updated with new date picker */}
           <div className="space-y-2">
             <label htmlFor="dataEmiterii" className="text-sm font-medium">
               Data Emiterii *
             </label>
             <div className="flex flex-col sm:flex-row gap-2">
-              <div className="sm:w-2/3 calendar-popover">
+              <div className="sm:w-2/3">
                 <Popover open={dateEmiteriiOpen} onOpenChange={setDateEmiteriiOpen}>
                   <PopoverTrigger asChild>
                     <Button
@@ -365,32 +360,14 @@ export function LucrareForm({
                       {dataEmiterii ? format(dataEmiterii, "dd.MM.yyyy", { locale: ro }) : <span>Selectați data</span>}
                     </Button>
                   </PopoverTrigger>
-                  <div className="p-0 bg-white rounded-md shadow-md">
-                    <Calendar
-                      mode="single"
-                      selected={dataEmiterii}
-                      onSelect={handleDateEmiteriiSelect}
-                      initialFocus
-                      locale={ro}
+                  
+                  <PopoverContent className="w-auto p-0" align="start" sideOffset={4}>
+                    <CustomDatePicker
+                      selectedDate={dataEmiterii}
+                      onDateChange={handleDateEmiteriiSelect}
+                      onClose={() => setDateEmiteriiOpen(false)}
+                      hasError={hasError("dataEmiterii")}
                     />
-                  </div>
-                  <PopoverContent
-                    className="w-auto p-0 calendar-popover-content"
-                    align="start"
-                    sideOffset={4}
-                    onInteractOutside={(e) => e.preventDefault()}
-                    onEscapeKeyDown={() => setDateEmiteriiOpen(false)}
-                    onPointerDownOutside={(e) => e.preventDefault()}
-                  >
-                    <div className="p-0 bg-white rounded-md shadow-md">
-                      <Calendar
-                        mode="single"
-                        selected={dataEmiterii}
-                        onSelect={handleDateEmiteriiSelect}
-                        initialFocus
-                        locale={ro}
-                      />
-                    </div>
                   </PopoverContent>
                 </Popover>
               </div>
@@ -407,13 +384,13 @@ export function LucrareForm({
             <p className="text-xs text-muted-foreground">Data și ora emiterii documentului</p>
           </div>
 
-          {/* Data Solicitată Intervenție */}
+          {/* Data Solicitată Intervenție - Updated with new date picker */}
           <div className="space-y-2">
             <label htmlFor="dataInterventie" className="text-sm font-medium">
               Data solicitată intervenție *
             </label>
             <div className="flex flex-col sm:flex-row gap-2">
-              <div className="sm:w-2/3 calendar-popover">
+              <div className="sm:w-2/3">
                 <Popover open={dateInterventieOpen} onOpenChange={setDateInterventieOpen}>
                   <PopoverTrigger asChild>
                     <Button
@@ -429,23 +406,13 @@ export function LucrareForm({
                       )}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent
-                    className="w-auto p-0 calendar-popover-content"
-                    align="start"
-                    sideOffset={4}
-                    onInteractOutside={(e) => e.preventDefault()}
-                    onEscapeKeyDown={() => setDateInterventieOpen(false)}
-                    onPointerDownOutside={(e) => e.preventDefault()}
-                  >
-                    <div className="p-0 bg-white rounded-md shadow-md">
-                      <Calendar
-                        mode="single"
-                        selected={dataInterventie}
-                        onSelect={handleDateInterventieSelect}
-                        initialFocus
-                        locale={ro}
-                      />
-                    </div>
+                  <PopoverContent className="w-auto p-0" align="start" sideOffset={4}>
+                    <CustomDatePicker
+                      selectedDate={dataInterventie}
+                      onDateChange={handleDateInterventieSelect}
+                      onClose={() => setDateInterventieOpen(false)}
+                      hasError={hasError("dataInterventie")}
+                    />
                   </PopoverContent>
                 </Popover>
               </div>
@@ -628,7 +595,6 @@ export function LucrareForm({
         </div>
 
         {/* Add the defectReclamat field to the form, after the equipment field */}
-        {/* Insert this code after the equipment field and before the descriere field: */}
         <div className="space-y-2">
           <label htmlFor="defectReclamat" className="text-sm font-medium">
             Defect reclamat
