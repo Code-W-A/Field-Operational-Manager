@@ -362,7 +362,6 @@ export function LucrareForm({
                       className={`w-full justify-start text-left font-normal ${hasError("dataEmiterii") ? errorStyle : ""}`}
                       onClick={(e) => {
                         e.stopPropagation()
-                        setDateEmiteriiOpen(true)
                       }}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
@@ -370,7 +369,7 @@ export function LucrareForm({
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent
-                    className="w-auto p-0 z-[200]"
+                    className="w-auto p-0"
                     align="start"
                     onInteractOutside={(e) => {
                       e.preventDefault()
@@ -379,16 +378,15 @@ export function LucrareForm({
                     onPointerDownOutside={(e) => {
                       e.preventDefault()
                     }}
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <div className="p-0 bg-white rounded-md shadow-lg" onClick={(e) => e.stopPropagation()}>
-                      <Calendar
-                        mode="single"
-                        selected={dataEmiterii}
-                        onSelect={handleDateEmiteriiSelect}
-                        initialFocus
-                        locale={ro}
-                      />
-                    </div>
+                    <Calendar
+                      mode="single"
+                      selected={dataEmiterii}
+                      onSelect={handleDateEmiteriiSelect}
+                      initialFocus
+                      locale={ro}
+                    />
                   </PopoverContent>
                 </Popover>
               </div>
@@ -420,7 +418,6 @@ export function LucrareForm({
                       className={`w-full justify-start text-left font-normal ${hasError("dataInterventie") ? errorStyle : ""}`}
                       onClick={(e) => {
                         e.stopPropagation()
-                        setDateInterventieOpen(true)
                       }}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
@@ -432,7 +429,7 @@ export function LucrareForm({
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent
-                    className="w-auto p-0 z-[200]"
+                    className="w-auto p-0"
                     align="start"
                     onInteractOutside={(e) => {
                       e.preventDefault()
@@ -441,16 +438,15 @@ export function LucrareForm({
                     onPointerDownOutside={(e) => {
                       e.preventDefault()
                     }}
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <div className="p-0 bg-white rounded-md shadow-lg" onClick={(e) => e.stopPropagation()}>
-                      <Calendar
-                        mode="single"
-                        selected={dataInterventie}
-                        onSelect={handleDateInterventieSelect}
-                        initialFocus
-                        locale={ro}
-                      />
-                    </div>
+                    <Calendar
+                      mode="single"
+                      selected={dataInterventie}
+                      onSelect={handleDateInterventieSelect}
+                      initialFocus
+                      locale={ro}
+                    />
                   </PopoverContent>
                 </Popover>
               </div>

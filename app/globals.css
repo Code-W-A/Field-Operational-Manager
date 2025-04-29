@@ -145,21 +145,12 @@ html.modal-open body {
   scroll-behavior: smooth;
 }
 
-/* Fix for calendar component */
+/* Calendar styling fixes */
 .rdp {
-  z-index: 300 !important;
-  position: relative;
+  margin: 0;
 }
 
-.rdp-button {
-  cursor: pointer !important;
-}
-
-.rdp-day {
-  cursor: pointer !important;
-}
-
-/* Ensure calendar is above other elements */
+/* Ensure calendar is above other elements but maintain styling */
 [data-radix-popper-content-wrapper] {
   z-index: 200 !important;
 }
@@ -169,14 +160,68 @@ html.modal-open body {
   pointer-events: auto !important;
 }
 
-/* Ensure calendar days are clickable */
-.rdp-day_selected,
-.rdp-day_today,
-.rdp-day {
-  pointer-events: auto !important;
+/* Calendar container styling */
+.rdp-months {
+  display: flex;
+  justify-content: center;
 }
 
-/* Fix for calendar month navigation */
+/* Calendar day styling */
+.rdp-day {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  cursor: pointer !important;
+}
+
+/* Selected day styling */
+.rdp-day_selected {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+/* Today styling */
+.rdp-day_today {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+  font-weight: bold;
+}
+
+/* Calendar navigation buttons */
 .rdp-nav_button {
-  pointer-events: auto !important;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 4px;
+  cursor: pointer !important;
+}
+
+/* Month caption styling */
+.rdp-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  margin-bottom: 8px;
+}
+
+.rdp-caption_label {
+  font-weight: 500;
+  font-size: 1rem;
+}
+
+/* Week day names styling */
+.rdp-head_cell {
+  font-weight: 500;
+  font-size: 0.8rem;
+  color: hsl(var(--muted-foreground));
+  text-align: center;
+  padding: 0;
+  margin-bottom: 4px;
+}
+
+/* Calendar table styling */
+.rdp-table {
+  border-collapse: separate;
+  border-spacing: 2px;
 }
