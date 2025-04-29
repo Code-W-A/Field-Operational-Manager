@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { useLockBody } from "@/hooks/use-lock-body"
 
 export interface ColumnOption {
   id: string
@@ -35,15 +36,44 @@ export function ColumnSelectionModal({
 }: ColumnSelectionModalProps) {
   const [mounted, setMounted] = useState(false)
 
+  // Use our custom hook to manage body scroll locking
+  useLockBody(isOpen)
+
   useEffect(() => {
     setMounted(true)
+  }, [])
+
+  // Ensure proper cleanup when component unmounts
+  useEffect(() => {
+    return () => {
+      // Force any remaining overlay elements to be removed
+      const overlays = document.querySelectorAll("[data-radix-dialog-overlay]")
+      overlays.forEach((overlay) => {
+        if (overlay.parentNode) {
+          overlay.parentNode.removeChild(overlay)
+        }
+      })
+    }
   }, [])
 
   if (!mounted) return null
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px] max-h-[85vh] overflow-hidden flex flex-col">
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) {
+          // Ensure we properly clean up when dialog is closed
+          setTimeout(() => onClose(), 10)
+        }
+      }}
+    >
+      <DialogContent
+        className="sm:max-w-[425px] max-h-[85vh] overflow-hidden flex flex-col"
+        onEscapeKeyDown={onClose}
+        onInteractOutside={onClose}
+        onPointerDownOutside={onClose}
+      >
         <DialogHeader className="flex flex-row items-center justify-between">
           <DialogTitle>{title}</DialogTitle>
           <Button variant="ghost" size="icon" onClick={onClose} className="h-6 w-6 rounded-md p-0">

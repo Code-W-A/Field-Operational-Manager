@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
 import { X } from "lucide-react"
+import { useLockBody } from "@/hooks/use-lock-body"
 
 export interface FilterOption {
   id: string
@@ -38,6 +39,9 @@ export function FilterModal({
 }: FilterModalProps) {
   const [filters, setFilters] = useState<FilterOption[]>(filterOptions)
 
+  // Use our custom hook to manage body scroll locking
+  useLockBody(isOpen)
+
   // Actualizăm starea filtrelor când se schimbă opțiunile
   useEffect(() => {
     setFilters(filterOptions)
@@ -56,6 +60,19 @@ export function FilterModal({
     onResetFilters()
     onClose()
   }
+
+  // Ensure proper cleanup when component unmounts
+  useEffect(() => {
+    return () => {
+      // Force any remaining overlay elements to be removed
+      const overlays = document.querySelectorAll("[data-radix-dialog-overlay]")
+      overlays.forEach((overlay) => {
+        if (overlay.parentNode) {
+          overlay.parentNode.removeChild(overlay)
+        }
+      })
+    }
+  }, [])
 
   const renderFilterInput = (filter: FilterOption) => {
     switch (filter.type) {
@@ -202,10 +219,20 @@ export function FilterModal({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) {
+          // Ensure we properly clean up when dialog is closed
+          setTimeout(() => onClose(), 10)
+        }
+      }}
+    >
       <DialogContent
         className="w-[calc(100%-2rem)] max-w-[500px] max-h-[90vh] overflow-hidden bg-white"
-        overlayClassName="backdrop-blur-sm"
+        onEscapeKeyDown={onClose}
+        onInteractOutside={onClose}
+        onPointerDownOutside={onClose}
       >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
