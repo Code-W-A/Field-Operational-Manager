@@ -35,6 +35,7 @@
     --radius: 0.5rem;
 
     --modal-z-index: 50;
+    --calendar-z-index: 1000;
   }
 
   .dark {
@@ -239,7 +240,7 @@ html.modal-open body {
 
 /* Fix z-index issues */
 [data-radix-popper-content-wrapper] {
-  z-index: 200 !important;
+  z-index: var(--calendar-z-index) !important;
 }
 
 /* Ensure calendar is properly contained */
@@ -297,4 +298,31 @@ body {
     padding-left: 1rem;
     padding-right: 1rem;
   }
+}
+
+/* Fix for calendar in modals */
+.modal-calendar-fix [data-radix-popper-content-wrapper] {
+  z-index: calc(var(--modal-z-index) + 100) !important;
+  position: fixed !important;
+}
+
+/* Fix for calendar positioning in modals */
+.modal-calendar-container .rdp {
+  position: relative;
+}
+
+/* Ensure calendar is visible in modals */
+[data-radix-dialog-content] [data-radix-popper-content-wrapper] {
+  z-index: 9999 !important;
+}
+
+/* Fix for calendar popover in modals */
+.calendar-popover-content {
+  z-index: 9999 !important;
+  position: relative !important;
+}
+
+/* Ensure calendar is properly positioned */
+.calendar-popover {
+  position: static !important;
 }

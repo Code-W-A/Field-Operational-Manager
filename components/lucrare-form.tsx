@@ -343,7 +343,7 @@ export function LucrareForm({
 
   // Add buttons at the end if onSubmit and onCancel are provided
   return (
-    <div>
+    <div className="modal-calendar-container">
       {error && <div className="text-red-500 mb-4">{error}</div>}
       <div className="grid gap-4 py-4">
         <div className="grid grid-cols-1 gap-6">
@@ -353,7 +353,7 @@ export function LucrareForm({
               Data Emiterii *
             </label>
             <div className="flex flex-col sm:flex-row gap-2">
-              <div className="sm:w-2/3">
+              <div className="sm:w-2/3 calendar-popover">
                 <Popover open={dateEmiteriiOpen} onOpenChange={setDateEmiteriiOpen}>
                   <PopoverTrigger asChild>
                     <Button
@@ -366,19 +366,23 @@ export function LucrareForm({
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent
-                    className="w-auto p-0"
+                    className="w-auto p-0 calendar-popover-content"
                     align="start"
+                    sideOffset={4}
                     onInteractOutside={(e) => e.preventDefault()}
                     onEscapeKeyDown={() => setDateEmiteriiOpen(false)}
                     onPointerDownOutside={(e) => e.preventDefault()}
+                    style={{ zIndex: 9999 }}
                   >
-                    <Calendar
-                      mode="single"
-                      selected={dataEmiterii}
-                      onSelect={handleDateEmiteriiSelect}
-                      initialFocus
-                      locale={ro}
-                    />
+                    <div className="p-0 bg-white rounded-md shadow-md">
+                      <Calendar
+                        mode="single"
+                        selected={dataEmiterii}
+                        onSelect={handleDateEmiteriiSelect}
+                        initialFocus
+                        locale={ro}
+                      />
+                    </div>
                   </PopoverContent>
                 </Popover>
               </div>
@@ -401,7 +405,7 @@ export function LucrareForm({
               Data solicitată intervenție *
             </label>
             <div className="flex flex-col sm:flex-row gap-2">
-              <div className="sm:w-2/3">
+              <div className="sm:w-2/3 calendar-popover">
                 <Popover open={dateInterventieOpen} onOpenChange={setDateInterventieOpen}>
                   <PopoverTrigger asChild>
                     <Button
@@ -418,19 +422,23 @@ export function LucrareForm({
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent
-                    className="w-auto p-0"
+                    className="w-auto p-0 calendar-popover-content"
                     align="start"
+                    sideOffset={4}
                     onInteractOutside={(e) => e.preventDefault()}
                     onEscapeKeyDown={() => setDateInterventieOpen(false)}
                     onPointerDownOutside={(e) => e.preventDefault()}
+                    style={{ zIndex: 9999 }}
                   >
-                    <Calendar
-                      mode="single"
-                      selected={dataInterventie}
-                      onSelect={handleDateInterventieSelect}
-                      initialFocus
-                      locale={ro}
-                    />
+                    <div className="p-0 bg-white rounded-md shadow-md">
+                      <Calendar
+                        mode="single"
+                        selected={dataInterventie}
+                        onSelect={handleDateInterventieSelect}
+                        initialFocus
+                        locale={ro}
+                      />
+                    </div>
                   </PopoverContent>
                 </Popover>
               </div>
