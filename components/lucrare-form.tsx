@@ -11,7 +11,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { format } from "date-fns"
 import { ro } from "date-fns/locale"
-import { CalendarIcon, Loader2, Plus } from 'lucide-react'
+import { CalendarIcon, Loader2, Plus } from "lucide-react"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { orderBy, where, query, collection, onSnapshot } from "firebase/firestore"
 import type { Client, PersoanaContact } from "@/lib/firebase/firestore"
@@ -365,6 +365,15 @@ export function LucrareForm({
                       {dataEmiterii ? format(dataEmiterii, "dd.MM.yyyy", { locale: ro }) : <span>Selectați data</span>}
                     </Button>
                   </PopoverTrigger>
+                  <div className="p-0 bg-white rounded-md shadow-md">
+                    <Calendar
+                      mode="single"
+                      selected={dataEmiterii}
+                      onSelect={handleDateEmiteriiSelect}
+                      initialFocus
+                      locale={ro}
+                    />
+                  </div>
                   <PopoverContent
                     className="w-auto p-0 calendar-popover-content"
                     align="start"
