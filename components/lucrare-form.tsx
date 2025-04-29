@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -103,63 +103,89 @@ export function LucrareForm({
   // Add state for controlling the popovers
   const [dateEmiteriiOpen, setDateEmiteriiOpen] = useState(false)
   const [dateInterventieOpen, setDateInterventieOpen] = useState(false)
-  const [timeEmiteriiOpen, setTimeEmiteriiOpen] = useState(false)
-  const [timeInterventieOpen, setTimeInterventieOpen] = useState(false)
 
   // Adăugăm state pentru persoanele de contact ale clientului selectat
   const [persoaneContact, setPersoaneContact] = useState<PersoanaContact[]>([])
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
 
-  // Actualizăm funcția handleTimeEmiteriiChange pentru a folosi formatul de 24 de ore
-  const handleTimeEmiteriiChange = (newTime: string) => {
-    setTimeEmiterii(newTime)
+  // Handle date selection with proper time preservation
+  const handleDateEmiteriiSelect = useCallback(
+    (date: Date | undefined) => {
+      if (!date) {
+        setDataEmiterii(undefined)
+        return
+      }
 
-    if (dataEmiterii) {
-      // Creăm o nouă dată cu ora actualizată
-      const [hours, minutes] = newTime.split(":").map(Number)
-      const newDate = new Date(dataEmiterii)
-      newDate.setHours(hours, minutes)
+      // Create a new date to avoid mutation
+      const newDate = new Date(date)
+
+      // If we already have a date, preserve the time
+      if (dataEmiterii) {
+        newDate.setHours(dataEmiterii.getHours(), dataEmiterii.getMinutes(), dataEmiterii.getSeconds())
+      }
+
       setDataEmiterii(newDate)
-    }
-  }
+
+      // Close the popover after selection with a slight delay
+      setTimeout(() => setDateEmiteriiOpen(false), 100)
+    },
+    [dataEmiterii, setDataEmiterii],
+  )
+
+  const handleDateInterventieSelect = useCallback(
+    (date: Date | undefined) => {
+      if (!date) {
+        setDataInterventie(undefined)
+        return
+      }
+
+      // Create a new date to avoid mutation
+      const newDate = new Date(date)
+
+      // If we already have a date, preserve the time
+      if (dataInterventie) {
+        newDate.setHours(dataInterventie.getHours(), dataInterventie.getMinutes(), dataInterventie.getSeconds())
+      }
+
+      setDataInterventie(newDate)
+
+      // Close the popover after selection with a slight delay
+      setTimeout(() => setDateInterventieOpen(false), 100)
+    },
+    [dataInterventie, setDataInterventie],
+  )
+
+  // Actualizăm funcția handleTimeEmiteriiChange pentru a folosi formatul de 24 de ore
+  const handleTimeEmiteriiChange = useCallback(
+    (newTime: string) => {
+      setTimeEmiterii(newTime)
+
+      if (dataEmiterii) {
+        // Creăm o nouă dată cu ora actualizată
+        const [hours, minutes] = newTime.split(":").map(Number)
+        const newDate = new Date(dataEmiterii)
+        newDate.setHours(hours, minutes)
+        setDataEmiterii(newDate)
+      }
+    },
+    [dataEmiterii, setDataEmiterii],
+  )
 
   // Actualizăm funcția handleTimeInterventieChange pentru a folosi formatul de 24 de ore
-  const handleTimeInterventieChange = (newTime: string) => {
-    setTimeInterventie(newTime)
+  const handleTimeInterventieChange = useCallback(
+    (newTime: string) => {
+      setTimeInterventie(newTime)
 
-    if (dataInterventie) {
-      // Creăm o nouă dată cu ora actualizată
-      const [hours, minutes] = newTime.split(":").map(Number)
-      const newDate = new Date(dataInterventie)
-      newDate.setHours(hours, minutes)
-      setDataInterventie(newDate)
-    }
-  }
-
-  // Handle date selection with proper time preservation
-  const handleDateEmiteriiSelect = (date: Date | undefined) => {
-    if (date && dataEmiterii) {
-      // Preserve the current time when changing the date
-      const currentHours = dataEmiterii.getHours()
-      const currentMinutes = dataEmiterii.getMinutes()
-      date.setHours(currentHours, currentMinutes)
-    }
-    setDataEmiterii(date)
-    // Close the popover after selection
-    setTimeout(() => setDateEmiteriiOpen(false), 100)
-  }
-
-  const handleDateInterventieSelect = (date: Date | undefined) => {
-    if (date && dataInterventie) {
-      // Preserve the current time when changing the date
-      const currentHours = dataInterventie.getHours()
-      const currentMinutes = dataInterventie.getMinutes()
-      date.setHours(currentHours, currentMinutes)
-    }
-    setDataInterventie(date)
-    // Close the popover after selection
-    setTimeout(() => setDateInterventieOpen(false), 100)
-  }
+      if (dataInterventie) {
+        // Creăm o nouă dată cu ora actualizată
+        const [hours, minutes] = newTime.split(":").map(Number)
+        const newDate = new Date(dataInterventie)
+        newDate.setHours(hours, minutes)
+        setDataInterventie(newDate)
+      }
+    },
+    [dataInterventie, setDataInterventie],
+  )
 
   // Actualizăm efectul pentru a folosi formatul de 24 de ore
   useEffect(() => {
@@ -283,8 +309,6 @@ export function LucrareForm({
       isValid = false
     }
 
-    // Update fieldErrors state
-    // setFieldErrors(errors); // Removed setFieldErrors because it's not defined
     return isValid
   }
 
@@ -333,21 +357,38 @@ export function LucrareForm({
                 <Popover open={dateEmiteriiOpen} onOpenChange={setDateEmiteriiOpen}>
                   <PopoverTrigger asChild>
                     <Button
+                      type="button"
                       variant="outline"
                       className={`w-full justify-start text-left font-normal ${hasError("dataEmiterii") ? errorStyle : ""}`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setDateEmiteriiOpen(true)
+                      }}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {dataEmiterii ? format(dataEmiterii, "dd.MM.yyyy", { locale: ro }) : <span>Selectați data</span>}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={dataEmiterii}
-                      onSelect={handleDateEmiteriiSelect}
-                      initialFocus
-                      locale={ro}
-                    />
+                  <PopoverContent
+                    className="w-auto p-0 z-[200]"
+                    align="start"
+                    onInteractOutside={(e) => {
+                      e.preventDefault()
+                    }}
+                    onEscapeKeyDown={() => setDateEmiteriiOpen(false)}
+                    onPointerDownOutside={(e) => {
+                      e.preventDefault()
+                    }}
+                  >
+                    <div className="p-0 bg-white rounded-md shadow-lg" onClick={(e) => e.stopPropagation()}>
+                      <Calendar
+                        mode="single"
+                        selected={dataEmiterii}
+                        onSelect={handleDateEmiteriiSelect}
+                        initialFocus
+                        locale={ro}
+                      />
+                    </div>
                   </PopoverContent>
                 </Popover>
               </div>
@@ -374,8 +415,13 @@ export function LucrareForm({
                 <Popover open={dateInterventieOpen} onOpenChange={setDateInterventieOpen}>
                   <PopoverTrigger asChild>
                     <Button
+                      type="button"
                       variant="outline"
                       className={`w-full justify-start text-left font-normal ${hasError("dataInterventie") ? errorStyle : ""}`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setDateInterventieOpen(true)
+                      }}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {dataInterventie ? (
@@ -385,14 +431,26 @@ export function LucrareForm({
                       )}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={dataInterventie}
-                      onSelect={handleDateInterventieSelect}
-                      initialFocus
-                      locale={ro}
-                    />
+                  <PopoverContent
+                    className="w-auto p-0 z-[200]"
+                    align="start"
+                    onInteractOutside={(e) => {
+                      e.preventDefault()
+                    }}
+                    onEscapeKeyDown={() => setDateInterventieOpen(false)}
+                    onPointerDownOutside={(e) => {
+                      e.preventDefault()
+                    }}
+                  >
+                    <div className="p-0 bg-white rounded-md shadow-lg" onClick={(e) => e.stopPropagation()}>
+                      <Calendar
+                        mode="single"
+                        selected={dataInterventie}
+                        onSelect={handleDateInterventieSelect}
+                        initialFocus
+                        locale={ro}
+                      />
+                    </div>
                   </PopoverContent>
                 </Popover>
               </div>

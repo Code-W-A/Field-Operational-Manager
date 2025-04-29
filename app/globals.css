@@ -144,3 +144,39 @@ html.modal-open body {
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
 }
+
+/* Fix for calendar component */
+.rdp {
+  z-index: 300 !important;
+  position: relative;
+}
+
+.rdp-button {
+  cursor: pointer !important;
+}
+
+.rdp-day {
+  cursor: pointer !important;
+}
+
+/* Ensure calendar is above other elements */
+[data-radix-popper-content-wrapper] {
+  z-index: 200 !important;
+}
+
+/* Fix for popover content */
+[role="dialog"] {
+  pointer-events: auto !important;
+}
+
+/* Ensure calendar days are clickable */
+.rdp-day_selected,
+.rdp-day_today,
+.rdp-day {
+  pointer-events: auto !important;
+}
+
+/* Fix for calendar month navigation */
+.rdp-nav_button {
+  pointer-events: auto !important;
+}
