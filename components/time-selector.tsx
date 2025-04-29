@@ -3,6 +3,7 @@ import { Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
+import { useEffect, useRef } from "react"
 
 interface TimeSelectorProps {
   value: string
@@ -22,6 +23,26 @@ export function TimeSelector({ value, onChange, label, id, hasError = false }: T
   // Split the current value into hours and minutes
   const [hour, minute] = value.split(":")
 
+  // References to the selected hour and minute elements
+  const selectedHourRef = useRef<HTMLDivElement>(null)
+  const selectedMinuteRef = useRef<HTMLDivElement>(null)
+
+  // Scroll to the selected hour and minute when the popover opens
+  useEffect(() => {
+    const scrollToSelected = () => {
+      if (selectedHourRef.current) {
+        selectedHourRef.current.scrollIntoView({ block: "center", behavior: "auto" })
+      }
+      if (selectedMinuteRef.current) {
+        selectedMinuteRef.current.scrollIntoView({ block: "center", behavior: "auto" })
+      }
+    }
+
+    // Small delay to ensure the popover is fully rendered
+    const timer = setTimeout(scrollToSelected, 100)
+    return () => clearTimeout(timer)
+  }, [hour, minute])
+
   return (
     <div className="relative flex items-center w-full">
       <Clock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500 z-10" />
@@ -38,17 +59,18 @@ export function TimeSelector({ value, onChange, label, id, hasError = false }: T
             {hour || "00"}:{minute || "00"}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-64 p-2">
+        <PopoverContent className="w-64 p-2" align="start">
           <div className="space-y-2">
             <div className="flex justify-between">
               <div className="text-sm font-medium">Ore</div>
               <div className="text-sm font-medium">Minute</div>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <div className="h-[200px] overflow-y-auto pr-2 border-r">
+              <div className="h-[200px] overflow-y-auto pr-2 border-r scrollbar-thin">
                 {hours.map((h) => (
                   <div
                     key={h}
+                    ref={h === hour ? selectedHourRef : null}
                     className={cn(
                       "cursor-pointer px-2 py-1 rounded hover:bg-gray-100",
                       h === hour && "bg-gray-100 font-medium",
@@ -59,10 +81,11 @@ export function TimeSelector({ value, onChange, label, id, hasError = false }: T
                   </div>
                 ))}
               </div>
-              <div className="h-[200px] overflow-y-auto pl-2">
+              <div className="h-[200px] overflow-y-auto pl-2 scrollbar-thin">
                 {minutes.map((m) => (
                   <div
                     key={m}
+                    ref={m === minute ? selectedMinuteRef : null}
                     className={cn(
                       "cursor-pointer px-2 py-1 rounded hover:bg-gray-100",
                       m === minute && "bg-gray-100 font-medium",

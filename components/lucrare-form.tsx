@@ -100,13 +100,18 @@ export function LucrareForm({
   )
   const [error, setError] = useState<string | null>(null)
 
+  // Add state for controlling the popovers
+  const [dateEmiteriiOpen, setDateEmiteriiOpen] = useState(false)
+  const [dateInterventieOpen, setDateInterventieOpen] = useState(false)
+  const [timeEmiteriiOpen, setTimeEmiteriiOpen] = useState(false)
+  const [timeInterventieOpen, setTimeInterventieOpen] = useState(false)
+
   // Adăugăm state pentru persoanele de contact ale clientului selectat
   const [persoaneContact, setPersoaneContact] = useState<PersoanaContact[]>([])
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
 
   // Actualizăm funcția handleTimeEmiteriiChange pentru a folosi formatul de 24 de ore
-  const handleTimeEmiteriiChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newTime = e.target.value
+  const handleTimeEmiteriiChange = (newTime: string) => {
     setTimeEmiterii(newTime)
 
     if (dataEmiterii) {
@@ -119,8 +124,7 @@ export function LucrareForm({
   }
 
   // Actualizăm funcția handleTimeInterventieChange pentru a folosi formatul de 24 de ore
-  const handleTimeInterventieChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newTime = e.target.value
+  const handleTimeInterventieChange = (newTime: string) => {
     setTimeInterventie(newTime)
 
     if (dataInterventie) {
@@ -130,6 +134,31 @@ export function LucrareForm({
       newDate.setHours(hours, minutes)
       setDataInterventie(newDate)
     }
+  }
+
+  // Handle date selection with proper time preservation
+  const handleDateEmiteriiSelect = (date: Date | undefined) => {
+    if (date && dataEmiterii) {
+      // Preserve the current time when changing the date
+      const currentHours = dataEmiterii.getHours()
+      const currentMinutes = dataEmiterii.getMinutes()
+      date.setHours(currentHours, currentMinutes)
+    }
+    setDataEmiterii(date)
+    // Close the popover after selection
+    setTimeout(() => setDateEmiteriiOpen(false), 100)
+  }
+
+  const handleDateInterventieSelect = (date: Date | undefined) => {
+    if (date && dataInterventie) {
+      // Preserve the current time when changing the date
+      const currentHours = dataInterventie.getHours()
+      const currentMinutes = dataInterventie.getMinutes()
+      date.setHours(currentHours, currentMinutes)
+    }
+    setDataInterventie(date)
+    // Close the popover after selection
+    setTimeout(() => setDateInterventieOpen(false), 100)
   }
 
   // Actualizăm efectul pentru a folosi formatul de 24 de ore
@@ -288,8 +317,6 @@ export function LucrareForm({
     await onSubmit(updatedData)
   }
 
-  // Remove the custom TimeSelector component defined inside LucrareForm
-
   // Add buttons at the end if onSubmit and onCancel are provided
   return (
     <div>
@@ -303,7 +330,7 @@ export function LucrareForm({
             </label>
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="sm:w-2/3">
-                <Popover>
+                <Popover open={dateEmiteriiOpen} onOpenChange={setDateEmiteriiOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
@@ -313,25 +340,21 @@ export function LucrareForm({
                       {dataEmiterii ? format(dataEmiterii, "dd.MM.yyyy", { locale: ro }) : <span>Selectați data</span>}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar mode="single" selected={dataEmiterii} onSelect={setDataEmiterii} initialFocus />
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dataEmiterii}
+                      onSelect={handleDateEmiteriiSelect}
+                      initialFocus
+                      locale={ro}
+                    />
                   </PopoverContent>
                 </Popover>
               </div>
-              {/* Replace the time input sections with our new TimeSelector component: */}
-              {/* For the Data Emiterii section: */}
               <div className="relative sm:w-1/3">
                 <TimeSelector
                   value={timeEmiterii}
-                  onChange={(newTime) => {
-                    setTimeEmiterii(newTime)
-                    if (dataEmiterii) {
-                      const [hours, minutes] = newTime.split(":").map(Number)
-                      const newDate = new Date(dataEmiterii)
-                      newDate.setHours(hours, minutes)
-                      setDataEmiterii(newDate)
-                    }
-                  }}
+                  onChange={handleTimeEmiteriiChange}
                   label="Ora emiterii"
                   id="timeEmiterii"
                   hasError={hasError("dataEmiterii")}
@@ -348,7 +371,7 @@ export function LucrareForm({
             </label>
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="sm:w-2/3">
-                <Popover>
+                <Popover open={dateInterventieOpen} onOpenChange={setDateInterventieOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
@@ -362,25 +385,21 @@ export function LucrareForm({
                       )}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar mode="single" selected={dataInterventie} onSelect={setDataInterventie} initialFocus />
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dataInterventie}
+                      onSelect={handleDateInterventieSelect}
+                      initialFocus
+                      locale={ro}
+                    />
                   </PopoverContent>
                 </Popover>
               </div>
-              {/* Replace the time input sections with our new TimeSelector component: */}
-              {/* For the Data Intervenție section: */}
               <div className="relative sm:w-1/3">
                 <TimeSelector
                   value={timeInterventie}
-                  onChange={(newTime) => {
-                    setTimeInterventie(newTime)
-                    if (dataInterventie) {
-                      const [hours, minutes] = newTime.split(":").map(Number)
-                      const newDate = new Date(dataInterventie)
-                      newDate.setHours(hours, minutes)
-                      setDataInterventie(newDate)
-                    }
-                  }}
+                  onChange={handleTimeInterventieChange}
                   label="Ora intervenției"
                   id="timeInterventie"
                   hasError={hasError("dataInterventie")}
