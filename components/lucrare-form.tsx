@@ -11,7 +11,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { format } from "date-fns"
 import { ro } from "date-fns/locale"
-import { CalendarIcon, Loader2, Plus } from "lucide-react"
+import { CalendarIcon, Loader2, Plus } from 'lucide-react'
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { orderBy, where, query, collection, onSnapshot } from "firebase/firestore"
 import type { Client, PersoanaContact } from "@/lib/firebase/firestore"
@@ -372,7 +372,6 @@ export function LucrareForm({
                     onInteractOutside={(e) => e.preventDefault()}
                     onEscapeKeyDown={() => setDateEmiteriiOpen(false)}
                     onPointerDownOutside={(e) => e.preventDefault()}
-                    style={{ zIndex: 9999 }}
                   >
                     <div className="p-0 bg-white rounded-md shadow-md">
                       <Calendar
@@ -428,7 +427,6 @@ export function LucrareForm({
                     onInteractOutside={(e) => e.preventDefault()}
                     onEscapeKeyDown={() => setDateInterventieOpen(false)}
                     onPointerDownOutside={(e) => e.preventDefault()}
-                    style={{ zIndex: 9999 }}
                   >
                     <div className="p-0 bg-white rounded-md shadow-md">
                       <Calendar

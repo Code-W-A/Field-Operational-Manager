@@ -303,7 +303,6 @@ body {
 /* Fix for calendar in modals */
 .modal-calendar-fix [data-radix-popper-content-wrapper] {
   z-index: calc(var(--modal-z-index) + 100) !important;
-  position: fixed !important;
 }
 
 /* Fix for calendar positioning in modals */
@@ -319,10 +318,9 @@ body {
 /* Fix for calendar popover in modals */
 .calendar-popover-content {
   z-index: 9999 !important;
-  position: relative !important;
 }
 
 /* Ensure calendar is properly positioned */
 .calendar-popover {
-  position: static !important;
+  position: relative !important;
 }
