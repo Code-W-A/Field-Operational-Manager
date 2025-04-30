@@ -114,3 +114,6 @@ export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: 
     </div>
   )
 }
+
+// Adăugăm acest alias pentru compatibilitate
+export const TehniciInterventionForm = TehnicianInterventionForm

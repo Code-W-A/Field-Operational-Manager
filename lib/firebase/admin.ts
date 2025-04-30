@@ -31,3 +31,4 @@ export const adminApp = initializeFirebaseAdminApp()
 // Exportăm serviciile Firebase Admin
 export const adminAuth = getAuth(adminApp)
 export const adminDb = getFirestore(adminApp)
+export const auth = adminAuth // Adăugăm acest export pentru compatibilitate
