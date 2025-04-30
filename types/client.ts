@@ -1,15 +1,9 @@
 export interface ContactPerson {
   id: string
   name: string
-  phone: string
-  email: string
   position: string
-}
-
-export interface Equipment {
-  id: string
-  name: string
-  description: string
+  phone: string
+  email?: string
 }
 
 export interface ClientLocation {
@@ -17,21 +11,18 @@ export interface ClientLocation {
   name: string
   address: string
   city: string
-  county: string
+  county?: string
   contactPersons: ContactPerson[]
-  equipment: Equipment[]
 }
 
 export interface Client {
-  id: string
+  id?: string
   name: string
+  cif: string
   email: string
   phone: string
   address: string
-  city: string
-  county: string
-  cif: string // Adăugat CIF
   locations: ClientLocation[]
-  createdAt: string
-  updatedAt: string
+  createdAt?: any
+  updatedAt?: any
 }
