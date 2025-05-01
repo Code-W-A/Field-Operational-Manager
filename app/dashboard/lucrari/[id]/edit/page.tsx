@@ -5,15 +5,17 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { LucrareForm } from "@/components/lucrare-form"
-import { DashboardShell } from "@/components/dashboard-shell"
 import { getLucrareById, updateLucrare } from "@/lib/firebase/firestore"
-import { toast } from "@/components/ui/use-toast"
+import { addLog } from "@/lib/firebase/firestore"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { format } from "date-fns"
+import { toast } from "@/components/ui/use-toast"
+import { Loader2 } from "lucide-react"
+import type { PersoanaContact } from "@/lib/firebase/firestore"
 
 export default function EditLucrarePage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const { id } = params
+  const [loading, setLoading] = useState(true)
   const [dataEmiterii, setDataEmiterii] = useState<Date | undefined>(undefined)
   const [dataInterventie, setDataInterventie] = useState<Date | undefined>(undefined)
   const [formData, setFormData] = useState({
@@ -29,6 +31,7 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
     contract: "",
     contractNumber: "",
     defectReclamat: "",
+    persoaneContact: [] as PersoanaContact[],
   })
   const [initialData, setInitialData] = useState<any>(null)
   const [fieldErrors, setFieldErrors] = useState<string[]>([])
@@ -42,33 +45,12 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
         if (lucrare) {
           setInitialData(lucrare)
 
-          // Parse dates using 24-hour format
+          // Set dates
           if (lucrare.dataEmiterii) {
-            const [datePart, timePart] = lucrare.dataEmiterii.split(" ")
-            const [day, month, year] = datePart.split(".")
-            const [hour, minute] = timePart ? timePart.split(":") : ["00", "00"]
-            const date = new Date(
-              Number.parseInt(year),
-              Number.parseInt(month) - 1,
-              Number.parseInt(day),
-              Number.parseInt(hour),
-              Number.parseInt(minute),
-            )
-            setDataEmiterii(date)
+            setDataEmiterii(new Date(lucrare.dataEmiterii))
           }
-
           if (lucrare.dataInterventie) {
-            const [datePart, timePart] = lucrare.dataInterventie.split(" ")
-            const [day, month, year] = datePart.split(".")
-            const [hour, minute] = timePart ? timePart.split(":") : ["00", "00"]
-            const date = new Date(
-              Number.parseInt(year),
-              Number.parseInt(month) - 1,
-              Number.parseInt(day),
-              Number.parseInt(hour),
-              Number.parseInt(minute),
-            )
-            setDataInterventie(date)
+            setDataInterventie(new Date(lucrare.dataInterventie))
           }
 
           // Set form data
@@ -85,17 +67,18 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
             contract: lucrare.contract || "",
             contractNumber: lucrare.contractNumber || "",
             defectReclamat: lucrare.defectReclamat || "",
+            persoaneContact: lucrare.persoaneContact || [],
           })
         }
+        setLoading(false)
       } catch (error) {
         console.error("Eroare la încărcarea lucrării:", error)
         toast({
           title: "Eroare",
-          description: "Nu s-a putut încărca lucrarea",
+          description: "A apărut o eroare la încărcarea lucrării. Vă rugăm să încercați din nou.",
           variant: "destructive",
         })
-      } finally {
-        setIsLoading(false)
+        setLoading(false)
       }
     }
 
@@ -113,12 +96,24 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
 
   const handleTehnicieniChange = (value: string) => {
     setFormData((prev) => {
+      // Dacă tehnicianul este deja în listă, îl eliminăm
       if (prev.tehnicieni.includes(value)) {
-        return { ...prev, tehnicieni: prev.tehnicieni.filter((tech) => tech !== value) }
-      } else {
-        return { ...prev, tehnicieni: [...prev.tehnicieni, value] }
+        return {
+          ...prev,
+          tehnicieni: prev.tehnicieni.filter((tech) => tech !== value),
+        }
+      }
+      // Altfel, îl adăugăm
+      return {
+        ...prev,
+        tehnicieni: [...prev.tehnicieni, value],
       }
     })
+  }
+
+  // Add a handler for custom field changes (like arrays and objects)
+  const handleCustomChange = (field: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
   const validateForm = () => {
@@ -136,77 +131,51 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
     return errors.length === 0
   }
 
-  const handleSubmit = async () => {
-    if (!validateForm() || isSubmitting) return
-
+  const handleSubmit = async (data: any) => {
     try {
-      setIsSubmitting(true)
+      // Actualizăm lucrarea în Firestore
+      await updateLucrare(id, data)
 
-      // Format dates using 24-hour format
-      const formattedDataEmiterii = dataEmiterii ? format(dataEmiterii, "dd.MM.yyyy HH:mm") : ""
+      // Adăugăm un log pentru actualizarea lucrării
+      await addLog(
+        "Actualizare",
+        `A fost actualizată lucrarea pentru clientul "${data.client}" cu ID-ul ${id}`,
+        "Informație",
+        "Lucrări",
+      )
 
-      const formattedDataInterventie = dataInterventie ? format(dataInterventie, "dd.MM.yyyy HH:mm") : ""
-
-      // Create update data
-      const updateData = {
-        dataEmiterii: formattedDataEmiterii,
-        dataInterventie: formattedDataInterventie,
-        tipLucrare: formData.tipLucrare,
-        tehnicieni: formData.tehnicieni,
-        client: formData.client,
-        locatie: formData.locatie,
-        descriere: formData.descriere,
-        persoanaContact: formData.persoanaContact,
-        telefon: formData.telefon,
-        statusLucrare: formData.statusLucrare,
-        statusFacturare: formData.statusFacturare,
-        contract: formData.contract,
-        contractNumber: formData.contractNumber,
-        defectReclamat: formData.defectReclamat,
-      }
-
-      // Update work order
-      await updateLucrare(id, updateData)
-
+      // Afișăm un mesaj de succes
       toast({
         title: "Lucrare actualizată",
-        description: "Lucrarea a fost actualizată cu succes",
+        description: "Lucrarea a fost actualizată cu succes.",
       })
 
-      // Redirect to work order details
+      // Redirecționăm către pagina de detalii a lucrării
       router.push(`/dashboard/lucrari/${id}`)
     } catch (error) {
       console.error("Eroare la actualizarea lucrării:", error)
       toast({
         title: "Eroare",
-        description: "A apărut o eroare la actualizarea lucrării",
+        description: "A apărut o eroare la actualizarea lucrării. Vă rugăm să încercați din nou.",
         variant: "destructive",
       })
-    } finally {
-      setIsSubmitting(false)
     }
   }
 
-  if (isLoading) {
+  if (loading) {
     return (
-      <DashboardShell>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-center h-40">
-              <p>Se încarcă...</p>
-            </div>
-          </CardContent>
-        </Card>
-      </DashboardShell>
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
     )
   }
 
   return (
-    <DashboardShell>
+    <div className="container mx-auto py-6">
       <Card>
         <CardHeader>
           <CardTitle>Editare Lucrare</CardTitle>
-          <CardDescription>Modificați detaliile lucrării</CardDescription>
+          <CardDescription>Actualizați detaliile lucrării</CardDescription>
         </CardHeader>
         <CardContent>
           <LucrareForm
@@ -219,13 +188,13 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
             handleInputChange={handleInputChange}
             handleSelectChange={handleSelectChange}
             handleTehnicieniChange={handleTehnicieniChange}
-            fieldErrors={fieldErrors}
+            handleCustomChange={handleCustomChange}
             onSubmit={handleSubmit}
             onCancel={() => router.push(`/dashboard/lucrari/${id}`)}
             initialData={initialData}
           />
         </CardContent>
       </Card>
-    </DashboardShell>
+    </div>
   )
 }

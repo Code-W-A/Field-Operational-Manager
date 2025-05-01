@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { format } from "date-fns"
 import { ro } from "date-fns/locale"
-import { CalendarIcon, Loader2, Plus, Phone, Mail, Briefcase } from "lucide-react"
+import { CalendarIcon, Loader2, Plus, Phone, Mail, Users } from "lucide-react"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { orderBy, where, query, collection, onSnapshot } from "firebase/firestore"
 import type { Client, PersoanaContact, Locatie } from "@/lib/firebase/firestore"
@@ -43,6 +43,7 @@ interface Lucrare {
   contract?: string
   contractNumber?: string
   defectReclamat?: string
+  persoaneContact?: PersoanaContact[]
 }
 
 // Add the defectReclamat field to the LucrareFormProps interface
@@ -64,11 +65,13 @@ interface LucrareFormProps {
     statusFacturare: string
     contract?: string
     contractNumber?: string
-    defectReclamat?: string // Add this field
+    defectReclamat?: string
+    persoaneContact?: PersoanaContact[]
   }
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void
   handleSelectChange: (id: string, value: string) => void
   handleTehnicieniChange: (value: string) => void
+  handleCustomChange?: (field: string, value: any) => void
   fieldErrors?: string[]
   onSubmit?: (data: Partial<Lucrare>) => Promise<void>
   onCancel?: () => void
@@ -86,6 +89,7 @@ export function LucrareForm({
   handleInputChange,
   handleSelectChange,
   handleTehnicieniChange,
+  handleCustomChange,
   fieldErrors = [],
   onSubmit,
   onCancel,
@@ -289,9 +293,31 @@ export function LucrareForm({
       if (locatie.persoaneContact && locatie.persoaneContact.length > 0) {
         console.log("Persoane de contact găsite:", locatie.persoaneContact)
         setPersoaneContact(locatie.persoaneContact)
+
+        // Automatically associate all contacts with the work entry
+        if (handleCustomChange) {
+          handleCustomChange("persoaneContact", locatie.persoaneContact)
+        }
+
+        // If there's at least one contact, set the first one as the primary contact
+        // for backward compatibility
+        if (locatie.persoaneContact.length > 0) {
+          const primaryContact = locatie.persoaneContact[0]
+          handleSelectChange("persoanaContact", primaryContact.nume || "")
+          handleSelectChange("telefon", primaryContact.telefon || "")
+        }
       } else {
         console.log("Nu există persoane de contact pentru această locație")
         setPersoaneContact([])
+
+        // Clear the contacts array
+        if (handleCustomChange) {
+          handleCustomChange("persoaneContact", [])
+        }
+
+        // Clear the primary contact fields
+        handleSelectChange("persoanaContact", "")
+        handleSelectChange("telefon", "")
       }
 
       // Activăm afișarea acordeonului
@@ -299,17 +325,6 @@ export function LucrareForm({
 
       // Actualizăm câmpul locație în formData
       handleSelectChange("locatie", locatieNume)
-
-      // Dacă există o singură persoană de contact, o selectăm automat
-      if (locatie.persoaneContact && locatie.persoaneContact.length === 1) {
-        const contact = locatie.persoaneContact[0]
-        handleSelectChange("persoanaContact", contact.nume)
-        handleSelectChange("telefon", contact.telefon || "")
-      } else {
-        // Resetăm persoana de contact selectată
-        handleSelectChange("persoanaContact", "")
-        handleSelectChange("telefon", "")
-      }
     }
   }
 
@@ -317,14 +332,6 @@ export function LucrareForm({
   const handleClientAdded = (clientName: string) => {
     handleSelectChange("client", clientName)
     setIsAddClientDialogOpen(false)
-  }
-
-  // Actualizăm funcția handleContactSelect pentru a ne asigura că populează corect numărul de telefon
-  const handleContactSelect = (contact: PersoanaContact) => {
-    if (!contact) return
-
-    handleSelectChange("persoanaContact", contact.nume || "")
-    handleSelectChange("telefon", contact.telefon || "")
   }
 
   // Verificăm dacă un câmp are eroare
@@ -384,6 +391,8 @@ export function LucrareForm({
       contract: formData.contract,
       contractNumber: formData.contractNumber,
       defectReclamat: formData.defectReclamat,
+      // Include all contact persons from the selected location
+      persoaneContact: formData.persoaneContact || persoaneContact,
     }
 
     await onSubmit(updatedData)
@@ -397,13 +406,23 @@ export function LucrareForm({
       if (selectedLocatie.persoaneContact) {
         console.log("Persoane de contact (effect):", selectedLocatie.persoaneContact)
         setPersoaneContact(selectedLocatie.persoaneContact)
+
+        // Automatically associate all contacts with the work entry
+        if (handleCustomChange) {
+          handleCustomChange("persoaneContact", selectedLocatie.persoaneContact)
+        }
       } else {
         console.log("Nu există persoane de contact (effect)")
         setPersoaneContact([])
+
+        // Clear the contacts array
+        if (handleCustomChange) {
+          handleCustomChange("persoaneContact", [])
+        }
       }
       setShowContactAccordion(true)
     }
-  }, [selectedLocatie])
+  }, [selectedLocatie, handleCustomChange])
 
   // Adăugăm un efect pentru a actualiza starea când se încarcă datele inițiale
   useEffect(() => {
@@ -413,11 +432,22 @@ export function LucrareForm({
         setSelectedLocatie(locatie)
         if (locatie.persoaneContact) {
           setPersoaneContact(locatie.persoaneContact)
+
+          // If we have initial data but no persoaneContact field, initialize it
+          if (handleCustomChange && (!initialData.persoaneContact || initialData.persoaneContact.length === 0)) {
+            handleCustomChange("persoaneContact", locatie.persoaneContact)
+          }
         }
         setShowContactAccordion(true)
       }
     }
-  }, [initialData, locatii])
+
+    // If we have initial data with persoaneContact, use that
+    if (initialData && initialData.persoaneContact && initialData.persoaneContact.length > 0) {
+      setPersoaneContact(initialData.persoaneContact)
+      setShowContactAccordion(true)
+    }
+  }, [initialData, locatii, handleCustomChange])
 
   return (
     <div className="modal-calendar-container">
@@ -639,30 +669,34 @@ export function LucrareForm({
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">Selectați locația clientului pentru această lucrare</p>
+            <p className="text-xs text-muted-foreground">
+              Selectați locația clientului pentru această lucrare. Toate persoanele de contact vor fi asociate automat.
+            </p>
           </div>
         )}
 
-        {/* Secțiunea de persoane de contact - afișată ca acordeon */}
+        {/* Secțiunea de persoane de contact - afișată ca card informativ */}
         {showContactAccordion && (
           <Card className="p-4 border rounded-md">
-            <h3 className="text-md font-medium mb-3">Persoane de Contact pentru Locație</h3>
+            <div className="flex items-center gap-2 mb-3">
+              <Users className="h-5 w-5 text-blue-600" />
+              <h3 className="text-md font-medium">Persoane de Contact Asociate</h3>
+              <Badge variant="outline" className="ml-2">
+                {persoaneContact.length}
+              </Badge>
+            </div>
 
             {persoaneContact.length > 0 ? (
               <div className="space-y-4">
                 {persoaneContact.map((contact, index) => (
-                  <div key={index} className="p-4 border rounded-md space-y-3 bg-gray-50">
+                  <div key={index} className="p-3 border rounded-md space-y-2 bg-gray-50">
                     <div className="flex justify-between items-center">
                       <h5 className="text-sm font-medium">{contact.nume}</h5>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleContactSelect(contact)}
-                        className="text-xs"
-                      >
-                        Selectează
-                      </Button>
+                      {contact.functie && (
+                        <Badge variant="secondary" className="text-xs">
+                          {contact.functie}
+                        </Badge>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 gap-2">
@@ -677,13 +711,6 @@ export function LucrareForm({
                           <span>{contact.email}</span>
                         </div>
                       )}
-
-                      {contact.functie && (
-                        <div className="flex items-center text-sm">
-                          <Briefcase className="h-4 w-4 mr-2 text-muted-foreground" />
-                          <span>{contact.functie}</span>
-                        </div>
-                      )}
                     </div>
                   </div>
                 ))}
@@ -693,36 +720,13 @@ export function LucrareForm({
                 Nu există persoane de contact pentru această locație
               </div>
             )}
+            <p className="text-xs text-muted-foreground mt-3">
+              Toate persoanele de contact vor fi asociate automat cu această lucrare
+            </p>
           </Card>
         )}
 
-        {/* Câmpurile pentru persoana de contact selectată */}
-        <div className="space-y-2">
-          <label htmlFor="persoanaContact" className="text-sm font-medium">
-            Persoană Contact Selectată *
-          </label>
-          <Input
-            id="persoanaContact"
-            placeholder="Nume persoană contact"
-            value={formData.persoanaContact}
-            onChange={handleInputChange}
-            className={hasError("persoanaContact") ? errorStyle : ""}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label htmlFor="telefon" className="text-sm font-medium">
-            Telefon Contact *
-          </label>
-          <Input
-            id="telefon"
-            placeholder="Număr de telefon"
-            value={formData.telefon}
-            onChange={handleInputChange}
-            className={hasError("telefon") ? errorStyle : ""}
-          />
-        </div>
-
+        {/* Câmpul pentru echipament */}
         <div className="space-y-2">
           <label htmlFor="locatie" className="text-sm font-medium">
             Echipament

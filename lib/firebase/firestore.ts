@@ -26,8 +26,8 @@ export interface Lucrare {
   client: string
   locatie: string
   descriere: string
-  persoanaContact: string
-  telefon: string
+  persoanaContact: string // Keep for backward compatibility
+  telefon: string // Keep for backward compatibility
   statusLucrare: string
   statusFacturare: string
   contract?: string
@@ -40,6 +40,8 @@ export interface Lucrare {
   updatedAt?: Timestamp
   createdBy?: string
   updatedBy?: string
+  // Add new field for all contact persons
+  persoaneContact?: PersoanaContact[]
 }
 
 // Adăugăm interfața pentru persoanele de contact
