@@ -349,12 +349,20 @@ export function LucrareForm({
 
   // Adăugăm funcție pentru selectarea echipamentului
   const handleEquipmentSelect = (equipmentId: string, equipment: Echipament) => {
+    console.log("Echipament selectat în LucrareForm:", equipment)
+
     handleSelectChange("echipament", equipment.nume)
 
     if (handleCustomChange) {
       handleCustomChange("echipamentId", equipmentId)
       handleCustomChange("echipamentCod", equipment.cod)
     }
+
+    toast({
+      title: "Echipament selectat",
+      description: `Ați selectat echipamentul ${equipment.nume} cu codul ${equipment.cod}`,
+      variant: "default",
+    })
   }
 
   // Actualizăm clientul selectat și locațiile când se schimbă clientul
@@ -466,6 +474,13 @@ export function LucrareForm({
       })
     }
   }, [selectedClient])
+
+  // Adaugă acest efect după celelalte efecte
+  useEffect(() => {
+    console.log("Stare availableEquipments:", availableEquipments)
+    console.log("Stare formData.locatie:", formData.locatie)
+    console.log("Condiție disabled:", !formData.locatie)
+  }, [availableEquipments, formData.locatie])
 
   // Modificăm funcția handleClientAdded pentru a gestiona corect adăugarea clientului
   const handleClientAdded = (clientName: string) => {
@@ -886,7 +901,7 @@ export function LucrareForm({
             equipments={availableEquipments}
             value={formData.echipamentId}
             onSelect={handleEquipmentSelect}
-            disabled={!formData.locatie || availableEquipments.length === 0}
+            disabled={!formData.locatie}
           />
           {availableEquipments.length === 0 && formData.locatie && (
             <div>
