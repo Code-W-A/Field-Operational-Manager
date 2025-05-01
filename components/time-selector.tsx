@@ -1,5 +1,7 @@
 "use client"
 import { Clock } from "lucide-react"
+import type React from "react"
+
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
@@ -33,6 +35,13 @@ export function TimeSelector({ value, onChange, label, id, hasError = false }: T
   // Container refs for scrolling
   const hoursContainerRef = useRef<HTMLDivElement>(null)
   const minutesContainerRef = useRef<HTMLDivElement>(null)
+
+  // Refs for drag state
+  const isDraggingHoursRef = useRef(false)
+  const isDraggingMinutesRef = useRef(false)
+  const lastYPositionRef = useRef(0)
+  const velocityRef = useRef(0)
+  const animationFrameRef = useRef<number | null>(null)
 
   // Scroll to the selected hour and minute when the popover opens
   useEffect(() => {
@@ -72,6 +81,148 @@ export function TimeSelector({ value, onChange, label, id, hasError = false }: T
     setTimeout(() => setOpen(false), 100)
   }
 
+  // Function to find the closest time value based on scroll position
+  const findClosestTimeValue = (container: HTMLDivElement, items: string[]) => {
+    const containerRect = container.getBoundingClientRect()
+    const containerMiddle = containerRect.top + containerRect.height / 2
+
+    let closestItem = items[0]
+    let minDistance = Number.POSITIVE_INFINITY
+
+    Array.from(container.children).forEach((child, index) => {
+      const childRect = child.getBoundingClientRect()
+      const childMiddle = childRect.top + childRect.height / 2
+      const distance = Math.abs(childMiddle - containerMiddle)
+
+      if (distance < minDistance) {
+        minDistance = distance
+        closestItem = items[index]
+      }
+    })
+
+    return closestItem
+  }
+
+  // Handle mouse wheel events for scrolling
+  const handleWheel = (e: React.WheelEvent, isHours: boolean) => {
+    e.preventDefault()
+    const container = isHours ? hoursContainerRef.current : minutesContainerRef.current
+    if (!container) return
+
+    container.scrollTop += e.deltaY
+
+    // Debounce the selection update
+    clearTimeout((container as any).wheelTimeout)
+    ;(container as any).wheelTimeout = setTimeout(() => {
+      const items = isHours ? hours : minutes
+      const closestValue = findClosestTimeValue(container, items)
+
+      if (isHours) {
+        handleTimeSelection(closestValue, minute || "00")
+      } else {
+        handleTimeSelection(hour || "00", closestValue)
+      }
+    }, 150)
+  }
+
+  // Handle touch and mouse events for dragging
+  const handleDragStart = (e: React.MouseEvent | React.TouchEvent, isHours: boolean) => {
+    e.preventDefault()
+    if (isHours) {
+      isDraggingHoursRef.current = true
+    } else {
+      isDraggingMinutesRef.current = true
+    }
+
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY
+    lastYPositionRef.current = clientY
+    velocityRef.current = 0
+
+    document.addEventListener("mousemove", handleDragMove)
+    document.addEventListener("touchmove", handleDragMove, { passive: false })
+    document.addEventListener("mouseup", handleDragEnd)
+    document.addEventListener("touchend", handleDragEnd)
+  }
+
+  const handleDragMove = (e: MouseEvent | TouchEvent) => {
+    e.preventDefault()
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY
+    const deltaY = lastYPositionRef.current - clientY
+
+    velocityRef.current = deltaY * 0.8 + velocityRef.current * 0.2
+
+    if (isDraggingHoursRef.current && hoursContainerRef.current) {
+      hoursContainerRef.current.scrollTop += deltaY
+    } else if (isDraggingMinutesRef.current && minutesContainerRef.current) {
+      minutesContainerRef.current.scrollTop += deltaY
+    }
+
+    lastYPositionRef.current = clientY
+  }
+
+  const handleDragEnd = () => {
+    document.removeEventListener("mousemove", handleDragMove)
+    document.removeEventListener("touchmove", handleDragMove)
+    document.removeEventListener("mouseup", handleDragEnd)
+    document.removeEventListener("touchend", handleDragEnd)
+
+    // Start inertia animation
+    if (Math.abs(velocityRef.current) > 1) {
+      startInertiaAnimation()
+    } else {
+      // If no significant velocity, just snap to closest value
+      snapToClosestValue()
+    }
+
+    isDraggingHoursRef.current = false
+    isDraggingMinutesRef.current = false
+  }
+
+  const startInertiaAnimation = () => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current)
+    }
+
+    const animate = () => {
+      if (Math.abs(velocityRef.current) < 0.5) {
+        cancelAnimationFrame(animationFrameRef.current!)
+        snapToClosestValue()
+        return
+      }
+
+      velocityRef.current *= 0.95 // Deceleration factor
+
+      if (isDraggingHoursRef.current && hoursContainerRef.current) {
+        hoursContainerRef.current.scrollTop += velocityRef.current
+      } else if (isDraggingMinutesRef.current && minutesContainerRef.current) {
+        minutesContainerRef.current.scrollTop += velocityRef.current
+      }
+
+      animationFrameRef.current = requestAnimationFrame(animate)
+    }
+
+    animationFrameRef.current = requestAnimationFrame(animate)
+  }
+
+  const snapToClosestValue = () => {
+    if (isDraggingHoursRef.current && hoursContainerRef.current) {
+      const closestHour = findClosestTimeValue(hoursContainerRef.current, hours)
+      handleTimeSelection(closestHour, minute || "00")
+    } else if (isDraggingMinutesRef.current && minutesContainerRef.current) {
+      const closestMinute = findClosestTimeValue(minutesContainerRef.current, minutes)
+      handleTimeSelection(hour || "00", closestMinute)
+    }
+  }
+
+  // Clean up animation frame on unmount
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+      }
+    }
+  }, [])
+
   return (
     <div className="relative flex items-center w-full">
       <Clock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500 z-10" />
@@ -108,7 +259,10 @@ export function TimeSelector({ value, onChange, label, id, hasError = false }: T
             <div className="grid grid-cols-2 gap-3">
               <div
                 ref={hoursContainerRef}
-                className="h-[200px] overflow-y-auto pr-3 border-r scrollbar-thin time-selector-scroll"
+                className="h-[200px] overflow-y-auto pr-3 border-r scrollbar-thin time-selector-scroll touch-pan-y"
+                onWheel={(e) => handleWheel(e, true)}
+                onMouseDown={(e) => handleDragStart(e, true)}
+                onTouchStart={(e) => handleDragStart(e, true)}
               >
                 {hours.map((h) => (
                   <div
@@ -126,7 +280,10 @@ export function TimeSelector({ value, onChange, label, id, hasError = false }: T
               </div>
               <div
                 ref={minutesContainerRef}
-                className="h-[200px] overflow-y-auto pl-3 scrollbar-thin time-selector-scroll"
+                className="h-[200px] overflow-y-auto pl-3 scrollbar-thin time-selector-scroll touch-pan-y"
+                onWheel={(e) => handleWheel(e, false)}
+                onMouseDown={(e) => handleDragStart(e, false)}
+                onTouchStart={(e) => handleDragStart(e, false)}
               >
                 {minutes.map((m) => (
                   <div
