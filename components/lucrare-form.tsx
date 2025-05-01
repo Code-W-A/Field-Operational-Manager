@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { format } from "date-fns"
 import { ro } from "date-fns/locale"
-import { CalendarIcon, Loader2, Plus } from "lucide-react"
+import { CalendarIcon, Loader2, Plus, User, Phone, Mail, Briefcase } from "lucide-react"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { orderBy, where, query, collection, onSnapshot } from "firebase/firestore"
 import type { Client, PersoanaContact, Locatie } from "@/lib/firebase/firestore"
@@ -25,6 +25,7 @@ import { formatDateTime24, formatTime24 } from "@/lib/utils/time-format"
 import { TimeSelector } from "./time-selector"
 // Import our new CustomDatePicker component
 import { CustomDatePicker } from "./custom-date-picker"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 
 // Define the Lucrare type
 interface Lucrare {
@@ -598,36 +599,78 @@ export function LucrareForm({
           </div>
         )}
 
-        {/* Secțiunea de persoane de contact - se afișează doar dacă avem o locație selectată */}
-        {persoaneContact.length > 0 && (
-          <div className="space-y-2">
-            <label htmlFor="persoanaContact" className="text-sm font-medium">
-              Persoană Contact *
-            </label>
-            <Select
-              value={formData.persoanaContact}
-              onValueChange={(value) => {
-                const contact = persoaneContact.find((c) => c.nume === value)
-                if (contact) {
-                  handleContactSelect(contact)
-                }
-              }}
-            >
-              <SelectTrigger id="persoanaContact" className={hasError("persoanaContact") ? errorStyle : ""}>
-                <SelectValue placeholder="Selectați persoana de contact" />
-              </SelectTrigger>
-              <SelectContent>
-                {persoaneContact.map((contact, index) => (
-                  <SelectItem key={index} value={contact.nume}>
-                    {contact.nume} {contact.functie ? `(${contact.functie})` : ""}{" "}
-                    {contact.telefon ? `- ${contact.telefon}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">Persoane de contact pentru locația selectată</p>
+        {/* Secțiunea de persoane de contact - afișată ca acordeon */}
+        {selectedLocatie && persoaneContact.length > 0 && (
+          <div className="space-y-4 mt-2 border-t pt-4">
+            <h3 className="text-md font-medium">Persoane de Contact pentru Locație</h3>
+
+            <Accordion type="single" collapsible className="border rounded-md">
+              <AccordionItem value="persoane-contact" className="border-none">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <div className="flex items-center">
+                    <User className="h-4 w-4 mr-2 text-muted-foreground" />
+                    <span>Persoane de contact disponibile ({persoaneContact.length})</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="space-y-4">
+                    {persoaneContact.map((contact, index) => (
+                      <div key={index} className="p-4 border rounded-md space-y-3">
+                        <div className="flex justify-between items-center">
+                          <h5 className="text-sm font-medium">{contact.nume}</h5>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleContactSelect(contact)}
+                            className="text-xs"
+                          >
+                            Selectează
+                          </Button>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-2">
+                          <div className="flex items-center text-sm">
+                            <Phone className="h-4 w-4 mr-2 text-muted-foreground" />
+                            <span>{contact.telefon || "Fără telefon"}</span>
+                          </div>
+
+                          {contact.email && (
+                            <div className="flex items-center text-sm">
+                              <Mail className="h-4 w-4 mr-2 text-muted-foreground" />
+                              <span>{contact.email}</span>
+                            </div>
+                          )}
+
+                          {contact.functie && (
+                            <div className="flex items-center text-sm">
+                              <Briefcase className="h-4 w-4 mr-2 text-muted-foreground" />
+                              <span>{contact.functie}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </div>
         )}
+
+        {/* Câmpurile pentru persoana de contact selectată */}
+        <div className="space-y-2">
+          <label htmlFor="persoanaContact" className="text-sm font-medium">
+            Persoană Contact Selectată *
+          </label>
+          <Input
+            id="persoanaContact"
+            placeholder="Nume persoană contact"
+            value={formData.persoanaContact}
+            onChange={handleInputChange}
+            className={hasError("persoanaContact") ? errorStyle : ""}
+          />
+        </div>
 
         <div className="space-y-2">
           <label htmlFor="telefon" className="text-sm font-medium">
