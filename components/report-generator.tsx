@@ -385,39 +385,45 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       })
 
       // TOTALS
-      checkPageBreak(20)
-      currentY += 5
+      checkPageBreak(30) // Asigură spațiu suficient pentru totaluri
+      currentY += 10 // Spațiu suplimentar după tabel
 
       const subtotal = products.reduce((sum, p) => sum + (p.quantity || 0) * (p.price || 0), 0)
       const vat = subtotal * 0.19
       const total = subtotal + vat
 
-      // Desenează un box pentru totaluri pentru a le separa vizual
-      doc.setDrawColor(180).setLineWidth(0.3).setFillColor(252)
-      doc.rect(colPos[3], currentY - 2, colPos[5] - colPos[3], 20, "FD")
+      // Poziționare dinamică pentru totaluri
+      const totalLabelX = PW - 70 // Poziția pentru etichete (fixă)
+      const totalValueX = PW - 20 // Poziția pentru valori (fixă)
 
-      // Subtotal
-      doc.setFont(undefined, "bold").setFontSize(9)
-      doc.text("Total fără TVA:", colPos[3] + 5, currentY + 4)
+      // Subtotal - poziționare simplificată
+      doc.setFontSize(9).setFont(undefined, "bold").setTextColor(20)
+      doc.text("Total fără TVA:", totalLabelX, currentY, { align: "right" })
 
       doc.setFont(undefined, "normal")
-      doc.text(`${subtotal.toFixed(2)} RON`, colPos[5] - 5, currentY + 4, { align: "right" })
+      doc.text(`${subtotal.toFixed(2)} RON`, totalValueX, currentY, { align: "right" })
 
-      // TVA
-      currentY += 6
+      // TVA - cu spațiere adecvată
+      currentY += 8 // Spațiere mărită între rânduri
       doc.setFont(undefined, "bold")
-      doc.text("TVA (19%):", colPos[3] + 5, currentY + 4)
+      doc.text("TVA (19%):", totalLabelX, currentY, { align: "right" })
 
       doc.setFont(undefined, "normal")
-      doc.text(`${vat.toFixed(2)} RON`, colPos[5] - 5, currentY + 4, { align: "right" })
+      doc.text(`${vat.toFixed(2)} RON`, totalValueX, currentY, { align: "right" })
 
-      // Total cu TVA
-      currentY += 6
+      // Total cu TVA - cu spațiere adecvată
+      currentY += 8 // Spațiere mărită între rânduri
       doc.setFont(undefined, "bold")
-      doc.text("Total cu TVA:", colPos[3] + 5, currentY + 4)
+      doc.text("Total cu TVA:", totalLabelX, currentY, { align: "right" })
 
       doc.setFont(undefined, "normal")
-      doc.text(`${total.toFixed(2)} RON`, colPos[5] - 5, currentY + 4, { align: "right" })
+      doc.text(`${total.toFixed(2)} RON`, totalValueX, currentY, { align: "right" })
+
+      // Linie separatoare opțională pentru claritate vizuală
+      doc.setDrawColor(150).setLineWidth(0.2)
+      doc.line(totalLabelX - 40, currentY + 4, totalValueX + 5, currentY + 4)
+
+      currentY += 20 // Spațiu după secțiunea de totaluri
 
       currentY += 15
 
