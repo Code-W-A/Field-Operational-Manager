@@ -9,6 +9,7 @@
 //   • Improved signature positioning and display
 //   • Added automatic page breaks to prevent content overflow
 //   • Better handling of long text with proper wrapping
+//   • Fixed diacritics issues in total section
 // ---------------------------------------------------------------------------
 
 import { useState, forwardRef, useEffect } from "react"
@@ -396,9 +397,10 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const totalLabelX = PW - 70 // Poziția pentru etichete (fixă)
       const totalValueX = PW - 20 // Poziția pentru valori (fixă)
 
+      // Folosim text hardcodat fără diacritice pentru a evita problemele de randare
       // Subtotal - poziționare simplificată
       doc.setFontSize(9).setFont(undefined, "bold").setTextColor(20)
-      doc.text("Total fără TVA:", totalLabelX, currentY, { align: "right" })
+      doc.text("Total fara TVA:", totalLabelX, currentY, { align: "right" })
 
       doc.setFont(undefined, "normal")
       doc.text(`${subtotal.toFixed(2)} RON`, totalValueX, currentY, { align: "right" })
@@ -424,8 +426,6 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       doc.line(totalLabelX - 40, currentY + 4, totalValueX + 5, currentY + 4)
 
       currentY += 20 // Spațiu după secțiunea de totaluri
-
-      currentY += 15
 
       // SIGNATURES
       checkPageBreak(40)
