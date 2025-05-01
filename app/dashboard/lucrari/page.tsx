@@ -19,7 +19,7 @@ import { format, parse, isAfter, isBefore } from "date-fns"
 import { MoreHorizontal, FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
-import { addLucrare, deleteLucrare, updateLucrare, getLucrareById, getClientById } from "@/lib/firebase/firestore"
+import { addLucrare, deleteLucrare, updateLucrare, getLucrareById } from "@/lib/firebase/firestore"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { orderBy } from "firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
@@ -552,55 +552,37 @@ export default function Lucrari() {
       // Adăugăm lucrarea în Firestore
       const lucrareId = await addLucrare(newLucrare)
 
-      // Obținem lucrarea completă cu ID pentru a o trimite la notificări
-      const lucrareCompleta = { id: lucrareId, ...newLucrare }
-
-      // Închidem dialogul și resetăm formularul
-      setIsAddDialogOpen(false)
-      resetForm()
-
-      // Afișăm toast de succes pentru adăugarea lucrării
-      toast({
-        title: "Lucrare adăugată",
-        description: "Lucrarea a fost adăugată cu succes.",
-        variant: "default",
-        icon: <Check className="h-4 w-4" />,
-      })
-
       // Trimitem notificări prin email
       try {
+        // Obținem lucrarea completă cu ID pentru a o trimite la notificări
+        const lucrareCompleta = { id: lucrareId, ...newLucrare }
+
+        console.log("Sending notifications for new work order:", lucrareId)
+
         // Trimitem notificările
         const notificationResult = await sendWorkOrderNotifications(lucrareCompleta)
 
         if (notificationResult.success) {
           // Extragem email-urile tehnicienilor
-          const techEmails = formData.tehnicieni
-            .map((tech) => {
-              const techUser = tehnicieni.find((t) => t.displayName === tech)
-              return techUser?.email || null
-            })
-            .filter(Boolean)
+          const techEmails = notificationResult.result?.technicianEmails || []
+          const successfulTechEmails = techEmails.filter((t) => t.success).map((t) => t.email)
 
           // Construim mesajul pentru toast
           let emailMessage = "Email-uri trimise către:\n"
 
           // Verificăm dacă clientul are email
-          let clientEmail = ""
-          const clientData = await getClientById(formData.client)
-          if (clientData && clientData.email) {
-            clientEmail = clientData.email
+          const clientEmailResult = notificationResult.result?.clientEmail
+
+          if (clientEmailResult?.success) {
+            emailMessage += `Client: ${clientEmailResult.recipient || "Email trimis"}\n`
+          } else {
+            emailMessage += "Client: Email indisponibil sau netrimis\n"
           }
 
-          if (clientEmail) {
-            emailMessage += `Client: ${clientEmail}\n`
+          if (successfulTechEmails.length > 0) {
+            emailMessage += `Tehnicieni: ${successfulTechEmails.join(", ")}`
           } else {
-            emailMessage += "Client: Email indisponibil\n"
-          }
-
-          if (techEmails.length > 0) {
-            emailMessage += `Tehnicieni: ${techEmails.join(", ")}`
-          } else {
-            emailMessage += "Tehnicieni: Email-uri indisponibile"
+            emailMessage += "Tehnicieni: Email-uri indisponibile sau netrimise"
           }
 
           // Afișăm toast de succes pentru email-uri
@@ -631,6 +613,18 @@ export default function Lucrari() {
           icon: <AlertCircle className="h-4 w-4" />,
         })
       }
+
+      // Închidem dialogul și resetăm formularul
+      setIsAddDialogOpen(false)
+      resetForm()
+
+      // Afișăm toast de succes pentru adăugarea lucrării
+      toast({
+        title: "Lucrare adăugată",
+        description: "Lucrarea a fost adăugată cu succes.",
+        variant: "default",
+        icon: <Check className="h-4 w-4" />,
+      })
     } catch (err) {
       console.error("Eroare la adăugarea lucrării:", err)
       setError("A apărut o eroare la adăugarea lucrării. Încercați din nou.")
@@ -702,17 +696,6 @@ export default function Lucrari() {
       // Obținem lucrarea completă cu ID pentru a o trimite la notificări
       const lucrareCompleta = { id: selectedLucrare.id, ...updatedLucrare }
 
-      setIsEditDialogOpen(false)
-      resetForm()
-
-      // Afișăm toast de succes pentru actualizarea lucrării
-      toast({
-        title: "Lucrare actualizată",
-        description: "Lucrarea a fost actualizată cu succes.",
-        variant: "default",
-        icon: <Check className="h-4 w-4" />,
-      })
-
       // Trimitem notificări prin email doar dacă s-a schimbat data intervenției sau tehnicienii
       if (
         selectedLucrare.dataInterventie !== updatedLucrare.dataInterventie ||
@@ -724,33 +707,25 @@ export default function Lucrari() {
 
           if (notificationResult.success) {
             // Extragem email-urile tehnicienilor
-            const techEmails = formData.tehnicieni
-              .map((tech) => {
-                const techUser = tehnicieni.find((t) => t.displayName === tech)
-                return techUser?.email || null
-              })
-              .filter(Boolean)
+            const techEmails = notificationResult.result?.technicianEmails || []
+            const successfulTechEmails = techEmails.filter((t) => t.success).map((t) => t.email)
 
             // Construim mesajul pentru toast
             let emailMessage = "Email-uri trimise către:\n"
 
             // Verificăm dacă clientul are email
-            let clientEmail = ""
-            const clientData = await getClientById(formData.client)
-            if (clientData && clientData.email) {
-              clientEmail = clientData.email
+            const clientEmailResult = notificationResult.result?.clientEmail
+
+            if (clientEmailResult?.success) {
+              emailMessage += `Client: ${clientEmailResult.recipient || "Email trimis"}\n`
+            } else {
+              emailMessage += "Client: Email indisponibil sau netrimis\n"
             }
 
-            if (clientEmail) {
-              emailMessage += `Client: ${clientEmail}\n`
+            if (successfulTechEmails.length > 0) {
+              emailMessage += `Tehnicieni: ${successfulTechEmails.join(", ")}`
             } else {
-              emailMessage += "Client: Email indisponibil\n"
-            }
-
-            if (techEmails.length > 0) {
-              emailMessage += `Tehnicieni: ${techEmails.join(", ")}`
-            } else {
-              emailMessage += "Tehnicieni: Email-uri indisponibile"
+              emailMessage += "Tehnicieni: Email-uri indisponibile sau netrimise"
             }
 
             // Afișăm toast de succes pentru email-uri
@@ -782,6 +757,17 @@ export default function Lucrari() {
           })
         }
       }
+
+      setIsEditDialogOpen(false)
+      resetForm()
+
+      // Afișăm toast de succes pentru actualizarea lucrării
+      toast({
+        title: "Lucrare actualizată",
+        description: "Lucrarea a fost actualizată cu succes.",
+        variant: "default",
+        icon: <Check className="h-4 w-4" />,
+      })
 
       // Dacă am venit din URL, redirecționăm înapoi la lista de lucrări
       if (editId) {

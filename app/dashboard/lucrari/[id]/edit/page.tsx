@@ -14,6 +14,7 @@ import type { PersoanaContact } from "@/lib/firebase/firestore"
 import { sendWorkOrderNotifications } from "@/components/work-order-notification-service"
 import { serverTimestamp } from "firebase/firestore"
 import type { Lucrare } from "@/lib/firebase/firestore"
+import { Mail, AlertCircle } from "lucide-react"
 
 export default function EditLucrarePage({ params }: { params: { id: string } }) {
   const router = useRouter()
@@ -177,16 +178,62 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
             ...data,
           }
 
+          console.log("Sending notifications for updated work order:", id)
+
           const notificationResult = await sendWorkOrderNotifications(workOrderData)
 
           if (notificationResult.success) {
-            console.log("Notificări de actualizare trimise cu succes:", notificationResult)
+            // Extragem email-urile tehnicienilor
+            const techEmails = notificationResult.result?.technicianEmails || []
+            const successfulTechEmails = techEmails.filter((t) => t.success).map((t) => t.email)
+
+            // Construim mesajul pentru toast
+            let emailMessage = "Email-uri trimise către:\n"
+
+            // Verificăm dacă clientul are email
+            const clientEmailResult = notificationResult.result?.clientEmail
+
+            if (clientEmailResult?.success) {
+              emailMessage += `Client: ${clientEmailResult.recipient || "Email trimis"}\n`
+            } else {
+              emailMessage += "Client: Email indisponibil sau netrimis\n"
+            }
+
+            if (successfulTechEmails.length > 0) {
+              emailMessage += `Tehnicieni: ${successfulTechEmails.join(", ")}`
+            } else {
+              emailMessage += "Tehnicieni: Email-uri indisponibile sau netrimise"
+            }
+
+            // Afișăm toast de succes pentru email-uri
+            toast({
+              title: "Notificări trimise",
+              description: emailMessage,
+              variant: "default",
+              className: "whitespace-pre-line",
+              icon: <Mail className="h-4 w-4" />,
+            })
           } else {
             console.warn("Avertisment: Notificările de actualizare nu au putut fi trimise:", notificationResult.error)
+
+            // Afișăm toast de eroare pentru email-uri
+            toast({
+              title: "Eroare la trimiterea notificărilor",
+              description: `Nu s-au putut trimite email-urile: ${notificationResult.error || "Eroare necunoscută"}`,
+              variant: "destructive",
+              icon: <AlertCircle className="h-4 w-4" />,
+            })
           }
         } catch (notificationError) {
           console.error("Eroare la trimiterea notificărilor de actualizare:", notificationError)
-          // Nu întrerupem fluxul principal dacă notificările eșuează
+
+          // Afișăm toast de eroare pentru email-uri
+          toast({
+            title: "Eroare la trimiterea notificărilor",
+            description: `A apărut o excepție: ${notificationError.message || "Eroare necunoscută"}`,
+            variant: "destructive",
+            icon: <AlertCircle className="h-4 w-4" />,
+          })
         }
       }
 
