@@ -36,6 +36,7 @@ import { FilterButton } from "@/components/filter-button"
 import { FilterModal, type FilterOption } from "@/components/filter-modal"
 import { ColumnSelectionButton } from "@/components/column-selection-button"
 import { ColumnSelectionModal } from "@/components/column-selection-modal"
+import { sendWorkOrderNotifications } from "@/components/work-order-notification-service"
 
 const ContractDisplay = ({ contractId }) => {
   const [contractNumber, setContractNumber] = useState(null)
@@ -127,6 +128,7 @@ export default function Lucrari() {
   }, [lucrari, userData?.role, userData?.displayName])
 
   // Modificăm funcția filterOptions pentru a include și echipamentele
+  const { data: tehnicieni } = useFirebaseCollection("users", [])
   const filterOptions = useMemo(() => {
     // Extragem toate valorile unice pentru tipuri de lucrări
     const tipuriLucrare = Array.from(new Set(filteredLucrari.map((lucrare) => lucrare.tipLucrare))).map((tip) => ({
@@ -135,7 +137,7 @@ export default function Lucrari() {
     }))
 
     // Extragem toți tehnicienii unici
-    const tehnicieni = Array.from(new Set(filteredLucrari.flatMap((lucrare) => lucrare.tehnicieni))).map(
+    const tehnicieniOptions = Array.from(new Set(filteredLucrari.flatMap((lucrare) => lucrare.tehnicieni))).map(
       (tehnician) => ({
         value: tehnician,
         label: tehnician,
@@ -196,7 +198,7 @@ export default function Lucrari() {
         id: "tehnicieni",
         label: "Tehnicieni",
         type: "multiselect",
-        options: tehnicieni,
+        options: tehnicieniOptions,
         value: [],
       },
       {
@@ -228,7 +230,7 @@ export default function Lucrari() {
         value: [],
       },
     ]
-  }, [filteredLucrari])
+  }, [filteredLucrari, tehnicieni])
 
   // Modificăm funcția applyFilters pentru a gestiona filtrarea după echipament
   const applyFilters = useCallback(
@@ -547,12 +549,90 @@ export default function Lucrari() {
         ...formData,
       }
 
-      await addLucrare(newLucrare)
+      // Adăugăm lucrarea în Firestore
+      const lucrareId = await addLucrare(newLucrare)
+
+      // Obținem lucrarea completă cu ID pentru a o trimite la notificări
+      const lucrareCompleta = { id: lucrareId, ...newLucrare }
+
+      // Închidem dialogul și resetăm formularul
       setIsAddDialogOpen(false)
       resetForm()
+
+      // Afișăm toast de succes pentru adăugarea lucrării
+      toast({
+        title: "Lucrare adăugată",
+        description: "Lucrarea a fost adăugată cu succes.",
+        variant: "default",
+      })
+
+      // Trimitem notificări prin email
+      try {
+        // Extragem email-ul clientului
+        let clientEmail = ""
+        if (formData.persoanaContact && formData.persoanaContact.length > 0) {
+          const contactWithEmail = formData.persoanaContact.find((contact) => contact.email)
+          if (contactWithEmail) {
+            clientEmail = contactWithEmail.email
+          }
+        }
+
+        // Trimitem notificările
+        const notificationResult = await sendWorkOrderNotifications(lucrareCompleta)
+
+        if (notificationResult.success) {
+          // Extragem email-urile tehnicienilor
+          const techEmails = formData.tehnicieni
+            .map((tech) => {
+              const techUser = tehnicieni.find((t) => t.displayName === tech)
+              return techUser?.email || null
+            })
+            .filter(Boolean)
+
+          // Construim mesajul pentru toast
+          let emailMessage = "Email-uri trimise către:\n"
+
+          if (clientEmail) {
+            emailMessage += `Client: ${clientEmail}\n`
+          } else {
+            emailMessage += "Client: Email indisponibil\n"
+          }
+
+          if (techEmails.length > 0) {
+            emailMessage += `Tehnicieni: ${techEmails.join(", ")}`
+          } else {
+            emailMessage += "Tehnicieni: Email-uri indisponibile"
+          }
+
+          // Afișăm toast de succes pentru email-uri
+          toast({
+            title: "Notificări trimise",
+            description: emailMessage,
+            variant: "default",
+            className: "whitespace-pre-line",
+          })
+        } else {
+          // Afișăm toast de eroare pentru email-uri
+          toast({
+            title: "Eroare la trimiterea notificărilor",
+            description: `Nu s-au putut trimite email-urile: ${notificationResult.error || "Eroare necunoscută"}`,
+            variant: "destructive",
+          })
+        }
+      } catch (notificationError) {
+        console.error("Eroare la trimiterea notificărilor:", notificationError)
+
+        // Afișăm toast de eroare pentru email-uri
+        toast({
+          title: "Eroare la trimiterea notificărilor",
+          description: `A apărut o excepție: ${notificationError.message || "Eroare necunoscută"}`,
+          variant: "destructive",
+        })
+      }
     } catch (err) {
       console.error("Eroare la adăugarea lucrării:", err)
       setError("A apărut o eroare la adăugarea lucrării. Încercați din nou.")
+      setIsSubmitting(false)
     } finally {
       setIsSubmitting(false)
     }

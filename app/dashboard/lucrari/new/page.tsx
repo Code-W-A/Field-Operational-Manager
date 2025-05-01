@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "@/components/ui/use-toast"
 import type { PersoanaContact } from "@/lib/firebase/firestore"
 import { sendWorkOrderNotifications } from "@/components/work-order-notification-service"
+import { Check, Mail, AlertCircle } from "lucide-react"
 
 export default function NewLucrarePage() {
   const router = useRouter()
@@ -87,6 +88,7 @@ export default function NewLucrarePage() {
       toast({
         title: "Lucrare adăugată",
         description: "Lucrarea a fost adăugată cu succes.",
+        icon: <Check className="h-4 w-4" />,
       })
 
       // Trimitem notificări către client și tehnicieni
@@ -100,14 +102,75 @@ export default function NewLucrarePage() {
 
         const notificationResult = await sendWorkOrderNotifications(workOrderData)
 
+        // Extragem adresele de email pentru afișare în toast
+        let clientEmail = ""
+        // Verificăm mai multe posibile locații pentru email-ul clientului
+        if (workOrderData.client?.email) {
+          clientEmail = workOrderData.client.email
+        } else if (workOrderData.clientEmail) {
+          clientEmail = workOrderData.clientEmail
+        } else if (workOrderData.persoaneContact && workOrderData.persoaneContact.length > 0) {
+          // Încercăm să găsim un email în lista de persoane de contact
+          const contactWithEmail = workOrderData.persoaneContact.find((p: any) => p.email)
+          if (contactWithEmail) {
+            clientEmail = contactWithEmail.email
+          }
+        }
+
+        // Extragem email-urile tehnicienilor
+        const techEmails = Array.isArray(workOrderData.tehnicieni)
+          ? workOrderData.tehnicieni
+              .map((tech: any) => {
+                if (typeof tech === "object" && tech.email) {
+                  return tech.email
+                }
+                return null
+              })
+              .filter(Boolean)
+          : []
+
         if (notificationResult.success) {
-          console.log("Notificări trimise cu succes:", notificationResult)
+          // Construim mesajul pentru toast
+          let emailMessage = "Emailuri trimise la:\n"
+
+          if (clientEmail) {
+            emailMessage += `Client: ${clientEmail}\n`
+          } else {
+            emailMessage += "Client: Email indisponibil\n"
+          }
+
+          if (techEmails.length > 0) {
+            emailMessage += `Tehnicieni: ${techEmails.join(", ")}`
+          } else {
+            emailMessage += "Tehnicieni: Email-uri indisponibile"
+          }
+
+          // Afișăm toast cu informații despre email-urile trimise
+          toast({
+            title: "Notificări trimise",
+            description: <div className="whitespace-pre-line">{emailMessage}</div>,
+            icon: <Mail className="h-4 w-4" />,
+          })
         } else {
-          console.warn("Avertisment: Notificările nu au putut fi trimise:", notificationResult.error)
+          // Afișăm toast de avertizare dacă notificările nu au putut fi trimise
+          toast({
+            title: "Notificări netrimise",
+            description: `Nu s-au putut trimite notificările: ${notificationResult.error || "Eroare necunoscută"}`,
+            variant: "destructive",
+            icon: <AlertCircle className="h-4 w-4" />,
+          })
         }
       } catch (notificationError) {
         console.error("Eroare la trimiterea notificărilor:", notificationError)
-        // Nu întrerupem fluxul principal dacă notificările eșuează
+        // Afișăm toast de eroare pentru notificări
+        toast({
+          title: "Eroare notificări",
+          description: `A apărut o eroare la trimiterea notificărilor: ${
+            (notificationError as Error)?.message || "Eroare necunoscută"
+          }`,
+          variant: "destructive",
+          icon: <AlertCircle className="h-4 w-4" />,
+        })
       }
 
       // Redirecționăm către pagina de lucrări
@@ -118,6 +181,7 @@ export default function NewLucrarePage() {
         title: "Eroare",
         description: "A apărut o eroare la adăugarea lucrării. Vă rugăm să încercați din nou.",
         variant: "destructive",
+        icon: <AlertCircle className="h-4 w-4" />,
       })
     }
   }
