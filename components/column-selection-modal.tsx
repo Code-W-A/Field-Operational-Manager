@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { X } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -82,10 +81,7 @@ export function ColumnSelectionModal({
       >
         <DialogHeader className="flex flex-row items-center justify-between">
           <DialogTitle>{title}</DialogTitle>
-          <Button variant="ghost" size="icon" onClick={onClose} className="h-6 w-6 rounded-md p-0">
-            <X className="h-4 w-4" />
-            <span className="sr-only">Închide</span>
-          </Button>
+          {/* Am eliminat butonul X personalizat de aici */}
         </DialogHeader>
 
         <div className="flex items-center justify-between py-2">
