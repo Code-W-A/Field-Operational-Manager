@@ -10,16 +10,15 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/components/ui/use-toast"
-import { ChevronLeft, FileText, Pencil, Trash2, AlertCircle } from "lucide-react"
-import { getLucrareById, deleteLucrare } from "@/lib/firebase/firestore"
+import { ChevronLeft, FileText, Pencil, Trash2, AlertCircle, CheckCircle, Lock } from "lucide-react"
+import { getLucrareById, deleteLucrare, updateLucrare } from "@/lib/firebase/firestore"
 import { TehnicianInterventionForm } from "@/components/tehnician-intervention-form"
 import { useAuth } from "@/contexts/AuthContext"
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { useStableCallback } from "@/lib/utils/hooks"
 import { ContractDisplay } from "@/components/contract-display"
-// Adăugăm importul pentru componenta QRCodeScanner
 import { QRCodeScanner } from "@/components/qr-code-scanner"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 export default function LucrarePage({ params }: { params: { id: string } }) {
   const router = useRouter()
@@ -28,6 +27,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
   const [lucrare, setLucrare] = useState<Lucrare | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("detalii")
+  const [equipmentVerified, setEquipmentVerified] = useState(false)
 
   // Încărcăm datele lucrării
   useEffect(() => {
@@ -35,6 +35,11 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
       try {
         const data = await getLucrareById(params.id)
         setLucrare(data)
+
+        // Verificăm dacă echipamentul a fost deja verificat
+        if (data.equipmentVerified) {
+          setEquipmentVerified(true)
+        }
       } catch (error) {
         console.error("Eroare la încărcarea lucrării:", error)
         toast({
@@ -118,8 +123,56 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
     try {
       const data = await getLucrareById(params.id)
       setLucrare(data)
+
+      // Actualizăm starea de verificare a echipamentului
+      if (data.equipmentVerified) {
+        setEquipmentVerified(true)
+      }
     } catch (error) {
       console.error("Eroare la reîncărcarea lucrării:", error)
+    }
+  })
+
+  // Funcție pentru a actualiza starea de verificare a echipamentului
+  const handleVerificationComplete = useStableCallback(async (success: boolean) => {
+    if (!lucrare?.id) return
+
+    if (success) {
+      setEquipmentVerified(true)
+
+      // Actualizăm lucrarea în baza de date
+      try {
+        await updateLucrare(lucrare.id, {
+          ...lucrare,
+          equipmentVerified: true,
+          equipmentVerifiedAt: new Date().toISOString(),
+          equipmentVerifiedBy: userData?.displayName || "Tehnician necunoscut",
+        })
+
+        toast({
+          title: "Verificare completă",
+          description: "Echipamentul a fost verificat cu succes. Puteți continua intervenția.",
+        })
+
+        // Schimbăm automat la tab-ul de intervenție
+        setTimeout(() => {
+          setActiveTab("interventie")
+        }, 1000)
+      } catch (error) {
+        console.error("Eroare la actualizarea stării de verificare:", error)
+        toast({
+          title: "Eroare",
+          description: "Nu s-a putut actualiza starea de verificare a echipamentului.",
+          variant: "destructive",
+        })
+      }
+    } else {
+      setEquipmentVerified(false)
+      toast({
+        title: "Verificare eșuată",
+        description: "Echipamentul scanat nu corespunde cu cel din lucrare. Nu puteți continua intervenția.",
+        variant: "destructive",
+      })
     }
   })
 
@@ -148,8 +201,6 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
 
   return (
     <DashboardShell>
-      {/* Modificăm secțiunea de butoane din DashboardHeader pentru a adăuga butonul "Generează raport"
-      indiferent de statusul lucrării */}
       <DashboardHeader heading={`Lucrare: ${lucrare.tipLucrare}`} text={`Client: ${lucrare.client}`}>
         <div className="flex space-x-2">
           <Button variant="outline" onClick={() => router.push("/dashboard/lucrari")}>
@@ -161,11 +212,40 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
         </div>
       </DashboardHeader>
 
+      {/* Adăugăm un banner de notificare pentru tehnicieni dacă echipamentul nu a fost verificat */}
+      {role === "tehnician" && !equipmentVerified && (
+        <Alert variant="warning" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Verificare echipament necesară</AlertTitle>
+          <AlertDescription>
+            Trebuie să verificați echipamentul înainte de a putea începe intervenția. Accesați tab-ul "Verificare
+            Echipament".
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Adăugăm un banner de confirmare dacă echipamentul a fost verificat */}
+      {role === "tehnician" && equipmentVerified && (
+        <Alert variant="default" className="mb-4 bg-green-50 border-green-200">
+          <CheckCircle className="h-4 w-4 text-green-500" />
+          <AlertTitle>Echipament verificat</AlertTitle>
+          <AlertDescription>Echipamentul a fost verificat cu succes. Puteți continua intervenția.</AlertDescription>
+        </Alert>
+      )}
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        {/* Modificăm secțiunea TabsList pentru a include noul tab: */}
         <TabsList className="grid w-full grid-cols-2 md:w-auto md:grid-cols-3">
           <TabsTrigger value="detalii">Detalii Lucrare</TabsTrigger>
-          {role === "tehnician" && <TabsTrigger value="interventie">Intervenție</TabsTrigger>}
+          {role === "tehnician" && (
+            <TabsTrigger
+              value="interventie"
+              disabled={role === "tehnician" && !equipmentVerified}
+              className={role === "tehnician" && !equipmentVerified ? "relative" : ""}
+            >
+              {role === "tehnician" && !equipmentVerified && <Lock className="h-3 w-3 absolute right-2" />}
+              Intervenție
+            </TabsTrigger>
+          )}
           {role === "tehnician" && <TabsTrigger value="verificare">Verificare Echipament</TabsTrigger>}
         </TabsList>
 
@@ -313,18 +393,39 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
 
         {role === "tehnician" && (
           <TabsContent value="interventie" className="mt-4">
-            <TehnicianInterventionForm
-              lucrareId={lucrare.id!}
-              initialData={{
-                descriereInterventie: lucrare.descriereInterventie,
-                statusLucrare: lucrare.statusLucrare,
-              }}
-              onUpdate={refreshLucrare}
-            />
+            {!equipmentVerified ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Intervenție blocată</CardTitle>
+                  <CardDescription>Nu puteți începe intervenția până nu verificați echipamentul.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Alert variant="destructive">
+                    <Lock className="h-4 w-4" />
+                    <AlertTitle>Acces restricționat</AlertTitle>
+                    <AlertDescription>
+                      Trebuie să verificați echipamentul înainte de a putea începe intervenția. Accesați tab-ul
+                      "Verificare Echipament" și scanați QR code-ul echipamentului.
+                    </AlertDescription>
+                  </Alert>
+                  <div className="mt-4 flex justify-center">
+                    <Button onClick={() => setActiveTab("verificare")}>Mergi la verificare echipament</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <TehnicianInterventionForm
+                lucrareId={lucrare.id!}
+                initialData={{
+                  descriereInterventie: lucrare.descriereInterventie,
+                  statusLucrare: lucrare.statusLucrare,
+                }}
+                onUpdate={refreshLucrare}
+              />
+            )}
           </TabsContent>
         )}
 
-        {/* Adăugăm conținutul pentru noul tab: */}
         {role === "tehnician" && (
           <TabsContent value="verificare" className="mt-4">
             <Card>
@@ -335,35 +436,55 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex flex-col items-center justify-center p-4 border rounded-lg">
-                  <p className="mb-4 text-center">
-                    Scanați QR code-ul echipamentului pentru a verifica dacă este cel corect pentru această lucrare.
-                  </p>
-                  <QRCodeScanner
-                    expectedEquipmentCode={lucrare.echipamentCod}
-                    expectedLocationName={lucrare.locatie}
-                    expectedClientName={lucrare.client}
-                    onScanSuccess={(data) => {
-                      toast({
-                        title: "Verificare reușită",
-                        description: "Echipamentul scanat corespunde cu lucrarea.",
-                      })
-                    }}
-                    onScanError={(error) => {
-                      toast({
-                        title: "Verificare eșuată",
-                        description: error,
-                        variant: "destructive",
-                      })
-                    }}
-                  />
-                </div>
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Verificarea echipamentului este obligatorie înainte de începerea intervenției.
-                  </AlertDescription>
-                </Alert>
+                {equipmentVerified ? (
+                  <Alert className="bg-green-50 border-green-200">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <AlertTitle>Echipament verificat</AlertTitle>
+                    <AlertDescription>
+                      Echipamentul a fost verificat cu succes. Puteți continua intervenția.
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <>
+                    <div className="flex flex-col items-center justify-center p-4 border rounded-lg">
+                      <p className="mb-4 text-center">
+                        Scanați QR code-ul echipamentului pentru a verifica dacă este cel corect pentru această lucrare.
+                      </p>
+                      <QRCodeScanner
+                        expectedEquipmentCode={lucrare.echipamentCod}
+                        expectedLocationName={lucrare.locatie}
+                        expectedClientName={lucrare.client}
+                        onScanSuccess={(data) => {
+                          toast({
+                            title: "Verificare reușită",
+                            description: "Echipamentul scanat corespunde cu lucrarea.",
+                          })
+                        }}
+                        onScanError={(error) => {
+                          toast({
+                            title: "Verificare eșuată",
+                            description: error,
+                            variant: "destructive",
+                          })
+                        }}
+                        onVerificationComplete={handleVerificationComplete}
+                      />
+                    </div>
+                    <Alert variant="warning">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Verificarea echipamentului este obligatorie înainte de începerea intervenției. Nu veți putea
+                        continua dacă echipamentul scanat nu corespunde cu cel din lucrare.
+                      </AlertDescription>
+                    </Alert>
+                  </>
+                )}
+
+                {equipmentVerified && (
+                  <div className="mt-4 flex justify-center">
+                    <Button onClick={() => setActiveTab("interventie")}>Mergi la intervenție</Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

@@ -22,6 +22,7 @@ interface QRCodeScannerProps {
   expectedClientName?: string
   onScanSuccess?: (data: any) => void
   onScanError?: (error: string) => void
+  onVerificationComplete?: (success: boolean) => void
 }
 
 export function QRCodeScanner({
@@ -30,6 +31,7 @@ export function QRCodeScanner({
   expectedClientName,
   onScanSuccess,
   onScanError,
+  onVerificationComplete,
 }: QRCodeScannerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [scanResult, setScanResult] = useState<any>(null)
@@ -69,6 +71,7 @@ export function QRCodeScanner({
           details: ["Acest QR code nu este pentru un echipament."],
         })
         if (onScanError) onScanError("QR code invalid")
+        if (onVerificationComplete) onVerificationComplete(false)
         setIsVerifying(false)
         return
       }
@@ -102,6 +105,16 @@ export function QRCodeScanner({
           details: ["Echipamentul scanat corespunde cu lucrarea."],
         })
         if (onScanSuccess) onScanSuccess(parsedData)
+        if (onVerificationComplete) onVerificationComplete(true)
+
+        // Închide dialogul automat după o verificare reușită
+        setTimeout(() => {
+          setIsOpen(false)
+          toast({
+            title: "Verificare reușită",
+            description: "Echipamentul scanat corespunde cu lucrarea. Puteți continua intervenția.",
+          })
+        }, 2000)
       } else {
         setVerificationResult({
           success: false,
@@ -109,6 +122,7 @@ export function QRCodeScanner({
           details: errors,
         })
         if (onScanError) onScanError(errors.join(", "))
+        if (onVerificationComplete) onVerificationComplete(false)
       }
     } catch (error) {
       console.error("Eroare la verificarea datelor scanate:", error)
@@ -118,6 +132,7 @@ export function QRCodeScanner({
         details: ["Formatul QR code-ului nu este valid."],
       })
       if (onScanError) onScanError("Format QR code invalid")
+      if (onVerificationComplete) onVerificationComplete(false)
     }
 
     setIsVerifying(false)
@@ -134,6 +149,7 @@ export function QRCodeScanner({
     console.error("Eroare la scanarea QR code-ului:", error)
     setScanError("A apărut o eroare la scanarea QR code-ului. Verificați permisiunile camerei.")
     if (onScanError) onScanError("Eroare la scanare")
+    if (onVerificationComplete) onVerificationComplete(false)
   }
 
   return (
@@ -196,22 +212,7 @@ export function QRCodeScanner({
             <Button variant="outline" onClick={() => setIsOpen(false)}>
               Închide
             </Button>
-            {scanResult && verificationResult && !verificationResult.success && (
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  toast({
-                    title: "Atenție!",
-                    description:
-                      "Ați confirmat că doriți să continuați cu un echipament care nu corespunde cu lucrarea.",
-                    variant: "destructive",
-                  })
-                  setIsOpen(false)
-                }}
-              >
-                Continuă oricum
-              </Button>
-            )}
+            {/* Am eliminat butonul "Continuă oricum" */}
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -31,26 +31,26 @@ export interface Echipament {
 // Tipuri pentru lucrări
 export interface Lucrare {
   id?: string
+  client: string
+  persoanaContact: string
+  telefon: string
   dataEmiterii: string
   dataInterventie: string
   tipLucrare: string
-  tehnicieni: string[]
-  client: string
   locatie: string
-  echipament: string
-  echipamentId?: string // ID-ul echipamentului selectat
-  echipamentCod?: string // Codul echipamentului selectat
+  echipament?: string
+  echipamentCod?: string
   descriere: string
-  persoanaContact: string // Keep for backward compatibility
-  telefon: string // Keep for backward compatibility
   statusLucrare: string
   statusFacturare: string
-  contract?: string
-  contractNumber?: string
-  defectReclamat?: string
+  tehnicieni: string[]
   descriereInterventie?: string
-  semnaturaTehnician?: string
-  semnaturaBeneficiar?: string
+  contract?: string
+  defectReclamat?: string
+  // Câmpuri noi pentru verificarea echipamentului
+  equipmentVerified?: boolean
+  equipmentVerifiedAt?: string
+  equipmentVerifiedBy?: string
   createdAt?: Timestamp
   updatedAt?: Timestamp
   createdBy?: string
