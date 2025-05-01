@@ -1,11 +1,13 @@
+// Tipuri pentru persoanele de contact
 export interface ContactPerson {
-  id: string
+  id?: string
   name: string
-  position: string
   phone: string
   email?: string
+  position?: string
 }
 
+// Tipuri pentru locațiile clientului
 export interface ClientLocation {
   id: string
   name: string
@@ -15,13 +17,16 @@ export interface ClientLocation {
   contactPersons: ContactPerson[]
 }
 
+// Tipuri pentru clienți
 export interface Client {
   id?: string
   name: string
   cif: string
-  email: string
-  phone: string
   address: string
+  city: string
+  county?: string
+  phone: string
+  email: string
   locations: ClientLocation[]
   createdAt?: any
   updatedAt?: any

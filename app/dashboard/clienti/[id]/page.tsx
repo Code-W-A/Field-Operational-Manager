@@ -1,251 +1,189 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Skeleton } from "@/components/ui/skeleton"
-import { getClientById } from "@/lib/firebase/clients"
-import type { Client } from "@/types/client"
-import { toast } from "@/components/ui/use-toast"
-import { ClientFormExtended } from "@/components/client-form-extended"
-import { ClientLocationsManager } from "@/components/client-locations-manager"
-import { ArrowLeft, Building, MapPin, Phone, Mail, User, FileText } from "lucide-react"
-import { useClientLucrari } from "@/hooks/use-client-lucrari"
-import { DataTable } from "@/components/data-table/data-table"
-import { workOrderColumns } from "@/app/dashboard/lucrari/columns"
-import Link from "next/link"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
+import { ArrowLeft, Pencil, Trash2 } from "lucide-react"
+import { getClientById, deleteClient, type Client } from "@/lib/firebase/firestore"
+import { useAuth } from "@/contexts/AuthContext"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
+import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
+import type { Lucrare } from "@/lib/firebase/firestore"
+import { orderBy } from "firebase/firestore"
 
-export default function ClientDetailsPage() {
-  const { id } = useParams()
+// Importăm hook-ul useClientLucrari pentru a putea actualiza datele
+import { useClientLucrari } from "@/hooks/use-client-lucrari"
+
+export default function ClientPage({ params }: { params: { id: string } }) {
   const router = useRouter()
+  const { userData } = useAuth()
   const [client, setClient] = useState<Client | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState("details")
-  const { workOrders, isLoading: isLoadingWorkOrders } = useClientLucrari(id as string)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Obținem lucrările pentru acest client
+  const { data: toateLucrarile } = useFirebaseCollection<Lucrare>("lucrari", [orderBy("dataEmiterii", "desc")])
+  const [lucrariClient, setLucrariClient] = useState<Lucrare[]>([])
+
+  // Adăugăm hook-ul în componenta ClientPage
+  const { refreshData } = useClientLucrari()
 
   useEffect(() => {
-    const loadClient = async () => {
-      setIsLoading(true)
+    const fetchClient = async () => {
       try {
-        if (!id || typeof id !== "string") {
-          throw new Error("ID client invalid")
+        setLoading(true)
+        const data = await getClientById(params.id)
+        if (data) {
+          setClient(data)
+        } else {
+          setError("Clientul nu a fost găsit")
         }
-
-        const clientData = await getClientById(id)
-
-        if (!clientData) {
-          throw new Error("Clientul nu a fost găsit")
-        }
-
-        setClient(clientData)
-      } catch (error) {
-        console.error("Error loading client:", error)
-        toast({
-          title: "Eroare",
-          description: error instanceof Error ? error.message : "A apărut o eroare la încărcarea clientului",
-          variant: "destructive",
-        })
+      } catch (err) {
+        console.error("Eroare la încărcarea clientului:", err)
+        setError("A apărut o eroare la încărcarea clientului")
       } finally {
-        setIsLoading(false)
+        setLoading(false)
       }
     }
 
-    loadClient()
-  }, [id])
+    fetchClient()
+  }, [params.id])
 
-  const handleClientUpdate = (updatedClient: Client) => {
-    setClient(updatedClient)
-    toast({
-      title: "Client actualizat",
-      description: "Informațiile clientului au fost actualizate cu succes.",
-    })
+  // Filtrăm lucrările pentru acest client
+  useEffect(() => {
+    if (client && toateLucrarile.length > 0) {
+      const lucrari = toateLucrarile.filter((lucrare) => lucrare.client === client.nume)
+      setLucrariClient(lucrari)
+    }
+  }, [client, toateLucrarile])
+
+  // Modificăm funcția handleEdit pentru a reîmprospăta datele
+  const handleEdit = () => {
+    router.push(`/dashboard/clienti?edit=${params.id}`)
   }
 
-  if (isLoading) {
+  // Modificăm funcția handleDelete pentru a reîmprospăta datele
+  const handleDelete = async () => {
+    if (window.confirm("Sunteți sigur că doriți să ștergeți acest client?")) {
+      try {
+        await deleteClient(params.id)
+        refreshData() // Adăugăm apelul către refreshData
+        router.push("/dashboard/clienti")
+      } catch (err) {
+        console.error("Eroare la ștergerea clientului:", err)
+        alert("A apărut o eroare la ștergerea clientului.")
+      }
+    }
+  }
+
+  if (loading) {
     return (
-      <div className="container mx-auto py-8 px-4">
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-8 w-3/4" />
-            <Skeleton className="h-4 w-1/2" />
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Skeleton className="h-20 w-full" />
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-3/4" />
-            </div>
-          </CardContent>
-        </Card>
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Se încarcă...</p>
+        </div>
       </div>
     )
   }
 
-  if (!client) {
+  if (error) {
     return (
-      <div className="container mx-auto py-8 px-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Eroare</CardTitle>
-            <CardDescription>Nu s-a putut încărca clientul</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-destructive">Clientul nu a fost găsit</p>
-          </CardContent>
-          <CardFooter>
-            <Button asChild>
-              <Link href="/dashboard/clienti">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Înapoi la lista de clienți
-              </Link>
-            </Button>
-          </CardFooter>
-        </Card>
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <Alert variant="destructive" className="max-w-md">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">{client.name}</h1>
-          <p className="text-muted-foreground">CIF: {client.cif || "Nedefinit"}</p>
-        </div>
-        <Button asChild variant="outline">
-          <Link href="/dashboard/clienti">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Înapoi la lista de clienți
-          </Link>
-        </Button>
-      </div>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
+      <Card className="w-full max-w-3xl">
+        <CardHeader>
+          <div className="flex items-center">
+            <Button variant="ghost" size="icon" className="absolute left-4" onClick={() => router.back()}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="w-full text-center">
+              <CardTitle className="text-xl sm:text-2xl font-bold text-blue-700">Detalii Client</CardTitle>
+              <CardDescription>Informații complete despre client</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold">{client?.nume}</h2>
+              <p className="text-muted-foreground">{client?.adresa}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-medium">
+                Număr lucrări: <span className="font-bold">{lucrariClient.length}</span>
+              </p>
+            </div>
+          </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="details">Detalii</TabsTrigger>
-          <TabsTrigger value="locations">Locații și persoane de contact</TabsTrigger>
-          <TabsTrigger value="workOrders">Lucrări</TabsTrigger>
-          <TabsTrigger value="edit">Editare</TabsTrigger>
-        </TabsList>
+          <Separator />
 
-        <TabsContent value="details">
-          <Card>
-            <CardHeader>
-              <CardTitle>Informații client</CardTitle>
-              <CardDescription>Detalii despre client și datele de contact</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div className="flex items-start space-x-2">
-                    <Building className="h-5 w-5 text-muted-foreground mt-0.5" />
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <h3 className="font-medium text-gray-500">Persoană Contact</h3>
+              <p>{client?.persoanaContact}</p>
+            </div>
+            <div>
+              <h3 className="font-medium text-gray-500">Telefon</h3>
+              <p>{client?.telefon}</p>
+            </div>
+            <div>
+              <h3 className="font-medium text-gray-500">Email</h3>
+              <p>{client?.email || "N/A"}</p>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div>
+            <h3 className="font-medium text-gray-500 mb-2">Lucrări recente</h3>
+            {lucrariClient.length > 0 ? (
+              <div className="space-y-2">
+                {lucrariClient.slice(0, 5).map((lucrare) => (
+                  <div key={lucrare.id} className="flex items-center justify-between rounded-lg border p-3">
                     <div>
-                      <h3 className="font-medium">Informații companie</h3>
-                      <p className="text-sm text-muted-foreground">Nume: {client.name}</p>
-                      <p className="text-sm text-muted-foreground">CIF: {client.cif || "Nedefinit"}</p>
+                      <p className="font-medium">{lucrare.tipLucrare}</p>
+                      <p className="text-sm text-gray-500">Data: {lucrare.dataInterventie}</p>
                     </div>
+                    <Button variant="ghost" size="sm" onClick={() => router.push(`/dashboard/lucrari/${lucrare.id}`)}>
+                      Detalii
+                    </Button>
                   </div>
-
-                  <div className="flex items-start space-x-2">
-                    <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div>
-                      <h3 className="font-medium">Adresă sediu principal</h3>
-                      <p className="text-sm text-muted-foreground">{client.address}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {client.city}, {client.county}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex items-start space-x-2">
-                    <Phone className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div>
-                      <h3 className="font-medium">Telefon</h3>
-                      <p className="text-sm text-muted-foreground">{client.phone}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start space-x-2">
-                    <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div>
-                      <h3 className="font-medium">Email</h3>
-                      <p className="text-sm text-muted-foreground">{client.email}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start space-x-2">
-                    <User className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div>
-                      <h3 className="font-medium">Locații și persoane de contact</h3>
-                      <p className="text-sm text-muted-foreground">{client.locations.length} locații</p>
-                      <p className="text-sm text-muted-foreground">
-                        {client.locations.reduce((total, location) => total + location.contactPersons.length, 0)}{" "}
-                        persoane de contact
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                ))}
               </div>
-
-              <div className="flex items-start space-x-2 pt-4 border-t">
-                <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div>
-                  <h3 className="font-medium">Lucrări</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {isLoadingWorkOrders ? "Se încarcă..." : `${workOrders.length} lucrări înregistrate`}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button onClick={() => setActiveTab("edit")}>Editare client</Button>
-            </CardFooter>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="locations">
-          <ClientLocationsManager client={client} onUpdate={handleClientUpdate} />
-        </TabsContent>
-
-        <TabsContent value="workOrders">
-          <Card>
-            <CardHeader>
-              <CardTitle>Lucrări</CardTitle>
-              <CardDescription>Toate lucrările asociate acestui client</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoadingWorkOrders ? (
-                <div className="py-8 text-center">
-                  <p className="text-muted-foreground">Se încarcă lucrările...</p>
-                </div>
-              ) : workOrders.length === 0 ? (
-                <div className="py-8 text-center">
-                  <p className="text-muted-foreground">Nu există lucrări înregistrate pentru acest client.</p>
-                  <Button className="mt-4" asChild>
-                    <Link href="/dashboard/lucrari/new">Adaugă lucrare nouă</Link>
-                  </Button>
-                </div>
-              ) : (
-                <DataTable columns={workOrderColumns} data={workOrders} />
-              )}
-            </CardContent>
-            <CardFooter>
-              <Button asChild>
-                <Link href="/dashboard/lucrari/new">Adaugă lucrare nouă</Link>
+            ) : (
+              <p className="text-muted-foreground">Nu există lucrări pentru acest client.</p>
+            )}
+          </div>
+        </CardContent>
+        <CardFooter className="flex flex-wrap gap-2 justify-between">
+          <Button variant="outline" onClick={() => router.back()}>
+            Înapoi
+          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" className="gap-2" onClick={handleEdit}>
+              <Pencil className="h-4 w-4" /> Editează
+            </Button>
+            {userData?.role === "admin" && (
+              <Button variant="destructive" className="gap-2" onClick={handleDelete}>
+                <Trash2 className="h-4 w-4" /> Șterge
               </Button>
-            </CardFooter>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="edit">
-          <ClientFormExtended client={client} onSuccess={handleClientUpdate} />
-        </TabsContent>
-      </Tabs>
+            )}
+          </div>
+        </CardFooter>
+      </Card>
     </div>
   )
 }

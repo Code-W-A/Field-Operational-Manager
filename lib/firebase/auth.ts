@@ -7,7 +7,7 @@ import {
   type User,
 } from "firebase/auth"
 import { auth, db } from "./config"
-import { doc, setDoc, serverTimestamp, deleteDoc, collection, query, where, getDocs } from "firebase/firestore"
+import { doc, setDoc, serverTimestamp, deleteDoc } from "firebase/firestore"
 
 // Tipuri pentru autentificare
 export type UserRole = "admin" | "dispecer" | "tehnician"
@@ -160,35 +160,5 @@ const addAuthLog = async (actiune: string, detalii: string, user: User | null): 
     })
   } catch (error) {
     console.error("Eroare la adăugarea logului:", error)
-  }
-}
-
-// Obține utilizatorii după rol
-export const getUsersByRole = async (role?: UserRole): Promise<UserData[]> => {
-  try {
-    const usersCollection = collection(db, "users")
-    let q = query(usersCollection)
-
-    // Dacă este specificat un rol, filtrăm după acesta
-    if (role) {
-      q = query(usersCollection, where("role", "==", role))
-    }
-
-    const querySnapshot = await getDocs(q)
-    const users: UserData[] = []
-
-    querySnapshot.forEach((doc) => {
-      const userData = doc.data() as UserData
-      users.push({
-        ...userData,
-        createdAt: userData.createdAt ? new Date(userData.createdAt as any) : undefined,
-        lastLogin: userData.lastLogin ? new Date(userData.lastLogin as any) : undefined,
-      })
-    })
-
-    return users
-  } catch (error) {
-    console.error("Eroare la obținerea utilizatorilor după rol:", error)
-    throw error
   }
 }

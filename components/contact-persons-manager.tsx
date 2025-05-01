@@ -1,132 +1,200 @@
 "use client"
+
+import type React from "react"
+
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Trash2, Plus, User } from "lucide-react"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Pencil, Trash2, Plus, User } from "lucide-react"
 import type { ContactPerson } from "@/types/client"
+import { toast } from "@/components/ui/use-toast"
 
 interface ContactPersonsManagerProps {
   contactPersons: ContactPerson[]
-  onChange: (contactPersons: ContactPerson[]) => void
+  onAdd: (person: Omit<ContactPerson, "id">) => void
+  onUpdate: (id: string, person: Partial<ContactPerson>) => void
+  onDelete: (id: string) => void
 }
 
-export function ContactPersonsManager({ contactPersons, onChange }: ContactPersonsManagerProps) {
-  const addContactPerson = () => {
-    const newPerson: ContactPerson = {
-      id: crypto.randomUUID(),
+export function ContactPersonsManager({ contactPersons, onAdd, onUpdate, onDelete }: ContactPersonsManagerProps) {
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [currentPerson, setCurrentPerson] = useState<ContactPerson | null>(null)
+  const [formData, setFormData] = useState<Omit<ContactPerson, "id">>({
+    name: "",
+    phone: "",
+    email: "",
+    position: "",
+  })
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value } = e.target
+    setFormData((prev) => ({ ...prev, [id]: value }))
+  }
+
+  const handleAddPerson = () => {
+    if (!formData.name || !formData.phone) {
+      toast({
+        title: "Eroare",
+        description: "Numele și telefonul sunt obligatorii",
+        variant: "destructive",
+      })
+      return
+    }
+
+    onAdd(formData)
+    setFormData({
       name: "",
-      position: "",
       phone: "",
       email: "",
-    }
-    onChange([...contactPersons, newPerson])
+      position: "",
+    })
+    setIsAddDialogOpen(false)
   }
 
-  const updateContactPerson = (index: number, field: keyof ContactPerson, value: string) => {
-    const updatedPersons = [...contactPersons]
-    updatedPersons[index] = {
-      ...updatedPersons[index],
-      [field]: value,
+  const handleEditPerson = () => {
+    if (!currentPerson || !currentPerson.id) return
+    if (!formData.name || !formData.phone) {
+      toast({
+        title: "Eroare",
+        description: "Numele și telefonul sunt obligatorii",
+        variant: "destructive",
+      })
+      return
     }
-    onChange(updatedPersons)
+
+    onUpdate(currentPerson.id, formData)
+    setIsEditDialogOpen(false)
   }
 
-  const removeContactPerson = (index: number) => {
-    const updatedPersons = contactPersons.filter((_, i) => i !== index)
-    onChange(updatedPersons)
+  const handleDeletePerson = (id: string) => {
+    if (window.confirm("Sunteți sigur că doriți să ștergeți această persoană de contact?")) {
+      onDelete(id)
+    }
+  }
+
+  const openEditDialog = (person: ContactPerson) => {
+    setCurrentPerson(person)
+    setFormData({
+      name: person.name,
+      phone: person.phone,
+      email: person.email || "",
+      position: person.position || "",
+    })
+    setIsEditDialogOpen(true)
   }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h4 className="text-sm font-medium">Persoane de contact</h4>
-        <Button onClick={addContactPerson} size="sm" variant="outline">
-          <Plus className="h-4 w-4 mr-2" />
-          Adaugă persoană
+        <h3 className="text-lg font-medium">Persoane de contact</h3>
+        <Button size="sm" onClick={() => setIsAddDialogOpen(true)}>
+          <Plus className="h-4 w-4 mr-1" /> Adaugă persoană
         </Button>
       </div>
 
       {contactPersons.length === 0 ? (
-        <div className="text-center p-4 border border-dashed rounded-md">
-          <p className="text-muted-foreground text-sm">Nu există persoane de contact. Adăugați prima persoană.</p>
+        <div className="text-center p-4 border rounded-md bg-muted/50">
+          <p className="text-muted-foreground">Nu există persoane de contact adăugate</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {contactPersons.map((person, index) => (
-            <Card key={person.id} className="overflow-hidden">
-              <CardHeader className="py-2 px-4 bg-muted/50 flex flex-row items-center justify-between">
-                <CardTitle className="text-sm font-medium flex items-center">
+        <div className="grid gap-4 md:grid-cols-2">
+          {contactPersons.map((person) => (
+            <Card key={person.id}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center">
                   <User className="h-4 w-4 mr-2" />
-                  {person.name || `Persoană ${index + 1}`}
+                  {person.name}
+                  {person.position && <span className="ml-2 text-sm text-muted-foreground">({person.position})</span>}
                 </CardTitle>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeContactPerson(index)}
-                  className="h-6 w-6 text-destructive"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
               </CardHeader>
-              <CardContent className="p-3 space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label htmlFor={`person-name-${index}`} className="text-xs">
-                      Nume
-                    </Label>
-                    <Input
-                      id={`person-name-${index}`}
-                      value={person.name}
-                      onChange={(e) => updateContactPerson(index, "name", e.target.value)}
-                      placeholder="Nume și prenume"
-                      className="h-8 text-sm"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor={`person-position-${index}`} className="text-xs">
-                      Funcție
-                    </Label>
-                    <Input
-                      id={`person-position-${index}`}
-                      value={person.position}
-                      onChange={(e) => updateContactPerson(index, "position", e.target.value)}
-                      placeholder="Director, Manager, etc."
-                      className="h-8 text-sm"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label htmlFor={`person-phone-${index}`} className="text-xs">
-                      Telefon
-                    </Label>
-                    <Input
-                      id={`person-phone-${index}`}
-                      value={person.phone}
-                      onChange={(e) => updateContactPerson(index, "phone", e.target.value)}
-                      placeholder="Număr de telefon"
-                      className="h-8 text-sm"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor={`person-email-${index}`} className="text-xs">
-                      Email
-                    </Label>
-                    <Input
-                      id={`person-email-${index}`}
-                      value={person.email}
-                      onChange={(e) => updateContactPerson(index, "email", e.target.value)}
-                      placeholder="Adresă de email"
-                      className="h-8 text-sm"
-                    />
-                  </div>
+              <CardContent className="pb-2">
+                <div className="space-y-1 text-sm">
+                  <p>Telefon: {person.phone}</p>
+                  {person.email && <p>Email: {person.email}</p>}
                 </div>
               </CardContent>
+              <CardFooter className="pt-0 flex justify-end gap-2">
+                <Button variant="ghost" size="icon" onClick={() => openEditDialog(person)}>
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => handleDeletePerson(person.id!)}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </CardFooter>
             </Card>
           ))}
         </div>
       )}
+
+      {/* Dialog pentru adăugare persoană de contact */}
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adaugă persoană de contact</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Nume *</Label>
+              <Input id="name" value={formData.name} onChange={handleInputChange} placeholder="Nume complet" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Telefon *</Label>
+              <Input id="phone" value={formData.phone} onChange={handleInputChange} placeholder="Număr de telefon" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" value={formData.email} onChange={handleInputChange} placeholder="Adresă de email" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="position">Funcție</Label>
+              <Input id="position" value={formData.position} onChange={handleInputChange} placeholder="Funcție" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+              Anulează
+            </Button>
+            <Button onClick={handleAddPerson}>Adaugă</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog pentru editare persoană de contact */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editează persoană de contact</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Nume *</Label>
+              <Input id="name" value={formData.name} onChange={handleInputChange} placeholder="Nume complet" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Telefon *</Label>
+              <Input id="phone" value={formData.phone} onChange={handleInputChange} placeholder="Număr de telefon" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" value={formData.email} onChange={handleInputChange} placeholder="Adresă de email" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="position">Funcție</Label>
+              <Input id="position" value={formData.position} onChange={handleInputChange} placeholder="Funcție" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Anulează
+            </Button>
+            <Button onClick={handleEditPerson}>Salvează</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
