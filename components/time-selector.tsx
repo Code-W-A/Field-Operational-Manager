@@ -39,11 +39,23 @@ export function TimeSelector({ value, onChange, label, id, hasError = false }: T
     if (open) {
       const scrollToSelected = () => {
         if (selectedHourRef.current && hoursContainerRef.current) {
-          selectedHourRef.current.scrollIntoView({ block: "center", behavior: "smooth" })
+          const container = hoursContainerRef.current
+          const element = selectedHourRef.current
+          const containerRect = container.getBoundingClientRect()
+          const elementRect = element.getBoundingClientRect()
+
+          container.scrollTop =
+            element.offsetTop - container.offsetTop - containerRect.height / 2 + elementRect.height / 2
         }
 
         if (selectedMinuteRef.current && minutesContainerRef.current) {
-          selectedMinuteRef.current.scrollIntoView({ block: "center", behavior: "smooth" })
+          const container = minutesContainerRef.current
+          const element = selectedMinuteRef.current
+          const containerRect = container.getBoundingClientRect()
+          const elementRect = element.getBoundingClientRect()
+
+          container.scrollTop =
+            element.offsetTop - container.offsetTop - containerRect.height / 2 + elementRect.height / 2
         }
       }
 
@@ -51,12 +63,13 @@ export function TimeSelector({ value, onChange, label, id, hasError = false }: T
       const timer = setTimeout(scrollToSelected, 100)
       return () => clearTimeout(timer)
     }
-  }, [open])
+  }, [open, hour, minute])
 
   // Handle time selection
   const handleTimeSelection = (newHour: string, newMinute: string) => {
     onChange(`${newHour}:${newMinute}`)
-    // Don't close the popover immediately to allow for multiple selections
+    // Close the popover after selection
+    setTimeout(() => setOpen(false), 100)
   }
 
   return (
@@ -76,75 +89,59 @@ export function TimeSelector({ value, onChange, label, id, hasError = false }: T
             {hour || "00"}:{minute || "00"}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-64 p-3 shadow-md rounded-md" align="start">
+        <PopoverContent
+          className="w-64 p-3 shadow-md rounded-md"
+          align="start"
+          onInteractOutside={(e) => {
+            e.preventDefault()
+          }}
+          onEscapeKeyDown={() => setOpen(false)}
+          onPointerDownOutside={(e) => {
+            e.preventDefault()
+          }}
+        >
           <div className="space-y-3">
             <div className="flex justify-between border-b pb-2">
               <div className="text-sm font-medium">Ore</div>
               <div className="text-sm font-medium">Minute</div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              {/* Hours column with center indicator */}
-              <div className="relative">
-                <div className="absolute left-0 right-0 top-1/2 h-8 -mt-4 bg-gray-100/50 pointer-events-none rounded-md"></div>
-                <div
-                  ref={hoursContainerRef}
-                  className="h-[200px] overflow-y-auto pr-3 border-r scrollbar-thin"
-                  style={{ scrollbarWidth: "thin" }}
-                >
-                  {/* Add empty space at top for better scrolling */}
-                  <div className="h-[84px]"></div>
-                  {hours.map((h) => (
-                    <div
-                      key={h}
-                      ref={h === hour ? selectedHourRef : null}
-                      className={cn(
-                        "cursor-pointer px-3 py-1.5 rounded-md hover:bg-gray-100 transition-colors",
-                        h === hour && "bg-primary text-primary-foreground font-medium",
-                      )}
-                      onClick={() => handleTimeSelection(h, minute || "00")}
-                    >
-                      {h}
-                    </div>
-                  ))}
-                  {/* Add empty space at bottom for better scrolling */}
-                  <div className="h-[84px]"></div>
-                </div>
+              <div
+                ref={hoursContainerRef}
+                className="h-[200px] overflow-y-auto pr-3 border-r scrollbar-thin time-selector-scroll"
+              >
+                {hours.map((h) => (
+                  <div
+                    key={h}
+                    ref={h === hour ? selectedHourRef : null}
+                    className={cn(
+                      "cursor-pointer px-3 py-1.5 rounded-md hover:bg-gray-100 transition-colors",
+                      h === hour && "bg-primary text-primary-foreground font-medium",
+                    )}
+                    onClick={() => handleTimeSelection(h, minute || "00")}
+                  >
+                    {h}
+                  </div>
+                ))}
               </div>
-
-              {/* Minutes column with center indicator */}
-              <div className="relative">
-                <div className="absolute left-0 right-0 top-1/2 h-8 -mt-4 bg-gray-100/50 pointer-events-none rounded-md"></div>
-                <div
-                  ref={minutesContainerRef}
-                  className="h-[200px] overflow-y-auto pl-3 scrollbar-thin"
-                  style={{ scrollbarWidth: "thin" }}
-                >
-                  {/* Add empty space at top for better scrolling */}
-                  <div className="h-[84px]"></div>
-                  {minutes.map((m) => (
-                    <div
-                      key={m}
-                      ref={m === minute ? selectedMinuteRef : null}
-                      className={cn(
-                        "cursor-pointer px-3 py-1.5 rounded-md hover:bg-gray-100 transition-colors",
-                        m === minute && "bg-primary text-primary-foreground font-medium",
-                      )}
-                      onClick={() => handleTimeSelection(hour || "00", m)}
-                    >
-                      {m}
-                    </div>
-                  ))}
-                  {/* Add empty space at bottom for better scrolling */}
-                  <div className="h-[84px]"></div>
-                </div>
+              <div
+                ref={minutesContainerRef}
+                className="h-[200px] overflow-y-auto pl-3 scrollbar-thin time-selector-scroll"
+              >
+                {minutes.map((m) => (
+                  <div
+                    key={m}
+                    ref={m === minute ? selectedMinuteRef : null}
+                    className={cn(
+                      "cursor-pointer px-3 py-1.5 rounded-md hover:bg-gray-100 transition-colors",
+                      m === minute && "bg-primary text-primary-foreground font-medium",
+                    )}
+                    onClick={() => handleTimeSelection(hour || "00", m)}
+                  >
+                    {m}
+                  </div>
+                ))}
               </div>
-            </div>
-
-            {/* Add Done button */}
-            <div className="pt-2 flex justify-end">
-              <Button size="sm" onClick={() => setOpen(false)}>
-                Gata
-              </Button>
             </div>
           </div>
         </PopoverContent>

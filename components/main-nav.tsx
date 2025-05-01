@@ -58,6 +58,7 @@ export function MainNav() {
       icon: <BarChart3 className="mr-2 h-4 w-4" />,
     },
     { href: "/dashboard/admin", label: "Administrare", icon: <ShieldAlert className="mr-2 h-4 w-4" />, role: "admin" },
+    { title: "Email Debug", href: "/dashboard/admin/email-debug", role: "admin" },
   ]
 
   return (
