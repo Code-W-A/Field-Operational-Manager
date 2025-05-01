@@ -23,13 +23,10 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
     email: "",
   })
 
-  // Adăugăm state pentru persoanele de contact
-  const [persoaneContact, setPersoaneContact] = useState<PersoanaContact[]>([
-    { nume: "", telefon: "", email: "", functie: "" },
-  ])
-
   // Adăugăm state pentru locații
-  const [locatii, setLocatii] = useState<Locatie[]>([])
+  const [locatii, setLocatii] = useState<Locatie[]>([
+    { nume: "", adresa: "", persoaneContact: [{ nume: "", telefon: "", email: "", functie: "" }] },
+  ])
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -38,27 +35,6 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target
     setFormData((prev) => ({ ...prev, [id]: value }))
-  }
-
-  // Adăugăm funcție pentru gestionarea modificărilor în persoanele de contact
-  const handleContactChange = (index: number, field: keyof PersoanaContact, value: string) => {
-    const updatedContacts = [...persoaneContact]
-    updatedContacts[index] = { ...updatedContacts[index], [field]: value }
-    setPersoaneContact(updatedContacts)
-  }
-
-  // Adăugăm funcție pentru adăugarea unei noi persoane de contact
-  const handleAddContact = () => {
-    setPersoaneContact([...persoaneContact, { nume: "", telefon: "", email: "", functie: "" }])
-  }
-
-  // Adăugăm funcție pentru ștergerea unei persoane de contact
-  const handleRemoveContact = (index: number) => {
-    if (persoaneContact.length > 1) {
-      const updatedContacts = [...persoaneContact]
-      updatedContacts.splice(index, 1)
-      setPersoaneContact(updatedContacts)
-    }
   }
 
   // Adăugăm funcție pentru adăugarea unei noi locații
@@ -71,9 +47,11 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
 
   // Adăugăm funcție pentru ștergerea unei locații
   const handleRemoveLocatie = (index: number) => {
-    const updatedLocatii = [...locatii]
-    updatedLocatii.splice(index, 1)
-    setLocatii(updatedLocatii)
+    if (locatii.length > 1) {
+      const updatedLocatii = [...locatii]
+      updatedLocatii.splice(index, 1)
+      setLocatii(updatedLocatii)
+    }
   }
 
   // Adăugăm funcție pentru modificarea unei locații
@@ -125,12 +103,6 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
       // Verificăm câmpurile obligatorii
       if (!formData.nume) errors.push("nume")
 
-      // Verificăm dacă cel puțin o persoană de contact are nume și telefon
-      const hasValidContact = persoaneContact.some((contact) => contact.nume && contact.telefon)
-      if (!hasValidContact) {
-        errors.push("persoaneContact")
-      }
-
       // Verificăm dacă toate locațiile au nume și adresă
       locatii.forEach((locatie, index) => {
         if (!locatie.nume) errors.push(`locatii[${index}].nume`)
@@ -149,9 +121,6 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
         return
       }
 
-      // Filtrăm persoanele de contact goale
-      const filteredContacts = persoaneContact.filter((contact) => contact.nume && contact.telefon)
-
       // Filtrăm locațiile și persoanele de contact goale din locații
       const filteredLocatii = locatii
         .filter((locatie) => locatie.nume && locatie.adresa)
@@ -160,15 +129,17 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
           persoaneContact: locatie.persoaneContact.filter((contact) => contact.nume && contact.telefon),
         }))
 
-      // Folosim prima persoană de contact ca persoană de contact principală pentru compatibilitate
-      const primaryContact = filteredContacts.length > 0 ? filteredContacts[0] : null
+      // Folosim prima persoană de contact din prima locație ca persoană de contact principală pentru compatibilitate
+      const primaryContact =
+        filteredLocatii.length > 0 && filteredLocatii[0].persoaneContact.length > 0
+          ? filteredLocatii[0].persoaneContact[0]
+          : null
 
       const newClient = {
         ...formData,
         persoanaContact: primaryContact ? primaryContact.nume : "",
         telefon: primaryContact ? primaryContact.telefon : "",
         numarLucrari: 0,
-        persoaneContact: filteredContacts,
         locatii: filteredLocatii,
       }
 
@@ -247,92 +218,14 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
         />
       </div>
 
-      {/* Secțiunea pentru persoane de contact principale */}
-      <div className="space-y-4 mt-6 border-t pt-4">
-        <div className="flex justify-between items-center">
-          <h3 className="text-md font-medium">Persoane de Contact Principale *</h3>
-          <Button type="button" variant="outline" size="sm" onClick={handleAddContact} className="flex items-center">
-            <Plus className="h-4 w-4 mr-1" /> Adaugă
-          </Button>
-        </div>
-
-        {persoaneContact.map((contact, index) => (
-          <div key={index} className="p-4 border rounded-md space-y-4">
-            <div className="flex justify-between items-center">
-              <h4 className="text-sm font-medium">Persoana de contact #{index + 1}</h4>
-              {persoaneContact.length > 1 && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleRemoveContact(index)}
-                  className="h-8 w-8 p-0 text-red-500"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Nume *</label>
-                <Input
-                  placeholder="Nume persoană contact"
-                  value={contact.nume}
-                  onChange={(e) => handleContactChange(index, "nume", e.target.value)}
-                  className={hasError("persoaneContact") && !contact.nume ? errorStyle : ""}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Telefon *</label>
-                <Input
-                  placeholder="Număr de telefon"
-                  value={contact.telefon}
-                  onChange={(e) => handleContactChange(index, "telefon", e.target.value)}
-                  className={hasError("persoaneContact") && !contact.telefon ? errorStyle : ""}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Email</label>
-                <Input
-                  type="email"
-                  placeholder="Adresă de email"
-                  value={contact.email || ""}
-                  onChange={(e) => handleContactChange(index, "email", e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Funcție</label>
-                <Input
-                  placeholder="Funcție"
-                  value={contact.functie || ""}
-                  onChange={(e) => handleContactChange(index, "functie", e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
       {/* Secțiunea pentru locații */}
       <div className="space-y-4 mt-6 border-t pt-4">
         <div className="flex justify-between items-center">
-          <h3 className="text-md font-medium">Locații</h3>
+          <h3 className="text-md font-medium">Locații *</h3>
           <Button type="button" variant="outline" size="sm" onClick={handleAddLocatie} className="flex items-center">
             <Plus className="h-4 w-4 mr-1" /> Adaugă Locație
           </Button>
         </div>
-
-        {locatii.length === 0 && (
-          <div className="text-center p-4 border border-dashed rounded-md">
-            <p className="text-muted-foreground">
-              Nu există locații adăugate. Adăugați o locație folosind butonul de mai sus.
-            </p>
-          </div>
-        )}
 
         {locatii.map((locatie, locatieIndex) => (
           <Accordion key={locatieIndex} type="single" collapsible className="border rounded-md">
@@ -344,18 +237,20 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
                     <span>{locatie.nume || `Locație #${locatieIndex + 1}`}</span>
                   </div>
                 </AccordionTrigger>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleRemoveLocatie(locatieIndex)
-                  }}
-                  className="h-8 w-8 p-0 text-red-500"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                {locatii.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleRemoveLocatie(locatieIndex)
+                    }}
+                    className="h-8 w-8 p-0 text-red-500"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
               <AccordionContent className="px-4 pb-4">
                 <div className="space-y-4">
@@ -385,7 +280,7 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
                   {/* Persoane de contact pentru locație */}
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
-                      <h4 className="text-sm font-medium">Persoane de Contact pentru Locație</h4>
+                      <h4 className="text-sm font-medium">Persoane de Contact pentru Locație *</h4>
                       <Button
                         type="button"
                         variant="outline"

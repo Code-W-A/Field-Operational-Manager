@@ -13,7 +13,7 @@ import { ro } from "date-fns/locale"
 import { CalendarIcon, Loader2, Plus } from "lucide-react"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { orderBy, where, query, collection, onSnapshot } from "firebase/firestore"
-import type { Client, PersoanaContact } from "@/lib/firebase/firestore"
+import type { Client, PersoanaContact, Locatie } from "@/lib/firebase/firestore"
 import { db } from "@/lib/firebase/config"
 // Importăm componenta ContractSelect
 import { ContractSelect } from "./contract-select"
@@ -105,13 +105,15 @@ export function LucrareForm({
   const [dateEmiteriiOpen, setDateEmiteriiOpen] = useState(false)
   const [dateInterventieOpen, setDateInterventieOpen] = useState(false)
 
-  // Adăugăm state pentru persoanele de contact ale clientului selectat
-  const [persoaneContact, setPersoaneContact] = useState<PersoanaContact[]>([])
+  // Adăugăm state pentru clientul selectat
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
 
   // Adăugăm state pentru locația selectată
-  const [selectedLocatie, setSelectedLocatie] = useState<any | null>(null)
-  const [locatii, setLocatii] = useState<any[]>([])
+  const [selectedLocatie, setSelectedLocatie] = useState<Locatie | null>(null)
+  const [locatii, setLocatii] = useState<Locatie[]>([])
+
+  // Adăugăm state pentru persoanele de contact ale locației selectate
+  const [persoaneContact, setPersoaneContact] = useState<PersoanaContact[]>([])
 
   // Handle date selection with proper time preservation
   const handleDateEmiteriiSelect = useCallback(
@@ -240,42 +242,33 @@ export function LucrareForm({
     fetchTehnicieni()
   }, [])
 
-  // Actualizăm persoanele de contact când se schimbă clientul selectat
+  // Actualizăm clientul selectat și locațiile când se schimbă clientul
   useEffect(() => {
-    // Make sure formData, formData.client, and clienti are all defined
     if (formData && formData.client && clienti && clienti.length > 0) {
       const client = clienti.find((c) => c.nume === formData.client)
       if (client) {
         setSelectedClient(client)
-        if (client.persoaneContact && client.persoaneContact.length > 0) {
-          setPersoaneContact(client.persoaneContact)
-        } else {
-          // Dacă clientul nu are persoane de contact, adăugăm persoana de contact principală
-          setPersoaneContact([
-            {
-              nume: client.persoanaContact || "",
-              telefon: client.telefon || "",
-              email: client.email || "",
-              functie: "",
-            },
-          ])
-        }
-      }
-    }
-  }, [formData, formData?.client, clienti])
 
-  // Adăugăm după declararea stării persoaneContact
-  useEffect(() => {
-    // Actualizăm locațiile când se schimbă clientul selectat
-    if (formData && formData.client && clienti && clienti.length > 0) {
-      const client = clienti.find((c) => c.nume === formData.client)
-      if (client && client.locatii && client.locatii.length > 0) {
-        setLocatii(client.locatii)
-      } else {
-        setLocatii([])
+        // Actualizăm locațiile
+        if (client.locatii && client.locatii.length > 0) {
+          setLocatii(client.locatii)
+        } else {
+          // Dacă clientul nu are locații, creăm una implicită cu persoanele de contact existente
+          const defaultLocatie: Locatie = {
+            nume: "Sediu principal",
+            adresa: client.adresa || "",
+            persoaneContact:
+              client.persoaneContact && client.persoaneContact.length > 0
+                ? client.persoaneContact
+                : [{ nume: client.persoanaContact || "", telefon: client.telefon || "", email: "", functie: "" }],
+          }
+          setLocatii([defaultLocatie])
+        }
+
+        // Resetăm locația selectată când se schimbă clientul
+        setSelectedLocatie(null)
+        setPersoaneContact([])
       }
-      // Resetăm locația selectată când se schimbă clientul
-      setSelectedLocatie(null)
     }
   }, [formData, formData?.client, clienti])
 
@@ -284,11 +277,23 @@ export function LucrareForm({
     const locatie = locatii.find((loc) => loc.nume === locatieNume)
     if (locatie) {
       setSelectedLocatie(locatie)
-      // Resetăm persoana de contact selectată
-      handleSelectChange("persoanaContact", "")
-      handleSelectChange("telefon", "")
+
       // Actualizăm persoanele de contact disponibile pentru această locație
       setPersoaneContact(locatie.persoaneContact)
+
+      // Actualizăm câmpul locație în formData
+      handleSelectChange("locatie", locatieNume)
+
+      // Dacă există o singură persoană de contact, o selectăm automat
+      if (locatie.persoaneContact.length === 1) {
+        const contact = locatie.persoaneContact[0]
+        handleSelectChange("persoanaContact", contact.nume)
+        handleSelectChange("telefon", contact.telefon)
+      } else {
+        // Resetăm persoana de contact selectată
+        handleSelectChange("persoanaContact", "")
+        handleSelectChange("telefon", "")
+      }
     }
   }
 
@@ -571,14 +576,14 @@ export function LucrareForm({
           </DialogContent>
         </Dialog>
 
-        {/* Adăugăm după secțiunea de client și înainte de persoana de contact */}
+        {/* Adăugăm secțiunea de locație */}
         {locatii.length > 0 && (
           <div className="space-y-2">
             <label htmlFor="locatie" className="text-sm font-medium">
-              Locație
+              Locație *
             </label>
             <Select onValueChange={handleLocatieSelect}>
-              <SelectTrigger id="locatie">
+              <SelectTrigger id="locatie" className={hasError("locatie") ? errorStyle : ""}>
                 <SelectValue placeholder="Selectați locația" />
               </SelectTrigger>
               <SelectContent>
@@ -593,10 +598,8 @@ export function LucrareForm({
           </div>
         )}
 
-        {/* Modificăm secțiunea de persoane de contact pentru a afișa persoanele de contact ale locației selectate */}
-        {(selectedLocatie
-          ? selectedLocatie.persoaneContact.length > 0
-          : selectedClient && persoaneContact.length > 0) && (
+        {/* Secțiunea de persoane de contact - se afișează doar dacă avem o locație selectată */}
+        {persoaneContact.length > 0 && (
           <div className="space-y-2">
             <label htmlFor="persoanaContact" className="text-sm font-medium">
               Persoană Contact *
@@ -604,8 +607,7 @@ export function LucrareForm({
             <Select
               value={formData.persoanaContact}
               onValueChange={(value) => {
-                const contactList = selectedLocatie ? selectedLocatie.persoaneContact : persoaneContact
-                const contact = contactList.find((c) => c.nume === value)
+                const contact = persoaneContact.find((c) => c.nume === value)
                 if (contact) {
                   handleContactSelect(contact)
                 }
@@ -615,7 +617,7 @@ export function LucrareForm({
                 <SelectValue placeholder="Selectați persoana de contact" />
               </SelectTrigger>
               <SelectContent>
-                {(selectedLocatie ? selectedLocatie.persoaneContact : persoaneContact).map((contact, index) => (
+                {persoaneContact.map((contact, index) => (
                   <SelectItem key={index} value={contact.nume}>
                     {contact.nume} {contact.functie ? `(${contact.functie})` : ""}{" "}
                     {contact.telefon ? `- ${contact.telefon}` : ""}
@@ -623,11 +625,7 @@ export function LucrareForm({
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
-              {selectedLocatie
-                ? "Persoane de contact pentru locația selectată"
-                : "Selectați persoana de contact pentru această lucrare"}
-            </p>
+            <p className="text-xs text-muted-foreground">Persoane de contact pentru locația selectată</p>
           </div>
         )}
 
