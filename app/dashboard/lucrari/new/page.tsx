@@ -10,6 +10,7 @@ import { addLog } from "@/lib/firebase/firestore"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/components/ui/use-toast"
 import type { PersoanaContact } from "@/lib/firebase/firestore"
+import { sendWorkOrderNotifications } from "@/components/work-order-notification-service"
 
 export default function NewLucrarePage() {
   const router = useRouter()
@@ -87,6 +88,27 @@ export default function NewLucrarePage() {
         title: "Lucrare adăugată",
         description: "Lucrarea a fost adăugată cu succes.",
       })
+
+      // Trimitem notificări către client și tehnicieni
+      try {
+        const workOrderData = {
+          id: lucrareId,
+          ...formData,
+          dataEmiterii: dataEmiterii ? dataEmiterii.toISOString() : new Date().toISOString(),
+          dataInterventie: dataInterventie ? dataInterventie.toISOString() : new Date().toISOString(),
+        }
+
+        const notificationResult = await sendWorkOrderNotifications(workOrderData)
+
+        if (notificationResult.success) {
+          console.log("Notificări trimise cu succes:", notificationResult)
+        } else {
+          console.warn("Avertisment: Notificările nu au putut fi trimise:", notificationResult.error)
+        }
+      } catch (notificationError) {
+        console.error("Eroare la trimiterea notificărilor:", notificationError)
+        // Nu întrerupem fluxul principal dacă notificările eșuează
+      }
 
       // Redirecționăm către pagina de lucrări
       router.push("/dashboard/lucrari")

@@ -11,6 +11,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "@/components/ui/use-toast"
 import { Loader2 } from "lucide-react"
 import type { PersoanaContact } from "@/lib/firebase/firestore"
+import { sendWorkOrderNotifications } from "@/components/work-order-notification-service"
+import { serverTimestamp } from "firebase/firestore"
+import type { Lucrare } from "@/lib/firebase/firestore"
 
 export default function EditLucrarePage({ params }: { params: { id: string } }) {
   const router = useRouter()
@@ -137,10 +140,15 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
     return errors.length === 0
   }
 
-  const handleSubmit = async (data: any) => {
+  const handleSubmit = async (data: Partial<Lucrare>) => {
     try {
+      setIsSubmitting(true)
+
       // Actualizăm lucrarea în Firestore
-      await updateLucrare(id, data)
+      await updateLucrare(id, {
+        ...data,
+        updatedAt: serverTimestamp(),
+      })
 
       // Adăugăm un log pentru actualizarea lucrării
       await addLog(
@@ -156,8 +164,34 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
         description: "Lucrarea a fost actualizată cu succes.",
       })
 
-      // Redirecționăm către pagina de detalii a lucrării
-      router.push(`/dashboard/lucrari/${id}`)
+      // Trimitem notificări dacă s-a schimbat data intervenției sau tehnicienii
+      if (
+        initialData &&
+        (data.dataInterventie !== initialData.dataInterventie ||
+          JSON.stringify(data.tehnicieni) !== JSON.stringify(initialData.tehnicieni))
+      ) {
+        try {
+          const workOrderData = {
+            id,
+            ...initialData,
+            ...data,
+          }
+
+          const notificationResult = await sendWorkOrderNotifications(workOrderData)
+
+          if (notificationResult.success) {
+            console.log("Notificări de actualizare trimise cu succes:", notificationResult)
+          } else {
+            console.warn("Avertisment: Notificările de actualizare nu au putut fi trimise:", notificationResult.error)
+          }
+        } catch (notificationError) {
+          console.error("Eroare la trimiterea notificărilor de actualizare:", notificationError)
+          // Nu întrerupem fluxul principal dacă notificările eșuează
+        }
+      }
+
+      // Redirecționăm către pagina de lucrări
+      router.push("/dashboard/lucrari")
     } catch (error) {
       console.error("Eroare la actualizarea lucrării:", error)
       toast({
@@ -165,6 +199,8 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
         description: "A apărut o eroare la actualizarea lucrării. Vă rugăm să încercați din nou.",
         variant: "destructive",
       })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
