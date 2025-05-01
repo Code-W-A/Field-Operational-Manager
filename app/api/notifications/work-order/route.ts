@@ -9,21 +9,33 @@ export async function POST(request: NextRequest) {
   const logContext = { requestId }
 
   try {
+    // Log pentru începerea procesării cererii
+    console.log(`[WORK-ORDER-API] [${requestId}] Începerea procesării cererii de notificare`)
     logInfo("Received work order notification request", { requestId }, { category: "api", context: logContext })
 
     const data = await request.json()
 
-    // Log the complete request data
+    // Log pentru datele primite
+    console.log(`[WORK-ORDER-API] [${requestId}] Date primite:`, JSON.stringify(data, null, 2))
     logDebug("Work order notification request data", data, { category: "api", context: logContext })
 
     // Validate required fields
     if (!data.workOrderId) {
+      console.log(`[WORK-ORDER-API] [${requestId}] EROARE: Lipsește workOrderId`)
       logWarning("Missing required field: workOrderId", { data }, { category: "api", context: logContext })
       return NextResponse.json({ error: "ID-ul lucrării este obligatoriu" }, { status: 400 })
     }
 
     // Extract data
     const { workOrderId, workOrderNumber, client, technicians, details } = data
+
+    // Log pentru datele extrase
+    console.log(`[WORK-ORDER-API] [${requestId}] Date extrase:`)
+    console.log(`- workOrderId: ${workOrderId}`)
+    console.log(`- workOrderNumber: ${workOrderNumber}`)
+    console.log(`- client:`, JSON.stringify(client, null, 2))
+    console.log(`- technicians:`, JSON.stringify(technicians, null, 2))
+    console.log(`- details:`, JSON.stringify(details, null, 2))
 
     // Log the notification attempt
     await addLog(
@@ -33,7 +45,14 @@ export async function POST(request: NextRequest) {
       "Email",
     )
 
-    // Log email configuration
+    // Log pentru configurația de email
+    console.log(`[WORK-ORDER-API] [${requestId}] Configurație email:`)
+    console.log(`- EMAIL_SMTP_HOST: ${process.env.EMAIL_SMTP_HOST || "mail.nrg-acces.ro"}`)
+    console.log(`- EMAIL_SMTP_PORT: ${process.env.EMAIL_SMTP_PORT || "465"}`)
+    console.log(`- EMAIL_SMTP_SECURE: ${process.env.EMAIL_SMTP_SECURE === "false" ? false : true}`)
+    console.log(`- EMAIL_USER: ${process.env.EMAIL_USER || "fom@nrg-acces.ro"}`)
+    console.log(`- EMAIL_PASSWORD: ${process.env.EMAIL_PASSWORD ? "SETAT" : "NESETAT"}`)
+
     logInfo(
       "Email configuration",
       {
@@ -49,6 +68,7 @@ export async function POST(request: NextRequest) {
     )
 
     // Configurăm transportorul de email (similar cu api/send-email/route.ts)
+    console.log(`[WORK-ORDER-API] [${requestId}] Configurare transporter nodemailer...`)
     const transporter = nodemailer.createTransport({
       host: process.env.EMAIL_SMTP_HOST || "mail.nrg-acces.ro",
       port: Number.parseInt(process.env.EMAIL_SMTP_PORT || "465"),
@@ -57,14 +77,24 @@ export async function POST(request: NextRequest) {
         user: process.env.EMAIL_USER || "fom@nrg-acces.ro",
         pass: process.env.EMAIL_PASSWORD,
       },
+      debug: true, // Activăm debugging pentru nodemailer
+      logger: true, // Activăm logging pentru nodemailer
     })
 
     // Verificăm conexiunea SMTP
+    console.log(`[WORK-ORDER-API] [${requestId}] Verificare conexiune SMTP...`)
     logInfo("Verifying SMTP connection", null, { category: "email", context: logContext })
     try {
       await transporter.verify()
+      console.log(`[WORK-ORDER-API] [${requestId}] Conexiune SMTP verificată cu succes!`)
       logInfo("SMTP connection verified successfully", null, { category: "email", context: logContext })
     } catch (error: any) {
+      console.error(`[WORK-ORDER-API] [${requestId}] EROARE la verificarea conexiunii SMTP:`, error)
+      console.error(`- Mesaj: ${error.message}`)
+      console.error(`- Cod: ${error.code}`)
+      console.error(`- Comandă: ${error.command}`)
+      console.error(`- Stack: ${error.stack}`)
+
       logError(
         "SMTP connection verification failed",
         {
@@ -93,13 +123,18 @@ export async function POST(request: NextRequest) {
 
     // Get the logo path
     const logoPath = path.join(process.cwd(), "public", "nrglogo.png")
+    console.log(`[WORK-ORDER-API] [${requestId}] Cale logo: ${logoPath}`)
 
     // Send emails to technicians
     const technicianEmails = []
     if (Array.isArray(technicians) && technicians.length > 0) {
+      console.log(`[WORK-ORDER-API] [${requestId}] Trimitere email-uri către ${technicians.length} tehnicieni...`)
+
       for (const tech of technicians) {
         if (tech.email) {
           try {
+            console.log(`[WORK-ORDER-API] [${requestId}] Trimitere email către tehnician: ${tech.name} <${tech.email}>`)
+
             logInfo(
               "Sending email to technician",
               {
@@ -161,6 +196,11 @@ export async function POST(request: NextRequest) {
             }
 
             // Log email details before sending
+            console.log(`[WORK-ORDER-API] [${requestId}] Detalii email pentru tehnician:`)
+            console.log(`- From: ${mailOptions.from}`)
+            console.log(`- To: ${mailOptions.to}`)
+            console.log(`- Subject: ${mailOptions.subject}`)
+
             logDebug(
               "Email details for technician",
               {
@@ -173,7 +213,12 @@ export async function POST(request: NextRequest) {
               { category: "email", context: logContext },
             )
 
+            console.log(`[WORK-ORDER-API] [${requestId}] Trimitere email către tehnician...`)
             const info = await transporter.sendMail(mailOptions)
+
+            console.log(`[WORK-ORDER-API] [${requestId}] Email trimis cu succes către tehnician!`)
+            console.log(`- MessageId: ${info.messageId}`)
+            console.log(`- Response: ${info.response}`)
 
             logInfo(
               "Email sent to technician successfully",
@@ -187,6 +232,15 @@ export async function POST(request: NextRequest) {
 
             technicianEmails.push({ name: tech.name, email: tech.email, success: true, messageId: info.messageId })
           } catch (error: any) {
+            console.error(
+              `[WORK-ORDER-API] [${requestId}] EROARE la trimiterea email-ului către tehnician ${tech.name}:`,
+              error,
+            )
+            console.error(`- Mesaj: ${error.message}`)
+            console.error(`- Cod: ${error.code}`)
+            console.error(`- Comandă: ${error.command}`)
+            console.error(`- Stack: ${error.stack}`)
+
             logError(
               `Failed to send email to technician ${tech.name}`,
               {
@@ -201,6 +255,7 @@ export async function POST(request: NextRequest) {
             technicianEmails.push({ name: tech.name, email: tech.email, success: false, error: error.message })
           }
         } else {
+          console.log(`[WORK-ORDER-API] [${requestId}] Tehnicianul ${tech.name} nu are adresă de email`)
           logWarning(
             `Technician ${tech.name} has no email address`,
             { technician: tech },
@@ -214,6 +269,8 @@ export async function POST(request: NextRequest) {
     let clientEmailResult = null
     if (client?.email) {
       try {
+        console.log(`[WORK-ORDER-API] [${requestId}] Trimitere email către client: ${client.name} <${client.email}>`)
+
         logInfo(
           "Sending email to client",
           {
@@ -269,6 +326,11 @@ export async function POST(request: NextRequest) {
         }
 
         // Log email details before sending
+        console.log(`[WORK-ORDER-API] [${requestId}] Detalii email pentru client:`)
+        console.log(`- From: ${mailOptions.from}`)
+        console.log(`- To: ${mailOptions.to}`)
+        console.log(`- Subject: ${mailOptions.subject}`)
+
         logDebug(
           "Email details for client",
           {
@@ -281,7 +343,12 @@ export async function POST(request: NextRequest) {
           { category: "email", context: logContext },
         )
 
+        console.log(`[WORK-ORDER-API] [${requestId}] Trimitere email către client...`)
         const info = await transporter.sendMail(mailOptions)
+
+        console.log(`[WORK-ORDER-API] [${requestId}] Email trimis cu succes către client!`)
+        console.log(`- MessageId: ${info.messageId}`)
+        console.log(`- Response: ${info.response}`)
 
         logInfo(
           "Email sent to client successfully",
@@ -295,6 +362,15 @@ export async function POST(request: NextRequest) {
 
         clientEmailResult = { success: true, messageId: info.messageId }
       } catch (error: any) {
+        console.error(
+          `[WORK-ORDER-API] [${requestId}] EROARE la trimiterea email-ului către client ${client.name}:`,
+          error,
+        )
+        console.error(`- Mesaj: ${error.message}`)
+        console.error(`- Cod: ${error.code}`)
+        console.error(`- Comandă: ${error.command}`)
+        console.error(`- Stack: ${error.stack}`)
+
         logError(
           `Failed to send email to client ${client.name}`,
           {
@@ -309,6 +385,7 @@ export async function POST(request: NextRequest) {
         clientEmailResult = { success: false, error: error.message }
       }
     } else {
+      console.log(`[WORK-ORDER-API] [${requestId}] Clientul nu are adresă de email, se omite notificarea`)
       logWarning(
         "Client email not available, skipping client notification",
         { client },
@@ -317,6 +394,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Log the results
+    console.log(`[WORK-ORDER-API] [${requestId}] Rezultate trimitere email-uri:`)
+    console.log(`- Tehnicieni: ${technicianEmails.length} email-uri trimise`)
+    console.log(`- Client: ${clientEmailResult?.success ? "Succes" : "Eșec sau omis"}`)
+
     await addLog(
       "Notificare API",
       `Rezultat trimitere notificări pentru lucrarea ${workOrderId}: ${technicianEmails.length} tehnicieni, client: ${clientEmailResult?.success ? "Succes" : "Eșec"}`,
@@ -330,10 +411,19 @@ export async function POST(request: NextRequest) {
       clientEmail: clientEmailResult,
     }
 
+    console.log(`[WORK-ORDER-API] [${requestId}] Răspuns API:`, JSON.stringify(response, null, 2))
     logInfo("Work order notification completed successfully", response, { category: "api", context: logContext })
 
     return NextResponse.json(response)
   } catch (error: any) {
+    console.error(`[WORK-ORDER-API] [${requestId}] EROARE GENERALĂ în API:`, error)
+    console.error(`- Mesaj: ${error.message}`)
+    console.error(`- Cod: ${error.code}`)
+    console.error(`- Comandă: ${error.command}`)
+    console.error(`- Stack  Cod: ${error.code}`)
+    console.error(`- Comandă: ${error.command}`)
+    console.error(`- Stack: ${error.stack}`)
+
     logError(
       "Error in work order notification API",
       {
@@ -349,6 +439,7 @@ export async function POST(request: NextRequest) {
     try {
       await addLog("Eroare notificare API", `Eroare la trimiterea notificărilor: ${error.message}`, "Eroare", "Email")
     } catch (logError) {
+      console.error(`[WORK-ORDER-API] [${requestId}] EROARE la logarea erorii:`, logError)
       logError("Failed to log error", logError, { category: "email", context: logContext })
     }
 
