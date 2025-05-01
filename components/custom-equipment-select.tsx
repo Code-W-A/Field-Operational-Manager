@@ -50,6 +50,12 @@ export function CustomEquipmentSelect({
     }
   }, [value, equipments])
 
+  // Adăugăm un log pentru debugging
+  useEffect(() => {
+    console.log("CustomEquipmentSelect - value:", value)
+    console.log("CustomEquipmentSelect - selectedEquipment:", selectedEquipment)
+  }, [value, selectedEquipment])
+
   // Actualizăm lista filtrată de echipamente când se schimbă termenul de căutare sau lista de echipamente
   useEffect(() => {
     if (searchTerm.trim() === "") {
@@ -83,6 +89,7 @@ export function CustomEquipmentSelect({
       return
     }
 
+    console.log("Selectare echipament:", equipment)
     setSelectedEquipment(equipment)
     onSelect(equipment.id, equipment)
     setOpen(false)

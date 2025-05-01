@@ -302,17 +302,28 @@ export function LucrareForm({
     // Actualizăm formData cu noul client
     handleSelectChange("client", value)
 
-    // Resetăm celelalte câmpuri dependente
-    handleSelectChange("locatie", "")
-    handleSelectChange("echipament", "")
-    handleSelectChange("persoanaContact", "")
-    handleSelectChange("telefon", "")
+    // Resetăm câmpurile dependente doar dacă clientul s-a schimbat
+    if (selectedClient?.id !== client.id) {
+      handleSelectChange("locatie", "")
+      handleSelectChange("echipament", "")
+      handleSelectChange("persoanaContact", "")
+      handleSelectChange("telefon", "")
+
+      // Resetăm echipamentul selectat
+      if (handleCustomChange) {
+        handleCustomChange("echipamentId", "")
+        handleCustomChange("echipamentCod", "")
+      }
+
+      // Resetăm echipamentele disponibile
+      setAvailableEquipments([])
+
+      // Resetăm acordeonul doar dacă clientul s-a schimbat
+      setShowContactAccordion(false)
+    }
 
     // Actualizăm starea pentru clientul selectat
     setSelectedClient(client)
-
-    // Resetăm echipamentele disponibile
-    setAvailableEquipments([])
 
     console.log("Client selectat:", client)
   }
@@ -351,6 +362,7 @@ export function LucrareForm({
   const handleEquipmentSelect = (equipmentId: string, equipment: Echipament) => {
     console.log("Echipament selectat în LucrareForm:", equipment)
 
+    // Actualizăm toate câmpurile relevante
     handleSelectChange("echipament", equipment.nume)
 
     if (handleCustomChange) {
@@ -358,6 +370,7 @@ export function LucrareForm({
       handleCustomChange("echipamentCod", equipment.cod)
     }
 
+    // Afișăm un toast pentru feedback
     toast({
       title: "Echipament selectat",
       description: `Ați selectat echipamentul ${equipment.nume} (cod: ${equipment.cod})`,
@@ -446,7 +459,7 @@ export function LucrareForm({
         setAvailableEquipments([])
       }
 
-      // Activăm afișarea acordeonului
+      // Activăm afișarea acordeonului și nu-l dezactivăm
       setShowContactAccordion(true)
 
       // Actualizăm câmpul locație în formData
@@ -455,12 +468,40 @@ export function LucrareForm({
   }
 
   // Adăugăm un efect pentru a actualiza echipamentele când se schimbă locația selectată
+  // fără a reseta selecția existentă
   useEffect(() => {
     if (selectedLocatie && selectedLocatie.echipamente && selectedLocatie.echipamente.length > 0) {
       console.log("Actualizare echipamente pentru locația selectată:", selectedLocatie.echipamente)
       setAvailableEquipments(selectedLocatie.echipamente)
+
+      // Verificăm dacă echipamentul selectat există în noua listă
+      if (formData.echipamentId) {
+        const echipamentExista = selectedLocatie.echipamente.some((e) => e.id === formData.echipamentId)
+        if (!echipamentExista) {
+          console.log("Echipamentul selectat anterior nu există în noua locație")
+          // Opțional: putem reseta selecția aici dacă dorim
+          // handleSelectChange("echipament", "");
+          // if (handleCustomChange) {
+          //   handleCustomChange("echipamentId", "");
+          //   handleCustomChange("echipamentCod", "");
+          // }
+        }
+      }
     }
-  }, [selectedLocatie])
+  }, [selectedLocatie, formData.echipamentId])
+
+  // Adăugăm un efect pentru a menține starea echipamentului selectat
+  useEffect(() => {
+    if (formData.echipamentId && availableEquipments.length > 0) {
+      const selectedEquipment = availableEquipments.find((e) => e.id === formData.echipamentId)
+      if (selectedEquipment) {
+        console.log("Echipament găsit și setat în formular:", selectedEquipment)
+        // Nu este nevoie să actualizăm formData aici, doar ne asigurăm că echipamentul este găsit
+      } else {
+        console.log("Echipamentul cu ID-ul", formData.echipamentId, "nu a fost găsit în lista disponibilă")
+      }
+    }
+  }, [formData.echipamentId, availableEquipments])
 
   // Adaugă acest efect pentru debugging
   useEffect(() => {
@@ -557,6 +598,7 @@ export function LucrareForm({
 
   // Add buttons at the end if onSubmit and onCancel are provided
   // Adăugăm un efect pentru a actualiza persoanele de contact când se schimbă locația selectată
+  // și pentru a menține starea când se schimbă alte câmpuri
   useEffect(() => {
     if (selectedLocatie) {
       console.log("Locație selectată (effect):", selectedLocatie)
@@ -568,15 +610,8 @@ export function LucrareForm({
         if (handleCustomChange) {
           handleCustomChange("persoaneContact", selectedLocatie.persoaneContact)
         }
-      } else {
-        console.log("Nu există persoane de contact (effect)")
-        setPersoaneContact([])
-
-        // Clear the contacts array
-        if (handleCustomChange) {
-          handleCustomChange("persoaneContact", [])
-        }
       }
+      // Activăm afișarea acordeonului și nu-l dezactivăm niciodată după ce a fost activat
       setShowContactAccordion(true)
     }
   }, [selectedLocatie, handleCustomChange])
