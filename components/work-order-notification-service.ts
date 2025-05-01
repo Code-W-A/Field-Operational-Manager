@@ -2,6 +2,7 @@
  * Service for sending work order notifications
  */
 import { addLog } from "@/lib/firebase/firestore"
+import { logDebug, logInfo, logWarning, logError } from "@/lib/utils/logging-service"
 
 /**
  * Sends notifications for a new work order
@@ -9,9 +10,31 @@ import { addLog } from "@/lib/firebase/firestore"
  * @returns Promise with notification result
  */
 export async function sendWorkOrderNotifications(workOrderData: any) {
+  const logContext = { workOrderId: workOrderData.id || "unknown" }
+
   try {
-    // Log the start of the notification process
-    console.log("[Client] Starting work order notification process", { workOrderId: workOrderData.id })
+    // Log the start of the notification process with complete work order data
+    logInfo(
+      "Starting work order notification process",
+      {
+        workOrderId: workOrderData.id,
+        workOrderData: workOrderData,
+      },
+      { category: "email", context: logContext },
+    )
+
+    // Log environment variables (without exposing sensitive information)
+    logDebug(
+      "Email configuration environment variables",
+      {
+        EMAIL_SMTP_HOST: process.env.NEXT_PUBLIC_EMAIL_SMTP_HOST || "Not set (using default)",
+        EMAIL_SMTP_PORT: process.env.NEXT_PUBLIC_EMAIL_SMTP_PORT || "Not set (using default)",
+        EMAIL_SMTP_SECURE: process.env.NEXT_PUBLIC_EMAIL_SMTP_SECURE || "Not set (using default)",
+        EMAIL_USER: process.env.NEXT_PUBLIC_EMAIL_USER ? "Set" : "Not set",
+        EMAIL_PASSWORD: process.env.EMAIL_PASSWORD ? "Set (value hidden)" : "Not set",
+      },
+      { category: "email", context: logContext },
+    )
 
     // Extract client information from the client object or from direct properties
     const clientName = workOrderData.client?.nume || workOrderData.client || ""
@@ -19,7 +42,11 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
     const contactPerson = workOrderData.client?.persoanaContact || workOrderData.persoanaContact || clientName || ""
 
     // Log client information
-    console.log("[Client] Extracted client information", { clientName, clientEmail, contactPerson })
+    logInfo(
+      "Extracted client information",
+      { clientName, clientEmail, contactPerson },
+      { category: "email", context: logContext },
+    )
 
     const client = {
       name: clientName,
@@ -33,17 +60,25 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
       ? workOrderData.tehnicieni.map((tech: any) => {
           if (typeof tech === "string") {
             // If it's just a string (name), we need to find the email from somewhere
-            console.log("[Client] Technician is a string, no email available", { techName: tech })
+            logDebug(
+              "Technician is a string, no email available",
+              { techName: tech },
+              { category: "email", context: logContext },
+            )
             return {
               name: tech,
               email: "", // This will need to be populated from your user database
             }
           } else {
             // If it's an object, extract name and email
-            console.log("[Client] Technician is an object", {
-              techName: tech.name || tech.displayName || "",
-              techEmail: tech.email || "",
-            })
+            logDebug(
+              "Technician is an object",
+              {
+                techName: tech.name || tech.displayName || "",
+                techEmail: tech.email || "",
+              },
+              { category: "email", context: logContext },
+            )
             return {
               name: tech.name || tech.displayName || "",
               email: tech.email || "",
@@ -53,16 +88,25 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
       : []
 
     // Log technician information
-    console.log("[Client] Extracted technician information", {
-      technicianCount: technicians.length,
-      technicians: technicians.map((t) => ({ name: t.name, hasEmail: !!t.email })),
-    })
+    logInfo(
+      "Extracted technician information",
+      {
+        technicianCount: technicians.length,
+        technicians: technicians.map((t) => ({ name: t.name, hasEmail: !!t.email })),
+      },
+      { category: "email", context: logContext },
+    )
 
     // If we have technician names but no emails, try to fetch them
     if (technicians.some((tech) => !tech.email)) {
-      console.log("[Client] Some technicians don't have email addresses. Attempting to fetch them...")
-      // This would be a good place to fetch technician emails from your database
-      // For now, we'll just log a warning
+      logWarning(
+        "Some technicians don't have email addresses",
+        {
+          techniciansWithoutEmail: technicians.filter((t) => !t.email).map((t) => t.name),
+        },
+        { category: "email", context: logContext },
+      )
+
       try {
         await addLog(
           "Notificare lucrare",
@@ -74,7 +118,7 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
           "Email",
         )
       } catch (logError) {
-        console.error("[Client] Failed to log warning about missing emails:", logError)
+        logError("Failed to log warning about missing emails", logError, { category: "email", context: logContext })
       }
     }
 
@@ -90,7 +134,7 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
     }
 
     // Log work order details
-    console.log("[Client] Extracted work order details", details)
+    logInfo("Extracted work order details", details, { category: "email", context: logContext })
 
     // Prepare notification data
     const notificationData = {
@@ -101,7 +145,7 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
       details,
     }
 
-    console.log("[Client] Sending notification with data:", JSON.stringify(notificationData))
+    logInfo("Sending notification with data", notificationData, { category: "api", context: logContext })
 
     // Add log before sending
     try {
@@ -112,8 +156,20 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
         "Email",
       )
     } catch (logError) {
-      console.error("[Client] Failed to log notification attempt:", logError)
+      logError("Failed to log notification attempt", logError, { category: "email", context: logContext })
     }
+
+    // Log API request details
+    logDebug(
+      "API request details",
+      {
+        url: "/api/notifications/work-order",
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(notificationData),
+      },
+      { category: "api", context: logContext },
+    )
 
     // Send notification
     const response = await fetch("/api/notifications/work-order", {
@@ -125,13 +181,25 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
     })
 
     // Log response status
-    console.log("[Client] Notification API response status:", response.status)
+    logInfo(
+      "Notification API response status",
+      { status: response.status, statusText: response.statusText },
+      { category: "api", context: logContext },
+    )
 
     const result = await response.json()
-    console.log("[Client] Notification API response:", result)
+    logInfo("Notification API response body", result, { category: "api", context: logContext })
 
     if (!response.ok) {
-      console.error("[Client] Failed to send notifications:", result.error)
+      logError(
+        "Failed to send notifications",
+        {
+          status: response.status,
+          statusText: response.statusText,
+          error: result.error,
+        },
+        { category: "api", context: logContext },
+      )
 
       // Add error log
       try {
@@ -142,7 +210,7 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
           "Email",
         )
       } catch (logError) {
-        console.error("[Client] Failed to log error:", logError)
+        logError("Failed to log error", logError, { category: "email", context: logContext })
       }
 
       return { success: false, error: result.error }
@@ -157,12 +225,30 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
         "Email",
       )
     } catch (logError) {
-      console.error("[Client] Failed to log success:", logError)
+      logError("Failed to log success", logError, { category: "email", context: logContext })
     }
+
+    logInfo(
+      "Work order notifications sent successfully",
+      {
+        workOrderId: notificationData.workOrderId,
+        technicianCount: technicians.length,
+        clientEmail: client.email ? "Sent" : "Not available",
+      },
+      { category: "email", context: logContext },
+    )
 
     return { success: true, result }
   } catch (error: any) {
-    console.error("[Client] Error sending work order notifications:", error)
+    logError(
+      "Error sending work order notifications",
+      {
+        error: error.message || "Unknown error",
+        stack: error.stack,
+        workOrderId: workOrderData?.id || "unknown",
+      },
+      { category: "email", context: logContext },
+    )
 
     // Add error log
     try {
@@ -173,7 +259,7 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
         "Email",
       )
     } catch (logError) {
-      console.error("[Client] Failed to log error:", logError)
+      logError("Failed to log error", logError, { category: "email", context: logContext })
     }
 
     return { success: false, error: error.message }

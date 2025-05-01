@@ -1,14 +1,23 @@
 import { type NextRequest, NextResponse } from "next/server"
 import nodemailer from "nodemailer"
 import { addLog } from "@/lib/firebase/firestore"
+import { logDebug, logInfo, logWarning, logError } from "@/lib/utils/logging-service"
 
 export async function POST(request: NextRequest) {
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
+  const logContext = { requestId }
+
   try {
+    logInfo("Received work order notification request", { requestId }, { category: "api", context: logContext })
+
     const data = await request.json()
-    console.log("[Server] Received notification request:", JSON.stringify(data))
+
+    // Log the complete request data
+    logDebug("Work order notification request data", data, { category: "api", context: logContext })
 
     // Validate required fields
     if (!data.workOrderId) {
+      logWarning("Missing required field: workOrderId", { data }, { category: "api", context: logContext })
       return NextResponse.json({ error: "ID-ul lucrării este obligatoriu" }, { status: 400 })
     }
 
@@ -23,8 +32,20 @@ export async function POST(request: NextRequest) {
       "Email",
     )
 
-    // Configure email transporter with detailed logging
-    console.log("[Server] Configuring email transporter...")
+    // Log email configuration
+    logInfo(
+      "Email configuration",
+      {
+        host: process.env.EMAIL_SMTP_HOST || "mail.nrg-acces.ro",
+        port: Number.parseInt(process.env.EMAIL_SMTP_PORT || "465"),
+        secure: process.env.EMAIL_SMTP_SECURE === "false" ? false : true,
+        auth: {
+          user: process.env.EMAIL_USER || "fom@nrg-acces.ro",
+          pass: process.env.EMAIL_PASSWORD ? "[REDACTED]" : "Not set",
+        },
+      },
+      { category: "email", context: logContext },
+    )
 
     // Create a test transporter first to verify credentials
     const testTransporter = nodemailer.createTransport({
@@ -40,12 +61,22 @@ export async function POST(request: NextRequest) {
     })
 
     // Verify connection configuration
-    console.log("[Server] Verifying SMTP connection...")
+    logInfo("Verifying SMTP connection", null, { category: "email", context: logContext })
+
     try {
       await testTransporter.verify()
-      console.log("[Server] SMTP connection verified successfully")
+      logInfo("SMTP connection verified successfully", null, { category: "email", context: logContext })
     } catch (error: any) {
-      console.error("[Server] SMTP connection verification failed:", error)
+      logError(
+        "SMTP connection verification failed",
+        {
+          error: error.message,
+          stack: error.stack,
+          code: error.code,
+          command: error.command,
+        },
+        { category: "email", context: logContext },
+      )
       return NextResponse.json({ error: `Eroare la verificarea conexiunii SMTP: ${error.message}` }, { status: 500 })
     }
 
@@ -79,7 +110,14 @@ export async function POST(request: NextRequest) {
       for (const tech of technicians) {
         if (tech.email) {
           try {
-            console.log(`[Server] Sending email to technician: ${tech.name} <${tech.email}>`)
+            logInfo(
+              "Sending email to technician",
+              {
+                recipient: `${tech.name} <${tech.email}>`,
+                subject: `Lucrare nouă: ${workOrderNumber || workOrderId}`,
+              },
+              { category: "email", context: logContext },
+            )
 
             const mailOptions = {
               from: `"Field Operational Manager" <${process.env.EMAIL_USER || "fom@nrg-acces.ro"}>`,
@@ -109,11 +147,44 @@ export async function POST(request: NextRequest) {
               `,
             }
 
+            // Log email details before sending
+            logDebug(
+              "Email details for technician",
+              {
+                from: mailOptions.from,
+                to: mailOptions.to,
+                subject: mailOptions.subject,
+                // Nu logăm conținutul HTML complet pentru a evita loguri prea mari
+                htmlLength: mailOptions.html.length,
+              },
+              { category: "email", context: logContext },
+            )
+
             const info = await transporter.sendMail(mailOptions)
-            console.log(`[Server] Email sent to technician: ${info.messageId}`)
-            technicianEmails.push({ name: tech.name, email: tech.email, success: true })
+
+            logInfo(
+              "Email sent to technician successfully",
+              {
+                messageId: info.messageId,
+                recipient: tech.email,
+                response: info.response,
+              },
+              { category: "email", context: logContext },
+            )
+
+            technicianEmails.push({ name: tech.name, email: tech.email, success: true, messageId: info.messageId })
           } catch (error: any) {
-            console.error(`[Server] Failed to send email to technician ${tech.name}:`, error)
+            logError(
+              `Failed to send email to technician ${tech.name}`,
+              {
+                error: error.message,
+                stack: error.stack,
+                code: error.code,
+                command: error.command,
+              },
+              { category: "email", context: logContext },
+            )
+
             technicianEmails.push({ name: tech.name, email: tech.email, success: false, error: error.message })
           }
         }
@@ -124,7 +195,14 @@ export async function POST(request: NextRequest) {
     let clientEmailResult = null
     if (client?.email) {
       try {
-        console.log(`[Server] Sending email to client: ${client.name} <${client.email}>`)
+        logInfo(
+          "Sending email to client",
+          {
+            recipient: `${client.name} <${client.email}>`,
+            subject: `Confirmare lucrare: ${workOrderNumber || workOrderId}`,
+          },
+          { category: "email", context: logContext },
+        )
 
         const mailOptions = {
           from: `"Field Operational Manager" <${process.env.EMAIL_USER || "fom@nrg-acces.ro"}>`,
@@ -148,13 +226,52 @@ export async function POST(request: NextRequest) {
           `,
         }
 
+        // Log email details before sending
+        logDebug(
+          "Email details for client",
+          {
+            from: mailOptions.from,
+            to: mailOptions.to,
+            subject: mailOptions.subject,
+            // Nu logăm conținutul HTML complet pentru a evita loguri prea mari
+            htmlLength: mailOptions.html.length,
+          },
+          { category: "email", context: logContext },
+        )
+
         const info = await transporter.sendMail(mailOptions)
-        console.log(`[Server] Email sent to client: ${info.messageId}`)
-        clientEmailResult = { success: true }
+
+        logInfo(
+          "Email sent to client successfully",
+          {
+            messageId: info.messageId,
+            recipient: client.email,
+            response: info.response,
+          },
+          { category: "email", context: logContext },
+        )
+
+        clientEmailResult = { success: true, messageId: info.messageId }
       } catch (error: any) {
-        console.error(`[Server] Failed to send email to client ${client.name}:`, error)
+        logError(
+          `Failed to send email to client ${client.name}`,
+          {
+            error: error.message,
+            stack: error.stack,
+            code: error.code,
+            command: error.command,
+          },
+          { category: "email", context: logContext },
+        )
+
         clientEmailResult = { success: false, error: error.message }
       }
+    } else {
+      logWarning(
+        "Client email not available, skipping client notification",
+        { client },
+        { category: "email", context: logContext },
+      )
     }
 
     // Log the results
@@ -165,19 +282,32 @@ export async function POST(request: NextRequest) {
       "Email",
     )
 
-    return NextResponse.json({
+    const response = {
       success: true,
       technicianEmails,
       clientEmail: clientEmailResult,
-    })
+    }
+
+    logInfo("Work order notification completed successfully", response, { category: "api", context: logContext })
+
+    return NextResponse.json(response)
   } catch (error: any) {
-    console.error("[Server] Error in work order notification API:", error)
+    logError(
+      "Error in work order notification API",
+      {
+        error: error.message,
+        stack: error.stack,
+        code: error.code,
+        command: error.command,
+      },
+      { category: "api", context: logContext },
+    )
 
     // Log the error
     try {
       await addLog("Eroare notificare API", `Eroare la trimiterea notificărilor: ${error.message}`, "Eroare", "Email")
     } catch (logError) {
-      console.error("[Server] Failed to log error:", logError)
+      logError("Failed to log error", logError, { category: "email", context: logContext })
     }
 
     return NextResponse.json(

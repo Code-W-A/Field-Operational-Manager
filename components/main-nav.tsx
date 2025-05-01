@@ -67,6 +67,12 @@ export function MainNav() {
       roles: ["admin"],
     },
     { title: "Email Debug", href: "/dashboard/admin/email-debug", role: "admin" },
+    {
+      title: "Loguri Email",
+      href: "/dashboard/admin/email-logs",
+      icon: "mail-warning",
+      role: "admin",
+    },
   ]
 
   return (
