@@ -3,7 +3,6 @@
 import type React from "react"
 import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
@@ -13,7 +12,7 @@ import { ro } from "date-fns/locale"
 import { CalendarIcon, Loader2, Plus, Phone, Mail, Users } from "lucide-react"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { orderBy, where, query, collection, onSnapshot } from "firebase/firestore"
-import type { Client, PersoanaContact, Locatie } from "@/lib/firebase/firestore"
+import type { Client, PersoanaContact, Locatie, Echipament } from "@/lib/firebase/firestore"
 import { db } from "@/lib/firebase/config"
 // Importăm componenta ContractSelect
 import { ContractSelect } from "./contract-select"
@@ -26,6 +25,8 @@ import { TimeSelector } from "./time-selector"
 // Import our new CustomDatePicker component
 import { CustomDatePicker } from "./custom-date-picker"
 import { Card } from "@/components/ui/card"
+// Adăugăm importul pentru componenta EquipmentSelect
+import { EquipmentSelect } from "@/components/equipment-select"
 
 // Define the Lucrare type
 interface Lucrare {
@@ -45,6 +46,8 @@ interface Lucrare {
   contractNumber?: string
   defectReclamat?: string
   persoaneContact?: PersoanaContact[]
+  echipamentId?: string
+  echipamentCod?: string
 }
 
 // Add the defectReclamat field to the LucrareFormProps interface
@@ -69,7 +72,10 @@ interface LucrareFormProps {
     contractNumber?: string
     defectReclamat?: string
     persoaneContact?: PersoanaContact[]
+    echipamentId?: string
+    echipamentCod?: string
   }
+  setFormData: React.Dispatch<React.SetStateAction<LucrareFormProps["formData"]>>
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void
   handleSelectChange: (id: string, value: string) => void
   handleTehnicieniChange: (value: string) => void
@@ -88,6 +94,7 @@ export function LucrareForm({
   dataInterventie,
   setDataInterventie,
   formData,
+  setFormData,
   handleInputChange,
   handleSelectChange,
   handleTehnicieniChange,
@@ -124,6 +131,9 @@ export function LucrareForm({
 
   // Adăugăm state pentru a controla vizibilitatea acordeonului
   const [showContactAccordion, setShowContactAccordion] = useState(false)
+
+  // Adăugăm state pentru a stoca echipamentele disponibile pentru locația selectată
+  const [availableEquipments, setAvailableEquipments] = useState<Echipament[]>([])
 
   // Handle date selection with proper time preservation
   const handleDateEmiteriiSelect = useCallback(
@@ -252,6 +262,66 @@ export function LucrareForm({
     fetchTehnicieni()
   }, [])
 
+  // Modificăm funcția handleClientChange pentru a reseta echipamentul când se schimbă clientul
+  const handleClientChange = async (value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      client: value,
+      locatie: "",
+      echipament: "",
+      echipamentId: "",
+      echipamentCod: "",
+      persoanaContact: "",
+      telefon: "",
+    }))
+    setSelectedClient(clienti.find((c) => c.id === value) || null)
+    setAvailableEquipments([])
+  }
+
+  // Modificăm funcția handleLocationChange pentru a încărca echipamentele disponibile pentru locația selectată
+  const handleLocationChange = (value: string, clientId: string) => {
+    const client = clienti.find((c) => c.id === clientId)
+    if (!client || !client.locatii) {
+      setFormData((prev) => ({
+        ...prev,
+        locatie: value,
+        echipament: "",
+        echipamentId: "",
+        echipamentCod: "",
+      }))
+      setAvailableEquipments([])
+      return
+    }
+
+    const selectedLocation = client.locatii.find((loc) => loc.nume === value)
+
+    // Actualizăm datele formularului
+    setFormData((prev) => ({
+      ...prev,
+      locatie: value,
+      echipament: "",
+      echipamentId: "",
+      echipamentCod: "",
+    }))
+
+    // Actualizăm echipamentele disponibile
+    if (selectedLocation && selectedLocation.echipamente) {
+      setAvailableEquipments(selectedLocation.echipamente)
+    } else {
+      setAvailableEquipments([])
+    }
+  }
+
+  // Adăugăm funcție pentru selectarea echipamentului
+  const handleEquipmentSelect = (equipmentId: string, equipment: Echipament) => {
+    setFormData((prev) => ({
+      ...prev,
+      echipament: equipment.nume,
+      echipamentId: equipmentId,
+      echipamentCod: equipment.cod,
+    }))
+  }
+
   // Actualizăm clientul selectat și locațiile când se schimbă clientul
   useEffect(() => {
     if (formData && formData.client && clienti && clienti.length > 0) {
@@ -271,6 +341,7 @@ export function LucrareForm({
               client.persoaneContact && client.persoaneContact.length > 0
                 ? client.persoaneContact
                 : [{ nume: client.persoanaContact || "", telefon: client.telefon || "", email: "", functie: "" }],
+            echipamente: [],
           }
           setLocatii([defaultLocatie])
         }
@@ -279,6 +350,7 @@ export function LucrareForm({
         setSelectedLocatie(null)
         setPersoaneContact([])
         setShowContactAccordion(false)
+        setAvailableEquipments([])
       }
     }
   }, [formData, formData?.client, clienti])
@@ -396,6 +468,8 @@ export function LucrareForm({
       defectReclamat: formData.defectReclamat,
       // Include all contact persons from the selected location
       persoaneContact: formData.persoaneContact || persoaneContact,
+      echipamentId: formData.echipamentId,
+      echipamentCod: formData.echipamentCod,
     }
 
     await onSubmit(updatedData)
@@ -626,7 +700,7 @@ export function LucrareForm({
             Client *
           </label>
           <div className="flex gap-2">
-            <Select value={formData.client} onValueChange={(value) => handleSelectChange("client", value)}>
+            <Select value={formData.client} onValueChange={(value) => handleClientChange(value)}>
               <SelectTrigger id="client" className={`flex-1 ${hasError("client") ? errorStyle : ""}`}>
                 <SelectValue placeholder={loadingClienti ? "Se încarcă..." : "Selectați clientul"} />
               </SelectTrigger>
@@ -677,6 +751,26 @@ export function LucrareForm({
             </p>
           </div>
         )}
+
+        {/* Adăugăm câmpul pentru selectarea echipamentului în formular */}
+        {/* După câmpul de selectare a locației, adăugăm: */}
+        <div className="space-y-2">
+          <label htmlFor="echipament" className="text-sm font-medium">
+            Echipament
+          </label>
+          <EquipmentSelect
+            equipments={availableEquipments}
+            value={formData.echipamentId}
+            onSelect={handleEquipmentSelect}
+            disabled={!formData.locatie || availableEquipments.length === 0}
+          />
+          {availableEquipments.length === 0 && formData.locatie && (
+            <p className="text-xs text-amber-600">
+              Nu există echipamente definite pentru această locație. Puteți adăuga echipamente din secțiunea de
+              gestionare a clientului.
+            </p>
+          )}
+        </div>
 
         {/* Secțiunea de persoane de contact - afișată ca card informativ */}
         {showContactAccordion && (
@@ -730,7 +824,7 @@ export function LucrareForm({
         )}
 
         {/* Câmpul pentru echipament */}
-        <div className="space-y-2">
+        {/* <div className="space-y-2">
           <label htmlFor="echipament" className="text-sm font-medium">
             Echipament
           </label>
@@ -740,7 +834,7 @@ export function LucrareForm({
             value={formData.echipament || ""}
             onChange={handleInputChange}
           />
-        </div>
+        </div> */}
 
         {/* Add the defectReclamat field to the form, after the equipment field */}
         <div className="space-y-2">

@@ -10,13 +10,16 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/components/ui/use-toast"
-import { ChevronLeft, FileText, Pencil, Trash2 } from "lucide-react"
+import { ChevronLeft, FileText, Pencil, Trash2, AlertCircle } from "lucide-react"
 import { getLucrareById, deleteLucrare } from "@/lib/firebase/firestore"
 import { TehnicianInterventionForm } from "@/components/tehnician-intervention-form"
 import { useAuth } from "@/contexts/AuthContext"
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { useStableCallback } from "@/lib/utils/hooks"
 import { ContractDisplay } from "@/components/contract-display"
+// Adăugăm importul pentru componenta QRCodeScanner
+import { QRCodeScanner } from "@/components/qr-code-scanner"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function LucrarePage({ params }: { params: { id: string } }) {
   const router = useRouter()
@@ -159,9 +162,11 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
       </DashboardHeader>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:w-auto md:grid-cols-2">
+        {/* Modificăm secțiunea TabsList pentru a include noul tab: */}
+        <TabsList className="grid w-full grid-cols-2 md:w-auto md:grid-cols-3">
           <TabsTrigger value="detalii">Detalii Lucrare</TabsTrigger>
           {role === "tehnician" && <TabsTrigger value="interventie">Intervenție</TabsTrigger>}
+          {role === "tehnician" && <TabsTrigger value="verificare">Verificare Echipament</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="detalii" className="mt-4">
@@ -199,8 +204,16 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                   </div>
                 )}
                 <div>
-                  <p className="text-sm font-medium">Echipament:</p>
+                  <p className="text-sm font-medium">Locație:</p>
                   <p className="text-sm text-gray-500">{lucrare.locatie}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Echipament:</p>
+                  <p className="text-sm text-gray-500">
+                    {lucrare.echipament
+                      ? `${lucrare.echipament} (Cod: ${lucrare.echipamentCod || "N/A"})`
+                      : "Nespecificat"}
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm font-medium">Descriere:</p>
@@ -308,6 +321,51 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
               }}
               onUpdate={refreshLucrare}
             />
+          </TabsContent>
+        )}
+
+        {/* Adăugăm conținutul pentru noul tab: */}
+        {role === "tehnician" && (
+          <TabsContent value="verificare" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Verificare Echipament</CardTitle>
+                <CardDescription>
+                  Scanați QR code-ul echipamentului pentru a verifica dacă corespunde cu lucrarea.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-col items-center justify-center p-4 border rounded-lg">
+                  <p className="mb-4 text-center">
+                    Scanați QR code-ul echipamentului pentru a verifica dacă este cel corect pentru această lucrare.
+                  </p>
+                  <QRCodeScanner
+                    expectedEquipmentCode={lucrare.echipamentCod}
+                    expectedLocationName={lucrare.locatie}
+                    expectedClientName={lucrare.client}
+                    onScanSuccess={(data) => {
+                      toast({
+                        title: "Verificare reușită",
+                        description: "Echipamentul scanat corespunde cu lucrarea.",
+                      })
+                    }}
+                    onScanError={(error) => {
+                      toast({
+                        title: "Verificare eșuată",
+                        description: error,
+                        variant: "destructive",
+                      })
+                    }}
+                  />
+                </div>
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Verificarea echipamentului este obligatorie înainte de începerea intervenției.
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </Card>
           </TabsContent>
         )}
       </Tabs>

@@ -19,6 +19,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
+// Adăugăm importul pentru componenta EquipmentQRCode
+import { EquipmentQRCode } from "@/components/equipment-qr-code"
 
 interface ClientFormProps {
   onSuccess?: (clientName: string) => void
@@ -573,6 +575,11 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
                                 </Badge>
                               </div>
                               <div className="flex space-x-1">
+                                <EquipmentQRCode
+                                  equipment={echipament}
+                                  clientName={formData.nume}
+                                  locationName={locatie.nume}
+                                />
                                 <Button
                                   type="button"
                                   variant="ghost"

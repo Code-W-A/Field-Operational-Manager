@@ -66,7 +66,9 @@
     "jspdf": "latest",
     "firebase-admin": "latest",
     "nodemailer": "latest",
-    "path": "latest"
+    "path": "latest",
+    "qrcode.react": "latest",
+    "react-qr-reader": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",
