@@ -19,7 +19,7 @@ import { format, parse, isAfter, isBefore } from "date-fns"
 import { MoreHorizontal, FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
-import { addLucrare, deleteLucrare, updateLucrare, getLucrareById } from "@/lib/firebase/firestore"
+import { addLucrare, deleteLucrare, updateLucrare, getLucrareById, getClientById } from "@/lib/firebase/firestore"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { orderBy } from "firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
@@ -100,7 +100,6 @@ export default function Lucrari() {
     statusFacturare: "Nefacturat",
     contract: "",
     defectReclamat: "",
-    persoaneContact: [], // Adăugăm array-ul de persoane de contact
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState(null)
@@ -120,9 +119,6 @@ export default function Lucrari() {
     error: fetchError,
   } = useFirebaseCollection("lucrari", [orderBy("dataEmiterii", "desc")])
 
-  // Obținem utilizatorii din Firebase pentru a avea acces la email-urile tehnicienilor
-  const { data: tehnicieni, loading: loadingTehnicieni, error: tehnicieniError } = useFirebaseCollection("users", [])
-
   // Filtrăm lucrările pentru tehnicieni
   const filteredLucrari = useMemo(() => {
     if (userData?.role === "tehnician" && userData?.displayName) {
@@ -132,6 +128,7 @@ export default function Lucrari() {
   }, [lucrari, userData?.role, userData?.displayName])
 
   // Modificăm funcția filterOptions pentru a include și echipamentele
+  const { data: tehnicieni } = useFirebaseCollection("users", [])
   const filterOptions = useMemo(() => {
     // Extragem toate valorile unice pentru tipuri de lucrări
     const tipuriLucrare = Array.from(new Set(filteredLucrari.map((lucrare) => lucrare.tipLucrare))).map((tip) => ({
@@ -233,7 +230,7 @@ export default function Lucrari() {
         value: [],
       },
     ]
-  }, [filteredLucrari])
+  }, [filteredLucrari, tehnicieni])
 
   // Modificăm funcția applyFilters pentru a gestiona filtrarea după echipament
   const applyFilters = useCallback(
@@ -497,11 +494,6 @@ export default function Lucrari() {
     }
   }
 
-  // Adăugăm o funcție pentru a gestiona modificările în câmpurile personalizate
-  const handleCustomChange = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-  }
-
   const resetForm = () => {
     setDataEmiterii(new Date())
     setDataInterventie(new Date())
@@ -517,7 +509,6 @@ export default function Lucrari() {
       statusFacturare: "Nefacturat",
       contract: "",
       defectReclamat: "",
-      persoaneContact: [], // Resetăm și array-ul de persoane de contact
     })
     setError(null)
     setFieldErrors([])
@@ -578,18 +569,6 @@ export default function Lucrari() {
 
       // Trimitem notificări prin email
       try {
-        // Extragem email-ul clientului din persoanele de contact
-        let clientEmail = ""
-
-        // Verificăm dacă avem un array de persoane de contact
-        if (Array.isArray(formData.persoaneContact) && formData.persoaneContact.length > 0) {
-          // Căutăm prima persoană de contact cu email
-          const contactWithEmail = formData.persoaneContact.find((contact) => contact.email)
-          if (contactWithEmail) {
-            clientEmail = contactWithEmail.email
-          }
-        }
-
         // Trimitem notificările
         const notificationResult = await sendWorkOrderNotifications(lucrareCompleta)
 
@@ -604,6 +583,13 @@ export default function Lucrari() {
 
           // Construim mesajul pentru toast
           let emailMessage = "Email-uri trimise către:\n"
+
+          // Verificăm dacă clientul are email
+          let clientEmail = ""
+          const clientData = await getClientById(formData.client)
+          if (clientData && clientData.email) {
+            clientEmail = clientData.email
+          }
 
           if (clientEmail) {
             emailMessage += `Client: ${clientEmail}\n`
@@ -687,7 +673,6 @@ export default function Lucrari() {
       statusFacturare: lucrare.statusFacturare,
       contract: lucrare.contract || "",
       defectReclamat: lucrare.defectReclamat || "",
-      persoaneContact: lucrare.persoaneContact || [], // Adăugăm persoanele de contact
     })
 
     setIsEditDialogOpen(true)
@@ -734,18 +719,6 @@ export default function Lucrari() {
         JSON.stringify(selectedLucrare.tehnicieni) !== JSON.stringify(updatedLucrare.tehnicieni)
       ) {
         try {
-          // Extragem email-ul clientului din persoanele de contact
-          let clientEmail = ""
-
-          // Verificăm dacă avem un array de persoane de contact
-          if (Array.isArray(formData.persoaneContact) && formData.persoaneContact.length > 0) {
-            // Căutăm prima persoană de contact cu email
-            const contactWithEmail = formData.persoaneContact.find((contact) => contact.email)
-            if (contactWithEmail) {
-              clientEmail = contactWithEmail.email
-            }
-          }
-
           // Trimitem notificările
           const notificationResult = await sendWorkOrderNotifications(lucrareCompleta)
 
@@ -760,6 +733,13 @@ export default function Lucrari() {
 
             // Construim mesajul pentru toast
             let emailMessage = "Email-uri trimise către:\n"
+
+            // Verificăm dacă clientul are email
+            let clientEmail = ""
+            const clientData = await getClientById(formData.client)
+            if (clientData && clientData.email) {
+              clientEmail = clientData.email
+            }
 
             if (clientEmail) {
               emailMessage += `Client: ${clientEmail}\n`
@@ -1073,7 +1053,6 @@ export default function Lucrari() {
               handleInputChange={handleInputChange}
               handleSelectChange={handleSelectChange}
               handleTehnicieniChange={handleTehnicieniChange}
-              handleCustomChange={handleCustomChange}
               fieldErrors={fieldErrors}
             />
             <DialogFooter className="flex-col gap-2 sm:flex-row">
@@ -1116,7 +1095,6 @@ export default function Lucrari() {
               handleInputChange={handleInputChange}
               handleSelectChange={handleSelectChange}
               handleTehnicieniChange={handleTehnicieniChange}
-              handleCustomChange={handleCustomChange}
               fieldErrors={fieldErrors}
             />
             <DialogFooter className="flex-col gap-2 sm:flex-row">
