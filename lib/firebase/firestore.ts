@@ -50,10 +50,18 @@ export interface PersoanaContact {
   functie?: string
 }
 
-// Tipuri pentru clienți - actualizăm pentru a include persoanele de contact
+// Adăugăm interfața pentru locații
+export interface Locatie {
+  nume: string
+  adresa: string
+  persoaneContact: PersoanaContact[]
+}
+
+// Tipuri pentru clienți - actualizăm pentru a include CIF și locații
 export interface Client {
   id?: string
   nume: string
+  cif?: string // Adăugăm CIF
   adresa: string
   persoanaContact: string // Păstrăm pentru compatibilitate cu datele existente
   telefon: string
@@ -61,6 +69,8 @@ export interface Client {
   numarLucrari?: number
   // Adăugăm câmpul pentru persoanele de contact
   persoaneContact?: PersoanaContact[]
+  // Adăugăm câmpul pentru locații
+  locatii?: Locatie[]
   createdAt?: Timestamp
   updatedAt?: Timestamp
 }

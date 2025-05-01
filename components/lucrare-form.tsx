@@ -109,6 +109,10 @@ export function LucrareForm({
   const [persoaneContact, setPersoaneContact] = useState<PersoanaContact[]>([])
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
 
+  // Adăugăm state pentru locația selectată
+  const [selectedLocatie, setSelectedLocatie] = useState<any | null>(null)
+  const [locatii, setLocatii] = useState<any[]>([])
+
   // Handle date selection with proper time preservation
   const handleDateEmiteriiSelect = useCallback(
     (date: Date | undefined) => {
@@ -260,6 +264,34 @@ export function LucrareForm({
     }
   }, [formData, formData?.client, clienti])
 
+  // Adăugăm după declararea stării persoaneContact
+  useEffect(() => {
+    // Actualizăm locațiile când se schimbă clientul selectat
+    if (formData && formData.client && clienti && clienti.length > 0) {
+      const client = clienti.find((c) => c.nume === formData.client)
+      if (client && client.locatii && client.locatii.length > 0) {
+        setLocatii(client.locatii)
+      } else {
+        setLocatii([])
+      }
+      // Resetăm locația selectată când se schimbă clientul
+      setSelectedLocatie(null)
+    }
+  }, [formData, formData?.client, clienti])
+
+  // Adăugăm funcție pentru gestionarea selecției locației
+  const handleLocatieSelect = (locatieNume: string) => {
+    const locatie = locatii.find((loc) => loc.nume === locatieNume)
+    if (locatie) {
+      setSelectedLocatie(locatie)
+      // Resetăm persoana de contact selectată
+      handleSelectChange("persoanaContact", "")
+      handleSelectChange("telefon", "")
+      // Actualizăm persoanele de contact disponibile pentru această locație
+      setPersoaneContact(locatie.persoaneContact)
+    }
+  }
+
   // Modificăm funcția handleClientAdded pentru a gestiona corect adăugarea clientului
   const handleClientAdded = (clientName: string) => {
     handleSelectChange("client", clientName)
@@ -360,7 +392,7 @@ export function LucrareForm({
                       {dataEmiterii ? format(dataEmiterii, "dd.MM.yyyy", { locale: ro }) : <span>Selectați data</span>}
                     </Button>
                   </PopoverTrigger>
-                  
+
                   <PopoverContent className="w-auto p-0" align="start" sideOffset={4}>
                     <CustomDatePicker
                       selectedDate={dataEmiterii}
@@ -539,7 +571,32 @@ export function LucrareForm({
           </DialogContent>
         </Dialog>
 
-        {selectedClient && (
+        {/* Adăugăm după secțiunea de client și înainte de persoana de contact */}
+        {locatii.length > 0 && (
+          <div className="space-y-2">
+            <label htmlFor="locatie" className="text-sm font-medium">
+              Locație
+            </label>
+            <Select onValueChange={handleLocatieSelect}>
+              <SelectTrigger id="locatie">
+                <SelectValue placeholder="Selectați locația" />
+              </SelectTrigger>
+              <SelectContent>
+                {locatii.map((loc, index) => (
+                  <SelectItem key={index} value={loc.nume}>
+                    {loc.nume}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Selectați locația clientului pentru această lucrare</p>
+          </div>
+        )}
+
+        {/* Modificăm secțiunea de persoane de contact pentru a afișa persoanele de contact ale locației selectate */}
+        {(selectedLocatie
+          ? selectedLocatie.persoaneContact.length > 0
+          : selectedClient && persoaneContact.length > 0) && (
           <div className="space-y-2">
             <label htmlFor="persoanaContact" className="text-sm font-medium">
               Persoană Contact *
@@ -547,7 +604,8 @@ export function LucrareForm({
             <Select
               value={formData.persoanaContact}
               onValueChange={(value) => {
-                const contact = persoaneContact.find((c) => c.nume === value)
+                const contactList = selectedLocatie ? selectedLocatie.persoaneContact : persoaneContact
+                const contact = contactList.find((c) => c.nume === value)
                 if (contact) {
                   handleContactSelect(contact)
                 }
@@ -557,7 +615,7 @@ export function LucrareForm({
                 <SelectValue placeholder="Selectați persoana de contact" />
               </SelectTrigger>
               <SelectContent>
-                {persoaneContact.map((contact, index) => (
+                {(selectedLocatie ? selectedLocatie.persoaneContact : persoaneContact).map((contact, index) => (
                   <SelectItem key={index} value={contact.nume}>
                     {contact.nume} {contact.functie ? `(${contact.functie})` : ""}{" "}
                     {contact.telefon ? `- ${contact.telefon}` : ""}
@@ -565,7 +623,11 @@ export function LucrareForm({
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">Selectați persoana de contact pentru această lucrare</p>
+            <p className="text-xs text-muted-foreground">
+              {selectedLocatie
+                ? "Persoane de contact pentru locația selectată"
+                : "Selectați persoana de contact pentru această lucrare"}
+            </p>
           </div>
         )}
 

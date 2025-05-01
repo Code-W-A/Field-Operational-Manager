@@ -322,6 +322,11 @@ export default function Clienti() {
       cell: ({ row }: any) => <span className="font-medium">{row.original.nume}</span>,
     },
     {
+      accessorKey: "cif",
+      header: "CIF/CUI",
+      enableFiltering: true,
+    },
+    {
       accessorKey: "adresa",
       header: "Adresă",
       enableFiltering: true,
@@ -514,15 +519,23 @@ export default function Clienti() {
                   <div className="flex items-center justify-between border-b p-4">
                     <div>
                       <h3 className="font-medium">{client.nume}</h3>
+                      {client.cif && <p className="text-xs text-muted-foreground">CIF/CUI: {client.cif}</p>}
                       <p className="text-sm text-muted-foreground">{client.adresa || "Fără adresă"}</p>
                     </div>
-                    <Badge variant="outline">
-                      {client.numarLucrari === 0
-                        ? "Fără lucrări"
-                        : client.numarLucrari === 1
-                          ? "1 lucrare"
-                          : `${client.numarLucrari} lucrari`}
-                    </Badge>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge variant="outline">
+                        {client.numarLucrari === 0
+                          ? "Fără lucrări"
+                          : client.numarLucrari === 1
+                            ? "1 lucrare"
+                            : `${client.numarLucrari} lucrari`}
+                      </Badge>
+                      {client.locatii && client.locatii.length > 0 && (
+                        <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                          {client.locatii.length} {client.locatii.length === 1 ? "locație" : "locații"}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <div className="p-4">
                     <div className="mb-4 space-y-2">

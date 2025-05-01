@@ -66,8 +66,7 @@
     "jspdf": "latest",
     "firebase-admin": "latest",
     "nodemailer": "latest",
-    "path": "latest",
-    "uuid": "latest"
+    "path": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",
