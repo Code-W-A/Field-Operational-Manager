@@ -63,11 +63,11 @@
     "firebase": "latest",
     "react-signature-canvas": "latest",
     "@tanstack/react-table": "latest",
-    "jspdf": "latest",
     "firebase-admin": "latest",
     "nodemailer": "latest",
     "path": "latest",
     "react-qr-reader": "latest",
+    "jspdf": "latest",
     "qrcode.react": "latest",
     "uuid": "latest"
   },

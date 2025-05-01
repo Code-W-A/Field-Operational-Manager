@@ -389,18 +389,35 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       currentY += 5
 
       const subtotal = products.reduce((sum, p) => sum + (p.quantity || 0) * (p.price || 0), 0)
-      const vat = subtotal * 1.19
+      const vat = subtotal * 0.19
+      const total = subtotal + vat
 
-      doc.setFont(undefined, "bold").setFontSize(9).text("Total fără TVA:", colPos[4], currentY)
-      doc
-        .setFont(undefined, "normal")
-        .text(`${subtotal.toFixed(2)} RON`, colPos[5] + colWidths[5] - 2, currentY, { align: "right" })
+      // Desenează un box pentru totaluri pentru a le separa vizual
+      doc.setDrawColor(180).setLineWidth(0.3).setFillColor(252)
+      doc.rect(colPos[3], currentY - 2, colPos[5] - colPos[3], 20, "FD")
 
+      // Subtotal
+      doc.setFont(undefined, "bold").setFontSize(9)
+      doc.text("Total fără TVA:", colPos[3] + 5, currentY + 4)
+
+      doc.setFont(undefined, "normal")
+      doc.text(`${subtotal.toFixed(2)} RON`, colPos[5] - 5, currentY + 4, { align: "right" })
+
+      // TVA
       currentY += 6
-      doc.setFont(undefined, "bold").text("Total cu TVA (19%):", colPos[4], currentY)
-      doc
-        .setFont(undefined, "normal")
-        .text(`${vat.toFixed(2)} RON`, colPos[5] + colWidths[5] - 2, currentY, { align: "right" })
+      doc.setFont(undefined, "bold")
+      doc.text("TVA (19%):", colPos[3] + 5, currentY + 4)
+
+      doc.setFont(undefined, "normal")
+      doc.text(`${vat.toFixed(2)} RON`, colPos[5] - 5, currentY + 4, { align: "right" })
+
+      // Total cu TVA
+      currentY += 6
+      doc.setFont(undefined, "bold")
+      doc.text("Total cu TVA:", colPos[3] + 5, currentY + 4)
+
+      doc.setFont(undefined, "normal")
+      doc.text(`${total.toFixed(2)} RON`, colPos[5] - 5, currentY + 4, { align: "right" })
 
       currentY += 15
 
