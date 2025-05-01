@@ -274,7 +274,7 @@ export function LucrareForm({
       persoanaContact: "",
       telefon: "",
     }))
-    setSelectedClient(clienti.find((c) => c.id === value) || null)
+    setSelectedClient(clienti.find((c) => c.nume === value) || null)
     setAvailableEquipments([])
   }
 
