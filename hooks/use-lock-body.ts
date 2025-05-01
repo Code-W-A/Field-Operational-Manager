@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 
 /**
  * Custom hook to lock the body scroll when a modal is open
@@ -8,10 +8,13 @@ import { useEffect, useState } from "react"
  */
 export function useLockBody() {
   const [originalStyle, setOriginalStyle] = useState("")
+  const [originalPointerEvents, setOriginalPointerEvents] = useState("")
+  const cleanup = useRef<() => void>()
 
   useEffect(() => {
-    // Save the original body style
-    setOriginalStyle(window.getComputedStyle(document.body).overflow)
+    // Save the original body styles
+    setOriginalStyle(document.body.style.overflow)
+    setOriginalPointerEvents(document.body.style.pointerEvents)
 
     // Lock body scroll
     document.body.style.overflow = "hidden"
@@ -19,10 +22,11 @@ export function useLockBody() {
     // Add a class to indicate modal is open
     document.documentElement.classList.add("modal-open")
 
-    // Cleanup function
-    return () => {
-      // Restore original body style
+    // Define cleanup function
+    cleanup.current = () => {
+      // Restore original body styles
       document.body.style.overflow = originalStyle
+      document.body.style.pointerEvents = originalPointerEvents
 
       // Remove the modal open class
       document.documentElement.classList.remove("modal-open")
@@ -32,5 +36,27 @@ export function useLockBody() {
         const forceReflow = document.body.offsetHeight
       }, 10)
     }
+
+    // Cleanup function
+    return () => {
+      if (cleanup.current) {
+        cleanup.current()
+      }
+
+      // Additional safety measure - ensure body scroll is restored
+      // even if the component unmounts unexpectedly
+      document.body.style.overflow = ""
+      document.body.style.pointerEvents = ""
+      document.documentElement.classList.remove("modal-open")
+    }
   }, [])
+
+  // Expose a manual cleanup method that can be called
+  return {
+    unlockBody: () => {
+      if (cleanup.current) {
+        cleanup.current()
+      }
+    },
+  }
 }

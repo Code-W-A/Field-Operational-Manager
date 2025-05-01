@@ -36,8 +36,17 @@ export function ColumnSelectionModal({
 }: ColumnSelectionModalProps) {
   const [mounted, setMounted] = useState(false)
 
+  // În componenta ColumnSelectionModal, adaugă următorul cod la începutul funcției sau înlocuiește apelul existent useLockBody
+  const { unlockBody } = useLockBody()
+
   // Use our custom hook to manage body scroll locking
-  useLockBody(isOpen)
+  // useLockBody(isOpen)
+
+  // Modifică funcția onClose pentru a asigura curățarea corectă
+  const handleClose = () => {
+    unlockBody() // Asigură-te că body-ul este deblocat
+    onClose() // Apelează funcția originală onClose
+  }
 
   useEffect(() => {
     setMounted(true)
@@ -62,10 +71,7 @@ export function ColumnSelectionModal({
     <Dialog
       open={isOpen}
       onOpenChange={(open) => {
-        if (!open) {
-          // Ensure we properly clean up when dialog is closed
-          setTimeout(() => onClose(), 10)
-        }
+        if (!open) handleClose()
       }}
     >
       <DialogContent

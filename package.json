@@ -68,8 +68,8 @@
     "path": "latest",
     "react-qr-reader": "latest",
     "jspdf": "latest",
-    "qrcode.react": "latest",
-    "uuid": "latest"
+    "uuid": "latest",
+    "qrcode.react": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",

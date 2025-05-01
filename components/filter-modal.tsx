@@ -40,7 +40,13 @@ export function FilterModal({
   const [filters, setFilters] = useState<FilterOption[]>(filterOptions)
 
   // Use our custom hook to manage body scroll locking
-  useLockBody(isOpen)
+  const { unlockBody } = useLockBody()
+
+  // Modifică funcția onClose pentru a asigura curățarea corectă
+  const handleClose = () => {
+    unlockBody() // Asigură-te că body-ul este deblocat
+    onClose() // Apelează funcția originală onClose
+  }
 
   // Actualizăm starea filtrelor când se schimbă opțiunile
   useEffect(() => {
@@ -53,12 +59,12 @@ export function FilterModal({
 
   const handleApply = () => {
     onApplyFilters(filters)
-    onClose()
+    handleClose()
   }
 
   const handleReset = () => {
     onResetFilters()
-    onClose()
+    handleClose()
   }
 
   // Ensure proper cleanup when component unmounts
@@ -222,17 +228,14 @@ export function FilterModal({
     <Dialog
       open={isOpen}
       onOpenChange={(open) => {
-        if (!open) {
-          // Ensure we properly clean up when dialog is closed
-          setTimeout(() => onClose(), 10)
-        }
+        if (!open) handleClose()
       }}
     >
       <DialogContent
         className="w-[calc(100%-2rem)] max-w-[500px] max-h-[90vh] overflow-hidden bg-white"
-        onEscapeKeyDown={onClose}
-        onInteractOutside={onClose}
-        onPointerDownOutside={onClose}
+        onEscapeKeyDown={handleClose}
+        onInteractOutside={handleClose}
+        onPointerDownOutside={handleClose}
       >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>

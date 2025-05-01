@@ -298,20 +298,7 @@ export function EquipmentQRCode({ equipment, clientName, locationName }: Equipme
           </DialogHeader>
           <div className="flex flex-col items-center justify-center p-4">
             <div id="equipment-qr-code" className="border p-4 rounded-lg bg-white">
-              <QRCodeSVG
-                value={qrData}
-                size={200}
-                level="H"
-                includeMargin={true}
-                imageSettings={{
-                  src: "/nrglogo.png",
-                  x: undefined,
-                  y: undefined,
-                  height: 24,
-                  width: 24,
-                  excavate: true,
-                }}
-              />
+              <QRCodeSVG value={qrData} size={200} level="H" includeMargin={true} />
             </div>
             <div className="mt-4 text-center">
               <p className="font-medium">{equipment.nume}</p>

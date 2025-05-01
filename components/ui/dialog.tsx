@@ -44,6 +44,20 @@ const DialogContent = React.forwardRef<
       onCloseAutoFocus={(event) => {
         // Prevent focus returning to the trigger
         event.preventDefault()
+
+        // Ensure body scroll is restored
+        document.body.style.overflow = ""
+
+        // Remove any lingering modal classes
+        document.documentElement.classList.remove("modal-open")
+
+        // Force a reflow to ensure all event listeners are properly cleaned up
+        window.setTimeout(() => {
+          const forceReflow = document.body.offsetHeight
+
+          // Ensure we can interact with the document again
+          document.body.style.pointerEvents = ""
+        }, 10)
       }}
       {...props}
     >
