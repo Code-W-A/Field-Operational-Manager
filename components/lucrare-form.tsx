@@ -25,8 +25,8 @@ import { TimeSelector } from "./time-selector"
 // Import our new CustomDatePicker component
 import { CustomDatePicker } from "./custom-date-picker"
 import { Card } from "@/components/ui/card"
-// Adăugăm importul pentru componenta EquipmentSelect
-import { EquipmentSelect } from "@/components/equipment-select"
+// Înlocuim importul pentru componenta EquipmentSelect cu CustomEquipmentSelect
+import { CustomEquipmentSelect } from "@/components/custom-equipment-select"
 import { Input } from "@/components/ui/input"
 import { toast } from "@/components/ui/use-toast"
 
@@ -360,7 +360,7 @@ export function LucrareForm({
 
     toast({
       title: "Echipament selectat",
-      description: `Ați selectat echipamentul ${equipment.nume} cu codul ${equipment.cod}`,
+      description: `Ați selectat echipamentul ${equipment.nume} (cod: ${equipment.cod})`,
       variant: "default",
     })
   }
@@ -891,17 +891,20 @@ export function LucrareForm({
           </div>
         )}
 
-        {/* Adăugăm câmpul pentru selectarea echipamentului în formular */}
-        {/* După câmpul de selectare a locației, adăugăm: */}
+        {/* Înlocuim componenta EquipmentSelect cu CustomEquipmentSelect */}
         <div className="space-y-2">
           <label htmlFor="echipament" className="text-sm font-medium">
             Echipament
           </label>
-          <EquipmentSelect
+          <CustomEquipmentSelect
             equipments={availableEquipments}
             value={formData.echipamentId}
             onSelect={handleEquipmentSelect}
             disabled={!formData.locatie}
+            placeholder={formData.locatie ? "Selectați echipamentul" : "Selectați mai întâi o locație"}
+            emptyMessage={
+              formData.locatie ? "Nu există echipamente pentru această locație" : "Selectați mai întâi o locație"
+            }
           />
           {availableEquipments.length === 0 && formData.locatie && (
             <div>
