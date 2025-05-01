@@ -33,6 +33,8 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
     contractNumber: "",
     defectReclamat: "",
     persoaneContact: [] as PersoanaContact[],
+    echipamentId: "",
+    echipamentCod: "",
   })
   const [initialData, setInitialData] = useState<any>(null)
   const [fieldErrors, setFieldErrors] = useState<string[]>([])
@@ -70,6 +72,8 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
             contractNumber: lucrare.contractNumber || "",
             defectReclamat: lucrare.defectReclamat || "",
             persoaneContact: lucrare.persoaneContact || [],
+            echipamentId: lucrare.echipamentId || "",
+            echipamentCod: lucrare.echipamentCod || "",
           })
         }
         setLoading(false)
@@ -194,6 +198,7 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
             onSubmit={handleSubmit}
             onCancel={() => router.push(`/dashboard/lucrari/${id}`)}
             initialData={initialData}
+            fieldErrors={fieldErrors}
           />
         </CardContent>
       </Card>

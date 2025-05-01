@@ -30,6 +30,8 @@ export default function NewLucrarePage() {
     contractNumber: "",
     defectReclamat: "",
     persoaneContact: [] as PersoanaContact[],
+    echipamentId: "",
+    echipamentCod: "",
   })
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {

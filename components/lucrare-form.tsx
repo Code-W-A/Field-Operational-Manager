@@ -27,6 +27,8 @@ import { CustomDatePicker } from "./custom-date-picker"
 import { Card } from "@/components/ui/card"
 // Adăugăm importul pentru componenta EquipmentSelect
 import { EquipmentSelect } from "@/components/equipment-select"
+import { Input } from "@/components/ui/input"
+import { toast } from "@/components/ui/use-toast"
 
 // Define the Lucrare type
 interface Lucrare {
@@ -75,7 +77,6 @@ interface LucrareFormProps {
     echipamentId?: string
     echipamentCod?: string
   }
-  setFormData: React.Dispatch<React.SetStateAction<LucrareFormProps["formData"]>>
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void
   handleSelectChange: (id: string, value: string) => void
   handleTehnicieniChange: (value: string) => void
@@ -94,7 +95,6 @@ export function LucrareForm({
   dataInterventie,
   setDataInterventie,
   formData,
-  setFormData,
   handleInputChange,
   handleSelectChange,
   handleTehnicieniChange,
@@ -114,6 +114,9 @@ export function LucrareForm({
     dataInterventie ? formatTime24(dataInterventie) : formatTime24(new Date()),
   )
   const [error, setError] = useState<string | null>(null)
+  const [clientSearchTerm, setClientSearchTerm] = useState("")
+  const [filteredClients, setFilteredClients] = useState<Client[]>([])
+  const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false)
 
   // Add state for controlling the popovers
   const [dateEmiteriiOpen, setDateEmiteriiOpen] = useState(false)
@@ -227,7 +230,26 @@ export function LucrareForm({
   }, [dataInterventie, timeInterventie])
 
   // Obținem clienții din Firestore
-  const { data: clienti, loading: loadingClienti } = useFirebaseCollection<Client>("clienti", [orderBy("nume", "asc")])
+  const {
+    data: clienti,
+    loading: loadingClienti,
+    error: clientiError,
+  } = useFirebaseCollection<Client>("clienti", [orderBy("nume", "asc")])
+
+  // Actualizăm lista filtrată de clienți când se schimbă termenul de căutare sau lista de clienți
+  useEffect(() => {
+    if (clienti && clienti.length > 0) {
+      if (clientSearchTerm.trim() === "") {
+        setFilteredClients(clienti)
+      } else {
+        const searchTermLower = clientSearchTerm.toLowerCase()
+        const filtered = clienti.filter((client) => client.nume.toLowerCase().includes(searchTermLower))
+        setFilteredClients(filtered)
+      }
+    } else {
+      setFilteredClients([])
+    }
+  }, [clientSearchTerm, clienti])
 
   // Încărcăm tehnicienii direct din Firestore
   useEffect(() => {
@@ -264,45 +286,55 @@ export function LucrareForm({
 
   // Modificăm funcția handleClientChange pentru a reseta echipamentul când se schimbă clientul
   const handleClientChange = async (value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      client: value,
-      locatie: "",
-      echipament: "",
-      echipamentId: "",
-      echipamentCod: "",
-      persoanaContact: "",
-      telefon: "",
-    }))
-    setSelectedClient(clienti.find((c) => c.nume === value) || null)
-    setAvailableEquipments([])
-  }
+    // Găsim clientul selectat
+    const client = clienti.find((c) => c.nume === value)
 
-  // Modificăm funcția handleLocationChange pentru a încărca echipamentele disponibile pentru locația selectată
-  const handleLocationChange = (value: string, clientId: string) => {
-    const client = clienti.find((c) => c.id === clientId)
-    if (!client || !client.locatii) {
-      setFormData((prev) => ({
-        ...prev,
-        locatie: value,
-        echipament: "",
-        echipamentId: "",
-        echipamentCod: "",
-      }))
-      setAvailableEquipments([])
+    if (!client) {
+      console.error("Clientul selectat nu a fost găsit în lista de clienți")
+      toast({
+        title: "Eroare",
+        description: "Clientul selectat nu a fost găsit. Vă rugăm să încercați din nou.",
+        variant: "destructive",
+      })
       return
     }
 
-    const selectedLocation = client.locatii.find((loc) => loc.nume === value)
+    // Actualizăm formData cu noul client
+    handleSelectChange("client", value)
+
+    // Resetăm celelalte câmpuri dependente
+    handleSelectChange("locatie", "")
+    handleSelectChange("echipament", "")
+    handleSelectChange("persoanaContact", "")
+    handleSelectChange("telefon", "")
+
+    // Actualizăm starea pentru clientul selectat
+    setSelectedClient(client)
+
+    // Resetăm echipamentele disponibile
+    setAvailableEquipments([])
+
+    console.log("Client selectat:", client)
+  }
+
+  // Modificăm funcția handleLocationChange pentru a încărca echipamentele disponibile pentru locația selectată
+  const handleLocationChange = (value: string) => {
+    if (!selectedClient) {
+      console.error("Nu există un client selectat")
+      return
+    }
+
+    const selectedLocation = selectedClient.locatii?.find((loc) => loc.nume === value)
 
     // Actualizăm datele formularului
-    setFormData((prev) => ({
-      ...prev,
-      locatie: value,
-      echipament: "",
-      echipamentId: "",
-      echipamentCod: "",
-    }))
+    handleSelectChange("locatie", value)
+    handleSelectChange("echipament", "")
+
+    // Resetăm echipamentul selectat
+    if (handleCustomChange) {
+      handleCustomChange("echipamentId", "")
+      handleCustomChange("echipamentCod", "")
+    }
 
     // Actualizăm echipamentele disponibile
     if (selectedLocation && selectedLocation.echipamente) {
@@ -310,16 +342,19 @@ export function LucrareForm({
     } else {
       setAvailableEquipments([])
     }
+
+    // Actualizăm locația selectată
+    setSelectedLocatie(selectedLocation || null)
   }
 
   // Adăugăm funcție pentru selectarea echipamentului
   const handleEquipmentSelect = (equipmentId: string, equipment: Echipament) => {
-    setFormData((prev) => ({
-      ...prev,
-      echipament: equipment.nume,
-      echipamentId: equipmentId,
-      echipamentCod: equipment.cod,
-    }))
+    handleSelectChange("echipament", equipment.nume)
+
+    if (handleCustomChange) {
+      handleCustomChange("echipamentId", equipmentId)
+      handleCustomChange("echipamentCod", equipment.cod)
+    }
   }
 
   // Actualizăm clientul selectat și locațiile când se schimbă clientul
@@ -526,6 +561,18 @@ export function LucrareForm({
     }
   }, [initialData, locatii, handleCustomChange])
 
+  // Adăugăm un efect pentru a afișa erori de încărcare a clienților
+  useEffect(() => {
+    if (clientiError) {
+      console.error("Eroare la încărcarea clienților:", clientiError)
+      toast({
+        title: "Eroare",
+        description: "A apărut o eroare la încărcarea listei de clienți. Vă rugăm să reîncărcați pagina.",
+        variant: "destructive",
+      })
+    }
+  }, [clientiError])
+
   return (
     <div className="modal-calendar-container">
       {error && <div className="text-red-500 mb-4">{error}</div>}
@@ -699,22 +746,69 @@ export function LucrareForm({
           <label htmlFor="client" className="text-sm font-medium">
             Client *
           </label>
-          <div className="flex gap-2">
-            <Select value={formData.client} onValueChange={(value) => handleClientChange(value)}>
-              <SelectTrigger id="client" className={`flex-1 ${hasError("client") ? errorStyle : ""}`}>
-                <SelectValue placeholder={loadingClienti ? "Se încarcă..." : "Selectați clientul"} />
-              </SelectTrigger>
-              <SelectContent>
-                {clienti.map((client) => (
-                  <SelectItem key={client.id} value={client.nume}>
-                    {client.nume}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button variant="outline" size="icon" onClick={() => setIsAddClientDialogOpen(true)}>
-              <Plus className="h-4 w-4" />
-            </Button>
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-2">
+              <Popover open={isClientDropdownOpen} onOpenChange={setIsClientDropdownOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={isClientDropdownOpen}
+                    className={`w-full justify-between ${hasError("client") ? errorStyle : ""}`}
+                  >
+                    {formData.client || "Selectați clientul"}
+                    <span className="ml-2 opacity-50">▼</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <div className="p-2">
+                    <Input
+                      placeholder="Căutare client..."
+                      value={clientSearchTerm}
+                      onChange={(e) => setClientSearchTerm(e.target.value)}
+                      className="mb-2"
+                    />
+                    <div className="max-h-[200px] overflow-y-auto">
+                      {loadingClienti ? (
+                        <div className="flex items-center justify-center p-4">
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          <span>Se încarcă clienții...</span>
+                        </div>
+                      ) : filteredClients.length > 0 ? (
+                        filteredClients.map((client) => (
+                          <div
+                            key={client.id}
+                            className={`px-2 py-1 cursor-pointer hover:bg-gray-100 rounded ${
+                              formData.client === client.nume ? "bg-blue-50 text-blue-600" : ""
+                            }`}
+                            onClick={() => {
+                              handleClientChange(client.nume)
+                              setIsClientDropdownOpen(false)
+                              setClientSearchTerm("")
+                            }}
+                          >
+                            {client.nume}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-2 text-center text-sm text-muted-foreground">
+                          {clientSearchTerm ? "Nu s-au găsit clienți" : "Nu există clienți disponibili"}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <Button variant="outline" size="icon" onClick={() => setIsAddClientDialogOpen(true)}>
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+            {selectedClient && (
+              <div className="text-xs text-muted-foreground">
+                Client selectat: <span className="font-medium">{selectedClient.nume}</span>
+                {selectedClient.cif && <span> (CIF: {selectedClient.cif})</span>}
+              </div>
+            )}
           </div>
         </div>
 
@@ -822,19 +916,6 @@ export function LucrareForm({
             </p>
           </Card>
         )}
-
-        {/* Câmpul pentru echipament */}
-        {/* <div className="space-y-2">
-          <label htmlFor="echipament" className="text-sm font-medium">
-            Echipament
-          </label>
-          <Input
-            id="echipament"
-            placeholder="Introduceți echipamentul"
-            value={formData.echipament || ""}
-            onChange={handleInputChange}
-          />
-        </div> */}
 
         {/* Add the defectReclamat field to the form, after the equipment field */}
         <div className="space-y-2">

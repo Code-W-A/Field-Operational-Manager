@@ -12,6 +12,7 @@ import {
   type DocumentData,
   type QueryConstraint,
   Timestamp,
+  where,
 } from "firebase/firestore"
 import { db } from "./config"
 import { auth } from "./config"
@@ -497,5 +498,39 @@ export const isEchipamentCodeUnique = async (
   } catch (error) {
     console.error("Eroare la verificarea unicității codului de echipament:", error)
     throw error
+  }
+}
+
+// Adaugă această funcție pentru căutarea echipamentelor după cod
+
+/**
+ * Caută un echipament după codul său
+ * @param code Codul echipamentului
+ * @returns Un obiect care conține echipamentul și clientul, sau null dacă nu este găsit
+ */
+export async function findEquipmentByCode(code: string): Promise<{ equipment: Echipament; client: Client } | null> {
+  try {
+    const clientsRef = collection(db, "clients")
+    const clientsSnapshot = await getDocs(clientsRef)
+
+    for (const clientDoc of clientsSnapshot.docs) {
+      const clientId = clientDoc.id
+      const equipmentRef = collection(db, "clients", clientId, "equipment")
+      const q = query(equipmentRef, where("cod", "==", code))
+      const equipmentSnapshot = await getDocs(q)
+
+      if (!equipmentSnapshot.empty) {
+        const equipmentDoc = equipmentSnapshot.docs[0]
+        const equipment = { id: equipmentDoc.id, ...equipmentDoc.data() } as Echipament
+        const client = { id: clientId, ...clientDoc.data() } as Client
+
+        return { equipment, client }
+      }
+    }
+
+    return null
+  } catch (error) {
+    console.error("Eroare la căutarea echipamentului după cod:", error)
+    return null
   }
 }

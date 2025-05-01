@@ -26,19 +26,187 @@ export function EquipmentQRCode({ equipment, clientName, locationName }: Equipme
     location: locationName,
   })
 
-  // Funcție pentru printarea QR code-ului
+  // Înlocuiește funcția handleDownload cu această versiune îmbunătățită
+  const handleDownload = () => {
+    const qrCodeElement = document.getElementById("equipment-qr-code")
+    if (!qrCodeElement) return
+
+    // Creăm un canvas temporar pentru a genera imaginea
+    const canvas = document.createElement("canvas")
+    const context = canvas.getContext("2d")
+    if (!context) return
+
+    // Setăm dimensiunile canvas-ului
+    const size = 300
+    canvas.width = size
+    canvas.height = size + 80 // Extra spațiu pentru text
+
+    // Desenăm fundalul alb
+    context.fillStyle = "#FFFFFF"
+    context.fillRect(0, 0, canvas.width, canvas.height)
+
+    // Obținem SVG-ul QR code
+    const svgElement = qrCodeElement.querySelector("svg")
+    if (!svgElement) return
+
+    // Convertim SVG în imagine
+    const svgData = new XMLSerializer().serializeToString(svgElement)
+    const img = new Image()
+    img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)))
+
+    img.onload = () => {
+      // Desenăm QR code-ul pe canvas
+      context.drawImage(img, 50, 20, 200, 200)
+
+      // Adăugăm informații despre echipament
+      context.fillStyle = "#000000"
+      context.font = "bold 14px Arial"
+      context.textAlign = "center"
+      context.fillText(equipment.nume, size / 2, size + 30)
+
+      context.font = "12px Arial"
+      context.fillText(`Cod: ${equipment.cod}`, size / 2, size + 50)
+
+      // Convertim canvas în imagine și descărcăm
+      const url = canvas.toDataURL("image/png")
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `qr-echipament-${equipment.cod}.png`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
+  }
+
+  // Înlocuiește funcția handleShare cu această versiune îmbunătățită
+  const handleShare = async () => {
+    try {
+      // Verificăm dacă API-ul Web Share este disponibil
+      if (!navigator.share) {
+        // Fallback pentru browsere care nu suportă Web Share API
+        const tempInput = document.createElement("input")
+        const qrData = JSON.stringify({
+          type: "equipment",
+          code: equipment.cod,
+          id: equipment.id,
+          name: equipment.nume,
+          client: clientName,
+          location: locationName,
+        })
+
+        tempInput.value = `Echipament: ${equipment.nume}\nCod: ${equipment.cod}\nClient: ${clientName}\nLocație: ${locationName}`
+        document.body.appendChild(tempInput)
+        tempInput.select()
+        document.execCommand("copy")
+        document.body.removeChild(tempInput)
+        alert(
+          "Informațiile despre echipament au fost copiate în clipboard. API-ul de partajare nu este disponibil în acest browser.",
+        )
+        return
+      }
+
+      // Generăm imaginea pentru partajare
+      const qrCodeElement = document.getElementById("equipment-qr-code")
+      if (!qrCodeElement) return
+
+      // Creăm un canvas temporar
+      const canvas = document.createElement("canvas")
+      const context = canvas.getContext("2d")
+      if (!context) return
+
+      // Setăm dimensiunile canvas-ului
+      const size = 300
+      canvas.width = size
+      canvas.height = size + 80
+
+      // Desenăm fundalul alb
+      context.fillStyle = "#FFFFFF"
+      context.fillRect(0, 0, canvas.width, canvas.height)
+
+      // Obținem SVG-ul QR code
+      const svgElement = qrCodeElement.querySelector("svg")
+      if (!svgElement) return
+
+      // Convertim SVG în imagine
+      const svgData = new XMLSerializer().serializeToString(svgElement)
+      const img = new Image()
+      img.crossOrigin = "anonymous"
+      img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)))
+
+      await new Promise((resolve) => {
+        img.onload = resolve
+      })
+
+      // Desenăm QR code-ul pe canvas
+      context.drawImage(img, 50, 20, 200, 200)
+
+      // Adăugăm informații despre echipament
+      context.fillStyle = "#000000"
+      context.font = "bold 14px Arial"
+      context.textAlign = "center"
+      context.fillText(equipment.nume, size / 2, size + 30)
+
+      context.font = "12px Arial"
+      context.fillText(`Cod: ${equipment.cod}`, size / 2, size + 50)
+
+      // Convertim canvas în blob
+      const blob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob)
+        }, "image/png")
+      })
+
+      // Creăm fișierul pentru partajare
+      const file = new File([blob], `qr-echipament-${equipment.cod}.png`, { type: "image/png" })
+
+      // Partajăm
+      await navigator.share({
+        title: `QR Code Echipament - ${equipment.nume}`,
+        text: `QR Code pentru echipamentul ${equipment.nume} (cod: ${equipment.cod})`,
+        files: [file],
+      })
+    } catch (error) {
+      console.error("Eroare la partajare:", error)
+
+      // Fallback în caz de eroare
+      try {
+        await navigator.share({
+          title: `Echipament - ${equipment.nume}`,
+          text: `Echipament: ${equipment.nume}\nCod: ${equipment.cod}\nClient: ${clientName}\nLocație: ${locationName}`,
+        })
+      } catch (fallbackError) {
+        console.error("Eroare la partajarea fallback:", fallbackError)
+        alert("Nu s-a putut partaja QR code-ul. Încercați să folosiți butonul de descărcare.")
+      }
+    }
+  }
+
+  // Înlocuiește funcția handlePrint cu această versiune îmbunătățită
   const handlePrint = () => {
     const printWindow = window.open("", "_blank")
-    if (!printWindow) return
+    if (!printWindow) {
+      alert("Popup-urile sunt blocate. Vă rugăm să permiteți popup-urile pentru această pagină.")
+      return
+    }
 
     const qrCodeElement = document.getElementById("equipment-qr-code")
     if (!qrCodeElement) return
+
+    // Obținem SVG-ul QR code
+    const svgElement = qrCodeElement.querySelector("svg")
+    if (!svgElement) return
+
+    // Clonăm SVG-ul pentru a-l putea modifica
+    const svgClone = svgElement.cloneNode(true) as SVGElement
+    svgClone.setAttribute("width", "200")
+    svgClone.setAttribute("height", "200")
 
     const html = `
       <!DOCTYPE html>
       <html>
         <head>
           <title>QR Code Echipament - ${equipment.nume}</title>
+          <meta charset="utf-8">
           <style>
             body {
               font-family: Arial, sans-serif;
@@ -48,10 +216,17 @@ export function EquipmentQRCode({ equipment, clientName, locationName }: Equipme
             .qr-container {
               margin: 20px auto;
               max-width: 400px;
+              border: 1px solid #ccc;
+              border-radius: 8px;
+              padding: 20px;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             }
             .qr-code {
               width: 100%;
               height: auto;
+              display: flex;
+              justify-content: center;
+              margin: 20px 0;
             }
             .equipment-info {
               margin-top: 20px;
@@ -62,78 +237,52 @@ export function EquipmentQRCode({ equipment, clientName, locationName }: Equipme
             .equipment-info p {
               margin: 5px 0;
             }
+            .title {
+              font-size: 18px;
+              font-weight: bold;
+              margin-bottom: 10px;
+            }
+            .subtitle {
+              font-size: 14px;
+              color: #666;
+              margin-bottom: 20px;
+            }
             @media print {
               .no-print {
                 display: none;
+              }
+              body {
+                padding: 0;
+              }
+              .qr-container {
+                border: none;
+                box-shadow: none;
               }
             }
           </style>
         </head>
         <body>
           <div class="qr-container">
-            <h2>Echipament: ${equipment.nume}</h2>
-            <div class="qr-code">
-              ${qrCodeElement.outerHTML}
-            </div>
-            <div class="equipment-info">
-              <p><strong>Cod:</strong> ${equipment.cod}</p>
-              <p><strong>Client:</strong> ${clientName}</p>
-              <p><strong>Locație:</strong> ${locationName}</p>
-              ${equipment.model ? `<p><strong>Model:</strong> ${equipment.model}</p>` : ""}
-              ${equipment.serie ? `<p><strong>Serie:</strong> ${equipment.serie}</p>` : ""}
-            </div>
-            <button class="no-print" onclick="window.print()">Printează</button>
+            <div class="title">Echipament: ${equipment.nume}</div>
+            <div class="subtitle">Cod: ${equipment.cod}</div>
+          <div class="qr-code">
+            ${svgClone.outerHTML}
           </div>
-        </body>
-      </html>
-    `
+          <div class="equipment-info">
+            <p><strong>Client:</strong> ${clientName}</p>
+            <p><strong>Locație:</strong> ${locationName}</p>
+            ${equipment.model ? `<p><strong>Model:</strong> ${equipment.model}</p>` : ""}
+            ${equipment.serie ? `<p><strong>Serie:</strong> ${equipment.serie}</p>` : ""}
+          </div>
+          <button class="no-print" onclick="window.print();return false;" style="margin-top:20px;padding:8px 16px;background:#4CAF50;color:white;border:none;border-radius:4px;cursor:pointer;">Printează</button>
+        </div>
+      </body>
+    </html>
+  `
 
     printWindow.document.open()
     printWindow.document.write(html)
     printWindow.document.close()
-  }
-
-  // Funcție pentru descărcarea QR code-ului ca imagine
-  const handleDownload = () => {
-    const canvas = document.getElementById("equipment-qr-code")?.querySelector("canvas")
-    if (!canvas) return
-
-    const url = canvas.toDataURL("image/png")
-    const link = document.createElement("a")
-    link.href = url
-    link.download = `qr-echipament-${equipment.cod}.png`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
-
-  // Funcție pentru partajarea QR code-ului (dacă este suportat de browser)
-  const handleShare = async () => {
-    if (!navigator.share) {
-      alert("Partajarea nu este suportată de browser-ul dvs.")
-      return
-    }
-
-    try {
-      const canvas = document.getElementById("equipment-qr-code")?.querySelector("canvas")
-      if (!canvas) return
-
-      const blob = await new Promise<Blob>((resolve) => {
-        canvas.toBlob((blob) => {
-          if (blob) resolve(blob)
-        }, "image/png")
-      })
-
-      const file = new File([blob], `qr-echipament-${equipment.cod}.png`, { type: "image/png" })
-
-      await navigator.share({
-        title: `QR Code Echipament - ${equipment.nume}`,
-        text: `QR Code pentru echipamentul ${equipment.nume} (cod: ${equipment.cod})`,
-        files: [file],
-      })
-    } catch (error) {
-      console.error("Eroare la partajare:", error)
-    }
   }
 
   return (
