@@ -18,7 +18,7 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
       "Starting work order notification process",
       {
         workOrderId: workOrderData.id,
-        workOrderData: workOrderData,
+        workOrderData: JSON.stringify(workOrderData),
       },
       { category: "email", context: logContext },
     )
@@ -37,8 +37,23 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
     )
 
     // Extract client information from the client object or from direct properties
+    // Verificăm mai multe posibile locații pentru email-ul clientului
     const clientName = workOrderData.client?.nume || workOrderData.client || ""
-    const clientEmail = workOrderData.client?.email || workOrderData.clientEmail || ""
+
+    // Verificăm mai multe posibile locații pentru email-ul clientului
+    let clientEmail = ""
+    if (workOrderData.client?.email) {
+      clientEmail = workOrderData.client.email
+    } else if (workOrderData.clientEmail) {
+      clientEmail = workOrderData.clientEmail
+    } else if (workOrderData.client?.persoaneContact && workOrderData.client.persoaneContact.length > 0) {
+      // Încercăm să găsim un email în lista de persoane de contact
+      const contactWithEmail = workOrderData.client.persoaneContact.find((p: any) => p.email)
+      if (contactWithEmail) {
+        clientEmail = contactWithEmail.email
+      }
+    }
+
     const contactPerson = workOrderData.client?.persoanaContact || workOrderData.persoanaContact || clientName || ""
 
     // Log client information
@@ -61,27 +76,50 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
           if (typeof tech === "string") {
             // If it's just a string (name), we need to find the email from somewhere
             logDebug(
-              "Technician is a string, no email available",
+              "Technician is a string, trying to find email",
               { techName: tech },
               { category: "email", context: logContext },
             )
+
+            // Încercăm să găsim email-ul tehnicianului în alte date disponibile
+            let techEmail = ""
+
+            // Verificăm dacă avem o listă de utilizatori disponibilă în workOrderData
+            if (workOrderData.users && Array.isArray(workOrderData.users)) {
+              const userMatch = workOrderData.users.find(
+                (u: any) => u.displayName === tech || u.name === tech || u.nume === tech,
+              )
+              if (userMatch && userMatch.email) {
+                techEmail = userMatch.email
+                logInfo(
+                  "Found technician email in users list",
+                  { techName: tech, techEmail },
+                  { category: "email", context: logContext },
+                )
+              }
+            }
+
             return {
               name: tech,
-              email: "", // This will need to be populated from your user database
+              email: techEmail,
             }
           } else {
             // If it's an object, extract name and email
+            const techName = tech.name || tech.displayName || tech.nume || ""
+            const techEmail = tech.email || ""
+
             logDebug(
               "Technician is an object",
               {
-                techName: tech.name || tech.displayName || "",
-                techEmail: tech.email || "",
+                techName,
+                techEmail,
               },
               { category: "email", context: logContext },
             )
+
             return {
-              name: tech.name || tech.displayName || "",
-              email: tech.email || "",
+              name: techName,
+              email: techEmail,
             }
           }
         })
@@ -92,12 +130,12 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
       "Extracted technician information",
       {
         technicianCount: technicians.length,
-        technicians: technicians.map((t) => ({ name: t.name, hasEmail: !!t.email })),
+        technicians: technicians.map((t) => ({ name: t.name, email: t.email, hasEmail: !!t.email })),
       },
       { category: "email", context: logContext },
     )
 
-    // If we have technician names but no emails, try to fetch them
+    // If we have technician names but no emails, try to fetch them from the database
     if (technicians.some((tech) => !tech.email)) {
       logWarning(
         "Some technicians don't have email addresses",
