@@ -1,8 +1,24 @@
 import { type NextRequest, NextResponse } from "next/server"
 import nodemailer from "nodemailer"
-import { addLog } from "@/lib/firebase/firestore"
-import { logDebug, logInfo, logWarning, logError } from "@/lib/utils/logging-service"
 import path from "path"
+
+// Importăm funcțiile de logging, dar nu și addLog direct
+import { logDebug, logInfo, logWarning, logError } from "@/lib/utils/logging-service"
+
+// Funcție de logging sigură care nu va întrerupe execuția API-ului
+async function safeAddLog(action: string, details: string, type = "Informație", category = "Email") {
+  try {
+    // Folosim doar console.log pentru a evita erorile de permisiuni Firestore
+    console.log(`[SAFE-LOG] [${action}] [${type}] [${category}] ${details}`)
+
+    // Nu mai încercăm să scriem în Firestore
+    // Comentăm apelul la addLog pentru a evita erorile
+    // await addLog(action, details, type, category)
+  } catch (error) {
+    // Doar logăm eroarea local, fără a o propaga
+    console.error("Eroare la logging:", error)
+  }
+}
 
 export async function POST(request: NextRequest) {
   const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
@@ -37,8 +53,8 @@ export async function POST(request: NextRequest) {
     console.log(`- technicians:`, JSON.stringify(technicians, null, 2))
     console.log(`- details:`, JSON.stringify(details, null, 2))
 
-    // Log the notification attempt
-    await addLog(
+    // Folosim funcția sigură de logging
+    await safeAddLog(
       "Notificare API",
       `Încercare trimitere notificări pentru lucrarea ${workOrderId}`,
       "Informație",
@@ -91,9 +107,9 @@ export async function POST(request: NextRequest) {
     } catch (error: any) {
       console.error(`[WORK-ORDER-API] [${requestId}] EROARE la verificarea conexiunii SMTP:`, error)
       console.error(`- Mesaj: ${error.message}`)
-      console.error(`- Cod: ${error.code}`)
-      console.error(`- Comandă: ${error.command}`)
-      console.error(`- Stack: ${error.stack}`)
+      console.error(`- Cod: ${error.code || "N/A"}`)
+      console.error(`- Comandă: ${error.command || "N/A"}`)
+      console.error(`- Stack: ${error.stack || "N/A"}`)
 
       logError(
         "SMTP connection verification failed",
@@ -111,13 +127,13 @@ export async function POST(request: NextRequest) {
     // Prepare email content
     const workOrderInfo = `
       <ul style="list-style-type: none; padding-left: 0;">
-        <li><strong>Data emiterii:</strong> ${details.issueDate || "N/A"}</li>
-        <li><strong>Data intervenție:</strong> ${details.interventionDate || "N/A"}</li>
-        <li><strong>Tip lucrare:</strong> ${details.workType || "N/A"}</li>
-        <li><strong>Locație:</strong> ${details.location || "N/A"}</li>
-        <li><strong>Descriere:</strong> ${details.description || "N/A"}</li>
-        <li><strong>Defect reclamat:</strong> ${details.reportedIssue || "N/A"}</li>
-        <li><strong>Status:</strong> ${details.status || "N/A"}</li>
+        <li><strong>Data emiterii:</strong> ${details?.issueDate || "N/A"}</li>
+        <li><strong>Data intervenție:</strong> ${details?.interventionDate || "N/A"}</li>
+        <li><strong>Tip lucrare:</strong> ${details?.workType || "N/A"}</li>
+        <li><strong>Locație:</strong> ${details?.location || "N/A"}</li>
+        <li><strong>Descriere:</strong> ${details?.description || "N/A"}</li>
+        <li><strong>Defect reclamat:</strong> ${details?.reportedIssue || "N/A"}</li>
+        <li><strong>Status:</strong> ${details?.status || "N/A"}</li>
       </ul>
     `
 
@@ -236,10 +252,10 @@ export async function POST(request: NextRequest) {
               `[WORK-ORDER-API] [${requestId}] EROARE la trimiterea email-ului către tehnician ${tech.name}:`,
               error,
             )
-            console.error(`- Mesaj: ${error.message}`)
-            console.error(`- Cod: ${error.code}`)
-            console.error(`- Comandă: ${error.command}`)
-            console.error(`- Stack: ${error.stack}`)
+            console.error(`- Mesaj: ${error.message || "N/A"}`)
+            console.error(`- Cod: ${error.code || "N/A"}`)
+            console.error(`- Comandă: ${error.command || "N/A"}`)
+            console.error(`- Stack: ${error.stack || "N/A"}`)
 
             logError(
               `Failed to send email to technician ${tech.name}`,
@@ -366,10 +382,10 @@ export async function POST(request: NextRequest) {
           `[WORK-ORDER-API] [${requestId}] EROARE la trimiterea email-ului către client ${client.name}:`,
           error,
         )
-        console.error(`- Mesaj: ${error.message}`)
-        console.error(`- Cod: ${error.code}`)
-        console.error(`- Comandă: ${error.command}`)
-        console.error(`- Stack: ${error.stack}`)
+        console.error(`- Mesaj: ${error.message || "N/A"}`)
+        console.error(`- Cod: ${error.code || "N/A"}`)
+        console.error(`- Comandă: ${error.command || "N/A"}`)
+        console.error(`- Stack: ${error.stack || "N/A"}`)
 
         logError(
           `Failed to send email to client ${client.name}`,
@@ -398,7 +414,8 @@ export async function POST(request: NextRequest) {
     console.log(`- Tehnicieni: ${technicianEmails.length} email-uri trimise`)
     console.log(`- Client: ${clientEmailResult?.success ? "Succes" : "Eșec sau omis"}`)
 
-    await addLog(
+    // Folosim funcția sigură de logging în loc de addLog
+    await safeAddLog(
       "Notificare API",
       `Rezultat trimitere notificări pentru lucrarea ${workOrderId}: ${technicianEmails.length} tehnicieni, client: ${clientEmailResult?.success ? "Succes" : "Eșec"}`,
       "Informație",
@@ -417,12 +434,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(response)
   } catch (error: any) {
     console.error(`[WORK-ORDER-API] [${requestId}] EROARE GENERALĂ în API:`, error)
-    console.error(`- Mesaj: ${error.message}`)
-    console.error(`- Cod: ${error.code}`)
-    console.error(`- Comandă: ${error.command}`)
-    console.error(`- Stack  Cod: ${error.code}`)
-    console.error(`- Comandă: ${error.command}`)
-    console.error(`- Stack: ${error.stack}`)
+    console.error(`- Mesaj: ${error.message || "N/A"}`)
+    console.error(`- Cod: ${error.code || "N/A"}`)
+    console.error(`- Comandă: ${error.command || "N/A"}`)
+    console.error(`- Stack: ${error.stack || "N/A"}`)
 
     logError(
       "Error in work order notification API",
@@ -435,12 +450,16 @@ export async function POST(request: NextRequest) {
       { category: "api", context: logContext },
     )
 
-    // Log the error
+    // Folosim funcția sigură de logging în loc de addLog
     try {
-      await addLog("Eroare notificare API", `Eroare la trimiterea notificărilor: ${error.message}`, "Eroare", "Email")
+      await safeAddLog(
+        "Eroare notificare API",
+        `Eroare la trimiterea notificărilor: ${error.message}`,
+        "Eroare",
+        "Email",
+      )
     } catch (logError) {
       console.error(`[WORK-ORDER-API] [${requestId}] EROARE la logarea erorii:`, logError)
-      logError("Failed to log error", logError, { category: "email", context: logContext })
     }
 
     return NextResponse.json(
