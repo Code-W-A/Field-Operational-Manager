@@ -3,7 +3,17 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { ClipboardList, Users, Settings, FileText, Home } from "lucide-react"
+import {
+  ClipboardList,
+  Users,
+  Settings,
+  FileText,
+  Home,
+  LayoutDashboard,
+  UserCog,
+  History,
+  BarChart3,
+} from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 
 export function MainNav() {
@@ -13,6 +23,40 @@ export function MainNav() {
   // Verificăm dacă utilizatorul are rolul de admin
   const isAdmin = userData?.role === "admin"
   const isTechnician = userData?.role === "tehnician"
+
+  // Adăugăm link-ul către pagina de rapoarte în array-ul de items
+  const items = [
+    {
+      title: "Dashboard",
+      href: "/dashboard",
+      icon: <LayoutDashboard className="mr-2 h-4 w-4" />,
+    },
+    {
+      title: "Lucrări",
+      href: "/dashboard/lucrari",
+      icon: <ClipboardList className="mr-2 h-4 w-4" />,
+    },
+    {
+      title: "Clienți",
+      href: "/dashboard/clienti",
+      icon: <Users className="mr-2 h-4 w-4" />,
+    },
+    {
+      title: "Utilizatori",
+      href: "/dashboard/utilizatori",
+      icon: <UserCog className="mr-2 h-4 w-4" />,
+    },
+    {
+      title: "Loguri",
+      href: "/dashboard/loguri",
+      icon: <History className="mr-2 h-4 w-4" />,
+    },
+    {
+      title: "Rapoarte",
+      href: "/dashboard/rapoarte",
+      icon: <BarChart3 className="mr-2 h-4 w-4" />,
+    },
+  ]
 
   return (
     <div className="flex gap-6 md:gap-10">
@@ -72,6 +116,16 @@ export function MainNav() {
             >
               <FileText className="h-4 w-4" />
               <span>Loguri</span>
+            </Link>
+            <Link
+              href="/dashboard/rapoarte"
+              className={cn(
+                "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
+                pathname === "/dashboard/rapoarte" ? "text-primary" : "text-muted-foreground",
+              )}
+            >
+              <BarChart3 className="h-4 w-4" />
+              <span>Rapoarte</span>
             </Link>
           </>
         )}

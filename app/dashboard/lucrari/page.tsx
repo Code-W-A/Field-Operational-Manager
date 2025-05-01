@@ -126,7 +126,7 @@ export default function Lucrari() {
     return lucrari
   }, [lucrari, userData?.role, userData?.displayName])
 
-  // Obținem opțiunile unice pentru filtre
+  // Modificăm funcția filterOptions pentru a include și echipamentele
   const filterOptions = useMemo(() => {
     // Extragem toate valorile unice pentru tipuri de lucrări
     const tipuriLucrare = Array.from(new Set(filteredLucrari.map((lucrare) => lucrare.tipLucrare))).map((tip) => ({
@@ -147,6 +147,14 @@ export default function Lucrari() {
       value: client,
       label: client,
     }))
+
+    // Extragem toate echipamentele unice
+    const echipamente = Array.from(new Set(filteredLucrari.map((lucrare) => lucrare.locatie)))
+      .filter(Boolean)
+      .map((echipament) => ({
+        value: echipament,
+        label: echipament,
+      }))
 
     // Extragem toate statusurile de lucrare unice
     const statusuriLucrare = Array.from(new Set(filteredLucrari.map((lucrare) => lucrare.statusLucrare))).map(
@@ -199,6 +207,13 @@ export default function Lucrari() {
         value: [],
       },
       {
+        id: "locatie",
+        label: "Echipament",
+        type: "multiselect",
+        options: echipamente,
+        value: [],
+      },
+      {
         id: "statusLucrare",
         label: "Status lucrare",
         type: "multiselect",
@@ -215,7 +230,7 @@ export default function Lucrari() {
     ]
   }, [filteredLucrari])
 
-  // Aplicăm filtrele active
+  // Modificăm funcția applyFilters pentru a gestiona filtrarea după echipament
   const applyFilters = useCallback(
     (data) => {
       if (!activeFilters.length) return data
@@ -281,6 +296,10 @@ export default function Lucrari() {
             case "tehnicieni":
               // Verificăm dacă există o intersecție între tehnicienii selectați și cei ai lucrării
               return filter.value.some((tehnician) => item.tehnicieni.includes(tehnician))
+
+            case "locatie":
+              // Filtrare după echipament
+              return filter.value.includes(item.locatie)
 
             default:
               // Pentru filtrele multiselect (tipLucrare, client, statusLucrare, statusFacturare)
