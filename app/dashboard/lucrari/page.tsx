@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { format, parse, isAfter, isBefore } from "date-fns"
-import { MoreHorizontal, FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus } from "lucide-react"
+import { MoreHorizontal, FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { addLucrare, deleteLucrare, updateLucrare, getLucrareById } from "@/lib/firebase/firestore"
@@ -100,6 +100,7 @@ export default function Lucrari() {
     statusFacturare: "Nefacturat",
     contract: "",
     defectReclamat: "",
+    persoaneContact: [], // Adăugăm array-ul de persoane de contact
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState(null)
@@ -119,6 +120,9 @@ export default function Lucrari() {
     error: fetchError,
   } = useFirebaseCollection("lucrari", [orderBy("dataEmiterii", "desc")])
 
+  // Obținem utilizatorii din Firebase pentru a avea acces la email-urile tehnicienilor
+  const { data: tehnicieni, loading: loadingTehnicieni, error: tehnicieniError } = useFirebaseCollection("users", [])
+
   // Filtrăm lucrările pentru tehnicieni
   const filteredLucrari = useMemo(() => {
     if (userData?.role === "tehnician" && userData?.displayName) {
@@ -128,7 +132,6 @@ export default function Lucrari() {
   }, [lucrari, userData?.role, userData?.displayName])
 
   // Modificăm funcția filterOptions pentru a include și echipamentele
-  const { data: tehnicieni } = useFirebaseCollection("users", [])
   const filterOptions = useMemo(() => {
     // Extragem toate valorile unice pentru tipuri de lucrări
     const tipuriLucrare = Array.from(new Set(filteredLucrari.map((lucrare) => lucrare.tipLucrare))).map((tip) => ({
@@ -230,7 +233,7 @@ export default function Lucrari() {
         value: [],
       },
     ]
-  }, [filteredLucrari, tehnicieni])
+  }, [filteredLucrari])
 
   // Modificăm funcția applyFilters pentru a gestiona filtrarea după echipament
   const applyFilters = useCallback(
@@ -494,6 +497,11 @@ export default function Lucrari() {
     }
   }
 
+  // Adăugăm o funcție pentru a gestiona modificările în câmpurile personalizate
+  const handleCustomChange = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }))
+  }
+
   const resetForm = () => {
     setDataEmiterii(new Date())
     setDataInterventie(new Date())
@@ -509,6 +517,7 @@ export default function Lucrari() {
       statusFacturare: "Nefacturat",
       contract: "",
       defectReclamat: "",
+      persoaneContact: [], // Resetăm și array-ul de persoane de contact
     })
     setError(null)
     setFieldErrors([])
@@ -564,14 +573,18 @@ export default function Lucrari() {
         title: "Lucrare adăugată",
         description: "Lucrarea a fost adăugată cu succes.",
         variant: "default",
+        icon: <Check className="h-4 w-4" />,
       })
 
       // Trimitem notificări prin email
       try {
-        // Extragem email-ul clientului
+        // Extragem email-ul clientului din persoanele de contact
         let clientEmail = ""
-        if (formData.persoanaContact && formData.persoanaContact.length > 0) {
-          const contactWithEmail = formData.persoanaContact.find((contact) => contact.email)
+
+        // Verificăm dacă avem un array de persoane de contact
+        if (Array.isArray(formData.persoaneContact) && formData.persoaneContact.length > 0) {
+          // Căutăm prima persoană de contact cu email
+          const contactWithEmail = formData.persoaneContact.find((contact) => contact.email)
           if (contactWithEmail) {
             clientEmail = contactWithEmail.email
           }
@@ -610,6 +623,7 @@ export default function Lucrari() {
             description: emailMessage,
             variant: "default",
             className: "whitespace-pre-line",
+            icon: <Mail className="h-4 w-4" />,
           })
         } else {
           // Afișăm toast de eroare pentru email-uri
@@ -617,6 +631,7 @@ export default function Lucrari() {
             title: "Eroare la trimiterea notificărilor",
             description: `Nu s-au putut trimite email-urile: ${notificationResult.error || "Eroare necunoscută"}`,
             variant: "destructive",
+            icon: <AlertCircle className="h-4 w-4" />,
           })
         }
       } catch (notificationError) {
@@ -627,6 +642,7 @@ export default function Lucrari() {
           title: "Eroare la trimiterea notificărilor",
           description: `A apărut o excepție: ${notificationError.message || "Eroare necunoscută"}`,
           variant: "destructive",
+          icon: <AlertCircle className="h-4 w-4" />,
         })
       }
     } catch (err) {
@@ -671,6 +687,7 @@ export default function Lucrari() {
       statusFacturare: lucrare.statusFacturare,
       contract: lucrare.contract || "",
       defectReclamat: lucrare.defectReclamat || "",
+      persoaneContact: lucrare.persoaneContact || [], // Adăugăm persoanele de contact
     })
 
     setIsEditDialogOpen(true)
@@ -696,8 +713,95 @@ export default function Lucrari() {
       }
 
       await updateLucrare(selectedLucrare.id, updatedLucrare)
+
+      // Obținem lucrarea completă cu ID pentru a o trimite la notificări
+      const lucrareCompleta = { id: selectedLucrare.id, ...updatedLucrare }
+
       setIsEditDialogOpen(false)
       resetForm()
+
+      // Afișăm toast de succes pentru actualizarea lucrării
+      toast({
+        title: "Lucrare actualizată",
+        description: "Lucrarea a fost actualizată cu succes.",
+        variant: "default",
+        icon: <Check className="h-4 w-4" />,
+      })
+
+      // Trimitem notificări prin email doar dacă s-a schimbat data intervenției sau tehnicienii
+      if (
+        selectedLucrare.dataInterventie !== updatedLucrare.dataInterventie ||
+        JSON.stringify(selectedLucrare.tehnicieni) !== JSON.stringify(updatedLucrare.tehnicieni)
+      ) {
+        try {
+          // Extragem email-ul clientului din persoanele de contact
+          let clientEmail = ""
+
+          // Verificăm dacă avem un array de persoane de contact
+          if (Array.isArray(formData.persoaneContact) && formData.persoaneContact.length > 0) {
+            // Căutăm prima persoană de contact cu email
+            const contactWithEmail = formData.persoaneContact.find((contact) => contact.email)
+            if (contactWithEmail) {
+              clientEmail = contactWithEmail.email
+            }
+          }
+
+          // Trimitem notificările
+          const notificationResult = await sendWorkOrderNotifications(lucrareCompleta)
+
+          if (notificationResult.success) {
+            // Extragem email-urile tehnicienilor
+            const techEmails = formData.tehnicieni
+              .map((tech) => {
+                const techUser = tehnicieni.find((t) => t.displayName === tech)
+                return techUser?.email || null
+              })
+              .filter(Boolean)
+
+            // Construim mesajul pentru toast
+            let emailMessage = "Email-uri trimise către:\n"
+
+            if (clientEmail) {
+              emailMessage += `Client: ${clientEmail}\n`
+            } else {
+              emailMessage += "Client: Email indisponibil\n"
+            }
+
+            if (techEmails.length > 0) {
+              emailMessage += `Tehnicieni: ${techEmails.join(", ")}`
+            } else {
+              emailMessage += "Tehnicieni: Email-uri indisponibile"
+            }
+
+            // Afișăm toast de succes pentru email-uri
+            toast({
+              title: "Notificări trimise",
+              description: emailMessage,
+              variant: "default",
+              className: "whitespace-pre-line",
+              icon: <Mail className="h-4 w-4" />,
+            })
+          } else {
+            // Afișăm toast de eroare pentru email-uri
+            toast({
+              title: "Eroare la trimiterea notificărilor",
+              description: `Nu s-au putut trimite email-urile: ${notificationResult.error || "Eroare necunoscută"}`,
+              variant: "destructive",
+              icon: <AlertCircle className="h-4 w-4" />,
+            })
+          }
+        } catch (notificationError) {
+          console.error("Eroare la trimiterea notificărilor:", notificationError)
+
+          // Afișăm toast de eroare pentru email-uri
+          toast({
+            title: "Eroare la trimiterea notificărilor",
+            description: `A apărut o excepție: ${notificationError.message || "Eroare necunoscută"}`,
+            variant: "destructive",
+            icon: <AlertCircle className="h-4 w-4" />,
+          })
+        }
+      }
 
       // Dacă am venit din URL, redirecționăm înapoi la lista de lucrări
       if (editId) {
@@ -969,6 +1073,7 @@ export default function Lucrari() {
               handleInputChange={handleInputChange}
               handleSelectChange={handleSelectChange}
               handleTehnicieniChange={handleTehnicieniChange}
+              handleCustomChange={handleCustomChange}
               fieldErrors={fieldErrors}
             />
             <DialogFooter className="flex-col gap-2 sm:flex-row">
@@ -1011,6 +1116,7 @@ export default function Lucrari() {
               handleInputChange={handleInputChange}
               handleSelectChange={handleSelectChange}
               handleTehnicieniChange={handleTehnicieniChange}
+              handleCustomChange={handleCustomChange}
               fieldErrors={fieldErrors}
             />
             <DialogFooter className="flex-col gap-2 sm:flex-row">
