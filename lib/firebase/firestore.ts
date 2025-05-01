@@ -16,6 +16,18 @@ import {
 import { db } from "./config"
 import { auth } from "./config"
 
+// Adăugăm interfața pentru echipamente
+export interface Echipament {
+  id?: string
+  nume: string
+  cod: string // Cod unic de 4 cifre
+  model?: string
+  serie?: string
+  dataInstalare?: string
+  ultimaInterventie?: string
+  observatii?: string
+}
+
 // Tipuri pentru lucrări
 export interface Lucrare {
   id?: string
@@ -25,6 +37,9 @@ export interface Lucrare {
   tehnicieni: string[]
   client: string
   locatie: string
+  echipament: string
+  echipamentId?: string // ID-ul echipamentului selectat
+  echipamentCod?: string // Codul echipamentului selectat
   descriere: string
   persoanaContact: string // Keep for backward compatibility
   telefon: string // Keep for backward compatibility
@@ -52,11 +67,12 @@ export interface PersoanaContact {
   functie?: string
 }
 
-// Adăugăm interfața pentru locații
+// Adăugăm interfața pentru locații - actualizată pentru a include echipamente
 export interface Locatie {
   nume: string
   adresa: string
   persoaneContact: PersoanaContact[]
+  echipamente?: Echipament[] // Lista de echipamente pentru această locație
 }
 
 // Tipuri pentru clienți - actualizăm pentru a include CIF și locații
@@ -451,6 +467,35 @@ export const addLog = async (
     return docRef.id
   } catch (error) {
     console.error("Eroare la adăugarea logului:", error)
+    throw error
+  }
+}
+
+// Funcție pentru a verifica dacă un cod de echipament este unic pentru un client
+export const isEchipamentCodeUnique = async (
+  clientId: string,
+  cod: string,
+  excludeEchipamentId?: string,
+): Promise<boolean> => {
+  try {
+    const client = await getClientById(clientId)
+    if (!client || !client.locatii) return true
+
+    // Verificăm toate locațiile clientului
+    for (const locatie of client.locatii) {
+      if (!locatie.echipamente) continue
+
+      // Verificăm dacă există un echipament cu același cod
+      const existingEchipament = locatie.echipamente.find(
+        (e) => e.cod === cod && (!excludeEchipamentId || e.id !== excludeEchipamentId),
+      )
+
+      if (existingEchipament) return false
+    }
+
+    return true
+  } catch (error) {
+    console.error("Eroare la verificarea unicității codului de echipament:", error)
     throw error
   }
 }

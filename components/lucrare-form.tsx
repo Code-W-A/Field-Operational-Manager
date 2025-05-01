@@ -35,6 +35,7 @@ interface Lucrare {
   tehnicieni: string[]
   client: string
   locatie: string
+  echipament: string
   descriere: string
   persoanaContact: string
   telefon: string
@@ -58,6 +59,7 @@ interface LucrareFormProps {
     tehnicieni: string[]
     client: string
     locatie: string
+    echipament: string
     descriere: string
     persoanaContact: string
     telefon: string
@@ -383,6 +385,7 @@ export function LucrareForm({
       tehnicieni: formData.tehnicieni,
       client: formData.client,
       locatie: formData.locatie,
+      echipament: formData.echipament,
       descriere: formData.descriere,
       persoanaContact: formData.persoanaContact,
       telefon: formData.telefon,
@@ -728,13 +731,13 @@ export function LucrareForm({
 
         {/* Câmpul pentru echipament */}
         <div className="space-y-2">
-          <label htmlFor="locatie" className="text-sm font-medium">
+          <label htmlFor="echipament" className="text-sm font-medium">
             Echipament
           </label>
           <Input
-            id="locatie"
+            id="echipament"
             placeholder="Introduceți echipamentul"
-            value={formData.locatie}
+            value={formData.echipament || ""}
             onChange={handleInputChange}
           />
         </div>

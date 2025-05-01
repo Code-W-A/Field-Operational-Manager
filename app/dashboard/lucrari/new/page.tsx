@@ -20,6 +20,7 @@ export default function NewLucrarePage() {
     tehnicieni: [] as string[],
     client: "",
     locatie: "",
+    echipament: "",
     descriere: "",
     persoanaContact: "",
     telefon: "",

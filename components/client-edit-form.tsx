@@ -1,14 +1,31 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, Loader2, Plus, Trash2, MapPin } from "lucide-react"
-import { updateClient, type Client, type PersoanaContact, type Locatie } from "@/lib/firebase/firestore"
+import { AlertCircle, Loader2, Plus, Trash2, MapPin, Wrench, AlertTriangle } from "lucide-react"
+import {
+  updateClient,
+  type Client,
+  type PersoanaContact,
+  type Locatie,
+  type Echipament,
+  isEchipamentCodeUnique,
+} from "@/lib/firebase/firestore"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Separator } from "@/components/ui/separator"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Badge } from "@/components/ui/badge"
 
 interface ClientEditFormProps {
   client: Client
@@ -19,7 +36,7 @@ interface ClientEditFormProps {
 export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormProps) {
   const [formData, setFormData] = useState({
     nume: client.nume || "",
-    cif: client.cif || "", // Adăugăm CIF
+    cif: client.cif || "",
     adresa: client.adresa || "",
     email: client.email || "",
   })
@@ -27,7 +44,10 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
   // Inițializăm locațiile din client sau creăm una goală dacă nu există
   const [locatii, setLocatii] = useState<Locatie[]>(
     client.locatii && client.locatii.length > 0
-      ? client.locatii
+      ? client.locatii.map((loc) => ({
+          ...loc,
+          echipamente: loc.echipamente || [],
+        }))
       : [
           {
             nume: "",
@@ -36,6 +56,7 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
               client.persoaneContact && client.persoaneContact.length > 0
                 ? client.persoaneContact
                 : [{ nume: client.persoanaContact || "", telefon: client.telefon || "", email: "", functie: "" }],
+            echipamente: [],
           },
         ],
   )
@@ -43,6 +64,23 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<string[]>([])
+
+  // State pentru gestionarea dialogului de adăugare/editare echipament
+  const [isEchipamentDialogOpen, setIsEchipamentDialogOpen] = useState(false)
+  const [selectedLocatieIndex, setSelectedLocatieIndex] = useState<number | null>(null)
+  const [selectedEchipamentIndex, setSelectedEchipamentIndex] = useState<number | null>(null)
+  const [echipamentFormData, setEchipamentFormData] = useState<Echipament>({
+    nume: "",
+    cod: "",
+    model: "",
+    serie: "",
+    dataInstalare: "",
+    ultimaInterventie: "",
+    observatii: "",
+  })
+  const [echipamentFormErrors, setEchipamentFormErrors] = useState<string[]>([])
+  const [isCheckingCode, setIsCheckingCode] = useState(false)
+  const [isCodeUnique, setIsCodeUnique] = useState(true)
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target
@@ -53,7 +91,7 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
   const handleAddLocatie = () => {
     setLocatii([
       ...locatii,
-      { nume: "", adresa: "", persoaneContact: [{ nume: "", telefon: "", email: "", functie: "" }] },
+      { nume: "", adresa: "", persoaneContact: [{ nume: "", telefon: "", email: "", functie: "" }], echipamente: [] },
     ])
   }
 
@@ -104,6 +142,166 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
     setLocatii(updatedLocatii)
   }
 
+  // Funcție pentru deschiderea dialogului de adăugare echipament
+  const handleOpenAddEchipamentDialog = (locatieIndex: number) => {
+    setSelectedLocatieIndex(locatieIndex)
+    setSelectedEchipamentIndex(null)
+    setEchipamentFormData({
+      nume: "",
+      cod: "",
+      model: "",
+      serie: "",
+      dataInstalare: "",
+      ultimaInterventie: "",
+      observatii: "",
+    })
+    setEchipamentFormErrors([])
+    setIsCodeUnique(true)
+    setIsEchipamentDialogOpen(true)
+  }
+
+  // Funcție pentru deschiderea dialogului de editare echipament
+  const handleOpenEditEchipamentDialog = (locatieIndex: number, echipamentIndex: number) => {
+    setSelectedLocatieIndex(locatieIndex)
+    setSelectedEchipamentIndex(echipamentIndex)
+
+    const echipament = locatii[locatieIndex].echipamente?.[echipamentIndex] || {
+      nume: "",
+      cod: "",
+      model: "",
+      serie: "",
+    }
+
+    setEchipamentFormData({ ...echipament })
+    setEchipamentFormErrors([])
+    setIsCodeUnique(true)
+    setIsEchipamentDialogOpen(true)
+  }
+
+  // Funcție pentru modificarea datelor echipamentului
+  const handleEchipamentInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { id, value } = e.target
+    setEchipamentFormData((prev) => ({ ...prev, [id]: value }))
+
+    // Verificăm codul dacă acesta se schimbă
+    if (id === "cod") {
+      // Validăm formatul codului (4 cifre)
+      if (!/^\d{4}$/.test(value) && value !== "") {
+        setEchipamentFormErrors((prev) => (prev.includes("cod") ? prev : [...prev, "cod"]))
+      } else {
+        setEchipamentFormErrors((prev) => prev.filter((error) => error !== "cod"))
+      }
+    }
+  }
+
+  // Funcție pentru salvarea echipamentului
+  const handleSaveEchipament = () => {
+    // Validăm datele echipamentului
+    const errors: string[] = []
+
+    if (!echipamentFormData.nume) errors.push("nume")
+    if (!echipamentFormData.cod) errors.push("cod")
+
+    // Validăm formatul codului (4 cifre)
+    if (!/^\d{4}$/.test(echipamentFormData.cod)) {
+      errors.push("cod")
+    }
+
+    setEchipamentFormErrors(errors)
+
+    if (errors.length > 0 || !isCodeUnique) {
+      return
+    }
+
+    if (selectedLocatieIndex === null) return
+
+    const updatedLocatii = [...locatii]
+
+    // Ne asigurăm că locația are array-ul de echipamente inițializat
+    if (!updatedLocatii[selectedLocatieIndex].echipamente) {
+      updatedLocatii[selectedLocatieIndex].echipamente = []
+    }
+
+    // Adăugăm sau actualizăm echipamentul
+    if (selectedEchipamentIndex !== null) {
+      // Editare echipament existent
+      updatedLocatii[selectedLocatieIndex].echipamente![selectedEchipamentIndex] = {
+        ...echipamentFormData,
+        id: updatedLocatii[selectedLocatieIndex].echipamente![selectedEchipamentIndex].id,
+      }
+    } else {
+      // Adăugare echipament nou
+      updatedLocatii[selectedLocatieIndex].echipamente!.push({
+        ...echipamentFormData,
+        id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      })
+    }
+
+    setLocatii(updatedLocatii)
+    setIsEchipamentDialogOpen(false)
+  }
+
+  // Funcție pentru ștergerea unui echipament
+  const handleDeleteEchipament = (locatieIndex: number, echipamentIndex: number) => {
+    if (window.confirm("Sunteți sigur că doriți să ștergeți acest echipament?")) {
+      const updatedLocatii = [...locatii]
+      updatedLocatii[locatieIndex].echipamente!.splice(echipamentIndex, 1)
+      setLocatii(updatedLocatii)
+    }
+  }
+
+  // Verificăm unicitatea codului de echipament
+  useEffect(() => {
+    const checkCodeUniqueness = async () => {
+      if (echipamentFormData.cod && /^\d{4}$/.test(echipamentFormData.cod)) {
+        setIsCheckingCode(true)
+
+        // Verificăm dacă codul este unic în cadrul locațiilor clientului
+        let isUnique = true
+
+        // Verificăm toate locațiile
+        for (let i = 0; i < locatii.length; i++) {
+          // Sărim peste locația curentă dacă verificăm un echipament existent
+          if (i === selectedLocatieIndex && selectedEchipamentIndex !== null) continue
+
+          const echipamente = locatii[i].echipamente || []
+
+          // Verificăm toate echipamentele din locație
+          for (let j = 0; j < echipamente.length; j++) {
+            // Sărim peste echipamentul curent dacă îl edităm
+            if (i === selectedLocatieIndex && j === selectedEchipamentIndex) continue
+
+            if (echipamente[j].cod === echipamentFormData.cod) {
+              isUnique = false
+              break
+            }
+          }
+
+          if (!isUnique) break
+        }
+
+        // Verificăm și în baza de date dacă codul este unic pentru alți clienți
+        if (isUnique && client.id) {
+          try {
+            const excludeEchipamentId =
+              selectedEchipamentIndex !== null &&
+              selectedLocatieIndex !== null &&
+              locatii[selectedLocatieIndex].echipamente?.[selectedEchipamentIndex]?.id
+
+            isUnique = await isEchipamentCodeUnique(client.id, echipamentFormData.cod, excludeEchipamentId)
+          } catch (error) {
+            console.error("Eroare la verificarea unicității codului:", error)
+          }
+        }
+
+        setIsCodeUnique(isUnique)
+        setIsCheckingCode(false)
+      }
+    }
+
+    checkCodeUniqueness()
+  }, [echipamentFormData.cod, locatii, selectedLocatieIndex, selectedEchipamentIndex, client.id])
+
   const handleSubmit = async () => {
     try {
       setIsSubmitting(true)
@@ -143,6 +341,7 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
         .map((locatie) => ({
           ...locatie,
           persoaneContact: locatie.persoaneContact.filter((contact) => contact.nume && contact.telefon),
+          echipamente: (locatie.echipamente || []).filter((e) => e.nume && e.cod),
         }))
 
       // Folosim prima persoană de contact din prima locație ca persoană de contact principală pentru compatibilitate
@@ -378,12 +577,236 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
                       </div>
                     ))}
                   </div>
+
+                  <Separator className="my-4" />
+
+                  {/* Echipamente pentru locație */}
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h4 className="text-sm font-medium">Echipamente</h4>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenAddEchipamentDialog(locatieIndex)}
+                        className="flex items-center"
+                      >
+                        <Plus className="h-4 w-4 mr-1" /> Adaugă Echipament
+                      </Button>
+                    </div>
+
+                    {locatie.echipamente && locatie.echipamente.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {locatie.echipamente.map((echipament, echipamentIndex) => (
+                          <div key={echipamentIndex} className="p-4 border rounded-md bg-gray-50 relative">
+                            <div className="flex justify-between items-start mb-2">
+                              <div>
+                                <h5 className="font-medium">{echipament.nume}</h5>
+                                <Badge variant="outline" className="mt-1">
+                                  Cod: {echipament.cod}
+                                </Badge>
+                              </div>
+                              <div className="flex space-x-1">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleOpenEditEchipamentDialog(locatieIndex, echipamentIndex)}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <Wrench className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteEchipament(locatieIndex, echipamentIndex)}
+                                  className="h-8 w-8 p-0 text-red-500"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+
+                            {(echipament.model || echipament.serie) && (
+                              <div className="text-sm mt-2">
+                                {echipament.model && <p>Model: {echipament.model}</p>}
+                                {echipament.serie && <p>Serie: {echipament.serie}</p>}
+                              </div>
+                            )}
+
+                            {(echipament.dataInstalare || echipament.ultimaInterventie) && (
+                              <div className="text-xs text-gray-500 mt-2">
+                                {echipament.dataInstalare && <p>Instalat: {echipament.dataInstalare}</p>}
+                                {echipament.ultimaInterventie && (
+                                  <p>Ultima intervenție: {echipament.ultimaInterventie}</p>
+                                )}
+                              </div>
+                            )}
+
+                            {echipament.observatii && (
+                              <div className="mt-2 text-sm">
+                                <p className="text-gray-600">{echipament.observatii}</p>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 text-muted-foreground border rounded-md">
+                        Nu există echipamente pentru această locație
+                      </div>
+                    )}
+                  </div>
                 </div>
               </AccordionContent>
             </AccordionItem>
           </Accordion>
         ))}
       </div>
+
+      {/* Dialog pentru adăugare/editare echipament */}
+      <Dialog open={isEchipamentDialogOpen} onOpenChange={setIsEchipamentDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedEchipamentIndex !== null ? "Editare Echipament" : "Adăugare Echipament Nou"}
+            </DialogTitle>
+            <DialogDescription>
+              Completați detaliile echipamentului. Codul trebuie să fie unic și format din 4 cifre.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label htmlFor="nume" className="text-sm font-medium">
+                  Nume Echipament *
+                </label>
+                <Input
+                  id="nume"
+                  placeholder="Nume echipament"
+                  value={echipamentFormData.nume}
+                  onChange={handleEchipamentInputChange}
+                  className={echipamentFormErrors.includes("nume") ? errorStyle : ""}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="cod" className="text-sm font-medium">
+                  Cod Unic (4 cifre) *
+                </label>
+                <Input
+                  id="cod"
+                  placeholder="Ex: 1234"
+                  value={echipamentFormData.cod}
+                  onChange={handleEchipamentInputChange}
+                  className={echipamentFormErrors.includes("cod") || !isCodeUnique ? errorStyle : ""}
+                  maxLength={4}
+                />
+                {echipamentFormErrors.includes("cod") && (
+                  <p className="text-xs text-red-500">Codul trebuie să conțină exact 4 cifre</p>
+                )}
+                {!isCodeUnique && (
+                  <div className="flex items-center text-xs text-red-500 mt-1">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    <span>Acest cod este deja utilizat</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label htmlFor="model" className="text-sm font-medium">
+                  Model
+                </label>
+                <Input
+                  id="model"
+                  placeholder="Model echipament"
+                  value={echipamentFormData.model || ""}
+                  onChange={handleEchipamentInputChange}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="serie" className="text-sm font-medium">
+                  Serie
+                </label>
+                <Input
+                  id="serie"
+                  placeholder="Număr serie"
+                  value={echipamentFormData.serie || ""}
+                  onChange={handleEchipamentInputChange}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label htmlFor="dataInstalare" className="text-sm font-medium">
+                  Data Instalării
+                </label>
+                <Input
+                  id="dataInstalare"
+                  type="date"
+                  value={echipamentFormData.dataInstalare || ""}
+                  onChange={handleEchipamentInputChange}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="ultimaInterventie" className="text-sm font-medium">
+                  Ultima Intervenție
+                </label>
+                <Input
+                  id="ultimaInterventie"
+                  type="date"
+                  value={echipamentFormData.ultimaInterventie || ""}
+                  onChange={handleEchipamentInputChange}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="observatii" className="text-sm font-medium">
+                Observații
+              </label>
+              <Textarea
+                id="observatii"
+                placeholder="Observații despre echipament"
+                value={echipamentFormData.observatii || ""}
+                onChange={handleEchipamentInputChange}
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEchipamentDialogOpen(false)}>
+              Anulează
+            </Button>
+            <Button
+              onClick={handleSaveEchipament}
+              disabled={
+                echipamentFormErrors.length > 0 ||
+                !echipamentFormData.nume ||
+                !echipamentFormData.cod ||
+                !isCodeUnique ||
+                isCheckingCode
+              }
+            >
+              {isCheckingCode ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verificare...
+                </>
+              ) : (
+                "Salvează"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
         <Button variant="outline" onClick={onCancel}>
