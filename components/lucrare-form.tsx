@@ -429,6 +429,15 @@ export function LucrareForm({
         handleSelectChange("telefon", "")
       }
 
+      // Actualizăm echipamentele disponibile pentru această locație
+      if (locatie.echipamente && locatie.echipamente.length > 0) {
+        console.log("Echipamente găsite pentru locație:", locatie.echipamente)
+        setAvailableEquipments(locatie.echipamente)
+      } else {
+        console.log("Nu există echipamente pentru această locație")
+        setAvailableEquipments([])
+      }
+
       // Activăm afișarea acordeonului
       setShowContactAccordion(true)
 
@@ -436,6 +445,27 @@ export function LucrareForm({
       handleSelectChange("locatie", locatieNume)
     }
   }
+
+  // Adăugăm un efect pentru a actualiza echipamentele când se schimbă locația selectată
+  useEffect(() => {
+    if (selectedLocatie && selectedLocatie.echipamente && selectedLocatie.echipamente.length > 0) {
+      console.log("Actualizare echipamente pentru locația selectată:", selectedLocatie.echipamente)
+      setAvailableEquipments(selectedLocatie.echipamente)
+    }
+  }, [selectedLocatie])
+
+  // Adaugă acest efect pentru debugging
+  useEffect(() => {
+    if (selectedClient && selectedClient.locatii) {
+      console.log("Locații client:", selectedClient.locatii)
+      selectedClient.locatii.forEach((loc) => {
+        console.log(`Locație ${loc.nume}:`, loc)
+        if (loc.echipamente) {
+          console.log(`Echipamente pentru ${loc.nume}:`, loc.echipamente)
+        }
+      })
+    }
+  }, [selectedClient])
 
   // Modificăm funcția handleClientAdded pentru a gestiona corect adăugarea clientului
   const handleClientAdded = (clientName: string) => {
@@ -859,9 +889,17 @@ export function LucrareForm({
             disabled={!formData.locatie || availableEquipments.length === 0}
           />
           {availableEquipments.length === 0 && formData.locatie && (
-            <p className="text-xs text-amber-600">
-              Nu există echipamente definite pentru această locație. Puteți adăuga echipamente din secțiunea de
-              gestionare a clientului.
+            <div>
+              <p className="text-xs text-amber-600">
+                Nu există echipamente definite pentru această locație. Puteți adăuga echipamente din secțiunea de
+                gestionare a clientului.
+              </p>
+              <p className="text-xs text-gray-500 mt-1">Locație selectată: {formData.locatie}</p>
+            </div>
+          )}
+          {availableEquipments.length > 0 && (
+            <p className="text-xs text-green-600">
+              {availableEquipments.length} echipamente disponibile pentru această locație
             </p>
           )}
         </div>

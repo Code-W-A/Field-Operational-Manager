@@ -13,6 +13,7 @@ import {
   UserCog,
   History,
   BarChart3,
+  ShieldAlert,
 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 
@@ -56,6 +57,7 @@ export function MainNav() {
       href: "/dashboard/rapoarte",
       icon: <BarChart3 className="mr-2 h-4 w-4" />,
     },
+    { href: "/dashboard/admin", label: "Administrare", icon: <ShieldAlert className="mr-2 h-4 w-4" />, role: "admin" },
   ]
 
   return (
@@ -126,6 +128,16 @@ export function MainNav() {
             >
               <BarChart3 className="h-4 w-4" />
               <span>Rapoarte</span>
+            </Link>
+            <Link
+              href="/dashboard/admin"
+              className={cn(
+                "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
+                pathname === "/dashboard/admin" ? "text-primary" : "text-muted-foreground",
+              )}
+            >
+              <ShieldAlert className="h-4 w-4" />
+              <span>Administrare</span>
             </Link>
           </>
         )}
