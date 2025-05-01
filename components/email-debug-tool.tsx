@@ -2,15 +2,13 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Loader2 } from "lucide-react"
-import { toast } from "@/components/ui/use-toast"
+import { Spinner } from "@/components/ui/spinner"
 
-export function EmailDebugTool() {
-  const [logs, setLogs] = useState<string[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+export default function EmailDebugTool() {
   const [testData, setTestData] = useState<string>(`{
   "workOrderId": "test-123",
   "client": {
@@ -34,21 +32,33 @@ export function EmailDebugTool() {
     "status": "Programat"
   }
 }`)
+  const [logs, setLogs] = useState<string[]>([])
+  const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [activeTab, setActiveTab] = useState<string>("test-data")
 
   const addLog = (message: string) => {
-    setLogs((prevLogs) => [...prevLogs, `[${new Date().toLocaleTimeString()}] ${message}`])
+    const timestamp = new Date().toLocaleTimeString()
+    setLogs((prevLogs) => [...prevLogs, `[${timestamp}] ${message}`])
   }
 
   const handleTestEmail = async () => {
     setIsLoading(true)
+    setLogs([])
     addLog("Starting email test...")
 
     try {
       // Parse the test data
-      const parsedData = JSON.parse(testData)
-      addLog(`Test data parsed successfully: ${JSON.stringify(parsedData, null, 2)}`)
+      let parsedData
+      try {
+        parsedData = JSON.parse(testData)
+        addLog(`Test data parsed successfully: ${JSON.stringify(parsedData, null, 2)}`)
+      } catch (error: any) {
+        addLog(`Error parsing test data: ${error.message}`)
+        setIsLoading(false)
+        return
+      }
 
-      // Send the test data to the API
+      // Send the test data to the notification API
       addLog("Sending test data to notification API...")
       const response = await fetch("/api/notifications/work-order", {
         method: "POST",
@@ -58,93 +68,101 @@ export function EmailDebugTool() {
         body: testData,
       })
 
-      // Log the response status
       addLog(`API response status: ${response.status}`)
-
-      // Parse the response
       const result = await response.json()
       addLog(`API response: ${JSON.stringify(result, null, 2)}`)
 
-      if (!response.ok) {
-        toast({
-          title: "Test failed",
-          description: `Error: ${result.error || "Unknown error"}`,
-          variant: "destructive",
-        })
+      if (response.ok) {
+        addLog("Email test completed successfully!")
+        setActiveTab("logs")
       } else {
-        toast({
-          title: "Test successful",
-          description: "Email notification test completed successfully",
-        })
+        addLog(`Email test failed: ${result.error || "Unknown error"}`)
+        setActiveTab("logs")
       }
     } catch (error: any) {
-      addLog(`Error: ${error.message}`)
-      toast({
-        title: "Test failed",
-        description: `Error: ${error.message}`,
-        variant: "destructive",
-      })
+      addLog(`Unexpected error: ${error.message}`)
     } finally {
       setIsLoading(false)
     }
   }
 
-  const clearLogs = () => {
+  const handleClearLogs = () => {
     setLogs([])
   }
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle>Email Notification Debug Tool</CardTitle>
-        <CardDescription>Test email notifications and diagnose issues with the notification system</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Tabs defaultValue="test">
-          <TabsList className="mb-4">
-            <TabsTrigger value="test">Test Email</TabsTrigger>
-            <TabsTrigger value="logs">Logs</TabsTrigger>
-          </TabsList>
+    <div className="container mx-auto py-6">
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>Email Notification Debug Tool</CardTitle>
+          <CardDescription>
+            Testează funcționalitatea de trimitere a email-urilor pentru notificări de lucrări
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="mb-4">
+              <TabsTrigger value="test-data">Date Test</TabsTrigger>
+              <TabsTrigger value="logs">Loguri {logs.length > 0 && `(${logs.length})`}</TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="test">
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-muted-foreground mb-2">Enter test data in JSON format:</p>
-                <Textarea
-                  value={testData}
-                  onChange={(e) => setTestData(e.target.value)}
-                  className="font-mono text-sm h-[300px]"
-                />
+            <TabsContent value="test-data">
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="test-data" className="block text-sm font-medium mb-2">
+                    Date pentru testare (JSON)
+                  </label>
+                  <Textarea
+                    id="test-data"
+                    value={testData}
+                    onChange={(e) => setTestData(e.target.value)}
+                    className="h-[400px] font-mono text-sm"
+                  />
+                </div>
               </div>
+            </TabsContent>
 
-              <div className="flex justify-end">
-                <Button onClick={handleTestEmail} disabled={isLoading}>
-                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Test Email Notification
-                </Button>
+            <TabsContent value="logs">
+              <div className="space-y-4">
+                <ScrollArea className="h-[400px] w-full border rounded-md p-4 bg-black text-white font-mono text-sm">
+                  {logs.length === 0 ? (
+                    <div className="text-gray-400 italic">
+                      Nu există loguri. Apasă butonul "Testează Email" pentru a începe.
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {logs.map((log, index) => (
+                        <div key={index} className="whitespace-pre-wrap">
+                          {log}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+                <div className="flex justify-end space-x-2">
+                  <Button variant="outline" onClick={handleClearLogs} disabled={logs.length === 0}>
+                    Șterge Loguri
+                  </Button>
+                </div>
               </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="logs">
-            <div className="border rounded-md p-4 bg-muted/50 h-[400px] overflow-y-auto">
-              <pre className="text-xs font-mono whitespace-pre-wrap">
-                {logs.length > 0 ? logs.join("\n") : "No logs yet. Run a test to see logs."}
-              </pre>
-            </div>
-            <div className="flex justify-end mt-4">
-              <Button variant="outline" onClick={clearLogs}>
-                Clear Logs
-              </Button>
-            </div>
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-      <CardFooter className="flex justify-between">
-        <p className="text-xs text-muted-foreground">
-          This tool helps diagnose issues with the email notification system.
-        </p>
-      </CardFooter>
-    </Card>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+        <CardFooter className="flex justify-between">
+          <div className="text-sm text-muted-foreground">
+            Notă: Verifică și consola browserului pentru loguri suplimentare.
+          </div>
+          <Button onClick={handleTestEmail} disabled={isLoading}>
+            {isLoading ? (
+              <>
+                <Spinner className="mr-2" /> Se procesează...
+              </>
+            ) : (
+              "Testează Email"
+            )}
+          </Button>
+        </CardFooter>
+      </Card>
+    </div>
   )
 }

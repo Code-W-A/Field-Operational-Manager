@@ -63,15 +63,19 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
       console.log("[Client] Some technicians don't have email addresses. Attempting to fetch them...")
       // This would be a good place to fetch technician emails from your database
       // For now, we'll just log a warning
-      await addLog(
-        "Notificare lucrare",
-        `Unii tehnicieni nu au adrese de email: ${technicians
-          .filter((t) => !t.email)
-          .map((t) => t.name)
-          .join(", ")}`,
-        "Avertisment",
-        "Email",
-      )
+      try {
+        await addLog(
+          "Notificare lucrare",
+          `Unii tehnicieni nu au adrese de email: ${technicians
+            .filter((t) => !t.email)
+            .map((t) => t.name)
+            .join(", ")}`,
+          "Avertisment",
+          "Email",
+        )
+      } catch (logError) {
+        console.error("[Client] Failed to log warning about missing emails:", logError)
+      }
     }
 
     // Extract work order details
@@ -100,12 +104,16 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
     console.log("[Client] Sending notification with data:", JSON.stringify(notificationData))
 
     // Add log before sending
-    await addLog(
-      "Notificare lucrare",
-      `Încercare trimitere notificări pentru lucrarea ${notificationData.workOrderId} către ${technicians.length} tehnicieni și client`,
-      "Informație",
-      "Email",
-    )
+    try {
+      await addLog(
+        "Notificare lucrare",
+        `Încercare trimitere notificări pentru lucrarea ${notificationData.workOrderId} către ${technicians.length} tehnicieni și client`,
+        "Informație",
+        "Email",
+      )
+    } catch (logError) {
+      console.error("[Client] Failed to log notification attempt:", logError)
+    }
 
     // Send notification
     const response = await fetch("/api/notifications/work-order", {
@@ -126,23 +134,31 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
       console.error("[Client] Failed to send notifications:", result.error)
 
       // Add error log
-      await addLog(
-        "Eroare notificare",
-        `Eroare la trimiterea notificărilor pentru lucrarea ${notificationData.workOrderId}: ${result.error}`,
-        "Eroare",
-        "Email",
-      )
+      try {
+        await addLog(
+          "Eroare notificare",
+          `Eroare la trimiterea notificărilor pentru lucrarea ${notificationData.workOrderId}: ${result.error}`,
+          "Eroare",
+          "Email",
+        )
+      } catch (logError) {
+        console.error("[Client] Failed to log error:", logError)
+      }
 
       return { success: false, error: result.error }
     }
 
     // Add success log
-    await addLog(
-      "Notificare lucrare",
-      `Notificări trimise cu succes pentru lucrarea ${notificationData.workOrderId} către ${technicians.length} tehnicieni și client`,
-      "Informație",
-      "Email",
-    )
+    try {
+      await addLog(
+        "Notificare lucrare",
+        `Notificări trimise cu succes pentru lucrarea ${notificationData.workOrderId} către ${technicians.length} tehnicieni și client`,
+        "Informație",
+        "Email",
+      )
+    } catch (logError) {
+      console.error("[Client] Failed to log success:", logError)
+    }
 
     return { success: true, result }
   } catch (error: any) {

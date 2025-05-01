@@ -28,6 +28,10 @@ interface WorkOrderNotificationRequest {
   }
 }
 
+// Modificăm funcția POST pentru a gestiona mai bine erorile de logare
+
+// Înlocuiți blocul try-catch principal cu această versiune:
+
 export async function POST(request: NextRequest) {
   try {
     console.log("[Server] Notification API called")
@@ -43,12 +47,16 @@ export async function POST(request: NextRequest) {
 
     if (!data.workOrderId || !data.client || !data.technicians || !data.details) {
       console.error("[Server] Incomplete notification data")
-      await addLog(
-        "Eroare notificare",
-        "Date incomplete pentru notificare: lipsește workOrderId, client, technicians sau details",
-        "Eroare",
-        "Email",
-      )
+      try {
+        await addLog(
+          "Eroare notificare",
+          "Date incomplete pentru notificare: lipsește workOrderId, client, technicians sau details",
+          "Eroare",
+          "Email",
+        )
+      } catch (logError) {
+        console.error("[Server] Failed to log error:", logError)
+      }
       return NextResponse.json({ error: "Date incomplete pentru notificare" }, { status: 400 })
     }
 
@@ -164,12 +172,16 @@ export async function POST(request: NextRequest) {
       }
 
       // Log the email sending
-      await addLog(
-        "Notificare lucrare",
-        `Au fost trimise notificări pentru lucrarea ${data.workOrderId} către ${data.technicians.length} tehnicieni și client`,
-        "Informație",
-        "Email",
-      )
+      try {
+        await addLog(
+          "Notificare lucrare",
+          `Au fost trimise notificări pentru lucrarea ${data.workOrderId} către ${data.technicians.length} tehnicieni și client`,
+          "Informație",
+          "Email",
+        )
+      } catch (logError) {
+        console.error("[Server] Failed to log success:", logError)
+      }
 
       // Return success response with details
       console.log("[Server] Notification process completed successfully")
@@ -180,12 +192,16 @@ export async function POST(request: NextRequest) {
       })
     } catch (emailError: any) {
       console.error("[Server] Email configuration or sending error:", emailError)
-      await addLog(
-        "Eroare notificare",
-        `Eroare la configurarea sau trimiterea email-urilor: ${emailError.message}`,
-        "Eroare",
-        "Email",
-      )
+      try {
+        await addLog(
+          "Eroare notificare",
+          `Eroare la configurarea sau trimiterea email-urilor: ${emailError.message}`,
+          "Eroare",
+          "Email",
+        )
+      } catch (logError) {
+        console.error("[Server] Failed to log email error:", logError)
+      }
       return NextResponse.json(
         {
           error: `Eroare la configurarea sau trimiterea email-urilor: ${emailError.message}`,

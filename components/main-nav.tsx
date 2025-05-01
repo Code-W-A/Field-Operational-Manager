@@ -14,6 +14,7 @@ import {
   History,
   BarChart3,
   ShieldAlert,
+  Mail,
 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 
@@ -58,6 +59,13 @@ export function MainNav() {
       icon: <BarChart3 className="mr-2 h-4 w-4" />,
     },
     { href: "/dashboard/admin", label: "Administrare", icon: <ShieldAlert className="mr-2 h-4 w-4" />, role: "admin" },
+    {
+      title: "Diagnosticare Email",
+      href: "/dashboard/admin/email-debug",
+      icon: <Mail className="h-4 w-4" />,
+      variant: "ghost",
+      roles: ["admin"],
+    },
     { title: "Email Debug", href: "/dashboard/admin/email-debug", role: "admin" },
   ]
 

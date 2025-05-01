@@ -457,7 +457,8 @@ export const addLog = async (
     const logData: Omit<Log, "id"> = {
       timestamp: Timestamp.now(),
       utilizator: user?.displayName || user?.email || "Sistem",
-      utilizatorId: user?.uid,
+      // Asigurăm-ne că nu trimitem undefined pentru utilizatorId
+      utilizatorId: user?.uid || null, // Folosim null în loc de undefined
       actiune,
       detalii,
       tip,
