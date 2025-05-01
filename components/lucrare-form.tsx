@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { format } from "date-fns"
 import { ro } from "date-fns/locale"
-import { CalendarIcon, Loader2, Plus, User, Phone, Mail, Briefcase } from "lucide-react"
+import { CalendarIcon, Loader2, Plus, Phone, Mail, Briefcase } from "lucide-react"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { orderBy, where, query, collection, onSnapshot } from "firebase/firestore"
 import type { Client, PersoanaContact, Locatie } from "@/lib/firebase/firestore"
@@ -25,7 +25,7 @@ import { formatDateTime24, formatTime24 } from "@/lib/utils/time-format"
 import { TimeSelector } from "./time-selector"
 // Import our new CustomDatePicker component
 import { CustomDatePicker } from "./custom-date-picker"
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { Card } from "@/components/ui/card"
 
 // Define the Lucrare type
 interface Lucrare {
@@ -115,6 +115,9 @@ export function LucrareForm({
 
   // Adăugăm state pentru persoanele de contact ale locației selectate
   const [persoaneContact, setPersoaneContact] = useState<PersoanaContact[]>([])
+
+  // Adăugăm state pentru a controla vizibilitatea acordeonului
+  const [showContactAccordion, setShowContactAccordion] = useState(false)
 
   // Handle date selection with proper time preservation
   const handleDateEmiteriiSelect = useCallback(
@@ -269,22 +272,30 @@ export function LucrareForm({
         // Resetăm locația selectată când se schimbă clientul
         setSelectedLocatie(null)
         setPersoaneContact([])
+        setShowContactAccordion(false)
       }
     }
   }, [formData, formData?.client, clienti])
 
   // Adăugăm funcție pentru gestionarea selecției locației
   const handleLocatieSelect = (locatieNume: string) => {
+    console.log("Locație selectată:", locatieNume)
     const locatie = locatii.find((loc) => loc.nume === locatieNume)
     if (locatie) {
+      console.log("Locație găsită:", locatie)
       setSelectedLocatie(locatie)
 
       // Actualizăm persoanele de contact disponibile pentru această locație
       if (locatie.persoaneContact && locatie.persoaneContact.length > 0) {
+        console.log("Persoane de contact găsite:", locatie.persoaneContact)
         setPersoaneContact(locatie.persoaneContact)
       } else {
+        console.log("Nu există persoane de contact pentru această locație")
         setPersoaneContact([])
       }
+
+      // Activăm afișarea acordeonului
+      setShowContactAccordion(true)
 
       // Actualizăm câmpul locație în formData
       handleSelectChange("locatie", locatieNume)
@@ -314,9 +325,6 @@ export function LucrareForm({
 
     handleSelectChange("persoanaContact", contact.nume || "")
     handleSelectChange("telefon", contact.telefon || "")
-
-    // Opțional: închide acordeonul după selecție
-    // setAccordionValue("");
   }
 
   // Verificăm dacă un câmp are eroare
@@ -384,12 +392,33 @@ export function LucrareForm({
   // Add buttons at the end if onSubmit and onCancel are provided
   // Adăugăm un efect pentru a actualiza persoanele de contact când se schimbă locația selectată
   useEffect(() => {
-    if (selectedLocatie && selectedLocatie.persoaneContact) {
-      setPersoaneContact(selectedLocatie.persoaneContact)
-    } else {
-      setPersoaneContact([])
+    if (selectedLocatie) {
+      console.log("Locație selectată (effect):", selectedLocatie)
+      if (selectedLocatie.persoaneContact) {
+        console.log("Persoane de contact (effect):", selectedLocatie.persoaneContact)
+        setPersoaneContact(selectedLocatie.persoaneContact)
+      } else {
+        console.log("Nu există persoane de contact (effect)")
+        setPersoaneContact([])
+      }
+      setShowContactAccordion(true)
     }
   }, [selectedLocatie])
+
+  // Adăugăm un efect pentru a actualiza starea când se încarcă datele inițiale
+  useEffect(() => {
+    if (initialData && initialData.locatie && locatii.length > 0) {
+      const locatie = locatii.find((loc) => loc.nume === initialData.locatie)
+      if (locatie) {
+        setSelectedLocatie(locatie)
+        if (locatie.persoaneContact) {
+          setPersoaneContact(locatie.persoaneContact)
+        }
+        setShowContactAccordion(true)
+      }
+    }
+  }, [initialData, locatii])
+
   return (
     <div className="modal-calendar-container">
       {error && <div className="text-red-500 mb-4">{error}</div>}
@@ -598,7 +627,7 @@ export function LucrareForm({
             <label htmlFor="locatie" className="text-sm font-medium">
               Locație *
             </label>
-            <Select onValueChange={handleLocatieSelect}>
+            <Select value={formData.locatie} onValueChange={handleLocatieSelect}>
               <SelectTrigger id="locatie" className={hasError("locatie") ? errorStyle : ""}>
                 <SelectValue placeholder="Selectați locația" />
               </SelectTrigger>
@@ -615,68 +644,56 @@ export function LucrareForm({
         )}
 
         {/* Secțiunea de persoane de contact - afișată ca acordeon */}
-        {selectedLocatie && (
-          <div className="space-y-4 mt-2 border-t pt-4">
-            <h3 className="text-md font-medium">Persoane de Contact pentru Locație</h3>
+        {showContactAccordion && (
+          <Card className="p-4 border rounded-md">
+            <h3 className="text-md font-medium mb-3">Persoane de Contact pentru Locație</h3>
 
-            <Accordion type="single" collapsible className="border rounded-md" defaultValue="persoane-contact">
-              <AccordionItem value="persoane-contact" className="border-none">
-                <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                  <div className="flex items-center">
-                    <User className="h-4 w-4 mr-2 text-muted-foreground" />
-                    <span>Persoane de contact disponibile ({persoaneContact.length})</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="px-4 pb-4">
-                  {persoaneContact.length > 0 ? (
-                    <div className="space-y-4">
-                      {persoaneContact.map((contact, index) => (
-                        <div key={index} className="p-4 border rounded-md space-y-3">
-                          <div className="flex justify-between items-center">
-                            <h5 className="text-sm font-medium">{contact.nume}</h5>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleContactSelect(contact)}
-                              className="text-xs"
-                            >
-                              Selectează
-                            </Button>
-                          </div>
+            {persoaneContact.length > 0 ? (
+              <div className="space-y-4">
+                {persoaneContact.map((contact, index) => (
+                  <div key={index} className="p-4 border rounded-md space-y-3 bg-gray-50">
+                    <div className="flex justify-between items-center">
+                      <h5 className="text-sm font-medium">{contact.nume}</h5>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleContactSelect(contact)}
+                        className="text-xs"
+                      >
+                        Selectează
+                      </Button>
+                    </div>
 
-                          <div className="grid grid-cols-1 gap-2">
-                            <div className="flex items-center text-sm">
-                              <Phone className="h-4 w-4 mr-2 text-muted-foreground" />
-                              <span>{contact.telefon || "Fără telefon"}</span>
-                            </div>
+                    <div className="grid grid-cols-1 gap-2">
+                      <div className="flex items-center text-sm">
+                        <Phone className="h-4 w-4 mr-2 text-muted-foreground" />
+                        <span>{contact.telefon || "Fără telefon"}</span>
+                      </div>
 
-                            {contact.email && (
-                              <div className="flex items-center text-sm">
-                                <Mail className="h-4 w-4 mr-2 text-muted-foreground" />
-                                <span>{contact.email}</span>
-                              </div>
-                            )}
-
-                            {contact.functie && (
-                              <div className="flex items-center text-sm">
-                                <Briefcase className="h-4 w-4 mr-2 text-muted-foreground" />
-                                <span>{contact.functie}</span>
-                              </div>
-                            )}
-                          </div>
+                      {contact.email && (
+                        <div className="flex items-center text-sm">
+                          <Mail className="h-4 w-4 mr-2 text-muted-foreground" />
+                          <span>{contact.email}</span>
                         </div>
-                      ))}
+                      )}
+
+                      {contact.functie && (
+                        <div className="flex items-center text-sm">
+                          <Briefcase className="h-4 w-4 mr-2 text-muted-foreground" />
+                          <span>{contact.functie}</span>
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    <div className="text-center py-4 text-muted-foreground">
-                      Nu există persoane de contact pentru această locație
-                    </div>
-                  )}
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-          </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-4 text-muted-foreground">
+                Nu există persoane de contact pentru această locație
+              </div>
+            )}
+          </Card>
         )}
 
         {/* Câmpurile pentru persoana de contact selectată */}
