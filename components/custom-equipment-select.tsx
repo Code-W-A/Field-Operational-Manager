@@ -40,21 +40,21 @@ export function CustomEquipmentSelect({
 
   // Actualizăm echipamentul selectat când se schimbă valoarea sau lista de echipamente
   useEffect(() => {
-    if (value) {
+    console.log("CustomEquipmentSelect - value changed:", value)
+    console.log("CustomEquipmentSelect - equipments:", equipments)
+
+    if (value && equipments.length > 0) {
       const equipment = equipments.find((e) => e.id === value)
       if (equipment) {
+        console.log("CustomEquipmentSelect - equipment found:", equipment)
         setSelectedEquipment(equipment)
+      } else {
+        console.log("CustomEquipmentSelect - equipment not found for value:", value)
       }
-    } else {
+    } else if (!value) {
       setSelectedEquipment(null)
     }
   }, [value, equipments])
-
-  // Adăugăm un log pentru debugging
-  useEffect(() => {
-    console.log("CustomEquipmentSelect - value:", value)
-    console.log("CustomEquipmentSelect - selectedEquipment:", selectedEquipment)
-  }, [value, selectedEquipment])
 
   // Actualizăm lista filtrată de echipamente când se schimbă termenul de căutare sau lista de echipamente
   useEffect(() => {
@@ -89,7 +89,7 @@ export function CustomEquipmentSelect({
       return
     }
 
-    console.log("Selectare echipament:", equipment)
+    console.log("CustomEquipmentSelect - Selecting equipment:", equipment)
     setSelectedEquipment(equipment)
     onSelect(equipment.id, equipment)
     setOpen(false)
@@ -277,15 +277,6 @@ function EquipmentItem({
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
-  )
-}
-
-// Componentă pentru antetul secțiunii (dacă implementăm gruparea)
-function SectionHeader({ title }: { title: string }) {
-  return (
-    <div className="sticky top-0 z-10 pt-1 pb-1 px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-background">
-      {title}
-    </div>
   )
 }
 

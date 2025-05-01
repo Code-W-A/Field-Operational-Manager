@@ -138,6 +138,9 @@ export function LucrareForm({
   // Adăugăm state pentru a stoca echipamentele disponibile pentru locația selectată
   const [availableEquipments, setAvailableEquipments] = useState<Echipament[]>([])
 
+  // Adăugăm state pentru a urmări dacă echipamentele au fost încărcate
+  const [equipmentsLoaded, setEquipmentsLoaded] = useState(false)
+
   // Handle date selection with proper time preservation
   const handleDateEmiteriiSelect = useCallback(
     (date: Date | undefined) => {
@@ -317,6 +320,7 @@ export function LucrareForm({
 
       // Resetăm echipamentele disponibile
       setAvailableEquipments([])
+      setEquipmentsLoaded(false)
 
       // Resetăm acordeonul doar dacă clientul s-a schimbat
       setShowContactAccordion(false)
@@ -339,19 +343,27 @@ export function LucrareForm({
 
     // Actualizăm datele formularului
     handleSelectChange("locatie", value)
-    handleSelectChange("echipament", "")
 
-    // Resetăm echipamentul selectat
-    if (handleCustomChange) {
-      handleCustomChange("echipamentId", "")
-      handleCustomChange("echipamentCod", "")
+    // Resetăm echipamentul selectat doar dacă locația s-a schimbat
+    if (selectedLocatie?.nume !== value) {
+      handleSelectChange("echipament", "")
+
+      // Resetăm echipamentul selectat
+      if (handleCustomChange) {
+        handleCustomChange("echipamentId", "")
+        handleCustomChange("echipamentCod", "")
+      }
     }
 
     // Actualizăm echipamentele disponibile
     if (selectedLocation && selectedLocation.echipamente) {
+      console.log("Setăm echipamentele disponibile:", selectedLocation.echipamente)
       setAvailableEquipments(selectedLocation.echipamente)
+      setEquipmentsLoaded(true)
     } else {
+      console.log("Nu există echipamente pentru locația selectată")
       setAvailableEquipments([])
+      setEquipmentsLoaded(true)
     }
 
     // Actualizăm locația selectată
@@ -402,14 +414,17 @@ export function LucrareForm({
           setLocatii([defaultLocatie])
         }
 
-        // Resetăm locația selectată când se schimbă clientul
-        setSelectedLocatie(null)
-        setPersoaneContact([])
-        setShowContactAccordion(false)
-        setAvailableEquipments([])
+        // Nu resetăm locația selectată dacă avem deja o locație selectată
+        if (!selectedLocatie) {
+          setSelectedLocatie(null)
+          setPersoaneContact([])
+          setShowContactAccordion(false)
+          setAvailableEquipments([])
+          setEquipmentsLoaded(false)
+        }
       }
     }
-  }, [formData, formData?.client, clienti])
+  }, [formData, formData?.client, clienti, selectedLocatie])
 
   // Adăugăm funcție pentru gestionarea selecției locației
   const handleLocatieSelect = (locatieNume: string) => {
@@ -454,9 +469,11 @@ export function LucrareForm({
       if (locatie.echipamente && locatie.echipamente.length > 0) {
         console.log("Echipamente găsite pentru locație:", locatie.echipamente)
         setAvailableEquipments(locatie.echipamente)
+        setEquipmentsLoaded(true)
       } else {
         console.log("Nu există echipamente pentru această locație")
         setAvailableEquipments([])
+        setEquipmentsLoaded(true)
       }
 
       // Activăm afișarea acordeonului și nu-l dezactivăm
@@ -470,13 +487,14 @@ export function LucrareForm({
   // Adăugăm un efect pentru a actualiza echipamentele când se schimbă locația selectată
   // fără a reseta selecția existentă
   useEffect(() => {
-    if (selectedLocatie && selectedLocatie.echipamente && selectedLocatie.echipamente.length > 0) {
+    if (selectedLocatie && selectedLocatie.echipamente) {
       console.log("Actualizare echipamente pentru locația selectată:", selectedLocatie.echipamente)
-      setAvailableEquipments(selectedLocatie.echipamente)
+      setAvailableEquipments(selectedLocatie.echipamente || [])
+      setEquipmentsLoaded(true)
 
       // Verificăm dacă echipamentul selectat există în noua listă
       if (formData.echipamentId) {
-        const echipamentExista = selectedLocatie.echipamente.some((e) => e.id === formData.echipamentId)
+        const echipamentExista = selectedLocatie.echipamente?.some((e) => e.id === formData.echipamentId)
         if (!echipamentExista) {
           console.log("Echipamentul selectat anterior nu există în noua locație")
           // Opțional: putem reseta selecția aici dacă dorim
@@ -505,23 +523,12 @@ export function LucrareForm({
 
   // Adaugă acest efect pentru debugging
   useEffect(() => {
-    if (selectedClient && selectedClient.locatii) {
-      console.log("Locații client:", selectedClient.locatii)
-      selectedClient.locatii.forEach((loc) => {
-        console.log(`Locație ${loc.nume}:`, loc)
-        if (loc.echipamente) {
-          console.log(`Echipamente pentru ${loc.nume}:`, loc.echipamente)
-        }
-      })
-    }
-  }, [selectedClient])
-
-  // Adaugă acest efect după celelalte efecte
-  useEffect(() => {
     console.log("Stare availableEquipments:", availableEquipments)
     console.log("Stare formData.locatie:", formData.locatie)
+    console.log("Stare formData.echipamentId:", formData.echipamentId)
+    console.log("Stare formData.echipament:", formData.echipament)
     console.log("Condiție disabled:", !formData.locatie)
-  }, [availableEquipments, formData.locatie])
+  }, [availableEquipments, formData.locatie, formData.echipamentId, formData.echipament])
 
   // Modificăm funcția handleClientAdded pentru a gestiona corect adăugarea clientului
   const handleClientAdded = (clientName: string) => {
@@ -631,6 +638,12 @@ export function LucrareForm({
           }
         }
         setShowContactAccordion(true)
+
+        // Încărcăm echipamentele pentru locația inițială
+        if (locatie.echipamente) {
+          setAvailableEquipments(locatie.echipamente)
+          setEquipmentsLoaded(true)
+        }
       }
     }
 
@@ -941,7 +954,7 @@ export function LucrareForm({
               formData.locatie ? "Nu există echipamente pentru această locație" : "Selectați mai întâi o locație"
             }
           />
-          {availableEquipments.length === 0 && formData.locatie && (
+          {availableEquipments.length === 0 && formData.locatie && equipmentsLoaded && (
             <div>
               <p className="text-xs text-amber-600">
                 Nu există echipamente definite pentru această locație. Puteți adăuga echipamente din secțiunea de
