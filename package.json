@@ -66,11 +66,11 @@
     "firebase-admin": "latest",
     "nodemailer": "latest",
     "path": "latest",
-    "react-qr-reader": "latest",
     "uuid": "latest",
     "jspdf": "latest",
     "qrcode.react": "latest",
-    "html2canvas": "latest"
+    "html2canvas": "latest",
+    "react-qr-reader": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",

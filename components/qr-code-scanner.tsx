@@ -54,6 +54,21 @@ export function QRCodeScanner({
     }
   }, [isOpen])
 
+  useEffect(() => {
+    if (isOpen) {
+      // Check if camera permissions are available
+      navigator.mediaDevices
+        .getUserMedia({ video: { facingMode: "environment" } })
+        .then(() => {
+          setScanError(null)
+        })
+        .catch((err) => {
+          console.error("Camera permission error:", err)
+          setScanError("Nu s-a putut accesa camera. Verificați permisiunile browserului.")
+        })
+    }
+  }, [isOpen])
+
   // Funcție pentru verificarea datelor scanate
   const verifyScannedData = (data: any) => {
     setIsVerifying(true)
@@ -166,17 +181,24 @@ export function QRCodeScanner({
           </DialogHeader>
 
           {!scanResult && !scanError && (
-            <div className="relative aspect-square w-full max-w-sm mx-auto overflow-hidden rounded-lg">
-              <QrReader
-                constraints={{ facingMode: "environment" }}
-                onResult={handleScan}
-                scanDelay={500}
-                videoStyle={{ width: "100%", height: "100%" }}
-                videoContainerStyle={{ width: "100%", height: "100%" }}
-                containerStyle={{ width: "100%", height: "100%" }}
-              />
-              <div className="absolute inset-0 border-2 border-dashed border-white pointer-events-none"></div>
-            </div>
+            <>
+              <div className="relative aspect-square w-full max-w-sm mx-auto overflow-hidden rounded-lg">
+                <QrReader
+                  constraints={{ facingMode: "environment" }}
+                  onResult={handleScan}
+                  scanDelay={500}
+                  videoId="qr-video-element"
+                  className="w-full h-full"
+                  videoStyle={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  videoContainerStyle={{ width: "100%", height: "100%", position: "relative" }}
+                  containerStyle={{ width: "100%", height: "100%", position: "relative" }}
+                />
+                <div className="absolute inset-0 border-2 border-dashed border-white pointer-events-none"></div>
+              </div>
+              <p className="text-xs text-muted-foreground text-center mt-2">
+                Dacă camera nu se afișează, verificați permisiunile browserului și reîncărcați pagina.
+              </p>
+            </>
           )}
 
           {scanError && (
