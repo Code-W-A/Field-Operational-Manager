@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
-import { format, subDays, subMonths, differenceInMinutes, isValid } from "date-fns"
+import { format, differenceInMinutes, isValid } from "date-fns"
 import { ro } from "date-fns/locale"
 import { CalendarIcon, FileText, Printer, BarChart3, Clock, AlertCircle, CheckCircle, Wrench } from "lucide-react"
 import { parseRomanianDateTime } from "@/lib/utils/date-utils"
@@ -88,9 +88,9 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
   const [filteredWorkOrders, setFilteredWorkOrders] = useState<WorkOrder[]>([])
 
-  // State for date filtering
-  const [dateRange, setDateRange] = useState<"30days" | "3months" | "6months" | "1year" | "custom" | "all">("30days")
-  const [startDate, setStartDate] = useState<Date | undefined>(subDays(new Date(), 30))
+  // State for date filtering - simplified to only "custom" and "all"
+  const [dateRange, setDateRange] = useState<"custom" | "all">("custom")
+  const [startDate, setStartDate] = useState<Date | undefined>(new Date(new Date().getFullYear(), 0, 1)) // Jan 1st of current year
   const [endDate, setEndDate] = useState<Date | undefined>(new Date())
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
 
@@ -194,31 +194,11 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
 
   // Update date range based on selection
   useEffect(() => {
-    const now = new Date()
-
-    switch (dateRange) {
-      case "30days":
-        setStartDate(subDays(now, 30))
-        setEndDate(now)
-        break
-      case "3months":
-        setStartDate(subMonths(now, 3))
-        setEndDate(now)
-        break
-      case "6months":
-        setStartDate(subMonths(now, 6))
-        setEndDate(now)
-        break
-      case "1year":
-        setStartDate(subMonths(now, 12))
-        setEndDate(now)
-        break
-      case "all":
-        setStartDate(undefined)
-        setEndDate(undefined)
-        break
-      // For custom, we don't change the dates here
+    if (dateRange === "all") {
+      setStartDate(undefined)
+      setEndDate(undefined)
     }
+    // For "custom", we keep the existing dates
   }, [dateRange])
 
   // Load work orders when equipment is selected
@@ -316,8 +296,8 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
         const orderDate = parseRomanianDateTime(order.dataInterventie)
         return orderDate && orderDate.getFullYear() === selectedYear
       })
-    } else if (startDate || endDate) {
-      // For detailed report, filter by date range
+    } else if (dateRange === "custom" && (startDate || endDate)) {
+      // For detailed report with custom date range
       filtered = workOrders.filter((order) => {
         const orderDate = parseRomanianDateTime(order.dataInterventie)
 
@@ -334,9 +314,10 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
         return true
       })
     }
+    // For "all" date range, we keep all work orders
 
     setFilteredWorkOrders(filtered)
-  }, [workOrders, startDate, endDate, reportType, selectedYear])
+  }, [workOrders, startDate, endDate, dateRange, reportType, selectedYear])
 
   // Calculate statistics from filtered work orders
   const stats = useMemo<EquipmentStats>(() => {
@@ -505,8 +486,8 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
   const resetFilters = () => {
     setSelectedClientId("all-clients")
     setSelectedEquipmentId("")
-    setDateRange("30days")
-    setStartDate(subDays(new Date(), 30))
+    setDateRange("custom")
+    setStartDate(new Date(new Date().getFullYear(), 0, 1)) // Jan 1st of current year
     setEndDate(new Date())
     setReportReady(false)
   }
@@ -569,20 +550,16 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
 
             {reportType === "detailed" ? (
               <>
-                {/* Date range selection */}
+                {/* Date range selection - simplified to only "custom" and "all" */}
                 <div className="space-y-2">
                   <label htmlFor="dateRange" className="text-sm font-medium">
                     Perioadă
                   </label>
-                  <Select value={dateRange} onValueChange={setDateRange}>
+                  <Select value={dateRange} onValueChange={(value) => setDateRange(value as "custom" | "all")}>
                     <SelectTrigger id="dateRange">
                       <SelectValue placeholder="Selectați perioada" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="30days">Ultimele 30 zile</SelectItem>
-                      <SelectItem value="3months">Ultimele 3 luni</SelectItem>
-                      <SelectItem value="6months">Ultimele 6 luni</SelectItem>
-                      <SelectItem value="1year">Ultimul an</SelectItem>
                       <SelectItem value="custom">Perioadă personalizată</SelectItem>
                       <SelectItem value="all">Toate datele</SelectItem>
                     </SelectContent>
@@ -714,9 +691,7 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
                       ? `Intervenții pe echipament în anul ${selectedYear}`
                       : dateRange === "all"
                         ? "Toate intervențiile pe echipament"
-                        : dateRange === "custom"
-                          ? `Perioada: ${startDate ? format(startDate, "dd.MM.yyyy", { locale: ro }) : ""} - ${endDate ? format(endDate, "dd.MM.yyyy", { locale: ro }) : ""}`
-                          : `Perioada: ${dateRange === "30days" ? "Ultimele 30 zile" : dateRange === "3months" ? "Ultimele 3 luni" : dateRange === "6months" ? "Ultimele 6 luni" : "Ultimul an"}`}
+                        : `Perioada: ${startDate ? format(startDate, "dd.MM.yyyy", { locale: ro }) : ""} - ${endDate ? format(endDate, "dd.MM.yyyy", { locale: ro }) : ""}`}
                   </CardDescription>
                 </div>
                 <div className="mt-4 flex space-x-2 md:mt-0">
