@@ -600,7 +600,10 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
                     {locatie.echipamente && locatie.echipamente.length > 0 ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {locatie.echipamente.map((echipament, echipamentIndex) => (
-                          <div key={echipamentIndex} className="p-4 border rounded-md bg-gray-50 relative">
+                          <div
+                            key={echipamentIndex}
+                            className="p-4 border rounded-md bg-gray-50 relative overflow-hidden"
+                          >
                             <div className="flex justify-between items-start mb-2">
                               <div>
                                 <h5 className="font-medium">{echipament.nume}</h5>
@@ -608,7 +611,7 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
                                   Cod: {echipament.cod}
                                 </Badge>
                               </div>
-                              <div className="flex space-x-1">
+                              <div className="flex space-x-1 flex-shrink-0">
                                 <EquipmentQRCode
                                   equipment={echipament}
                                   clientName={formData.nume}
@@ -619,7 +622,7 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleOpenEditEchipamentDialog(locatieIndex, echipamentIndex)}
-                                  className="h-8 w-8 p-0"
+                                  className="h-8 w-8 p-0 flex-shrink-0"
                                 >
                                   <Wrench className="h-4 w-4" />
                                 </Button>
@@ -628,7 +631,7 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleDeleteEchipament(locatieIndex, echipamentIndex)}
-                                  className="h-8 w-8 p-0 text-red-500"
+                                  className="h-8 w-8 p-0 text-red-500 flex-shrink-0"
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>

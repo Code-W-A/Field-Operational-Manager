@@ -3,7 +3,7 @@
  */
 import { getClientById } from "@/lib/firebase/firestore"
 import { db } from "@/lib/firebase/config"
-import { collection, query, where, getDocs } from "firebase/firestore"
+import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore"
 
 /**
  * Sends notifications for a new work order
@@ -71,36 +71,87 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
         }
       }
 
-      // Try approach 3: Direct query to Firestore
+      // Try approach 3: Direct query to Firestore - FIXED: using "clienti" instead of "clients"
       if (!clientEmail && typeof workOrderData.client === "string" && workOrderData.client) {
         try {
           console.log("Querying Firestore directly for client:", workOrderData.client)
-          const clientsRef = collection(db, "clients")
+          const clientsRef = collection(db, "clienti") // FIXED: correct collection name "clienti"
 
           // Try to match by name
           const nameQuery = query(clientsRef, where("nume", "==", workOrderData.client))
-          let querySnapshot = await getDocs(nameQuery)
+          const querySnapshot = await getDocs(nameQuery)
 
           if (querySnapshot.empty) {
             // If no match by name, try by ID
-            const idQuery = query(clientsRef, where("id", "==", workOrderData.client))
-            querySnapshot = await getDocs(idQuery)
+            try {
+              // Try to get directly by ID
+              const clientDocRef = doc(db, "clienti", workOrderData.client)
+              const clientDocSnap = await getDoc(clientDocRef)
+
+              if (clientDocSnap.exists()) {
+                const clientData = clientDocSnap.data()
+                console.log("Client found by direct ID lookup:", clientData)
+
+                if (clientData.email) {
+                  clientEmail = clientData.email
+                  clientName = clientData.nume || clientData.name || clientName
+                  console.log("Found client email by direct ID lookup:", clientEmail)
+                }
+              } else {
+                console.log("No client document found with ID:", workOrderData.client)
+              }
+            } catch (idError) {
+              console.error("Error fetching client by direct ID:", idError)
+            }
           }
 
-          if (!querySnapshot.empty) {
+          if (!clientEmail && !querySnapshot.empty) {
             const clientData = querySnapshot.docs[0].data()
-            console.log("Client found in Firestore:", clientData)
+            console.log("Client found in Firestore by name query:", clientData)
 
             if (clientData.email) {
               clientEmail = clientData.email
               clientName = clientData.nume || clientData.name || clientName
-              console.log("Found client email in Firestore:", clientEmail)
+              console.log("Found client email in Firestore by name query:", clientEmail)
             }
-          } else {
-            console.log("No client found in Firestore with name or ID:", workOrderData.client)
           }
         } catch (error) {
           console.error("Error querying Firestore for client:", error)
+        }
+      }
+
+      // Try approach 4: Search all clients for a matching name (fuzzy match)
+      if (!clientEmail && typeof workOrderData.client === "string" && workOrderData.client) {
+        try {
+          console.log("Performing fuzzy search for client:", workOrderData.client)
+          const clientsRef = collection(db, "clienti")
+          const allClientsSnapshot = await getDocs(clientsRef)
+
+          if (!allClientsSnapshot.empty) {
+            // Try to find a client with a similar name
+            const clientName = workOrderData.client.toLowerCase().trim()
+            let bestMatch = null
+
+            for (const doc of allClientsSnapshot.docs) {
+              const data = doc.data()
+              if (
+                (data.nume && data.nume.toLowerCase().includes(clientName)) ||
+                clientName.includes(data.nume.toLowerCase())
+              ) {
+                bestMatch = data
+                break
+              }
+            }
+
+            if (bestMatch && bestMatch.email) {
+              clientEmail = bestMatch.email
+              const newClientName = bestMatch.nume || bestMatch.name || clientName
+              clientName = newClientName
+              console.log("Found client email through fuzzy matching:", clientEmail)
+            }
+          }
+        } catch (error) {
+          console.error("Error performing fuzzy search for client:", error)
         }
       }
     }
@@ -229,7 +280,7 @@ async function fetchTechnicianEmail(technicianName: string): Promise<string | nu
  */
 async function getClientByName(clientName: string) {
   try {
-    const clientsRef = collection(db, "clients")
+    const clientsRef = collection(db, "clienti") // FIXED: correct collection name "clienti"
     const q = query(clientsRef, where("nume", "==", clientName))
     const querySnapshot = await getDocs(q)
 
