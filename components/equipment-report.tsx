@@ -82,7 +82,7 @@ interface EquipmentStats {
 export function EquipmentReport({ className = "", reportType = "detailed" }: EquipmentReportProps) {
   // State for equipment selection and data
   const [clients, setClients] = useState<Client[]>([])
-  const [selectedClientId, setSelectedClientId] = useState<string>("")
+  const [selectedClientId, setSelectedClientId] = useState<string>("all-clients")
   const [equipmentList, setEquipmentList] = useState<Equipment[]>([])
   const [selectedEquipmentId, setSelectedEquipmentId] = useState<string>("")
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
@@ -161,12 +161,12 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
 
   // Update equipment list when client is selected
   useEffect(() => {
-    if (selectedClientId) {
+    if (selectedClientId && selectedClientId !== "all-clients") {
       const clientEquipment = equipmentList.filter((eq) => eq.clientId === selectedClientId)
       setEquipmentList(clientEquipment)
       setSelectedEquipmentId("")
     } else {
-      // If no client is selected, reset to all equipment
+      // If "all clients" is selected, reset to all equipment
       const allEquipment: Equipment[] = []
       clients.forEach((client) => {
         if (client.locatii) {
@@ -503,7 +503,7 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
 
   // Reset filters
   const resetFilters = () => {
-    setSelectedClientId("")
+    setSelectedClientId("all-clients")
     setSelectedEquipmentId("")
     setDateRange("30days")
     setStartDate(subDays(new Date(), 30))
@@ -532,7 +532,7 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
                   <SelectValue placeholder="Toți clienții" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Toți clienții</SelectItem>
+                  <SelectItem value="all-clients">Toți clienții</SelectItem>
                   {clients.map((client) => (
                     <SelectItem key={client.id} value={client.id}>
                       {client.nume}
