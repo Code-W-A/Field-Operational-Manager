@@ -43,6 +43,7 @@ export function QRCodeScanner({
     details?: string[]
   } | null>(null)
   const { toast } = useToast()
+  const [debugMode, setDebugMode] = useState(false)
 
   // Resetăm starea când se deschide/închide dialogul
   useEffect(() => {
@@ -75,8 +76,22 @@ export function QRCodeScanner({
     setScanError(null)
 
     try {
-      // Încercăm să parsăm datele scanate
+      // If data is a string, try to parse it as JSON
       const parsedData = typeof data === "string" ? JSON.parse(data) : data
+      console.log("Processing QR data:", parsedData)
+
+      // Handle raw text QR codes
+      if (parsedData.type === "unknown") {
+        setVerificationResult({
+          success: false,
+          message: "QR code necunoscut",
+          details: ["Acest QR code nu conține informații despre un echipament. Conținut: " + parsedData.raw],
+        })
+        if (onScanError) onScanError("QR code necunoscut")
+        if (onVerificationComplete) onVerificationComplete(false)
+        setIsVerifying(false)
+        return
+      }
 
       // Verificăm dacă este un QR code de echipament
       if (parsedData.type !== "equipment") {
@@ -155,8 +170,25 @@ export function QRCodeScanner({
 
   const handleScan = (result: any) => {
     if (result?.text) {
+      console.log("QR Code detected:", result.text)
       setScanResult(result.text)
-      verifyScannedData(result.text)
+
+      try {
+        // Try to parse the result as JSON
+        let parsedData
+        try {
+          parsedData = JSON.parse(result.text)
+          console.log("Successfully parsed QR data:", parsedData)
+        } catch (parseError) {
+          console.log("QR code is not valid JSON, using as raw text:", result.text)
+          parsedData = { raw: result.text, type: "unknown" }
+        }
+
+        verifyScannedData(parsedData)
+      } catch (error) {
+        console.error("Error processing scan result:", error)
+        setScanError(`Eroare la procesarea rezultatului: ${error.message}`)
+      }
     }
   }
 
@@ -184,9 +216,14 @@ export function QRCodeScanner({
             <>
               <div className="relative aspect-square w-full max-w-sm mx-auto overflow-hidden rounded-lg">
                 <QrReader
-                  constraints={{ facingMode: "environment" }}
+                  constraints={{
+                    facingMode: "environment",
+                    aspectRatio: 1,
+                    width: { min: 640, ideal: 1280, max: 1920 },
+                    height: { min: 480, ideal: 720, max: 1080 },
+                  }}
                   onResult={handleScan}
-                  scanDelay={500}
+                  scanDelay={300}
                   videoId="qr-video-element"
                   className="w-full h-full"
                   videoStyle={{ width: "100%", height: "100%", objectFit: "cover" }}
@@ -230,9 +267,24 @@ export function QRCodeScanner({
             </Alert>
           )}
 
+          {debugMode && (
+            <div className="bg-muted p-2 rounded text-xs overflow-auto max-h-32">
+              <p className="font-bold">Debug Info:</p>
+              <p>Scan Result: {scanResult ? scanResult.substring(0, 100) + "..." : "None"}</p>
+              <p>Error: {scanError || "None"}</p>
+              <p>
+                Verification:{" "}
+                {verificationResult ? JSON.stringify(verificationResult).substring(0, 100) + "..." : "None"}
+              </p>
+            </div>
+          )}
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsOpen(false)}>
               Închide
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setDebugMode(!debugMode)} className="text-xs">
+              {debugMode ? "Dezactivează Debug" : "Activează Debug"}
             </Button>
             {/* Am eliminat butonul "Continuă oricum" */}
           </DialogFooter>
