@@ -14,11 +14,17 @@ export default function ReportsPage() {
       <DashboardHeader heading="Rapoarte" text="Generează și vizualizează rapoarte pentru echipamente și intervenții" />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-1">
+        <TabsList className="grid w-full max-w-md grid-cols-1 md:grid-cols-2">
           <TabsTrigger value="equipment">Rapoarte per Echipament</TabsTrigger>
+          <TabsTrigger value="annual">Analiză Anuală</TabsTrigger>
         </TabsList>
+
         <TabsContent value="equipment" className="pt-4">
-          <EquipmentReport className="w-full" />
+          <EquipmentReport className="w-full" reportType="detailed" />
+        </TabsContent>
+
+        <TabsContent value="annual" className="pt-4">
+          <EquipmentReport className="w-full" reportType="annual" />
         </TabsContent>
       </Tabs>
     </DashboardShell>

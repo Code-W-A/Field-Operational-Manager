@@ -1,576 +1,1001 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState, useEffect, useMemo } from "react"
+import { collection, query, where, getDocs, orderBy } from "firebase/firestore"
+import { db } from "@/lib/firebase/config"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Badge } from "@/components/ui/badge"
-import { Loader2, FileText, BarChart3 } from "lucide-react"
-import { format, subMonths, isAfter, isBefore, differenceInMinutes } from "date-fns"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { format, subDays, subMonths, differenceInMinutes, isValid } from "date-fns"
 import { ro } from "date-fns/locale"
-import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
-import { orderBy } from "firebase/firestore"
-import { jsPDF } from "jspdf"
-import { toast } from "@/components/ui/use-toast"
+import { CalendarIcon, FileText, Printer, BarChart3, Clock, AlertCircle, CheckCircle, Wrench } from "lucide-react"
 import { parseRomanianDateTime } from "@/lib/utils/date-utils"
+import { Spinner } from "@/components/ui/spinner"
+import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { toast } from "@/components/ui/use-toast"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts"
+import html2canvas from "html2canvas"
+import jsPDF from "jspdf"
 
+// Define types
 interface EquipmentReportProps {
   className?: string
+  reportType?: "detailed" | "annual"
 }
 
-export function EquipmentReport({ className }: EquipmentReportProps) {
-  const [selectedEquipment, setSelectedEquipment] = useState<string>("")
-  const [selectedPeriod, setSelectedPeriod] = useState<string>("all")
-  const [isGenerating, setIsGenerating] = useState<boolean>(false)
-  const [activeTab, setActiveTab] = useState<string>("summary")
+interface Client {
+  id: string
+  nume: string
+  locatii?: {
+    nume: string
+    echipamente?: {
+      id: string
+      nume: string
+      cod: string
+      model?: string
+      serie?: string
+    }[]
+  }[]
+}
 
-  // Obținem toate lucrările
-  const { data: lucrari, loading } = useFirebaseCollection("lucrari", [orderBy("dataEmiterii", "desc")])
+interface WorkOrder {
+  id: string
+  client: string
+  echipament: string
+  echipamentId?: string
+  echipamentCod?: string
+  dataInterventie: string
+  tipLucrare: string
+  statusLucrare: string
+  descriereInterventie?: string
+  defectReclamat?: string
+  tehnicieni: string[]
+  oraSosire?: string
+  oraPlecare?: string
+}
 
-  // Extragem toate echipamentele unice
-  const equipments = useMemo(() => {
-    const uniqueEquipments = Array.from(new Set(lucrari.map((lucrare) => lucrare.locatie))).filter(Boolean)
-    return uniqueEquipments.map((equipment) => ({
-      value: equipment,
-      label: equipment,
-    }))
-  }, [lucrari])
+interface Equipment {
+  id: string
+  nume: string
+  cod: string
+  model?: string
+  serie?: string
+  clientId: string
+  clientName: string
+  location: string
+}
 
-  // Filtrăm lucrările în funcție de echipamentul selectat și perioada selectată
-  const filteredLucrari = useMemo(() => {
-    if (!selectedEquipment) return []
+interface EquipmentStats {
+  totalInterventions: number
+  byType: Record<string, number>
+  byStatus: Record<string, number>
+  byMonth: Record<string, number>
+  averageTime: number
+  validTimeDataCount: number
+}
 
-    let filtered = lucrari.filter((lucrare) => lucrare.locatie === selectedEquipment)
+export function EquipmentReport({ className = "", reportType = "detailed" }: EquipmentReportProps) {
+  // State for equipment selection and data
+  const [clients, setClients] = useState<Client[]>([])
+  const [selectedClientId, setSelectedClientId] = useState<string>("")
+  const [equipmentList, setEquipmentList] = useState<Equipment[]>([])
+  const [selectedEquipmentId, setSelectedEquipmentId] = useState<string>("")
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
+  const [filteredWorkOrders, setFilteredWorkOrders] = useState<WorkOrder[]>([])
 
-    // Aplicăm filtrarea după perioadă
-    if (selectedPeriod !== "all") {
-      const now = new Date()
-      let startDate: Date
+  // State for date filtering
+  const [dateRange, setDateRange] = useState<"30days" | "3months" | "6months" | "1year" | "custom" | "all">("30days")
+  const [startDate, setStartDate] = useState<Date | undefined>(subDays(new Date(), 30))
+  const [endDate, setEndDate] = useState<Date | undefined>(new Date())
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
 
-      switch (selectedPeriod) {
-        case "1month":
-          startDate = subMonths(now, 1)
-          break
-        case "3months":
-          startDate = subMonths(now, 3)
-          break
-        case "6months":
-          startDate = subMonths(now, 6)
-          break
-        case "12months":
-          startDate = subMonths(now, 12)
-          break
-        default:
-          startDate = new Date(0) // Începutul timpului
+  // State for loading and UI
+  const [loading, setLoading] = useState<boolean>(false)
+  const [loadingWorkOrders, setLoadingWorkOrders] = useState<boolean>(false)
+  const [reportReady, setReportReady] = useState<boolean>(false)
+  const [generatingPdf, setGeneratingPdf] = useState<boolean>(false)
+
+  // Available years for selection (last 5 years)
+  const availableYears = useMemo(() => {
+    const currentYear = new Date().getFullYear()
+    return Array.from({ length: 5 }, (_, i) => currentYear - i)
+  }, [])
+
+  // Load clients and their equipment
+  useEffect(() => {
+    async function loadClients() {
+      setLoading(true)
+      try {
+        const clientsQuery = query(collection(db, "clienti"), orderBy("nume"))
+        const clientsSnapshot = await getDocs(clientsQuery)
+        const clientsData = clientsSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Client[]
+
+        setClients(clientsData)
+
+        // Extract all equipment from all clients
+        const allEquipment: Equipment[] = []
+        clientsData.forEach((client) => {
+          if (client.locatii) {
+            client.locatii.forEach((location) => {
+              if (location.echipamente) {
+                location.echipamente.forEach((equipment) => {
+                  allEquipment.push({
+                    id: equipment.id || `${client.id}-${location.nume}-${equipment.cod}`,
+                    nume: equipment.nume,
+                    cod: equipment.cod,
+                    model: equipment.model,
+                    serie: equipment.serie,
+                    clientId: client.id,
+                    clientName: client.nume,
+                    location: location.nume,
+                  })
+                })
+              }
+            })
+          }
+        })
+
+        setEquipmentList(allEquipment)
+      } catch (error) {
+        console.error("Error loading clients:", error)
+        toast({
+          title: "Eroare",
+          description: "Nu s-au putut încărca datele clienților",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadClients()
+  }, [])
+
+  // Update equipment list when client is selected
+  useEffect(() => {
+    if (selectedClientId) {
+      const clientEquipment = equipmentList.filter((eq) => eq.clientId === selectedClientId)
+      setEquipmentList(clientEquipment)
+      setSelectedEquipmentId("")
+    } else {
+      // If no client is selected, reset to all equipment
+      const allEquipment: Equipment[] = []
+      clients.forEach((client) => {
+        if (client.locatii) {
+          client.locatii.forEach((location) => {
+            if (location.echipamente) {
+              location.echipamente.forEach((equipment) => {
+                allEquipment.push({
+                  id: equipment.id || `${client.id}-${location.nume}-${equipment.cod}`,
+                  nume: equipment.nume,
+                  cod: equipment.cod,
+                  model: equipment.model,
+                  serie: equipment.serie,
+                  clientId: client.id,
+                  clientName: client.nume,
+                  location: location.nume,
+                })
+              })
+            }
+          })
+        }
+      })
+      setEquipmentList(allEquipment)
+    }
+  }, [selectedClientId, clients])
+
+  // Update date range based on selection
+  useEffect(() => {
+    const now = new Date()
+
+    switch (dateRange) {
+      case "30days":
+        setStartDate(subDays(now, 30))
+        setEndDate(now)
+        break
+      case "3months":
+        setStartDate(subMonths(now, 3))
+        setEndDate(now)
+        break
+      case "6months":
+        setStartDate(subMonths(now, 6))
+        setEndDate(now)
+        break
+      case "1year":
+        setStartDate(subMonths(now, 12))
+        setEndDate(now)
+        break
+      case "all":
+        setStartDate(undefined)
+        setEndDate(undefined)
+        break
+      // For custom, we don't change the dates here
+    }
+  }, [dateRange])
+
+  // Load work orders when equipment is selected
+  useEffect(() => {
+    async function loadWorkOrders() {
+      if (!selectedEquipmentId) {
+        setWorkOrders([])
+        setFilteredWorkOrders([])
+        setReportReady(false)
+        return
       }
 
-      filtered = filtered.filter((lucrare) => {
-        // Folosim funcția parseRomanianDateTime pentru a parsa data în mod consistent
-        const lucrareDate = parseRomanianDateTime(lucrare.dataInterventie)
+      setLoadingWorkOrders(true)
+      try {
+        const selectedEquipment = equipmentList.find((eq) => eq.id === selectedEquipmentId)
 
-        // Dacă data nu poate fi parsată, excludem înregistrarea
-        if (!lucrareDate) return false
+        if (!selectedEquipment) {
+          throw new Error("Echipamentul selectat nu a fost găsit")
+        }
 
-        return isAfter(lucrareDate, startDate) && isBefore(lucrareDate, now)
+        // Query work orders by equipment ID or code
+        const workOrdersQuery = query(collection(db, "lucrari"), where("echipamentId", "==", selectedEquipmentId))
+
+        const workOrdersSnapshot = await getDocs(workOrdersQuery)
+        let workOrdersData = workOrdersSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as WorkOrder[]
+
+        // If no results by ID, try by equipment code
+        if (workOrdersData.length === 0 && selectedEquipment.cod) {
+          const workOrdersByCodeQuery = query(
+            collection(db, "lucrari"),
+            where("echipamentCod", "==", selectedEquipment.cod),
+          )
+
+          const workOrdersByCodeSnapshot = await getDocs(workOrdersByCodeQuery)
+          workOrdersData = workOrdersByCodeSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as WorkOrder[]
+        }
+
+        // If still no results, try by equipment name and client
+        if (workOrdersData.length === 0) {
+          const workOrdersByNameQuery = query(
+            collection(db, "lucrari"),
+            where("echipament", "==", selectedEquipment.nume),
+            where("client", "==", selectedEquipment.clientName),
+          )
+
+          const workOrdersByNameSnapshot = await getDocs(workOrdersByNameQuery)
+          workOrdersData = workOrdersByNameSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as WorkOrder[]
+        }
+
+        // Sort work orders by date
+        workOrdersData.sort((a, b) => {
+          const dateA = parseRomanianDateTime(a.dataInterventie) || new Date(0)
+          const dateB = parseRomanianDateTime(b.dataInterventie) || new Date(0)
+          return dateB.getTime() - dateA.getTime() // Newest first
+        })
+
+        setWorkOrders(workOrdersData)
+        setReportReady(true)
+      } catch (error) {
+        console.error("Error loading work orders:", error)
+        toast({
+          title: "Eroare",
+          description: "Nu s-au putut încărca datele lucrărilor",
+          variant: "destructive",
+        })
+      } finally {
+        setLoadingWorkOrders(false)
+      }
+    }
+
+    loadWorkOrders()
+  }, [selectedEquipmentId, equipmentList])
+
+  // Filter work orders by date range
+  useEffect(() => {
+    if (!workOrders.length) {
+      setFilteredWorkOrders([])
+      return
+    }
+
+    let filtered = [...workOrders]
+
+    if (reportType === "annual") {
+      // For annual report, filter by selected year
+      filtered = workOrders.filter((order) => {
+        const orderDate = parseRomanianDateTime(order.dataInterventie)
+        return orderDate && orderDate.getFullYear() === selectedYear
+      })
+    } else if (startDate || endDate) {
+      // For detailed report, filter by date range
+      filtered = workOrders.filter((order) => {
+        const orderDate = parseRomanianDateTime(order.dataInterventie)
+
+        if (!orderDate) return false
+
+        if (startDate && endDate) {
+          return orderDate >= startDate && orderDate <= endDate
+        } else if (startDate) {
+          return orderDate >= startDate
+        } else if (endDate) {
+          return orderDate <= endDate
+        }
+
+        return true
       })
     }
 
-    return filtered
-  }, [lucrari, selectedEquipment, selectedPeriod])
+    setFilteredWorkOrders(filtered)
+  }, [workOrders, startDate, endDate, reportType, selectedYear])
 
-  // Calculăm statisticile pentru echipamentul selectat
-  const stats = useMemo(() => {
-    if (!filteredLucrari.length) {
+  // Calculate statistics from filtered work orders
+  const stats = useMemo<EquipmentStats>(() => {
+    if (!filteredWorkOrders.length) {
       return {
         totalInterventions: 0,
         byType: {},
         byStatus: {},
-        averageTimePerIntervention: 0,
-        totalInterventionTime: 0,
-        interventionsWithTimeData: 0,
+        byMonth: {},
+        averageTime: 0,
+        validTimeDataCount: 0,
       }
     }
 
-    // Calculăm numărul total de intervenții
-    const totalInterventions = filteredLucrari.length
+    const byType: Record<string, number> = {}
+    const byStatus: Record<string, number> = {}
+    const byMonth: Record<string, number> = {}
+    let totalTime = 0
+    let validTimeCount = 0
 
-    // Calculăm numărul de intervenții pe tip
-    const byType = filteredLucrari.reduce(
-      (acc, lucrare) => {
-        const type = lucrare.tipLucrare || "Necunoscut"
-        acc[type] = (acc[type] || 0) + 1
-        return acc
-      },
-      {} as Record<string, number>,
-    )
+    filteredWorkOrders.forEach((order) => {
+      // Count by type
+      const type = order.tipLucrare || "Necunoscut"
+      byType[type] = (byType[type] || 0) + 1
 
-    // Calculăm numărul de intervenții pe status
-    const byStatus = filteredLucrari.reduce(
-      (acc, lucrare) => {
-        const status = lucrare.statusLucrare || "Necunoscut"
-        acc[status] = (acc[status] || 0) + 1
-        return acc
-      },
-      {} as Record<string, number>,
-    )
+      // Count by status
+      const status = order.statusLucrare || "Necunoscut"
+      byStatus[status] = (byStatus[status] || 0) + 1
 
-    // Calculăm timpul mediu per intervenție folosind datele reale
-    let totalInterventionTime = 0
-    let interventionsWithTimeData = 0
+      // Count by month
+      const date = parseRomanianDateTime(order.dataInterventie)
+      if (date) {
+        const monthKey = format(date, "yyyy-MM")
+        byMonth[monthKey] = (byMonth[monthKey] || 0) + 1
+      }
 
-    filteredLucrari.forEach((lucrare) => {
-      // Verificăm dacă avem atât ora sosirii cât și ora plecării
-      if (lucrare.dataInterventie && lucrare.oraSosire && lucrare.oraPlecare) {
+      // Calculate time if available
+      if (order.oraSosire && order.oraPlecare) {
         try {
-          // Parsăm data intervenției
-          const interventionDate = parseRomanianDateTime(lucrare.dataInterventie)
+          const arrivalDate = parseRomanianDateTime(`${order.dataInterventie.split(" ")[0]} ${order.oraSosire}`)
+          const departureDate = parseRomanianDateTime(`${order.dataInterventie.split(" ")[0]} ${order.oraPlecare}`)
 
-          if (!interventionDate) return
+          if (arrivalDate && departureDate && isValid(arrivalDate) && isValid(departureDate)) {
+            const minutes = differenceInMinutes(departureDate, arrivalDate)
 
-          // Extragem orele și minutele din oraSosire și oraPlecare
-          const [arrivalHours, arrivalMinutes] = lucrare.oraSosire.split(":").map(Number)
-          const [departureHours, departureMinutes] = lucrare.oraPlecare.split(":").map(Number)
-
-          if (isNaN(arrivalHours) || isNaN(arrivalMinutes) || isNaN(departureHours) || isNaN(departureMinutes)) {
-            return
-          }
-
-          // Creăm obiectele Date pentru ora sosirii și ora plecării
-          const arrivalTime = new Date(interventionDate)
-          arrivalTime.setHours(arrivalHours, arrivalMinutes, 0, 0)
-
-          const departureTime = new Date(interventionDate)
-          departureTime.setHours(departureHours, departureMinutes, 0, 0)
-
-          // Dacă ora plecării este mai mică decât ora sosirii, presupunem că plecarea a fost în ziua următoare
-          if (departureTime < arrivalTime) {
-            departureTime.setDate(departureTime.getDate() + 1)
-          }
-
-          // Calculăm diferența în minute
-          const durationMinutes = differenceInMinutes(departureTime, arrivalTime)
-
-          // Adăugăm la totalul de timp doar dacă durata este pozitivă și rezonabilă (< 24 ore)
-          if (durationMinutes > 0 && durationMinutes < 24 * 60) {
-            totalInterventionTime += durationMinutes
-            interventionsWithTimeData++
+            // Only count if time is positive and less than 24 hours (to filter out errors)
+            if (minutes > 0 && minutes < 24 * 60) {
+              totalTime += minutes
+              validTimeCount++
+            }
           }
         } catch (error) {
-          console.error("Eroare la calcularea duratei intervenției:", error)
+          console.error("Error calculating time for work order:", error)
         }
       }
     })
 
-    // Calculăm media timpului per intervenție
-    const averageTimePerIntervention =
-      interventionsWithTimeData > 0 ? Math.round(totalInterventionTime / interventionsWithTimeData) : 0
-
     return {
-      totalInterventions,
+      totalInterventions: filteredWorkOrders.length,
       byType,
       byStatus,
-      averageTimePerIntervention,
-      totalInterventionTime,
-      interventionsWithTimeData,
+      byMonth,
+      averageTime: validTimeCount > 0 ? Math.round(totalTime / validTimeCount) : 0,
+      validTimeDataCount: validTimeCount,
     }
-  }, [filteredLucrari])
+  }, [filteredWorkOrders])
 
-  // Funcție pentru generarea raportului PDF
-  const generatePDF = async () => {
-    if (!selectedEquipment || !filteredLucrari.length) {
-      toast({
-        title: "Eroare",
-        description: "Selectați un echipament și asigurați-vă că există date pentru raport",
-        variant: "destructive",
+  // Prepare chart data
+  const chartData = useMemo(() => {
+    if (reportType === "annual") {
+      // For annual report, prepare monthly data
+      const monthNames = [
+        "Ianuarie",
+        "Februarie",
+        "Martie",
+        "Aprilie",
+        "Mai",
+        "Iunie",
+        "Iulie",
+        "August",
+        "Septembrie",
+        "Octombrie",
+        "Noiembrie",
+        "Decembrie",
+      ]
+
+      return monthNames.map((month, index) => {
+        const monthKey = `${selectedYear}-${String(index + 1).padStart(2, "0")}`
+        return {
+          name: month,
+          intervenții: stats.byMonth[monthKey] || 0,
+        }
       })
-      return
-    }
+    } else {
+      // For detailed report, prepare type and status data
+      const typeData = Object.entries(stats.byType).map(([name, value]) => ({
+        name,
+        intervenții: value,
+      }))
 
-    setIsGenerating(true)
+      const statusData = Object.entries(stats.byStatus).map(([name, value]) => ({
+        name,
+        intervenții: value,
+      }))
+
+      return { typeData, statusData }
+    }
+  }, [stats, reportType, selectedYear])
+
+  // Generate PDF report
+  const generatePDF = async () => {
+    setGeneratingPdf(true)
 
     try {
-      const doc = new jsPDF({ unit: "mm", format: "a4" })
-      const pageWidth = doc.internal.pageSize.getWidth()
-      const margin = 15
-
-      // Titlu
-      doc.setFontSize(18)
-      doc.setFont("helvetica", "bold")
-      doc.text(`Raport Echipament: ${selectedEquipment}`, pageWidth / 2, 20, { align: "center" })
-
-      // Data generării
-      doc.setFontSize(10)
-      doc.setFont("helvetica", "normal")
-      doc.text(`Generat la: ${format(new Date(), "dd.MM.yyyy HH:mm", { locale: ro })}`, pageWidth / 2, 30, {
-        align: "center",
-      })
-
-      // Perioada raportului
-      let perioadaText = "Toate intervențiile"
-      switch (selectedPeriod) {
-        case "1month":
-          perioadaText = "Ultimele 30 de zile"
-          break
-        case "3months":
-          perioadaText = "Ultimele 3 luni"
-          break
-        case "6months":
-          perioadaText = "Ultimele 6 luni"
-          break
-        case "12months":
-          perioadaText = "Ultimele 12 luni"
-          break
-      }
-      doc.text(`Perioada: ${perioadaText}`, pageWidth / 2, 35, { align: "center" })
-
-      // Statistici generale
-      doc.setFontSize(14)
-      doc.setFont("helvetica", "bold")
-      doc.text("Statistici generale", margin, 50)
-
-      doc.setFontSize(10)
-      doc.setFont("helvetica", "normal")
-      doc.text(`Număr total de intervenții: ${stats.totalInterventions}`, margin, 60)
-
-      // Adăugăm informații despre timpul mediu per intervenție
-      if (stats.interventionsWithTimeData > 0) {
-        doc.text(
-          `Timp mediu per intervenție: ${stats.averageTimePerIntervention} minute (bazat pe ${stats.interventionsWithTimeData} intervenții cu date de timp)`,
-          margin,
-          67,
-        )
-      } else {
-        doc.text(`Timp mediu per intervenție: Nu există date suficiente`, margin, 67)
+      const reportElement = document.getElementById("equipment-report")
+      if (!reportElement) {
+        throw new Error("Elementul raportului nu a fost găsit")
       }
 
-      // Intervenții pe tip
-      doc.setFontSize(12)
-      doc.setFont("helvetica", "bold")
-      doc.text("Intervenții pe tip", margin, 80)
-
-      doc.setFontSize(10)
-      doc.setFont("helvetica", "normal")
-      let yPos = 90
-      Object.entries(stats.byType).forEach(([type, count]) => {
-        const percentage = ((count / stats.totalInterventions) * 100).toFixed(1)
-        doc.text(`${type}: ${count} (${percentage}%)`, margin, yPos)
-        yPos += 7
+      const canvas = await html2canvas(reportElement, {
+        scale: 2,
+        logging: false,
+        useCORS: true,
       })
 
-      // Intervenții pe status
-      doc.setFontSize(12)
-      doc.setFont("helvetica", "bold")
-      doc.text("Intervenții pe status", margin, yPos + 10)
-
-      doc.setFontSize(10)
-      doc.setFont("helvetica", "normal")
-      yPos += 20
-      Object.entries(stats.byStatus).forEach(([status, count]) => {
-        const percentage = ((count / stats.totalInterventions) * 100).toFixed(1)
-        doc.text(`${status}: ${count} (${percentage}%)`, margin, yPos)
-        yPos += 7
+      const imgData = canvas.toDataURL("image/png")
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
       })
 
-      // Lista de intervenții
-      doc.setFontSize(14)
-      doc.setFont("helvetica", "bold")
-      yPos += 10
-      doc.text("Lista intervențiilor", margin, yPos)
-      yPos += 10
+      const imgWidth = 210
+      const imgHeight = (canvas.height * imgWidth) / canvas.width
 
-      // Verificăm dacă avem nevoie de o pagină nouă
-      if (yPos > 250) {
-        doc.addPage()
-        yPos = 20
-      }
+      pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight)
 
-      // Header tabel
-      doc.setFillColor(240, 240, 240)
-      doc.rect(margin, yPos, pageWidth - 2 * margin, 10, "F")
-      doc.setFontSize(10)
-      doc.setFont("helvetica", "bold")
-      doc.text("Data", margin + 5, yPos + 6)
-      doc.text("Tip", margin + 35, yPos + 6)
-      doc.text("Status", margin + 75, yPos + 6)
-      doc.text("Tehnician", margin + 115, yPos + 6)
-      yPos += 10
+      const selectedEquipment = equipmentList.find((eq) => eq.id === selectedEquipmentId)
+      const fileName = `Raport_${selectedEquipment?.nume || "Echipament"}_${format(new Date(), "dd-MM-yyyy")}.pdf`
 
-      // Rânduri tabel
-      doc.setFont("helvetica", "normal")
-      filteredLucrari.forEach((lucrare, index) => {
-        // Verificăm dacă avem nevoie de o pagină nouă
-        if (yPos > 270) {
-          doc.addPage()
-          yPos = 20
-
-          // Redesenăm header-ul tabelului pe noua pagină
-          doc.setFillColor(240, 240, 240)
-          doc.rect(margin, yPos, pageWidth - 2 * margin, 10, "F")
-          doc.setFontSize(10)
-          doc.setFont("helvetica", "bold")
-          doc.text("Data", margin + 5, yPos + 6)
-          doc.text("Tip", margin + 35, yPos + 6)
-          doc.text("Status", margin + 75, yPos + 6)
-          doc.text("Tehnician", margin + 115, yPos + 6)
-          yPos += 10
-          doc.setFont("helvetica", "normal")
-        }
-
-        // Fundal alternant pentru rânduri
-        if (index % 2 === 1) {
-          doc.setFillColor(248, 248, 248)
-          doc.rect(margin, yPos, pageWidth - 2 * margin, 7, "F")
-        }
-
-        // Data
-        doc.text(lucrare.dataInterventie?.split(" ")[0] || "-", margin + 5, yPos + 5)
-
-        // Tip
-        doc.text(lucrare.tipLucrare || "-", margin + 35, yPos + 5)
-
-        // Status
-        doc.text(lucrare.statusLucrare || "-", margin + 75, yPos + 5)
-
-        // Tehnician (primul din listă)
-        const tehnician = lucrare.tehnicieni?.length > 0 ? lucrare.tehnicieni[0] : "-"
-        doc.text(tehnician, margin + 115, yPos + 5)
-
-        yPos += 7
-      })
-
-      // Footer
-      const pageCount = doc.getNumberOfPages()
-      for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i)
-        doc.setFontSize(8)
-        doc.text(`Pagina ${i} din ${pageCount}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, {
-          align: "center",
-        })
-      }
-
-      // Salvăm PDF-ul
-      doc.save(`Raport_${selectedEquipment.replace(/\s+/g, "_")}.pdf`)
+      pdf.save(fileName)
 
       toast({
         title: "Succes",
-        description: "Raportul a fost generat cu succes",
+        description: "Raportul a fost generat și descărcat",
+        variant: "default",
       })
     } catch (error) {
-      console.error("Eroare la generarea raportului:", error)
+      console.error("Error generating PDF:", error)
       toast({
         title: "Eroare",
-        description: "A apărut o eroare la generarea raportului",
+        description: "Nu s-a putut genera PDF-ul",
         variant: "destructive",
       })
     } finally {
-      setIsGenerating(false)
+      setGeneratingPdf(false)
     }
   }
 
+  // Print report
+  const printReport = () => {
+    window.print()
+  }
+
+  // Reset filters
+  const resetFilters = () => {
+    setSelectedClientId("")
+    setSelectedEquipmentId("")
+    setDateRange("30days")
+    setStartDate(subDays(new Date(), 30))
+    setEndDate(new Date())
+    setReportReady(false)
+  }
+
+  // Render the report
   return (
-    <Card className={className}>
-      <CardHeader>
-        <CardTitle>Raport per Echipament</CardTitle>
-        <CardDescription>Generează rapoarte și statistici pentru echipamente specifice</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className={`space-y-6 print:p-6 ${className}`}>
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Filtre Raport</CardTitle>
+          <CardDescription>Selectați echipamentul și perioada pentru generarea raportului</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Client selection */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Echipament</label>
-              <Select value={selectedEquipment} onValueChange={setSelectedEquipment}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selectați echipamentul" />
+              <label htmlFor="client" className="text-sm font-medium">
+                Client (opțional)
+              </label>
+              <Select value={selectedClientId} onValueChange={setSelectedClientId}>
+                <SelectTrigger id="client" disabled={loading}>
+                  <SelectValue placeholder="Toți clienții" />
                 </SelectTrigger>
                 <SelectContent>
-                  {equipments.map((equipment) => (
-                    <SelectItem key={equipment.value} value={equipment.value}>
-                      {equipment.label}
+                  <SelectItem value="">Toți clienții</SelectItem>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.nume}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Equipment selection */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Perioada</label>
-              <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selectați perioada" />
+              <label htmlFor="equipment" className="text-sm font-medium">
+                Echipament *
+              </label>
+              <Select value={selectedEquipmentId} onValueChange={setSelectedEquipmentId}>
+                <SelectTrigger id="equipment" disabled={loading}>
+                  <SelectValue placeholder="Selectați echipamentul" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Toate intervențiile</SelectItem>
-                  <SelectItem value="1month">Ultimele 30 de zile</SelectItem>
-                  <SelectItem value="3months">Ultimele 3 luni</SelectItem>
-                  <SelectItem value="6months">Ultimele 6 luni</SelectItem>
-                  <SelectItem value="12months">Ultimele 12 luni</SelectItem>
+                  {equipmentList.length > 0 ? (
+                    equipmentList.map((equipment) => (
+                      <SelectItem key={equipment.id} value={equipment.id}>
+                        {equipment.nume} ({equipment.cod}) - {equipment.clientName}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="no-equipment" disabled>
+                      Nu există echipamente disponibile
+                    </SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
-          </div>
 
-          {loading ? (
-            <div className="flex justify-center items-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-              <span className="ml-2">Se încarcă datele...</span>
-            </div>
-          ) : selectedEquipment ? (
-            <>
-              <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="summary">Sumar</TabsTrigger>
-                  <TabsTrigger value="interventions">Intervenții</TabsTrigger>
-                </TabsList>
-                <TabsContent value="summary" className="space-y-4 pt-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="text-2xl font-bold">{stats.totalInterventions}</div>
-                        <p className="text-xs text-muted-foreground">Total intervenții</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="text-2xl font-bold">{Object.keys(stats.byType).length}</div>
-                        <p className="text-xs text-muted-foreground">Tipuri de intervenții</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="text-2xl font-bold">{stats.averageTimePerIntervention}</div>
-                        <p className="text-xs text-muted-foreground">
-                          Timp mediu per intervenție (min)
-                          {stats.interventionsWithTimeData > 0 && (
-                            <span className="block text-xs opacity-70">
-                              bazat pe {stats.interventionsWithTimeData} intervenții
-                            </span>
-                          )}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  </div>
+            {reportType === "detailed" ? (
+              <>
+                {/* Date range selection */}
+                <div className="space-y-2">
+                  <label htmlFor="dateRange" className="text-sm font-medium">
+                    Perioadă
+                  </label>
+                  <Select value={dateRange} onValueChange={setDateRange}>
+                    <SelectTrigger id="dateRange">
+                      <SelectValue placeholder="Selectați perioada" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="30days">Ultimele 30 zile</SelectItem>
+                      <SelectItem value="3months">Ultimele 3 luni</SelectItem>
+                      <SelectItem value="6months">Ultimele 6 luni</SelectItem>
+                      <SelectItem value="1year">Ultimul an</SelectItem>
+                      <SelectItem value="custom">Perioadă personalizată</SelectItem>
+                      <SelectItem value="all">Toate datele</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-sm">Intervenții pe tip</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        {Object.entries(stats.byType).length > 0 ? (
-                          <div className="space-y-2">
-                            {Object.entries(stats.byType).map(([type, count]) => (
-                              <div key={type} className="flex justify-between items-center">
-                                <span>{type}</span>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs text-muted-foreground">
-                                    {((count / stats.totalInterventions) * 100).toFixed(1)}%
-                                  </span>
-                                  <Badge variant="secondary">{count}</Badge>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">Nu există date disponibile</p>
-                        )}
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-sm">Intervenții pe status</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        {Object.entries(stats.byStatus).length > 0 ? (
-                          <div className="space-y-2">
-                            {Object.entries(stats.byStatus).map(([status, count]) => (
-                              <div key={status} className="flex justify-between items-center">
-                                <span>{status}</span>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs text-muted-foreground">
-                                    {((count / stats.totalInterventions) * 100).toFixed(1)}%
-                                  </span>
-                                  <Badge variant="secondary">{count}</Badge>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">Nu există date disponibile</p>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </div>
-                </TabsContent>
-                <TabsContent value="interventions" className="pt-4">
-                  {filteredLucrari.length > 0 ? (
-                    <div className="border rounded-md">
-                      <div className="grid grid-cols-4 gap-4 p-4 font-medium border-b bg-muted/50">
-                        <div>Data</div>
-                        <div>Tip</div>
-                        <div>Status</div>
-                        <div>Tehnician</div>
-                      </div>
-                      <div className="divide-y">
-                        {filteredLucrari.map((lucrare) => (
-                          <div key={lucrare.id} className="grid grid-cols-4 gap-4 p-4 hover:bg-muted/50">
-                            <div>{lucrare.dataInterventie?.split(" ")[0] || "-"}</div>
-                            <div>{lucrare.tipLucrare || "-"}</div>
-                            <div>
-                              <Badge
-                                variant="outline"
-                                className={
-                                  lucrare.statusLucrare === "Finalizat"
-                                    ? "bg-green-100 text-green-800 hover:bg-green-200"
-                                    : lucrare.statusLucrare === "În curs"
-                                      ? "bg-blue-100 text-blue-800 hover:bg-blue-200"
-                                      : "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
-                                }
-                              >
-                                {lucrare.statusLucrare || "-"}
-                              </Badge>
-                            </div>
-                            <div>{lucrare.tehnicieni?.length > 0 ? lucrare.tehnicieni[0] : "-"}</div>
-                          </div>
-                        ))}
-                      </div>
+                {/* Custom date range */}
+                {dateRange === "custom" && (
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <label htmlFor="startDate" className="text-sm font-medium">
+                        Data început
+                      </label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full justify-start text-left font-normal">
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {startDate ? format(startDate, "dd.MM.yyyy", { locale: ro }) : "Selectați data"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <Calendar mode="single" selected={startDate} onSelect={setStartDate} initialFocus />
+                        </PopoverContent>
+                      </Popover>
                     </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <p className="text-muted-foreground">Nu există intervenții pentru acest echipament</p>
-                    </div>
-                  )}
-                </TabsContent>
-              </Tabs>
 
-              <div className="flex justify-end space-x-2 pt-4">
-                <Button
-                  variant="outline"
-                  onClick={generatePDF}
-                  disabled={isGenerating || filteredLucrari.length === 0}
-                  className="gap-2"
+                    <div className="space-y-2">
+                      <label htmlFor="endDate" className="text-sm font-medium">
+                        Data sfârșit
+                      </label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full justify-start text-left font-normal">
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {endDate ? format(endDate, "dd.MM.yyyy", { locale: ro }) : "Selectați data"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <Calendar mode="single" selected={endDate} onSelect={setEndDate} initialFocus />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              // Year selection for annual report
+              <div className="space-y-2">
+                <label htmlFor="year" className="text-sm font-medium">
+                  An
+                </label>
+                <Select
+                  value={selectedYear.toString()}
+                  onValueChange={(value) => setSelectedYear(Number.parseInt(value))}
                 >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Se generează...</span>
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="h-4 w-4" />
-                      <span>Generează raport PDF</span>
-                    </>
-                  )}
-                </Button>
+                  <SelectTrigger id="year">
+                    <SelectValue placeholder="Selectați anul" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableYears.map((year) => (
+                      <SelectItem key={year} value={year.toString()}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            </>
-          ) : (
-            <div className="text-center py-8">
-              <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground/50" />
-              <p className="mt-2 text-muted-foreground">Selectați un echipament pentru a vedea raportul</p>
+            )}
+          </div>
+        </CardContent>
+        <CardFooter className="flex justify-between">
+          <Button variant="outline" onClick={resetFilters}>
+            Resetează filtrele
+          </Button>
+        </CardFooter>
+      </Card>
+
+      {/* Loading state */}
+      {loadingWorkOrders && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center justify-center space-y-4 py-8">
+              <Spinner size="lg" />
+              <p className="text-sm text-muted-foreground">Se încarcă datele...</p>
             </div>
-          )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* No data selected state */}
+      {!selectedEquipmentId && !loadingWorkOrders && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center justify-center space-y-4 py-8">
+              <BarChart3 className="h-16 w-16 text-muted-foreground" />
+              <div className="text-center">
+                <h3 className="text-lg font-medium">Niciun echipament selectat</h3>
+                <p className="text-sm text-muted-foreground">Selectați un echipament pentru a genera raportul</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* No data found state */}
+      {selectedEquipmentId && reportReady && filteredWorkOrders.length === 0 && !loadingWorkOrders && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Nicio intervenție găsită</AlertTitle>
+          <AlertDescription>
+            Nu există intervenții pentru echipamentul selectat în perioada specificată.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Report content */}
+      {selectedEquipmentId && reportReady && filteredWorkOrders.length > 0 && !loadingWorkOrders && (
+        <div id="equipment-report" className="space-y-6">
+          {/* Report header */}
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+                <div>
+                  <CardTitle>
+                    {reportType === "annual" ? `Analiză Anuală ${selectedYear}` : "Raport Detaliat Echipament"}
+                  </CardTitle>
+                  <CardDescription>
+                    {reportType === "annual"
+                      ? `Intervenții pe echipament în anul ${selectedYear}`
+                      : dateRange === "all"
+                        ? "Toate intervențiile pe echipament"
+                        : dateRange === "custom"
+                          ? `Perioada: ${startDate ? format(startDate, "dd.MM.yyyy", { locale: ro }) : ""} - ${endDate ? format(endDate, "dd.MM.yyyy", { locale: ro }) : ""}`
+                          : `Perioada: ${dateRange === "30days" ? "Ultimele 30 zile" : dateRange === "3months" ? "Ultimele 3 luni" : dateRange === "6months" ? "Ultimele 6 luni" : "Ultimul an"}`}
+                  </CardDescription>
+                </div>
+                <div className="mt-4 flex space-x-2 md:mt-0">
+                  <Button variant="outline" size="sm" onClick={printReport} className="print:hidden">
+                    <Printer className="mr-2 h-4 w-4" />
+                    Printează
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={generatePDF}
+                    disabled={generatingPdf}
+                    className="print:hidden"
+                  >
+                    {generatingPdf ? (
+                      <>
+                        <Spinner size="sm" className="mr-2" />
+                        Se generează...
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="mr-2 h-4 w-4" />
+                        Exportă PDF
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {/* Equipment details */}
+                {selectedEquipmentId && (
+                  <div className="rounded-md border p-4">
+                    <h3 className="mb-2 font-medium">Detalii Echipament</h3>
+                    {(() => {
+                      const equipment = equipmentList.find((eq) => eq.id === selectedEquipmentId)
+                      if (!equipment) return <p>Echipament negăsit</p>
+
+                      return (
+                        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground">Nume:</p>
+                            <p>{equipment.nume}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground">Cod:</p>
+                            <p>{equipment.cod}</p>
+                          </div>
+                          {equipment.model && (
+                            <div>
+                              <p className="text-sm font-medium text-muted-foreground">Model:</p>
+                              <p>{equipment.model}</p>
+                            </div>
+                          )}
+                          {equipment.serie && (
+                            <div>
+                              <p className="text-sm font-medium text-muted-foreground">Serie:</p>
+                              <p>{equipment.serie}</p>
+                            </div>
+                          )}
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground">Client:</p>
+                            <p>{equipment.clientName}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground">Locație:</p>
+                            <p>{equipment.location}</p>
+                          </div>
+                        </div>
+                      )
+                    })()}
+                  </div>
+                )}
+
+                {/* Statistics summary */}
+                <div className="rounded-md border p-4">
+                  <h3 className="mb-4 font-medium">Statistici</h3>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <div className="flex items-center space-x-4 rounded-md border p-4">
+                      <BarChart3 className="h-8 w-8 text-blue-500" />
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">Total Intervenții</p>
+                        <p className="text-2xl font-bold">{stats.totalInterventions}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-4 rounded-md border p-4">
+                      <Clock className="h-8 w-8 text-green-500" />
+                      <div>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div>
+                                <p className="text-sm font-medium text-muted-foreground">
+                                  Timp Mediu Intervenție
+                                  {stats.validTimeDataCount > 0 && (
+                                    <span className="ml-1 text-xs">({stats.validTimeDataCount} intervenții)</span>
+                                  )}
+                                </p>
+                                <p className="text-2xl font-bold">
+                                  {stats.averageTime > 0
+                                    ? `${Math.floor(stats.averageTime / 60)}h ${stats.averageTime % 60}m`
+                                    : "N/A"}
+                                </p>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>
+                                {stats.validTimeDataCount > 0
+                                  ? `Calculat din ${stats.validTimeDataCount} intervenții cu date valide de timp`
+                                  : "Nu există date suficiente pentru calculul timpului mediu"}
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-4 rounded-md border p-4">
+                      <CheckCircle className="h-8 w-8 text-amber-500" />
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">Status Curent</p>
+                        <p className="text-xl font-bold">
+                          {(() => {
+                            if (filteredWorkOrders.length === 0) return "Necunoscut"
+
+                            // Get the most recent work order
+                            const latestOrder = [...filteredWorkOrders].sort((a, b) => {
+                              const dateA = parseRomanianDateTime(a.dataInterventie) || new Date(0)
+                              const dateB = parseRomanianDateTime(b.dataInterventie) || new Date(0)
+                              return dateB.getTime() - dateA.getTime()
+                            })[0]
+
+                            return latestOrder.statusLucrare || "Necunoscut"
+                          })()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Charts */}
+                <div className="space-y-4">
+                  {reportType === "annual" ? (
+                    <div className="rounded-md border p-4">
+                      <h3 className="mb-4 font-medium">Intervenții Lunare în {selectedYear}</h3>
+                      <div className="h-80 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={chartData}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" />
+                            <YAxis allowDecimals={false} />
+                            <RechartsTooltip />
+                            <Bar dataKey="intervenții" fill="#3b82f6" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  ) : (
+                    <Tabs defaultValue="type" className="w-full">
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="type">După Tip Lucrare</TabsTrigger>
+                        <TabsTrigger value="status">După Status</TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="type" className="rounded-md border p-4 mt-4">
+                        <h3 className="mb-4 font-medium">Intervenții după Tip Lucrare</h3>
+                        <div className="h-80 w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={chartData.typeData}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="name" />
+                              <YAxis allowDecimals={false} />
+                              <RechartsTooltip />
+                              <Bar dataKey="intervenții" fill="#3b82f6" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="mt-4 grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+                          {Object.entries(stats.byType).map(([type, count]) => (
+                            <div key={type} className="flex items-center justify-between rounded-md border p-2">
+                              <span className="font-medium">{type}</span>
+                              <div className="flex items-center space-x-2">
+                                <span>{count}</span>
+                                <Badge variant="outline">{Math.round((count / stats.totalInterventions) * 100)}%</Badge>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </TabsContent>
+                      <TabsContent value="status" className="rounded-md border p-4 mt-4">
+                        <h3 className="mb-4 font-medium">Intervenții după Status</h3>
+                        <div className="h-80 w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={chartData.statusData}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="name" />
+                              <YAxis allowDecimals={false} />
+                              <RechartsTooltip />
+                              <Bar dataKey="intervenții" fill="#10b981" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="mt-4 grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+                          {Object.entries(stats.byStatus).map(([status, count]) => (
+                            <div key={status} className="flex items-center justify-between rounded-md border p-2">
+                              <span className="font-medium">{status}</span>
+                              <div className="flex items-center space-x-2">
+                                <span>{count}</span>
+                                <Badge variant="outline">{Math.round((count / stats.totalInterventions) * 100)}%</Badge>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </TabsContent>
+                    </Tabs>
+                  )}
+                </div>
+
+                {/* Work orders list */}
+                <div className="rounded-md border p-4">
+                  <h3 className="mb-4 font-medium">Lista Intervențiilor</h3>
+                  <div className="space-y-4">
+                    {filteredWorkOrders.map((order, index) => (
+                      <div key={order.id} className="rounded-md border p-4">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+                          <div>
+                            <h4 className="font-medium">
+                              {order.tipLucrare || "Intervenție"} - {order.client}
+                            </h4>
+                            <p className="text-sm text-muted-foreground">{order.dataInterventie}</p>
+                          </div>
+                          <Badge
+                            className="mt-2 md:mt-0"
+                            variant={
+                              order.statusLucrare === "Finalizat"
+                                ? "success"
+                                : order.statusLucrare === "În curs"
+                                  ? "warning"
+                                  : "default"
+                            }
+                          >
+                            {order.statusLucrare || "În așteptare"}
+                          </Badge>
+                        </div>
+
+                        <div className="mt-4 grid gap-2 md:grid-cols-2">
+                          {order.defectReclamat && (
+                            <div>
+                              <p className="text-sm font-medium text-muted-foreground">Defect reclamat:</p>
+                              <p className="text-sm">{order.defectReclamat}</p>
+                            </div>
+                          )}
+                          {order.descriereInterventie && (
+                            <div>
+                              <p className="text-sm font-medium text-muted-foreground">Descriere intervenție:</p>
+                              <p className="text-sm">{order.descriereInterventie}</p>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {order.tehnicieni &&
+                            order.tehnicieni.map((tehnician, idx) => (
+                              <Badge key={idx} variant="outline">
+                                <Wrench className="mr-1 h-3 w-3" />
+                                {tehnician}
+                              </Badge>
+                            ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
-      </CardContent>
-    </Card>
+      )}
+    </div>
   )
 }
