@@ -684,14 +684,16 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
               <div className="flex flex-col md:flex-row md:items-center md:justify-between">
                 <div>
                   <CardTitle>
-                    {reportType === "annual" ? `Analiză Anuală ${selectedYear}` : "Raport Detaliat Echipament"}
+                    {reportType === "annual"
+                      ? `Analiză Anuală Echipament ${selectedYear}`
+                      : "Raport Analitic Echipament"}
                   </CardTitle>
                   <CardDescription>
                     {reportType === "annual"
-                      ? `Intervenții pe echipament în anul ${selectedYear}`
+                      ? `Analiza intervențiilor pe echipament în anul ${selectedYear}`
                       : dateRange === "all"
-                        ? "Toate intervențiile pe echipament"
-                        : `Perioada: ${startDate ? format(startDate, "dd.MM.yyyy", { locale: ro }) : ""} - ${endDate ? format(endDate, "dd.MM.yyyy", { locale: ro }) : ""}`}
+                        ? "Analiza tuturor intervențiilor pe echipament"
+                        : `Perioada analizată: ${startDate ? format(startDate, "dd.MM.yyyy", { locale: ro }) : ""} - ${endDate ? format(endDate, "dd.MM.yyyy", { locale: ro }) : ""}`}
                   </CardDescription>
                 </div>
                 <div className="mt-4 flex space-x-2 md:mt-0">
@@ -767,15 +769,22 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
                   </div>
                 )}
 
-                {/* Statistics summary */}
+                {/* Statistics summary - Enhanced to emphasize intervention count */}
                 <div className="rounded-md border p-4">
                   <h3 className="mb-4 font-medium">Statistici</h3>
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    <div className="flex items-center space-x-4 rounded-md border p-4">
-                      <BarChart3 className="h-8 w-8 text-blue-500" />
+                    <div className="flex items-center space-x-4 rounded-md border p-4 bg-blue-50">
+                      <BarChart3 className="h-10 w-10 text-blue-500" />
                       <div>
                         <p className="text-sm font-medium text-muted-foreground">Total Intervenții</p>
-                        <p className="text-2xl font-bold">{stats.totalInterventions}</p>
+                        <p className="text-3xl font-bold">{stats.totalInterventions}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {reportType === "annual"
+                            ? `În anul ${selectedYear}`
+                            : dateRange === "all"
+                              ? "Toate perioadele"
+                              : `${startDate ? format(startDate, "dd.MM.yyyy", { locale: ro }) : ""} - ${endDate ? format(endDate, "dd.MM.yyyy", { locale: ro }) : ""}`}
+                        </p>
                       </div>
                     </div>
 
@@ -832,6 +841,118 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* Intervention Frequency Analysis */}
+                <div className="rounded-md border p-4">
+                  <h3 className="mb-4 font-medium">Analiza Frecvenței Intervențiilor</h3>
+
+                  {reportType === "annual" ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium">Intervenții totale în {selectedYear}:</p>
+                        <p className="text-xl font-bold">{stats.totalInterventions}</p>
+                      </div>
+
+                      <div className="grid gap-2 md:grid-cols-3">
+                        {Object.entries(stats.byMonth)
+                          .filter(([key]) => key.startsWith(selectedYear.toString()))
+                          .sort()
+                          .map(([monthKey, count]) => {
+                            const [year, month] = monthKey.split("-")
+                            const monthNames = [
+                              "Ianuarie",
+                              "Februarie",
+                              "Martie",
+                              "Aprilie",
+                              "Mai",
+                              "Iunie",
+                              "Iulie",
+                              "August",
+                              "Septembrie",
+                              "Octombrie",
+                              "Noiembrie",
+                              "Decembrie",
+                            ]
+                            const monthName = monthNames[Number.parseInt(month) - 1]
+
+                            return (
+                              <div key={monthKey} className="flex items-center justify-between rounded-md border p-2">
+                                <span>{monthName}</span>
+                                <Badge variant="outline">{count}</Badge>
+                              </div>
+                            )
+                          })}
+                      </div>
+
+                      <div className="mt-2 text-sm text-muted-foreground">
+                        <p>Media lunară: {(stats.totalInterventions / 12).toFixed(1)} intervenții</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium">Intervenții în perioada selectată:</p>
+                        <p className="text-xl font-bold">{stats.totalInterventions}</p>
+                      </div>
+
+                      {Object.keys(stats.byMonth).length > 0 && (
+                        <>
+                          <p className="text-sm font-medium">Distribuție lunară:</p>
+                          <div className="grid gap-2 md:grid-cols-3">
+                            {Object.entries(stats.byMonth)
+                              .sort()
+                              .map(([monthKey, count]) => {
+                                const [year, month] = monthKey.split("-")
+                                const monthNames = [
+                                  "Ianuarie",
+                                  "Februarie",
+                                  "Martie",
+                                  "Aprilie",
+                                  "Mai",
+                                  "Iunie",
+                                  "Iulie",
+                                  "August",
+                                  "Septembrie",
+                                  "Octombrie",
+                                  "Noiembrie",
+                                  "Decembrie",
+                                ]
+                                const monthName = monthNames[Number.parseInt(month) - 1]
+
+                                return (
+                                  <div
+                                    key={monthKey}
+                                    className="flex items-center justify-between rounded-md border p-2"
+                                  >
+                                    <span>
+                                      {monthName} {year}
+                                    </span>
+                                    <Badge variant="outline">{count}</Badge>
+                                  </div>
+                                )
+                              })}
+                          </div>
+                        </>
+                      )}
+
+                      {startDate && endDate && (
+                        <div className="mt-2 text-sm text-muted-foreground">
+                          <p>
+                            Frecvență:{" "}
+                            {(
+                              stats.totalInterventions /
+                              Math.max(
+                                1,
+                                Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30)),
+                              )
+                            ).toFixed(1)}
+                            intervenții/lună
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Charts */}
