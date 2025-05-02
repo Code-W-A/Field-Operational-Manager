@@ -68,9 +68,9 @@
     "path": "latest",
     "uuid": "latest",
     "jspdf": "latest",
-    "qrcode.react": "latest",
     "html2canvas": "latest",
-    "react-qr-reader": "latest"
+    "react-qr-reader": "latest",
+    "qrcode.react": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",
