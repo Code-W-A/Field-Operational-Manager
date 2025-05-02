@@ -7,12 +7,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, FileText, BarChart3 } from "lucide-react"
-import { format, parse, subMonths, isAfter, isBefore } from "date-fns"
+import { format, subMonths, isAfter, isBefore, differenceInMinutes } from "date-fns"
 import { ro } from "date-fns/locale"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { orderBy } from "firebase/firestore"
 import { jsPDF } from "jspdf"
 import { toast } from "@/components/ui/use-toast"
+import { parseRomanianDateTime } from "@/lib/utils/date-utils"
 
 interface EquipmentReportProps {
   className?: string
@@ -65,13 +66,13 @@ export function EquipmentReport({ className }: EquipmentReportProps) {
       }
 
       filtered = filtered.filter((lucrare) => {
-        try {
-          const lucrareDate = parse(lucrare.dataInterventie, "dd.MM.yyyy HH:mm", new Date())
-          return isAfter(lucrareDate, startDate) && isBefore(lucrareDate, now)
-        } catch (error) {
-          console.error("Eroare la parsarea datei:", error)
-          return true
-        }
+        // Folosim funcția parseRomanianDateTime pentru a parsa data în mod consistent
+        const lucrareDate = parseRomanianDateTime(lucrare.dataInterventie)
+
+        // Dacă data nu poate fi parsată, excludem înregistrarea
+        if (!lucrareDate) return false
+
+        return isAfter(lucrareDate, startDate) && isBefore(lucrareDate, now)
       })
     }
 
@@ -86,6 +87,8 @@ export function EquipmentReport({ className }: EquipmentReportProps) {
         byType: {},
         byStatus: {},
         averageTimePerIntervention: 0,
+        totalInterventionTime: 0,
+        interventionsWithTimeData: 0,
       }
     }
 
@@ -112,20 +115,64 @@ export function EquipmentReport({ className }: EquipmentReportProps) {
       {} as Record<string, number>,
     )
 
-    // Calculăm timpul mediu per intervenție (dacă avem datele necesare)
-    let averageTimePerIntervention = 0
-    const interventionsWithTime = filteredLucrari.filter((lucrare) => lucrare.dataInterventie && lucrare.oraPlecare)
+    // Calculăm timpul mediu per intervenție folosind datele reale
+    let totalInterventionTime = 0
+    let interventionsWithTimeData = 0
 
-    if (interventionsWithTime.length > 0) {
-      // Implementare simplificată - ar trebui îmbunătățită pentru a calcula corect timpul
-      averageTimePerIntervention = 60 // Presupunem 60 de minute în medie
-    }
+    filteredLucrari.forEach((lucrare) => {
+      // Verificăm dacă avem atât ora sosirii cât și ora plecării
+      if (lucrare.dataInterventie && lucrare.oraSosire && lucrare.oraPlecare) {
+        try {
+          // Parsăm data intervenției
+          const interventionDate = parseRomanianDateTime(lucrare.dataInterventie)
+
+          if (!interventionDate) return
+
+          // Extragem orele și minutele din oraSosire și oraPlecare
+          const [arrivalHours, arrivalMinutes] = lucrare.oraSosire.split(":").map(Number)
+          const [departureHours, departureMinutes] = lucrare.oraPlecare.split(":").map(Number)
+
+          if (isNaN(arrivalHours) || isNaN(arrivalMinutes) || isNaN(departureHours) || isNaN(departureMinutes)) {
+            return
+          }
+
+          // Creăm obiectele Date pentru ora sosirii și ora plecării
+          const arrivalTime = new Date(interventionDate)
+          arrivalTime.setHours(arrivalHours, arrivalMinutes, 0, 0)
+
+          const departureTime = new Date(interventionDate)
+          departureTime.setHours(departureHours, departureMinutes, 0, 0)
+
+          // Dacă ora plecării este mai mică decât ora sosirii, presupunem că plecarea a fost în ziua următoare
+          if (departureTime < arrivalTime) {
+            departureTime.setDate(departureTime.getDate() + 1)
+          }
+
+          // Calculăm diferența în minute
+          const durationMinutes = differenceInMinutes(departureTime, arrivalTime)
+
+          // Adăugăm la totalul de timp doar dacă durata este pozitivă și rezonabilă (< 24 ore)
+          if (durationMinutes > 0 && durationMinutes < 24 * 60) {
+            totalInterventionTime += durationMinutes
+            interventionsWithTimeData++
+          }
+        } catch (error) {
+          console.error("Eroare la calcularea duratei intervenției:", error)
+        }
+      }
+    })
+
+    // Calculăm media timpului per intervenție
+    const averageTimePerIntervention =
+      interventionsWithTimeData > 0 ? Math.round(totalInterventionTime / interventionsWithTimeData) : 0
 
     return {
       totalInterventions,
       byType,
       byStatus,
       averageTimePerIntervention,
+      totalInterventionTime,
+      interventionsWithTimeData,
     }
   }, [filteredLucrari])
 
@@ -186,16 +233,28 @@ export function EquipmentReport({ className }: EquipmentReportProps) {
       doc.setFont("helvetica", "normal")
       doc.text(`Număr total de intervenții: ${stats.totalInterventions}`, margin, 60)
 
+      // Adăugăm informații despre timpul mediu per intervenție
+      if (stats.interventionsWithTimeData > 0) {
+        doc.text(
+          `Timp mediu per intervenție: ${stats.averageTimePerIntervention} minute (bazat pe ${stats.interventionsWithTimeData} intervenții cu date de timp)`,
+          margin,
+          67,
+        )
+      } else {
+        doc.text(`Timp mediu per intervenție: Nu există date suficiente`, margin, 67)
+      }
+
       // Intervenții pe tip
       doc.setFontSize(12)
       doc.setFont("helvetica", "bold")
-      doc.text("Intervenții pe tip", margin, 75)
+      doc.text("Intervenții pe tip", margin, 80)
 
       doc.setFontSize(10)
       doc.setFont("helvetica", "normal")
-      let yPos = 85
+      let yPos = 90
       Object.entries(stats.byType).forEach(([type, count]) => {
-        doc.text(`${type}: ${count}`, margin, yPos)
+        const percentage = ((count / stats.totalInterventions) * 100).toFixed(1)
+        doc.text(`${type}: ${count} (${percentage}%)`, margin, yPos)
         yPos += 7
       })
 
@@ -208,7 +267,8 @@ export function EquipmentReport({ className }: EquipmentReportProps) {
       doc.setFont("helvetica", "normal")
       yPos += 20
       Object.entries(stats.byStatus).forEach(([status, count]) => {
-        doc.text(`${status}: ${count}`, margin, yPos)
+        const percentage = ((count / stats.totalInterventions) * 100).toFixed(1)
+        doc.text(`${status}: ${count} (${percentage}%)`, margin, yPos)
         yPos += 7
       })
 
@@ -377,8 +437,15 @@ export function EquipmentReport({ className }: EquipmentReportProps) {
                     </Card>
                     <Card>
                       <CardContent className="pt-6">
-                        <div className="text-2xl font-bold">{stats.averageTimePerIntervention} min</div>
-                        <p className="text-xs text-muted-foreground">Timp mediu per intervenție</p>
+                        <div className="text-2xl font-bold">{stats.averageTimePerIntervention}</div>
+                        <p className="text-xs text-muted-foreground">
+                          Timp mediu per intervenție (min)
+                          {stats.interventionsWithTimeData > 0 && (
+                            <span className="block text-xs opacity-70">
+                              bazat pe {stats.interventionsWithTimeData} intervenții
+                            </span>
+                          )}
+                        </p>
                       </CardContent>
                     </Card>
                   </div>
@@ -394,7 +461,12 @@ export function EquipmentReport({ className }: EquipmentReportProps) {
                             {Object.entries(stats.byType).map(([type, count]) => (
                               <div key={type} className="flex justify-between items-center">
                                 <span>{type}</span>
-                                <Badge variant="secondary">{count}</Badge>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-muted-foreground">
+                                    {((count / stats.totalInterventions) * 100).toFixed(1)}%
+                                  </span>
+                                  <Badge variant="secondary">{count}</Badge>
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -413,7 +485,12 @@ export function EquipmentReport({ className }: EquipmentReportProps) {
                             {Object.entries(stats.byStatus).map(([status, count]) => (
                               <div key={status} className="flex justify-between items-center">
                                 <span>{status}</span>
-                                <Badge variant="secondary">{count}</Badge>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-muted-foreground">
+                                    {((count / stats.totalInterventions) * 100).toFixed(1)}%
+                                  </span>
+                                  <Badge variant="secondary">{count}</Badge>
+                                </div>
                               </div>
                             ))}
                           </div>
