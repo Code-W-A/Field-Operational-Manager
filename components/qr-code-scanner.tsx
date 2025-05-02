@@ -37,6 +37,7 @@ export function QRCodeScanner({
   const [scanResult, setScanResult] = useState<any>(null)
   const [scanError, setScanError] = useState<string | null>(null)
   const [isVerifying, setIsVerifying] = useState(false)
+  const [isScanning, setIsScanning] = useState(false)
   const [verificationResult, setVerificationResult] = useState<{
     success: boolean
     message: string
@@ -67,9 +68,12 @@ export function QRCodeScanner({
       setScanError(null)
       setVerificationResult(null)
       setIsVerifying(false)
+      setIsScanning(false)
     } else {
       // Verificăm permisiunile camerei când se deschide dialogul
       checkCameraPermissions()
+      // Activăm starea de scanare când se deschide dialogul
+      setIsScanning(true)
     }
   }, [isOpen])
 
@@ -103,12 +107,14 @@ export function QRCodeScanner({
       console.error("Camera permission error:", err)
       setScanError("Nu s-a putut accesa camera. Verificați permisiunile browserului.")
       setCameraPermissionStatus("denied")
+      setIsScanning(false)
     }
   }
 
   // Funcție pentru verificarea datelor scanate
   const verifyScannedData = (data: any) => {
     setIsVerifying(true)
+    setIsScanning(false)
     setScanError(null)
 
     try {
@@ -132,6 +138,7 @@ export function QRCodeScanner({
         if (onScanError) onScanError("QR code necunoscut")
         if (onVerificationComplete) onVerificationComplete(false)
         setIsVerifying(false)
+        setIsScanning(true) // Reactivăm scanarea
         return
       }
 
@@ -145,6 +152,7 @@ export function QRCodeScanner({
         if (onScanError) onScanError("QR code invalid")
         if (onVerificationComplete) onVerificationComplete(false)
         setIsVerifying(false)
+        setIsScanning(true) // Reactivăm scanarea
         return
       }
 
@@ -195,6 +203,7 @@ export function QRCodeScanner({
         })
         if (onScanError) onScanError(errors.join(", "))
         if (onVerificationComplete) onVerificationComplete(false)
+        setIsScanning(true) // Reactivăm scanarea pentru QR code-uri necorespunzătoare
       }
     } catch (error) {
       console.error("Eroare la verificarea datelor scanate:", error)
@@ -205,6 +214,7 @@ export function QRCodeScanner({
       })
       if (onScanError) onScanError("Format QR code invalid")
       if (onVerificationComplete) onVerificationComplete(false)
+      setIsScanning(true) // Reactivăm scanarea după eroare
     }
 
     setIsVerifying(false)
@@ -214,6 +224,7 @@ export function QRCodeScanner({
     if (result?.text) {
       console.log("QR Code detected:", result.text)
       setScanResult(result.text)
+      setIsScanning(false) // Oprim starea de scanare când am detectat un QR code
       verifyScannedData(result.text)
     }
   }
@@ -221,6 +232,7 @@ export function QRCodeScanner({
   const handleError = (error: any) => {
     console.error("Eroare la scanarea QR code-ului:", error)
     setScanError("A apărut o eroare la scanarea QR code-ului. Verificați permisiunile camerei.")
+    setIsScanning(false)
     if (onScanError) onScanError("Eroare la scanare")
     if (onVerificationComplete) onVerificationComplete(false)
   }
@@ -314,6 +326,22 @@ export function QRCodeScanner({
                   }}
                 />
                 <div className="absolute inset-0 border-2 border-dashed border-white pointer-events-none"></div>
+
+                {/* Indicator de scanare animat */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  {isScanning && (
+                    <div className="relative w-full h-full">
+                      {/* Linie de scanare animată */}
+                      <div className="absolute left-0 right-0 h-0.5 bg-green-500 opacity-70 animate-scan-line"></div>
+
+                      {/* Indicator de scanare în colțul din dreapta sus */}
+                      <div className="absolute top-2 right-2 flex items-center bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded-full">
+                        <div className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></div>
+                        <span>Scanare...</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
               <p className="text-xs text-muted-foreground text-center mt-2">
                 {isMobile
@@ -357,6 +385,8 @@ export function QRCodeScanner({
               <p className="font-bold">Debug Info:</p>
               <p>Device: {isMobile ? "Mobile" : "Desktop"}</p>
               <p>Camera Permission: {cameraPermissionStatus}</p>
+              <p>Scanning: {isScanning ? "Yes" : "No"}</p>
+              <p>Verifying: {isVerifying ? "Yes" : "No"}</p>
               <p>Scan Result: {scanResult ? scanResult.substring(0, 100) + "..." : "None"}</p>
               <p>Error: {scanError || "None"}</p>
               <p>
