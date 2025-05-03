@@ -414,3 +414,42 @@ body {
   position: absolute;
   top: 0;
 }
+
+/* Mobile dialog improvements */
+@media (max-width: 640px) {
+  [data-radix-dialog-content] {
+    max-width: 95vw !important;
+    padding: 1rem !important;
+  }
+
+  [data-radix-dialog-title] {
+    font-size: 1.1rem !important;
+  }
+
+  [data-radix-dialog-description] {
+    font-size: 0.85rem !important;
+  }
+}
+
+/* Ensure dialog content is scrollable on small screens */
+.dialog-content-scrollable {
+  max-height: 80vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Fix for iOS input zooming */
+@media screen and (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Improve dialog positioning on mobile */
+@supports (-webkit-touch-callout: none) {
+  [data-radix-dialog-content] {
+    transform: translateY(-3%);
+  }
+}

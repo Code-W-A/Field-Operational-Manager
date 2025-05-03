@@ -167,8 +167,8 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
 
     // Verificăm codul dacă acesta se schimbă
     if (id === "cod") {
-      // Validăm formatul codului (4 cifre)
-      if (!/^\d{4}$/.test(value) && value !== "") {
+      // Validăm formatul codului (4 litere + 4 cifre)
+      if (!/^[A-Za-z]{4}\d{4}$/.test(value) && value !== "") {
         setEchipamentFormErrors((prev) => (prev.includes("cod") ? prev : [...prev, "cod"]))
       } else {
         setEchipamentFormErrors((prev) => prev.filter((error) => error !== "cod"))
@@ -184,8 +184,8 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
     if (!echipamentFormData.nume) errors.push("nume")
     if (!echipamentFormData.cod) errors.push("cod")
 
-    // Validăm formatul codului (4 cifre)
-    if (!/^\d{4}$/.test(echipamentFormData.cod)) {
+    // Validăm formatul codului (4 litere + 4 cifre)
+    if (!/^[A-Za-z]{4}\d{4}$/.test(echipamentFormData.cod)) {
       errors.push("cod")
     }
 
@@ -235,7 +235,7 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
   // Verificăm unicitatea codului de echipament
   useEffect(() => {
     const checkCodeUniqueness = async () => {
-      if (echipamentFormData.cod && /^\d{4}$/.test(echipamentFormData.cod)) {
+      if (echipamentFormData.cod && /^[A-Za-z]{4}\d{4}$/.test(echipamentFormData.cod)) {
         setIsCheckingCode(true)
 
         // Verificăm dacă codul este unic în cadrul locațiilor clientului
@@ -643,19 +643,19 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
 
       {/* Dialog pentru adăugare/editare echipament */}
       <Dialog open={isEchipamentDialogOpen} onOpenChange={setIsEchipamentDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] w-[95%] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {selectedEchipamentIndex !== null ? "Editare Echipament" : "Adăugare Echipament Nou"}
             </DialogTitle>
             <DialogDescription>
-              Completați detaliile echipamentului. Codul trebuie să fie unic și format din 4 cifre.
+              Completați detaliile echipamentului. Codul trebuie să fie unic și format din 4 litere + 4 cifre.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
+          <div className="grid gap-3 py-3 overflow-y-auto">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
                 <label htmlFor="nume" className="text-sm font-medium">
                   Nume Echipament *
                 </label>
@@ -668,20 +668,20 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <label htmlFor="cod" className="text-sm font-medium">
-                  Cod Unic (4 cifre) *
+                  Cod Unic (4 litere + 4 cifre) *
                 </label>
                 <Input
                   id="cod"
-                  placeholder="Ex: 1234"
+                  placeholder="Ex: ABCD1234"
                   value={echipamentFormData.cod}
                   onChange={handleEchipamentInputChange}
                   className={echipamentFormErrors.includes("cod") || !isCodeUnique ? errorStyle : ""}
-                  maxLength={4}
+                  maxLength={8}
                 />
                 {echipamentFormErrors.includes("cod") && (
-                  <p className="text-xs text-red-500">Codul trebuie să conțină exact 4 cifre</p>
+                  <p className="text-xs text-red-500">Codul trebuie să conțină exact 4 litere urmate de 4 cifre</p>
                 )}
                 {!isCodeUnique && (
                   <div className="flex items-center text-xs text-red-500 mt-1">
@@ -692,8 +692,8 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
                 <label htmlFor="model" className="text-sm font-medium">
                   Model
                 </label>
@@ -705,7 +705,7 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <label htmlFor="serie" className="text-sm font-medium">
                   Serie
                 </label>
@@ -718,8 +718,8 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
                 <label htmlFor="dataInstalare" className="text-sm font-medium">
                   Data Instalării
                 </label>
@@ -731,7 +731,7 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <label htmlFor="ultimaInterventie" className="text-sm font-medium">
                   Ultima Intervenție
                 </label>
@@ -744,7 +744,7 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1">
               <label htmlFor="observatii" className="text-sm font-medium">
                 Observații
               </label>
@@ -753,13 +753,13 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
                 placeholder="Observații despre echipament"
                 value={echipamentFormData.observatii || ""}
                 onChange={handleEchipamentInputChange}
-                rows={3}
+                rows={2}
               />
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEchipamentDialogOpen(false)}>
+          <DialogFooter className="pt-2 flex-col gap-2 sm:flex-row">
+            <Button variant="outline" onClick={() => setIsEchipamentDialogOpen(false)} className="w-full sm:w-auto">
               Anulează
             </Button>
             <Button
@@ -771,6 +771,7 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
                 !isCodeUnique ||
                 isCheckingCode
               }
+              className="w-full sm:w-auto"
             >
               {isCheckingCode ? (
                 <>

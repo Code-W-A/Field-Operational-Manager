@@ -17,11 +17,11 @@ import {
 import { db } from "./config"
 import { auth } from "./config"
 
-// Adăugăm interfața pentru echipamente
+// Update the Echipament interface to reflect the new code format
 export interface Echipament {
   id?: string
   nume: string
-  cod: string // Cod unic de 4 cifre
+  cod: string // Cod unic format din 4 litere + 4 cifre
   model?: string
   serie?: string
   dataInstalare?: string
