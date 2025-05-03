@@ -67,7 +67,14 @@ export function useNavigationPrompt(shouldPrompt: boolean) {
 
     if (pendingNavigation) {
       setTimeout(() => {
-        router.push(pendingNavigation)
+        if (pendingNavigation === "#cancel") {
+          // Tratăm cazul special pentru anulare
+          if (onCancelRef.current) {
+            onCancelRef.current()
+          }
+        } else {
+          router.push(pendingNavigation)
+        }
       }, 0)
     }
   }, [pendingNavigation, router])
@@ -79,8 +86,14 @@ export function useNavigationPrompt(shouldPrompt: boolean) {
     setPendingNavigation(null)
   }, [])
 
+  // Referință pentru funcția de anulare
+  const onCancelRef = useRef<(() => void) | undefined>(undefined)
+
   // Funcție pentru a gestiona acțiunea de anulare a formularului
   const handleCancel2 = useCallback((onCancel?: () => void) => {
+    // Salvăm funcția de anulare în referință
+    onCancelRef.current = onCancel
+
     if (shouldPromptRef.current) {
       console.log("Cancel button clicked - Showing prompt")
       setPendingNavigation("#cancel")

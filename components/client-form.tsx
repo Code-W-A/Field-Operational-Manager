@@ -66,7 +66,13 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
   const [isCodeUnique, setIsCodeUnique] = useState(true)
 
   // Folosim noul hook pentru promptul de navigare
-  const { showPrompt, handleConfirm, handleCancel, handleCancel2, confirmCancel } = useNavigationPrompt(formModified)
+  const { showPrompt, handleConfirm, handleCancel, handleCancel2 } = useNavigationPrompt(formModified)
+
+  // Adăugăm un efect pentru a afișa starea formularului
+  useEffect(() => {
+    console.log("Form modified state:", formModified)
+    console.log("showPrompt state:", showPrompt)
+  }, [formModified, showPrompt])
 
   // Mark form as modified when any input changes
   useEffect(() => {
@@ -370,6 +376,7 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
 
   // Folosim noul handler pentru anulare
   const handleFormCancel = () => {
+    console.log("handleFormCancel called, formModified:", formModified)
     handleCancel2(onCancel)
   }
 

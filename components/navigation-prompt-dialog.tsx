@@ -3,6 +3,7 @@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { AlertTriangle } from "lucide-react"
+import { useEffect } from "react"
 
 interface NavigationPromptDialogProps {
   open: boolean
@@ -24,6 +25,15 @@ export function NavigationPromptDialog({
   cancelText = "Rămâneți pe pagină",
 }: NavigationPromptDialogProps) {
   console.log("NavigationPromptDialog rendered, open:", open)
+
+  // Adăugăm un efect pentru a afișa mai multe informații de debugging
+  useEffect(() => {
+    if (open) {
+      console.log("Dialog OPENED")
+    } else {
+      console.log("Dialog CLOSED")
+    }
+  }, [open])
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
