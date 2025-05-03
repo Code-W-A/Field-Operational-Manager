@@ -11,6 +11,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { AlertTriangle } from "lucide-react"
+import { useEffect } from "react"
 
 interface UnsavedChangesDialogProps {
   open: boolean
@@ -19,6 +20,11 @@ interface UnsavedChangesDialogProps {
 }
 
 export function UnsavedChangesDialog({ open, onConfirm, onCancel }: UnsavedChangesDialogProps) {
+  // Log when dialog state changes for debugging
+  useEffect(() => {
+    console.log("UnsavedChangesDialog open state:", open)
+  }, [open])
+
   return (
     <AlertDialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
       <AlertDialogContent className="max-w-[400px]">
