@@ -5,7 +5,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, Loader2, Plus, Trash2, MapPin, Wrench, AlertTriangle, ShieldAlert } from "lucide-react"
+import { AlertCircle, Loader2, Plus, Trash2, MapPin, AlertTriangle } from "lucide-react"
 import {
   updateClient,
   type Client,
@@ -31,18 +31,6 @@ import { EquipmentQRCode } from "@/components/equipment-qr-code"
 // Import the unsaved changes hook and dialog
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
-import { useAuth } from "@/contexts/AuthContext"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 
 interface ClientEditFormProps {
   client: Client
@@ -99,16 +87,6 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
   const [echipamentFormErrors, setEchipamentFormErrors] = useState<string[]>([])
   const [isCheckingCode, setIsCheckingCode] = useState(false)
   const [isCodeUnique, setIsCodeUnique] = useState(true)
-
-  // State pentru dialogul de confirmare a ștergerii
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [equipmentToDelete, setEquipmentToDelete] = useState<{ locatieIndex: number; echipamentIndex: number } | null>(
-    null,
-  )
-
-  // Obținem informații despre utilizatorul autentificat pentru verificarea rolului
-  const { currentUser } = useAuth()
-  const isAdmin = currentUser?.role === "admin"
 
   // Use the unsaved changes hook
   const { showDialog, handleNavigation, confirmNavigation, cancelNavigation, pendingUrl } =
@@ -208,11 +186,6 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
 
   // Funcție pentru deschiderea dialogului de adăugare echipament
   const handleOpenAddEchipamentDialog = (locatieIndex: number) => {
-    if (!isAdmin) {
-      alert("Doar administratorii pot adăuga echipamente.")
-      return
-    }
-
     setSelectedLocatieIndex(locatieIndex)
     setSelectedEchipamentIndex(null)
     setEchipamentFormData({
@@ -231,11 +204,6 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
 
   // Funcție pentru deschiderea dialogului de editare echipament
   const handleOpenEditEchipamentDialog = (locatieIndex: number, echipamentIndex: number) => {
-    if (!isAdmin) {
-      alert("Doar administratorii pot edita echipamente.")
-      return
-    }
-
     setSelectedLocatieIndex(locatieIndex)
     setSelectedEchipamentIndex(echipamentIndex)
 
@@ -315,42 +283,13 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
     setIsEchipamentDialogOpen(false)
   }
 
-  // Funcție pentru inițierea procesului de ștergere a unui echipament
-  const handleInitDeleteEchipament = (locatieIndex: number, echipamentIndex: number) => {
-    if (!isAdmin) {
-      alert("Doar administratorii pot șterge echipamente.")
-      return
-    }
-
-    setEquipmentToDelete({ locatieIndex, echipamentIndex })
-    setIsDeleteDialogOpen(true)
-  }
-
-  // Funcție pentru confirmarea ștergerii unui echipament
-  const handleConfirmDeleteEchipament = () => {
-    if (equipmentToDelete) {
-      const { locatieIndex, echipamentIndex } = equipmentToDelete
-      const updatedLocatii = [...locatii]
-
-      // Salvăm numele echipamentului pentru mesajul de log
-      const echipamentName = updatedLocatii[locatieIndex].echipamente?.[echipamentIndex]?.nume || "Necunoscut"
-
-      // Ștergem echipamentul
-      updatedLocatii[locatieIndex].echipamente!.splice(echipamentIndex, 1)
-      setLocatii(updatedLocatii)
-
-      // Închide dialogul de confirmare
-      setIsDeleteDialogOpen(false)
-      setEquipmentToDelete(null)
-
-      // Afișăm un mesaj de confirmare
-      console.log(`Echipamentul "${echipamentName}" a fost șters cu succes.`)
-    }
-  }
-
   // Funcție pentru ștergerea unui echipament
   const handleDeleteEchipament = (locatieIndex: number, echipamentIndex: number) => {
-    handleInitDeleteEchipament(locatieIndex, echipamentIndex)
+    if (window.confirm("Sunteți sigur că doriți să ștergeți acest echipament?")) {
+      const updatedLocatii = [...locatii]
+      updatedLocatii[locatieIndex].echipamente!.splice(echipamentIndex, 1)
+      setLocatii(updatedLocatii)
+    }
   }
 
   // Verificăm unicitatea codului de echipament
@@ -493,57 +432,6 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
     if (onCancel) {
       onCancel()
     }
-  }
-
-  // Funcție pentru a afișa butoanele de acțiune pentru echipamente cu restricții bazate pe rol
-  const renderEquipmentActions = (locatieIndex: number, echipamentIndex: number, echipament: Echipament) => {
-    return (
-      <div className="flex space-x-1 flex-shrink-0">
-        <EquipmentQRCode equipment={echipament} clientName={formData.nume} locationName={locatii[locatieIndex].nume} />
-
-        {isAdmin ? (
-          <>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => handleOpenEditEchipamentDialog(locatieIndex, echipamentIndex)}
-              className="h-8 w-8 p-0 flex-shrink-0"
-            >
-              <Wrench className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => handleInitDeleteEchipament(locatieIndex, echipamentIndex)}
-              className="h-8 w-8 p-0 text-red-500 flex-shrink-0"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </>
-        ) : (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0 text-gray-400 cursor-not-allowed flex-shrink-0"
-                  disabled
-                >
-                  <ShieldAlert className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Doar administratorii pot edita sau șterge echipamente</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
-      </div>
-    )
   }
 
   // Add the UnsavedChangesDialog at the end of the component
@@ -756,44 +644,52 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
                       <h4 className="text-sm font-medium">Echipamente</h4>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleOpenAddEchipamentDialog(locatieIndex)}
-                              className={`flex items-center ${!isAdmin ? "opacity-70" : ""}`}
-                              disabled={!isAdmin}
-                            >
-                              <Plus className="h-4 w-4 mr-1" /> Adaugă Echipament
-                            </Button>
-                          </TooltipTrigger>
-                          {!isAdmin && (
-                            <TooltipContent>
-                              <p>Doar administratorii pot adăuga echipamente</p>
-                            </TooltipContent>
-                          )}
-                        </Tooltip>
-                      </TooltipProvider>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenAddEchipamentDialog(locatieIndex)}
+                        className="flex items-center"
+                      >
+                        <Plus className="h-4 w-4 mr-1" /> Adaugă Echipament
+                      </Button>
                     </div>
 
                     {locatie.echipamente && locatie.echipamente.length > 0 ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {locatie.echipamente.map((echipament, echipamentIndex) => (
-                          <div
-                            key={echipamentIndex}
-                            className="p-4 border rounded-md bg-gray-50 relative overflow-hidden"
-                          >
+                          <div key={echipamentIndex} className="p-4 border rounded-md bg-gray-50 relative">
                             <div className="flex justify-between items-start mb-2">
-                              <div>
+                              <div className="flex-grow">
                                 <h5 className="font-medium">{echipament.nume}</h5>
                                 <Badge variant="outline" className="mt-1">
                                   Cod: {echipament.cod}
                                 </Badge>
                               </div>
-                              {renderEquipmentActions(locatieIndex, echipamentIndex, echipament)}
+                              <div className="flex items-center gap-2">
+                                <EquipmentQRCode
+                                  equipment={echipament}
+                                  clientName={formData.nume}
+                                  locationName={locatie.nume}
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleOpenEditEchipamentDialog(locatieIndex, echipamentIndex)}
+                                >
+                                  Actualizare
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleDeleteEchipament(locatieIndex, echipamentIndex)}
+                                  className="text-red-500 border-red-200 hover:bg-red-50"
+                                >
+                                  Șterge
+                                </Button>
+                              </div>
                             </div>
 
                             {(echipament.model || echipament.serie) && (
@@ -976,24 +872,6 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Dialog de confirmare pentru ștergerea echipamentului */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmare ștergere</AlertDialogTitle>
-            <AlertDialogDescription>
-              Sunteți sigur că doriți să ștergeți acest echipament? Această acțiune nu poate fi anulată.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setEquipmentToDelete(null)}>Anulează</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDeleteEchipament} className="bg-red-600 hover:bg-red-700">
-              Șterge
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
         <Button variant="outline" onClick={handleCancel}>

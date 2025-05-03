@@ -430,7 +430,7 @@ export default function Clienti() {
           {selectedClient && (
             <ClientEditForm
               client={selectedClient}
-              onSuccess={handleEditSuccess} // Modified to call handleEditSuccess
+              onSuccess={handleEditSuccess}  
               onCancel={() => {
                 handleEditDialogClose()
               }}

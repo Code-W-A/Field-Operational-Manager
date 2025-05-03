@@ -145,11 +145,18 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
     try {
       setIsSubmitting(true)
 
+      // Păstrăm dataEmiterii originală, nu permitem modificarea ei
+      const originalEmiterii = initialData?.dataEmiterii || new Date().toISOString()
+
       // Actualizăm lucrarea în Firestore
       await updateLucrare(id, {
         ...data,
+        // Forțăm păstrarea datei emiterii originale
+        dataEmiterii: originalEmiterii,
         updatedAt: serverTimestamp(),
       })
+
+      // Restul codului rămâne neschimbat...
 
       // Adăugăm un log pentru actualizarea lucrării
       await addLog(

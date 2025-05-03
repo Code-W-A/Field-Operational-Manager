@@ -749,46 +749,34 @@ export function LucrareForm({
       {error && <div className="text-red-500 mb-4">{error}</div>}
       <div className="grid gap-4 py-4">
         <div className="grid grid-cols-1 gap-6">
-          {/* Data Emiterii - Updated with new date picker */}
+          {/* Data Emiterii - Setată automat și nemodificabilă */}
           <div className="space-y-2">
-            <label htmlFor="dataEmiterii" className="text-sm font-medium">
-              Data Emiterii *
+            <label htmlFor="dataEmiterii" className="text-sm font-medium flex items-center">
+              Data Emiterii
+              <span className="ml-2 text-xs text-muted-foreground bg-gray-100 px-2 py-0.5 rounded">Automată</span>
             </label>
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="sm:w-2/3">
-                <Popover open={dateEmiteriiOpen} onOpenChange={setDateEmiteriiOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className={`w-full justify-start text-left font-normal ${hasError("dataEmiterii") ? errorStyle : ""}`}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dataEmiterii ? format(dataEmiterii, "dd.MM.yyyy", { locale: ro }) : <span>Selectați data</span>}
-                    </Button>
-                  </PopoverTrigger>
-
-                  <PopoverContent className="w-auto p-0" align="start" sideOffset={4}>
-                    <CustomDatePicker
-                      selectedDate={dataEmiterii}
-                      onDateChange={handleDateEmiteriiSelect}
-                      onClose={() => setDateEmiteriiOpen(false)}
-                      hasError={hasError("dataEmiterii")}
-                    />
-                  </PopoverContent>
-                </Popover>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-start text-left font-normal opacity-90 cursor-not-allowed"
+                  disabled
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dataEmiterii ? format(dataEmiterii, "dd.MM.yyyy", { locale: ro }) : "Data curentă"}
+                </Button>
               </div>
               <div className="relative sm:w-1/3">
-                <TimeSelector
-                  value={timeEmiterii}
-                  onChange={handleTimeEmiteriiChange}
-                  label="Ora emiterii"
-                  id="timeEmiterii"
-                  hasError={hasError("dataEmiterii")}
+                <Input
+                  type="text"
+                  value={formatTime24(dataEmiterii || new Date())}
+                  className="cursor-not-allowed opacity-90"
+                  disabled
                 />
               </div>
             </div>
-            <p className="text-xs text-muted-foreground">Data și ora emiterii documentului</p>
+            <p className="text-xs text-muted-foreground">Data și ora emiterii sunt setate automat cu data curentă</p>
           </div>
 
           {/* Data Solicitată Intervenție - Updated with new date picker */}

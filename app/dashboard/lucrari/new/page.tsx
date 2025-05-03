@@ -15,7 +15,7 @@ import { Check, Mail, AlertCircle } from "lucide-react"
 
 export default function NewLucrarePage() {
   const router = useRouter()
-  const [dataEmiterii, setDataEmiterii] = useState<Date | undefined>(new Date())
+  const [dataEmiterii, setDataEmiterii] = useState<Date>(new Date())
   const [dataInterventie, setDataInterventie] = useState<Date | undefined>(new Date())
   const [formData, setFormData] = useState({
     tipLucrare: "",
@@ -69,10 +69,13 @@ export default function NewLucrarePage() {
 
   const handleSubmit = async () => {
     try {
+      // Asigurăm că folosim data și ora curentă pentru dataEmiterii
+      const currentDateTime = new Date()
+
       // Adăugăm lucrarea în Firestore
       const lucrareId = await addLucrare({
         ...formData,
-        dataEmiterii: dataEmiterii ? dataEmiterii.toISOString() : new Date().toISOString(),
+        dataEmiterii: currentDateTime.toISOString(),
         dataInterventie: dataInterventie ? dataInterventie.toISOString() : new Date().toISOString(),
       })
 
@@ -96,7 +99,7 @@ export default function NewLucrarePage() {
         const workOrderData = {
           id: lucrareId,
           ...formData,
-          dataEmiterii: dataEmiterii ? dataEmiterii.toISOString() : new Date().toISOString(),
+          dataEmiterii: currentDateTime.toISOString(),
           dataInterventie: dataInterventie ? dataInterventie.toISOString() : new Date().toISOString(),
         }
 
