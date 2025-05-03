@@ -21,11 +21,9 @@ import {
 import { Badge } from "@/components/ui/badge"
 // Adăugăm importul pentru componenta EquipmentQRCode
 import { EquipmentQRCode } from "@/components/equipment-qr-code"
-// Import the unsaved changes hook and dialog
-import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
-import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
-// Adăugați aceste importuri la începutul fișierului
-import { DirectUnsavedChangesDialog } from "@/components/direct-unsaved-changes-dialog"
+// Import the new navigation prompt hook and dialog
+import { useNavigationPrompt } from "@/hooks/use-navigation-prompt"
+import { NavigationPromptDialog } from "@/components/navigation-prompt-dialog"
 
 interface ClientFormProps {
   onSuccess?: (clientName: string) => void
@@ -48,8 +46,6 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<string[]>([])
-  // În componenta ClientForm, adăugați aceste state-uri:
-  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
   const [formModified, setFormModified] = useState(false)
 
   // State pentru gestionarea dialogului de adăugare/editare echipament
@@ -69,12 +65,10 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
   const [isCheckingCode, setIsCheckingCode] = useState(false)
   const [isCodeUnique, setIsCodeUnique] = useState(true)
 
-  // Use the unsaved changes hook
-  const { showDialog, handleNavigation, confirmNavigation, cancelNavigation, pendingUrl } =
-    useUnsavedChanges(formModified)
+  // Folosim noul hook pentru promptul de navigare
+  const { showPrompt, handleConfirm, handleCancel, handleCancel2, confirmCancel } = useNavigationPrompt(formModified)
 
   // Mark form as modified when any input changes
-  // Adăugați acest efect pentru a detecta modificările formularului
   useEffect(() => {
     if (
       formData.nume ||
@@ -83,6 +77,7 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
       formData.email ||
       locatii.some((loc) => loc.nume || loc.adresa || loc.persoaneContact.some((p) => p.nume || p.telefon))
     ) {
+      console.log("Form modified detected")
       setFormModified(true)
     }
   }, [formData, locatii])
@@ -373,26 +368,9 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
     }
   }
 
-  // Handle cancel with confirmation if form is modified
-  // Înlocuiți funcția handleCancel cu aceasta:
-  const handleCancel = () => {
-    if (formModified) {
-      setShowUnsavedDialog(true)
-    } else if (onCancel) {
-      onCancel()
-    }
-  }
-
-  // Adăugați aceste funcții:
-  const confirmCancel = () => {
-    setShowUnsavedDialog(false)
-    if (onCancel) {
-      onCancel()
-    }
-  }
-
-  const handleDialogCancel = () => {
-    setShowUnsavedDialog(false)
+  // Folosim noul handler pentru anulare
+  const handleFormCancel = () => {
+    handleCancel2(onCancel)
   }
 
   // Verificăm dacă un câmp are eroare
@@ -844,7 +822,7 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
       </Dialog>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-        <Button variant="outline" onClick={handleCancel}>
+        <Button variant="outline" onClick={handleFormCancel}>
           Anulează
         </Button>
         <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSubmit} disabled={isSubmitting}>
@@ -856,23 +834,10 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
             "Salvează"
           )}
         </Button>
-        <Button
-          variant="outline"
-          onClick={() => setShowUnsavedDialog(true)}
-          className="bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200"
-        >
-          Test Dialog
-        </Button>
       </div>
 
-      {/* Unsaved changes dialog */}
-      <UnsavedChangesDialog
-        open={showDialog}
-        onConfirm={pendingUrl === "#cancel" ? confirmCancel : confirmNavigation}
-        onCancel={cancelNavigation}
-      />
-      {/* La sfârșitul componentei, înainte de ultimul </div>, adăugați: */}
-      <DirectUnsavedChangesDialog open={showUnsavedDialog} onConfirm={confirmCancel} onCancel={handleDialogCancel} />
+      {/* Folosim noul dialog de confirmare */}
+      <NavigationPromptDialog open={showPrompt} onConfirm={handleConfirm} onCancel={handleCancel} />
     </div>
   )
 }

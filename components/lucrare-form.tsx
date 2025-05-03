@@ -31,6 +31,9 @@ import { Input } from "@/components/ui/input"
 import { toast } from "@/components/ui/use-toast"
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
+// Adăugați aceste importuri la începutul fișierului
+import { useNavigationPrompt } from "@/hooks/use-navigation-prompt"
+import { NavigationPromptDialog } from "@/components/navigation-prompt-dialog"
 
 // Define the Lucrare type
 interface Lucrare {
@@ -185,6 +188,9 @@ export function LucrareForm({
     }
   }, [onSubmit, isSubmitting, dataEmiterii, dataInterventie, formData])
 
+  // În componenta LucrareForm, adăugați:
+  const { showPrompt, handleConfirm, handleCancel, handleCancel2 } = useNavigationPrompt(formModified)
+
   // Handle cancel with confirmation if form is modified
   const handleCancelWithConfirmation = () => {
     if (formModified && onCancel) {
@@ -196,7 +202,7 @@ export function LucrareForm({
   }
 
   // Confirm cancel action
-  const confirmCancel = () => {
+  const confirmCancelAction = () => {
     if (onCancel) {
       onCancel()
     }
@@ -733,6 +739,11 @@ export function LucrareForm({
     }
   }, [clientiError])
 
+  // Înlocuiți funcția handleCancel cu:
+  const handleFormCancel = () => {
+    handleCancel2(onCancel)
+  }
+
   return (
     <div className="modal-calendar-container">
       {error && <div className="text-red-500 mb-4">{error}</div>}
@@ -1160,7 +1171,8 @@ export function LucrareForm({
       {(onSubmit || onCancel) && (
         <div className="flex justify-end space-x-2 mt-6">
           {onCancel && (
-            <Button variant="outline" onClick={handleCancelWithConfirmation}>
+            // Înlocuiți butonul de anulare cu:
+            <Button variant="outline" onClick={handleFormCancel}>
               Anulează
             </Button>
           )}
@@ -1171,9 +1183,11 @@ export function LucrareForm({
       {/* Unsaved changes dialog */}
       <UnsavedChangesDialog
         open={showDialog}
-        onConfirm={pendingUrl === "#cancel" ? confirmCancel : confirmNavigation}
+        onConfirm={pendingUrl === "#cancel" ? confirmCancelAction : confirmNavigation}
         onCancel={cancelNavigation}
       />
+      {/* Adăugați dialogul la sfârșitul componentei, înainte de ultimul </div>: */}
+      <NavigationPromptDialog open={showPrompt} onConfirm={handleConfirm} onCancel={handleCancel} />
     </div>
   )
 }
