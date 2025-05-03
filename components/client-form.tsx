@@ -5,7 +5,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, Loader2, Plus, Trash2, MapPin, Wrench, AlertTriangle } from "lucide-react"
+import { AlertCircle, Loader2, Plus, Trash2, MapPin, Wrench, AlertTriangle, ShieldAlert } from "lucide-react"
 import { addClient, type PersoanaContact, type Locatie, type Echipament } from "@/lib/firebase/firestore"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Separator } from "@/components/ui/separator"
@@ -24,6 +24,20 @@ import { EquipmentQRCode } from "@/components/equipment-qr-code"
 // Import the new navigation prompt hook and dialog
 import { useNavigationPrompt } from "@/hooks/use-navigation-prompt"
 import { NavigationPromptDialog } from "@/components/navigation-prompt-dialog"
+// Import pentru verificarea rolului utilizatorului - folosim hook-ul useAuth în loc de context direct
+import { useAuth } from "@/contexts/AuthContext"
+// Import pentru dialog de confirmare
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface ClientFormProps {
   onSuccess?: (clientName: string) => void
@@ -31,6 +45,10 @@ interface ClientFormProps {
 }
 
 export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
+  // Obținem informații despre utilizatorul autentificat pentru verificarea rolului folosind hook-ul useAuth
+  const { userData } = useAuth()
+  const isAdmin = userData?.role === "admin"
+
   const [formData, setFormData] = useState({
     nume: "",
     cif: "", // Adăugăm CIF
@@ -64,6 +82,12 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
   const [echipamentFormErrors, setEchipamentFormErrors] = useState<string[]>([])
   const [isCheckingCode, setIsCheckingCode] = useState(false)
   const [isCodeUnique, setIsCodeUnique] = useState(true)
+
+  // State pentru dialogul de confirmare a ștergerii
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [equipmentToDelete, setEquipmentToDelete] = useState<{ locatieIndex: number; echipamentIndex: number } | null>(
+    null,
+  )
 
   // Folosim noul hook pentru promptul de navigare
   const { showPrompt, handleConfirm, handleCancel, handleCancel2 } = useNavigationPrompt(formModified)
@@ -157,6 +181,11 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
 
   // Funcție pentru deschiderea dialogului de adăugare echipament
   const handleOpenAddEchipamentDialog = (locatieIndex: number) => {
+    if (!isAdmin) {
+      alert("Doar administratorii pot adăuga echipamente.")
+      return
+    }
+
     setSelectedLocatieIndex(locatieIndex)
     setSelectedEchipamentIndex(null)
     setEchipamentFormData({
@@ -175,6 +204,11 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
 
   // Funcție pentru deschiderea dialogului de editare echipament
   const handleOpenEditEchipamentDialog = (locatieIndex: number, echipamentIndex: number) => {
+    if (!isAdmin) {
+      alert("Doar administratorii pot edita echipamente.")
+      return
+    }
+
     setSelectedLocatieIndex(locatieIndex)
     setSelectedEchipamentIndex(echipamentIndex)
 
@@ -257,12 +291,36 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
     setIsEchipamentDialogOpen(false)
   }
 
-  // Funcție pentru ștergerea unui echipament
-  const handleDeleteEchipament = (locatieIndex: number, echipamentIndex: number) => {
-    if (window.confirm("Sunteți sigur că doriți să ștergeți acest echipament?")) {
+  // Funcție pentru inițierea procesului de ștergere a unui echipament
+  const handleInitDeleteEchipament = (locatieIndex: number, echipamentIndex: number) => {
+    if (!isAdmin) {
+      alert("Doar administratorii pot șterge echipamente.")
+      return
+    }
+
+    setEquipmentToDelete({ locatieIndex, echipamentIndex })
+    setIsDeleteDialogOpen(true)
+  }
+
+  // Funcție pentru confirmarea ștergerii unui echipament
+  const handleConfirmDeleteEchipament = () => {
+    if (equipmentToDelete) {
+      const { locatieIndex, echipamentIndex } = equipmentToDelete
       const updatedLocatii = [...locatii]
+
+      // Salvăm numele echipamentului pentru mesajul de log
+      const echipamentName = updatedLocatii[locatieIndex].echipamente?.[echipamentIndex]?.nume || "Necunoscut"
+
+      // Ștergem echipamentul
       updatedLocatii[locatieIndex].echipamente!.splice(echipamentIndex, 1)
       setLocatii(updatedLocatii)
+
+      // Închide dialogul de confirmare
+      setIsDeleteDialogOpen(false)
+      setEquipmentToDelete(null)
+
+      // Afișăm un mesaj de confirmare
+      console.log(`Echipamentul "${echipamentName}" a fost șters cu succes.`)
     }
   }
 
@@ -385,6 +443,57 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
 
   // Stilul pentru câmpurile cu eroare
   const errorStyle = "border-red-500 focus-visible:ring-red-500"
+
+  // Funcție pentru a afișa butoanele de acțiune pentru echipamente cu restricții bazate pe rol
+  const renderEquipmentActions = (locatieIndex: number, echipamentIndex: number, echipament: Echipament) => {
+    return (
+      <div className="flex space-x-1 flex-shrink-0">
+        <EquipmentQRCode equipment={echipament} clientName={formData.nume} locationName={locatii[locatieIndex].nume} />
+
+        {isAdmin ? (
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => handleOpenEditEchipamentDialog(locatieIndex, echipamentIndex)}
+              className="h-8 w-8 p-0 flex-shrink-0"
+            >
+              <Wrench className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => handleInitDeleteEchipament(locatieIndex, echipamentIndex)}
+              className="h-8 w-8 p-0 text-red-500 flex-shrink-0"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </>
+        ) : (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-gray-400 cursor-not-allowed flex-shrink-0"
+                  disabled
+                >
+                  <ShieldAlert className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Doar administratorii pot edita sau șterge echipamente</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -595,15 +704,27 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
                       <h4 className="text-sm font-medium">Echipamente</h4>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleOpenAddEchipamentDialog(locatieIndex)}
-                        className="flex items-center"
-                      >
-                        <Plus className="h-4 w-4 mr-1" /> Adaugă Echipament
-                      </Button>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenAddEchipamentDialog(locatieIndex)}
+                              className={`flex items-center ${!isAdmin ? "opacity-70" : ""}`}
+                              disabled={!isAdmin}
+                            >
+                              <Plus className="h-4 w-4 mr-1" /> Adaugă Echipament
+                            </Button>
+                          </TooltipTrigger>
+                          {!isAdmin && (
+                            <TooltipContent>
+                              <p>Doar administratorii pot adăuga echipamente</p>
+                            </TooltipContent>
+                          )}
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
 
                     {locatie.echipamente && locatie.echipamente.length > 0 ? (
@@ -620,31 +741,7 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
                                   Cod: {echipament.cod}
                                 </Badge>
                               </div>
-                              <div className="flex space-x-1 flex-shrink-0">
-                                <EquipmentQRCode
-                                  equipment={echipament}
-                                  clientName={formData.nume}
-                                  locationName={locatie.nume}
-                                />
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleOpenEditEchipamentDialog(locatieIndex, echipamentIndex)}
-                                  className="h-8 w-8 p-0 flex-shrink-0"
-                                >
-                                  <Wrench className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteEchipament(locatieIndex, echipamentIndex)}
-                                  className="h-8 w-8 p-0 text-red-500 flex-shrink-0"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
+                              {renderEquipmentActions(locatieIndex, echipamentIndex, echipament)}
                             </div>
 
                             {(echipament.model || echipament.serie) && (
@@ -827,6 +924,24 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog de confirmare pentru ștergerea echipamentului */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmare ștergere</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sunteți sigur că doriți să ștergeți acest echipament? Această acțiune nu poate fi anulată.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setEquipmentToDelete(null)}>Anulează</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDeleteEchipament} className="bg-red-600 hover:bg-red-700">
+              Șterge
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
         <Button variant="outline" onClick={handleFormCancel}>
