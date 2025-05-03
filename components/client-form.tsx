@@ -21,6 +21,9 @@ import {
 import { Badge } from "@/components/ui/badge"
 // Adăugăm importul pentru componenta EquipmentQRCode
 import { EquipmentQRCode } from "@/components/equipment-qr-code"
+// Import the unsaved changes hook and dialog
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
+import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
 
 interface ClientFormProps {
   onSuccess?: (clientName: string) => void
@@ -43,6 +46,7 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<string[]>([])
+  const [formModified, setFormModified] = useState(false)
 
   // State pentru gestionarea dialogului de adăugare/editare echipament
   const [isEchipamentDialogOpen, setIsEchipamentDialogOpen] = useState(false)
@@ -60,6 +64,22 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
   const [echipamentFormErrors, setEchipamentFormErrors] = useState<string[]>([])
   const [isCheckingCode, setIsCheckingCode] = useState(false)
   const [isCodeUnique, setIsCodeUnique] = useState(true)
+
+  // Use the unsaved changes hook
+  const { showDialog, handleNavigation, confirmNavigation, cancelNavigation, pendingUrl } =
+    useUnsavedChanges(formModified)
+
+  // Mark form as modified when any input changes
+  useEffect(() => {
+    setFormModified(true)
+  }, [formData, locatii])
+
+  // Reset form modified state after successful submission
+  useEffect(() => {
+    if (!isSubmitting && !error && formModified) {
+      setFormModified(false)
+    }
+  }, [isSubmitting, error, formModified])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target
@@ -325,6 +345,9 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
       const clientId = await addClient(newClient)
       console.log("Client adăugat cu ID:", clientId)
 
+      // Reset form modified state after successful submission
+      setFormModified(false)
+
       // Notificăm componenta părinte despre succesul adăugării
       if (onSuccess) {
         onSuccess(formData.nume)
@@ -334,6 +357,23 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
       setError("A apărut o eroare la adăugarea clientului. Încercați din nou.")
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  // Handle cancel with confirmation if form is modified
+  const handleCancel = () => {
+    if (formModified) {
+      // Show confirmation dialog
+      handleNavigation("#cancel")
+    } else if (onCancel) {
+      onCancel()
+    }
+  }
+
+  // Confirm cancel action
+  const confirmCancel = () => {
+    if (onCancel) {
+      onCancel()
     }
   }
 
@@ -786,7 +826,7 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
       </Dialog>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-        <Button variant="outline" onClick={onCancel}>
+        <Button variant="outline" onClick={handleCancel}>
           Anulează
         </Button>
         <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSubmit} disabled={isSubmitting}>
@@ -799,6 +839,13 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
           )}
         </Button>
       </div>
+
+      {/* Unsaved changes dialog */}
+      <UnsavedChangesDialog
+        open={showDialog}
+        onConfirm={pendingUrl === "#cancel" ? confirmCancel : confirmNavigation}
+        onCancel={cancelNavigation}
+      />
     </div>
   )
 }

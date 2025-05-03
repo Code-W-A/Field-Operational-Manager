@@ -29,6 +29,8 @@ import { Card } from "@/components/ui/card"
 import { CustomEquipmentSelect } from "@/components/custom-equipment-select"
 import { Input } from "@/components/ui/input"
 import { toast } from "@/components/ui/use-toast"
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
+import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
 
 // Define the Lucrare type
 interface Lucrare {
@@ -117,6 +119,19 @@ export function LucrareForm({
   const [clientSearchTerm, setClientSearchTerm] = useState("")
   const [filteredClients, setFilteredClients] = useState<Client[]>([])
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false)
+  const [formModified, setFormModified] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Track initial form state
+  const [initialFormState, setInitialFormState] = useState({
+    dataEmiterii,
+    dataInterventie,
+    formData: JSON.stringify(formData),
+  })
+
+  // Use the unsaved changes hook
+  const { showDialog, handleNavigation, confirmNavigation, cancelNavigation, pendingUrl } =
+    useUnsavedChanges(formModified)
 
   // Add state for controlling the popovers
   const [dateEmiteriiOpen, setDateEmiteriiOpen] = useState(false)
@@ -140,6 +155,52 @@ export function LucrareForm({
 
   // Adăugăm state pentru a urmări dacă echipamentele au fost încărcate
   const [equipmentsLoaded, setEquipmentsLoaded] = useState(false)
+
+  // Check if form has been modified
+  useEffect(() => {
+    const currentState = {
+      dataEmiterii,
+      dataInterventie,
+      formData: JSON.stringify(formData),
+    }
+
+    const hasChanged =
+      currentState.dataEmiterii !== initialFormState.dataEmiterii ||
+      currentState.dataInterventie !== initialFormState.dataInterventie ||
+      currentState.formData !== initialFormState.formData
+
+    setFormModified(hasChanged)
+  }, [dataEmiterii, dataInterventie, formData, initialFormState])
+
+  // Reset form modified state after successful submission
+  useEffect(() => {
+    if (onSubmit && !isSubmitting) {
+      // Update the initial state to match current state after successful save
+      setInitialFormState({
+        dataEmiterii,
+        dataInterventie,
+        formData: JSON.stringify(formData),
+      })
+      setFormModified(false)
+    }
+  }, [onSubmit, isSubmitting, dataEmiterii, dataInterventie, formData])
+
+  // Handle cancel with confirmation if form is modified
+  const handleCancelWithConfirmation = () => {
+    if (formModified && onCancel) {
+      // Show confirmation dialog
+      handleNavigation("#cancel")
+    } else if (onCancel) {
+      onCancel()
+    }
+  }
+
+  // Confirm cancel action
+  const confirmCancel = () => {
+    if (onCancel) {
+      onCancel()
+    }
+  }
 
   // Handle date selection with proper time preservation
   const handleDateEmiteriiSelect = useCallback(
@@ -578,29 +639,35 @@ export function LucrareForm({
       return
     }
 
-    const updatedData: Partial<Lucrare> = {
-      dataEmiterii: dataEmiterii ? formatDateTime24(dataEmiterii) : "",
-      dataInterventie: dataInterventie ? formatDateTime24(dataInterventie) : "",
-      tipLucrare: formData.tipLucrare,
-      tehnicieni: formData.tehnicieni,
-      client: formData.client,
-      locatie: formData.locatie,
-      echipament: formData.echipament,
-      descriere: formData.descriere,
-      persoanaContact: formData.persoanaContact,
-      telefon: formData.telefon,
-      statusLucrare: formData.statusLucrare,
-      statusFacturare: formData.statusFacturare,
-      contract: formData.contract,
-      contractNumber: formData.contractNumber,
-      defectReclamat: formData.defectReclamat,
-      // Include all contact persons from the selected location
-      persoaneContact: formData.persoaneContact || persoaneContact,
-      echipamentId: formData.echipamentId,
-      echipamentCod: formData.echipamentCod,
-    }
+    setIsSubmitting(true)
 
-    await onSubmit(updatedData)
+    try {
+      const updatedData: Partial<Lucrare> = {
+        dataEmiterii: dataEmiterii ? formatDateTime24(dataEmiterii) : "",
+        dataInterventie: dataInterventie ? formatDateTime24(dataInterventie) : "",
+        tipLucrare: formData.tipLucrare,
+        tehnicieni: formData.tehnicieni,
+        client: formData.client,
+        locatie: formData.locatie,
+        echipament: formData.echipament,
+        descriere: formData.descriere,
+        persoanaContact: formData.persoanaContact,
+        telefon: formData.telefon,
+        statusLucrare: formData.statusLucrare,
+        statusFacturare: formData.statusFacturare,
+        contract: formData.contract,
+        contractNumber: formData.contractNumber,
+        defectReclamat: formData.defectReclamat,
+        // Include all contact persons from the selected location
+        persoaneContact: formData.persoaneContact || persoaneContact,
+        echipamentId: formData.echipamentId,
+        echipamentCod: formData.echipamentCod,
+      }
+
+      await onSubmit(updatedData)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   // Add buttons at the end if onSubmit and onCancel are provided
@@ -1093,13 +1160,20 @@ export function LucrareForm({
       {(onSubmit || onCancel) && (
         <div className="flex justify-end space-x-2 mt-6">
           {onCancel && (
-            <Button variant="outline" onClick={onCancel}>
+            <Button variant="outline" onClick={handleCancelWithConfirmation}>
               Anulează
             </Button>
           )}
           {onSubmit && <Button onClick={handleSubmit}>Salvează</Button>}
         </div>
       )}
+
+      {/* Unsaved changes dialog */}
+      <UnsavedChangesDialog
+        open={showDialog}
+        onConfirm={pendingUrl === "#cancel" ? confirmCancel : confirmNavigation}
+        onCancel={cancelNavigation}
+      />
     </div>
   )
 }

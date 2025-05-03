@@ -28,6 +28,9 @@ import {
 import { Badge } from "@/components/ui/badge"
 // Adăugăm importul pentru componenta EquipmentQRCode
 import { EquipmentQRCode } from "@/components/equipment-qr-code"
+// Import the unsaved changes hook and dialog
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
+import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
 
 interface ClientEditFormProps {
   client: Client
@@ -66,6 +69,7 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<string[]>([])
+  const [formModified, setFormModified] = useState(false)
 
   // State pentru gestionarea dialogului de adăugare/editare echipament
   const [isEchipamentDialogOpen, setIsEchipamentDialogOpen] = useState(false)
@@ -83,6 +87,42 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
   const [echipamentFormErrors, setEchipamentFormErrors] = useState<string[]>([])
   const [isCheckingCode, setIsCheckingCode] = useState(false)
   const [isCodeUnique, setIsCodeUnique] = useState(true)
+
+  // Use the unsaved changes hook
+  const { showDialog, handleNavigation, confirmNavigation, cancelNavigation, pendingUrl } =
+    useUnsavedChanges(formModified)
+
+  // Track initial form state to detect changes
+  const [initialFormState, setInitialFormState] = useState({
+    formData,
+    locatii: JSON.stringify(locatii),
+  })
+
+  // Check if form has been modified
+  useEffect(() => {
+    const currentState = {
+      formData,
+      locatii: JSON.stringify(locatii),
+    }
+
+    const hasChanged =
+      JSON.stringify(currentState.formData) !== JSON.stringify(initialFormState.formData) ||
+      currentState.locatii !== initialFormState.locatii
+
+    setFormModified(hasChanged)
+  }, [formData, locatii, initialFormState])
+
+  // Reset form modified state after successful submission
+  useEffect(() => {
+    if (!isSubmitting && !error && formModified) {
+      // Update the initial state to match current state after successful save
+      setInitialFormState({
+        formData,
+        locatii: JSON.stringify(locatii),
+      })
+      setFormModified(false)
+    }
+  }, [isSubmitting, error, formModified, formData, locatii])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target
@@ -377,6 +417,24 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
   // Stilul pentru câmpurile cu eroare
   const errorStyle = "border-red-500 focus-visible:ring-red-500"
 
+  // Handle cancel with confirmation if form is modified
+  const handleCancel = () => {
+    if (formModified) {
+      // Show confirmation dialog
+      handleNavigation("#cancel")
+    } else if (onCancel) {
+      onCancel()
+    }
+  }
+
+  // Confirm cancel action
+  const confirmCancel = () => {
+    if (onCancel) {
+      onCancel()
+    }
+  }
+
+  // Add the UnsavedChangesDialog at the end of the component
   return (
     <div className="space-y-4">
       {error && (
@@ -820,7 +878,7 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
       </Dialog>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-        <Button variant="outline" onClick={onCancel}>
+        <Button variant="outline" onClick={handleCancel}>
           Anulează
         </Button>
         <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSubmit} disabled={isSubmitting}>
@@ -833,6 +891,13 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
           )}
         </Button>
       </div>
+
+      {/* Unsaved changes dialog */}
+      <UnsavedChangesDialog
+        open={showDialog}
+        onConfirm={pendingUrl === "#cancel" ? confirmCancel : confirmNavigation}
+        onCancel={cancelNavigation}
+      />
     </div>
   )
 }
