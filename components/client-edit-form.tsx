@@ -678,7 +678,7 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
                                   size="sm"
                                   onClick={() => handleOpenEditEchipamentDialog(locatieIndex, echipamentIndex)}
                                 >
-                                  Actualizare
+                                      <Wranch className="h-4 w-4" />
                                 </Button>
                                 <Button
                                   type="button"
@@ -687,7 +687,7 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
                                   onClick={() => handleDeleteEchipament(locatieIndex, echipamentIndex)}
                                   className="text-red-500 border-red-200 hover:bg-red-50"
                                 >
-                                  Șterge
+                                     <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
                             </div>
