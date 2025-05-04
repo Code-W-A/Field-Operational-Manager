@@ -628,7 +628,10 @@ export function LucrareForm({
       isValid = false
     }
 
-    if (formData.tipLucrare === "Intervenție în contract" && !formData.contract) {
+    if (
+      (formData.tipLucrare === "Intervenție în contract" || formData.tipLucrare === "Contractare") &&
+      !formData.contract
+    ) {
       errors.push("contract")
       isValid = false
     }
@@ -835,17 +838,25 @@ export function LucrareForm({
                 <SelectValue placeholder="Selectați tipul" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Intervenție contra cost">Intervenție contra cost</SelectItem>
+                <SelectItem value="Ofertare">Ofertare</SelectItem>
+                <SelectItem value="Contractare">Contractare</SelectItem>
                 <SelectItem value="Pregătire în atelier">Pregătire în atelier</SelectItem>
                 <SelectItem value="Instalare">Instalare</SelectItem>
+                <SelectItem value="Predare">Predare</SelectItem>
+                <SelectItem value="Intervenție în garanție">Intervenție în garanție</SelectItem>
+                <SelectItem value="Intervenție contra cost">Intervenție contra cost</SelectItem>
                 <SelectItem value="Intervenție în contract">Intervenție în contract</SelectItem>
                 <SelectItem value="Re-Intervenție">Re-Intervenție</SelectItem>
-                <SelectItem value="Intervenție garanție">Intervenție garanție</SelectItem>
-                <SelectItem value="Predare lucrare">Predare lucrare</SelectItem>
               </SelectContent>
             </Select>
+            {formData.tipLucrare === "Intervenție în garanție" && (
+              <p className="text-xs text-amber-600 mt-1">
+                Notă: Garanția nu poate depăși 24 de luni de la instalare. Există cazuri cu 12 luni și cazuri cu 24 luni
+                de la predare.
+              </p>
+            )}
           </div>
-          {formData.tipLucrare === "Intervenție în contract" && (
+          {(formData.tipLucrare === "Intervenție în contract" || formData.tipLucrare === "Contractare") && (
             <div className="space-y-2">
               <label htmlFor="contract" className="text-sm font-medium">
                 Contract *
