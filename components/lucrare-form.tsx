@@ -136,7 +136,7 @@ export function LucrareForm({
     formData: JSON.stringify(formData),
   }
   )
-\
+
   // Use the unsaved changes hook
   const { showDialog, handleNavigation, confirmNavigation, cancelNavigation, pendingUrl } =
     useUnsavedChanges(formModified)
