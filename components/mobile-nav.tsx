@@ -71,6 +71,19 @@ export function MobileNav() {
             </Link>
           )}
           {isAdmin && (
+            <Link
+              href="/dashboard/contracte"
+              onClick={() => setOpen(false)}
+              className={cn(
+                "flex items-center gap-2 rounded-md px-3 py-3 text-sm font-medium transition-colors",
+                pathname === "/dashboard/contracte" ? "bg-blue-100 text-blue-900" : "hover:bg-muted",
+              )}
+            >
+              <FileText className="h-5 w-5" />
+              <span>Contracte</span>
+            </Link>
+          )}
+          {isAdmin && (
             <>
               <Link
                 href="/dashboard/utilizatori"

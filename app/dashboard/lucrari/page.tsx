@@ -1164,7 +1164,7 @@ export default function Lucrari() {
               columns={columns}
               data={filteredData}
               defaultSort={{ id: "dataEmiterii", desc: true }}
-              onRowClick={(lucrare) => handleViewDetails(lucrare)}
+          //    onRowClick={(lucrare) => handleViewDetails(lucrare)}
               table={tableInstance}
               setTable={setTableInstance}
               showFilters={false}

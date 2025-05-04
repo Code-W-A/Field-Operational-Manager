@@ -306,6 +306,7 @@ export default function Clienti() {
   const handleViewDetails = (id: string) => {
     router.push(`/dashboard/clienti/${id}`)
   }
+  
 
   // Modify handleEditSuccess function to refresh data
   const handleEditSuccess = () => {
@@ -501,7 +502,6 @@ export default function Clienti() {
             <DataTable
               columns={columns}
               data={filteredData}
-              onRowClick={(client) => handleViewDetails(client.id!)}
               table={table}
               setTable={setTable}
               showFilters={false}
