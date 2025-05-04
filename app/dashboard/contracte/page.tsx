@@ -1,23 +1,35 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   collection,
   query,
   orderBy,
-  onSnapshot,
   doc,
   updateDoc,
   deleteDoc,
   serverTimestamp,
   addDoc,
+  getDocs,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { Plus, Pencil, Trash2, Loader2, AlertCircle } from "lucide-react"
@@ -25,69 +37,79 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { toast } from "@/components/ui/use-toast"
 import { format } from "date-fns"
 import { ro } from "date-fns/locale"
+import { addLog } from "@/lib/firebase/firestore"
 
 interface Contract {
   id: string
-  name: string
-  number: string
-  createdAt: any
+  numar: string
+  client: string
+  dataInceput: string
+  dataSfarsit: string
 }
 
 export default function ContractsPage() {
   const [contracts, setContracts] = useState<Contract[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [currentContract, setCurrentContract] = useState<Contract | null>(null)
 
   const [newContractName, setNewContractName] = useState("")
   const [newContractNumber, setNewContractNumber] = useState("")
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [formData, setFormData] = useState({
+    numar: "",
+    client: "",
+    dataInceput: "",
+    dataSfarsit: "",
+  })
+  const [formErrors, setFormErrors] = useState<string[]>([])
 
-  // Încărcăm contractele din Firestore
+  // Încărcăm contractele la încărcarea paginii
   useEffect(() => {
-    const fetchContracts = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-
-        const contractsQuery = query(collection(db, "contracts"), orderBy("name", "asc"))
-
-        const unsubscribe = onSnapshot(
-          contractsQuery,
-          (snapshot) => {
-            const contractsData = snapshot.docs.map((doc) => ({
-              id: doc.id,
-              ...doc.data(),
-            })) as Contract[]
-
-            setContracts(contractsData)
-            setLoading(false)
-          },
-          (error) => {
-            console.error("Eroare la încărcarea contractelor:", error)
-            setError("Nu s-au putut încărca contractele. Vă rugăm să încercați din nou.")
-            setLoading(false)
-          },
-        )
-
-        return () => unsubscribe()
-      } catch (error) {
-        console.error("Eroare la încărcarea contractelor:", error)
-        setError("Nu s-au putut încărca contractele. Vă rugăm să încercați din nou.")
-        setLoading(false)
-      }
-    }
-
     fetchContracts()
   }, [])
 
+  // Funcție pentru a încărca contractele din Firestore
+  const fetchContracts = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const contractsQuery = query(collection(db, "contracte"), orderBy("numar"))
+      const snapshot = await getDocs(contractsQuery)
+      const contractsData = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Contract[]
+      setContracts(contractsData)
+    } catch (error) {
+      console.error("Eroare la încărcarea contractelor:", error)
+      setError("Nu s-au putut încărca contractele. Vă rugăm să încercați din nou.")
+      toast({
+        title: "Eroare",
+        description: "Nu s-au putut încărca contractele. Vă rugăm să încercați din nou.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Funcție pentru a gestiona schimbările în formular
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setFormData({
+      ...formData,
+      [name]: value,
+    })
+  }
+
   // Funcție pentru adăugarea unui contract nou
   const handleAddContract = async () => {
-    if (!newContractName || !newContractNumber) {
+    if (!formData.numar || !formData.client || !formData.dataInceput || !formData.dataSfarsit) {
       toast({
         title: "Eroare",
         description: "Vă rugăm să completați toate câmpurile",
@@ -102,7 +124,7 @@ export default function ContractsPage() {
 
       // Verificăm dacă există deja un contract cu același număr
       const duplicateContract = contracts.find(
-        (contract) => contract.number.toLowerCase() === newContractNumber.toLowerCase(),
+        (contract) => contract.numar.toLowerCase() === formData.numar.toLowerCase(),
       )
 
       if (duplicateContract) {
@@ -116,15 +138,20 @@ export default function ContractsPage() {
       }
 
       // Adăugăm contractul în Firestore
-      await addDoc(collection(db, "contracts"), {
-        name: newContractName,
-        number: newContractNumber,
+      await addDoc(collection(db, "contracte"), {
+        ...formData,
         createdAt: serverTimestamp(),
       })
 
+      await addLog("Adăugare contract", `Contractul cu numărul ${formData.numar} a fost adăugat.`)
+
       // Resetăm formularul și închidem dialogul
-      setNewContractName("")
-      setNewContractNumber("")
+      setFormData({
+        numar: "",
+        client: "",
+        dataInceput: "",
+        dataSfarsit: "",
+      })
       setIsAddDialogOpen(false)
 
       toast({
@@ -141,7 +168,7 @@ export default function ContractsPage() {
 
   // Funcție pentru editarea unui contract
   const handleEditContract = async () => {
-    if (!selectedContract || !newContractName || !newContractNumber) {
+    if (!currentContract || !formData.numar || !formData.client || !formData.dataInceput || !formData.dataSfarsit) {
       toast({
         title: "Eroare",
         description: "Vă rugăm să completați toate câmpurile",
@@ -157,7 +184,7 @@ export default function ContractsPage() {
       // Verificăm dacă există deja un alt contract cu același număr
       const duplicateContract = contracts.find(
         (contract) =>
-          contract.number.toLowerCase() === newContractNumber.toLowerCase() && contract.id !== selectedContract.id,
+          contract.numar.toLowerCase() === formData.numar.toLowerCase() && contract.id !== currentContract.id,
       )
 
       if (duplicateContract) {
@@ -171,17 +198,22 @@ export default function ContractsPage() {
       }
 
       // Actualizăm contractul în Firestore
-      const contractRef = doc(db, "contracts", selectedContract.id)
+      const contractRef = doc(db, "contracte", currentContract.id)
       await updateDoc(contractRef, {
-        name: newContractName,
-        number: newContractNumber,
+        ...formData,
         updatedAt: serverTimestamp(),
       })
 
+      await addLog("Editare contract", `Contractul cu numărul ${formData.numar} a fost editat.`)
+
       // Resetăm formularul și închidem dialogul
-      setNewContractName("")
-      setNewContractNumber("")
-      setSelectedContract(null)
+      setFormData({
+        numar: "",
+        client: "",
+        dataInceput: "",
+        dataSfarsit: "",
+      })
+      setCurrentContract(null)
       setIsEditDialogOpen(false)
 
       toast({
@@ -198,18 +230,20 @@ export default function ContractsPage() {
 
   // Funcție pentru ștergerea unui contract
   const handleDeleteContract = async () => {
-    if (!selectedContract) return
+    if (!currentContract) return
 
     try {
       setIsSubmitting(true)
       setError(null)
 
       // Ștergem contractul din Firestore
-      const contractRef = doc(db, "contracts", selectedContract.id)
+      const contractRef = doc(db, "contracte", currentContract.id)
       await deleteDoc(contractRef)
 
+      await addLog("Ștergere contract", `Contractul cu numărul ${currentContract.numar} a fost șters.`)
+
       // Resetăm starea și închidem dialogul
-      setSelectedContract(null)
+      setCurrentContract(null)
       setIsDeleteDialogOpen(false)
 
       toast({
@@ -226,15 +260,19 @@ export default function ContractsPage() {
 
   // Funcție pentru deschiderea dialogului de editare
   const openEditDialog = (contract: Contract) => {
-    setSelectedContract(contract)
-    setNewContractName(contract.name)
-    setNewContractNumber(contract.number)
+    setCurrentContract(contract)
+    setFormData({
+      numar: contract.numar,
+      client: contract.client,
+      dataInceput: contract.dataInceput,
+      dataSfarsit: contract.dataSfarsit,
+    })
     setIsEditDialogOpen(true)
   }
 
   // Funcție pentru deschiderea dialogului de ștergere
   const openDeleteDialog = (contract: Contract) => {
-    setSelectedContract(contract)
+    setCurrentContract(contract)
     setIsDeleteDialogOpen(true)
   }
 
@@ -282,18 +320,20 @@ export default function ContractsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nume Contract</TableHead>
                 <TableHead>Număr Contract</TableHead>
-                <TableHead>Data Adăugării</TableHead>
+                <TableHead>Client</TableHead>
+                <TableHead>Data Început</TableHead>
+                <TableHead>Data Sfârșit</TableHead>
                 <TableHead className="text-right">Acțiuni</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {contracts.map((contract) => (
                 <TableRow key={contract.id}>
-                  <TableCell className="font-medium">{contract.name}</TableCell>
-                  <TableCell>{contract.number}</TableCell>
-                  <TableCell>{formatDate(contract.createdAt)}</TableCell>
+                  <TableCell className="font-medium">{contract.numar}</TableCell>
+                  <TableCell>{contract.client}</TableCell>
+                  <TableCell>{contract.dataInceput}</TableCell>
+                  <TableCell>{contract.dataSfarsit}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button variant="outline" size="icon" onClick={() => openEditDialog(contract)}>
@@ -324,21 +364,43 @@ export default function ContractsPage() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="contractName">Nume Contract</Label>
+              <Label htmlFor="numar">Număr Contract</Label>
               <Input
-                id="contractName"
-                value={newContractName}
-                onChange={(e) => setNewContractName(e.target.value)}
-                placeholder="Introduceți numele contractului"
+                id="numar"
+                name="numar"
+                value={formData.numar}
+                onChange={handleInputChange}
+                placeholder="Introduceți numărul contractului"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="contractNumber">Număr Contract</Label>
+              <Label htmlFor="client">Client</Label>
               <Input
-                id="contractNumber"
-                value={newContractNumber}
-                onChange={(e) => setNewContractNumber(e.target.value)}
-                placeholder="Introduceți numărul contractului"
+                id="client"
+                name="client"
+                value={formData.client}
+                onChange={handleInputChange}
+                placeholder="Introduceți numele clientului"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dataInceput">Data Început</Label>
+              <Input
+                type="date"
+                id="dataInceput"
+                name="dataInceput"
+                value={formData.dataInceput}
+                onChange={handleInputChange}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dataSfarsit">Data Sfârșit</Label>
+              <Input
+                type="date"
+                id="dataSfarsit"
+                name="dataSfarsit"
+                value={formData.dataSfarsit}
+                onChange={handleInputChange}
               />
             </div>
           </div>
@@ -346,7 +408,7 @@ export default function ContractsPage() {
             <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
               Anulează
             </Button>
-            <Button onClick={handleAddContract} disabled={isSubmitting || !newContractName || !newContractNumber}>
+            <Button onClick={handleAddContract} disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
@@ -367,21 +429,43 @@ export default function ContractsPage() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="editContractName">Nume Contract</Label>
+              <Label htmlFor="numar">Număr Contract</Label>
               <Input
-                id="editContractName"
-                value={newContractName}
-                onChange={(e) => setNewContractName(e.target.value)}
-                placeholder="Introduceți numele contractului"
+                id="numar"
+                name="numar"
+                value={formData.numar}
+                onChange={handleInputChange}
+                placeholder="Introduceți numărul contractului"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="editContractNumber">Număr Contract</Label>
+              <Label htmlFor="client">Client</Label>
               <Input
-                id="editContractNumber"
-                value={newContractNumber}
-                onChange={(e) => setNewContractNumber(e.target.value)}
-                placeholder="Introduceți numărul contractului"
+                id="client"
+                name="client"
+                value={formData.client}
+                onChange={handleInputChange}
+                placeholder="Introduceți numele clientului"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dataInceput">Data Început</Label>
+              <Input
+                type="date"
+                id="dataInceput"
+                name="dataInceput"
+                value={formData.dataInceput}
+                onChange={handleInputChange}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dataSfarsit">Data Sfârșit</Label>
+              <Input
+                type="date"
+                id="dataSfarsit"
+                name="dataSfarsit"
+                value={formData.dataSfarsit}
+                onChange={handleInputChange}
               />
             </div>
           </div>
@@ -389,7 +473,7 @@ export default function ContractsPage() {
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
               Anulează
             </Button>
-            <Button onClick={handleEditContract} disabled={isSubmitting || !newContractName || !newContractNumber}>
+            <Button onClick={handleEditContract} disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
@@ -403,23 +487,18 @@ export default function ContractsPage() {
       </Dialog>
 
       {/* Dialog pentru ștergerea unui contract */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="w-[calc(100%-2rem)] max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>Șterge Contract</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <p>
-              Sunteți sigur că doriți să ștergeți contractul <strong>{selectedContract?.name}</strong> cu numărul{" "}
-              <strong>{selectedContract?.number}</strong>?
-            </p>
-            <p className="text-red-600 mt-2">Această acțiune nu poate fi anulată.</p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
-              Anulează
-            </Button>
-            <Button variant="destructive" onClick={handleDeleteContract} disabled={isSubmitting}>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sunteți sigur?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Această acțiune nu poate fi anulată. Ești sigur că vrei să ștergi contractul cu numărul{" "}
+              {currentContract?.numar}?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setIsDeleteDialogOpen(false)}>Anulează</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteContract} disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
@@ -427,10 +506,1352 @@ export default function ContractsPage() {
               ) : (
                 "Șterge"
               )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardShell>
+  )
+}
+;```typescriptreact file="components/lucrare-form.tsx"
+[v0-no-op-code-block-prefix]"use client"
+
+import type React from "react"
+import { useState, useEffect, useCallback } from "react"
+import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { format } from "date-fns"
+import { ro } from "date-fns/locale"
+import { CalendarIcon, Loader2, Plus, Phone, Mail, Users } from 'lucide-react'
+import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
+import { orderBy, where, query, collection, onSnapshot } from "firebase/firestore"
+import type { Client, PersoanaContact, Locatie, Echipament } from "@/lib/firebase/firestore"
+import { db } from "@/lib/firebase/config"
+// Importăm componenta ContractSelect
+import { ContractSelect } from "./contract-select"
+// Importăm componenta ClientForm
+import { ClientForm } from "./client-form"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { formatDateTime24, formatTime24 } from "@/lib/utils/time-format"
+// Import the TimeSelector component
+import { TimeSelector } from "./time-selector"
+// Import our new CustomDatePicker component
+import { CustomDatePicker } from "./custom-date-picker"
+import { Card } from "@/components/ui/card"
+// Înlocuim importul pentru componenta EquipmentSelect cu CustomEquipmentSelect
+import { CustomEquipmentSelect } from "@/components/custom-equipment-select"
+import { Input } from "@/components/ui/input"
+import { toast } from "@/components/ui/use-toast"
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
+import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
+// Adăugați aceste importuri la începutul fișierului
+import { useNavigationPrompt } from "@/hooks/use-navigation-prompt"
+import { NavigationPromptDialog } from "@/components/navigation-prompt-dialog"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle } from 'lucide-react'
+import { differenceInMonths } from "date-fns"
+import { InfoIcon } from 'lucide-react';
+
+// Define the Lucrare type
+interface Lucrare {
+  dataEmiterii: string
+  dataInterventie: string
+  tipLucrare: string
+  tehnicieni: string[]
+  client: string
+  locatie: string
+  echipament: string
+  descriere: string
+  persoanaContact: string
+  telefon: string
+  statusLucrare: string
+  statusFacturare: string
+  contract?: string
+  contractNumber?: string
+  defectReclamat?: string
+  persoaneContact?: PersoanaContact[]
+  echipamentId?: string
+  echipamentCod?: string
+}
+
+// Add the defectReclamat field to the LucrareFormProps interface
+interface LucrareFormProps {
+  isEdit?: boolean
+  dataEmiterii: Date | undefined
+  setDataEmiterii: (date: Date | undefined) => void
+  dataInterventie: Date | undefined
+  setDataInterventie: (date: Date | undefined) => void
+  formData: {
+    tipLucrare: string
+    tehnicieni: string[]
+    client: string
+    locatie: string
+    echipament: string
+    descriere: string
+    persoanaContact: string
+    telefon: string
+    statusLucrare: string
+    statusFacturare: string
+    contract?: string
+    contractNumber?: string
+    defectReclamat?: string
+    persoaneContact?: PersoanaContact[]
+    echipamentId?: string
+    echipamentCod?: string
+  }
+  handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void
+  handleSelectChange: (id: string, value: string) => void
+  handleTehnicieniChange: (value: string) => void
+  handleCustomChange?: (field: string, value: any) => void
+  fieldErrors?: string[]
+  onSubmit?: (data: Partial<Lucrare>) => Promise<void>
+  onCancel?: () => void
+  initialData?: Lucrare | null
+}
+
+// Add the following to the LucrareForm component
+export function LucrareForm({
+  isEdit = false,
+  dataEmiterii,
+  setDataEmiterii,
+  dataInterventie,
+  setDataInterventie,
+  formData,
+  handleInputChange,
+  handleSelectChange,
+  handleTehnicieniChange,
+  handleCustomChange,
+  fieldErrors = [],
+  onSubmit,
+  onCancel,
+  initialData,
+}: LucrareFormProps) {
+  const [isAddClientDialogOpen, setIsAddClientDialogOpen] = useState(false)
+  const [tehnicieni, setTehnicieni] = useState<any[]>([])
+  const [loadingTehnicieni, setLoadingTehnicieni] = useState(true)
+  const [timeEmiterii, setTimeEmiterii] = useState<string>(
+    dataEmiterii ? formatTime24(dataEmiterii) : formatTime24(new Date()),
+  )
+  const [timeInterventie, setTimeInterventie] = useState<string>(
+    dataInterventie ? formatTime24(dataInterventie) : formatTime24(new Date()),
+  )
+  const [error, setError] = useState<string | null>(null)
+  const [clientSearchTerm, setClientSearchTerm] = useState("")
+  const [filteredClients, setFilteredClients] = useState<Client[]>([])
+  const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false)
+  const [formModified, setFormModified] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [garantieWarning, setGarantieWarning] = useState<string | null>(null)
+
+  // Track initial form state
+  const [initialFormState, setInitialFormState] = useState({
+    dataEmiterii,
+    dataInterventie,
+    formData: JSON.stringify(formData),
+  })
+
+  // Use the unsaved changes hook
+  const { showDialog, handleNavigation, confirmNavigation, cancelNavigation, pendingUrl } =
+    useUnsavedChanges(formModified)
+
+  // Add state for controlling the popovers
+  const [dateEmiteriiOpen, setDateEmiteriiOpen] = useState(false)
+  const [dateInterventieOpen, setDateInterventieOpen] = useState(false)
+
+  // Adăugăm state pentru clientul selectat
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null)
+
+  // Adăugăm state pentru locația selectată
+  const [selectedLocatie, setSelectedLocatie] = useState<Locatie | null>(null)
+  const [locatii, setLocatii] = useState<Locatie[]>([])
+
+  // Adăugăm state pentru persoanele de contact ale locației selectate
+  const [persoaneContact, setPersoaneContact] = useState<PersoanaContact[]>([])
+
+  // Adăugăm state pentru a controla vizibilitatea acordeonului
+  const [showContactAccordion, setShowContactAccordion] = useState(false)
+
+  // Adăugăm state pentru a stoca echipamentele disponibile pentru locația selectată
+  const [availableEquipments, setAvailableEquipments] = useState<Echipament[]>([])
+
+  // Adăugăm state pentru a urmări dacă echipamentele au fost încărcate
+  const [equipmentsLoaded, setEquipmentsLoaded] = useState(false)
+
+  // Check if form has been modified
+  useEffect(() => {
+    const currentState = {
+      dataEmiterii,
+      dataInterventie,
+      formData: JSON.stringify(formData),
+    }
+
+    const hasChanged =
+      currentState.dataEmiterii !== initialFormState.dataEmiterii ||
+      currentState.dataInterventie !== initialFormState.dataInterventie ||
+      currentState.formData !== initialFormState.formData
+
+    setFormModified(hasChanged)
+  }, [dataEmiterii, dataInterventie, formData, initialFormState])
+
+  // Reset form modified state after successful submission
+  useEffect(() => {
+    if (onSubmit && !isSubmitting) {
+      // Update the initial state to match current state after successful save
+      setInitialFormState({
+        dataEmiterii,
+        dataInterventie,
+        formData: JSON.stringify(formData),
+      })
+      setFormModified(false)
+    }
+  }, [onSubmit, isSubmitting, dataEmiterii, dataInterventie, formData])
+
+  // În componenta LucrareForm, adăugați:
+  const { showPrompt, handleConfirm, handleCancel, handleCancel2 } = useNavigationPrompt(formModified)
+
+  // Handle cancel with confirmation if form is modified
+  const handleCancelWithConfirmation = () => {
+    if (formModified && onCancel) {
+      // Show confirmation dialog
+      handleNavigation("#cancel")
+    } else if (onCancel) {
+      onCancel()
+    }
+  }
+
+  // Confirm cancel action
+  const confirmCancelAction = () => {
+    if (onCancel) {
+      onCancel()
+    }
+  }
+
+  // Handle date selection with proper time preservation
+  const handleDateEmiteriiSelect = useCallback(
+    (date: Date | undefined) => {
+      if (!date) {
+        setDataEmiterii(undefined)
+        return
+      }
+
+      // Create a new date to avoid mutation
+      const newDate = new Date(date)
+
+      // If we already have a date, preserve the time
+      if (dataEmiterii) {
+        newDate.setHours(dataEmiterii.getHours(), dataEmiterii.getMinutes(), dataEmiterii.getSeconds())
+      }
+
+      setDataEmiterii(newDate)
+    },
+    [dataEmiterii, setDataEmiterii],
+  )
+
+  const handleDateInterventieSelect = useCallback(
+    (date: Date | undefined) => {
+      if (!date) {
+        setDataInterventie(undefined)
+        return
+      }
+
+      // Create a new date to avoid mutation
+      const newDate = new Date(date)
+
+      // If we already have a date, preserve the time
+      if (dataInterventie) {
+        newDate.setHours(dataInterventie.getHours(), dataInterventie.getMinutes(), dataInterventie.getSeconds())
+      }
+
+      setDataInterventie(newDate)
+    },
+    [dataInterventie, setDataInterventie],
+  )
+
+  // Actualizăm funcția handleTimeEmiteriiChange pentru a folosi formatul de 24 de ore
+  const handleTimeEmiteriiChange = useCallback(
+    (newTime: string) => {
+      setTimeEmiterii(newTime)
+
+      if (dataEmiterii) {
+        // Creăm o nouă dată cu ora actualizată
+        const [hours, minutes] = newTime.split(":").map(Number)
+        const newDate = new Date(dataEmiterii)
+        newDate.setHours(hours, minutes)
+        setDataEmiterii(newDate)
+      }
+    },
+    [dataEmiterii, setDataEmiterii],
+  )
+
+  // Actualizăm funcția handleTimeInterventieChange pentru a folosi formatul de 24 de ore
+  const handleTimeInterventieChange = useCallback(
+    (newTime: string) => {
+      setTimeInterventie(newTime)
+
+      if (dataInterventie) {
+        // Creăm o nouă dată cu ora actualizată
+        const [hours, minutes] = newTime.split(":").map(Number)
+        const newDate = new Date(dataInterventie)
+        newDate.setHours(hours, minutes)
+        setDataInterventie(newDate)
+      }
+    },
+    [dataInterventie, setDataInterventie],
+  )
+
+  // Actualizăm efectul pentru a folosi formatul de 24 de ore
+  useEffect(() => {
+    if (dataEmiterii) {
+      // Păstrăm ora curentă dacă data se schimbă
+      const currentTime = timeEmiterii || formatTime24(new Date())
+      setTimeEmiterii(currentTime)
+    }
+  }, [dataEmiterii, timeEmiterii])
+
+  // Actualizăm efectul pentru a folosi formatul de 24 de ore
+  useEffect(() => {
+    if (dataInterventie) {
+      // Păstrăm ora curentă dacă data se schimbă
+      const currentTime = timeInterventie || formatTime24(new Date())
+      setTimeInterventie(currentTime)
+    }
+  }, [dataInterventie, timeInterventie])
+
+  // Obținem clienții din Firestore
+  const {
+    data: clienti,
+    loading: loadingClienti,
+    error: clientiError,
+  } = useFirebaseCollection<Client>("clienti", [orderBy("nume", "asc")])
+
+  // Actualizăm lista filtrată de clienți când se schimbă termenul de căutare sau lista de clienți
+  useEffect(() => {
+    if (clienti && clienti.length > 0) {
+      if (clientSearchTerm.trim() === "") {
+        setFilteredClients(clienti)
+      } else {
+        const searchTermLower = clientSearchTerm.toLowerCase()
+        const filtered = clienti.filter((client) => client.nume.toLowerCase().includes(searchTermLower))
+        setFilteredClients(filtered)
+      }
+    } else {
+      setFilteredClients([])
+    }
+  }, [clientSearchTerm, clienti])
+
+  // Încărcăm tehnicienii direct din Firestore
+  useEffect(() => {
+    const fetchTehnicieni = async () => {
+      try {
+        setLoadingTehnicieni(true)
+        const tehnicieniQuery = query(collection(db, "users"), where("role", "==", "tehnician"))
+
+        const unsubscribe = onSnapshot(
+          tehnicieniQuery,
+          (snapshot) => {
+            const tehnicieniData = snapshot.docs.map((doc) => ({
+              id: doc.id,
+              ...doc.data(),
+            }))
+            setTehnicieni(tehnicieniData)
+            setLoadingTehnicieni(false)
+          },
+          (error) => {
+            console.error("Eroare la încărcarea tehnicienilor:", error)
+            setLoadingTehnicieni(false)
+          },
+        )
+
+        return () => unsubscribe()
+      } catch (error) {
+        console.error("Eroare la încărcarea tehnicienilor:", error)
+        setLoadingTehnicieni(false)
+      }
+    }
+
+    fetchTehnicieni()
+  }, [])
+
+  // Verificăm validitatea garanției când se schimbă tipul lucrării sau echipamentul
+  useEffect(() => {
+    if (formData.tipLucrare === "Intervenție în garanție" && formData.echipamentId) {
+      const selectedEquipment = availableEquipments.find(e => e.id === formData.echipamentId)
+      
+      if (selectedEquipment && selectedEquipment.dataInstalare) {
+        const installDate = new Date(selectedEquipment.dataInstalare)
+        const currentDate = new Date()
+        const monthsDiff = differenceInMonths(currentDate, installDate)
+        
+        // Verificăm dacă au trecut mai mult de 24 de luni de la instalare
+        if (monthsDiff > 24) {
+          setGarantieWarning(`
+Atenție!
+Au
+trecut
+$
+{
+  monthsDiff
+}
+luni
+de
+la
+instalare (${format(installDate, "dd.MM.yyyy")}). Garanția
+standard
+este
+de
+maxim
+24
+de
+luni.`)
+        } else if (monthsDiff > 12) {\
+          // Afișăm un avertisment mai puțin sever dacă au trecut între 12 și 24 de luni
+          setGarantieWarning(`
+Informare: Au
+trecut
+$
+{
+  monthsDiff
+}
+luni
+de
+la
+instalare (${format(installDate, "dd.MM.yyyy")}). Verificați
+dacă
+echipamentul
+are
+garanție
+extinsă
+de
+24
+de
+luni.`)
+        } else {
+          setGarantieWarning(null)
+        }
+      } else if (selectedEquipment && !selectedEquipment.dataInstalare) {
+        setGarantieWarning("Atenție! Echipamentul selectat nu are înregistrată o dată de instalare. Verificați dacă este în garanție.")
+      } else {
+        setGarantieWarning(null)
+      }
+    } else {
+      setGarantieWarning(null)
+    }
+  }, [formData.tipLucrare, formData.echipamentId, availableEquipments])
+
+  // Modificăm funcția handleClientChange pentru a reseta echipamentul când se schimbă clientul
+  const handleClientChange = async (value: string) => {
+    // Găsim clientul selectat
+    const client = clienti.find((c) => c.nume === value)
+
+    if (!client) {
+      console.error("Clientul selectat nu a fost găsit în lista de clienți")
+      toast({
+        title: "Eroare",
+        description: "Clientul selectat nu a fost găsit. Vă rugăm să încercați din nou.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Actualizăm formData cu noul client
+    handleSelectChange("client", value)
+
+    // Resetăm câmpurile dependente doar dacă clientul s-a schimbat
+    if (selectedClient?.id !== client.id) {
+      handleSelectChange("locatie", "")
+      handleSelectChange("echipament", "")
+      handleSelectChange("persoanaContact", "")
+      handleSelectChange("telefon", "")
+
+      // Resetăm echipamentul selectat
+      if (handleCustomChange) {
+        handleCustomChange("echipamentId", "")
+        handleCustomChange("echipamentCod", "")
+      }
+
+      // Resetăm echipamentele disponibile
+      setAvailableEquipments([])
+      setEquipmentsLoaded(false)
+
+      // Resetăm acordeonul doar dacă clientul s-a schimbat
+      setShowContactAccordion(false)
+    }
+
+    // Actualizăm starea pentru clientul selectat
+    setSelectedClient(client)
+
+    console.log("Client selectat:", client)
+  }
+
+  // Modificăm funcția handleLocationChange pentru a încărca echipamentele disponibile pentru locația selectată
+  const handleLocationChange = (value: string) => {
+    if (!selectedClient) {
+      console.error("Nu există un client selectat")
+      return
+    }
+
+    const selectedLocation = selectedClient.locatii?.find((loc) => loc.nume === value)
+
+    // Actualizăm datele formularului
+    handleSelectChange("locatie", value)
+
+    // Resetăm echipamentul selectat doar dacă locația s-a schimbat
+    if (selectedLocatie?.nume !== value) {
+      handleSelectChange("echipament", "")
+
+      // Resetăm echipamentul selectat
+      if (handleCustomChange) {
+        handleCustomChange("echipamentId", "")
+        handleCustomChange("echipamentCod", "")
+      }
+    }
+
+    // Actualizăm echipamentele disponibile
+    if (selectedLocation && selectedLocation.echipamente) {
+      console.log("Setăm echipamentele disponibile:", selectedLocation.echipamente)
+      setAvailableEquipments(selectedLocation.echipamente)
+      setEquipmentsLoaded(true)
+    } else {
+      console.log("Nu există echipamente pentru locația selectată")
+      setAvailableEquipments([])
+      setEquipmentsLoaded(true)
+    }
+
+    // Actualizăm locația selectată
+    setSelectedLocatie(selectedLocation || null)
+  }
+
+  // Adăugăm funcție pentru selectarea echipamentului
+  const handleEquipmentSelect = (equipmentId: string, equipment: Echipament) => {
+    console.log("Echipament selectat în LucrareForm:", equipment)
+
+    // Actualizăm toate câmpurile relevante
+    handleSelectChange("echipament", equipment.nume)
+
+    if (handleCustomChange) {
+      handleCustomChange("echipamentId", equipmentId)
+      handleCustomChange("echipamentCod", equipment.cod)
+    }
+
+    // Afișăm un toast pentru feedback
+    toast({
+      title: "Echipament selectat",
+      description: `
+Ați
+selectat
+echipamentul
+$
+{
+  equipment.nume
+}
+(cod: ${equipment.cod})`,
+      variant: "default",
+    })
+  }
+
+  // Actualizăm clientul selectat și locațiile când se schimbă clientul
+  useEffect(() => {
+    if (formData && formData.client && clienti && clienti.length > 0) {
+      const client = clienti.find((c) => c.nume === formData.client)
+      if (client) {
+        setSelectedClient(client)
+
+        // Actualizăm locațiile
+        if (client.locatii && client.locatii.length > 0) {
+          setLocatii(client.locatii)
+        } else {
+          // Dacă clientul nu are locații, creăm una implicită cu persoanele de contact existente
+          const defaultLocatie: Locatie = {
+            nume: "Sediu principal",
+            adresa: client.adresa || "",
+            persoaneContact:
+              client.persoaneContact && client.persoaneContact.length > 0
+                ? client.persoaneContact
+                : [{ nume: client.persoanaContact || "", telefon: client.telefon || "", email: "", functie: "" }],
+            echipamente: [],
+          }
+          setLocatii([defaultLocatie])
+        }
+
+        // Nu resetăm locația selectată dacă avem deja o locație selectată
+        if (!selectedLocatie) {
+          setSelectedLocatie(null)
+          setPersoaneContact([])
+          setShowContactAccordion(false)
+          setAvailableEquipments([])
+          setEquipmentsLoaded(false)
+        }
+      }
+    }
+  }, [formData, formData?.client, clienti, selectedLocatie])
+
+  // Adăugăm funcție pentru gestionarea selecției locației
+  const handleLocatieSelect = (locatieNume: string) => {
+    console.log("Locație selectată:", locatieNume)
+    const locatie = locatii.find((loc) => loc.nume === locatieNume)
+    if (locatie) {
+      console.log("Locație găsită:", locatie)
+      setSelectedLocatie(locatie)
+
+      // Actualizăm persoanele de contact disponibile pentru această locație
+      if (locatie.persoaneContact && locatie.persoaneContact.length > 0) {
+        console.log("Persoane de contact găsite:", locatie.persoaneContact)
+        setPersoaneContact(locatie.persoaneContact)
+
+        // Automatically associate all contacts with the work entry
+        if (handleCustomChange) {
+          handleCustomChange("persoaneContact", locatie.persoaneContact)
+        }
+
+        // If there's at least one contact, set the first one as the primary contact
+        // for backward compatibility
+        if (locatie.persoaneContact.length > 0) {
+          const primaryContact = locatie.persoaneContact[0]
+          handleSelectChange("persoanaContact", primaryContact.nume || "")
+          handleSelectChange("telefon", primaryContact.telefon || "")
+        }
+      } else {
+        console.log("Nu există persoane de contact pentru această locație")
+        setPersoaneContact([])
+
+        // Clear the contacts array
+        if (handleCustomChange) {
+          handleCustomChange("persoaneContact", [])
+        }
+
+        // Clear the primary contact fields
+        handleSelectChange("persoanaContact", "")
+        handleSelectChange("telefon", "")
+      }
+
+      // Actualizăm echipamentele disponibile pentru această locație
+      if (locatie.echipamente && locatie.echipamente.length > 0) {
+        console.log("Echipamente găsite pentru locație:", locatie.echipamente)
+        setAvailableEquipments(locatie.echipamente)
+        setEquipmentsLoaded(true)
+      } else {
+        console.log("Nu există echipamente pentru această locație")
+        setAvailableEquipments([])
+        setEquipmentsLoaded(true)
+      }
+
+      // Activăm afișarea acordeonului și nu-l dezactivăm
+      setShowContactAccordion(true)
+
+      // Actualizăm câmpul locație în formData
+      handleSelectChange("locatie", locatieNume)
+    }
+  }
+
+  // Adăugăm un efect pentru a actualiza echipamentele când se schimbă locația selectată
+  // fără a reseta selecția existentă
+  useEffect(() => {
+    if (selectedLocatie && selectedLocatie.echipamente) {
+      console.log("Actualizare echipamente pentru locația selectată:", selectedLocatie.echipamente)
+      setAvailableEquipments(selectedLocatie.echipamente || [])
+      setEquipmentsLoaded(true)
+
+      // Verificăm dacă echipamentul selectat există în noua listă
+      if (formData.echipamentId) {
+        const echipamentExista = selectedLocatie.echipamente?.some((e) => e.id === formData.echipamentId)
+        if (!echipamentExista) {
+          console.log("Echipamentul selectat anterior nu există în noua locație")
+          // Opțional: putem reseta selecția aici dacă dorim
+          // handleSelectChange("echipament", "");
+          // if (handleCustomChange) {
+          //   handleCustomChange("echipamentId", "");
+          //   handleCustomChange("echipamentCod", "");
+          // }
+        }
+      }
+    }
+  }, [selectedLocatie, formData.echipamentId])
+
+  // Adăugăm un efect pentru a menține starea echipamentului selectat
+  useEffect(() => {
+    if (formData.echipamentId && availableEquipments.length > 0) {
+      const selectedEquipment = availableEquipments.find((e) => e.id === formData.echipamentId)
+      if (selectedEquipment) {
+        console.log("Echipament găsit și setat în formular:", selectedEquipment)
+        // Nu este nevoie să actualizăm formData aici, doar ne asigurăm că echipamentul este găsit
+      } else {
+        console.log("Echipamentul cu ID-ul", formData.echipamentId, "nu a fost găsit în lista disponibilă")
+      }
+    }
+  }, [formData.echipamentId, availableEquipments])
+
+  // Adaugă acest efect pentru debugging
+  useEffect(() => {
+    console.log("Stare availableEquipments:", availableEquipments)
+    console.log("Stare formData.locatie:", formData.locatie)
+    console.log("Stare formData.echipamentId:", formData.echipamentId)
+    console.log("Stare formData.echipament:", formData.echipament)
+    console.log("Condiție disabled:", !formData.locatie)
+  }, [availableEquipments, formData.locatie, formData.echipamentId, formData.echipament])
+
+  // Modificăm funcția handleClientAdded pentru a gestiona corect adăugarea clientului
+  const handleClientAdded = (clientName: string) => {
+    handleSelectChange("client", clientName)
+    setIsAddClientDialogOpen(false)
+  }
+
+  // Verificăm dacă un câmp are eroare
+  const hasError = (fieldName: string) => fieldErrors.includes(fieldName)
+
+  // Stilul pentru câmpurile cu eroare
+  const errorStyle = "border-red-500 focus-visible:ring-red-500"
+
+  const validateForm = () => {
+    let isValid = true
+    const errors: string[] = []
+
+    if (!dataEmiterii) {
+      errors.push("dataEmiterii")
+      isValid = false
+    }
+
+    if (!dataInterventie) {
+      errors.push("dataInterventie")
+      isValid = false
+    }
+
+    if (!formData.tipLucrare) {
+      errors.push("tipLucrare")
+      isValid = false
+    }
+
+    if (formData.tipLucrare === "Intervenție în contract" && !formData.contract) {
+      errors.push("contract")
+      isValid = false
+    }
+
+    return isValid
+  }
+
+  // Add a submit handler if onSubmit is provided
+  const handleSubmit = async () => {
+    if (!onSubmit) return
+
+    if (!validateForm()) {
+      setError("Vă rugăm să completați toate câmpurile obligatorii")
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      const updatedData: Partial<Lucrare> = {
+        dataEmiterii: dataEmiterii ? formatDateTime24(dataEmiterii) : "",
+        dataInterventie: dataInterventie ? formatDateTime24(dataInterventie) : "",
+        tipLucrare: formData.tipLucrare,
+        tehnicieni: formData.tehnicieni,
+        client: formData.client,
+        locatie: formData.locatie,
+        echipament: formData.echipament,
+        descriere: formData.descriere,
+        persoanaContact: formData.persoanaContact,
+        telefon: formData.telefon,
+        statusLucrare: formData.statusLucrare,
+        statusFacturare: formData.statusFacturare,
+        contract: formData.contract,
+        contractNumber: formData.contractNumber,
+        defectReclamat: formData.defectReclamat,
+        // Include all contact persons from the selected location
+        persoaneContact: formData.persoaneContact || persoaneContact,
+        echipamentId: formData.echipamentId,
+        echipamentCod: formData.echipamentCod,
+      }
+
+      await onSubmit(updatedData)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const validateGarantie = useCallback((echipament: any) => {
+    if (!echipament || !echipament.dataInstalare) return true;
+    
+    const dataInstalare = new Date(echipament.dataInstalare);
+    const dataCurenta = new Date();
+    
+    // Calculează diferența în luni
+    const diferentaLuni = 
+      (dataCurenta.getFullYear() - dataInstalare.getFullYear()) * 12 + 
+      (dataCurenta.getMonth() - dataInstalare.getMonth());
+    
+    // Verifică dacă sunt mai puțin de 24 de luni
+    return diferentaLuni <= 24;
+  }, []);
+
+  // Add buttons at the end if onSubmit and onCancel are provided
+  // Adăugăm un efect pentru a actualiza persoanele de contact când se schimbă locația selectată
+  // și pentru a menține starea când se schimbă alte câmpuri
+  useEffect(() => {
+    if (selectedLocatie) {
+      console.log("Locație selectată (effect):", selectedLocatie)
+      if (selectedLocatie.persoaneContact) {
+        console.log("Persoane de contact (effect):", selectedLocatie.persoaneContact)
+        setPersoaneContact(selectedLocatie.persoaneContact)
+
+        // Automatically associate all contacts with the work entry
+        if (handleCustomChange) {
+          handleCustomChange("persoaneContact", selectedLocatie.persoaneContact)
+        }
+      }
+      // Activăm afișarea acordeonului și nu-l dezactivăm niciodată după ce a fost activat
+      setShowContactAccordion(true)
+    }
+  }, [selectedLocatie, handleCustomChange])
+
+  // Adăugăm un efect pentru a actualiza starea când se încarcă datele inițiale
+  useEffect(() => {
+    if (initialData && initialData.locatie && locatii.length > 0) {
+      const locatie = locatii.find((loc) => loc.nume === initialData.locatie)
+      if (locatie) {
+        setSelectedLocatie(locatie)
+        if (locatie.persoaneContact) {
+          setPersoaneContact(locatie.persoaneContact)
+
+          // If we have initial data but no persoaneContact field, initialize it
+          if (handleCustomChange && (!initialData.persoaneContact || initialData.persoaneContact.length === 0)) {
+            handleCustomChange("persoaneContact", locatie.persoaneContact)
+          }
+        }
+        setShowContactAccordion(true)
+
+        // Încărcăm echipamentele pentru locația inițială
+        if (locatie.echipamente) {
+          setAvailableEquipments(locatie.echipamente)
+          setEquipmentsLoaded(true)
+        }
+      }
+    }
+
+    // If we have initial data with persoaneContact, use that
+    if (initialData && initialData.persoaneContact && initialData.persoaneContact.length > 0) {
+      setPersoaneContact(initialData.persoaneContact)
+      setShowContactAccordion(true)
+    }
+  }, [initialData, locatii, handleCustomChange])
+
+  // Adăugăm un efect pentru a afișa erori de încărcare a clienților
+  useEffect(() => {
+    if (clientiError) {
+      console.error("Eroare la încărcarea clienților:", clientiError)
+      toast({
+        title: "Eroare",
+        description: "A apărut o eroare la încărcarea listei de clienți. Vă rugăm să reîncărcați pagina.",
+        variant: "destructive",
+      })
+    }
+  }, [clientiError])
+
+  // Înlocuiți funcția handleCancel cu:
+  const handleFormCancel = () => {
+    handleCancel2(onCancel)
+  }
+
+  const tipuriLucrari = [
+    "Ofertare",
+    "Contractare",
+    "Pregătire în atelier",
+    "Instalare",
+    "Predare",
+    "Intervenție în garanție",
+    "Intervenție contra cost",
+    "Intervenție în contract",
+    "Re-Interventie"
+  ];
+
+  return (
+    <div className="modal-calendar-container">
+      {error && <div className="text-red-500 mb-4">{error}</div>}
+      <div className="grid gap-4 py-4">
+        <div className="grid grid-cols-1 gap-6">
+          {/* Data Emiterii - Setată automat și nemodificabilă */}
+          <div className="space-y-2">
+            <label htmlFor="dataEmiterii" className="text-sm font-medium flex items-center">
+              Data Emiterii
+              <span className="ml-2 text-xs text-muted-foreground bg-gray-100 px-2 py-0.5 rounded">Automată</span>
+            </label>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="sm:w-2/3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-start text-left font-normal opacity-90 cursor-not-allowed"
+                  disabled
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dataEmiterii ? format(dataEmiterii, "dd.MM.yyyy", { locale: ro }) : "Data curentă"}
+                </Button>
+              </div>
+              <div className="relative sm:w-1/3">
+                <Input
+                  type="text"
+                  value={formatTime24(dataEmiterii || new Date())}
+                  className="cursor-not-allowed opacity-90"
+                  disabled
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">Data și ora emiterii sunt setate automat cu data curentă</p>
+          </div>
+
+          {/* Data Solicitată Intervenție - Updated with new date picker */}
+          <div className="space-y-2">
+            <label htmlFor="dataInterventie" className="text-sm font-medium">
+              Data solicitată intervenție *
+            </label>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="sm:w-2/3">
+                <Popover open={dateInterventieOpen} onOpenChange={setDateInterventieOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={`
+w - full
+justify - start
+text - left
+font - normal
+$
+{
+  hasError("dataInterventie") ? errorStyle : ""
+}
+;`}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dataInterventie ? (
+                        format(dataInterventie, "dd.MM.yyyy", { locale: ro })
+                      ) : (
+                        <span>Selectați data</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start" sideOffset={4}>
+                    <CustomDatePicker
+                      selectedDate={dataInterventie}
+                      onDateChange={handleDateInterventieSelect}
+                      onClose={() => setDateInterventieOpen(false)}
+                      hasError={hasError("dataInterventie")}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="relative sm:w-1/3">
+                <TimeSelector
+                  value={timeInterventie}
+                  onChange={handleTimeInterventieChange}
+                  label="Ora intervenției"
+                  id="timeInterventie"
+                  hasError={hasError("dataInterventie")}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">Data și ora solicitată pentru intervenție</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <label htmlFor="tipLucrare" className="text-sm font-medium">
+              Tip Lucrare *
+            </label>
+            <Select value={formData.tipLucrare} onValueChange={(value) => handleSelectChange("tipLucrare", value)}>
+              <SelectTrigger id="tipLucrare" className={hasError("tipLucrare") ? errorStyle : ""}>
+                <SelectValue placeholder="Selectați tipul" />
+              </SelectTrigger>
+              <SelectContent>
+                {tipuriLucrari.map((tip) => (
+                  <SelectItem key={tip} value={tip}>
+                    {tip}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {formData.tipLucrare === "Intervenție în contract" && (
+            <div className="space-y-2">
+              <label htmlFor="contract" className="text-sm font-medium">
+                Contract *
+              </label>
+              <ContractSelect
+                value={formData.contract || ""}
+                onChange={(value, contractNumber) => {
+                  handleSelectChange("contract", value)
+                  handleSelectChange("contractNumber", contractNumber || "")
+                }}
+                hasError={hasError("contract")}
+                errorStyle={errorStyle}
+              />
+              <p className="text-xs text-muted-foreground">Selectați contractul asociat intervenției</p>
+            </div>
+          )}
+          <div className="space-y-2">
+            <label htmlFor="tehnicieni" className="text-sm font-medium">
+              Tehnicieni
+            </label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {formData.tehnicieni.map((tech) => (
+                <Badge key={tech} variant="secondary" className="bg-blue-100 text-blue-800">
+                  {tech}{" "}
+                  <span className="ml-1 cursor-pointer" onClick={() => handleTehnicieniChange(tech)}>
+                    ×
+                  </span>
+                </Badge>
+              ))}
+            </div>
+            <Select onValueChange={handleTehnicieniChange}>
+              <SelectTrigger id="tehnicieni">
+                <SelectValue placeholder="Selectați tehnicienii" />
+              </SelectTrigger>
+              <SelectContent>
+                {loadingTehnicieni ? (
+                  <div className="flex items-center justify-center p-2">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <span>Se încarcă...</span>
+                  </div>
+                ) : tehnicieni.length > 0 ? (
+                  tehnicieni.map((tehnician) => (
+                    <SelectItem key={tehnician.id} value={tehnician.displayName || ""}>
+                      {tehnician.displayName}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <div className="p-2 text-center text-sm text-muted-foreground">Nu există tehnicieni disponibili</div>
+                )}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Puteți selecta mai mulți tehnicieni</p>
+          </div>
+        </div>
+
+        {/* Afișăm avertismentul pentru garanție dacă este cazul */}
+        {garantieWarning && (
+          <Alert variant="warning" className="bg-amber-50 border-amber-200">
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+            <AlertTitle className="text-amber-800">Verificare garanție</AlertTitle>
+            <AlertDescription className="text-amber-700">
+              {garantieWarning}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <div className="space-y-2">
+          <label htmlFor="client" className="text-sm font-medium">
+            Client *
+          </label>
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-2">
+              <Popover open={isClientDropdownOpen} onOpenChange={setIsClientDropdownOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={isClientDropdownOpen}
+                    className={`
+w - full
+justify - between
+$
+{
+  hasError("client") ? errorStyle : ""
+}
+;`}
+                  >
+                    {formData.client || "Selectați clientul"}
+                    <span className="ml-2 opacity-50">▼</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <div className="p-2">
+                    <Input
+                      placeholder="Căutare client..."
+                      value={clientSearchTerm}
+                      onChange={(e) => setClientSearchTerm(e.target.value)}
+                      className="mb-2"
+                    />
+                    <div className="max-h-[200px] overflow-y-auto">
+                      {loadingClienti ? (
+                        <div className="flex items-center justify-center p-4">
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          <span>Se încarcă clienții...</span>
+                        </div>
+                      ) : filteredClients.length > 0 ? (
+                        filteredClients.map((client) => (
+                          <div
+                            key={client.id}
+                            className={`
+px - 2
+py - 1
+cursor - pointer
+hover: bg - gray - 100
+rounded
+$
+{
+  formData.client === client.nume ? "bg-blue-50 text-blue-600" : ""
+}
+`}
+                            onClick={() => {
+                              handleClientChange(client.nume)
+                              setIsClientDropdownOpen(false)
+                              setClientSearchTerm("")
+                            }}
+                          >
+                            {client.nume}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-2 text-center text-sm text-muted-foreground">
+                          {clientSearchTerm ? "Nu s-au găsit clienți" : "Nu există clienți disponibili"}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <Button variant="outline" size="icon" onClick={() => setIsAddClientDialogOpen(true)}>
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+            {selectedClient && (
+              <div className="text-xs text-muted-foreground">
+                Client selectat: <span className="font-medium">{selectedClient.nume}</span>
+                {selectedClient.cif && <span> (CIF: {selectedClient.cif})</span>}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Dialog pentru adăugarea unui client nou */}
+        <Dialog open={isAddClientDialogOpen} onOpenChange={setIsAddClientDialogOpen}>
+          <DialogContent className="w-[calc(100%-2rem)] max-w-[600px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Adaugă Client Nou</DialogTitle>
+            </DialogHeader>
+            <ClientForm onSuccess={handleClientAdded} onCancel={() => setIsAddClientDialogOpen(false)} />
+          </DialogContent>
+        </Dialog>
+
+        {/* Adăugăm secțiunea de locație */}
+        {locatii.length > 0 && (
+          <div className="space-y-2">
+            <label htmlFor="locatie" className="text-sm font-medium">
+              Locație *
+            </label>
+            <Select value={formData.locatie} onValueChange={handleLocatieSelect}>
+              <SelectTrigger id="locatie" className={hasError("locatie") ? errorStyle : ""}>
+                <SelectValue placeholder="Selectați locația" />
+              </SelectTrigger>
+              <SelectContent>
+                {locatii.map((loc, index) => (
+                  <SelectItem key={index} value={loc.nume}>
+                    {loc.nume}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Selectați locația clientului pentru această lucrare. Toate persoanele de contact vor fi asociate automat.
+            </p>
+          </div>
+        )}
+
+        {/* Înlocuim componenta EquipmentSelect cu CustomEquipmentSelect */}
+        <div className="space-y-2">
+          <label htmlFor="echipament" className="text-sm font-medium">
+            Echipament
+          </label>
+          <CustomEquipmentSelect
+            equipments={availableEquipments}
+            value={formData.echipamentId}
+            onSelect={handleEquipmentSelect}
+            disabled={!formData.locatie}
+            placeholder={formData.locatie ? "Selectați echipamentul" : "Selectați mai întâi o locație"}
+            emptyMessage={
+              formData.locatie ? "Nu există echipamente pentru această locație" : "Selectați mai întâi o locație"
+            }
+          />
+          {availableEquipments.length === 0 && formData.locatie && equipmentsLoaded && (
+            <div>
+              <p className="text-xs text-amber-600">
+                Nu există echipamente definite pentru această locație. Puteți adăuga echipamente din secțiunea de
+                gestionare a clientului.
+              </p>
+              <p className="text-xs text-gray-500 mt-1">Locație selectată: {formData.locatie}</p>
+            </div>
+          )}
+          {availableEquipments.length > 0 && (
+            <p className="text-xs text-green-600">
+              {availableEquipments.length} echipamente disponibile pentru această locație
+            </p>
+          )}
+        </div>
+
+        {/* Secțiunea de persoane de contact - afișată ca card informativ */}
+        {showContactAccordion && (
+          <Card className="p-4 border rounded-md">
+            <div className="flex items-center gap-2 mb-3">
+              <Users className="h-5 w-5 text-blue-600" />
+              <h3 className="text-md font-medium">Persoane de Contact Asociate</h3>
+              <Badge variant="outline" className="ml-2">
+                {persoaneContact.length}
+              </Badge>
+            </div>
+
+            {persoaneContact.length > 0 ? (
+              <div className="space-y-4">
+                {persoaneContact.map((contact, index) => (
+                  <div key={index} className="p-3 border rounded-md space-y-2 bg-gray-50">
+                    <div className="flex justify-between items-center">
+                      <h5 className="text-sm font-medium">{contact.nume}</h5>
+                      {contact.functie && (
+                        <Badge variant="secondary" className="text-xs">
+                          {contact.functie}
+                        </Badge>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2">
+                      <div className="flex items-center text-sm">
+                        <Phone className="h-4 w-4 mr-2 text-muted-foreground" />
+                        <span>{contact.telefon || "Fără telefon"}</span>
+                      </div>
+
+                      {contact.email && (
+                        <div className="flex items-center text-sm">
+                          <Mail className="h-4 w-4 mr-2 text-muted-foreground" />
+                          <span>{contact.email}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-4 text-muted-foreground">
+                Nu există persoane de contact pentru această locație
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground mt-3">
+              Toate persoanele de contact vor fi asociate automat cu această lucrare
+            </p>
+          </Card>
+        )}
+
+        {/* Add the defectReclamat field to the form, after the equipment field */}
+        <div className="space-y-2">
+          <label htmlFor="defectReclamat" className="text-sm font-medium">
+            Defect reclamat
+          </label>
+          <Textarea
+            id="defectReclamat"
+            placeholder="Introduceți defectul reclamat de client"
+            value={formData.defectReclamat || ""}
+            onChange={handleInputChange}
+            className="min-h-[80px] resize-y"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="descriere" className="text-sm font-medium">
+            Descriere Intervenție
+          </label>
+          <Textarea
+            id="descriere"
+            placeholder="Descrieți intervenția"
+            value={formData.descriere}
+            onChange={handleInputChange}
+            className="min-h-[100px] resize-y"
+          />
+        </div>
+
+        {isEdit && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label htmlFor="statusLucrare" className="text-sm font-medium">
+                Status Lucrare
+              </label>
+              <Select
+                value={formData.statusLucrare}
+                onValueChange={(value) => handleSelectChange("statusLucrare", value)}
+              >
+                <SelectTrigger id="statusLucrare">
+                  <SelectValue placeholder="Selectați statusul" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="În așteptare">În așteptare</SelectItem>
+                  <SelectItem value="În curs">În curs</SelectItem>
+                  <SelectItem value="Finalizat">Finalizat</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="statusFacturare" className="text-sm font-medium">
+                Status Facturare
+              </label>
+              <Select
+                value={formData.statusFacturare}
+                onValueChange={(value) => handleSelectChange("statusFacturare", value)}
+              >
+                <SelectTrigger id="statusFacturare">
+                  <SelectValue placeholder="Selectați statusul" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Nefacturat">Nefacturat</SelectItem>
+                  <SelectItem value="Facturat">Facturat</SelectItem>
+                  <SelectItem value="Nu se facturează">Nu se facturează</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+      </div>
+      {formData.tipLucrare === "Intervenție în garanție" && formData.echipament && (
+        <div className="mb-4">
+          {!validateGarantie(formData.echipament) ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Atenție</AlertTitle>
+              <AlertDescription>
+                Garanția pentru acest echipament a expirat (depășește 24 de luni de la instalare).
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Alert>
+              <InfoIcon className="h-4 w-4" />
+              <AlertTitle>Informație</AlertTitle>
+              <AlertDescription>
+                Echipamentul este în perioada de garanție.
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+      )}
+
+      {(onSubmit || onCancel) && (
+        <div className="flex justify-end space-x-2 mt-6">
+          {onCancel && (
+            // Înlocuiți butonul de anulare cu:
+            <Button variant="outline" onClick={handleFormCancel}>
+              Anulează
+            </Button>
+          )}
+          {onSubmit && <Button onClick={handleSubmit}>Salvează</Button>}
+        </div>
+      )}
+
+      {/* Unsaved changes dialog */}
+      <UnsavedChangesDialog
+        open={showDialog}
+        onConfirm={pendingUrl === "#cancel" ? confirmCancelAction : confirmNavigation}
+        onCancel={cancelNavigation}
+      />
+      {/* Adăugați dialogul la sfârșitul componentei, înainte de ultimul </div>: */}
+      <NavigationPromptDialog open={showPrompt} onConfirm={handleConfirm} onCancel={handleCancel} />
+    </div>
   )
 }

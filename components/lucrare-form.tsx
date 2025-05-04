@@ -34,6 +34,9 @@ import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
 // Adăugați aceste importuri la începutul fișierului
 import { useNavigationPrompt } from "@/hooks/use-navigation-prompt"
 import { NavigationPromptDialog } from "@/components/navigation-prompt-dialog"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
+import { differenceInMonths } from "date-fns"
 
 // Define the Lucrare type
 interface Lucrare {
@@ -124,14 +127,16 @@ export function LucrareForm({
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false)
   const [formModified, setFormModified] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [garantieWarning, setGarantieWarning] = useState<string | null>(null)
 
   // Track initial form state
-  const [initialFormState, setInitialFormState] = useState({
+  const [initialFormState, setInitialFormState] = {
     dataEmiterii,
     dataInterventie,
     formData: JSON.stringify(formData),
-  })
-
+  }
+  )
+\
   // Use the unsaved changes hook
   const { showDialog, handleNavigation, confirmNavigation, cancelNavigation, pendingUrl } =
     useUnsavedChanges(formModified)
@@ -353,6 +358,41 @@ export function LucrareForm({
 
     fetchTehnicieni()
   }, [])
+
+  // Verificăm validitatea garanției când se schimbă tipul lucrării sau echipamentul
+  useEffect(() => {
+    if (formData.tipLucrare === "Intervenție în garanție" && formData.echipamentId) {
+      const selectedEquipment = availableEquipments.find((e) => e.id === formData.echipamentId)
+
+      if (selectedEquipment && selectedEquipment.dataInstalare) {
+        const installDate = new Date(selectedEquipment.dataInstalare)
+        const currentDate = new Date()
+        const monthsDiff = differenceInMonths(currentDate, installDate)
+
+        // Verificăm dacă au trecut mai mult de 24 de luni de la instalare
+        if (monthsDiff > 24) {
+          setGarantieWarning(
+            `Atenție! Au trecut ${monthsDiff} luni de la instalare (${format(installDate, "dd.MM.yyyy")}). Garanția standard este de maxim 24 de luni.`,
+          )
+        } else if (monthsDiff > 12) {
+          // Afișăm un avertisment mai puțin sever dacă au trecut între 12 și 24 de luni
+          setGarantieWarning(
+            `Informare: Au trecut ${monthsDiff} luni de la instalare (${format(installDate, "dd.MM.yyyy")}). Verificați dacă echipamentul are garanție extinsă de 24 de luni.`,
+          )
+        } else {
+          setGarantieWarning(null)
+        }
+      } else if (selectedEquipment && !selectedEquipment.dataInstalare) {
+        setGarantieWarning(
+          "Atenție! Echipamentul selectat nu are înregistrată o dată de instalare. Verificați dacă este în garanție.",
+        )
+      } else {
+        setGarantieWarning(null)
+      }
+    } else {
+      setGarantieWarning(null)
+    }
+  }, [formData.tipLucrare, formData.echipamentId, availableEquipments])
 
   // Modificăm funcția handleClientChange pentru a reseta echipamentul când se schimbă clientul
   const handleClientChange = async (value: string) => {
@@ -835,13 +875,15 @@ export function LucrareForm({
                 <SelectValue placeholder="Selectați tipul" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Intervenție contra cost">Intervenție contra cost</SelectItem>
+                <SelectItem value="Ofertare">Ofertare</SelectItem>
+                <SelectItem value="Contractare">Contractare</SelectItem>
                 <SelectItem value="Pregătire în atelier">Pregătire în atelier</SelectItem>
                 <SelectItem value="Instalare">Instalare</SelectItem>
+                <SelectItem value="Predare">Predare</SelectItem>
+                <SelectItem value="Intervenție în garanție">Intervenție în garanție</SelectItem>
+                <SelectItem value="Intervenție contra cost">Intervenție contra cost</SelectItem>
                 <SelectItem value="Intervenție în contract">Intervenție în contract</SelectItem>
                 <SelectItem value="Re-Intervenție">Re-Intervenție</SelectItem>
-                <SelectItem value="Intervenție garanție">Intervenție garanție</SelectItem>
-                <SelectItem value="Predare lucrare">Predare lucrare</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -900,6 +942,15 @@ export function LucrareForm({
             <p className="text-xs text-muted-foreground">Puteți selecta mai mulți tehnicieni</p>
           </div>
         </div>
+
+        {/* Afișăm avertismentul pentru garanție dacă este cazul */}
+        {garantieWarning && (
+          <Alert variant="warning" className="bg-amber-50 border-amber-200">
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+            <AlertTitle className="text-amber-800">Verificare garanție</AlertTitle>
+            <AlertDescription className="text-amber-700">{garantieWarning}</AlertDescription>
+          </Alert>
+        )}
 
         <div className="space-y-2">
           <label htmlFor="client" className="text-sm font-medium">
