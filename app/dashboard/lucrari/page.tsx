@@ -82,6 +82,7 @@ export default function Lucrari() {
   const searchParams = useSearchParams()
   const editId = searchParams.get("edit")
   const { userData } = useAuth()
+  const isTechnician = userData?.role === "tehnician"
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [dataEmiterii, setDataEmiterii] = useState(new Date())
@@ -369,6 +370,17 @@ export default function Lucrari() {
     const fetchLucrareForEdit = async () => {
       if (editId) {
         try {
+          // Dacă utilizatorul este tehnician, nu permitem editarea
+          if (isTechnician) {
+            toast({
+              title: "Acces restricționat",
+              description: "Nu aveți permisiunea de a edita lucrări.",
+              variant: "destructive",
+            })
+            router.push("/dashboard/lucrari")
+            return
+          }
+
           const lucrare = await getLucrareById(editId)
           if (lucrare) {
             handleEdit(lucrare)
@@ -380,7 +392,7 @@ export default function Lucrari() {
     }
 
     fetchLucrareForEdit()
-  }, [editId])
+  }, [editId, isTechnician, router])
 
   // Actualizăm data emiterii și data intervenției la momentul deschiderii dialogului
   useEffect(() => {
@@ -995,9 +1007,11 @@ export default function Lucrari() {
             <DropdownMenuItem onClick={() => handleViewDetails(row.original)}>
               <Eye className="mr-2 h-4 w-4" /> Vizualizează
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleEdit(row.original)}>
-              <Pencil className="mr-2 h-4 w-4" /> Editează
-            </DropdownMenuItem>
+            {!isTechnician && (
+              <DropdownMenuItem onClick={() => handleEdit(row.original)}>
+                <Pencil className="mr-2 h-4 w-4" /> Editează
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={() => handleGenerateReport(row.original)}>
               <FileText className="mr-2 h-4 w-4" /> Generează Raport
             </DropdownMenuItem>
@@ -1015,50 +1029,52 @@ export default function Lucrari() {
   return (
     <DashboardShell>
       <DashboardHeader heading="Lucrări" text="Gestionați toate lucrările și intervențiile">
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Adaugă</span> Lucrare
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="w-[calc(100%-2rem)] max-w-[600px] max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Adaugă Lucrare Nouă</DialogTitle>
-              <DialogDescription>Completați detaliile pentru a crea o lucrare nouă</DialogDescription>
-            </DialogHeader>
-            {error && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-            <LucrareForm
-              dataEmiterii={dataEmiterii}
-              setDataEmiterii={setDataEmiterii}
-              dataInterventie={dataInterventie}
-              setDataInterventie={setDataInterventie}
-              formData={formData}
-              handleInputChange={handleInputChange}
-              handleSelectChange={handleSelectChange}
-              handleTehnicieniChange={handleTehnicieniChange}
-              fieldErrors={fieldErrors}
-            />
-            <DialogFooter className="flex-col gap-2 sm:flex-row">
-              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                Anulează
+        {!isTechnician && (
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-blue-600 hover:bg-blue-700">
+                <Plus className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Adaugă</span> Lucrare
               </Button>
-              <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSubmit} disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
-                  </>
-                ) : (
-                  "Salvează"
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent className="w-[calc(100%-2rem)] max-w-[600px] max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Adaugă Lucrare Nouă</DialogTitle>
+                <DialogDescription>Completați detaliile pentru a crea o lucrare nouă</DialogDescription>
+              </DialogHeader>
+              {error && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+              <LucrareForm
+                dataEmiterii={dataEmiterii}
+                setDataEmiterii={setDataEmiterii}
+                dataInterventie={dataInterventie}
+                setDataInterventie={setDataInterventie}
+                formData={formData}
+                handleInputChange={handleInputChange}
+                handleSelectChange={handleSelectChange}
+                handleTehnicieniChange={handleTehnicieniChange}
+                fieldErrors={fieldErrors}
+              />
+              <DialogFooter className="flex-col gap-2 sm:flex-row">
+                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                  Anulează
+                </Button>
+                <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSubmit} disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
+                    </>
+                  ) : (
+                    "Salvează"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
 
         {/* Dialog pentru editarea lucrării */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -1262,14 +1278,16 @@ export default function Lucrari() {
                           >
                             <Eye className="mr-2 h-4 w-4" /> Vizualizează
                           </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleEdit(lucrare)
-                            }}
-                          >
-                            <Pencil className="mr-2 h-4 w-4" /> Editează
-                          </DropdownMenuItem>
+                          {!isTechnician && (
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleEdit(lucrare)
+                              }}
+                            >
+                              <Pencil className="mr-2 h-4 w-4" /> Editează
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation()

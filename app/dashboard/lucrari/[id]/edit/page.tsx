@@ -8,17 +8,33 @@ import { LucrareForm } from "@/components/lucrare-form"
 import { getLucrareById, updateLucrare } from "@/lib/firebase/firestore"
 import { addLog } from "@/lib/firebase/firestore"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { toast } from "@/components/ui/use-toast"
 import { Loader2 } from "lucide-react"
 import type { PersoanaContact } from "@/lib/firebase/firestore"
 import { sendWorkOrderNotifications } from "@/components/work-order-notification-service"
 import { serverTimestamp } from "firebase/firestore"
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { Mail, AlertCircle } from "lucide-react"
+import { useAuth } from "@/contexts/AuthContext"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function EditLucrarePage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const { id } = params
+  const { userData } = useAuth()
+  const { toast } = useToast()
+
+  // Verificăm dacă utilizatorul este tehnician și redirecționăm dacă este
+  useEffect(() => {
+    if (userData?.role === "tehnician") {
+      toast({
+        title: "Acces restricționat",
+        description: "Nu aveți permisiunea de a edita lucrări.",
+        variant: "destructive",
+      })
+      router.push("/dashboard/lucrari")
+    }
+  }, [userData, router])
+
   const [loading, setLoading] = useState(true)
   const [dataEmiterii, setDataEmiterii] = useState<Date | undefined>(undefined)
   const [dataInterventie, setDataInterventie] = useState<Date | undefined>(undefined)
@@ -93,7 +109,7 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
     }
 
     fetchLucrare()
-  }, [id])
+  }, [id, toast])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { id, value } = e.target
