@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/components/ui/use-toast"
-import { ChevronLeft, FileText, Pencil, Trash2, AlertCircle, CheckCircle, Lock, Download, Mail } from "lucide-react"
+import { ChevronLeft, FileText, Pencil, Trash2, AlertCircle, CheckCircle, Lock, Eye } from "lucide-react"
 import { getLucrareById, deleteLucrare, updateLucrare } from "@/lib/firebase/firestore"
 import { TehnicianInterventionForm } from "@/components/tehnician-intervention-form"
 import { useAuth } from "@/contexts/AuthContext"
@@ -199,7 +199,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
     )
   }
 
-  const isCompleted = lucrare.statusLucrare === "Finalizat"
+  const isRaportGenerat = lucrare.raportGenerat === true
 
   return (
     <DashboardShell>
@@ -208,20 +208,13 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
           <Button variant="outline" onClick={() => router.push("/dashboard/lucrari")}>
             <ChevronLeft className="mr-2 h-4 w-4" /> Înapoi
           </Button>
-          <Button onClick={handleGenerateReport}>
-            {isCompleted ? (
-              <>
-                <Download className="mr-2 h-4 w-4" /> Descarcă raport
-              </>
-            ) : (
-              <>
-                <FileText className="mr-2 h-4 w-4" /> Generează raport
-              </>
-            )}
-          </Button>
-          {isCompleted && role === "tehnician" && (
-            <Button variant="outline" onClick={() => router.push(`/raport/${lucrare.id}?email=true`)}>
-              <Mail className="mr-2 h-4 w-4" /> Trimite raport
+          {role === "tehnician" && isRaportGenerat ? (
+            <Button onClick={handleGenerateReport}>
+              <Eye className="mr-2 h-4 w-4" /> Vizualizează raport
+            </Button>
+          ) : (
+            <Button onClick={handleGenerateReport}>
+              <FileText className="mr-2 h-4 w-4" /> {role === "tehnician" ? "Generează raport" : "Vizualizează raport"}
             </Button>
           )}
         </div>
@@ -245,6 +238,17 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
           <CheckCircle className="h-4 w-4 text-green-500" />
           <AlertTitle>Echipament verificat</AlertTitle>
           <AlertDescription>Echipamentul a fost verificat cu succes. Puteți continua intervenția.</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Adăugăm un banner de notificare pentru tehnicieni dacă raportul a fost generat */}
+      {role === "tehnician" && isRaportGenerat && (
+        <Alert variant="success" className="mb-4 bg-green-50 border-green-200">
+          <CheckCircle className="h-4 w-4 text-green-500" />
+          <AlertTitle>Raport generat</AlertTitle>
+          <AlertDescription>
+            Raportul pentru această lucrare a fost generat. Nu mai puteți modifica detaliile intervenției.
+          </AlertDescription>
         </Alert>
       )}
 
@@ -452,6 +456,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                 initialData={{
                   descriereInterventie: lucrare.descriereInterventie,
                   statusLucrare: lucrare.statusLucrare,
+                  raportGenerat: lucrare.raportGenerat,
                 }}
                 onUpdate={refreshLucrare}
               />

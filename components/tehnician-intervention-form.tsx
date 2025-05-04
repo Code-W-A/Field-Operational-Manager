@@ -17,13 +17,13 @@ interface TehnicianInterventionFormProps {
   initialData: {
     descriereInterventie?: string
     statusLucrare: string
+    raportGenerat?: boolean
   }
   onUpdate: () => void
 }
 
 export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: TehnicianInterventionFormProps) {
-  // Verificăm dacă lucrarea este deja finalizată
-  const isCompleted = initialData.statusLucrare === "Finalizat"
+  const isRaportGenerat = initialData.raportGenerat === true
   const [formData, setFormData] = useState({
     descriereInterventie: initialData.descriereInterventie || "",
     statusLucrare: initialData.statusLucrare,
@@ -70,6 +70,16 @@ export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: 
 
   return (
     <div className="space-y-6">
+      {isRaportGenerat && (
+        <Alert variant="success" className="bg-green-50 border-green-200">
+          <AlertCircle className="h-4 w-4 text-green-500" />
+          <AlertTitle>Raport generat</AlertTitle>
+          <AlertDescription>
+            Raportul pentru această lucrare a fost generat. Nu mai puteți modifica detaliile intervenției.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Descriere Intervenție</CardTitle>
@@ -81,7 +91,7 @@ export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: 
             value={formData.descriereInterventie}
             onChange={handleInputChange}
             className="min-h-[150px] resize-y"
-            disabled={isCompleted}
+            disabled={isRaportGenerat}
           />
         </CardContent>
       </Card>
@@ -91,7 +101,7 @@ export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: 
           <CardTitle>Status Lucrare</CardTitle>
         </CardHeader>
         <CardContent>
-          <Select value={formData.statusLucrare} onValueChange={handleSelectChange} disabled={isCompleted}>
+          <Select value={formData.statusLucrare} onValueChange={handleSelectChange} disabled={isRaportGenerat}>
             <SelectTrigger>
               <SelectValue placeholder="Selectați statusul" />
             </SelectTrigger>
@@ -105,30 +115,18 @@ export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: 
       </Card>
 
       <div className="flex justify-end">
-        <Button onClick={handleSubmit} disabled={isSubmitting || isCompleted}>
+        <Button onClick={handleSubmit} disabled={isSubmitting || isRaportGenerat}>
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
             </>
-          ) : isCompleted ? (
-            "Lucrare finalizată"
+          ) : isRaportGenerat ? (
+            "Raport generat"
           ) : (
             "Finalizează și emite raport"
           )}
         </Button>
       </div>
-      {isCompleted && (
-        <div className="mt-4">
-          <Alert variant="warning">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Lucrare finalizată</AlertTitle>
-            <AlertDescription>
-              Această lucrare a fost finalizată și nu mai poate fi modificată. Puteți doar descărca sau trimite
-              raportul.
-            </AlertDescription>
-          </Alert>
-        </div>
-      )}
     </div>
   )
 }
