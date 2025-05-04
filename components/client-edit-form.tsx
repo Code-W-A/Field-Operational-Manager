@@ -659,14 +659,14 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {locatie.echipamente.map((echipament, echipamentIndex) => (
                           <div key={echipamentIndex} className="p-4 border rounded-md bg-gray-50 relative">
-                            <div className="flex justify-between items-start mb-2">
-                              <div className="flex-grow">
-                                <h5 className="font-medium">{echipament.nume}</h5>
+                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
+                              <div className="min-w-0">
+                                <h5 className="font-medium truncate">{echipament.nume}</h5>
                                 <Badge variant="outline" className="mt-1">
                                   Cod: {echipament.cod}
                                 </Badge>
                               </div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 shrink-0">
                                 <EquipmentQRCode
                                   equipment={echipament}
                                   clientName={formData.nume}
@@ -677,7 +677,7 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleOpenEditEchipamentDialog(locatieIndex, echipamentIndex)}
-                                  className="h-8 w-8 p-0 flex-shrink-0"
+                                  className="h-8 w-8 p-0 shrink-0"
                                 >
                                   <Wrench className="h-4 w-4" />
                                 </Button>
@@ -686,7 +686,7 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleDeleteEchipament(locatieIndex, echipamentIndex)}
-                                  className="h-8 w-8 p-0 text-red-500 flex-shrink-0"
+                                  className="h-8 w-8 p-0 shrink-0 text-red-500"
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
