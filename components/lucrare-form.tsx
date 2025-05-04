@@ -30,14 +30,6 @@ import { CustomEquipmentSelect } from "@/components/custom-equipment-select"
 import { Input } from "@/components/ui/input"
 import { toast } from "@/components/ui/use-toast"
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
-// Adăugați aceste importuri la începutul fișierului
-// Remove these imports:
-// import { useNavigationPrompt } from "@/hooks/use-navigation-prompt"
-// import { NavigationPromptDialog } from "@/components/navigation-prompt-dialog"
-
-// Keep the useUnsavedChanges import
-// import { useNavigationPrompt } from "@/hooks/use-navigation-prompt"
-// import { NavigationPromptDialog } from "@/components/navigation-prompt-dialog"
 import { useAuth } from "@/contexts/AuthContext"
 
 // Define the Lucrare type
@@ -225,54 +217,11 @@ export function LucrareForm({
     setFormModified(hasChanged)
   }, [dataEmiterii, dataInterventie, formData, initialFormState])
 
-  // Reset form modified state after successful submission
-  useEffect(() => {
-    if (onSubmit && !isSubmitting) {
-      // Update the initial state to match current state after successful save
-      setInitialFormState({
-        dataEmiterii,
-        dataInterventie,
-        formData: JSON.stringify(formData),
-      })
-      setFormModified(false)
-    }
-  }, [onSubmit, isSubmitting, dataEmiterii, dataInterventie, formData])
-
-  // Add these functions to handle the confirmation dialog
-  // const handleCloseAttempt = (action: string) => {
-  //   if (formModified) {
-  //     setPendingAction(action)
-  //     setShowConfirmDialog(true)
-  //   } else {
-  //     executeAction(action)
-  //   }
-  // }
-
-  // const executeAction = (action: string) => {
-  //   if (action === 'cancel' && onCancel) {
-  //     onCancel()
-  //   }
-  //   // Add other actions as needed
-  // }
-
-  // const handleConfirmClose = () => {
-  //   executeAction(pendingAction || '')
-  //   setShowConfirmDialog(false)
-  //   setPendingAction(null)
-  // }
-
-  // const handleCancelClose = () => {
-  //   setShowConfirmDialog(false)
-  //   setPendingAction(null)
-  // }
-
-  // În componenta LucrareForm, adăugați:
-
   // Handle cancel with confirmation if form is modified
   const handleCancelWithConfirmation = () => {
     if (formModified && onCancel) {
       // Show confirmation dialog
-      // handleNavigation("#cancel")
+      handleCloseAttempt("cancel")
     } else if (onCancel) {
       onCancel()
     }
@@ -751,6 +700,14 @@ export function LucrareForm({
       }
 
       await onSubmit(updatedData)
+
+      // Reset form modified state after successful submission
+      setInitialFormState({
+        dataEmiterii,
+        dataInterventie,
+        formData: JSON.stringify(formData),
+      })
+      setFormModified(false)
     } finally {
       setIsSubmitting(false)
     }
@@ -823,10 +780,6 @@ export function LucrareForm({
   const handleFormCancel = () => {
     handleCloseAttempt("cancel")
   }
-
-  // Declare handleNavigation
-  // const handleNavigation = useNavigationPrompt()
-  const handleNavigation = () => {}
 
   return (
     <div className="modal-calendar-container">
