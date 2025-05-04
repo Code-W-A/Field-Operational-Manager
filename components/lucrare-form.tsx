@@ -130,12 +130,11 @@ export function LucrareForm({
   const [garantieWarning, setGarantieWarning] = useState<string | null>(null)
 
   // Track initial form state
-  const [initialFormState, setInitialFormState] = {
+  const [initialFormState, setInitialFormState] = useState({
     dataEmiterii,
     dataInterventie,
     formData: JSON.stringify(formData),
-  }
-  )
+  })
 
   // Use the unsaved changes hook
   const { showDialog, handleNavigation, confirmNavigation, cancelNavigation, pendingUrl } =
