@@ -29,10 +29,10 @@ export function MainNav({ className, ...props }: React.HTMLAttributes<HTMLElemen
 
   return (
     <div className={cn("flex items-center space-x-4 lg:space-x-6", className)} {...props}>
-      <Link href="/" className="hidden items-center space-x-2 md:flex">
+      <Link href="/" className="hidden md:flex items-center space-x-2">
         <span className="hidden font-bold sm:inline-block">FOM</span>
       </Link>
-      <nav className="flex items-center space-x-4 lg:space-x-6">
+      <nav className="hidden md:flex items-center space-x-4 lg:space-x-6">
         <Link
           href="/dashboard"
           className={cn(

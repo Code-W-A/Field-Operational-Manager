@@ -14,8 +14,8 @@ export function DashboardShell({ children, className }: DashboardShellProps) {
       <header className="sticky top-0 z-40 border-b bg-background">
         <div className="container flex h-16 items-center justify-between py-4 px-6">
           <div className="flex items-center gap-2">
-            <MobileNav />
-            <MainNav />
+            <MobileNav className="md:hidden" />
+            <MainNav className="hidden md:flex" />
           </div>
           <UserNav />
         </div>

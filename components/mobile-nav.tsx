@@ -11,7 +11,7 @@ import { Menu } from "lucide-react"
 import { ClipboardList, Users, Settings, FileText, Home, LogOut } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 
-export function MobileNav() {
+export function MobileNav({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   const [open, setOpen] = React.useState(false)
   const pathname = usePathname()
   const { userData } = useAuth()
@@ -21,9 +21,9 @@ export function MobileNav() {
   const isTechnician = userData?.role === "tehnician"
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={setOpen} {...props}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="md:hidden">
+        <Button variant="ghost" size="icon">
           <Menu className="h-5 w-5" />
           <span className="sr-only">Toggle menu</span>
         </Button>
