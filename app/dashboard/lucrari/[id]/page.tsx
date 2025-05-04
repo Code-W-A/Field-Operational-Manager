@@ -235,24 +235,26 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
 <TabsList
-  /* pe mobil => 2 coloane; peste md => 3 (cum aveai) */
-  className="grid w-full grid-cols-2 gap-2 md:w-auto md:grid-cols-3"
+  /*   ↘ container flexibil, se împachetează și își calculează înălțimea
+       ↘ păstrăm fundalul gri și padding-ul original  */
+  className="inline-flex w-full flex-wrap gap-2 h-auto
+             bg-muted p-1 rounded-md text-muted-foreground
+             md:flex-nowrap md:w-auto"
 >
-  {/* ------------ 1. Detalii --------------------------------------- */}
+  {/* ------------ 1. Detalii (50 %) ------------------------------- */}
   <TabsTrigger
     value="detalii"
-    className="text-center whitespace-normal"
+    className="flex-1 basis-1/2 text-center whitespace-normal"
   >
     Detalii&nbsp;Lucrare
   </TabsTrigger>
 
-  {/* ------------ 2. Intervenție ---------------------------------- */}
+  {/* ------------ 2. Intervenție (50 %) --------------------------- */}
   {role === "tehnician" && (
     <TabsTrigger
       value="interventie"
       disabled={role === "tehnician" && !equipmentVerified}
-      /* păstrăm icon-ul de lacăt exact ca înainte */
-      className={`text-center whitespace-normal ${
+      className={`flex-1 basis-1/2 text-center whitespace-normal ${
         role === "tehnician" && !equipmentVerified ? "relative" : ""
       }`}
     >
@@ -263,13 +265,11 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
     </TabsTrigger>
   )}
 
-  {/* ------------ 3. Verificare echipament ------------------------ */}
+  {/* ------------ 3. Verificare Echipament (100 % pe mobil) ------- */}
   {role === "tehnician" && (
     <TabsTrigger
       value="verificare"
-      /*  ▸ pe ecrane < md: span pe 2 coloane (100 %)
-          ▸ peste md revine la 1 coloană (33 %)          */
-      className="text-center whitespace-normal col-span-2 md:col-span-1"
+      className="basis-full md:basis-auto text-center whitespace-normal"
     >
       Verificare&nbsp;Echipament
     </TabsTrigger>
