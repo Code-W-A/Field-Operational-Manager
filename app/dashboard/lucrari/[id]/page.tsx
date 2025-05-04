@@ -249,6 +249,15 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
     Detalii&nbsp;Lucrare
   </TabsTrigger>
 
+  {/* ------------ 3. Verificare Echipament (100 % pe mobil) ------- */}
+  {role === "tehnician" && (
+    <TabsTrigger
+      value="verificare"
+      className="basis-full md:basis-auto text-center whitespace-normal"
+    >
+      Confirmare echipament
+    </TabsTrigger>
+  )}
   {/* ------------ 2. Intervenție (50 %) --------------------------- */}
   {role === "tehnician" && (
     <TabsTrigger
@@ -265,15 +274,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
     </TabsTrigger>
   )}
 
-  {/* ------------ 3. Verificare Echipament (100 % pe mobil) ------- */}
-  {role === "tehnician" && (
-    <TabsTrigger
-      value="verificare"
-      className="basis-full md:basis-auto text-center whitespace-normal"
-    >
-      Verificare&nbsp;Echipament
-    </TabsTrigger>
-  )}
+
 </TabsList>
 
 
