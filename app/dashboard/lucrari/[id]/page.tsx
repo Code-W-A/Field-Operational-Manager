@@ -235,15 +235,10 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
 <TabsList
-  /* 3 coloane dacă există 3 tab-uri, altfel rămân 2.
-     gap-ul mic împiedică lipirea cardurilor */
-  className={`grid w-full ${
-    role === "tehnician" ? "grid-cols-3" : "grid-cols-2"
-  } gap-2
-  /* peste md păstrăm 3 coloane indiferent de rol */
-  md:w-auto md:grid-cols-3`}
+  /* pe mobil => 2 coloane; peste md => 3 (cum aveai) */
+  className="grid w-full grid-cols-2 gap-2 md:w-auto md:grid-cols-3"
 >
-  {/* --- 1. Detalii --------------------------------------------------- */}
+  {/* ------------ 1. Detalii --------------------------------------- */}
   <TabsTrigger
     value="detalii"
     className="text-center whitespace-normal"
@@ -251,11 +246,12 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
     Detalii&nbsp;Lucrare
   </TabsTrigger>
 
-  {/* --- 2. Intervenție ---------------------------------------------- */}
+  {/* ------------ 2. Intervenție ---------------------------------- */}
   {role === "tehnician" && (
     <TabsTrigger
       value="interventie"
       disabled={role === "tehnician" && !equipmentVerified}
+      /* păstrăm icon-ul de lacăt exact ca înainte */
       className={`text-center whitespace-normal ${
         role === "tehnician" && !equipmentVerified ? "relative" : ""
       }`}
@@ -267,16 +263,19 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
     </TabsTrigger>
   )}
 
-  {/* --- 3. Verificare echipament ------------------------------------ */}
+  {/* ------------ 3. Verificare echipament ------------------------ */}
   {role === "tehnician" && (
     <TabsTrigger
       value="verificare"
-      className="text-center whitespace-normal"
+      /*  ▸ pe ecrane < md: span pe 2 coloane (100 %)
+          ▸ peste md revine la 1 coloană (33 %)          */
+      className="text-center whitespace-normal col-span-2 md:col-span-1"
     >
       Verificare&nbsp;Echipament
     </TabsTrigger>
   )}
 </TabsList>
+
 
 
         <TabsContent value="detalii" className="mt-4">
