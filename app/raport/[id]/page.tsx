@@ -450,7 +450,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
                   <h3 className="font-medium text-gray-500">Status Lucrare</h3>
                   <Select value={statusLucrare} onValueChange={handleStatusChange}>
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selectați statusul" />
+                      <SelectValue placeholder="Selecta��i statusul" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="În așteptare">În așteptare</SelectItem>

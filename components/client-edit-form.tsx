@@ -702,7 +702,9 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
                                 locationName={locatie.nume}
                               />
 
-                              <Button
+                       
+                                   {isAdmin ? (
+                                 <Button
                                 type="button"
                                 variant="ghost"
                                 size="sm"
@@ -711,6 +713,7 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
                               >
                                 <Wrench className="h-4 w-4" />
                               </Button>
+                              ) : null}
 
                               {isAdmin ? (
                                 <Button
@@ -722,26 +725,7 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
-                              ) : (
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        disabled
-                                        className="h-8 w-8 p-0 shrink-0 text-gray-300 cursor-not-allowed"
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>Doar administratorii pot șterge echipamente</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              )}
+                              ) : null}
                             </div>
                           </div>
                         ))}
