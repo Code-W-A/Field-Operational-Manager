@@ -320,6 +320,9 @@ export default function RaportPage({ params }: { params: { id: string } }) {
     }
   }, [email, pdfBlob, sendEmail])
 
+  // Verificăm dacă lucrarea este finalizată:
+  const isCompleted = lucrare?.statusLucrare === "Finalizat"
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
       <Card className="w-full max-w-3xl">
@@ -352,6 +355,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
                   <ReportGenerator
                     ref={reportGeneratorRef}
                     lucrare={lucrare}
+                    disableEditing={isCompleted && userData?.role === "tehnician"}
                     onGenerate={(blob) => {
                       setPdfBlob(blob)
                       // Send email automatically when PDF is generated
@@ -450,7 +454,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
                   <h3 className="font-medium text-gray-500">Status Lucrare</h3>
                   <Select value={statusLucrare} onValueChange={handleStatusChange}>
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecta��i statusul" />
+                      <SelectValue placeholder="Selectai statusul" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="În așteptare">În așteptare</SelectItem>

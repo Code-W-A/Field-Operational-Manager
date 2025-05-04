@@ -67,8 +67,8 @@
     "nodemailer": "latest",
     "path": "latest",
     "uuid": "latest",
-    "jspdf": "latest",
     "html2canvas": "latest",
+    "jspdf": "latest",
     "react-qr-reader": "latest",
     "qrcode.react": "latest"
   },

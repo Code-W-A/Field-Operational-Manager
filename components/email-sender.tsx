@@ -14,9 +14,10 @@ import type { ProductItem } from "@/lib/firebase/firestore"
 interface EmailSenderProps {
   lucrare: Lucrare & { products?: ProductItem[] }
   defaultEmail?: string
+  disableRegeneration?: boolean
 }
 
-export function EmailSender({ lucrare, defaultEmail = "" }: EmailSenderProps) {
+export function EmailSender({ lucrare, defaultEmail = "", disableRegeneration }: EmailSenderProps) {
   const [email, setEmail] = useState(defaultEmail)
   const [subject, setSubject] = useState(`Raport Interventie - ${lucrare.client} - ${lucrare.dataInterventie}`)
   const [message, setMessage] = useState(
@@ -167,7 +168,7 @@ Echipa de interventie`,
                   setIsGenerating(false)
                   toast({
                     title: "PDF generat cu succes",
-                    description: "Acum puteti trimite emailul",
+                    description: "Acum puteți trimite emailul",
                   })
                 },
               })
@@ -175,7 +176,7 @@ Echipa de interventie`,
             }
             generatorButton.click()
           }}
-          disabled={isGenerating}
+          disabled={isGenerating || disableRegeneration}
           variant="outline"
         >
           {isGenerating ? (
@@ -183,7 +184,11 @@ Echipa de interventie`,
               <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se generează PDF...
             </>
           ) : pdfBlob ? (
-            "Regenerează PDF"
+            disableRegeneration ? (
+              "PDF generat"
+            ) : (
+              "Regenerează PDF"
+            )
           ) : (
             "Generează PDF"
           )}
