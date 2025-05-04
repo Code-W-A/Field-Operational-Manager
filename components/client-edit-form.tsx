@@ -5,7 +5,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, Loader2, Plus, Trash2, MapPin,Wranch, AlertTriangle } from "lucide-react"
+import { AlertCircle, Loader2, Plus, Trash2,, Wrench, MapPin, AlertTriangle } from "lucide-react"
 import {
   updateClient,
   type Client,
@@ -672,22 +672,23 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
                                   clientName={formData.nume}
                                   locationName={locatie.nume}
                                 />
-                                <Button
+                                  <Button
                                   type="button"
-                                  variant="outline"
+                                  variant="ghost"
                                   size="sm"
                                   onClick={() => handleOpenEditEchipamentDialog(locatieIndex, echipamentIndex)}
+                                  className="h-8 w-8 p-0 flex-shrink-0"
                                 >
-                                      <Wranch className="h-4 w-4" />
+                                  <Wrench className="h-4 w-4" />
                                 </Button>
                                 <Button
                                   type="button"
-                                  variant="outline"
+                                  variant="ghost"
                                   size="sm"
                                   onClick={() => handleDeleteEchipament(locatieIndex, echipamentIndex)}
-                                  className="text-red-500 border-red-200 hover:bg-red-50"
+                                  className="h-8 w-8 p-0 text-red-500 flex-shrink-0"
                                 >
-                                     <Trash2 className="h-4 w-4" />
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
                             </div>
