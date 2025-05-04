@@ -1,99 +1,65 @@
 "use client"
 
-import { DashboardHeader } from "@/components/dashboard-header"
-import { DashboardShell } from "@/components/dashboard-shell"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Settings, Mail, FileText, Database, PenToolIcon as Tool, FileCode, FileCheck } from "lucide-react"
+import { useAuth } from "@/contexts/AuthContext"
+import { ClientDataRepairTool } from "@/components/client-data-repair-tool"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Loader2, ShieldAlert } from "lucide-react"
 
 export default function AdminPage() {
+  const { user, loading } = useAuth()
   const router = useRouter()
+  const [isAdmin, setIsAdmin] = useState(false)
 
-  const adminTools = [
-    {
-      title: "Setări Email",
-      description: "Configurați setările pentru trimiterea email-urilor",
-      icon: <Mail className="h-6 w-6" />,
-      href: "/dashboard/admin/email-debug",
-    },
-    {
-      title: "Loguri Email",
-      description: "Vizualizați istoricul email-urilor trimise",
-      icon: <FileText className="h-6 w-6" />,
-      href: "/dashboard/admin/email-logs",
-    },
-    {
-      title: "Administrare Contracte",
-      description: "Gestionați contractele din sistem",
-      icon: <FileCheck className="h-6 w-6" />,
-      href: "/dashboard/admin/contracte",
-    },
-    {
-      title: "Reparare Date Clienți",
-      description: "Instrument pentru repararea datelor clienților",
-      icon: <Tool className="h-6 w-6" />,
-      href: "/dashboard/admin",
-      onClick: () => {
-        const confirmed = window.confirm("Acest instrument va repara datele clienților. Doriți să continuați?")
-        if (confirmed) {
-          // Implementare pentru repararea datelor clienților
-        }
-      },
-    },
-    {
-      title: "Reparare ID-uri Echipamente",
-      description: "Instrument pentru repararea ID-urilor echipamentelor",
-      icon: <Database className="h-6 w-6" />,
-      href: "/dashboard/admin",
-      onClick: () => {
-        const confirmed = window.confirm("Acest instrument va repara ID-urile echipamentelor. Doriți să continuați?")
-        if (confirmed) {
-          // Implementare pentru repararea ID-urilor echipamentelor
-        }
-      },
-    },
-    {
-      title: "Generare Coduri QR",
-      description: "Generați coduri QR pentru echipamente",
-      icon: <FileCode className="h-6 w-6" />,
-      href: "/dashboard/admin",
-      onClick: () => {
-        // Implementare pentru generarea codurilor QR
-      },
-    },
-  ]
+  useEffect(() => {
+    if (!loading && user) {
+      if (user.role === "admin") {
+        setIsAdmin(true)
+      } else {
+        router.push("/dashboard")
+      }
+    } else if (!loading && !user) {
+      router.push("/login")
+    }
+  }, [user, loading, router])
+
+  if (loading || !isAdmin) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    )
+  }
 
   return (
-    <DashboardShell>
-      <DashboardHeader heading="Administrare" text="Instrumente și setări administrative pentru sistem">
-        <Button variant="outline">
-          <Settings className="mr-2 h-4 w-4" /> Setări Sistem
-        </Button>
-      </DashboardHeader>
+    <div className="container mx-auto py-6">
+      <div className="flex items-center mb-6">
+        <ShieldAlert className="h-6 w-6 mr-2 text-amber-500" />
+        <h1 className="text-2xl font-bold">Administrare sistem</h1>
+      </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {adminTools.map((tool, index) => (
-          <Card key={index} className="overflow-hidden">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center">
-                <div className="mr-2 text-primary">{tool.icon}</div>
-                {tool.title}
-              </CardTitle>
-              <CardDescription>{tool.description}</CardDescription>
+      <Tabs defaultValue="data-repair">
+        <TabsList>
+          <TabsTrigger value="data-repair">Reparare date</TabsTrigger>
+          <TabsTrigger value="system-logs">Loguri sistem</TabsTrigger>
+        </TabsList>
+        <TabsContent value="data-repair" className="mt-4">
+          <ClientDataRepairTool />
+        </TabsContent>
+        <TabsContent value="system-logs" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Loguri sistem</CardTitle>
+              <CardDescription>Vizualizați logurile de sistem pentru a monitoriza activitatea</CardDescription>
             </CardHeader>
             <CardContent>
-              <Button
-                variant="default"
-                className="w-full"
-                onClick={tool.onClick ? tool.onClick : () => router.push(tool.href)}
-              >
-                Accesează
-              </Button>
+              <p>Funcționalitate în dezvoltare</p>
             </CardContent>
           </Card>
-        ))}
-      </div>
-    </DashboardShell>
+        </TabsContent>
+      </Tabs>
+    </div>
   )
 }
