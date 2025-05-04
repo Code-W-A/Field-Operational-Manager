@@ -27,7 +27,6 @@ import { EquipmentQRCode } from "@/components/equipment-qr-code"
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
 import { useAuth } from "@/contexts/AuthContext"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface ClientEditFormProps {
   client: Client
@@ -227,8 +226,8 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
 
     // Verificăm codul dacă acesta se schimbă
     if (id === "cod") {
-      // Validăm formatul codului (4 litere + 4 cifre)
-      if (!/^[A-Za-z]{4}\d{4}$/.test(value) && value !== "") {
+      // Validăm formatul codului (maxim 10 caractere, conține litere și cifre)
+      if (value !== "" && (!(/[a-zA-Z]/.test(value) && /[0-9]/.test(value)) || value.length > 10)) {
         setEchipamentFormErrors((prev) => (prev.includes("cod") ? prev : [...prev, "cod"]))
       } else {
         setEchipamentFormErrors((prev) => prev.filter((error) => error !== "cod"))
@@ -244,8 +243,11 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
     if (!echipamentFormData.nume) errors.push("nume")
     if (!echipamentFormData.cod) errors.push("cod")
 
-    // Validăm formatul codului (4 litere + 4 cifre)
-    if (!/^[A-Za-z]{4}\d{4}$/.test(echipamentFormData.cod)) {
+    // Validăm formatul codului (maxim 10 caractere, conține litere și cifre)
+    if (
+      !(/[a-zA-Z]/.test(echipamentFormData.cod) && /[0-9]/.test(echipamentFormData.cod)) ||
+      echipamentFormData.cod.length > 10
+    ) {
       errors.push("cod")
     }
 
@@ -301,7 +303,12 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
   // Verificăm unicitatea codului de echipament
   useEffect(() => {
     const checkCodeUniqueness = async () => {
-      if (echipamentFormData.cod && /^\d{4}$/.test(echipamentFormData.cod)) {
+      if (
+        echipamentFormData.cod &&
+        /[a-zA-Z]/.test(echipamentFormData.cod) &&
+        /[0-9]/.test(echipamentFormData.cod) &&
+        echipamentFormData.cod.length <= 10
+      ) {
         setIsCheckingCode(true)
 
         // Verificăm dacă codul este unic în cadrul locațiilor clientului
@@ -702,17 +709,16 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
                                 locationName={locatie.nume}
                               />
 
-                       
-                                   {isAdmin ? (
-                                 <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleOpenEditEchipamentDialog(locatieIndex, echipamentIndex)}
-                                className="h-8 w-8 p-0 shrink-0"
-                              >
-                                <Wrench className="h-4 w-4" />
-                              </Button>
+                              {isAdmin ? (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleOpenEditEchipamentDialog(locatieIndex, echipamentIndex)}
+                                  className="h-8 w-8 p-0 shrink-0"
+                                >
+                                  <Wrench className="h-4 w-4" />
+                                </Button>
                               ) : null}
 
                               {isAdmin ? (
@@ -751,7 +757,8 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
               {selectedEchipamentIndex !== null ? "Editare Echipament" : "Adăugare Echipament Nou"}
             </DialogTitle>
             <DialogDescription>
-              Completați detaliile echipamentului. Codul trebuie să fie unic și format din 4 litere + 4 cifre.
+              Completați detaliile echipamentului. Codul trebuie să fie unic, să conțină maxim 10 caractere și să
+              includă atât litere cât și cifre.
             </DialogDescription>
           </DialogHeader>
 
@@ -782,18 +789,20 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
 
               <div className="space-y-1">
                 <label htmlFor="cod" className="text-sm font-medium">
-                  Cod Unic (4 litere + 4 cifre) *
+                  Cod Unic (maxim 10 caractere, conține litere și cifre) *
                 </label>
                 <Input
                   id="cod"
-                  placeholder="Ex: ABCD1234"
+                  placeholder="Ex: ABC123"
                   value={echipamentFormData.cod}
                   onChange={handleEchipamentInputChange}
                   className={echipamentFormErrors.includes("cod") || !isCodeUnique ? errorStyle : ""}
-                  maxLength={8}
+                  maxLength={10}
                 />
                 {echipamentFormErrors.includes("cod") && (
-                  <p className="text-xs text-red-500">Codul trebuie să conțină exact 4 litere urmate de 4 cifre</p>
+                  <p className="text-xs text-red-500">
+                    Codul trebuie să conțină maxim 10 caractere și să includă atât litere cât și cifre
+                  </p>
                 )}
                 {!isCodeUnique && (
                   <div className="flex items-center text-xs text-red-500 mt-1">

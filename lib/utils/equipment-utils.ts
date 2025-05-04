@@ -1,10 +1,20 @@
 import type { Echipament } from "@/lib/firebase/firestore"
 
 /**
- * Verifică dacă un cod de echipament este valid (4 cifre)
+ * Verifică dacă un cod de echipament este valid (maxim 10 caractere, conține cifre și litere)
  */
 export function isValidEquipmentCode(code: string): boolean {
-  return /^\d{4}$/.test(code)
+  // Verifică dacă codul are maxim 10 caractere
+  if (code.length > 10) return false
+
+  // Verifică dacă codul conține cel puțin o literă
+  const hasLetter = /[a-zA-Z]/.test(code)
+
+  // Verifică dacă codul conține cel puțin o cifră
+  const hasNumber = /[0-9]/.test(code)
+
+  // Codul este valid dacă conține atât litere cât și cifre
+  return hasLetter && hasNumber
 }
 
 /**
