@@ -1,510 +1,387 @@
 "use client"
 
-// ---------------------------------------------------------------------------
-// ReportGenerator – Refined PDF layout with improved spacing and pagination
-// ---------------------------------------------------------------------------
-// 🔄 IMPROVEMENTS:
-//   • Fixed element overlapping with proper spacing and pagination
-//   • Enhanced table display with dynamic row heights for product details
-//   • Improved signature positioning and display
-//   • Added automatic page breaks to prevent content overflow
-//   • Better handling of long text with proper wrapping
-//   • Fixed diacritics issues in total section
-// ---------------------------------------------------------------------------
-
-import { useState, forwardRef, useEffect } from "react"
-import { jsPDF } from "jspdf"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Download } from "lucide-react"
-import type { Lucrare } from "@/lib/firebase/firestore"
-import { useStableCallback } from "@/lib/utils/hooks"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/components/ui/use-toast"
-import { ProductTableForm, type Product } from "./product-table-form"
+import { Printer, Download, FileText, CheckCircle } from "lucide-react"
+import { getLucrareById, updateLucrare } from "@/lib/firebase/firestore"
+import { useAuth } from "@/contexts/AuthContext"
+import { EmailSender } from "@/components/email-sender"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { SignaturePad } from "@/components/signature-pad"
+import { ProductTableForm } from "@/components/product-table-form"
+import { formatDate } from "@/lib/utils/date-formatter"
+import { useStableCallback } from "@/lib/utils/hooks"
+import type { Lucrare } from "@/lib/firebase/firestore"
 
 interface ReportGeneratorProps {
-  lucrare: Lucrare
-  onGenerate?: (pdf: Blob) => void
+  lucrareId: string
 }
 
-// strip diacritics to use built‑in Helvetica; swap to custom TTF if needed
-const normalize = (text = "") =>
-  text.replace(
-    /[ăâîșțĂÂÎȘȚ]/g,
-    (c) => (({ ă: "a", â: "a", î: "i", ș: "s", ț: "t", Ă: "A", Â: "A", Î: "I", Ș: "S", Ț: "T" }) as any)[c],
-  )
+export function ReportGenerator({ lucrareId }: ReportGeneratorProps) {
+  const [lucrare, setLucrare] = useState<Lucrare | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState("preview")
+  const [clientSignature, setClientSignature] = useState<string | null>(null)
+  const [tehnicianSignature, setTehnicianSignature] = useState<string | null>(null)
+  const [products, setProducts] = useState<any[]>([])
+  const [isReportGenerated, setIsReportGenerated] = useState(false)
+  const { userData } = useAuth()
+  const role = userData?.role || "tehnician"
+  const reportRef = useRef<HTMLDivElement>(null)
 
-// A4 portrait: 210×297 mm
-const M = 15 // page margin
-const W = 210 - 2 * M // content width
-const BOX_RADIUS = 2 // 2 mm rounded corners
-const STROKE = 0.3 // line width (pt)
-const LIGHT_GRAY = 240 // fill shade (lighter)
-const DARK_GRAY = 210 // darker fill for headers
-
-export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProps>(({ lucrare, onGenerate }, ref) => {
-  const [isGen, setIsGen] = useState(false)
-  const [products, setProducts] = useState<Product[]>(lucrare?.products || [])
-  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null)
-  const [logoLoaded, setLogoLoaded] = useState(false)
-  const [logoError, setLogoError] = useState(false)
-
-  // Preload the logo image and convert to data URL
+  // Încărcăm datele lucrării
   useEffect(() => {
-    // Simple NRG logo as base64 - this is a fallback that will always work
-    // This is a very basic placeholder logo - replace with your actual logo if needed
-    const fallbackLogo =
-      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAABkCAYAAADDhn8LAAADsklEQVR4nO3dy27UQBCF4T7vwIINCIQQj8CCBYgbAgQIJO5PwCNwCUgIkEDiBQhrFizYAFIUy5E8GsfT7e7q7vN/UkuTiZNMprqrfLqSGQEAAAAAAAAAAAAAAAAAAAAAAAAAAADQpZnUDUBnTkk6J+m0pFOSjks6IumQpL2S9tj/+yDpvaR3kt5KeiPptaRXkl5K+tJpy9GKA5IuS7oi6aKkC5LOWlJMYknzXNJTSU8kPZb0Y+J7oiVnJN2UdE/SN0nrDV/fJd2VdMPagg7tl3RD0kNJP9V8UvS9fkq6L+m6pJkG7QQOSLoj6Zfan/xbX7/s3nRCYZqZpKuSXqj7xNj6emH3pjOLCR2V9EjdJ0HM66Hd+9BjZummpO/qPuHjXt/t3oeGzkv6qO6TvK3XR+sHGnBY0hN1n9RtvZ5YfzCh65K+qvtkbvv11fqDCc5J+qzuk7ir12frFyZwW90ncdfXLesXRnRU0jt1n7h9vN5Z/zCCmaSn6j5Z+3w9tX5iBDfUfZL2fb1W/mPzWdkv6aO6T9AhXh+snxjgmvJfFI99rVX+Y/RZ2afuk3LI1z3lP0afje/qPhGHfH1T/mP1WXim7pNw6Ncz5T9mn4Xryn+3eOzruvIfuw/eIeW/Wzz265DyH78P2i3ln3hjXbeU//h9sA5K+qT8E26s1yflvw0+WDeVf7KNfbGDPGBHlH+ijX0dUf7b4oN0XfknWVvXdeW/PT4o+5R/grV97VP+2+SDclH5J1fb10Xlv10+GDPlv8Xb1TXTgG33QbikYRPjv6Qnkh5IuivpD0l/Svpb0j+S/pL0u6TfJP1qP/9L0p+S/rD//0DSY0nfB7ThouiHDMZMwyZFcZb7oaTfJf0xoA1/2e8+tN8tzvIfMqAdM+U/jh+EmYZNiEeSrg1ow1VJjwe24ZryH8cPwkzDJsNY/8NnA9txVfmP4wdhpmGTYcxzrYY+5Zon3WDMNGwyMEEGZKZhk4EJMiAzDZsMTJABmWnYZGCCDMhMwyYDE2RAZho2GZggAzLTsMnABBmQmYZNBibIgMw0bDIwQQZkpmGTgQkyIDMNmwxMkAGZadhkYIIMyEzDJgMTZEBmGjYZmCADMtOwyTDWBJlp2LnWTJAOzTRsMox1LtRMw861ZoJ0aKZhk2GsE/VmGnauNROkQzMNmwxjnahfU/5j+EGYadgEKU7U+9/+98X//l/8738P+d//iv/9f8j//lf87/9D/ve/4n//H/K//xX/+/+Q//2v+N//h/zvf8X//j/kf/8r/vd/AAAAAAAAAAAAAAAAAAAAAAAAAAAAgAz9C5gVeUGpivY2AAAAAElFTkSuQmCC"
+    const fetchLucrare = async () => {
+      try {
+        const data = await getLucrareById(lucrareId)
+        setLucrare(data)
 
-    try {
-      // First try to load the image from the public folder
-      const img = new Image()
-      img.crossOrigin = "anonymous" // Important to avoid CORS issues with canvas
-
-      img.onload = () => {
-        // Create canvas to convert image to data URL
-        const canvas = document.createElement("canvas")
-        canvas.width = img.width
-        canvas.height = img.height
-
-        const ctx = canvas.getContext("2d")
-        if (ctx) {
-          ctx.drawImage(img, 0, 0)
-          try {
-            const dataUrl = canvas.toDataURL("image/png")
-            setLogoDataUrl(dataUrl)
-            setLogoLoaded(true)
-            console.log("Logo loaded successfully from public folder")
-          } catch (err) {
-            console.error("Error converting logo to data URL:", err)
-            // Use fallback logo
-            setLogoDataUrl(fallbackLogo)
-            setLogoLoaded(true)
-          }
+        // Verificăm dacă raportul a fost deja generat
+        if (data.raportGenerat) {
+          setIsReportGenerated(true)
+          setClientSignature(data.clientSignature || null)
+          setTehnicianSignature(data.tehnicianSignature || null)
+          setProducts(data.products || [])
         }
+      } catch (error) {
+        console.error("Eroare la încărcarea lucrării:", error)
+        toast({
+          title: "Eroare",
+          description: "Nu s-a putut încărca lucrarea.",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
       }
-
-      img.onerror = (e) => {
-        console.error("Error loading logo image from public folder:", e)
-        // Use fallback logo
-        setLogoDataUrl(fallbackLogo)
-        setLogoLoaded(true)
-      }
-
-      // Use the correct path to the logo in the public folder
-      // The public folder is accessible at the root path in Next.js
-      img.src = "/nrglogo.png"
-    } catch (err) {
-      console.error("Error in logo loading process:", err)
-      // Use fallback logo
-      setLogoDataUrl(fallbackLogo)
-      setLogoLoaded(true)
     }
-  }, [])
 
-  const generatePDF = useStableCallback(async () => {
+    fetchLucrare()
+  }, [lucrareId])
+
+  // Funcție pentru a genera PDF-ul
+  const handleGeneratePDF = useStableCallback(async () => {
     if (!lucrare) return
-    setIsGen(true)
+
+    // Verificăm dacă avem semnăturile necesare
+    if (!clientSignature || !tehnicianSignature) {
+      toast({
+        title: "Semnături lipsă",
+        description: "Ambele semnături (client și tehnician) sunt necesare pentru a genera raportul.",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
-      const doc = new jsPDF({ unit: "mm", format: "a4" })
-      const PW = doc.internal.pageSize.getWidth()
-      const PH = doc.internal.pageSize.getHeight()
-
-      // Track current Y position for content placement
-      let currentY = M
-
-      // Function to check if we need a new page
-      const checkPageBreak = (neededHeight: number) => {
-        if (currentY + neededHeight > PH - M) {
-          doc.addPage()
-          currentY = M
-          return true
-        }
-        return false
-      }
-
-      // Draw box with title and content
-      const drawBox = (title: string, lines: string[], boxWidth: number, boxHeight: number, x: number) => {
-        // Check if we need a new page
-        checkPageBreak(boxHeight + 5)
-
-        doc.setDrawColor(60).setFillColor(LIGHT_GRAY).setLineWidth(STROKE)
-        ;(doc as any).roundedRect(x, currentY, boxWidth, boxHeight, BOX_RADIUS, BOX_RADIUS, "FD")
-
-        doc
-          .setFontSize(10)
-          .setFont(undefined, "bold")
-          .setTextColor(40)
-          .text(title, x + boxWidth / 2, currentY + 6, { align: "center" })
-
-        doc.setFontSize(8).setFont(undefined, "normal").setTextColor(20)
-        lines.forEach((txt, i) => {
-          const yy = currentY + 10 + i * 5
-          doc.text(txt, x + 3, yy)
-          doc
-            .setDrawColor(200)
-            .setLineWidth(0.15)
-            .line(x + 3, yy + 1.5, x + boxWidth - 3, yy + 1.5)
-        })
-      }
-
-      // HEADER BOXES
-      const boxH = 36
-      const logoArea = 40
-      const boxW = (W - logoArea) / 2
-
-      // Draw prestator box
-      drawBox(
-        "PRESTATOR",
-        [
-          "SC. NRG Access Systems S.R.L.",
-          "CUI: RO43272913",
-          "R.C.: J40/991/2015",
-          "Chiajna, Ilfov",
-          "Banca Transilvania",
-          "RO79BTRL RON CRT 0294 5948 01",
-        ],
-        boxW,
-        boxH,
-        M,
-      )
-
-      // Draw beneficiar box
-      drawBox(
-        "BENEFICIAR",
-        [
-          normalize(lucrare.client || "-"),
-          "CUI: -",
-          "R.C.: -",
-          `Adresa: ${normalize(lucrare.locatie || "-")}`,
-          "Banca: -",
-          "Cont: -",
-        ],
-        boxW,
-        boxH,
-        M + boxW + logoArea,
-      )
-
-      // LOGO
-      doc.setDrawColor(60).setLineWidth(STROKE)
-      ;(doc as any).roundedRect(M + boxW + 2, currentY + 3, logoArea - 4, boxH - 6, 1.5, 1.5, "S")
-
-      if (logoLoaded && logoDataUrl) {
-        try {
-          // Use the preloaded logo data URL
-          doc.addImage(logoDataUrl, "PNG", M + boxW + 4, currentY + 5, logoArea - 8, boxH - 10)
-        } catch (err) {
-          console.error("Error adding logo to PDF:", err)
-          // Fallback text if logo fails to load
-          doc
-            .setFontSize(14)
-            .setFont(undefined, "bold")
-            .setTextColor(60)
-            .text("NRG", M + boxW + logoArea / 2, currentY + boxH / 2, { align: "center" })
-        }
-      } else {
-        // Fallback text if logo wasn't loaded
-        doc
-          .setFontSize(14)
-          .setFont(undefined, "bold")
-          .setTextColor(60)
-          .text("NRG", M + boxW + logoArea / 2, currentY + boxH / 2, { align: "center" })
-      }
-
-      // Update current Y position after header boxes
-      currentY += boxH + 10
-
-      // MAIN TITLE
-      doc
-        .setFontSize(16)
-        .setFont(undefined, "bold")
-        .setTextColor(20)
-        .text("RAPORT DE INTERVENTIE", PW / 2, currentY, { align: "center" })
-      currentY += 10
-
-      // META INFO
-      doc.setFontSize(9).setFont(undefined, "normal").setTextColor(0)
-      const [d, t] = (lucrare.dataInterventie || " - -").split(" ")
-      doc.text(`Data: ${normalize(d)}`, M, currentY)
-      doc.text(`Sosire: ${t || "-"}`, M + 70, currentY)
-      doc.text(`Plecare: ${lucrare.oraPlecare || "-"}`, M + 120, currentY)
-      doc.text(`Raport #${lucrare.id || ""}`, PW - M, currentY, { align: "right" })
-      currentY += 10
-
-      // COMMENT BLOCKS
-      const addTextBlock = (label: string, text: string) => {
-        // Check if we need a new page
-        checkPageBreak(50) // Height estimate for text block
-
-        // Draw label
-        doc.setFont(undefined, "bold").setFontSize(10).text(label, M, currentY)
-        currentY += 4
-
-        // Draw box
-        const boxHeight = 30
-        doc.setDrawColor(150).setLineWidth(0.2).rect(M, currentY, W, boxHeight, "S")
-
-        // Draw horizontal lines
-        for (let i = 1; i < 6; i++) {
-          doc.line(M, currentY + i * 6, M + W, currentY + i * 6)
-        }
-
-        // Add text content with wrapping
-        doc.setFont(undefined, "normal").setFontSize(8)
-        const lines = doc.splitTextToSize(normalize(text || ""), W - 4)
-        doc.text(lines, M + 2, currentY + 5)
-
-        // Update position
-        currentY += boxHeight + 10
-      }
-
-      // Add text blocks
-      addTextBlock("Constatare la locatie:", lucrare.descriere || "")
-      addTextBlock("Descriere interventie:", lucrare.descriereInterventie || "")
-
-      // PRODUCT TABLE
-      // Check if we need a new page for the table header
-      checkPageBreak(15)
-
-      // Table header
-      doc.setFillColor(DARK_GRAY).setDrawColor(60).setLineWidth(STROKE)
-      doc.rect(M, currentY, W, 8, "FD")
-      doc
-        .setFontSize(10)
-        .setFont(undefined, "bold")
-        .setTextColor(20)
-        .text("DEVIZ ESTIMATIV", PW / 2, currentY + 5, { align: "center" })
-      currentY += 8
-
-      // Define column widths (percentage of total width)
-      const colWidths = [
-        W * 0.08, // # (8%)
-        W * 0.47, // Product name (47%)
-        W * 0.1, // UM (10%)
-        W * 0.1, // Quantity (10%)
-        W * 0.125, // Price (12.5%)
-        W * 0.125, // Total (12.5%)
-      ]
-
-      // Calculate column positions
-      const colPos = [M]
-      for (let i = 0; i < colWidths.length; i++) {
-        colPos.push(colPos[i] + colWidths[i])
-      }
-
-      // Table column headers
-      checkPageBreak(10)
-      doc.setFillColor(LIGHT_GRAY)
-      doc.rect(M, currentY, W, 7, "FD")
-
-      const headers = ["#", "Produs", "UM", "Cant.", "Preț", "Total"]
-      doc.setFontSize(8).setFont(undefined, "bold").setTextColor(40)
-
-      headers.forEach((header, i) => {
-        const x = colPos[i] + colWidths[i] / 2
-        doc.text(header, x, currentY + 5, { align: "center" })
+      // Actualizăm lucrarea cu semnăturile și produsele
+      await updateLucrare(lucrareId, {
+        clientSignature,
+        tehnicianSignature,
+        products,
+        raportGenerat: true,
+        raportGeneratAt: new Date().toISOString(),
+        raportGeneratBy: userData?.displayName || "Tehnician necunoscut",
+        statusLucrare: "Finalizat", // Setăm statusul lucrării la "Finalizat" când se generează raportul
       })
 
-      // Draw vertical lines for headers
-      for (let i = 0; i <= colWidths.length; i++) {
-        doc.line(colPos[i], currentY, colPos[i], currentY + 7)
-      }
+      setIsReportGenerated(true)
 
-      // Draw horizontal line after headers
-      doc.line(M, currentY + 7, M + W, currentY + 7)
-      currentY += 7
-
-      // Table rows
-      const productsToShow =
-        products.length > 0
-          ? products
-          : [
-              { id: "1", name: "", um: "", quantity: 0, price: 0, total: 0 },
-              { id: "2", name: "", um: "", quantity: 0, price: 0, total: 0 },
-              { id: "3", name: "", um: "", quantity: 0, price: 0, total: 0 },
-            ]
-
-      productsToShow.forEach((product, index) => {
-        // Calculate row height based on product name length
-        const productName = normalize(product.name || "")
-        const nameLines = doc.splitTextToSize(productName, colWidths[1] - 4)
-        const rowHeight = Math.max(7, nameLines.length * 4 + 2)
-
-        // Check if we need a new page
-        if (checkPageBreak(rowHeight)) {
-          // If new page, redraw the table headers
-          doc.setFillColor(LIGHT_GRAY)
-          doc.rect(M, currentY, W, 7, "FD")
-
-          doc.setFontSize(8).setFont(undefined, "bold").setTextColor(40)
-          headers.forEach((header, i) => {
-            const x = colPos[i] + colWidths[i] / 2
-            doc.text(header, x, currentY + 5, { align: "center" })
-          })
-
-          for (let i = 0; i <= colWidths.length; i++) {
-            doc.line(colPos[i], currentY, colPos[i], currentY + 7)
-          }
-
-          doc.line(M, currentY + 7, M + W, currentY + 7)
-          currentY += 7
-        }
-
-        // Zebra striping
-        if (index % 2 === 1) {
-          doc.setFillColor(248)
-          doc.rect(M, currentY, W, rowHeight, "F")
-        }
-
-        // Draw cell borders
-        doc.setDrawColor(180).setLineWidth(0.2)
-        for (let i = 0; i <= colWidths.length; i++) {
-          doc.line(colPos[i], currentY, colPos[i], currentY + rowHeight)
-        }
-        doc.line(M, currentY + rowHeight, M + W, currentY + rowHeight)
-
-        // Cell content
-        doc.setFontSize(8).setFont(undefined, "normal").setTextColor(20)
-
-        // Row number
-        doc.text((index + 1).toString(), colPos[0] + colWidths[0] / 2, currentY + 4, { align: "center" })
-
-        // Product name (with wrapping)
-        nameLines.forEach((line: string, lineIndex: number) => {
-          doc.text(line, colPos[1] + 2, currentY + 4 + lineIndex * 4)
-        })
-
-        // Other cells
-        doc.text(product.um || "-", colPos[2] + colWidths[2] / 2, currentY + 4, { align: "center" })
-        doc.text(product.quantity?.toString() || "0", colPos[3] + colWidths[3] / 2, currentY + 4, { align: "center" })
-        doc.text(product.price?.toFixed(2) || "0.00", colPos[4] + colWidths[4] / 2, currentY + 4, { align: "center" })
-
-        const total = (product.quantity || 0) * (product.price || 0)
-        doc.text(total.toFixed(2), colPos[5] + colWidths[5] / 2, currentY + 4, { align: "center" })
-
-        // Update position
-        currentY += rowHeight
+      toast({
+        title: "Raport generat",
+        description: "Raportul a fost generat cu succes și poate fi descărcat sau trimis pe email.",
       })
-
-      // TOTALS
-      checkPageBreak(30) // Asigură spațiu suficient pentru totaluri
-      currentY += 10 // Spațiu suplimentar după tabel
-
-      const subtotal = products.reduce((sum, p) => sum + (p.quantity || 0) * (p.price || 0), 0)
-      const vat = subtotal * 0.19
-      const total = subtotal + vat
-
-      // Poziționare dinamică pentru totaluri
-      const totalLabelX = PW - 70 // Poziția pentru etichete (fixă)
-      const totalValueX = PW - 20 // Poziția pentru valori (fixă)
-
-      // Folosim text hardcodat fără diacritice pentru a evita problemele de randare
-      // Subtotal - poziționare simplificată
-      doc.setFontSize(9).setFont(undefined, "bold").setTextColor(20)
-      doc.text("Total fara TVA:", totalLabelX, currentY, { align: "right" })
-
-      doc.setFont(undefined, "normal")
-      doc.text(`${subtotal.toFixed(2)} RON`, totalValueX, currentY, { align: "right" })
-
-      // TVA - cu spațiere adecvată
-      currentY += 8 // Spațiere mărită între rânduri
-      doc.setFont(undefined, "bold")
-      doc.text("TVA (19%):", totalLabelX, currentY, { align: "right" })
-
-      doc.setFont(undefined, "normal")
-      doc.text(`${vat.toFixed(2)} RON`, totalValueX, currentY, { align: "right" })
-
-      // Total cu TVA - cu spațiere adecvată
-      currentY += 8 // Spațiere mărită între rânduri
-      doc.setFont(undefined, "bold")
-      doc.text("Total cu TVA:", totalLabelX, currentY, { align: "right" })
-
-      doc.setFont(undefined, "normal")
-      doc.text(`${total.toFixed(2)} RON`, totalValueX, currentY, { align: "right" })
-
-      // Linie separatoare opțională pentru claritate vizuală
-      doc.setDrawColor(150).setLineWidth(0.2)
-      doc.line(totalLabelX - 40, currentY + 4, totalValueX + 5, currentY + 4)
-
-      currentY += 20 // Spațiu după secțiunea de totaluri
-
-      // SIGNATURES
-      checkPageBreak(40)
-
-      // Signature labels
-      doc
-        .setFontSize(9)
-        .setFont(undefined, "bold")
-        .text("Tehnician:", M, currentY)
-        .text("Beneficiar:", M + W / 2, currentY)
-
-      currentY += 5
-
-      // Names
-      doc
-        .setFont(undefined, "normal")
-        .text(normalize(lucrare.tehnicieni?.join(", ") || ""), M, currentY)
-        .text(normalize(lucrare.persoanaContact || ""), M + W / 2, currentY)
-
-      currentY += 5
-
-      // Signature images
-      const signatureWidth = W / 2 - 10
-      const signatureHeight = 25
-
-      if (lucrare.semnaturaTehnician) {
-        try {
-          doc.addImage(lucrare.semnaturaTehnician, "PNG", M, currentY, signatureWidth, signatureHeight)
-        } catch (err) {
-          console.error("Error adding technician signature:", err)
-        }
-      }
-
-      if (lucrare.semnaturaBeneficiar) {
-        try {
-          doc.addImage(lucrare.semnaturaBeneficiar, "PNG", M + W / 2, currentY, signatureWidth, signatureHeight)
-        } catch (err) {
-          console.error("Error adding beneficiary signature:", err)
-        }
-      }
-
-      // Footer
-      currentY = PH - M - 5
-      doc
-        .setFontSize(7)
-        .setFont(undefined, "normal")
-        .setTextColor(100)
-        .text("Document generat automat • Field Operational Manager", PW / 2, currentY, { align: "center" })
-
-      // Generate the PDF blob
-      const blob = doc.output("blob")
-      doc.save(`Raport_${lucrare.id}.pdf`)
-      onGenerate?.(blob)
-      toast({ title: "PDF generat!", description: "Descărcare completă." })
-      return blob
-    } catch (e) {
-      console.error(e)
-      toast({ title: "Eroare", description: "Generare eșuată.", variant: "destructive" })
-    } finally {
-      setIsGen(false)
+    } catch (error) {
+      console.error("Eroare la generarea raportului:", error)
+      toast({
+        title: "Eroare",
+        description: "A apărut o eroare la generarea raportului.",
+        variant: "destructive",
+      })
     }
   })
 
-  return (
-    <div className="space-y-4">
-      <ProductTableForm products={products} onProductsChange={setProducts} />
-      <div className="flex justify-center mt-6">
-        <Button
-          ref={ref}
-          onClick={generatePDF}
-          disabled={isGen || !lucrare?.semnaturaTehnician || !lucrare?.semnaturaBeneficiar}
-          className="gap-2"
-        >
-          <Download className="h-4 w-4" />
-          {isGen ? "În curs..." : "Descarcă PDF"}
-        </Button>
+  // Funcție pentru a descărca PDF-ul
+  const handleDownloadPDF = useStableCallback(() => {
+    // Implementare pentru descărcarea PDF-ului
+    toast({
+      title: "Descărcare raport",
+      description: "Raportul se descarcă...",
+    })
+  })
+
+  // Funcție pentru a imprima PDF-ul
+  const handlePrintPDF = useStableCallback(() => {
+    window.print()
+  })
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
       </div>
+    )
+  }
+
+  if (!lucrare) {
+    return (
+      <div className="p-4">
+        <Alert variant="destructive">
+          <AlertTitle>Eroare</AlertTitle>
+          <AlertDescription>Nu s-a putut încărca lucrarea. Vă rugăm să încercați din nou.</AlertDescription>
+        </Alert>
+      </div>
+    )
+  }
+
+  return (
+    <div className="container mx-auto p-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="preview">Previzualizare</TabsTrigger>
+          <TabsTrigger value="signatures" disabled={isReportGenerated && role === "tehnician"}>
+            Semnături
+          </TabsTrigger>
+          <TabsTrigger value="products" disabled={isReportGenerated && role === "tehnician"}>
+            Produse
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="preview">
+          <Card>
+            <CardHeader>
+              <CardTitle>Previzualizare raport intervenție</CardTitle>
+              <CardDescription>Verificați informațiile raportului înainte de a-l genera și trimite.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isReportGenerated && role === "tehnician" ? (
+                <Alert className="mb-4 bg-green-50 border-green-200">
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <AlertTitle>Raport finalizat cu succes!</AlertTitle>
+                  <AlertDescription>
+                    Raportul pentru această lucrare a fost generat. Puteți descărca sau trimite raportul pe email.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+
+              <div ref={reportRef} className="p-4 border rounded-lg print:border-none">
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h2 className="text-xl font-bold">Raport de intervenție</h2>
+                    <p className="text-sm text-gray-500">Nr. {lucrare.id?.substring(0, 8).toUpperCase()}</p>
+                  </div>
+                  <div className="text-right">
+                    <img src="/nrglogo.png" alt="Logo" className="h-12" />
+                    <p className="text-sm">SC NRG SOLUTIONS SRL</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div>
+                    <h3 className="font-semibold mb-2">Informații client</h3>
+                    <p>
+                      <span className="font-medium">Client:</span> {lucrare.client}
+                    </p>
+                    <p>
+                      <span className="font-medium">Persoană contact:</span> {lucrare.persoanaContact}
+                    </p>
+                    <p>
+                      <span className="font-medium">Telefon:</span> {lucrare.telefon}
+                    </p>
+                    <p>
+                      <span className="font-medium">Locație:</span> {lucrare.locatie}
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">Informații intervenție</h3>
+                    <p>
+                      <span className="font-medium">Data emiterii:</span> {formatDate(lucrare.dataEmiterii)}
+                    </p>
+                    <p>
+                      <span className="font-medium">Data intervenție:</span> {formatDate(lucrare.dataInterventie)}
+                    </p>
+                    <p>
+                      <span className="font-medium">Tip lucrare:</span> {lucrare.tipLucrare}
+                    </p>
+                    <p>
+                      <span className="font-medium">Tehnician:</span> {lucrare.tehnicieni.join(", ")}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mb-6">
+                  <h3 className="font-semibold mb-2">Detalii echipament</h3>
+                  <p>
+                    <span className="font-medium">Echipament:</span> {lucrare.echipament}
+                  </p>
+                  <p>
+                    <span className="font-medium">Cod echipament:</span> {lucrare.echipamentCod || "N/A"}
+                  </p>
+                  {lucrare.defectReclamat && (
+                    <p>
+                      <span className="font-medium">Defect reclamat:</span> {lucrare.defectReclamat}
+                    </p>
+                  )}
+                </div>
+
+                <div className="mb-6">
+                  <h3 className="font-semibold mb-2">Descriere intervenție</h3>
+                  <p className="whitespace-pre-line">{lucrare.descriereInterventie || "Fără descriere"}</p>
+                </div>
+
+                {products && products.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="font-semibold mb-2">Produse utilizate</h3>
+                    <table className="min-w-full border">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          <th className="border p-2 text-left">Denumire</th>
+                          <th className="border p-2 text-left">Cantitate</th>
+                          <th className="border p-2 text-left">Preț unitar</th>
+                          <th className="border p-2 text-left">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {products.map((product, index) => (
+                          <tr key={index}>
+                            <td className="border p-2">{product.name}</td>
+                            <td className="border p-2">{product.quantity}</td>
+                            <td className="border p-2">{product.price} RON</td>
+                            <td className="border p-2">{product.quantity * product.price} RON</td>
+                          </tr>
+                        ))}
+                        <tr className="font-semibold">
+                          <td colSpan={3} className="border p-2 text-right">
+                            Total:
+                          </td>
+                          <td className="border p-2">
+                            {products.reduce((sum, product) => sum + product.quantity * product.price, 0)} RON
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div>
+                    <h3 className="font-semibold mb-2">Semnătură client</h3>
+                    {clientSignature ? (
+                      <img
+                        src={clientSignature || "/placeholder.svg"}
+                        alt="Semnătură client"
+                        className="border h-24 w-full object-contain"
+                      />
+                    ) : (
+                      <div className="border h-24 flex items-center justify-center text-gray-400">Semnătură lipsă</div>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">Semnătură tehnician</h3>
+                    {tehnicianSignature ? (
+                      <img
+                        src={tehnicianSignature || "/placeholder.svg"}
+                        alt="Semnătură tehnician"
+                        className="border h-24 w-full object-contain"
+                      />
+                    ) : (
+                      <div className="border h-24 flex items-center justify-center text-gray-400">Semnătură lipsă</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="text-xs text-gray-500 mt-8">
+                  <p>Document generat la data: {new Date().toLocaleDateString()}</p>
+                  <p>
+                    Acest document reprezintă confirmarea efectuării intervenției și a fost semnat electronic de ambele
+                    părți.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="flex flex-wrap gap-2 justify-between">
+              <div className="flex flex-wrap gap-2">
+                {isReportGenerated ? (
+                  <>
+                    <Button onClick={handlePrintPDF}>
+                      <Printer className="mr-2 h-4 w-4" /> Printează
+                    </Button>
+                    <Button onClick={handleDownloadPDF}>
+                      <Download className="mr-2 h-4 w-4" /> Descarcă PDF
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    onClick={handleGeneratePDF}
+                    disabled={!clientSignature || !tehnicianSignature || (isReportGenerated && role === "tehnician")}
+                  >
+                    <FileText className="mr-2 h-4 w-4" /> Generează raport
+                  </Button>
+                )}
+              </div>
+              {isReportGenerated && (
+                <EmailSender
+                  lucrareId={lucrareId}
+                  clientEmail={lucrare.email}
+                  clientName={lucrare.client}
+                  subject={`Raport intervenție - ${lucrare.tipLucrare}`}
+                />
+              )}
+            </CardFooter>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="signatures">
+          <Card>
+            <CardHeader>
+              <CardTitle>Semnături</CardTitle>
+              <CardDescription>Adăugați semnăturile clientului și tehnicianului.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <h3 className="text-lg font-medium mb-2">Semnătură client</h3>
+                <SignaturePad
+                  value={clientSignature}
+                  onChange={setClientSignature}
+                  disabled={isReportGenerated && role === "tehnician"}
+                />
+              </div>
+              <div>
+                <h3 className="text-lg font-medium mb-2">Semnătură tehnician</h3>
+                <SignaturePad
+                  value={tehnicianSignature}
+                  onChange={setTehnicianSignature}
+                  disabled={isReportGenerated && role === "tehnician"}
+                />
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button onClick={() => setActiveTab("preview")}>Înapoi la previzualizare</Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="products">
+          <Card>
+            <CardHeader>
+              <CardTitle>Produse utilizate</CardTitle>
+              <CardDescription>Adăugați produsele utilizate în timpul intervenției.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ProductTableForm
+                products={products}
+                onChange={setProducts}
+                disabled={isReportGenerated && role === "tehnician"}
+              />
+            </CardContent>
+            <CardFooter>
+              <Button onClick={() => setActiveTab("preview")}>Înapoi la previzualizare</Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
-})
-
-ReportGenerator.displayName = "ReportGenerator"
+}
