@@ -234,32 +234,50 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
- <TabsList className="grid w-full grid-cols-2 gap-2 sm:grid-cols-3">
-  <TabsTrigger value="detalii"         className="text-center whitespace-normal">
+<TabsList
+  /* 3 coloane dacă există 3 tab-uri, altfel rămân 2.
+     gap-ul mic împiedică lipirea cardurilor */
+  className={`grid w-full ${
+    role === "tehnician" ? "grid-cols-3" : "grid-cols-2"
+  } gap-2
+  /* peste md păstrăm 3 coloane indiferent de rol */
+  md:w-auto md:grid-cols-3`}
+>
+  {/* --- 1. Detalii --------------------------------------------------- */}
+  <TabsTrigger
+    value="detalii"
+    className="text-center whitespace-normal"
+  >
     Detalii&nbsp;Lucrare
   </TabsTrigger>
 
-  <TabsTrigger
-    value="interventie"
-    disabled={role === "tehnician" && !equipmentVerified}
-    className={cn(
-      "text-center whitespace-normal",
-      role === "tehnician" && !equipmentVerified && "relative"
-    )}
-  >
-    {role === "tehnician" && !equipmentVerified && (
-      <Lock className="h-3 w-3 absolute right-2" />
-    )}
-    Intervenție
-  </TabsTrigger>
+  {/* --- 2. Intervenție ---------------------------------------------- */}
+  {role === "tehnician" && (
+    <TabsTrigger
+      value="interventie"
+      disabled={role === "tehnician" && !equipmentVerified}
+      className={`text-center whitespace-normal ${
+        role === "tehnician" && !equipmentVerified ? "relative" : ""
+      }`}
+    >
+      {role === "tehnician" && !equipmentVerified && (
+        <Lock className="h-3 w-3 absolute right-2" />
+      )}
+      Intervenție
+    </TabsTrigger>
+  )}
 
-  <TabsTrigger
-    value="verificare"
-    className="text-center whitespace-normal"
-  >
-    Verificare&nbsp;Echipament
-  </TabsTrigger>
+  {/* --- 3. Verificare echipament ------------------------------------ */}
+  {role === "tehnician" && (
+    <TabsTrigger
+      value="verificare"
+      className="text-center whitespace-normal"
+    >
+      Verificare&nbsp;Echipament
+    </TabsTrigger>
+  )}
 </TabsList>
+
 
         <TabsContent value="detalii" className="mt-4">
           <div className="grid gap-4 md:grid-cols-2">
