@@ -5,7 +5,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, Loader2, Plus, Trash2,, Wrench, MapPin, AlertTriangle } from "lucide-react"
+import { AlertCircle, Loader2, Plus, Trash2, Wrench, MapPin, AlertTriangle } from "lucide-react"
 import {
   updateClient,
   type Client,
