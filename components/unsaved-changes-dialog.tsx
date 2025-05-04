@@ -27,18 +27,21 @@ export function UnsavedChangesDialog({ open, onConfirm, onCancel }: UnsavedChang
 
   return (
     <AlertDialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
-      <AlertDialogContent className="max-w-[400px]">
+      <AlertDialogContent className="max-w-[450px]">
         <AlertDialogHeader>
           <div className="flex items-center gap-2 text-amber-600">
             <AlertTriangle className="h-5 w-5" />
             <AlertDialogTitle>Modificări nesalvate</AlertDialogTitle>
           </div>
-          <AlertDialogDescription>
-            Aveți modificări nesalvate. Dacă părăsiți această pagină, modificările vor fi pierdute.
+          <AlertDialogDescription className="py-2">
+            Aveți modificări nesalvate în formular. Dacă părăsiți această pagină, toate modificările vor fi pierdute.
+            <div className="mt-2 text-sm font-medium text-gray-700">Doriți să continuați?</div>
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel onClick={onCancel}>Rămâneți pe pagină</AlertDialogCancel>
+        <AlertDialogFooter className="gap-2">
+          <AlertDialogCancel onClick={onCancel} className="mt-0">
+            Rămâneți pe pagină
+          </AlertDialogCancel>
           <AlertDialogAction onClick={onConfirm} className="bg-red-600 hover:bg-red-700">
             Părăsiți fără salvare
           </AlertDialogAction>

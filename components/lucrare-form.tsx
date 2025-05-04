@@ -29,11 +29,15 @@ import { Card } from "@/components/ui/card"
 import { CustomEquipmentSelect } from "@/components/custom-equipment-select"
 import { Input } from "@/components/ui/input"
 import { toast } from "@/components/ui/use-toast"
-import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
 // Adăugați aceste importuri la începutul fișierului
-import { useNavigationPrompt } from "@/hooks/use-navigation-prompt"
-import { NavigationPromptDialog } from "@/components/navigation-prompt-dialog"
+// Remove these imports:
+// import { useNavigationPrompt } from "@/hooks/use-navigation-prompt"
+// import { NavigationPromptDialog } from "@/components/navigation-prompt-dialog"
+
+// Keep the useUnsavedChanges import
+// import { useNavigationPrompt } from "@/hooks/use-navigation-prompt"
+// import { NavigationPromptDialog } from "@/components/navigation-prompt-dialog"
 import { useAuth } from "@/contexts/AuthContext"
 
 // Define the Lucrare type
@@ -137,9 +141,50 @@ export function LucrareForm({
     formData: JSON.stringify(formData),
   })
 
-  // Use the unsaved changes hook
-  const { showDialog, handleNavigation, confirmNavigation, cancelNavigation, pendingUrl } =
-    useUnsavedChanges(formModified)
+  // Simplified form protection with a single hook
+  const [pendingAction, setPendingAction] = useState<string | null>(null)
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+
+  // Handle form exit attempts
+  const handleCloseAttempt = (action: string) => {
+    if (formModified) {
+      setPendingAction(action)
+      setShowConfirmDialog(true)
+    } else {
+      executeAction(action)
+    }
+  }
+
+  const executeAction = (action: string) => {
+    if (action === "cancel" && onCancel) {
+      onCancel()
+    }
+  }
+
+  const handleConfirmClose = () => {
+    executeAction(pendingAction || "")
+    setShowConfirmDialog(false)
+    setPendingAction(null)
+  }
+
+  const handleCancelClose = () => {
+    setShowConfirmDialog(false)
+    setPendingAction(null)
+  }
+
+  // Browser navigation protection
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (formModified) {
+        e.preventDefault()
+        e.returnValue = ""
+        return ""
+      }
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [formModified])
 
   // Add state for controlling the popovers
   const [dateEmiteriiOpen, setDateEmiteriiOpen] = useState(false)
@@ -193,14 +238,41 @@ export function LucrareForm({
     }
   }, [onSubmit, isSubmitting, dataEmiterii, dataInterventie, formData])
 
+  // Add these functions to handle the confirmation dialog
+  // const handleCloseAttempt = (action: string) => {
+  //   if (formModified) {
+  //     setPendingAction(action)
+  //     setShowConfirmDialog(true)
+  //   } else {
+  //     executeAction(action)
+  //   }
+  // }
+
+  // const executeAction = (action: string) => {
+  //   if (action === 'cancel' && onCancel) {
+  //     onCancel()
+  //   }
+  //   // Add other actions as needed
+  // }
+
+  // const handleConfirmClose = () => {
+  //   executeAction(pendingAction || '')
+  //   setShowConfirmDialog(false)
+  //   setPendingAction(null)
+  // }
+
+  // const handleCancelClose = () => {
+  //   setShowConfirmDialog(false)
+  //   setPendingAction(null)
+  // }
+
   // În componenta LucrareForm, adăugați:
-  const { showPrompt, handleConfirm, handleCancel, handleCancel2 } = useNavigationPrompt(formModified)
 
   // Handle cancel with confirmation if form is modified
   const handleCancelWithConfirmation = () => {
     if (formModified && onCancel) {
       // Show confirmation dialog
-      handleNavigation("#cancel")
+      // handleNavigation("#cancel")
     } else if (onCancel) {
       onCancel()
     }
@@ -749,8 +821,12 @@ export function LucrareForm({
 
   // Înlocuiți funcția handleCancel cu:
   const handleFormCancel = () => {
-    handleCancel2(onCancel)
+    handleCloseAttempt("cancel")
   }
+
+  // Declare handleNavigation
+  // const handleNavigation = useNavigationPrompt()
+  const handleNavigation = () => {}
 
   return (
     <div className="modal-calendar-container">
@@ -1198,14 +1274,8 @@ export function LucrareForm({
         </div>
       )}
 
-      {/* Unsaved changes dialog */}
-      <UnsavedChangesDialog
-        open={showDialog}
-        onConfirm={pendingUrl === "#cancel" ? confirmCancelAction : confirmNavigation}
-        onCancel={cancelNavigation}
-      />
-      {/* Adăugați dialogul la sfârșitul componentei, înainte de ultimul </div>: */}
-      <NavigationPromptDialog open={showPrompt} onConfirm={handleConfirm} onCancel={handleCancel} />
+      {/* Confirmation dialog for unsaved changes */}
+      <UnsavedChangesDialog open={showConfirmDialog} onConfirm={handleConfirmClose} onCancel={handleCancelClose} />
     </div>
   )
 }
