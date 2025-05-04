@@ -1,5 +1,7 @@
 "use client"
 
+import { DialogFooter } from "@/components/ui/dialog"
+
 import type React from "react"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
@@ -17,20 +19,15 @@ import {
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 // Adăugăm importul pentru componenta EquipmentQRCode
 import { EquipmentQRCode } from "@/components/equipment-qr-code"
 // Import the unsaved changes hook and dialog
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
+import { useAuth } from "@/contexts/AuthContext"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface ClientEditFormProps {
   client: Client
@@ -39,6 +36,9 @@ interface ClientEditFormProps {
 }
 
 export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormProps) {
+  const { userData } = useAuth()
+  const isAdmin = userData?.role === "admin"
+
   const [formData, setFormData] = useState({
     nume: client.nume || "",
     cif: client.cif || "",
@@ -285,6 +285,12 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
 
   // Funcție pentru ștergerea unui echipament
   const handleDeleteEchipament = (locatieIndex: number, echipamentIndex: number) => {
+    if (!isAdmin) {
+      // Dacă nu este admin, afișăm un mesaj și nu permitem ștergerea
+      alert("Doar administratorii pot șterge echipamente.")
+      return
+    }
+
     if (window.confirm("Sunteți sigur că doriți să ștergeți acest echipament?")) {
       const updatedLocatii = [...locatii]
       updatedLocatii[locatieIndex].echipamente!.splice(echipamentIndex, 1)
@@ -657,66 +663,88 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
 
                     {locatie.echipamente && locatie.echipamente.length > 0 ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* …înlocuiește DOAR interiorul map-ului echipamente */} 
-{locatie.echipamente.map((echipament, echipamentIndex) => (
-  <div           /* 1️⃣ devine flex-col & h-full */
-    key={echipamentIndex}
-    className="p-4 border rounded-md bg-gray-50 flex flex-col h-full"
-  >
-    {/* HEADER – nume + cod */}
-    <div className="flex items-start justify-between gap-2">
-      <div className="min-w-0">
-        <h5 className="font-medium truncate">{echipament.nume}</h5>
-        <Badge variant="outline" className="mt-1">
-          Cod: {echipament.cod}
-        </Badge>
-      </div>
-    </div>
+                        {/* …înlocuiește DOAR interiorul map-ului echipamente */}
+                        {locatie.echipamente.map((echipament, echipamentIndex) => (
+                          <div /* 1️⃣ devine flex-col & h-full */
+                            key={echipamentIndex}
+                            className="p-4 border rounded-md bg-gray-50 flex flex-col h-full"
+                          >
+                            {/* HEADER – nume + cod */}
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <h5 className="font-medium truncate">{echipament.nume}</h5>
+                                <Badge variant="outline" className="mt-1">
+                                  Cod: {echipament.cod}
+                                </Badge>
+                              </div>
+                            </div>
 
-    {/* DETALII – model / serie / date / observaţii */}
-    <div className="text-sm mt-2 space-y-1">
-      {echipament.model && <p>Model: {echipament.model}</p>}
-      {echipament.serie && <p>Serie: {echipament.serie}</p>}
-      {echipament.dataInstalare && (
-        <p className="text-xs text-gray-500">Instalat: {echipament.dataInstalare}</p>
-      )}
-      {echipament.ultimaInterventie && (
-        <p className="text-xs text-gray-500">Ultima intervenție: {echipament.ultimaInterventie}</p>
-      )}
-      {echipament.observatii && <p className="text-gray-600">{echipament.observatii}</p>}
-    </div>
+                            {/* DETALII – model / serie / date / observaţii */}
+                            <div className="text-sm mt-2 space-y-1">
+                              {echipament.model && <p>Model: {echipament.model}</p>}
+                              {echipament.serie && <p>Serie: {echipament.serie}</p>}
+                              {echipament.dataInstalare && (
+                                <p className="text-xs text-gray-500">Instalat: {echipament.dataInstalare}</p>
+                              )}
+                              {echipament.ultimaInterventie && (
+                                <p className="text-xs text-gray-500">
+                                  Ultima intervenție: {echipament.ultimaInterventie}
+                                </p>
+                              )}
+                              {echipament.observatii && <p className="text-gray-600">{echipament.observatii}</p>}
+                            </div>
 
-    {/* 2️⃣ ACTIUNI LA BAZĂ – mt-auto le împinge jos */}
-    <div className="flex items-center gap-2 pt-3 mt-auto">
-      <EquipmentQRCode
-        equipment={echipament}
-        clientName={formData.nume}
-        locationName={locatie.nume}
-      />
+                            {/* 2️⃣ ACTIUNI LA BAZĂ – mt-auto le împinge jos */}
+                            <div className="flex items-center gap-2 pt-3 mt-auto">
+                              <EquipmentQRCode
+                                equipment={echipament}
+                                clientName={formData.nume}
+                                locationName={locatie.nume}
+                              />
 
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={() => handleOpenEditEchipamentDialog(locatieIndex, echipamentIndex)}
-        className="h-8 w-8 p-0 shrink-0"
-      >
-        <Wrench className="h-4 w-4" />
-      </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleOpenEditEchipamentDialog(locatieIndex, echipamentIndex)}
+                                className="h-8 w-8 p-0 shrink-0"
+                              >
+                                <Wrench className="h-4 w-4" />
+                              </Button>
 
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={() => handleDeleteEchipament(locatieIndex, echipamentIndex)}
-        className="h-8 w-8 p-0 shrink-0 text-red-500"
-      >
-        <Trash2 className="h-4 w-4" />
-      </Button>
-    </div>
-  </div>
-))}
-
+                              {isAdmin ? (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteEchipament(locatieIndex, echipamentIndex)}
+                                  className="h-8 w-8 p-0 shrink-0 text-red-500"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              ) : (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled
+                                        className="h-8 w-8 p-0 shrink-0 text-gray-300 cursor-not-allowed"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>Doar administratorii pot șterge echipamente</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     ) : (
                       <div className="text-center py-4 text-muted-foreground border rounded-md">
@@ -744,6 +772,16 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
           </DialogHeader>
 
           <div className="grid gap-3 py-3 overflow-y-auto">
+            {selectedEchipamentIndex !== null && !isAdmin && (
+              <Alert variant="warning" className="mt-2">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Notă: Doar administratorii pot șterge echipamente. Puteți edita detaliile, dar nu puteți șterge
+                  echipamentul.
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <label htmlFor="nume" className="text-sm font-medium">
