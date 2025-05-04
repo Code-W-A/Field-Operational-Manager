@@ -657,65 +657,66 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
 
                     {locatie.echipamente && locatie.echipamente.length > 0 ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {locatie.echipamente.map((echipament, echipamentIndex) => (
-                          <div key={echipamentIndex} className="p-4 border rounded-md bg-gray-50 relative">
-                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
-                              <div className="min-w-0">
-                                <h5 className="font-medium truncate">{echipament.nume}</h5>
-                                <Badge variant="outline" className="mt-1">
-                                  Cod: {echipament.cod}
-                                </Badge>
-                              </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                <EquipmentQRCode
-                                  equipment={echipament}
-                                  clientName={formData.nume}
-                                  locationName={locatie.nume}
-                                />
-                                  <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleOpenEditEchipamentDialog(locatieIndex, echipamentIndex)}
-                                  className="h-8 w-8 p-0 shrink-0"
-                                >
-                                  <Wrench className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteEchipament(locatieIndex, echipamentIndex)}
-                                  className="h-8 w-8 p-0 shrink-0 text-red-500"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
+                  {/* …înlocuiește DOAR interiorul map-ului echipamente */} 
+{locatie.echipamente.map((echipament, echipamentIndex) => (
+  <div           /* 1️⃣ devine flex-col & h-full */
+    key={echipamentIndex}
+    className="p-4 border rounded-md bg-gray-50 flex flex-col h-full"
+  >
+    {/* HEADER – nume + cod */}
+    <div className="flex items-start justify-between gap-2">
+      <div className="min-w-0">
+        <h5 className="font-medium truncate">{echipament.nume}</h5>
+        <Badge variant="outline" className="mt-1">
+          Cod: {echipament.cod}
+        </Badge>
+      </div>
+    </div>
 
-                            {(echipament.model || echipament.serie) && (
-                              <div className="text-sm mt-2">
-                                {echipament.model && <p>Model: {echipament.model}</p>}
-                                {echipament.serie && <p>Serie: {echipament.serie}</p>}
-                              </div>
-                            )}
+    {/* DETALII – model / serie / date / observaţii */}
+    <div className="text-sm mt-2 space-y-1">
+      {echipament.model && <p>Model: {echipament.model}</p>}
+      {echipament.serie && <p>Serie: {echipament.serie}</p>}
+      {echipament.dataInstalare && (
+        <p className="text-xs text-gray-500">Instalat: {echipament.dataInstalare}</p>
+      )}
+      {echipament.ultimaInterventie && (
+        <p className="text-xs text-gray-500">Ultima intervenție: {echipament.ultimaInterventie}</p>
+      )}
+      {echipament.observatii && <p className="text-gray-600">{echipament.observatii}</p>}
+    </div>
 
-                            {(echipament.dataInstalare || echipament.ultimaInterventie) && (
-                              <div className="text-xs text-gray-500 mt-2">
-                                {echipament.dataInstalare && <p>Instalat: {echipament.dataInstalare}</p>}
-                                {echipament.ultimaInterventie && (
-                                  <p>Ultima intervenție: {echipament.ultimaInterventie}</p>
-                                )}
-                              </div>
-                            )}
+    {/* 2️⃣ ACTIUNI LA BAZĂ – mt-auto le împinge jos */}
+    <div className="flex items-center gap-2 pt-3 mt-auto">
+      <EquipmentQRCode
+        equipment={echipament}
+        clientName={formData.nume}
+        locationName={locatie.nume}
+      />
 
-                            {echipament.observatii && (
-                              <div className="mt-2 text-sm">
-                                <p className="text-gray-600">{echipament.observatii}</p>
-                              </div>
-                            )}
-                          </div>
-                        ))}
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={() => handleOpenEditEchipamentDialog(locatieIndex, echipamentIndex)}
+        className="h-8 w-8 p-0 shrink-0"
+      >
+        <Wrench className="h-4 w-4" />
+      </Button>
+
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={() => handleDeleteEchipament(locatieIndex, echipamentIndex)}
+        className="h-8 w-8 p-0 shrink-0 text-red-500"
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </div>
+  </div>
+))}
+
                       </div>
                     ) : (
                       <div className="text-center py-4 text-muted-foreground border rounded-md">
