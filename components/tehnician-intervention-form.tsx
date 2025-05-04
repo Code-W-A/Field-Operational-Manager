@@ -107,7 +107,7 @@ export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: 
               <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
             </>
           ) : (
-            "Salvează Intervenția"
+            "Finalizează și emite raport"
           )}
         </Button>
       </div>
