@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { format } from "date-fns"
 import { ro } from "date-fns/locale"
-import { CalendarIcon, Loader2, Plus, Phone, Mail, Users } from "lucide-react"
+import { CalendarIcon, Loader2, Plus, Phone, Mail, Users, LightbulbIcon } from "lucide-react"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { orderBy, where, query, collection, onSnapshot } from "firebase/firestore"
 import type { Client, PersoanaContact, Locatie, Echipament } from "@/lib/firebase/firestore"
@@ -34,6 +34,7 @@ import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
 // Adăugați aceste importuri la începutul fișierului
 import { useNavigationPrompt } from "@/hooks/use-navigation-prompt"
 import { NavigationPromptDialog } from "@/components/navigation-prompt-dialog"
+import { useAuth } from "@/contexts/AuthContext"
 
 // Define the Lucrare type
 interface Lucrare {
@@ -109,6 +110,10 @@ export function LucrareForm({
   onCancel,
   initialData,
 }: LucrareFormProps) {
+  const { userData } = useAuth()
+  const userRole = userData?.role
+  const isAdminOrDispatcher = userRole === "admin" || userRole === "dispecer"
+
   const [isAddClientDialogOpen, setIsAddClientDialogOpen] = useState(false)
   const [tehnicieni, setTehnicieni] = useState<any[]>([])
   const [loadingTehnicieni, setLoadingTehnicieni] = useState(true)
@@ -1112,17 +1117,30 @@ export function LucrareForm({
           />
         </div>
 
+        {/* Modificăm câmpul "Descriere Intervenție" în "Sfaturi pt tehnician" */}
         <div className="space-y-2">
-          <label htmlFor="descriere" className="text-sm font-medium">
-            Descriere Intervenție
-          </label>
+          <div className="flex items-center gap-2">
+            <label htmlFor="descriere" className="text-sm font-medium">
+              Sfaturi pt tehnician
+            </label>
+            {isAdminOrDispatcher && (
+              <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                Doar uz intern
+              </Badge>
+            )}
+          </div>
           <Textarea
             id="descriere"
-            placeholder="Descrieți intervenția"
+            placeholder="Adăugați sfaturi sau instrucțiuni pentru tehnician (nu vor apărea în raportul final)"
             value={formData.descriere}
             onChange={handleInputChange}
             className="min-h-[100px] resize-y"
+            disabled={!isAdminOrDispatcher}
           />
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <LightbulbIcon className="h-3 w-3 text-amber-500" />
+            Acest câmp este vizibil doar pentru uz intern și nu va apărea în raportul generat pentru client
+          </p>
         </div>
 
         {isEdit && (
