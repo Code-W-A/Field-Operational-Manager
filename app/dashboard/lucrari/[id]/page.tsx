@@ -100,7 +100,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
     if (!lucrare?.id) return
 
     // Redirecționăm către pagina de lucrări cu parametrul de editare
-    router.push(`/dashboard/lucrari?edit=${lucrare.id}`)
+   router.push(`/dashboard/lucrari?edit=${lucrare.id}`)
   }, [router, lucrare])
 
   // Modificăm funcția handleGenerateReport pentru a naviga către pagina de raport
