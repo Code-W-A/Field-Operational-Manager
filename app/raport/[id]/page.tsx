@@ -18,9 +18,8 @@ import { ProductTableForm, type Product } from "@/components/product-table-form"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/components/ui/use-toast"
-// Remove the autotable import since it's causing issues
-// import 'jspdf-autotable'
-import { ReportGenerator } from "@/components/report-generator"
+import jsPDF from "jspdf"
+import "jspdf-autotable"
 
 export default function RaportPage({ params }: { params: { id: string } }) {
   const router = useRouter()
@@ -136,7 +135,189 @@ export default function RaportPage({ params }: { params: { id: string } }) {
       .replace(/Ț/g, "T")
 
   // Function to generate PDF and return blob
-  // … restul importurilor şi declaraţiilor
+  const generatePDF = useCallback(() => {
+    if (!lucrare) return null
+
+    try {
+      // Create a new PDF document
+      const doc = new jsPDF()
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const pageHeight = doc.internal.pageSize.getHeight()
+      const margin = 15
+      let y = margin
+
+      // Add title
+      doc.setFontSize(18)
+      doc.setFont("helvetica", "bold")
+      doc.text("Raport de Intervenție", pageWidth / 2, y, { align: "center" })
+      y += 10
+
+      // Add report number
+      doc.setFontSize(12)
+      doc.setFont("helvetica", "normal")
+      doc.text(`Nr. ${params.id.substring(0, 8).toUpperCase()}`, pageWidth / 2, y, { align: "center" })
+      y += 15
+
+      // Add client information
+      doc.setFontSize(14)
+      doc.setFont("helvetica", "bold")
+      doc.text("Informații Client", margin, y)
+      y += 8
+
+      doc.setFontSize(12)
+      doc.setFont("helvetica", "normal")
+      doc.text(`Client: ${removeDiacritics(lucrare.client)}`, margin, y)
+      y += 6
+      doc.text(`Persoană Contact: ${removeDiacritics(lucrare.persoanaContact || "")}`, margin, y)
+      y += 6
+      doc.text(`Telefon: ${lucrare.telefon || ""}`, margin, y)
+      y += 6
+      doc.text(`Locație: ${removeDiacritics(lucrare.locatie || "")}`, margin, y)
+      y += 15
+
+      // Add intervention information
+      doc.setFontSize(14)
+      doc.setFont("helvetica", "bold")
+      doc.text("Informații Intervenție", margin, y)
+      y += 8
+
+      doc.setFontSize(12)
+      doc.setFont("helvetica", "normal")
+      doc.text(`Data Emiterii: ${lucrare.dataEmiterii || ""}`, margin, y)
+      y += 6
+      doc.text(`Data Intervenție: ${lucrare.dataInterventie || ""}`, margin, y)
+      y += 6
+      doc.text(`Tip Lucrare: ${removeDiacritics(lucrare.tipLucrare || "")}`, margin, y)
+      y += 6
+      doc.text(`Tehnician: ${removeDiacritics(lucrare.tehnicieni?.join(", ") || "N/A")}`, margin, y)
+      y += 15
+
+      // Add reported issue
+      if (lucrare.defectReclamat) {
+        doc.setFontSize(14)
+        doc.setFont("helvetica", "bold")
+        doc.text("Defect Reclamat", margin, y)
+        y += 8
+
+        doc.setFontSize(12)
+        doc.setFont("helvetica", "normal")
+        const defectLines = doc.splitTextToSize(removeDiacritics(lucrare.defectReclamat), pageWidth - margin * 2)
+        doc.text(defectLines, margin, y)
+        y += defectLines.length * 6 + 10
+      }
+
+      // Add intervention description
+      doc.setFontSize(14)
+      doc.setFont("helvetica", "bold")
+      doc.text("Descriere Intervenție", margin, y)
+      y += 8
+
+      doc.setFontSize(12)
+      doc.setFont("helvetica", "normal")
+      const descriptionLines = doc.splitTextToSize(
+        removeDiacritics(lucrare.descriereInterventie || "Fără descriere"),
+        pageWidth - margin * 2,
+      )
+      doc.text(descriptionLines, margin, y)
+      y += descriptionLines.length * 6 + 15
+
+      // Add products table if there are products
+      if (products && products.length > 0) {
+        doc.setFontSize(14)
+        doc.setFont("helvetica", "bold")
+        doc.text("Produse Utilizate", margin, y)
+        y += 10
+
+        const tableData = products.map((product) => [
+          removeDiacritics(product.name),
+          product.quantity.toString(),
+          `${product.price} RON`,
+          `${product.quantity * product.price} RON`,
+        ])
+
+        // Add total row
+        const total = products.reduce((sum, product) => sum + product.quantity * product.price, 0)
+        tableData.push(["Total", "", "", `${total} RON`])
+
+        // @ts-ignore - jspdf-autotable is added as a plugin
+        doc.autoTable({
+          startY: y,
+          head: [["Denumire", "Cantitate", "Preț Unitar", "Total"]],
+          body: tableData,
+          margin: { left: margin, right: margin },
+          headStyles: { fillColor: [66, 139, 202] },
+        })
+
+        // Update y position after table
+        // @ts-ignore - jspdf-autotable is added as a plugin
+        y = doc.lastAutoTable.finalY + 15
+      }
+
+      // Check if we need to add a new page for signatures
+      if (y > pageHeight - 60) {
+        doc.addPage()
+        y = margin
+      }
+
+      // Add signatures
+      doc.setFontSize(14)
+      doc.setFont("helvetica", "bold")
+      doc.text("Semnături", margin, y)
+      y += 10
+
+      // Add signature images if available
+      if (lucrare.semnaturaTehnician && lucrare.semnaturaBeneficiar) {
+        const signatureWidth = (pageWidth - margin * 3) / 2
+
+        // Add technician signature
+        doc.setFontSize(12)
+        doc.text("Semnătură Tehnician:", margin, y)
+        try {
+          doc.addImage(lucrare.semnaturaTehnician, "PNG", margin, y + 2, signatureWidth, 30, "tech_signature", "FAST")
+        } catch (err) {
+          console.error("Eroare la adăugarea semnăturii tehnicianului:", err)
+        }
+
+        // Add client signature
+        doc.text("Semnătură Beneficiar:", margin * 2 + signatureWidth, y)
+        try {
+          doc.addImage(
+            lucrare.semnaturaBeneficiar,
+            "PNG",
+            margin * 2 + signatureWidth,
+            y + 2,
+            signatureWidth,
+            30,
+            "client_signature",
+            "FAST",
+          )
+        } catch (err) {
+          console.error("Eroare la adăugarea semnăturii beneficiarului:", err)
+        }
+
+        y += 40
+      }
+
+      // Add footer
+      doc.setFontSize(10)
+      doc.setFont("helvetica", "italic")
+      doc.text(`Document generat la data: ${new Date().toLocaleDateString()}`, pageWidth / 2, pageHeight - margin, {
+        align: "center",
+      })
+
+      // Save the PDF as a blob
+      const pdfBlob = doc.output("blob")
+      return pdfBlob
+    } catch (error) {
+      console.error("Eroare la generarea PDF-ului:", error)
+      toast({
+        title: "Eroare",
+        description: "A apărut o eroare la generarea raportului PDF",
+        variant: "destructive",
+      })
+      return null
+    }
+  }, [lucrare, params.id, products])
 
   // Function to send email
   const sendEmail = useCallback(
@@ -242,22 +423,19 @@ export default function RaportPage({ params }: { params: { id: string } }) {
           emailDestinatar: email,
         })
 
-        // Inside the try block of the "semnare" step, replace the PDF generation code with:
         // Reîncărcăm datele actualizate
         const updatedLucrare = await getLucrareById(params.id)
         if (updatedLucrare) {
           setLucrare(updatedLucrare)
 
-          // Generate PDF using the ReportGenerator component
-          if (reportGeneratorRef.current) {
-            reportGeneratorRef.current.click()
-          } else {
-            // Fallback if ref is not available
-            toast({
-              title: "Eroare",
-              description: "Nu s-a putut genera raportul PDF",
-              variant: "destructive",
-            })
+          // Generate PDF
+          const blob = generatePDF()
+          if (blob) {
+            setPdfBlob(blob)
+
+            // Send email with the PDF
+            const success = await sendEmail(blob)
+            setEmailSent(success)
           }
         }
 
@@ -285,10 +463,47 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   }, [])
 
   const handleDownloadPDF = useCallback(async () => {
-    if (reportGeneratorRef.current) {
-      reportGeneratorRef.current.click()
+    try {
+      // Generate PDF if not already generated
+      const blob = pdfBlob || generatePDF()
+      if (!blob) {
+        toast({
+          title: "Eroare",
+          description: "Nu s-a putut genera PDF-ul pentru descărcare",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Create a URL for the blob
+      const url = URL.createObjectURL(blob)
+
+      // Create a link element
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `Raport_Interventie_${params.id}.pdf`
+
+      // Append to the document, click it, and remove it
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      // Clean up the URL object
+      URL.revokeObjectURL(url)
+
+      toast({
+        title: "Descărcare reușită",
+        description: "Raportul a fost descărcat cu succes",
+      })
+    } catch (error) {
+      console.error("Eroare la descărcarea PDF-ului:", error)
+      toast({
+        title: "Eroare",
+        description: "A apărut o eroare la descărcarea raportului",
+        variant: "destructive",
+      })
     }
-  }, [])
+  }, [pdfBlob, generatePDF, params.id])
 
   const handleResendEmail = useCallback(async () => {
     if (!email) {
@@ -298,16 +513,20 @@ export default function RaportPage({ params }: { params: { id: string } }) {
 
     setIsSubmitting(true)
     try {
-      const blob = pdfBlob
-      if (!blob && reportGeneratorRef.current) {
-        // Trigger PDF generation through the ReportGenerator component
-        reportGeneratorRef.current.click()
-        return // The onGenerate callback will handle sending the email
+      // Generate PDF if not already generated
+      const blob = pdfBlob || generatePDF()
+      if (!blob) {
+        toast({
+          title: "Eroare",
+          description: "Nu s-a putut genera PDF-ul pentru trimitere",
+          variant: "destructive",
+        })
+        return
       }
 
-      if (blob) {
-        await sendEmail(blob)
-      }
+      // Send email with the PDF
+      const success = await sendEmail(blob)
+      setEmailSent(success)
     } catch (error) {
       console.error("Eroare la retrimiterea emailului:", error)
       toast({
@@ -318,7 +537,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
     } finally {
       setIsSubmitting(false)
     }
-  }, [email, pdfBlob, sendEmail])
+  }, [email, pdfBlob, generatePDF, sendEmail])
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
@@ -347,20 +566,6 @@ export default function RaportPage({ params }: { params: { id: string } }) {
                 <p className="text-center text-gray-500">
                   Raportul a fost generat și {emailSent ? "trimis pe email" : "poate fi descărcat sau trimis pe email"}.
                 </p>
-                {/* Add this inside the first div of the isSubmitted condition */}
-                <div className="hidden">
-                  <ReportGenerator
-                    ref={reportGeneratorRef}
-                    lucrare={lucrare}
-                    onGenerate={(blob) => {
-                      setPdfBlob(blob)
-                      // Send email automatically when PDF is generated
-                      sendEmail(blob).then((success) => {
-                        setEmailSent(success)
-                      })
-                    }}
-                  />
-                </div>
               </div>
 
               <div className="space-y-4">
@@ -450,7 +655,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
                   <h3 className="font-medium text-gray-500">Status Lucrare</h3>
                   <Select value={statusLucrare} onValueChange={handleStatusChange}>
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecta��i statusul" />
+                      <SelectValue placeholder="Selectați statusul" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="În așteptare">În așteptare</SelectItem>
