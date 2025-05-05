@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/components/ui/use-toast"
-import { ChevronLeft, FileText, Pencil, Trash2, AlertCircle, CheckCircle, Lock, Eye } from "lucide-react"
+import { ChevronLeft, FileText, Pencil, Trash2, AlertCircle, CheckCircle, Lock } from "lucide-react"
 import { getLucrareById, deleteLucrare, updateLucrare } from "@/lib/firebase/firestore"
 import { TehnicianInterventionForm } from "@/components/tehnician-intervention-form"
 import { useAuth } from "@/contexts/AuthContext"
@@ -100,7 +100,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
     if (!lucrare?.id) return
 
     // Redirecționăm către pagina de lucrări cu parametrul de editare
-    router.push(`/dashboard/lucrari?edit=${lucrare.id}`)
+   router.push(`/dashboard/lucrari?edit=${lucrare.id}`)
   }, [router, lucrare])
 
   // Modificăm funcția handleGenerateReport pentru a naviga către pagina de raport
@@ -199,10 +199,6 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
     )
   }
 
-  const isLucrareFinalizata = lucrare.statusLucrare === "Finalizat"
-  const buttonText = isLucrareFinalizata && role === "tehnician" ? "Vizualizează raport" : "Generează raport"
-  const buttonIcon = isLucrareFinalizata && role === "tehnician" ? Eye : FileText
-
   return (
     <DashboardShell>
       <DashboardHeader heading={`Lucrare: ${lucrare.tipLucrare}`} text={`Client: ${lucrare.client}`}>
@@ -211,7 +207,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
             <ChevronLeft className="mr-2 h-4 w-4" /> Înapoi
           </Button>
           <Button onClick={handleGenerateReport}>
-            <buttonIcon className="mr-2 h-4 w-4" /> {buttonText}
+            <FileText className="mr-2 h-4 w-4" /> Generează raport
           </Button>
         </div>
       </DashboardHeader>
@@ -237,50 +233,51 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
         </Alert>
       )}
 
-      {/* Adăugăm un banner de notificare pentru tehnicieni dacă lucrarea este finalizată */}
-      {role === "tehnician" && isLucrareFinalizata && (
-        <Alert variant="default" className="mb-4 bg-green-50 border-green-200">
-          <CheckCircle className="h-4 w-4 text-green-500" />
-          <AlertTitle>Lucrare finalizată</AlertTitle>
-          <AlertDescription>
-            Această lucrare este finalizată. Nu mai puteți modifica detaliile intervenției.
-          </AlertDescription>
-        </Alert>
-      )}
-
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList
-          /*   ↘ container flexibil, se împachetează și își calculează înălțimea
+<TabsList
+  /*   ↘ container flexibil, se împachetează și își calculează înălțimea
        ↘ păstrăm fundalul gri și padding-ul original  */
-          className="inline-flex w-full flex-wrap gap-2 h-auto
+  className="inline-flex w-full flex-wrap gap-2 h-auto
              bg-muted p-1 rounded-md text-muted-foreground
              md:flex-nowrap md:w-auto"
-        >
-          {/* ------------ 1. Detalii (50 %) ------------------------------- */}
-          <TabsTrigger value="detalii" className="flex-1 basis-1/2 text-center whitespace-normal">
-            Detalii&nbsp;Lucrare
-          </TabsTrigger>
+>
+  {/* ------------ 1. Detalii (50 %) ------------------------------- */}
+  <TabsTrigger
+    value="detalii"
+    className="flex-1 basis-1/2 text-center whitespace-normal"
+  >
+    Detalii&nbsp;Lucrare
+  </TabsTrigger>
 
-          {/* ------------ 3. Verificare Echipament (100 % pe mobil) ------- */}
-          {role === "tehnician" && (
-            <TabsTrigger value="verificare" className="basis-full md:basis-auto text-center whitespace-normal">
-              Confirmare echipament
-            </TabsTrigger>
-          )}
-          {/* ------------ 2. Intervenție (50 %) --------------------------- */}
-          {role === "tehnician" && (
-            <TabsTrigger
-              value="interventie"
-              disabled={role === "tehnician" && !equipmentVerified}
-              className={`flex-1 basis-1/2 text-center whitespace-normal ${
-                role === "tehnician" && !equipmentVerified ? "relative" : ""
-              }`}
-            >
-              {role === "tehnician" && !equipmentVerified && <Lock className="h-3 w-3 absolute right-2" />}
-              Intervenție
-            </TabsTrigger>
-          )}
-        </TabsList>
+  {/* ------------ 3. Verificare Echipament (100 % pe mobil) ------- */}
+  {role === "tehnician" && (
+    <TabsTrigger
+      value="verificare"
+      className="basis-full md:basis-auto text-center whitespace-normal"
+    >
+      Confirmare echipament
+    </TabsTrigger>
+  )}
+  {/* ------------ 2. Intervenție (50 %) --------------------------- */}
+  {role === "tehnician" && (
+    <TabsTrigger
+      value="interventie"
+      disabled={role === "tehnician" && !equipmentVerified}
+      className={`flex-1 basis-1/2 text-center whitespace-normal ${
+        role === "tehnician" && !equipmentVerified ? "relative" : ""
+      }`}
+    >
+      {role === "tehnician" && !equipmentVerified && (
+        <Lock className="h-3 w-3 absolute right-2" />
+      )}
+      Intervenție
+    </TabsTrigger>
+  )}
+
+
+</TabsList>
+
+
 
         <TabsContent value="detalii" className="mt-4">
           <div className="grid gap-4 md:grid-cols-2">

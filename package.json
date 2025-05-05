@@ -60,7 +60,6 @@
     "zod": "latest",
     "@types/prop-types": "latest",
     "prop-types": "latest",
-    "jspdf": "latest",
     "firebase": "latest",
     "react-signature-canvas": "latest",
     "@tanstack/react-table": "latest",
@@ -68,10 +67,10 @@
     "nodemailer": "latest",
     "path": "latest",
     "uuid": "latest",
+    "jspdf": "latest",
     "html2canvas": "latest",
     "react-qr-reader": "latest",
-    "qrcode.react": "latest",
-    "jspdf-autotable": "latest"
+    "qrcode.react": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",

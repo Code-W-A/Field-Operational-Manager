@@ -194,6 +194,7 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
     setIsEchipamentDialogOpen(true)
   }
 
+  // Update the handleEchipamentInputChange function to use the new validation rule
   // Funcție pentru modificarea datelor echipamentului
   const handleEchipamentInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { id, value } = e.target
@@ -201,7 +202,7 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
 
     // Verificăm codul dacă acesta se schimbă
     if (id === "cod") {
-      // Validăm formatul codului (maxim 10 caractere, conține litere și cifre)
+      // Validăm formatul codului (maxim 10 caractere, conține cifre și litere)
       if (value !== "" && (!(/[a-zA-Z]/.test(value) && /[0-9]/.test(value)) || value.length > 10)) {
         setEchipamentFormErrors((prev) => (prev.includes("cod") ? prev : [...prev, "cod"]))
       } else {
@@ -210,6 +211,7 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
     }
   }
 
+  // Update the handleSaveEchipament function to use the new validation rule
   // Funcție pentru salvarea echipamentului
   const handleSaveEchipament = () => {
     // Validăm datele echipamentului
@@ -269,6 +271,7 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
     }
   }
 
+  // Update the checkCodeUniqueness function to use the new validation rule
   // Verificăm unicitatea codului de echipament
   useEffect(() => {
     const checkCodeUniqueness = async () => {
@@ -696,6 +699,7 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
             <DialogTitle>
               {selectedEchipamentIndex !== null ? "Editare Echipament" : "Adăugare Echipament Nou"}
             </DialogTitle>
+            {/* Update the dialog description and label */}
             <DialogDescription>
               Completați detaliile echipamentului. Codul trebuie să fie unic, să conțină maxim 10 caractere și să
               includă atât litere cât și cifre.
@@ -718,9 +722,11 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
               </div>
 
               <div className="space-y-1">
+                {/* Update the label for the code field */}
                 <label htmlFor="cod" className="text-sm font-medium">
-                  Cod Unic (4 litere + 4 cifre) *
+                  Cod Unic (maxim 10 caractere, conține litere și cifre) *
                 </label>
+                {/* Update the placeholder for the code field */}
                 <Input
                   id="cod"
                   placeholder="Ex: ABC123"
@@ -729,6 +735,7 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
                   className={echipamentFormErrors.includes("cod") || !isCodeUnique ? errorStyle : ""}
                   maxLength={10}
                 />
+                {/* Update the error message for the code field */}
                 {echipamentFormErrors.includes("cod") && (
                   <p className="text-xs text-red-500">
                     Codul trebuie să conțină maxim 10 caractere și să includă atât litere cât și cifre

@@ -219,6 +219,7 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
     setIsEchipamentDialogOpen(true)
   }
 
+  // Update the handleEchipamentInputChange function to use the new validation rule
   // Funcție pentru modificarea datelor echipamentului
   const handleEchipamentInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { id, value } = e.target
@@ -235,6 +236,7 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
     }
   }
 
+  // Update the handleSaveEchipament function to use the new validation rule
   // Funcție pentru salvarea echipamentului
   const handleSaveEchipament = () => {
     // Validăm datele echipamentului
@@ -300,6 +302,7 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
     }
   }
 
+  // Update the checkCodeUniqueness function to use the new validation rule
   // Verificăm unicitatea codului de echipament
   useEffect(() => {
     const checkCodeUniqueness = async () => {
@@ -756,6 +759,7 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
             <DialogTitle>
               {selectedEchipamentIndex !== null ? "Editare Echipament" : "Adăugare Echipament Nou"}
             </DialogTitle>
+            {/* Update the dialog description and label */}
             <DialogDescription>
               Completați detaliile echipamentului. Codul trebuie să fie unic, să conțină maxim 10 caractere și să
               includă atât litere cât și cifre.
@@ -788,9 +792,11 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
               </div>
 
               <div className="space-y-1">
+                {/* Update the label for the code field */}
                 <label htmlFor="cod" className="text-sm font-medium">
                   Cod Unic (maxim 10 caractere, conține litere și cifre) *
                 </label>
+                {/* Update the placeholder for the code field */}
                 <Input
                   id="cod"
                   placeholder="Ex: ABC123"
@@ -799,6 +805,7 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
                   className={echipamentFormErrors.includes("cod") || !isCodeUnique ? errorStyle : ""}
                   maxLength={10}
                 />
+                {/* Update the error message for the code field */}
                 {echipamentFormErrors.includes("cod") && (
                   <p className="text-xs text-red-500">
                     Codul trebuie să conțină maxim 10 caractere și să includă atât litere cât și cifre

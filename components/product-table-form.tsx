@@ -1,13 +1,11 @@
 "use client"
 import { Button } from "@/components/ui/button"
-import type React from "react"
-
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Plus, Trash2 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 
-export interface Product {
+export interface ProductItem {
   id: string
   name: string
   um: string
@@ -17,8 +15,8 @@ export interface Product {
 }
 
 interface ProductTableFormProps {
-  products: Product[]
-  onProductsChange: (products: Product[]) => void
+  products: ProductItem[]
+  onProductsChange: (products: ProductItem[]) => void
 }
 
 export function ProductTableForm({ products, onProductsChange }: ProductTableFormProps) {
@@ -27,7 +25,7 @@ export function ProductTableForm({ products, onProductsChange }: ProductTableFor
 
   // Funcție pentru a adăuga un produs nou
   const addProduct = () => {
-    const newProduct: Product = {
+    const newProduct: ProductItem = {
       id: generateId(),
       name: "",
       um: "buc",
@@ -44,7 +42,7 @@ export function ProductTableForm({ products, onProductsChange }: ProductTableFor
   }
 
   // Funcție pentru a actualiza un produs
-  const updateProduct = (id: string, field: keyof Product, value: any) => {
+  const updateProduct = (id: string, field: keyof ProductItem, value: any) => {
     const updatedProducts = products.map((product) => {
       if (product.id === id) {
         const updatedProduct = { ...product, [field]: value }
@@ -65,12 +63,15 @@ export function ProductTableForm({ products, onProductsChange }: ProductTableFor
   // Calculăm totalul general
   const totalWithoutVAT = products.reduce((sum, product) => sum + product.total, 0)
   const totalWithVAT = totalWithoutVAT * 1.19 // Presupunem TVA 19%
-  const handleNumberChange = (id: string, field: "price" | "quantity") => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value // string
-    const parsed = raw === "" ? undefined : Number.parseFloat(raw)
+const handleNumberChange = (
+  id: string,
+  field: "price" | "quantity",
+) => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const raw = e.target.value           // string
+  const parsed = raw === "" ? undefined : parseFloat(raw)
 
-    updateProduct(id, field, parsed ?? 0) // păstrăm 0 doar când vrem noi
-  }
+  updateProduct(id, field, parsed ?? 0) // păstrăm 0 doar când vrem noi
+}
 
   return (
     <div className="space-y-6">
@@ -146,8 +147,8 @@ export function ProductTableForm({ products, onProductsChange }: ProductTableFor
                         type="number"
                         min="0"
                         step="0.01"
-                        value={product.price === 0 ? "" : product.price}
-                        onChange={handleNumberChange(product.id, "price")}
+                     value={product.price === 0 ? "" : product.price}
+                      onChange={handleNumberChange(product.id, "price")}
                       />
                     </div>
 
