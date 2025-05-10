@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
               "Sending email to technician",
               {
                 recipient: `${tech.name} <${tech.email}>`,
-                subject: `Lucrare nouă: ${workOrderNumber || workOrderId}`,
+                subject: `Lucrare nouă: ${client?.name}`,
               },
               { category: "email", context: logContext },
             )

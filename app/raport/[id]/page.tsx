@@ -148,9 +148,9 @@ export default function RaportPage({ params }: { params: { id: string } }) {
         formData.append("subject", `Raport Interventie - ${lucrare.client} - ${lucrare.dataInterventie}`)
         formData.append(
           "message",
-          `Stimata/Stimate ${lucrare.persoanaContact},\n\nVa transmitem atasat raportul de interventie pentru lucrarea efectuata in data de ${lucrare.dataInterventie}.\n\nCu stima,\nEchipa de interventie`,
+          `Stimata/Stimate ${lucrare.persoanaContact},\n\nVa transmitem atasat raportul de interventie pentru lucrarea efectuata in data de ${lucrare.dataInterventie}.\n\nCu stima,\nFOM by NRG`,
         )
-        formData.append("senderName", `Echipa de interventie - ${lucrare.tehnicieni?.join(", ")}`)
+        formData.append("senderName", `FOM by NRG - ${lucrare.tehnicieni?.join(", ")}`)
 
         // Add PDF as file
         const pdfFile = new File([pdfBlob], `Raport_Interventie_${lucrare.id}.pdf`, { type: "application/pdf" })
