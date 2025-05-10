@@ -310,7 +310,7 @@ export async function POST(request: NextRequest) {
           "Sending email to client",
           {
             recipient: `${client.name} <${client.email}>`,
-            subject: `Confirmare lucrare: ${workOrderNumber || workOrderId}`,
+            subject: `Confirmare lucrare: ${client?.name}`,
           },
           { category: "email", context: logContext },
         )
