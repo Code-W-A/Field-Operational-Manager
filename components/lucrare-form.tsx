@@ -29,12 +29,24 @@ import { Card } from "@/components/ui/card"
 import { CustomEquipmentSelect } from "@/components/custom-equipment-select"
 import { Input } from "@/components/ui/input"
 import { toast } from "@/components/ui/use-toast"
-import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
 // Adăugați aceste importuri la începutul fișierului
-import { useNavigationPrompt } from "@/hooks/use-navigation-prompt"
-import { NavigationPromptDialog } from "@/components/navigation-prompt-dialog"
+
 import { useAuth } from "@/contexts/AuthContext"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
+import { useNavigationPrompt } from "@/hooks/use-navigation-prompt"
+import { handleNavigation } from "@/lib/utils/handle-navigation"
+import { NavigationPromptDialog } from "@/components/navigation-prompt-dialog"
 
 // Define the Lucrare type
 interface Lucrare {
@@ -129,7 +141,6 @@ export function LucrareForm({
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false)
   const [formModified, setFormModified] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-
   // Track initial form state
   const [initialFormState, setInitialFormState] = useState({
     dataEmiterii,
@@ -137,9 +148,36 @@ export function LucrareForm({
     formData: JSON.stringify(formData),
   })
 
+  const [dialogOpen, setDialogOpen] = useState(true) // Radix <Dialog> (sau pagina)
+  const [askClose, setAskClose] = useState(false) // afișăm <UnsavedChangesDialog>?
+
+  const [showCloseConfirmDialog, setShowCloseConfirmDialog] = useState(false)
+
   // Use the unsaved changes hook
-  const { showDialog, handleNavigation, confirmNavigation, cancelNavigation, pendingUrl } =
-    useUnsavedChanges(formModified)
+  const {
+    showDialog: showUnsavedPrompt,
+    handleBlockedAction, //  ←  NOU
+    confirmNavigation,
+    cancelNavigation,
+  } = useUnsavedChanges(formModified)
+
+  const handleDialogOpenChange = (open: boolean) => {
+    if (!open) {
+      // încearcă să închidă → verificăm întâi unsaved changes
+      handleBlockedAction(() => setDialogOpen(false))
+    } else {
+      setDialogOpen(true)
+    }
+  }
+
+  const tryClose = () => {
+    if (formModified) {
+      setAskClose(true) // arată dialogul de confirmare
+    } else {
+      setDialogOpen(false) // se închide direct
+      onCancel?.() // dacă aveai onCancel din props
+    }
+  }
 
   // Add state for controlling the popovers
   const [dateEmiteriiOpen, setDateEmiteriiOpen] = useState(false)
@@ -752,6 +790,24 @@ export function LucrareForm({
     handleCancel2(onCancel)
   }
 
+  // Function to handle close attempt
+  const handleCloseAttempt = () => {
+    handleNavigation(formModified, setShowCloseConfirmDialog, onCancel)
+  }
+
+  // Function to confirm close
+  const confirmClose = () => {
+    setShowCloseConfirmDialog(false)
+    if (onCancel) {
+      onCancel()
+    }
+  }
+
+  // Function to cancel close
+  const cancelClose = () => {
+    setShowCloseConfirmDialog(false)
+  }
+
   return (
     <div className="modal-calendar-container">
       {error && <div className="text-red-500 mb-4">{error}</div>}
@@ -1190,7 +1246,7 @@ export function LucrareForm({
         <div className="flex justify-end space-x-2 mt-6">
           {onCancel && (
             // Înlocuiți butonul de anulare cu:
-            <Button variant="outline" onClick={handleFormCancel}>
+            <Button variant="outline" onClick={handleCloseAttempt}>
               Anulează
             </Button>
           )}
@@ -1199,13 +1255,26 @@ export function LucrareForm({
       )}
 
       {/* Unsaved changes dialog */}
-      <UnsavedChangesDialog
-        open={showDialog}
-        onConfirm={pendingUrl === "#cancel" ? confirmCancelAction : confirmNavigation}
-        onCancel={cancelNavigation}
-      />
+      <UnsavedChangesDialog open={showUnsavedPrompt} onConfirm={confirmNavigation} onCancel={cancelNavigation} />
       {/* Adăugați dialogul la sfârșitul componentei, înainte de ultimul </div>: */}
       <NavigationPromptDialog open={showPrompt} onConfirm={handleConfirm} onCancel={handleCancel} />
+
+      {/* Close confirmation dialog */}
+      <AlertDialog open={showCloseConfirmDialog} onOpenChange={setShowCloseConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmați închiderea</AlertDialogTitle>
+            <AlertDialogDescription>
+              Aveți modificări nesalvate. Sunteți sigur că doriți să închideți formularul? Toate modificările vor fi
+              pierdute.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelClose}>Anulează</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmClose}>Închide</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

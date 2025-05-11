@@ -1,86 +1,97 @@
-"use client"
-
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter, usePathname } from "next/navigation"
 
-/**
- * Hook to track unsaved changes in a form and show a confirmation dialog when navigating away
- * @param isDirty Boolean indicating if the form has unsaved changes
- * @returns Object containing functions to handle navigation with confirmation
- */
+type PendingTask = (() => void) | null   //  --- NEW ---
+
 export function useUnsavedChanges(isDirty: boolean) {
   const router = useRouter()
   const pathname = usePathname()
-  const [showDialog, setShowDialog] = useState(false)
-  const [pendingUrl, setPendingUrl] = useState<string | null>(null)
+
+  const [showDialog,  setShowDialog]  = useState(false)
+  const [pendingUrl,  setPendingUrl]  = useState<string | null>(null)
+  const [pendingTask, setPendingTask] = useState<PendingTask>(null)   //  --- NEW ---
   const isDirtyRef = useRef(isDirty)
 
-  // Keep the ref updated with the latest isDirty value
+  // ──────────────────────────────────────────────────────────────────────────
+  // menținem referința sincronizată cu starea “dirty”
   useEffect(() => {
     isDirtyRef.current = isDirty
-    console.log("Form dirty state changed:", isDirty)
   }, [isDirty])
 
-  // Handle browser back/refresh/close events
+  // ──────────────────────────────────────────────────────────────────────────
+  // blocăm închiderea/refresh-ul tab-ului
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (!isDirtyRef.current) return
-
-      console.log("beforeunload event triggered, isDirty:", isDirtyRef.current)
-
-      // Standard way to show a confirmation dialog when closing/refreshing the page
+      const msg = "Aveți modificări nesalvate. Sunteți sigur că doriți să părăsiți pagina?"
       e.preventDefault()
-      e.returnValue = "Aveți modificări nesalvate. Sunteți sigur că doriți să părăsiți pagina?"
-      return "Aveți modificări nesalvate. Sunteți sigur că doriți să părăsiți pagina?"
+      e.returnValue = msg
+      return msg
     }
-
     window.addEventListener("beforeunload", handleBeforeUnload)
-
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload)
-    }
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
   }, [])
 
-  // Function to handle navigation with confirmation
+  // ──────────────────────────────────────────────────────────────────────────
+  // 1️⃣  Navigare blocabilă (exact ca înainte)
   const handleNavigation = useCallback(
     (url: string) => {
-      console.log("handleNavigation called with URL:", url, "isDirty:", isDirtyRef.current)
-
       if (isDirtyRef.current) {
-        // If there are unsaved changes, store the URL and show the dialog
         setPendingUrl(url)
+        setPendingTask(null)        //  ←  ne asigurăm că nu e și o acțiune
         setShowDialog(true)
         return false
       }
-
-      // If no unsaved changes, navigate directly
       router.push(url)
       return true
     },
     [router],
   )
 
-  // Function to confirm navigation and proceed
+  // 2️⃣  Orice acțiune blocabilă (închiderea unui dialog, resetarea unui formular etc.)
+  //     O chemi așa:  handleBlockedAction(() => setDialogOpen(false))
+  const handleBlockedAction = useCallback(               //  --- NEW ---
+    (task: () => void) => {
+      if (isDirtyRef.current) {
+        setPendingTask(() => task)   // stocăm funcția
+        setPendingUrl(null)
+        setShowDialog(true)
+        return false
+      }
+      task()
+      return true
+    },
+    [],
+  )
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // confirmăm și executăm ce-a rămas în pending (url sau task)
   const confirmNavigation = useCallback(() => {
-    console.log("confirmNavigation called, pendingUrl:", pendingUrl)
     setShowDialog(false)
-    if (pendingUrl) {
+
+    if (pendingTask) {             //  --- NEW ---
+      pendingTask()
+      setPendingTask(null)
+    } else if (pendingUrl) {
       router.push(pendingUrl)
       setPendingUrl(null)
     }
-  }, [pendingUrl, router])
+  }, [pendingUrl, pendingTask, router])
 
-  // Function to cancel navigation
   const cancelNavigation = useCallback(() => {
-    console.log("cancelNavigation called")
     setShowDialog(false)
     setPendingUrl(null)
+    setPendingTask(null)           //  --- NEW ---
   }, [])
 
   return {
+    // state
     showDialog,
     pendingUrl,
-    handleNavigation,
+
+    // api
+    handleNavigation,     // pt. schimbare de URL
+    handleBlockedAction,  // pt. orice altă acțiune
     confirmNavigation,
     cancelNavigation,
   }
