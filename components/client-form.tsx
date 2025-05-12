@@ -780,7 +780,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
 
       {/* Dialog pentru adăugare/editare echipament */}
       <Dialog open={isEchipamentDialogOpen} onOpenChange={setIsEchipamentDialogOpen}>
-        <DialogContent className="sm:max-w-[500px] w-[95%] max-h-[90vh] overflow-y-auto">
+        <DialogContent hideClose  className="sm:max-w-[500px] w-[95%] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {selectedEchipamentIndex !== null ? "Editare Echipament" : "Adăugare Echipament Nou"}
@@ -936,11 +936,6 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
       </Dialog>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-        {/* Test button to directly show the dialog */}
-        <Button type="button" variant="destructive" onClick={showAlertDialogDirectly} className="mb-4">
-          Test Dialog
-        </Button>
-
         <Button type="button" variant="outline" onClick={handleCloseAttempt}>
           Anulează
         </Button>

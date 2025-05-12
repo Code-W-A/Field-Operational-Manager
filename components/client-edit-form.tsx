@@ -811,7 +811,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
 
       {/* Dialog pentru adăugare/editare echipament */}
       <Dialog open={isEchipamentDialogOpen} onOpenChange={setIsEchipamentDialogOpen}>
-        <DialogContent className="sm:max-w-[500px] w-[95%] max-h-[90vh] overflow-y-auto">
+        <DialogContent hideClose  className="sm:max-w-[500px] w-[95%] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {selectedEchipamentIndex !== null ? "Editare Echipament" : "Adăugare Echipament Nou"}
@@ -827,6 +827,10 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
             {selectedEchipamentIndex !== null && !isAdmin && (
               <Alert variant="warning" className="mt-2">
                 <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Notă: Doar administratorii pot șterge echipamente. Puteți edita detaliile, dar nu puteți șterge
+                  echipamentul.
+                </AlertDescription>
                 <AlertDescription>
                   Notă: Doar administratorii pot șterge echipamente. Puteți edita detaliile, dar nu puteți șterge
                   echipamentul.
@@ -977,11 +981,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
       </Dialog>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-        {/* Test button to directly show the dialog */}
-        <Button type="button" variant="destructive" onClick={showAlertDialogDirectly} className="mb-4">
-          Test Dialog
-        </Button>
-
+        {/* Alert Dialog for unsaved changes when clicking Cancel */}
         <Button type="button" variant="outline" onClick={handleCloseAttempt}>
           Anulează
         </Button>
