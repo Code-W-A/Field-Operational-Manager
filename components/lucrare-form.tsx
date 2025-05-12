@@ -35,6 +35,16 @@ import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
 import { useNavigationPrompt } from "@/hooks/use-navigation-prompt"
 import { NavigationPromptDialog } from "@/components/navigation-prompt-dialog"
 import { useAuth } from "@/contexts/AuthContext"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 // Define the Lucrare type
 interface Lucrare {
@@ -129,6 +139,7 @@ export function LucrareForm({
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false)
   const [formModified, setFormModified] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showCloseAlert, setShowCloseAlert] = useState(false)
 
   // Track initial form state
   const [initialFormState, setInitialFormState] = useState({
@@ -752,6 +763,28 @@ export function LucrareForm({
     handleCancel2(onCancel)
   }
 
+  // Function to handle close attempt
+  const handleCloseAttempt = () => {
+    if (formModified) {
+      setShowCloseAlert(true)
+    } else if (onCancel) {
+      onCancel()
+    }
+  }
+
+  // Function to confirm close
+  const confirmClose = () => {
+    setShowCloseAlert(false)
+    if (onCancel) {
+      onCancel()
+    }
+  }
+
+  // Function to cancel close
+  const cancelClose = () => {
+    setShowCloseAlert(false)
+  }
+
   return (
     <div className="modal-calendar-container">
       {error && <div className="text-red-500 mb-4">{error}</div>}
@@ -1189,7 +1222,7 @@ export function LucrareForm({
       {(onSubmit || onCancel) && (
         <div className="flex justify-end space-x-2 mt-6">
           {onCancel && (
-            <Button variant="outline" onClick={onCancel}>
+            <Button variant="outline" onClick={handleCloseAttempt}>
               Anulează
             </Button>
           )}
@@ -1205,6 +1238,22 @@ export function LucrareForm({
       />
       {/* Adăugați dialogul la sfârșitul componentei, înainte de ultimul </div>: */}
       <NavigationPromptDialog open={showPrompt} onConfirm={handleConfirm} onCancel={handleCancel} />
+      {/* Close confirmation alert */}
+      <AlertDialog open={showCloseAlert} onOpenChange={setShowCloseAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmați închiderea</AlertDialogTitle>
+            <AlertDialogDescription>
+              Aveți modificări nesalvate. Sunteți sigur că doriți să închideți formularul? Toate modificările vor fi
+              pierdute.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelClose}>Anulează</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmClose}>Închide</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
