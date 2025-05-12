@@ -7,7 +7,7 @@ import { useState, useEffect, forwardRef, useImperativeHandle } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, Loader2, Plus, Trash2, Wrench, MapPin, AlertTriangle, X } from "lucide-react"
+import { AlertCircle, Loader2, Plus, Trash2, Wrench, MapPin, AlertTriangle } from "lucide-react"
 import {
   updateClient,
   type Client,
@@ -56,7 +56,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
     email: client.email || "",
   })
 
-  // Add state for close alert dialog - IMPORTANT: default to true for testing
+  // Add state for close alert dialog
   const [showCloseAlert, setShowCloseAlert] = useState(false)
 
   // Inițializăm locațiile din client sau creăm una goală dacă nu există
@@ -101,7 +101,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
   const [isCheckingCode, setIsCheckingCode] = useState(false)
   const [isCodeUnique, setIsCodeUnique] = useState(true)
 
-  // Use the useUnsavedChanges hook
+  // Use the unsaved changes hook
   const { showDialog, handleNavigation, confirmNavigation, cancelNavigation, pendingUrl } =
     useUnsavedChanges(formModified)
 
@@ -110,11 +110,6 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
     formData,
     locatii: JSON.stringify(locatii),
   })
-
-  // Log when showCloseAlert changes
-  useEffect(() => {
-    console.log("showCloseAlert changed to:", showCloseAlert)
-  }, [showCloseAlert])
 
   // Check if form has been modified
   useEffect(() => {
@@ -471,7 +466,10 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
   const errorStyle = "border-red-500 focus-visible:ring-red-500"
 
   // New function to handle close attempt
-  const handleCloseAttempt = () => {
+  const handleCloseAttempt = (e: React.MouseEvent) => {
+    // Prevent default to avoid form submission
+    e.preventDefault()
+
     console.log("handleCloseAttempt called, formModified:", formModified)
     if (formModified) {
       setShowCloseAlert(true)
@@ -482,7 +480,6 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
 
   // Functions to handle alert dialog responses
   const confirmClose = () => {
-    console.log("confirmClose called")
     setShowCloseAlert(false)
     if (onCancel) {
       onCancel()
@@ -490,23 +487,19 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
   }
 
   const cancelClose = () => {
-    console.log("cancelClose called")
     setShowCloseAlert(false)
   }
 
-  // Funcție pentru a gestiona închiderea dialogului de echipament
-  const handleEchipamentDialogClose = () => {
-    // Verificăm dacă există modificări în formular
-    const isFormEmpty =
-      !echipamentFormData.nume && !echipamentFormData.cod && !echipamentFormData.model && !echipamentFormData.serie
+  // Handle cancel with confirmation if form is modified
+  const handleCancel = (e: React.MouseEvent) => {
+    // Prevent default to avoid form submission
+    e.preventDefault()
 
-    if (isFormEmpty) {
-      setIsEchipamentDialogOpen(false)
-    } else {
-      // Afișăm un dialog de confirmare
-      if (window.confirm("Aveți modificări nesalvate. Sunteți sigur că doriți să închideți?")) {
-        setIsEchipamentDialogOpen(false)
-      }
+    if (formModified) {
+      // Show confirmation dialog
+      setShowCloseAlert(true)
+    } else if (onCancel) {
+      onCancel()
     }
   }
 
@@ -813,38 +806,18 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
       </div>
 
       {/* Dialog pentru adăugare/editare echipament */}
-      <Dialog
-        open={isEchipamentDialogOpen}
-        onOpenChange={(open) => {
-          if ((!open && echipamentFormData.nume) || echipamentFormData.cod) {
-            // Dacă se încearcă închiderea și există date, afișăm confirmarea
-            if (window.confirm("Aveți modificări nesalvate. Sunteți sigur că doriți să închideți?")) {
-              setIsEchipamentDialogOpen(false)
-            }
-          } else {
-            setIsEchipamentDialogOpen(open)
-          }
-        }}
-      >
+      <Dialog open={isEchipamentDialogOpen} onOpenChange={setIsEchipamentDialogOpen}>
         <DialogContent className="sm:max-w-[500px] w-[95%] max-h-[90vh] overflow-y-auto">
-          <DialogHeader className="flex flex-row items-center justify-between">
+          <DialogHeader>
             <DialogTitle>
               {selectedEchipamentIndex !== null ? "Editare Echipament" : "Adăugare Echipament Nou"}
             </DialogTitle>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0 absolute right-4 top-4"
-              onClick={handleEchipamentDialogClose}
-            >
-              <X className="h-4 w-4" />
-            </Button>
+            {/* Update the dialog description and label */}
+            <DialogDescription>
+              Completați detaliile echipamentului. Codul trebuie să fie unic, să conțină maxim 10 caractere și să
+              includă atât litere cât și cifre.
+            </DialogDescription>
           </DialogHeader>
-          <DialogDescription>
-            Completați detaliile echipamentului. Codul trebuie să fie unic, să conțină maxim 10 caractere și să includă
-            atât litere cât și cifre.
-          </DialogDescription>
 
           <div className="grid gap-3 py-3 overflow-y-auto">
             {selectedEchipamentIndex !== null && !isAdmin && (
@@ -967,7 +940,12 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
           </div>
 
           <DialogFooter className="pt-2 flex-col gap-2 sm:flex-row">
-            <Button type="button" variant="outline" onClick={handleEchipamentDialogClose} className="w-full sm:w-auto">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsEchipamentDialogOpen(false)}
+              className="w-full sm:w-auto"
+            >
               Anulează
             </Button>
             <Button

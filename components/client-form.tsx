@@ -57,7 +57,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
     ]),
   })
 
-  // Add state for close alert dialog - IMPORTANT: default to true for testing
+  // Add state for close alert dialog
   const [showCloseAlert, setShowCloseAlert] = useState(false)
 
   const [formData, setFormData] = useState({
@@ -138,11 +138,6 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
   useImperativeHandle(ref, () => ({
     hasUnsavedChanges: () => formModified,
   }))
-
-  // Log when showCloseAlert changes
-  useEffect(() => {
-    console.log("showCloseAlert changed to:", showCloseAlert)
-  }, [showCloseAlert])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target
@@ -440,26 +435,21 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
     }
   }
 
-  // New function to handle close attempt - SIMPLIFIED
-  const handleCloseAttempt = () => {
+  // New function to handle close attempt
+  const handleCloseAttempt = (e: React.MouseEvent) => {
+    // Prevent default to avoid form submission
+    e.preventDefault()
+
     console.log("handleCloseAttempt called, formModified:", formModified)
-
-    // For testing, always show the dialog
-    setShowCloseAlert(true)
-
-    // Uncomment this for production
-    /*
     if (formModified) {
       setShowCloseAlert(true)
     } else if (onCancel) {
       onCancel()
     }
-    */
   }
 
   // Functions to handle alert dialog responses
   const confirmClose = () => {
-    console.log("confirmClose called")
     setShowCloseAlert(false)
     if (onCancel) {
       onCancel()
@@ -467,7 +457,6 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
   }
 
   const cancelClose = () => {
-    console.log("cancelClose called")
     setShowCloseAlert(false)
   }
 
@@ -476,12 +465,6 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
 
   // Stilul pentru câmpurile cu eroare
   const errorStyle = "border-red-500 focus-visible:ring-red-500"
-
-  // Test function to show the dialog directly
-  const showAlertDialogDirectly = () => {
-    console.log("Showing alert dialog directly")
-    setShowCloseAlert(true)
-  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -779,19 +762,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
       </div>
 
       {/* Dialog pentru adăugare/editare echipament */}
-      <Dialog
-        open={isEchipamentDialogOpen}
-        onOpenChange={(open) => {
-          if (!open && (echipamentFormData.nume || echipamentFormData.cod)) {
-            // Dacă se încearcă închiderea și există date, afișăm confirmarea
-            if (window.confirm("Aveți modificări nesalvate. Sunteți sigur că doriți să închideți?")) {
-              setIsEchipamentDialogOpen(false)
-            }
-          } else {
-            setIsEchipamentDialogOpen(open)
-          }
-        }}
-      >
+      <Dialog open={isEchipamentDialogOpen} onOpenChange={setIsEchipamentDialogOpen}>
         <DialogContent className="sm:max-w-[500px] w-[95%] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
@@ -918,15 +889,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
             <Button
               type="button"
               variant="outline"
-              onClick={() => {
-                if (echipamentFormData.nume || echipamentFormData.cod) {
-                  if (window.confirm("Aveți modificări nesalvate. Sunteți sigur că doriți să închideți?")) {
-                    setIsEchipamentDialogOpen(false)
-                  }
-                } else {
-                  setIsEchipamentDialogOpen(false)
-                }
-              }}
+              onClick={() => setIsEchipamentDialogOpen(false)}
               className="w-full sm:w-auto"
             >
               Anulează
@@ -956,11 +919,6 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
       </Dialog>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-        {/* Test button to directly show the dialog */}
-        <Button type="button" variant="destructive" onClick={showAlertDialogDirectly} className="mb-4">
-          Test Dialog
-        </Button>
-
         <Button type="button" variant="outline" onClick={handleCloseAttempt}>
           Anulează
         </Button>
