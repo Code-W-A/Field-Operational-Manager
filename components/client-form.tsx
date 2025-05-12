@@ -34,6 +34,17 @@ interface ClientFormProps {
 const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) => {
   // Add state to track if form has been modified
   const [formModified, setFormModified] = useState(false)
+  const [initialFormState, setInitialFormState] = useState({
+    formData: {
+      nume: "",
+      cif: "",
+      adresa: "",
+      email: "",
+    },
+    locatii: JSON.stringify([
+      { nume: "", adresa: "", persoaneContact: [{ nume: "", telefon: "", email: "", functie: "" }], echipamente: [] },
+    ]),
+  })
 
   const [formData, setFormData] = useState({
     nume: "",
@@ -71,25 +82,35 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
   // Folosim noul hook pentru promptul de navigare
   const { showPrompt, handleConfirm, handleCancel, handleCancel2 } = useNavigationPrompt(formModified)
 
-  // Adăugăm un efect pentru a afișa starea formularului
+  // Check if form has been modified
   useEffect(() => {
-    console.log("Form modified state:", formModified)
-    console.log("showPrompt state:", showPrompt)
-  }, [formModified, showPrompt])
+    const currentState = {
+      formData,
+      locatii: JSON.stringify(locatii),
+    }
 
-  // Mark form as modified when any input changes
-  useEffect(() => {
-    if (
+    // Only consider the form modified if it's different from the initial state
+    // and if there's actual content (not just empty fields)
+    const hasChanged =
+      JSON.stringify(currentState.formData) !== JSON.stringify(initialFormState.formData) ||
+      currentState.locatii !== initialFormState.locatii
+
+    const hasContent =
       formData.nume ||
       formData.cif ||
       formData.adresa ||
       formData.email ||
-      locatii.some((loc) => loc.nume || loc.adresa || loc.persoaneContact.some((p) => p.nume || p.telefon))
-    ) {
-      console.log("Form modified detected")
-      setFormModified(true)
-    }
-  }, [formData, locatii])
+      locatii.some(
+        (loc) =>
+          loc.nume ||
+          loc.adresa ||
+          loc.persoaneContact.some((p) => p.nume || p.telefon) ||
+          (loc.echipamente && loc.echipamente.length > 0),
+      )
+
+    setFormModified(hasChanged && hasContent)
+    console.log("Form modified:", hasChanged && hasContent)
+  }, [formData, locatii, initialFormState])
 
   // Reset form modified state after successful submission
   useEffect(() => {
@@ -382,7 +403,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
 
       // Reset form modified state after successful submission
       setFormModified(false) // Reset form modified state after successful submission
-      onSuccess(formData.nume)
+      if (onSuccess) onSuccess(formData.nume)
     } catch (err) {
       console.error("Eroare la adăugarea clientului:", err)
       setError("A apărut o eroare la adăugarea clientului. Încercați din nou.")
@@ -394,7 +415,11 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
   // Folosim noul handler pentru anulare
   const handleFormCancel = () => {
     console.log("handleFormCancel called, formModified:", formModified)
-    handleCancel2(onCancel)
+    if (formModified) {
+      handleCancel2(onCancel)
+    } else if (onCancel) {
+      onCancel()
+    }
   }
 
   // Verificăm dacă un câmp are eroare

@@ -109,6 +109,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
       currentState.locatii !== initialFormState.locatii
 
     setFormModified(hasChanged)
+    console.log("Form modified:", hasChanged)
   }, [formData, locatii, initialFormState])
 
   // Reset form modified state after successful submission
@@ -421,8 +422,13 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
         locatii: filteredLocatii,
       })
 
+      // Update the initial state to match current state after successful save
+      setInitialFormState({
+        formData,
+        locatii: JSON.stringify(locatii),
+      })
       setFormModified(false) // Reset form modified state after successful submission
-      onSuccess()
+      if (onSuccess) onSuccess()
     } catch (err) {
       console.error("Eroare la actualizarea clientului:", err)
       setError("A apărut o eroare la actualizarea clientului. Încercați din nou.")
