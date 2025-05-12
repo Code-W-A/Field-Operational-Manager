@@ -35,7 +35,7 @@ export function ColumnSelectionModal({
 }: ColumnSelectionModalProps) {
   const [mounted, setMounted] = useState(false)
 
-  // În componenta ColumnSelectionModal, adaugă următorul cod la începutul funcției sau înlocuiește apelul existent useLockBody
+  // În componenta ColumnSelectionModal, adaug�� următorul cod la începutul funcției sau înlocuiește apelul existent useLockBody
   const { unlockBody } = useLockBody()
 
   // Use our custom hook to manage body scroll locking

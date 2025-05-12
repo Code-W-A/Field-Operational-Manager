@@ -328,8 +328,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           ? products
           : [
               { id: "1", name: "", um: "", quantity: 0, price: 0, total: 0 },
-              { id: "2", name: "", um: "", quantity: 0, price: 0, total: 0 },
-              { id: "3", name: "", um: "", quantity: 0, price: 0, total: 0 },
+         
             ]
 
       productsToShow.forEach((product, index) => {
