@@ -2,11 +2,12 @@
 
 import type React from "react"
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2 } from "lucide-react"
+import { Loader2, Save } from "lucide-react"
 import { updateLucrare } from "@/lib/firebase/firestore"
 import { toast } from "@/components/ui/use-toast"
 import { useStableCallback } from "@/lib/utils/hooks"
@@ -22,12 +23,14 @@ interface TehnicianInterventionFormProps {
 }
 
 export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: TehnicianInterventionFormProps) {
+  const router = useRouter()
   const [formData, setFormData] = useState({
     descriereInterventie: initialData.descriereInterventie || "",
     constatareLaLocatie: initialData.constatareLaLocatie || "", // Initialize the new field
     statusLucrare: initialData.statusLucrare,
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const { id, value } = e.target
@@ -37,6 +40,35 @@ export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: 
   const handleSelectChange = (value: string) => {
     setFormData((prev) => ({ ...prev, statusLucrare: value }))
   }
+
+  // Function to just save the data without navigating
+  const handleSave = useStableCallback(async () => {
+    try {
+      setIsSaving(true)
+
+      await updateLucrare(lucrareId, {
+        descriereInterventie: formData.descriereInterventie,
+        constatareLaLocatie: formData.constatareLaLocatie,
+        statusLucrare: formData.statusLucrare,
+      })
+
+      toast({
+        title: "Intervenție salvată",
+        description: "Detaliile intervenției au fost salvate cu succes.",
+      })
+
+      onUpdate()
+    } catch (error) {
+      console.error("Eroare la salvarea intervenției:", error)
+      toast({
+        title: "Eroare",
+        description: "A apărut o eroare la salvarea intervenției.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  })
 
   // Use useStableCallback to ensure we have access to the latest state values
   // without causing unnecessary re-renders
@@ -56,6 +88,9 @@ export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: 
       })
 
       onUpdate()
+
+      // Navigate to the report generation page
+      router.push(`/raport/${lucrareId}`)
     } catch (error) {
       console.error("Eroare la actualizarea intervenției:", error)
       toast({
@@ -118,7 +153,18 @@ export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: 
         </CardContent>
       </Card>
 
-      <div className="flex justify-end">
+      <div className="flex justify-end space-x-2">
+        <Button variant="outline" onClick={handleSave} disabled={isSaving}>
+          {isSaving ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se salvează...
+            </>
+          ) : (
+            <>
+              <Save className="mr-2 h-4 w-4" /> Salvează
+            </>
+          )}
+        </Button>
         <Button onClick={handleSubmit} disabled={isSubmitting}>
           {isSubmitting ? (
             <>
