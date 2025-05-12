@@ -32,6 +32,8 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   const [isTechSigned, setIsTechSigned] = useState(false)
   const [isClientSigned, setIsClientSigned] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [techSignatureData, setTechSignatureData] = useState<string | null>(null)
+  const [clientSignatureData, setClientSignatureData] = useState<string | null>(null)
 
   const [lucrare, setLucrare] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -111,6 +113,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
     if (techSignatureRef.current) {
       techSignatureRef.current.clear()
       setIsTechSigned(false)
+      setTechSignatureData(null)
     }
   }, [])
 
@@ -118,6 +121,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
     if (clientSignatureRef.current) {
       clientSignatureRef.current.clear()
       setIsClientSigned(false)
+      setClientSignatureData(null)
     }
   }, [])
 
@@ -134,9 +138,6 @@ export default function RaportPage({ params }: { params: { id: string } }) {
       .replace(/Î/g, "I")
       .replace(/Ș/g, "S")
       .replace(/Ț/g, "T")
-
-  // Function to generate PDF and return blob
-  // … restul importurilor şi declaraţiilor
 
   // Function to send email
   const sendEmail = useCallback(
@@ -196,7 +197,11 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   const handleSubmit = useStableCallback(async () => {
     if (step === "verificare") {
       if (statusLucrare !== "Finalizat") {
-        alert("Lucrarea trebuie să fie marcată ca Finalizată înainte de a genera raportul.")
+        toast({
+          title: "Atenție",
+          description: "Lucrarea trebuie să fie marcată ca Finalizată înainte de a genera raportul.",
+          variant: "destructive",
+        })
         return
       }
 
@@ -206,33 +211,76 @@ export default function RaportPage({ params }: { params: { id: string } }) {
         setStep("semnare")
       } catch (err) {
         console.error("Eroare la actualizarea statusului lucrării:", err)
-        alert("A apărut o eroare la actualizarea statusului lucrării.")
+        toast({
+          title: "Eroare",
+          description: "A apărut o eroare la actualizarea statusului lucrării.",
+          variant: "destructive",
+        })
       }
       return
     }
 
     if (step === "semnare") {
+      // Check for tech signature
       if (!techSignatureRef.current || techSignatureRef.current.isEmpty()) {
-        alert("Vă rugăm să adăugați semnătura tehnicianului înainte de a finaliza raportul.")
-        return
+        if (!techSignatureData) {
+          toast({
+            title: "Atenție",
+            description: "Vă rugăm să adăugați semnătura tehnicianului înainte de a finaliza raportul.",
+            variant: "destructive",
+          })
+          return
+        }
       }
 
+      // Check for client signature
       if (!clientSignatureRef.current || clientSignatureRef.current.isEmpty()) {
-        alert("Vă rugăm să adăugați semnătura beneficiarului înainte de a finaliza raportul.")
-        return
+        if (!clientSignatureData) {
+          toast({
+            title: "Atenție",
+            description: "Vă rugăm să adăugați semnătura beneficiarului înainte de a finaliza raportul.",
+            variant: "destructive",
+          })
+          return
+        }
       }
 
       if (!email) {
-        alert("Vă rugăm să introduceți adresa de email pentru trimiterea raportului.")
+        toast({
+          title: "Atenție",
+          description: "Vă rugăm să introduceți adresa de email pentru trimiterea raportului.",
+          variant: "destructive",
+        })
         return
       }
 
       setIsSubmitting(true)
 
       try {
-        // Salvăm semnăturile, produsele și emailul
-        const semnaturaTehnician = techSignatureRef.current.toDataURL("image/png")
-        const semnaturaBeneficiar = clientSignatureRef.current.toDataURL("image/png")
+        // Get signatures from refs or from stored state
+        let semnaturaTehnician = techSignatureData
+        let semnaturaBeneficiar = clientSignatureData
+
+        if (techSignatureRef.current && !techSignatureRef.current.isEmpty()) {
+          semnaturaTehnician = techSignatureRef.current.toDataURL("image/png")
+          setTechSignatureData(semnaturaTehnician)
+        }
+
+        if (clientSignatureRef.current && !clientSignatureRef.current.isEmpty()) {
+          semnaturaBeneficiar = clientSignatureRef.current.toDataURL("image/png")
+          setClientSignatureData(semnaturaBeneficiar)
+        }
+
+        // Ensure we have both signatures
+        if (!semnaturaTehnician || !semnaturaBeneficiar) {
+          toast({
+            title: "Eroare",
+            description: "Lipsesc semnăturile necesare. Vă rugăm să încercați din nou.",
+            variant: "destructive",
+          })
+          setIsSubmitting(false)
+          return
+        }
 
         await updateLucrare(params.id, {
           semnaturaTehnician,
@@ -265,7 +313,11 @@ export default function RaportPage({ params }: { params: { id: string } }) {
         setStep("finalizat")
       } catch (err) {
         console.error("Eroare la salvarea semnăturilor:", err)
-        alert("A apărut o eroare la salvarea semnăturilor.")
+        toast({
+          title: "Eroare",
+          description: "A apărut o eroare la salvarea semnăturilor.",
+          variant: "destructive",
+        })
       } finally {
         setIsSubmitting(false)
       }
@@ -277,12 +329,49 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   }, [])
 
   const handleTechSignatureEnd = useCallback(() => {
-    setIsTechSigned(!techSignatureRef.current?.isEmpty())
+    if (techSignatureRef.current) {
+      const isEmpty = techSignatureRef.current.isEmpty()
+      setIsTechSigned(!isEmpty)
+
+      if (!isEmpty) {
+        // Store the signature data to prevent loss on mobile
+        setTechSignatureData(techSignatureRef.current.toDataURL())
+      }
+    }
   }, [])
 
   const handleClientSignatureEnd = useCallback(() => {
-    setIsClientSigned(!clientSignatureRef.current?.isEmpty())
+    if (clientSignatureRef.current) {
+      const isEmpty = clientSignatureRef.current.isEmpty()
+      setIsClientSigned(!isEmpty)
+
+      if (!isEmpty) {
+        // Store the signature data to prevent loss on mobile
+        setClientSignatureData(clientSignatureRef.current.toDataURL())
+      }
+    }
   }, [])
+
+  // Restore signatures from state if they exist and canvas is empty
+  useEffect(() => {
+    const restoreSignatures = () => {
+      // Restore tech signature
+      if (techSignatureData && techSignatureRef.current && techSignatureRef.current.isEmpty()) {
+        techSignatureRef.current.fromDataURL(techSignatureData)
+        setIsTechSigned(true)
+      }
+
+      // Restore client signature
+      if (clientSignatureData && clientSignatureRef.current && clientSignatureRef.current.isEmpty()) {
+        clientSignatureRef.current.fromDataURL(clientSignatureData)
+        setIsClientSigned(true)
+      }
+    }
+
+    // Use a timeout to ensure the canvas is ready
+    const timer = setTimeout(restoreSignatures, 300)
+    return () => clearTimeout(timer)
+  }, [techSignatureData, clientSignatureData])
 
   const handleDownloadPDF = useCallback(async () => {
     if (reportGeneratorRef.current) {
@@ -292,7 +381,11 @@ export default function RaportPage({ params }: { params: { id: string } }) {
 
   const handleResendEmail = useCallback(async () => {
     if (!email) {
-      alert("Vă rugăm să introduceți adresa de email pentru trimiterea raportului.")
+      toast({
+        title: "Atenție",
+        description: "Vă rugăm să introduceți adresa de email pentru trimiterea raportului.",
+        variant: "destructive",
+      })
       return
     }
 
@@ -450,7 +543,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
                   <h3 className="font-medium text-gray-500">Status Lucrare</h3>
                   <Select value={statusLucrare} onValueChange={handleStatusChange}>
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecta��i statusul" />
+                      <SelectValue placeholder="Selectați statusul" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="În așteptare">În așteptare</SelectItem>
@@ -592,10 +685,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
             <Button
               className="gap-2 bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
               onClick={handleSubmit}
-              disabled={
-                isSubmitting ||
-                (step === "verificare" ? statusLucrare !== "Finalizat" : !isTechSigned || !isClientSigned || !email)
-              }
+              disabled={isSubmitting || (step === "verificare" ? statusLucrare !== "Finalizat" : false)}
             >
               {isSubmitting ? (
                 <>Se procesează...</>

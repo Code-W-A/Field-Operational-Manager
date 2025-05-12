@@ -16,6 +16,7 @@ export function SignaturePad({ onSave, existingSignature, title = "Semnătură" 
   const signatureRef = useRef<SignatureCanvas | null>(null)
   const [isSigned, setIsSigned] = useState(false)
   const [showExisting, setShowExisting] = useState(!!existingSignature)
+  const [signatureData, setSignatureData] = useState<string | null>(null)
 
   // Use useEffect with proper dependency array instead of useEffectEvent
   useEffect(() => {
@@ -26,14 +27,16 @@ export function SignaturePad({ onSave, existingSignature, title = "Semnătură" 
     if (signatureRef.current) {
       signatureRef.current.clear()
       setIsSigned(false)
+      setSignatureData(null)
     }
   }, [])
 
   // Use useStableCallback to ensure we have access to the latest state and refs
   const handleSave = useStableCallback(() => {
     if (signatureRef.current && !signatureRef.current.isEmpty()) {
-      const signatureData = signatureRef.current.toDataURL()
-      onSave(signatureData)
+      const data = signatureRef.current.toDataURL()
+      setSignatureData(data)
+      onSave(data)
       setShowExisting(true)
     }
   })
@@ -44,8 +47,31 @@ export function SignaturePad({ onSave, existingSignature, title = "Semnătură" 
   }, [clearSignature])
 
   const handleSignatureEnd = useCallback(() => {
-    setIsSigned(!signatureRef.current?.isEmpty())
+    if (signatureRef.current) {
+      // Immediately store the signature data when the user finishes drawing
+      const isEmpty = signatureRef.current.isEmpty()
+      setIsSigned(!isEmpty)
+
+      if (!isEmpty) {
+        // Store the signature data in component state to prevent loss
+        setSignatureData(signatureRef.current.toDataURL())
+      }
+    }
   }, [])
+
+  // Restore signature from state if it exists and canvas is empty
+  useEffect(() => {
+    if (!showExisting && signatureData && signatureRef.current && signatureRef.current.isEmpty()) {
+      // Use a timeout to ensure the canvas is ready
+      const timer = setTimeout(() => {
+        if (signatureRef.current) {
+          signatureRef.current.fromDataURL(signatureData)
+          setIsSigned(true)
+        }
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [showExisting, signatureData])
 
   return (
     <Card className="w-full">
