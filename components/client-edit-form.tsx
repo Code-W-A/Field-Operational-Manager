@@ -444,7 +444,10 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
   const errorStyle = "border-red-500 focus-visible:ring-red-500"
 
   // Handle cancel with confirmation if form is modified
-  const handleCancel = () => {
+  const handleCancel = (e: React.MouseEvent) => {
+    // Prevent default to avoid form submission
+    e.preventDefault()
+
     if (formModified) {
       // Show confirmation dialog
       handleNavigation("#cancel")
@@ -727,7 +730,11 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
                                   type="button"
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => handleOpenEditEchipamentDialog(locatieIndex, echipamentIndex)}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    e.preventDefault()
+                                    handleOpenEditEchipamentDialog(locatieIndex, echipamentIndex)
+                                  }}
                                   className="h-8 w-8 p-0 shrink-0"
                                 >
                                   <Wrench className="h-4 w-4" />
@@ -739,7 +746,11 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
                                   type="button"
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => handleDeleteEchipament(locatieIndex, echipamentIndex)}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    e.preventDefault()
+                                    handleDeleteEchipament(locatieIndex, echipamentIndex)
+                                  }}
                                   className="h-8 w-8 p-0 shrink-0 text-red-500"
                                 >
                                   <Trash2 className="h-4 w-4" />
@@ -897,10 +908,16 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
           </div>
 
           <DialogFooter className="pt-2 flex-col gap-2 sm:flex-row">
-            <Button variant="outline" onClick={() => setIsEchipamentDialogOpen(false)} className="w-full sm:w-auto">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsEchipamentDialogOpen(false)}
+              className="w-full sm:w-auto"
+            >
               Anulează
             </Button>
             <Button
+              type="button"
               onClick={handleSaveEchipament}
               disabled={
                 echipamentFormErrors.length > 0 ||
@@ -924,7 +941,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
       </Dialog>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-        <Button variant="outline" onClick={handleCancel}>
+        <Button type="button" variant="outline" onClick={handleCancel}>
           Anulează
         </Button>
         <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={isSubmitting}>

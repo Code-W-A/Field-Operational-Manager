@@ -413,7 +413,10 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
   }
 
   // Folosim noul handler pentru anulare
-  const handleFormCancel = () => {
+  const handleFormCancel = (e: React.MouseEvent) => {
+    // Prevent default to avoid form submission
+    e.preventDefault()
+
     console.log("handleFormCancel called, formModified:", formModified)
     if (formModified) {
       handleCancel2(onCancel)
@@ -669,7 +672,11 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
                                   type="button"
                                   variant="ghost"
                                   size="icon"
-                                  onClick={() => handleOpenEditEchipamentDialog(locatieIndex, echipamentIndex)}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    e.preventDefault()
+                                    handleOpenEditEchipamentDialog(locatieIndex, echipamentIndex)
+                                  }}
                                   className="h-8 w-8"
                                 >
                                   <Wrench className="h-4 w-4" />
@@ -678,7 +685,11 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
                                   type="button"
                                   variant="ghost"
                                   size="icon"
-                                  onClick={() => handleDeleteEchipament(locatieIndex, echipamentIndex)}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    e.preventDefault()
+                                    handleDeleteEchipament(locatieIndex, echipamentIndex)
+                                  }}
                                   className="h-8 w-8 text-red-500"
                                 >
                                   <Trash2 className="h-4 w-4" />
@@ -848,10 +859,16 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
           </div>
 
           <DialogFooter className="pt-2 flex-col gap-2 sm:flex-row">
-            <Button variant="outline" onClick={() => setIsEchipamentDialogOpen(false)} className="w-full sm:w-auto">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsEchipamentDialogOpen(false)}
+              className="w-full sm:w-auto"
+            >
               Anulează
             </Button>
             <Button
+              type="button"
               onClick={handleSaveEchipament}
               disabled={
                 echipamentFormErrors.length > 0 ||
@@ -875,7 +892,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
       </Dialog>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-        <Button variant="outline" onClick={handleFormCancel}>
+        <Button type="button" variant="outline" onClick={handleFormCancel}>
           Anulează
         </Button>
         <Button className="bg-blue-600 hover:bg-blue-700" type="submit" disabled={isSubmitting}>
