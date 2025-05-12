@@ -10,6 +10,8 @@
 //   • Added automatic page breaks to prevent content overflow
 //   • Better handling of long text with proper wrapping
 //   • Fixed diacritics issues in total section
+//   • Added equipment information section
+//   • Enhanced beneficiary information with client details
 // ---------------------------------------------------------------------------
 
 import { useState, forwardRef, useEffect } from "react"
@@ -54,6 +56,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       constatareLaLocatie: lucrare?.constatareLaLocatie,
       descriere: lucrare?.descriere,
       descriereInterventie: lucrare?.descriereInterventie,
+      client: lucrare?.client,
+      clientInfo: lucrare?.clientInfo,
     })
   }, [lucrare])
 
@@ -132,7 +136,14 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       }
 
       // Draw box with title and content
-      const drawBox = (title: string, lines: string[], boxWidth: number, boxHeight: number, x: number) => {
+      const drawBox = (
+        title: string,
+        lines: string[],
+        boxWidth: number,
+        boxHeight: number,
+        x: number,
+        titleBold = true,
+      ) => {
         // Check if we need a new page
         checkPageBreak(boxHeight + 5)
 
@@ -141,7 +152,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 
         doc
           .setFontSize(10)
-          .setFont(undefined, "bold")
+          .setFont(undefined, titleBold ? "bold" : "normal")
           .setTextColor(40)
           .text(title, x + boxWidth / 2, currentY + 6, { align: "center" })
 
@@ -177,16 +188,25 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         M,
       )
 
-      // Draw beneficiar box
+      // Extract client information
+      const clientInfo = lucrare.clientInfo || {}
+      const clientName = normalize(lucrare.client || "-")
+      const clientCUI = normalize(clientInfo.cui || "-")
+      const clientRC = normalize(clientInfo.rc || "-")
+      const clientAddress = normalize(lucrare.locatie || clientInfo.adresa || "-")
+      const clientBank = normalize(clientInfo.banca || "-")
+      const clientAccount = normalize(clientInfo.cont || "-")
+
+      // Draw beneficiar box with complete client information
       drawBox(
         "BENEFICIAR",
         [
-          normalize(lucrare.client || "-"),
-          "CUI: -",
-          "R.C.: -",
-          `Adresa: ${normalize(lucrare.locatie || "-")}`,
-          "Banca: -",
-          "Cont: -",
+          clientName,
+          `CUI: ${clientCUI}`,
+          `R.C.: ${clientRC}`,
+          `Adresa: ${clientAddress}`,
+          `Banca: ${clientBank}`,
+          `Cont: ${clientAccount}`,
         ],
         boxW,
         boxH,
@@ -238,6 +258,34 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       doc.text(`Plecare: ${lucrare.oraPlecare || "-"}`, M + 120, currentY)
       doc.text(`Raport #${lucrare.id || ""}`, PW - M, currentY, { align: "right" })
       currentY += 10
+
+      // EQUIPMENT INFO (if available)
+      if (lucrare.echipament || lucrare.echipamentCod) {
+        // Draw equipment box
+        const equipmentBoxHeight = 25
+        doc.setDrawColor(60).setFillColor(LIGHT_GRAY).setLineWidth(STROKE)
+        ;(doc as any).roundedRect(M, currentY, W, equipmentBoxHeight, BOX_RADIUS, BOX_RADIUS, "FD")
+
+        // Title
+        doc
+          .setFontSize(10)
+          .setFont(undefined, "bold")
+          .setTextColor(40)
+          .text("ECHIPAMENT", M + W / 2, currentY + 6, { align: "center" })
+
+        // Equipment details
+        doc.setFontSize(9).setFont(undefined, "normal").setTextColor(20)
+
+        // First row
+        let equipmentText = normalize(lucrare.echipament || "Nespecificat")
+        if (lucrare.echipamentCod) {
+          equipmentText += ` (Cod: ${normalize(lucrare.echipamentCod)})`
+        }
+        doc.text(equipmentText, M + 5, currentY + 15)
+
+        // Update position
+        currentY += equipmentBoxHeight + 5
+      }
 
       // COMMENT BLOCKS
       const addTextBlock = (label: string, text: string) => {
@@ -324,12 +372,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 
       // Table rows
       const productsToShow =
-        products.length > 0
-          ? products
-          : [
-              { id: "1", name: "", um: "", quantity: 0, price: 0, total: 0 },
-         
-            ]
+        products.length > 0 ? products : [{ id: "1", name: "", um: "", quantity: 0, price: 0, total: 0 }]
 
       productsToShow.forEach((product, index) => {
         // Calculate row height based on product name length
