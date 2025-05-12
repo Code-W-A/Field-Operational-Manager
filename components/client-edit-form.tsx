@@ -109,6 +109,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
       currentState.locatii !== initialFormState.locatii
 
     setFormModified(hasChanged)
+    console.log("Form modified:", hasChanged)
   }, [formData, locatii, initialFormState])
 
   // Reset form modified state after successful submission
@@ -127,30 +128,9 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
     hasUnsavedChanges: () => formModified,
   }))
 
-  // Add effect to track form changes
-  useEffect(() => {
-    const handleFormChange = () => {
-      setFormModified(true)
-    }
-
-    // Add event listeners to form elements
-    const formElements = document.querySelectorAll("input, textarea, select")
-    formElements.forEach((element) => {
-      element.addEventListener("change", handleFormChange)
-      element.addEventListener("input", handleFormChange)
-    })
-
-    return () => {
-      // Clean up event listeners
-      formElements.forEach((element) => {
-        element.removeEventListener("change", handleFormChange)
-        element.removeEventListener("input", handleFormChange)
-      })
-    }
-  }, [])
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target
+    console.log(`Input changed: ${id} = ${value}`)
     setFormData((prev) => ({ ...prev, [id]: value }))
   }
 
@@ -442,8 +422,13 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
         locatii: filteredLocatii,
       })
 
+      // Update the initial state to match current state after successful save
+      setInitialFormState({
+        formData,
+        locatii: JSON.stringify(locatii),
+      })
       setFormModified(false) // Reset form modified state after successful submission
-      onSuccess()
+      if (onSuccess) onSuccess()
     } catch (err) {
       console.error("Eroare la actualizarea clientului:", err)
       setError("A apărut o eroare la actualizarea clientului. Încercați din nou.")
