@@ -195,6 +195,12 @@ export async function POST(request: NextRequest) {
                 <h2 style="color: #0f56b3;">Lucrare nouă asignată</h2>
                 <p>Salut ${tech.name},</p>
                 <p>Ai fost asignat la o nouă lucrare:</p>
+<p style="margin: 20px 0;">
+  <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://fom.nrg-acces.ro"}/dashboard/lucrari/${workOrderId}" 
+     style="background-color: #0f56b3; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; display: inline-block;">
+     Accesează lucrarea
+  </a>
+</p>
                 
                 <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 15px 0;">
                   <h3 style="margin-top: 0;">Detalii lucrare</h3>
@@ -208,6 +214,11 @@ export async function POST(request: NextRequest) {
                 </div>
                 
                 <p>Te rugăm să verifici aplicația pentru mai multe detalii.</p>
+<p>Te rugăm să verifici aplicația pentru mai multe detalii sau accesează direct lucrarea folosind link-ul: 
+   <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://fom.nrg-acces.ro"}/dashboard/lucrari/${workOrderId}">
+     ${process.env.NEXT_PUBLIC_APP_URL || "https://fom.nrg-acces.ro"}/dashboard/lucrari/${workOrderId}
+   </a>
+</p>
                 <hr style="border: 1px solid #eee; margin: 20px 0;" />
                 <p style="color: #666; font-size: 12px;">Acest email a fost generat automat. Te rugăm să nu răspunzi la acest email.</p>
               </div>

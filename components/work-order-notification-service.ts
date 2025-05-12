@@ -129,14 +129,14 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
 
           if (!allClientsSnapshot.empty) {
             // Try to find a client with a similar name
-            const clientName = workOrderData.client.toLowerCase().trim()
+            const clientNameLower = workOrderData.client.toLowerCase().trim()
             let bestMatch = null
 
             for (const doc of allClientsSnapshot.docs) {
               const data = doc.data()
               if (
-                (data.nume && data.nume.toLowerCase().includes(clientName)) ||
-                clientName.includes(data.nume.toLowerCase())
+                (data.nume && data.nume.toLowerCase().includes(clientNameLower)) ||
+                clientNameLower.includes(data.nume.toLowerCase())
               ) {
                 bestMatch = data
                 break
@@ -213,10 +213,11 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
         reportedIssue: workOrderData.defectReclamat || "",
         status: workOrderData.statusLucrare || "Programat",
       },
-      workOrderId: workOrderData.id || "",
+      workOrderId: workOrderData.id || "", // Asigurăm-ne că ID-ul lucrării este transmis corect
       workOrderNumber: workOrderData.number || workOrderData.id || "",
     }
 
+    console.log("ID-ul lucrării pentru notificare:", workOrderData.id || "nedefinit")
     // Send notifications
     console.log("Sending notification data to API:", JSON.stringify(notificationData, null, 2))
     const response = await fetch("/api/notifications/work-order", {
