@@ -15,6 +15,7 @@ interface TehnicianInterventionFormProps {
   lucrareId: string
   initialData: {
     descriereInterventie?: string
+    constatareLaLocatie?: string // Add the new field
     statusLucrare: string
   }
   onUpdate: () => void
@@ -23,6 +24,7 @@ interface TehnicianInterventionFormProps {
 export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: TehnicianInterventionFormProps) {
   const [formData, setFormData] = useState({
     descriereInterventie: initialData.descriereInterventie || "",
+    constatareLaLocatie: initialData.constatareLaLocatie || "", // Initialize the new field
     statusLucrare: initialData.statusLucrare,
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -44,6 +46,7 @@ export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: 
 
       await updateLucrare(lucrareId, {
         descriereInterventie: formData.descriereInterventie,
+        constatareLaLocatie: formData.constatareLaLocatie, // Include the new field
         statusLucrare: formData.statusLucrare,
       })
 
@@ -67,6 +70,21 @@ export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: 
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Constatare la locație</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Textarea
+            id="constatareLaLocatie"
+            placeholder="Descrieți constatările făcute la locație înainte de intervenție"
+            value={formData.constatareLaLocatie}
+            onChange={handleInputChange}
+            className="min-h-[150px] resize-y"
+          />
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Descriere Intervenție</CardTitle>

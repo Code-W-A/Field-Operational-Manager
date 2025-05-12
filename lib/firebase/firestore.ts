@@ -46,6 +46,7 @@ export interface Lucrare {
   statusFacturare: string
   tehnicieni: string[]
   descriereInterventie?: string
+  constatareLaLocatie?: string // New field for technician's on-site assessment
   contract?: string
   defectReclamat?: string
   // Câmpuri noi pentru verificarea echipamentului

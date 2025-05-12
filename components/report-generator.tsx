@@ -491,6 +491,19 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 
   return (
     <div className="space-y-4">
+      {lucrare.constatareLaLocatie && (
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold mb-2">Constatare la locație</h3>
+          <p className="whitespace-pre-line">{lucrare.constatareLaLocatie}</p>
+        </div>
+      )}
+
+      {lucrare.descriereInterventie && (
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold mb-2">Descriere intervenție</h3>
+          <p className="whitespace-pre-line">{lucrare.descriereInterventie}</p>
+        </div>
+      )}
       <ProductTableForm products={products} onProductsChange={setProducts} />
       <div className="flex justify-center mt-6">
         <Button
