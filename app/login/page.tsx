@@ -17,7 +17,7 @@ import { ForgotPasswordDialog } from "@/components/forgot-password-dialog"
 
 export default function Login() {
   const router = useRouter()
-  const { user, loading } = useAuth()
+  const { user, userData, loading } = useAuth()
   const { isPreview, users, setCurrentUser } = useMockData()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -27,9 +27,14 @@ export default function Login() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.push("/dashboard")
+      // Redirect technicians to /dashboard/lucrari, others to /dashboard
+      if (userData?.role === "tehnician") {
+        router.push("/dashboard/lucrari")
+      } else {
+        router.push("/dashboard")
+      }
     }
-  }, [user, loading, router])
+  }, [user, userData, loading, router])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -52,14 +57,19 @@ export default function Login() {
         const mockUser = users.find((u) => u.email === email)
         if (mockUser && (password === "password" || password === "123456")) {
           setCurrentUser(mockUser)
-          router.push("/dashboard")
+          // Redirect technicians to /dashboard/lucrari, others to /dashboard
+          if (mockUser.role === "tehnician") {
+            router.push("/dashboard/lucrari")
+          } else {
+            router.push("/dashboard")
+          }
         } else {
           setError("Email sau parolă incorectă")
         }
       } else {
         // Altfel, utilizăm Firebase Auth
         await signIn(email, password)
-        router.push("/dashboard")
+        // The redirection will be handled by the useEffect above
       }
     } catch (error: any) {
       console.error("Eroare la autentificare:", error)
