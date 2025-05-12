@@ -1,7 +1,7 @@
 "use client"
 
 import { DialogTrigger } from "@/components/ui/dialog"
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
@@ -23,7 +23,7 @@ import { addLucrare, deleteLucrare, updateLucrare, getLucrareById } from "@/lib/
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { orderBy } from "firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
-import { LucrareForm } from "@/components/lucrare-form"
+import { LucrareForm, type LucrareFormRef } from "@/components/lucrare-form"
 import { DataTable } from "@/components/data-table/data-table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Card, CardContent } from "@/components/ui/card"
@@ -37,6 +37,16 @@ import { FilterModal, type FilterOption } from "@/components/filter-modal"
 import { ColumnSelectionButton } from "@/components/column-selection-button"
 import { ColumnSelectionModal } from "@/components/column-selection-modal"
 import { sendWorkOrderNotifications } from "@/components/work-order-notification-service"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 const ContractDisplay = ({ contractId }) => {
   const [contractNumber, setContractNumber] = useState(null)
@@ -112,6 +122,8 @@ export default function Lucrari() {
   const [activeFilters, setActiveFilters] = useState<FilterOption[]>([])
   const [isColumnModalOpen, setIsColumnModalOpen] = useState(false)
   const [columnOptions, setColumnOptions] = useState<any[]>([])
+  const [showCloseAlert, setShowCloseAlert] = useState(false)
+  const lucrareFormRef = useRef<LucrareFormRef>(null)
 
   // Obținem lucrările din Firebase
   const {
@@ -1030,7 +1042,16 @@ export default function Lucrari() {
     <DashboardShell>
       <DashboardHeader heading="Lucrări" text="Gestionați toate lucrările și intervențiile">
         {!isTechnician && (
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <Dialog
+            open={isAddDialogOpen}
+            onOpenChange={(open) => {
+              if (!open && lucrareFormRef.current?.hasUnsavedChanges()) {
+                setShowCloseAlert(true)
+              } else {
+                setIsAddDialogOpen(open)
+              }
+            }}
+          >
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700">
                 <Plus className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Adaugă</span> Lucrare
@@ -1048,6 +1069,7 @@ export default function Lucrari() {
                 </Alert>
               )}
               <LucrareForm
+                ref={lucrareFormRef}
                 dataEmiterii={dataEmiterii}
                 setDataEmiterii={setDataEmiterii}
                 dataInterventie={dataInterventie}
@@ -1057,9 +1079,19 @@ export default function Lucrari() {
                 handleSelectChange={handleSelectChange}
                 handleTehnicieniChange={handleTehnicieniChange}
                 fieldErrors={fieldErrors}
+                onCancel={() => setIsAddDialogOpen(false)}
               />
               <DialogFooter className="flex-col gap-2 sm:flex-row">
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (lucrareFormRef.current?.hasUnsavedChanges()) {
+                      setShowCloseAlert(true)
+                    } else {
+                      setIsAddDialogOpen(false)
+                    }
+                  }}
+                >
                   Anulează
                 </Button>
                 <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSubmit} disabled={isSubmitting}>
@@ -1077,7 +1109,16 @@ export default function Lucrari() {
         )}
 
         {/* Dialog pentru editarea lucrării */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <Dialog
+          open={isEditDialogOpen}
+          onOpenChange={(open) => {
+            if (!open && lucrareFormRef.current?.hasUnsavedChanges()) {
+              setShowCloseAlert(true)
+            } else {
+              setIsEditDialogOpen(open)
+            }
+          }}
+        >
           <DialogContent className="w-[calc(100%-2rem)] max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Editează Lucrare</DialogTitle>
@@ -1322,6 +1363,30 @@ export default function Lucrari() {
           </div>
         )}
       </div>
+      <AlertDialog open={showCloseAlert} onOpenChange={setShowCloseAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmați închiderea</AlertDialogTitle>
+            <AlertDialogDescription>
+              Aveți modificări nesalvate. Sunteți sigur că doriți să închideți formularul? Toate modificările vor fi
+              pierdute.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowCloseAlert(false)}>Nu, rămân în formular</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowCloseAlert(false)
+                if (lucrareFormRef.current) {
+                  lucrareFormRef.current.confirmClose()
+                }
+              }}
+            >
+              Da, închide formularul
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardShell>
   )
 }

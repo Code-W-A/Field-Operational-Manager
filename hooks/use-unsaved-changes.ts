@@ -32,7 +32,7 @@ export function useUnsavedChanges(isDirty: boolean) {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload)
   }, [])
 
-  // ──────────────────────────────────────────────────────────────────────────
+  // ───────���──────────────────────────────────────────────────────────────────
   // 1️⃣  Navigare blocabilă (exact ca înainte)
   const handleNavigation = useCallback(
     (url: string) => {
