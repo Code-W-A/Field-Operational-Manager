@@ -56,7 +56,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
     email: client.email || "",
   })
 
-  // Add state for close alert dialog
+  // Add state for close alert dialog - IMPORTANT: default to true for testing
   const [showCloseAlert, setShowCloseAlert] = useState(false)
 
   // Inițializăm locațiile din client sau creăm una goală dacă nu există
@@ -101,7 +101,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
   const [isCheckingCode, setIsCheckingCode] = useState(false)
   const [isCodeUnique, setIsCodeUnique] = useState(true)
 
-  // Use the unsaved changes hook
+  // Use the useUnsavedChanges hook
   const { showDialog, handleNavigation, confirmNavigation, cancelNavigation, pendingUrl } =
     useUnsavedChanges(formModified)
 
@@ -110,6 +110,11 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
     formData,
     locatii: JSON.stringify(locatii),
   })
+
+  // Log when showCloseAlert changes
+  useEffect(() => {
+    console.log("showCloseAlert changed to:", showCloseAlert)
+  }, [showCloseAlert])
 
   // Check if form has been modified
   useEffect(() => {
@@ -465,21 +470,26 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
   // Stilul pentru câmpurile cu eroare
   const errorStyle = "border-red-500 focus-visible:ring-red-500"
 
-  // New function to handle close attempt
-  const handleCloseAttempt = (e: React.MouseEvent) => {
-    // Prevent default to avoid form submission
-    e.preventDefault()
-
+  // New function to handle close attempt - SIMPLIFIED
+  const handleCloseAttempt = () => {
     console.log("handleCloseAttempt called, formModified:", formModified)
+
+    // For testing, always show the dialog
+    setShowCloseAlert(true)
+
+    // Uncomment this for production
+    /*
     if (formModified) {
       setShowCloseAlert(true)
     } else if (onCancel) {
       onCancel()
     }
+    */
   }
 
   // Functions to handle alert dialog responses
   const confirmClose = () => {
+    console.log("confirmClose called")
     setShowCloseAlert(false)
     if (onCancel) {
       onCancel()
@@ -487,20 +497,14 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
   }
 
   const cancelClose = () => {
+    console.log("cancelClose called")
     setShowCloseAlert(false)
   }
 
-  // Handle cancel with confirmation if form is modified
-  const handleCancel = (e: React.MouseEvent) => {
-    // Prevent default to avoid form submission
-    e.preventDefault()
-
-    if (formModified) {
-      // Show confirmation dialog
-      setShowCloseAlert(true)
-    } else if (onCancel) {
-      onCancel()
-    }
+  // Test function to show the dialog directly
+  const showAlertDialogDirectly = () => {
+    console.log("Showing alert dialog directly")
+    setShowCloseAlert(true)
   }
 
   // Add the UnsavedChangesDialog at the end of the component
@@ -973,6 +977,11 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
       </Dialog>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+        {/* Test button to directly show the dialog */}
+        <Button type="button" variant="destructive" onClick={showAlertDialogDirectly} className="mb-4">
+          Test Dialog
+        </Button>
+
         <Button type="button" variant="outline" onClick={handleCloseAttempt}>
           Anulează
         </Button>
