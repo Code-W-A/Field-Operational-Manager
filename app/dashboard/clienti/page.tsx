@@ -4,17 +4,10 @@ import type React from "react"
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
-import { Eye, Pencil, Trash2, Loader2, AlertCircle, Plus } from "lucide-react"
+import { Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, X } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/contexts/AuthContext"
 import { useClientLucrari } from "@/hooks/use-client-lucrari"
@@ -56,6 +49,7 @@ export default function Clienti() {
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
   const [activeFilters, setActiveFilters] = useState<FilterOption[]>([])
   const [showCloseAlert, setShowCloseAlert] = useState(false)
+  const [activeDialog, setActiveDialog] = useState<"add" | "edit" | null>(null)
   const addFormRef = useRef<any>(null)
   const editFormRef = useRef<any>(null)
 
@@ -329,6 +323,7 @@ export default function Clienti() {
   // Function to check if we should show the close confirmation dialog for add
   const handleCloseAddDialog = () => {
     if (addFormRef.current?.hasUnsavedChanges?.()) {
+      setActiveDialog("add")
       setShowCloseAlert(true)
     } else {
       setIsAddDialogOpen(false)
@@ -338,6 +333,7 @@ export default function Clienti() {
   // Function to check if we should show the close confirmation dialog for edit
   const handleCloseEditDialog = () => {
     if (editFormRef.current?.hasUnsavedChanges?.()) {
+      setActiveDialog("edit")
       setShowCloseAlert(true)
     } else {
       handleEditDialogClose()
@@ -348,12 +344,15 @@ export default function Clienti() {
   const confirmCloseDialog = () => {
     setShowCloseAlert(false)
 
-    // Determine which dialog to close
-    if (isAddDialogOpen) {
+    // Determine which dialog to close based on activeDialog
+    if (activeDialog === "add") {
       setIsAddDialogOpen(false)
-    } else if (isEditDialogOpen) {
+    } else if (activeDialog === "edit") {
       handleEditDialogClose()
     }
+
+    // Reset activeDialog
+    setActiveDialog(null)
   }
 
   // Define columns for DataTable
@@ -441,28 +440,25 @@ export default function Clienti() {
   return (
     <DashboardShell>
       <DashboardHeader heading="Clienți" text="Gestionați baza de date a clienților">
-        <Dialog
-          open={isAddDialogOpen}
-          onOpenChange={(open) => {
-            if (!open) {
-              // Când se încearcă închiderea dialogului (fie prin X, fie prin click în afara dialogului)
-              handleCloseAddDialog()
-              // Important: Prevenim închiderea automată a dialogului returnând false
-              return false
-            }
-            setIsAddDialogOpen(open)
-          }}
-        >
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button className="bg-blue-600 hover:bg-blue-700">
               <Plus className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Adaugă</span> Client
             </Button>
           </DialogTrigger>
-          <DialogContent className="w-[calc(100%-2rem)] max-w-[600px] max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
+          <DialogContent
+            className="w-[calc(100%-2rem)] max-w-[600px] max-h-[90vh] overflow-y-auto"
+            // Eliminăm butonul X standard
+            closeButton={false}
+          >
+            <div className="flex justify-between items-center">
               <DialogTitle>Adaugă Client Nou</DialogTitle>
-              <DialogDescription>Completați detaliile pentru a adăuga un client nou</DialogDescription>
-            </DialogHeader>
+              {/* Adăugăm propriul nostru buton X care apelează handleCloseAddDialog */}
+              <Button variant="ghost" size="icon" onClick={handleCloseAddDialog} className="h-8 w-8 p-0 rounded-full">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <DialogDescription>Completați detaliile pentru a adăuga un client nou</DialogDescription>
             <ClientForm
               ref={addFormRef}
               onSuccess={(clientName) => {
@@ -476,23 +472,20 @@ export default function Clienti() {
       </DashboardHeader>
 
       {/* Dialog for editing the client */}
-      <Dialog
-        open={isEditDialogOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            // Când se încearcă închiderea dialogului (fie prin X, fie prin click în afara dialogului)
-            handleCloseEditDialog()
-            // Important: Prevenim închiderea automată a dialogului returnând false
-            return false
-          }
-          setIsEditDialogOpen(open)
-        }}
-      >
-        <DialogContent className="w-[calc(100%-2rem)] max-w-[500px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent
+          className="w-[calc(100%-2rem)] max-w-[500px] max-h-[90vh] overflow-y-auto"
+          // Eliminăm butonul X standard
+          closeButton={false}
+        >
+          <div className="flex justify-between items-center">
             <DialogTitle>Editează Client</DialogTitle>
-            <DialogDescription>Modificați detaliile clientului</DialogDescription>
-          </DialogHeader>
+            {/* Adăugăm propriul nostru buton X care apelează handleCloseEditDialog */}
+            <Button variant="ghost" size="icon" onClick={handleCloseEditDialog} className="h-8 w-8 p-0 rounded-full">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          <DialogDescription>Modificați detaliile clientului</DialogDescription>
           {selectedClient && (
             <ClientEditForm
               ref={editFormRef}
