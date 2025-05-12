@@ -1,59 +1,72 @@
 "use client"
 
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { AlertTriangle } from "lucide-react"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface NavigationPromptDialogProps {
-  open: boolean
+  isOpen: boolean
   onConfirm: () => void
   onCancel: () => void
   title?: string
-  message?: string
+  description?: string
   confirmText?: string
   cancelText?: string
 }
 
 export function NavigationPromptDialog({
-  open,
+  isOpen,
   onConfirm,
   onCancel,
-  title = "Modificări nesalvate",
-  message = "Aveți modificări nesalvate. Dacă părăsiți această pagină, modificările vor fi pierdute.",
-  confirmText = "Părăsiți fără salvare",
-  cancelText = "Rămâneți pe pagină",
+  title = "Confirmă navigarea",
+  description = "Ai modificări nesalvate. Ești sigur că vrei să părăsești această pagină? Toate modificările vor fi pierdute.",
+  confirmText = "Părăsește pagina",
+  cancelText = "Rămâi pe pagină",
 }: NavigationPromptDialogProps) {
-  console.log("NavigationPromptDialog rendered, open:", open)
+  const [open, setOpen] = useState(false)
 
-  // Adăugăm un efect pentru a afișa mai multe informații de debugging
   useEffect(() => {
-    if (open) {
-      console.log("Dialog OPENED")
-    } else {
-      console.log("Dialog CLOSED")
-    }
-  }, [open])
+    setOpen(isOpen)
+  }, [isOpen])
+
+  const handleConfirm = () => {
+    setOpen(false)
+    onConfirm()
+  }
+
+  const handleCancel = () => {
+    setOpen(false)
+    onCancel()
+  }
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <div className="flex items-center gap-2 text-amber-600">
-            <AlertTriangle className="h-5 w-5" />
-            <DialogTitle>{title}</DialogTitle>
-          </div>
-        </DialogHeader>
-        <div className="py-4">{message}</div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>
-            {cancelText}
-          </Button>
-          <Button variant="destructive" onClick={onConfirm}>
-            {confirmText}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <AlertDialog
+      open={open}
+      onOpenChange={(newOpen) => {
+        setOpen(newOpen)
+        if (!newOpen) {
+          onCancel()
+        }
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={handleCancel}>{cancelText}</AlertDialogCancel>
+          <AlertDialogAction onClick={handleConfirm}>{confirmText}</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }

@@ -56,7 +56,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
     email: client.email || "",
   })
 
-  // Add state for close alert dialog
+  // Add state for close alert dialog - IMPORTANT: default to true for testing
   const [showCloseAlert, setShowCloseAlert] = useState(false)
 
   // Inițializăm locațiile din client sau creăm una goală dacă nu există

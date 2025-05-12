@@ -1,128 +1,77 @@
 "use client"
 
-import { useEffect, useState, useCallback, useRef } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 
-/**
- * Hook pentru a afișa un prompt de confirmare când utilizatorul încearcă să navigheze
- * @param shouldPrompt - Boolean care indică dacă ar trebui să se afișeze promptul
- * @returns Funcții și stări pentru gestionarea promptului de navigare
- */
 export function useNavigationPrompt(shouldPrompt: boolean) {
   const router = useRouter()
   const [showPrompt, setShowPrompt] = useState(false)
-  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null)
-  const [isNavigatingAway, setIsNavigatingAway] = useState(false)
-  const shouldPromptRef = useRef(shouldPrompt)
+  const [pendingUrl, setPendingUrl] = useState<string | null>(null)
+  const [isNavigating, setIsNavigating] = useState(false)
 
-  // Actualizăm referința când se schimbă valoarea
-  useEffect(() => {
-    shouldPromptRef.current = shouldPrompt
-    console.log("Navigation prompt state updated:", shouldPrompt)
+  // Funcție pentru a testa dialogul
+  const testDialog = useCallback(() => {
+    if (shouldPrompt) {
+      setShowPrompt(true)
+      setPendingUrl(null)
+    }
   }, [shouldPrompt])
 
-  // Gestionăm evenimentul beforeunload pentru a preveni închiderea/reîncărcarea paginii
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (!shouldPromptRef.current) return
+  // Funcție pentru a confirma navigarea
+  const confirmNavigation = useCallback(() => {
+    setShowPrompt(false)
+    setIsNavigating(true)
 
-      console.log("beforeunload event triggered, shouldPrompt:", shouldPromptRef.current)
-
-      // Mesaj standard pentru a arăta un dialog de confirmare
-      const message = "Aveți modificări nesalvate. Sunteți sigur că doriți să părăsiți pagina?"
-      e.preventDefault()
-      e.returnValue = message
-      return message
+    if (pendingUrl) {
+      router.push(pendingUrl)
     }
 
-    window.addEventListener("beforeunload", handleBeforeUnload)
+    setPendingUrl(null)
+  }, [pendingUrl, router])
 
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload)
-    }
+  // Funcție pentru a anula navigarea
+  const cancelNavigation = useCallback(() => {
+    setShowPrompt(false)
+    setPendingUrl(null)
   }, [])
 
-  // Funcție pentru a gestiona navigarea cu confirmare
-  const confirmNavigation = useCallback(
+  // Funcție pentru a naviga cu confirmare
+  const navigateTo = useCallback(
     (url: string) => {
-      if (shouldPromptRef.current) {
-        console.log("Attempting navigation to:", url, "- Showing prompt")
-        setPendingNavigation(url)
+      if (shouldPrompt && !isNavigating) {
         setShowPrompt(true)
+        setPendingUrl(url)
         return false
       } else {
-        console.log("Navigating directly to:", url)
         router.push(url)
         return true
       }
     },
-    [router],
+    [shouldPrompt, isNavigating, router],
   )
 
-  // Funcție pentru a confirma navigarea și a continua
-  const handleConfirm = useCallback(() => {
-    console.log("Navigation confirmed, proceeding to:", pendingNavigation)
-    setShowPrompt(false)
-    setIsNavigatingAway(true)
-
-    if (pendingNavigation) {
-      setTimeout(() => {
-        if (pendingNavigation === "#cancel") {
-          // Tratăm cazul special pentru anulare
-          if (onCancelRef.current) {
-            onCancelRef.current()
-          }
-        } else {
-          router.push(pendingNavigation)
-        }
-      }, 0)
+  // Adaugă un event listener pentru beforeunload
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (shouldPrompt) {
+        e.preventDefault()
+        e.returnValue = ""
+        return ""
+      }
     }
-  }, [pendingNavigation, router])
 
-  // Funcție pentru a anula navigarea
-  const handleCancel = useCallback(() => {
-    console.log("Navigation cancelled")
-    setShowPrompt(false)
-    setPendingNavigation(null)
-  }, [])
-
-  // Referință pentru funcția de anulare
-  const onCancelRef = useRef<(() => void) | undefined>(undefined)
-
-  // Funcție pentru a gestiona acțiunea de anulare a formularului
-  const handleCancel2 = useCallback((onCancel?: () => void) => {
-    // Salvăm funcția de anulare în referință
-    onCancelRef.current = onCancel
-
-    if (shouldPromptRef.current) {
-      console.log("Cancel button clicked - Showing prompt")
-      setPendingNavigation("#cancel")
-      setShowPrompt(true)
-    } else if (onCancel) {
-      console.log("Cancel button clicked - No prompt needed")
-      onCancel()
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload)
     }
-  }, [])
-
-  // Funcție pentru a confirma anularea formularului
-  const confirmCancel = useCallback((onCancel?: () => void) => {
-    console.log("Cancel confirmed")
-    setShowPrompt(false)
-    if (onCancel) {
-      setTimeout(() => {
-        onCancel()
-      }, 0)
-    }
-  }, [])
+  }, [shouldPrompt])
 
   return {
     showPrompt,
-    pendingNavigation,
-    isNavigatingAway,
+    pendingUrl,
     confirmNavigation,
-    handleConfirm,
-    handleCancel,
-    handleCancel2,
-    confirmCancel,
+    cancelNavigation,
+    navigateTo,
+    testDialog,
   }
 }
