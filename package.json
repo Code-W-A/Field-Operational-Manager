@@ -65,7 +65,7 @@
     "react-resizable-panels": "^2.1.7",
     "react-signature-canvas": "latest",
     "recharts": "latest",
-    "sonner": "latest",
+    "sonner": "^1.7.1",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "uuid": "latest",
