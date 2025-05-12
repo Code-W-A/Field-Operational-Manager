@@ -23,16 +23,7 @@ import { Badge } from "@/components/ui/badge"
 import { EquipmentQRCode } from "@/components/equipment-qr-code"
 // Import the new navigation prompt hook and dialog
 import { useNavigationPrompt } from "@/hooks/use-navigation-prompt"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { NavigationPromptDialog } from "@/components/navigation-prompt-dialog"
 
 interface ClientFormProps {
   onSuccess?: (clientName: string) => void
@@ -43,17 +34,6 @@ interface ClientFormProps {
 const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) => {
   // Add state to track if form has been modified
   const [formModified, setFormModified] = useState(false)
-  const [initialFormState, setInitialFormState] = useState({
-    formData: {
-      nume: "",
-      cif: "",
-      adresa: "",
-      email: "",
-    },
-    locatii: JSON.stringify([
-      { nume: "", adresa: "", persoaneContact: [{ nume: "", telefon: "", email: "", functie: "" }], echipamente: [] },
-    ]),
-  })
 
   const [formData, setFormData] = useState({
     nume: "",
@@ -87,40 +67,29 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
   const [echipamentFormErrors, setEchipamentFormErrors] = useState<string[]>([])
   const [isCheckingCode, setIsCheckingCode] = useState(false)
   const [isCodeUnique, setIsCodeUnique] = useState(true)
-  const [showCloseAlert, setShowCloseAlert] = useState(false)
 
   // Folosim noul hook pentru promptul de navigare
   const { showPrompt, handleConfirm, handleCancel, handleCancel2 } = useNavigationPrompt(formModified)
 
-  // Check if form has been modified
+  // Adăugăm un efect pentru a afișa starea formularului
   useEffect(() => {
-    const currentState = {
-      formData,
-      locatii: JSON.stringify(locatii),
-    }
+    console.log("Form modified state:", formModified)
+    console.log("showPrompt state:", showPrompt)
+  }, [formModified, showPrompt])
 
-    // Only consider the form modified if it's different from the initial state
-    // and if there's actual content (not just empty fields)
-    const hasChanged =
-      JSON.stringify(currentState.formData) !== JSON.stringify(initialFormState.formData) ||
-      currentState.locatii !== initialFormState.locatii
-
-    const hasContent =
+  // Mark form as modified when any input changes
+  useEffect(() => {
+    if (
       formData.nume ||
       formData.cif ||
       formData.adresa ||
       formData.email ||
-      locatii.some(
-        (loc) =>
-          loc.nume ||
-          loc.adresa ||
-          loc.persoaneContact.some((p) => p.nume || p.telefon) ||
-          (loc.echipamente && loc.echipamente.length > 0),
-      )
-
-    setFormModified(hasChanged && hasContent)
-    console.log("Form modified:", hasChanged && hasContent)
-  }, [formData, locatii, initialFormState])
+      locatii.some((loc) => loc.nume || loc.adresa || loc.persoaneContact.some((p) => p.nume || p.telefon))
+    ) {
+      console.log("Form modified detected")
+      setFormModified(true)
+    }
+  }, [formData, locatii])
 
   // Reset form modified state after successful submission
   useEffect(() => {
@@ -134,9 +103,30 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
     hasUnsavedChanges: () => formModified,
   }))
 
+  // Add effect to track form changes
+  useEffect(() => {
+    const handleFormChange = () => {
+      setFormModified(true)
+    }
+
+    // Add event listeners to form elements
+    const formElements = document.querySelectorAll("input, textarea, select")
+    formElements.forEach((element) => {
+      element.addEventListener("change", handleFormChange)
+      element.addEventListener("input", handleFormChange)
+    })
+
+    return () => {
+      // Clean up event listeners
+      formElements.forEach((element) => {
+        element.removeEventListener("change", handleFormChange)
+        element.removeEventListener("input", handleFormChange)
+      })
+    }
+  }, [])
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target
-    console.log(`Input changed: ${id} = ${value}`)
     setFormData((prev) => ({ ...prev, [id]: value }))
   }
 
@@ -413,7 +403,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
 
       // Reset form modified state after successful submission
       setFormModified(false) // Reset form modified state after successful submission
-      if (onSuccess) onSuccess(formData.nume)
+      onSuccess(formData.nume)
     } catch (err) {
       console.error("Eroare la adăugarea clientului:", err)
       setError("A apărut o eroare la adăugarea clientului. Încercați din nou.")
@@ -424,22 +414,8 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
 
   // Folosim noul handler pentru anulare
   const handleFormCancel = () => {
-    if (formModified) {
-      setShowCloseAlert(true)
-    } else if (onCancel) {
-      onCancel()
-    }
-  }
-
-  const confirmClose = () => {
-    setShowCloseAlert(false)
-    if (onCancel) {
-      onCancel()
-    }
-  }
-
-  const cancelClose = () => {
-    setShowCloseAlert(false)
+    console.log("handleFormCancel called, formModified:", formModified)
+    handleCancel2(onCancel)
   }
 
   // Verificăm dacă un câmp are eroare
@@ -909,23 +885,8 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
         </Button>
       </div>
 
-      {/* Alert dialog for unsaved changes */}
-      <AlertDialog open={showCloseAlert} onOpenChange={setShowCloseAlert}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmați închiderea</AlertDialogTitle>
-            <AlertDialogDescription>
-              Aveți modificări nesalvate. Sunteți sigur că doriți să închideți formularul? Toate modificările vor fi
-              pierdute.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={cancelClose}>Nu, rămân în formular</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmClose}>Da, închide formularul</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      {/* <NavigationPromptDialog open={showPrompt} onConfirm={handleConfirm} onCancel={handleCancel} /> */}
+      {/* Folosim noul dialog de confirmare */}
+      <NavigationPromptDialog open={showPrompt} onConfirm={handleConfirm} onCancel={handleCancel} />
     </form>
   )
 })

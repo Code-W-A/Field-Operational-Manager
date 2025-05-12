@@ -25,17 +25,8 @@ import { Badge } from "@/components/ui/badge"
 import { EquipmentQRCode } from "@/components/equipment-qr-code"
 // Import the unsaved changes hook and dialog
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
+import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
 import { useAuth } from "@/contexts/AuthContext"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 
 interface ClientEditFormProps {
   client: Client
@@ -118,7 +109,6 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
       currentState.locatii !== initialFormState.locatii
 
     setFormModified(hasChanged)
-    console.log("Form modified:", hasChanged)
   }, [formData, locatii, initialFormState])
 
   // Reset form modified state after successful submission
@@ -137,12 +127,30 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
     hasUnsavedChanges: () => formModified,
   }))
 
-  // Add this state variable inside the component, near the other state variables
-  const [showCloseAlert, setShowCloseAlert] = useState(false)
+  // Add effect to track form changes
+  useEffect(() => {
+    const handleFormChange = () => {
+      setFormModified(true)
+    }
+
+    // Add event listeners to form elements
+    const formElements = document.querySelectorAll("input, textarea, select")
+    formElements.forEach((element) => {
+      element.addEventListener("change", handleFormChange)
+      element.addEventListener("input", handleFormChange)
+    })
+
+    return () => {
+      // Clean up event listeners
+      formElements.forEach((element) => {
+        element.removeEventListener("change", handleFormChange)
+        element.removeEventListener("input", handleFormChange)
+      })
+    }
+  }, [])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target
-    console.log(`Input changed: ${id} = ${value}`)
     setFormData((prev) => ({ ...prev, [id]: value }))
   }
 
@@ -434,13 +442,8 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
         locatii: filteredLocatii,
       })
 
-      // Update the initial state to match current state after successful save
-      setInitialFormState({
-        formData,
-        locatii: JSON.stringify(locatii),
-      })
       setFormModified(false) // Reset form modified state after successful submission
-      if (onSuccess) onSuccess()
+      onSuccess()
     } catch (err) {
       console.error("Eroare la actualizarea clientului:", err)
       setError("A apărut o eroare la actualizarea clientului. Încercați din nou.")
@@ -455,25 +458,14 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
   // Stilul pentru câmpurile cu eroare
   const errorStyle = "border-red-500 focus-visible:ring-red-500"
 
-  // Replace the handleCancel function with this:
+  // Handle cancel with confirmation if form is modified
   const handleCancel = () => {
     if (formModified) {
-      setShowCloseAlert(true)
+      // Show confirmation dialog
+      handleNavigation("#cancel")
     } else if (onCancel) {
       onCancel()
     }
-  }
-
-  // Add these functions inside the component
-  const confirmClose = () => {
-    setShowCloseAlert(false)
-    if (onCancel) {
-      onCancel()
-    }
-  }
-
-  const cancelClose = () => {
-    setShowCloseAlert(false)
   }
 
   // Confirm cancel action
@@ -961,22 +953,12 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
         </Button>
       </div>
 
-      {/* Replace the UnsavedChangesDialog at the end of the form with this AlertDialog */}
-      <AlertDialog open={showCloseAlert} onOpenChange={setShowCloseAlert}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmați închiderea</AlertDialogTitle>
-            <AlertDialogDescription>
-              Aveți modificări nesalvate. Sunteți sigur că doriți să închideți formularul? Toate modificările vor fi
-              pierdute.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={cancelClose}>Nu, rămân în formular</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmClose}>Da, închide formularul</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Unsaved changes dialog */}
+      <UnsavedChangesDialog
+        open={showDialog}
+        onConfirm={pendingUrl === "#cancel" ? confirmCancel : confirmNavigation}
+        onCancel={cancelNavigation}
+      />
     </form>
   )
 })
