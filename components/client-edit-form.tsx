@@ -127,30 +127,9 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
     hasUnsavedChanges: () => formModified,
   }))
 
-  // Add effect to track form changes
-  useEffect(() => {
-    const handleFormChange = () => {
-      setFormModified(true)
-    }
-
-    // Add event listeners to form elements
-    const formElements = document.querySelectorAll("input, textarea, select")
-    formElements.forEach((element) => {
-      element.addEventListener("change", handleFormChange)
-      element.addEventListener("input", handleFormChange)
-    })
-
-    return () => {
-      // Clean up event listeners
-      formElements.forEach((element) => {
-        element.removeEventListener("change", handleFormChange)
-        element.removeEventListener("input", handleFormChange)
-      })
-    }
-  }, [])
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target
+    console.log(`Input changed: ${id} = ${value}`)
     setFormData((prev) => ({ ...prev, [id]: value }))
   }
 
