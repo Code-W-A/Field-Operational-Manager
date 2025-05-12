@@ -1,27 +1,23 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
 import { QRCodeSVG } from "qrcode.react"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Printer, QrCode } from "lucide-react"
 import type { Echipament } from "@/lib/firebase/firestore"
 
 /**
  * Componentă mai compactă pentru generarea şi tipărirea QR‐code‑ului unui echipament.
- * Lăţime buton ≈ 32 px (doar icon) sau ≈ 90 px (cu text).
+ * Lăţime buton ≈ 32 px (doar icon) sau ≈ 90 px (cu text).
  */
 export interface EquipmentQRCodeProps {
   equipment: Echipament
   clientName: string
   locationName: string
-  /** Dacă true, afişează şi textul „Generează QR”. */
+  /** Dacă true, afişează şi textul „Generează QR". */
   showLabel?: boolean
   /** Clase Tailwind suplimentare pentru butonul declanşator. */
   className?: string
@@ -52,9 +48,7 @@ export function EquipmentQRCode({
   const handlePrint = () => {
     const printWindow = window.open("", "_blank")
     if (!printWindow) {
-      alert(
-        "Popup‑urile sunt blocate. Vă rugăm să permiteți popup‑urile pentru această pagină."
-      )
+      alert("Popup‑urile sunt blocate. Vă rugăm să permiteți popup‑urile pentru această pagină.")
       return
     }
 
@@ -103,17 +97,25 @@ export function EquipmentQRCode({
     printWindow.document.close()
   }
 
+  // Add event handler to stop propagation
+  const handleQRButtonClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    setOpen(true)
+  }
+
   return (
     <>
       <Button
         variant="outline"
         size="sm"
-        onClick={() => setOpen(true)}
+        onClick={handleQRButtonClick}
         className={`shrink-0 ${className ?? ""}`.trim()}
-        title={showLabel ? undefined : "Generează QR"}
+        title={showLabel ? undefined : "Generează QR"}
+        type="button" // Explicitly set type to button to prevent form submission
       >
         <QrCode className={showLabel ? "h-4 w-4 mr-1" : "h-4 w-4"} />
-        {showLabel && "Generează QR"}
+        {showLabel && "Generează QR"}
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -123,10 +125,7 @@ export function EquipmentQRCode({
           </DialogHeader>
 
           <div className="flex flex-col items-center p-4">
-            <div
-              id="equipment-qr-code"
-              className="border p-4 rounded-lg bg-white"
-            >
+            <div id="equipment-qr-code" className="border p-4 rounded-lg bg-white">
               <QRCodeSVG value={qrData} size={200} level="H" includeMargin />
             </div>
             <div className="mt-4 text-center">
@@ -136,7 +135,7 @@ export function EquipmentQRCode({
           </div>
 
           <DialogFooter className="flex justify-center">
-            <Button variant="outline" size="sm" onClick={handlePrint}>
+            <Button variant="outline" size="sm" onClick={handlePrint} type="button">
               <Printer className="mr-2 h-4 w-4" />
               Printează
             </Button>

@@ -204,7 +204,11 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
   }
 
   // Funcție pentru deschiderea dialogului de editare echipament
-  const handleOpenEditEchipamentDialog = (locatieIndex: number, echipamentIndex: number) => {
+  const handleOpenEditEchipamentDialog = (locatieIndex: number, echipamentIndex: number, e: React.MouseEvent) => {
+    // Stop propagation to prevent the click from affecting parent components
+    e.stopPropagation()
+    e.preventDefault()
+
     setSelectedLocatieIndex(locatieIndex)
     setSelectedEchipamentIndex(echipamentIndex)
 
@@ -293,7 +297,11 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
   }
 
   // Funcție pentru ștergerea unui echipament
-  const handleDeleteEchipament = (locatieIndex: number, echipamentIndex: number) => {
+  const handleDeleteEchipament = (locatieIndex: number, echipamentIndex: number, e: React.MouseEvent) => {
+    // Stop propagation to prevent the click from affecting parent components
+    e.stopPropagation()
+    e.preventDefault()
+
     if (window.confirm("Sunteți sigur că doriți să ștergeți acest echipament?")) {
       const updatedLocatii = [...locatii]
       updatedLocatii[locatieIndex].echipamente!.splice(echipamentIndex, 1)
@@ -413,7 +421,10 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
   }
 
   // Folosim noul handler pentru anulare
-  const handleFormCancel = () => {
+  const handleFormCancel = (e: React.MouseEvent) => {
+    // Prevent default to avoid form submission
+    e.preventDefault()
+
     console.log("handleFormCancel called, formModified:", formModified)
     if (formModified) {
       handleCancel2(onCancel)
@@ -669,7 +680,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
                                   type="button"
                                   variant="ghost"
                                   size="icon"
-                                  onClick={() => handleOpenEditEchipamentDialog(locatieIndex, echipamentIndex)}
+                                  onClick={(e) => handleOpenEditEchipamentDialog(locatieIndex, echipamentIndex, e)}
                                   className="h-8 w-8"
                                 >
                                   <Wrench className="h-4 w-4" />
@@ -678,7 +689,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
                                   type="button"
                                   variant="ghost"
                                   size="icon"
-                                  onClick={() => handleDeleteEchipament(locatieIndex, echipamentIndex)}
+                                  onClick={(e) => handleDeleteEchipament(locatieIndex, echipamentIndex, e)}
                                   className="h-8 w-8 text-red-500"
                                 >
                                   <Trash2 className="h-4 w-4" />
@@ -848,10 +859,16 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
           </div>
 
           <DialogFooter className="pt-2 flex-col gap-2 sm:flex-row">
-            <Button variant="outline" onClick={() => setIsEchipamentDialogOpen(false)} className="w-full sm:w-auto">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsEchipamentDialogOpen(false)}
+              className="w-full sm:w-auto"
+            >
               Anulează
             </Button>
             <Button
+              type="button"
               onClick={handleSaveEchipament}
               disabled={
                 echipamentFormErrors.length > 0 ||
@@ -875,7 +892,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
       </Dialog>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-        <Button variant="outline" onClick={handleFormCancel}>
+        <Button type="button" variant="outline" onClick={handleFormCancel}>
           Anulează
         </Button>
         <Button className="bg-blue-600 hover:bg-blue-700" type="submit" disabled={isSubmitting}>
