@@ -22,10 +22,22 @@ import { toast } from "@/components/ui/use-toast"
 // import 'jspdf-autotable'
 import { ReportGenerator } from "@/components/report-generator"
 
+// 1️⃣  înainte de componentă
+function useStableCanvasSize() {
+  const [width, setWidth] = useState<number | null>(null)
+
+  useEffect(() => {
+    // fixăm lățimea la primul render în browser
+    setWidth(window.innerWidth - 48)           // 48 px = padding-ul card-ului
+  }, [])
+
+  return width
+}
+
 export default function RaportPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const { userData } = useAuth()
-
+ const canvasWidth = useStableCanvasSize()    // new hook
   // Signature references and states
   const techSignatureRef = useRef<SignatureCanvas | null>(null)
   const clientSignatureRef = useRef<SignatureCanvas | null>(null)
@@ -668,15 +680,16 @@ export default function RaportPage({ params }: { params: { id: string } }) {
                 <div className="space-y-2">
                   <h3 className="font-medium text-gray-500">Semnătură Tehnician</h3>
                   <div className="rounded-md border border-gray-300 bg-white p-2">
-                    <SignatureCanvas
-                      ref={techSignatureRef}
-                      canvasProps={{
-                        className: "w-full h-40 border rounded",
-                        style: { width: "100%", height: "160px" },
-                      }}
-                      onBegin={handleTechBegin}
-                      onEnd={handleTechEnd}
-                    />
+             <SignatureCanvas
+  ref={techSignatureRef}
+  width={canvasWidth ?? 300}   /* fallback pe SSR */
+  height={160}
+  penColor="black"
+  onBegin={handleTechBegin}
+  onEnd={handleTechEnd}
+  className="border rounded w-full"   /* doar aspect; nu folosi style width:100% */
+ />
+
                   </div>
                   <div className="flex justify-end">
                     <Button variant="outline" size="sm" onClick={clearTechSignature}>
@@ -690,15 +703,15 @@ export default function RaportPage({ params }: { params: { id: string } }) {
                 <div className="space-y-2">
                   <h3 className="font-medium text-gray-500">Semnătură Beneficiar</h3>
                   <div className="rounded-md border border-gray-300 bg-white p-2">
-                    <SignatureCanvas
-                      ref={clientSignatureRef}
-                      canvasProps={{
-                        className: "w-full h-40 border rounded",
-                        style: { width: "100%", height: "160px" },
-                      }}
-                      onBegin={handleClientBegin}
-                      onEnd={handleClientEnd}
-                    />
+                <SignatureCanvas
+  ref={clientSignatureRef}
+  width={canvasWidth ?? 300}
+  height={160}
+  penColor="black"
+  onBegin={handleClientBegin}
+  onEnd={handleClientEnd}
+  className="border rounded w-full"
+/>
                   </div>
                   <div className="flex justify-end">
                     <Button variant="outline" size="sm" onClick={clearClientSignature}>

@@ -693,7 +693,7 @@ export default function Utilizatori() {
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
                   </>
                 ) : (
-                  "Salvează"
+                  "Salveaz��"
                 )}
               </Button>
             </DialogFooter>
