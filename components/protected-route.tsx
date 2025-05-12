@@ -25,7 +25,6 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
         userData: userData,
         allowedRoles,
         hasRole: userData && allowedRoles ? allowedRoles.includes(userData.role) : false,
-        pathname,
       })
 
       if (!user) {
@@ -36,11 +35,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
       } else if (userData?.role === "tehnician" && pathname?.includes("/dashboard/clienti")) {
         // Prevent technicians from accessing the Clients page
         console.log("Technician attempting to access Clients page, redirecting to dashboard")
-        router.push("/dashboard/lucrari")
-      } else if (userData?.role === "tehnician" && pathname === "/dashboard") {
-        // Redirect technicians from main dashboard to lucrari page
-        console.log("Technician attempting to access main dashboard, redirecting to lucrari")
-        router.push("/dashboard/lucrari")
+        router.push("/dashboard")
       }
     }
   }, [user, userData, loading, router, allowedRoles, pathname])
@@ -61,11 +56,6 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   }
 
   if (allowedRoles && userData && !allowedRoles.includes(userData.role)) {
-    return null
-  }
-
-  // Don't render the main dashboard for technicians
-  if (userData?.role === "tehnician" && pathname === "/dashboard") {
     return null
   }
 
