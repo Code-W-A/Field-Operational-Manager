@@ -444,9 +444,18 @@ export default function Clienti() {
         <Dialog
           open={isAddDialogOpen}
           onOpenChange={(open) => {
-            if (!open) {
-              handleCloseAddDialog()
+            if (!open && isAddDialogOpen) {
+              // Verificăm dacă există modificări nesalvate înainte de a închide dialogul
+              if (addFormRef.current?.hasUnsavedChanges?.()) {
+                // Dacă există modificări nesalvate, afișăm dialogul de confirmare
+                setShowCloseAlert(true)
+                // Important: Nu închidem dialogul principal încă
+              } else {
+                // Dacă nu există modificări nesalvate, închidem dialogul direct
+                setIsAddDialogOpen(false)
+              }
             } else {
+              // Dacă dialogul se deschide, actualizăm starea
               setIsAddDialogOpen(open)
             }
           }}
@@ -477,9 +486,18 @@ export default function Clienti() {
       <Dialog
         open={isEditDialogOpen}
         onOpenChange={(open) => {
-          if (!open) {
-            handleCloseEditDialog()
+          if (!open && isEditDialogOpen) {
+            // Verificăm dacă există modificări nesalvate înainte de a închide dialogul
+            if (editFormRef.current?.hasUnsavedChanges?.()) {
+              // Dacă există modificări nesalvate, afișăm dialogul de confirmare
+              setShowCloseAlert(true)
+              // Important: Nu închidem dialogul principal încă
+            } else {
+              // Dacă nu există modificări nesalvate, închidem dialogul direct
+              handleEditDialogClose()
+            }
           } else {
+            // Dacă dialogul se deschide, actualizăm starea
             setIsEditDialogOpen(open)
           }
         }}
