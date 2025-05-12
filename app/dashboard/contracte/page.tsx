@@ -25,6 +25,16 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { toast } from "@/components/ui/use-toast"
 import { format } from "date-fns"
 import { ro } from "date-fns/locale"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface Contract {
   id: string
@@ -46,6 +56,9 @@ export default function ContractsPage() {
   const [newContractNumber, setNewContractNumber] = useState("")
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const [showCloseAlert, setShowCloseAlert] = useState(false)
+  const [activeDialog, setActiveDialog] = useState<"add" | "edit" | "delete" | null>(null)
 
   // Încărcăm contractele din Firestore
   useEffect(() => {
@@ -250,6 +263,38 @@ export default function ContractsPage() {
     }
   }
 
+  // Function to check if we should show the close confirmation dialog
+  const handleCloseDialog = (dialogType: "add" | "edit" | "delete") => {
+    // For contracts, we'll check if the form fields have values
+    if (dialogType === "add" && (newContractName || newContractNumber)) {
+      setActiveDialog(dialogType)
+      setShowCloseAlert(true)
+    } else if (
+      dialogType === "edit" &&
+      (newContractName !== selectedContract?.name || newContractNumber !== selectedContract?.number)
+    ) {
+      setActiveDialog(dialogType)
+      setShowCloseAlert(true)
+    } else {
+      // No unsaved changes, close directly
+      if (dialogType === "add") setIsAddDialogOpen(false)
+      if (dialogType === "edit") setIsEditDialogOpen(false)
+      if (dialogType === "delete") setIsDeleteDialogOpen(false)
+    }
+  }
+
+  // Function to confirm dialog close
+  const confirmCloseDialog = () => {
+    setShowCloseAlert(false)
+
+    // Close the active dialog
+    if (activeDialog === "add") setIsAddDialogOpen(false)
+    if (activeDialog === "edit") setIsEditDialogOpen(false)
+    if (activeDialog === "delete") setIsDeleteDialogOpen(false)
+
+    setActiveDialog(null)
+  }
+
   return (
     <DashboardShell>
       <DashboardHeader heading="Contracte" text="Gestionați contractele din sistem">
@@ -317,7 +362,16 @@ export default function ContractsPage() {
       )}
 
       {/* Dialog pentru adăugarea unui contract nou */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+      <Dialog
+        open={isAddDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleCloseDialog("add")
+          } else {
+            setIsAddDialogOpen(open)
+          }
+        }}
+      >
         <DialogContent className="w-[calc(100%-2rem)] max-w-[400px]">
           <DialogHeader>
             <DialogTitle>Adaugă Contract Nou</DialogTitle>
@@ -343,7 +397,7 @@ export default function ContractsPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+            <Button variant="outline" onClick={() => handleCloseDialog("add")}>
               Anulează
             </Button>
             <Button onClick={handleAddContract} disabled={isSubmitting || !newContractName || !newContractNumber}>
@@ -360,7 +414,16 @@ export default function ContractsPage() {
       </Dialog>
 
       {/* Dialog pentru editarea unui contract */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog
+        open={isEditDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleCloseDialog("edit")
+          } else {
+            setIsEditDialogOpen(open)
+          }
+        }}
+      >
         <DialogContent className="w-[calc(100%-2rem)] max-w-[400px]">
           <DialogHeader>
             <DialogTitle>Editează Contract</DialogTitle>
@@ -386,7 +449,7 @@ export default function ContractsPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+            <Button variant="outline" onClick={() => handleCloseDialog("edit")}>
               Anulează
             </Button>
             <Button onClick={handleEditContract} disabled={isSubmitting || !newContractName || !newContractNumber}>
@@ -403,7 +466,16 @@ export default function ContractsPage() {
       </Dialog>
 
       {/* Dialog pentru ștergerea unui contract */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <Dialog
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleCloseDialog("delete")
+          } else {
+            setIsDeleteDialogOpen(open)
+          }
+        }}
+      >
         <DialogContent className="w-[calc(100%-2rem)] max-w-[400px]">
           <DialogHeader>
             <DialogTitle>Șterge Contract</DialogTitle>
@@ -416,7 +488,7 @@ export default function ContractsPage() {
             <p className="text-red-600 mt-2">Această acțiune nu poate fi anulată.</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+            <Button variant="outline" onClick={() => handleCloseDialog("delete")}>
               Anulează
             </Button>
             <Button variant="destructive" onClick={handleDeleteContract} disabled={isSubmitting}>
@@ -431,6 +503,21 @@ export default function ContractsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={showCloseAlert} onOpenChange={setShowCloseAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmați închiderea</AlertDialogTitle>
+            <AlertDialogDescription>
+              Aveți modificări nesalvate. Sunteți sigur că doriți să închideți formularul? Toate modificările vor fi
+              pierdute.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowCloseAlert(false)}>Nu, rămân în formular</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmCloseDialog}>Da, închide formularul</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardShell>
   )
 }

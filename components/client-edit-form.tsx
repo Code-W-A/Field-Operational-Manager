@@ -3,7 +3,7 @@
 import { DialogFooter } from "@/components/ui/dialog"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, forwardRef, useImperativeHandle } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -34,7 +34,7 @@ interface ClientEditFormProps {
   onCancel?: () => void
 }
 
-export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormProps) {
+const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFormProps, ref) => {
   const { userData } = useAuth()
   const isAdmin = userData?.role === "admin"
 
@@ -122,6 +122,32 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
       setFormModified(false)
     }
   }, [isSubmitting, error, formModified, formData, locatii])
+
+  useImperativeHandle(ref, () => ({
+    hasUnsavedChanges: () => formModified,
+  }))
+
+  // Add effect to track form changes
+  useEffect(() => {
+    const handleFormChange = () => {
+      setFormModified(true)
+    }
+
+    // Add event listeners to form elements
+    const formElements = document.querySelectorAll("input, textarea, select")
+    formElements.forEach((element) => {
+      element.addEventListener("change", handleFormChange)
+      element.addEventListener("input", handleFormChange)
+    })
+
+    return () => {
+      // Clean up event listeners
+      formElements.forEach((element) => {
+        element.removeEventListener("change", handleFormChange)
+        element.removeEventListener("input", handleFormChange)
+      })
+    }
+  }, [])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target
@@ -360,7 +386,8 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
     checkCodeUniqueness()
   }, [echipamentFormData.cod, locatii, selectedLocatieIndex, selectedEchipamentIndex, client.id])
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
     try {
       setIsSubmitting(true)
       setError(null)
@@ -415,10 +442,8 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
         locatii: filteredLocatii,
       })
 
-      // Notificăm componenta părinte despre succesul actualizării
-      if (onSuccess) {
-        onSuccess()
-      }
+      setFormModified(false) // Reset form modified state after successful submission
+      onSuccess()
     } catch (err) {
       console.error("Eroare la actualizarea clientului:", err)
       setError("A apărut o eroare la actualizarea clientului. Încercați din nou.")
@@ -452,7 +477,7 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
 
   // Add the UnsavedChangesDialog at the end of the component
   return (
-    <div className="space-y-4">
+    <form className="space-y-4" onSubmit={handleSubmit}>
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -917,7 +942,7 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
         <Button variant="outline" onClick={handleCancel}>
           Anulează
         </Button>
-        <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSubmit} disabled={isSubmitting}>
+        <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={isSubmitting}>
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
@@ -934,6 +959,9 @@ export function ClientEditForm({ client, onSuccess, onCancel }: ClientEditFormPr
         onConfirm={pendingUrl === "#cancel" ? confirmCancel : confirmNavigation}
         onCancel={cancelNavigation}
       />
-    </div>
+    </form>
   )
-}
+})
+
+// Make sure to export the component
+export { ClientEditForm }

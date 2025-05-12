@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, forwardRef, useImperativeHandle } from "react"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -30,10 +30,40 @@ const formSchema = z.object({
   notes: z.string().optional(),
 })
 
-export function UserEditForm({ user, onSuccess }: { user: any; onSuccess?: () => void }) {
+interface UserEditFormProps {
+  user: any
+  onSuccess?: () => void
+  onCancel?: () => void
+}
+
+const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProps, ref: any) => {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isPasswordResetOpen, setIsPasswordResetOpen] = useState(false)
+  const [formModified, setFormModified] = useState(false)
+
+  useImperativeHandle(ref, () => ({
+    hasUnsavedChanges: () => formModified,
+  }))
+
+  useEffect(() => {
+    const handleFormChange = () => {
+      setFormModified(true)
+    }
+
+    const formElements = document.querySelectorAll("input, textarea, select")
+    formElements.forEach((element) => {
+      element.addEventListener("change", handleFormChange)
+      element.addEventListener("input", handleFormChange)
+    })
+
+    return () => {
+      formElements.forEach((element) => {
+        element.removeEventListener("change", handleFormChange)
+        element.removeEventListener("input", handleFormChange)
+      })
+    }
+  }, [])
 
   // Inițializăm formularul cu valorile utilizatorului
   const form = useForm<z.infer<typeof formSchema>>({
@@ -74,6 +104,7 @@ export function UserEditForm({ user, onSuccess }: { user: any; onSuccess?: () =>
         description: "Datele utilizatorului au fost actualizate cu succes.",
       })
 
+      setFormModified(false) // Reset form modified state after successful submission
       if (onSuccess) {
         onSuccess()
       }
@@ -203,4 +234,6 @@ export function UserEditForm({ user, onSuccess }: { user: any; onSuccess?: () =>
       />
     </div>
   )
-}
+})
+
+export { UserEditForm }

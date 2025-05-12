@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -33,6 +33,16 @@ import { ColumnSelectionButton } from "@/components/column-selection-button"
 import { ColumnSelectionModal } from "@/components/column-selection-modal"
 import { FilterButton } from "@/components/filter-button"
 import { FilterModal, type FilterOption } from "@/components/filter-modal"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export default function Clienti() {
   const { userData } = useAuth()
@@ -45,6 +55,9 @@ export default function Clienti() {
   const [columnOptions, setColumnOptions] = useState<any[]>([])
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
   const [activeFilters, setActiveFilters] = useState<FilterOption[]>([])
+  const [showCloseAlert, setShowCloseAlert] = useState(false)
+  const addFormRef = useRef<any>(null)
+  const editFormRef = useRef<any>(null)
 
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -306,12 +319,41 @@ export default function Clienti() {
   const handleViewDetails = (id: string) => {
     router.push(`/dashboard/clienti/${id}`)
   }
-  
 
   // Modify handleEditSuccess function to refresh data
   const handleEditSuccess = () => {
     handleEditDialogClose()
     refreshData() // Add call to refreshData
+  }
+
+  // Function to check if we should show the close confirmation dialog for add
+  const handleCloseAddDialog = () => {
+    if (addFormRef.current?.hasUnsavedChanges?.()) {
+      setShowCloseAlert(true)
+    } else {
+      setIsAddDialogOpen(false)
+    }
+  }
+
+  // Function to check if we should show the close confirmation dialog for edit
+  const handleCloseEditDialog = () => {
+    if (editFormRef.current?.hasUnsavedChanges?.()) {
+      setShowCloseAlert(true)
+    } else {
+      handleEditDialogClose()
+    }
+  }
+
+  // Function to confirm dialog close
+  const confirmCloseDialog = () => {
+    setShowCloseAlert(false)
+
+    // Determine which dialog to close
+    if (isAddDialogOpen) {
+      setIsAddDialogOpen(false)
+    } else if (isEditDialogOpen) {
+      handleEditDialogClose()
+    }
   }
 
   // Define columns for DataTable
@@ -399,7 +441,16 @@ export default function Clienti() {
   return (
     <DashboardShell>
       <DashboardHeader heading="Clienți" text="Gestionați baza de date a clienților">
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <Dialog
+          open={isAddDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              handleCloseAddDialog()
+            } else {
+              setIsAddDialogOpen(open)
+            }
+          }}
+        >
           <DialogTrigger asChild>
             <Button className="bg-blue-600 hover:bg-blue-700">
               <Plus className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Adaugă</span> Client
@@ -411,18 +462,28 @@ export default function Clienti() {
               <DialogDescription>Completați detaliile pentru a adăuga un client nou</DialogDescription>
             </DialogHeader>
             <ClientForm
+              ref={addFormRef}
               onSuccess={(clientName) => {
                 setIsAddDialogOpen(false)
                 refreshData() // Refresh data after addition
               }}
-              onCancel={() => setIsAddDialogOpen(false)}
+              onCancel={handleCloseAddDialog}
             />
           </DialogContent>
         </Dialog>
       </DashboardHeader>
 
       {/* Dialog for editing the client */}
-      <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogClose}>
+      <Dialog
+        open={isEditDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleCloseEditDialog()
+          } else {
+            setIsEditDialogOpen(open)
+          }
+        }}
+      >
         <DialogContent className="w-[calc(100%-2rem)] max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editează Client</DialogTitle>
@@ -430,11 +491,10 @@ export default function Clienti() {
           </DialogHeader>
           {selectedClient && (
             <ClientEditForm
+              ref={editFormRef}
               client={selectedClient}
-              onSuccess={handleEditSuccess}  
-              onCancel={() => {
-                handleEditDialogClose()
-              }}
+              onSuccess={handleEditSuccess}
+              onCancel={handleCloseEditDialog}
             />
           )}
         </DialogContent>
@@ -499,13 +559,7 @@ export default function Clienti() {
           </Alert>
         ) : activeTab === "tabel" ? (
           <div className="rounded-md border">
-            <DataTable
-              columns={columns}
-              data={filteredData}
-              table={table}
-              setTable={setTable}
-              showFilters={false}
-            />
+            <DataTable columns={columns} data={filteredData} table={table} setTable={setTable} showFilters={false} />
           </div>
         ) : (
           <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3 w-full overflow-auto">
@@ -602,6 +656,21 @@ export default function Clienti() {
           </div>
         )}
       </div>
+      <AlertDialog open={showCloseAlert} onOpenChange={setShowCloseAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmați închiderea</AlertDialogTitle>
+            <AlertDialogDescription>
+              Aveți modificări nesalvate. Sunteți sigur că doriți să închideți formularul? Toate modificările vor fi
+              pierdute.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowCloseAlert(false)}>Nu, rămân în formular</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmCloseDialog}>Da, închide formularul</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardShell>
   )
 }

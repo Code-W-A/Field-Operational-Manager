@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, forwardRef, useImperativeHandle } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -30,7 +30,11 @@ interface ClientFormProps {
   onCancel?: () => void
 }
 
-export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
+// Modify the component definition to use forwardRef
+const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) => {
+  // Add state to track if form has been modified
+  const [formModified, setFormModified] = useState(false)
+
   const [formData, setFormData] = useState({
     nume: "",
     cif: "", // Adăugăm CIF
@@ -46,7 +50,6 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<string[]>([])
-  const [formModified, setFormModified] = useState(false)
 
   // State pentru gestionarea dialogului de adăugare/editare echipament
   const [isEchipamentDialogOpen, setIsEchipamentDialogOpen] = useState(false)
@@ -94,6 +97,33 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
       setFormModified(false)
     }
   }, [isSubmitting, error, formModified])
+
+  // Add useImperativeHandle to expose methods to parent
+  useImperativeHandle(ref, () => ({
+    hasUnsavedChanges: () => formModified,
+  }))
+
+  // Add effect to track form changes
+  useEffect(() => {
+    const handleFormChange = () => {
+      setFormModified(true)
+    }
+
+    // Add event listeners to form elements
+    const formElements = document.querySelectorAll("input, textarea, select")
+    formElements.forEach((element) => {
+      element.addEventListener("change", handleFormChange)
+      element.addEventListener("input", handleFormChange)
+    })
+
+    return () => {
+      // Clean up event listeners
+      formElements.forEach((element) => {
+        element.removeEventListener("change", handleFormChange)
+        element.removeEventListener("input", handleFormChange)
+      })
+    }
+  }, [])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target
@@ -315,7 +345,8 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
     checkCodeUniqueness()
   }, [echipamentFormData.cod, locatii, selectedLocatieIndex, selectedEchipamentIndex])
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
     try {
       setIsSubmitting(true)
       setError(null)
@@ -371,12 +402,8 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
       console.log("Client adăugat cu ID:", clientId)
 
       // Reset form modified state after successful submission
-      setFormModified(false)
-
-      // Notificăm componenta părinte despre succesul adăugării
-      if (onSuccess) {
-        onSuccess(formData.nume)
-      }
+      setFormModified(false) // Reset form modified state after successful submission
+      onSuccess(formData.nume)
     } catch (err) {
       console.error("Eroare la adăugarea clientului:", err)
       setError("A apărut o eroare la adăugarea clientului. Încercați din nou.")
@@ -398,7 +425,7 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
   const errorStyle = "border-red-500 focus-visible:ring-red-500"
 
   return (
-    <div className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -847,7 +874,7 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
         <Button variant="outline" onClick={handleFormCancel}>
           Anulează
         </Button>
-        <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSubmit} disabled={isSubmitting}>
+        <Button className="bg-blue-600 hover:bg-blue-700" type="submit" disabled={isSubmitting}>
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
@@ -860,6 +887,9 @@ export function ClientForm({ onSuccess, onCancel }: ClientFormProps) {
 
       {/* Folosim noul dialog de confirmare */}
       <NavigationPromptDialog open={showPrompt} onConfirm={handleConfirm} onCancel={handleCancel} />
-    </div>
+    </form>
   )
-}
+})
+
+// Make sure to export the component
+export { ClientForm }
