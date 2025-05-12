@@ -780,7 +780,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
 
       {/* Dialog pentru adăugare/editare echipament */}
       <Dialog open={isEchipamentDialogOpen} onOpenChange={setIsEchipamentDialogOpen}>
-        <DialogContent hideClose  className="sm:max-w-[500px] w-[95%] max-h-[90vh] overflow-y-auto">
+        <DialogContent hideClose={true} className="sm:max-w-[500px] w-[95%] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {selectedEchipamentIndex !== null ? "Editare Echipament" : "Adăugare Echipament Nou"}

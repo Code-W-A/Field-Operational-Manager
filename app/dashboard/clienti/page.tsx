@@ -465,8 +465,7 @@ export default function Clienti() {
           </DialogTrigger>
           <DialogContent
             className="w-[calc(100%-2rem)] max-w-[600px] max-h-[90vh] overflow-y-auto"
-            // Eliminăm butonul X standard
-            closeButton={false}
+            closeButton={false} // Eliminăm butonul X standard
           >
             <DialogHeader>
               <DialogTitle>Adaugă Client Nou</DialogTitle>
@@ -498,8 +497,7 @@ export default function Clienti() {
       >
         <DialogContent
           className="w-[calc(100%-2rem)] max-w-[500px] max-h-[90vh] overflow-y-auto"
-          // Eliminăm butonul X standard
-          closeButton={false}
+          closeButton={false} // Eliminăm butonul X standard
         >
           <DialogHeader>
             <DialogTitle>Editează Client</DialogTitle>
