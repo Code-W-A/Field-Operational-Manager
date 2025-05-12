@@ -12,6 +12,7 @@
 //   • Fixed diacritics issues in total section
 //   • Added equipment information section
 //   • Enhanced beneficiary information with client details
+//   • Dynamic text block heights for constatare and descriere
 // ---------------------------------------------------------------------------
 
 import { useState, forwardRef, useEffect } from "react"
@@ -287,34 +288,48 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         currentY += equipmentBoxHeight + 5
       }
 
-      // COMMENT BLOCKS
+      // COMMENT BLOCKS - Dynamic height based on content
       const addTextBlock = (label: string, text: string) => {
-        // Check if we need a new page
-        checkPageBreak(50) // Height estimate for text block
+        // Check if we need a new page for the label
+        checkPageBreak(10)
 
         // Draw label
-        doc.setFont(undefined, "bold").setFontSize(10).text(label, M, currentY)
+        doc.setFont(undefined, "bold").setFontSize(10).setTextColor(20)
+        doc.text(label, M, currentY)
         currentY += 4
 
-        // Draw box
-        const boxHeight = 30
-        doc.setDrawColor(150).setLineWidth(0.2).rect(M, currentY, W, boxHeight, "S")
+        // Calculate needed height based on text content
+        doc.setFont(undefined, "normal").setFontSize(8).setTextColor(20)
+        const normalizedText = normalize(text || "")
+        const textLines = doc.splitTextToSize(normalizedText, W - 4)
 
-        // Draw horizontal lines
-        for (let i = 1; i < 6; i++) {
+        // Calculate box height based on text content
+        // Each line is about 4mm high, add some padding
+        const lineHeight = 4
+        const minBoxHeight = 30 // Minimum box height
+        const calculatedHeight = Math.max(minBoxHeight, textLines.length * lineHeight + 10)
+
+        // Check if we need a new page for the box
+        checkPageBreak(calculatedHeight + 5)
+
+        // Draw box
+        doc.setDrawColor(150).setLineWidth(0.2)
+        doc.rect(M, currentY, W, calculatedHeight, "S")
+
+        // Draw horizontal lines - dynamic based on box height
+        const linesCount = Math.floor(calculatedHeight / 6)
+        for (let i = 1; i < linesCount; i++) {
           doc.line(M, currentY + i * 6, M + W, currentY + i * 6)
         }
 
-        // Add text content with wrapping
-        doc.setFont(undefined, "normal").setFontSize(8)
-        const lines = doc.splitTextToSize(normalize(text || ""), W - 4)
-        doc.text(lines, M + 2, currentY + 5)
+        // Add text content
+        doc.text(textLines, M + 2, currentY + 5)
 
         // Update position
-        currentY += boxHeight + 10
+        currentY += calculatedHeight + 10
       }
 
-      // Add text blocks - FIX: Use constatareLaLocatie instead of descriere
+      // Add text blocks with dynamic heights
       addTextBlock("Constatare la locatie:", lucrare.constatareLaLocatie || "")
       addTextBlock("Descriere interventie:", lucrare.descriereInterventie || "")
 
