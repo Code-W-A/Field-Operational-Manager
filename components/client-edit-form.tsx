@@ -27,6 +27,17 @@ import { EquipmentQRCode } from "@/components/equipment-qr-code"
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
 import { useAuth } from "@/contexts/AuthContext"
+// Import AlertDialog components
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface ClientEditFormProps {
   client: Client
@@ -44,6 +55,9 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
     adresa: client.adresa || "",
     email: client.email || "",
   })
+
+  // Add state for close alert dialog
+  const [showCloseAlert, setShowCloseAlert] = useState(false)
 
   // Inițializăm locațiile din client sau creăm una goală dacă nu există
   const [locatii, setLocatii] = useState<Locatie[]>(
@@ -451,24 +465,29 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
   // Stilul pentru câmpurile cu eroare
   const errorStyle = "border-red-500 focus-visible:ring-red-500"
 
-  // Handle cancel with confirmation if form is modified
-  const handleCancel = (e: React.MouseEvent) => {
+  // New function to handle close attempt
+  const handleCloseAttempt = (e: React.MouseEvent) => {
     // Prevent default to avoid form submission
     e.preventDefault()
 
+    console.log("handleCloseAttempt called, formModified:", formModified)
     if (formModified) {
-      // Show confirmation dialog
-      handleNavigation("#cancel")
+      setShowCloseAlert(true)
     } else if (onCancel) {
       onCancel()
     }
   }
 
-  // Confirm cancel action
-  const confirmCancel = () => {
+  // Functions to handle alert dialog responses
+  const confirmClose = () => {
+    setShowCloseAlert(false)
     if (onCancel) {
       onCancel()
     }
+  }
+
+  const cancelClose = () => {
+    setShowCloseAlert(false)
   }
 
   // Add the UnsavedChangesDialog at the end of the component
@@ -941,7 +960,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
       </Dialog>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-        <Button type="button" variant="outline" onClick={handleCancel}>
+        <Button type="button" variant="outline" onClick={handleCloseAttempt}>
           Anulează
         </Button>
         <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={isSubmitting}>
@@ -955,10 +974,29 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
         </Button>
       </div>
 
-      {/* Unsaved changes dialog */}
+      {/* Alert Dialog for unsaved changes when clicking Cancel */}
+      <AlertDialog open={showCloseAlert} onOpenChange={setShowCloseAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmați închiderea</AlertDialogTitle>
+            <AlertDialogDescription>
+              Aveți modificări nesalvate. Sunteți sigur că doriți să închideți formularul? Toate modificările vor fi
+              pierdute.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelClose}>Anulează</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmClose} className="bg-red-600 hover:bg-red-700">
+              Închide fără salvare
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* UnsavedChangesDialog for navigation attempts */}
       <UnsavedChangesDialog
         open={showDialog}
-        onConfirm={pendingUrl === "#cancel" ? confirmCancel : confirmNavigation}
+        onConfirm={pendingUrl === "#cancel" ? confirmClose : confirmNavigation}
         onCancel={cancelNavigation}
       />
     </form>

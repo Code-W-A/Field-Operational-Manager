@@ -21,9 +21,20 @@ import {
 import { Badge } from "@/components/ui/badge"
 // Adăugăm importul pentru componenta EquipmentQRCode
 import { EquipmentQRCode } from "@/components/equipment-qr-code"
-// Import the new navigation prompt hook and dialog
-import { useNavigationPrompt } from "@/hooks/use-navigation-prompt"
-import { NavigationPromptDialog } from "@/components/navigation-prompt-dialog"
+// Import the useUnsavedChanges hook and UnsavedChangesDialog component
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
+import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
+// Import AlertDialog components
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface ClientFormProps {
   onSuccess?: (clientName: string) => void
@@ -45,6 +56,9 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
       { nume: "", adresa: "", persoaneContact: [{ nume: "", telefon: "", email: "", functie: "" }], echipamente: [] },
     ]),
   })
+
+  // Add state for close alert dialog
+  const [showCloseAlert, setShowCloseAlert] = useState(false)
 
   const [formData, setFormData] = useState({
     nume: "",
@@ -79,8 +93,9 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
   const [isCheckingCode, setIsCheckingCode] = useState(false)
   const [isCodeUnique, setIsCodeUnique] = useState(true)
 
-  // Folosim noul hook pentru promptul de navigare
-  const { showPrompt, handleConfirm, handleCancel, handleCancel2 } = useNavigationPrompt(formModified)
+  // Use the useUnsavedChanges hook
+  const { showDialog, handleNavigation, confirmNavigation, cancelNavigation, pendingUrl } =
+    useUnsavedChanges(formModified)
 
   // Check if form has been modified
   useEffect(() => {
@@ -420,17 +435,29 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
     }
   }
 
-  // Folosim noul handler pentru anulare
-  const handleFormCancel = (e: React.MouseEvent) => {
+  // New function to handle close attempt
+  const handleCloseAttempt = (e: React.MouseEvent) => {
     // Prevent default to avoid form submission
     e.preventDefault()
 
-    console.log("handleFormCancel called, formModified:", formModified)
+    console.log("handleCloseAttempt called, formModified:", formModified)
     if (formModified) {
-      handleCancel2(onCancel)
+      setShowCloseAlert(true)
     } else if (onCancel) {
       onCancel()
     }
+  }
+
+  // Functions to handle alert dialog responses
+  const confirmClose = () => {
+    setShowCloseAlert(false)
+    if (onCancel) {
+      onCancel()
+    }
+  }
+
+  const cancelClose = () => {
+    setShowCloseAlert(false)
   }
 
   // Verificăm dacă un câmp are eroare
@@ -892,7 +919,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
       </Dialog>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-        <Button type="button" variant="outline" onClick={handleFormCancel}>
+        <Button type="button" variant="outline" onClick={handleCloseAttempt}>
           Anulează
         </Button>
         <Button className="bg-blue-600 hover:bg-blue-700" type="submit" disabled={isSubmitting}>
@@ -906,8 +933,31 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
         </Button>
       </div>
 
-      {/* Folosim noul dialog de confirmare */}
-      <NavigationPromptDialog open={showPrompt} onConfirm={handleConfirm} onCancel={handleCancel} />
+      {/* Alert Dialog for unsaved changes when clicking Cancel */}
+      <AlertDialog open={showCloseAlert} onOpenChange={setShowCloseAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmați închiderea</AlertDialogTitle>
+            <AlertDialogDescription>
+              Aveți modificări nesalvate. Sunteți sigur că doriți să închideți formularul? Toate modificările vor fi
+              pierdute.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelClose}>Anulează</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmClose} className="bg-red-600 hover:bg-red-700">
+              Închide fără salvare
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* UnsavedChangesDialog for navigation attempts */}
+      <UnsavedChangesDialog
+        open={showDialog}
+        onConfirm={pendingUrl === "#cancel" ? confirmClose : confirmNavigation}
+        onCancel={cancelNavigation}
+      />
     </form>
   )
 })
