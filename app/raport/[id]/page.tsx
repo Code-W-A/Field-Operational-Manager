@@ -52,6 +52,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null)
 
   const reportGeneratorRef = useRef<React.ElementRef<typeof ReportGenerator>>(null)
+  const submitButtonRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     const fetchLucrare = async () => {
@@ -197,6 +198,8 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   // without causing unnecessary re-renders
   // În funcția handleSubmit, când se salvează semnăturile
   const handleSubmit = useStableCallback(async () => {
+    console.log("Submit button clicked, current step:", step)
+
     if (step === "verificare") {
       if (statusLucrare !== "Finalizat") {
         toast({
@@ -211,6 +214,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
         // Actualizăm statusul lucrării în baza de date
         await updateLucrare(params.id, { statusLucrare: "Finalizat" })
         setStep("semnare")
+        console.log("Moving to signing step")
       } catch (err) {
         console.error("Eroare la actualizarea statusului lucrării:", err)
         toast({
@@ -434,6 +438,12 @@ export default function RaportPage({ params }: { params: { id: string } }) {
       setIsSubmitting(false)
     }
   }, [email, pdfBlob, sendEmail])
+
+  // This function will be called directly from the button
+  const handleButtonClick = useCallback(() => {
+    console.log("Button clicked directly")
+    handleSubmit()
+  }, [handleSubmit])
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
@@ -707,8 +717,9 @@ export default function RaportPage({ params }: { params: { id: string } }) {
               Înapoi
             </Button>
             <Button
+              ref={submitButtonRef}
               className="gap-2 bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
-              onClick={handleSubmit}
+              onClick={handleButtonClick}
               disabled={isSubmitting || (step === "verificare" ? statusLucrare !== "Finalizat" : false)}
             >
               {isSubmitting ? (
