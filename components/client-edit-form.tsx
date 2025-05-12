@@ -490,6 +490,19 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
     setShowCloseAlert(false)
   }
 
+  // Handle cancel with confirmation if form is modified
+  const handleCancel = (e: React.MouseEvent) => {
+    // Prevent default to avoid form submission
+    e.preventDefault()
+
+    if (formModified) {
+      // Show confirmation dialog
+      setShowCloseAlert(true)
+    } else if (onCancel) {
+      onCancel()
+    }
+  }
+
   // Add the UnsavedChangesDialog at the end of the component
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
