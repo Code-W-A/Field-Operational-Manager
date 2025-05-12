@@ -48,6 +48,15 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
   const [logoLoaded, setLogoLoaded] = useState(false)
   const [logoError, setLogoError] = useState(false)
 
+  // Debug logging
+  useEffect(() => {
+    console.log("Report generator received lucrare:", {
+      constatareLaLocatie: lucrare?.constatareLaLocatie,
+      descriere: lucrare?.descriere,
+      descriereInterventie: lucrare?.descriereInterventie,
+    })
+  }, [lucrare])
+
   // Preload the logo image and convert to data URL
   useEffect(() => {
     // Simple NRG logo as base64 - this is a fallback that will always work
@@ -257,8 +266,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         currentY += boxHeight + 10
       }
 
-      // Add text blocks
-      addTextBlock("Constatare la locatie:", lucrare.descriere || "")
+      // Add text blocks - FIX: Use constatareLaLocatie instead of descriere
+      addTextBlock("Constatare la locatie:", lucrare.constatareLaLocatie || "")
       addTextBlock("Descriere interventie:", lucrare.descriereInterventie || "")
 
       // PRODUCT TABLE

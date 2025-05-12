@@ -1,14 +1,14 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, Save } from "lucide-react"
-import { updateLucrare } from "@/lib/firebase/firestore"
+import { updateLucrare, getLucrareById } from "@/lib/firebase/firestore"
 import { toast } from "@/components/ui/use-toast"
 import { useStableCallback } from "@/lib/utils/hooks"
 
@@ -16,7 +16,7 @@ interface TehnicianInterventionFormProps {
   lucrareId: string
   initialData: {
     descriereInterventie?: string
-    constatareLaLocatie?: string // Add the new field
+    constatareLaLocatie?: string
     statusLucrare: string
   }
   onUpdate: () => void
@@ -26,11 +26,25 @@ export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: 
   const router = useRouter()
   const [formData, setFormData] = useState({
     descriereInterventie: initialData.descriereInterventie || "",
-    constatareLaLocatie: initialData.constatareLaLocatie || "", // Initialize the new field
+    constatareLaLocatie: initialData.constatareLaLocatie || "",
     statusLucrare: initialData.statusLucrare,
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+
+  // Add effect to update form data when initialData changes
+  useEffect(() => {
+    setFormData({
+      descriereInterventie: initialData.descriereInterventie || "",
+      constatareLaLocatie: initialData.constatareLaLocatie || "",
+      statusLucrare: initialData.statusLucrare,
+    })
+  }, [initialData])
+
+  // Debug logging
+  useEffect(() => {
+    console.log("Initial data loaded:", initialData)
+  }, [initialData])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const { id, value } = e.target
@@ -46,10 +60,24 @@ export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: 
     try {
       setIsSaving(true)
 
+      // Log what we're saving
+      console.log("Saving data:", {
+        descriereInterventie: formData.descriereInterventie,
+        constatareLaLocatie: formData.constatareLaLocatie,
+        statusLucrare: formData.statusLucrare,
+      })
+
       await updateLucrare(lucrareId, {
         descriereInterventie: formData.descriereInterventie,
         constatareLaLocatie: formData.constatareLaLocatie,
         statusLucrare: formData.statusLucrare,
+      })
+
+      // Verify the data was saved correctly
+      const updatedLucrare = await getLucrareById(lucrareId)
+      console.log("Data after save:", {
+        descriereInterventie: updatedLucrare?.descriereInterventie,
+        constatareLaLocatie: updatedLucrare?.constatareLaLocatie,
       })
 
       toast({
@@ -78,7 +106,7 @@ export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: 
 
       await updateLucrare(lucrareId, {
         descriereInterventie: formData.descriereInterventie,
-        constatareLaLocatie: formData.constatareLaLocatie, // Include the new field
+        constatareLaLocatie: formData.constatareLaLocatie,
         statusLucrare: formData.statusLucrare,
       })
 
