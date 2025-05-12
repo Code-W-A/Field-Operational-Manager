@@ -444,20 +444,13 @@ export default function Clienti() {
         <Dialog
           open={isAddDialogOpen}
           onOpenChange={(open) => {
-            if (!open && isAddDialogOpen) {
-              // Verificăm dacă există modificări nesalvate înainte de a închide dialogul
-              if (addFormRef.current?.hasUnsavedChanges?.()) {
-                // Dacă există modificări nesalvate, afișăm dialogul de confirmare
-                setShowCloseAlert(true)
-                // Important: Nu închidem dialogul principal încă
-              } else {
-                // Dacă nu există modificări nesalvate, închidem dialogul direct
-                setIsAddDialogOpen(false)
-              }
-            } else {
-              // Dacă dialogul se deschide, actualizăm starea
-              setIsAddDialogOpen(open)
+            if (!open) {
+              // Când se încearcă închiderea dialogului (fie prin X, fie prin click în afara dialogului)
+              handleCloseAddDialog()
+              // Important: Prevenim închiderea automată a dialogului returnând false
+              return false
             }
+            setIsAddDialogOpen(open)
           }}
         >
           <DialogTrigger asChild>
@@ -486,20 +479,13 @@ export default function Clienti() {
       <Dialog
         open={isEditDialogOpen}
         onOpenChange={(open) => {
-          if (!open && isEditDialogOpen) {
-            // Verificăm dacă există modificări nesalvate înainte de a închide dialogul
-            if (editFormRef.current?.hasUnsavedChanges?.()) {
-              // Dacă există modificări nesalvate, afișăm dialogul de confirmare
-              setShowCloseAlert(true)
-              // Important: Nu închidem dialogul principal încă
-            } else {
-              // Dacă nu există modificări nesalvate, închidem dialogul direct
-              handleEditDialogClose()
-            }
-          } else {
-            // Dacă dialogul se deschide, actualizăm starea
-            setIsEditDialogOpen(open)
+          if (!open) {
+            // Când se încearcă închiderea dialogului (fie prin X, fie prin click în afara dialogului)
+            handleCloseEditDialog()
+            // Important: Prevenim închiderea automată a dialogului returnând false
+            return false
           }
+          setIsEditDialogOpen(open)
         }}
       >
         <DialogContent className="w-[calc(100%-2rem)] max-w-[500px] max-h-[90vh] overflow-y-auto">
