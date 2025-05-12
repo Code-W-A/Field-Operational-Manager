@@ -17,6 +17,7 @@ export function SignaturePad({ onSave, existingSignature, title = "Semnătură" 
   const [isSigned, setIsSigned] = useState(false)
   const [showExisting, setShowExisting] = useState(!!existingSignature)
   const [signatureData, setSignatureData] = useState<string | null>(null)
+  const [isDrawing, setIsDrawing] = useState(false)
 
   // Use useEffect with proper dependency array instead of useEffectEvent
   useEffect(() => {
@@ -46,23 +47,54 @@ export function SignaturePad({ onSave, existingSignature, title = "Semnătură" 
     clearSignature()
   }, [clearSignature])
 
-  const handleSignatureEnd = useCallback(() => {
+  // Handle start of drawing
+  const handleBegin = useCallback(() => {
+    setIsDrawing(true)
+  }, [])
+
+  // Handle end of drawing
+  const handleEnd = useCallback(() => {
+    setIsDrawing(false)
     if (signatureRef.current) {
-      // Immediately store the signature data when the user finishes drawing
       const isEmpty = signatureRef.current.isEmpty()
       setIsSigned(!isEmpty)
 
       if (!isEmpty) {
-        // Store the signature data in component state to prevent loss
-        setSignatureData(signatureRef.current.toDataURL())
+        // Immediately store the signature data when drawing ends
+        const data = signatureRef.current.toDataURL()
+        setSignatureData(data)
       }
     }
   }, [])
 
-  // Restore signature from state if it exists and canvas is empty
+  // Add a document-wide click handler to restore signature if it gets cleared
+  useEffect(() => {
+    const handleDocumentClick = (e: MouseEvent | TouchEvent) => {
+      // Skip if we're currently drawing or if there's no signature data
+      if (isDrawing || !signatureData || showExisting) return
+
+      // Small delay to let other events process
+      setTimeout(() => {
+        // If the canvas is now empty but we have signature data, restore it
+        if (signatureRef.current && signatureRef.current.isEmpty() && signatureData) {
+          signatureRef.current.fromDataURL(signatureData)
+          setIsSigned(true)
+        }
+      }, 100)
+    }
+
+    document.addEventListener("click", handleDocumentClick)
+    document.addEventListener("touchend", handleDocumentClick)
+
+    return () => {
+      document.removeEventListener("click", handleDocumentClick)
+      document.removeEventListener("touchend", handleDocumentClick)
+    }
+  }, [signatureData, isDrawing, showExisting])
+
+  // Restore signature from state when component mounts or signatureData changes
   useEffect(() => {
     if (!showExisting && signatureData && signatureRef.current && signatureRef.current.isEmpty()) {
-      // Use a timeout to ensure the canvas is ready
       const timer = setTimeout(() => {
         if (signatureRef.current) {
           signatureRef.current.fromDataURL(signatureData)
@@ -98,7 +130,8 @@ export function SignaturePad({ onSave, existingSignature, title = "Semnătură" 
                 className: "w-full h-40 border rounded",
                 style: { width: "100%", height: "160px" },
               }}
-              onEnd={handleSignatureEnd}
+              onBegin={handleBegin}
+              onEnd={handleEnd}
             />
           </div>
         )}

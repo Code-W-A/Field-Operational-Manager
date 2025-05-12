@@ -34,6 +34,8 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [techSignatureData, setTechSignatureData] = useState<string | null>(null)
   const [clientSignatureData, setClientSignatureData] = useState<string | null>(null)
+  const [isTechDrawing, setIsTechDrawing] = useState(false)
+  const [isClientDrawing, setIsClientDrawing] = useState(false)
 
   const [lucrare, setLucrare] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -222,27 +224,23 @@ export default function RaportPage({ params }: { params: { id: string } }) {
 
     if (step === "semnare") {
       // Check for tech signature
-      if (!techSignatureRef.current || techSignatureRef.current.isEmpty()) {
-        if (!techSignatureData) {
-          toast({
-            title: "Atenție",
-            description: "Vă rugăm să adăugați semnătura tehnicianului înainte de a finaliza raportul.",
-            variant: "destructive",
-          })
-          return
-        }
+      if (!techSignatureData && (!techSignatureRef.current || techSignatureRef.current.isEmpty())) {
+        toast({
+          title: "Atenție",
+          description: "Vă rugăm să adăugați semnătura tehnicianului înainte de a finaliza raportul.",
+          variant: "destructive",
+        })
+        return
       }
 
       // Check for client signature
-      if (!clientSignatureRef.current || clientSignatureRef.current.isEmpty()) {
-        if (!clientSignatureData) {
-          toast({
-            title: "Atenție",
-            description: "Vă rugăm să adăugați semnătura beneficiarului înainte de a finaliza raportul.",
-            variant: "destructive",
-          })
-          return
-        }
+      if (!clientSignatureData && (!clientSignatureRef.current || clientSignatureRef.current.isEmpty())) {
+        toast({
+          title: "Atenție",
+          description: "Vă rugăm să adăugați semnătura beneficiarului înainte de a finaliza raportul.",
+          variant: "destructive",
+        })
+        return
       }
 
       if (!email) {
@@ -328,50 +326,74 @@ export default function RaportPage({ params }: { params: { id: string } }) {
     setStatusLucrare(value)
   }, [])
 
-  const handleTechSignatureEnd = useCallback(() => {
+  // Tech signature handlers
+  const handleTechBegin = useCallback(() => {
+    setIsTechDrawing(true)
+  }, [])
+
+  const handleTechEnd = useCallback(() => {
+    setIsTechDrawing(false)
     if (techSignatureRef.current) {
       const isEmpty = techSignatureRef.current.isEmpty()
       setIsTechSigned(!isEmpty)
 
       if (!isEmpty) {
         // Store the signature data to prevent loss on mobile
-        setTechSignatureData(techSignatureRef.current.toDataURL())
+        const data = techSignatureRef.current.toDataURL()
+        setTechSignatureData(data)
       }
     }
   }, [])
 
-  const handleClientSignatureEnd = useCallback(() => {
+  // Client signature handlers
+  const handleClientBegin = useCallback(() => {
+    setIsClientDrawing(true)
+  }, [])
+
+  const handleClientEnd = useCallback(() => {
+    setIsClientDrawing(false)
     if (clientSignatureRef.current) {
       const isEmpty = clientSignatureRef.current.isEmpty()
       setIsClientSigned(!isEmpty)
 
       if (!isEmpty) {
         // Store the signature data to prevent loss on mobile
-        setClientSignatureData(clientSignatureRef.current.toDataURL())
+        const data = clientSignatureRef.current.toDataURL()
+        setClientSignatureData(data)
       }
     }
   }, [])
 
-  // Restore signatures from state if they exist and canvas is empty
+  // Add document-wide click/touch handler to restore signatures if they get cleared
   useEffect(() => {
-    const restoreSignatures = () => {
-      // Restore tech signature
-      if (techSignatureData && techSignatureRef.current && techSignatureRef.current.isEmpty()) {
-        techSignatureRef.current.fromDataURL(techSignatureData)
-        setIsTechSigned(true)
-      }
+    const handleDocumentInteraction = () => {
+      // Skip if we're currently drawing
+      if (isTechDrawing || isClientDrawing) return
 
-      // Restore client signature
-      if (clientSignatureData && clientSignatureRef.current && clientSignatureRef.current.isEmpty()) {
-        clientSignatureRef.current.fromDataURL(clientSignatureData)
-        setIsClientSigned(true)
-      }
+      // Small delay to let other events process
+      setTimeout(() => {
+        // Restore tech signature if needed
+        if (techSignatureData && techSignatureRef.current && techSignatureRef.current.isEmpty()) {
+          techSignatureRef.current.fromDataURL(techSignatureData)
+          setIsTechSigned(true)
+        }
+
+        // Restore client signature if needed
+        if (clientSignatureData && clientSignatureRef.current && clientSignatureRef.current.isEmpty()) {
+          clientSignatureRef.current.fromDataURL(clientSignatureData)
+          setIsClientSigned(true)
+        }
+      }, 100)
     }
 
-    // Use a timeout to ensure the canvas is ready
-    const timer = setTimeout(restoreSignatures, 300)
-    return () => clearTimeout(timer)
-  }, [techSignatureData, clientSignatureData])
+    document.addEventListener("click", handleDocumentInteraction)
+    document.addEventListener("touchend", handleDocumentInteraction)
+
+    return () => {
+      document.removeEventListener("click", handleDocumentInteraction)
+      document.removeEventListener("touchend", handleDocumentInteraction)
+    }
+  }, [techSignatureData, clientSignatureData, isTechDrawing, isClientDrawing])
 
   const handleDownloadPDF = useCallback(async () => {
     if (reportGeneratorRef.current) {
@@ -642,7 +664,8 @@ export default function RaportPage({ params }: { params: { id: string } }) {
                         className: "w-full h-40 border rounded",
                         style: { width: "100%", height: "160px" },
                       }}
-                      onEnd={handleTechSignatureEnd}
+                      onBegin={handleTechBegin}
+                      onEnd={handleTechEnd}
                     />
                   </div>
                   <div className="flex justify-end">
@@ -663,7 +686,8 @@ export default function RaportPage({ params }: { params: { id: string } }) {
                         className: "w-full h-40 border rounded",
                         style: { width: "100%", height: "160px" },
                       }}
-                      onEnd={handleClientSignatureEnd}
+                      onBegin={handleClientBegin}
+                      onEnd={handleClientEnd}
                     />
                   </div>
                   <div className="flex justify-end">
