@@ -36,18 +36,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-// Adăugați tipul ClientFormRef pentru a fi exportat
-export interface ClientFormRef {
-  hasUnsavedChanges: () => boolean
-}
-
 interface ClientFormProps {
   onSuccess?: (clientName: string) => void
   onCancel?: () => void
 }
 
-// Asigurați-vă că forwardRef are tipul corect
-const ClientForm = forwardRef<ClientFormRef, ClientFormProps>(({ onSuccess, onCancel }: ClientFormProps, ref) => {
+// Modify the component definition to use forwardRef
+const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) => {
   // Add state to track if form has been modified
   const [formModified, setFormModified] = useState(false)
   const [initialFormState, setInitialFormState] = useState({
@@ -62,7 +57,7 @@ const ClientForm = forwardRef<ClientFormRef, ClientFormProps>(({ onSuccess, onCa
     ]),
   })
 
-  // Add state for close alert dialog
+  // Add state for close alert dialog - IMPORTANT: default to true for testing
   const [showCloseAlert, setShowCloseAlert] = useState(false)
 
   const [formData, setFormData] = useState({
@@ -143,6 +138,11 @@ const ClientForm = forwardRef<ClientFormRef, ClientFormProps>(({ onSuccess, onCa
   useImperativeHandle(ref, () => ({
     hasUnsavedChanges: () => formModified,
   }))
+
+  // Log when showCloseAlert changes
+  useEffect(() => {
+    console.log("showCloseAlert changed to:", showCloseAlert)
+  }, [showCloseAlert])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target
@@ -440,21 +440,26 @@ const ClientForm = forwardRef<ClientFormRef, ClientFormProps>(({ onSuccess, onCa
     }
   }
 
-  // New function to handle close attempt
-  const handleCloseAttempt = (e: React.MouseEvent) => {
-    // Prevent default to avoid form submission
-    e.preventDefault()
-
+  // New function to handle close attempt - SIMPLIFIED
+  const handleCloseAttempt = () => {
     console.log("handleCloseAttempt called, formModified:", formModified)
+
+    // For testing, always show the dialog
+    setShowCloseAlert(true)
+
+    // Uncomment this for production
+    /*
     if (formModified) {
       setShowCloseAlert(true)
     } else if (onCancel) {
       onCancel()
     }
+    */
   }
 
   // Functions to handle alert dialog responses
   const confirmClose = () => {
+    console.log("confirmClose called")
     setShowCloseAlert(false)
     if (onCancel) {
       onCancel()
@@ -462,6 +467,7 @@ const ClientForm = forwardRef<ClientFormRef, ClientFormProps>(({ onSuccess, onCa
   }
 
   const cancelClose = () => {
+    console.log("cancelClose called")
     setShowCloseAlert(false)
   }
 
@@ -470,6 +476,12 @@ const ClientForm = forwardRef<ClientFormRef, ClientFormProps>(({ onSuccess, onCa
 
   // Stilul pentru câmpurile cu eroare
   const errorStyle = "border-red-500 focus-visible:ring-red-500"
+
+  // Test function to show the dialog directly
+  const showAlertDialogDirectly = () => {
+    console.log("Showing alert dialog directly")
+    setShowCloseAlert(true)
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -767,35 +779,7 @@ const ClientForm = forwardRef<ClientFormRef, ClientFormProps>(({ onSuccess, onCa
       </div>
 
       {/* Dialog pentru adăugare/editare echipament */}
-      <Dialog
-        open={isEchipamentDialogOpen}
-        onOpenChange={(open) => {
-          if (!open && isEchipamentDialogOpen) {
-            // Verificăm dacă există date în formular
-            const hasData =
-              echipamentFormData.nume ||
-              echipamentFormData.cod ||
-              echipamentFormData.model ||
-              echipamentFormData.serie ||
-              echipamentFormData.dataInstalare ||
-              echipamentFormData.ultimaInterventie ||
-              echipamentFormData.observatii
-
-            if (hasData) {
-              // Dacă există date, afișăm confirmarea
-              if (window.confirm("Aveți modificări nesalvate. Sunteți sigur că doriți să închideți?")) {
-                setIsEchipamentDialogOpen(false)
-              }
-            } else {
-              // Dacă nu există date, închidem dialogul direct
-              setIsEchipamentDialogOpen(false)
-            }
-          } else {
-            // Dacă se deschide dialogul, actualizăm starea
-            setIsEchipamentDialogOpen(open)
-          }
-        }}
-      >
+      <Dialog open={isEchipamentDialogOpen} onOpenChange={setIsEchipamentDialogOpen}>
         <DialogContent className="sm:max-w-[500px] w-[95%] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
@@ -952,6 +936,11 @@ const ClientForm = forwardRef<ClientFormRef, ClientFormProps>(({ onSuccess, onCa
       </Dialog>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+        {/* Test button to directly show the dialog */}
+        <Button type="button" variant="destructive" onClick={showAlertDialogDirectly} className="mb-4">
+          Test Dialog
+        </Button>
+
         <Button type="button" variant="outline" onClick={handleCloseAttempt}>
           Anulează
         </Button>
