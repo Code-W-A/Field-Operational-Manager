@@ -36,13 +36,18 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
+// Adăugați tipul ClientFormRef pentru a fi exportat
+export interface ClientFormRef {
+  hasUnsavedChanges: () => boolean
+}
+
 interface ClientFormProps {
   onSuccess?: (clientName: string) => void
   onCancel?: () => void
 }
 
-// Modify the component definition to use forwardRef
-const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) => {
+// Asigurați-vă că forwardRef are tipul corect
+const ClientForm = forwardRef<ClientFormRef, ClientFormProps>(({ onSuccess, onCancel }: ClientFormProps, ref) => {
   // Add state to track if form has been modified
   const [formModified, setFormModified] = useState(false)
   const [initialFormState, setInitialFormState] = useState({
@@ -762,7 +767,35 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
       </div>
 
       {/* Dialog pentru adăugare/editare echipament */}
-      <Dialog open={isEchipamentDialogOpen} onOpenChange={setIsEchipamentDialogOpen}>
+      <Dialog
+        open={isEchipamentDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && isEchipamentDialogOpen) {
+            // Verificăm dacă există date în formular
+            const hasData =
+              echipamentFormData.nume ||
+              echipamentFormData.cod ||
+              echipamentFormData.model ||
+              echipamentFormData.serie ||
+              echipamentFormData.dataInstalare ||
+              echipamentFormData.ultimaInterventie ||
+              echipamentFormData.observatii
+
+            if (hasData) {
+              // Dacă există date, afișăm confirmarea
+              if (window.confirm("Aveți modificări nesalvate. Sunteți sigur că doriți să închideți?")) {
+                setIsEchipamentDialogOpen(false)
+              }
+            } else {
+              // Dacă nu există date, închidem dialogul direct
+              setIsEchipamentDialogOpen(false)
+            }
+          } else {
+            // Dacă se deschide dialogul, actualizăm starea
+            setIsEchipamentDialogOpen(open)
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-[500px] w-[95%] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
