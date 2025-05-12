@@ -2,9 +2,9 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { LucrareForm } from "@/components/lucrare-form"
+import { LucrareForm, type LucrareFormRef } from "@/components/lucrare-form"
 import { getLucrareById, updateLucrare } from "@/lib/firebase/firestore"
 import { addLog } from "@/lib/firebase/firestore"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,12 +16,24 @@ import type { Lucrare } from "@/lib/firebase/firestore"
 import { Mail, AlertCircle } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { useToast } from "@/components/ui/use-toast"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export default function EditLucrarePage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const { id } = params
   const { userData } = useAuth()
   const { toast } = useToast()
+  const formRef = useRef<LucrareFormRef>(null)
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
   // Verificăm dacă utilizatorul este tehnician și redirecționăm dacă este
   useEffect(() => {
@@ -33,7 +45,7 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
       })
       router.push("/dashboard/lucrari")
     }
-  }, [userData, router])
+  }, [userData, router, toast])
 
   const [loading, setLoading] = useState(true)
   const [dataEmiterii, setDataEmiterii] = useState<Date | undefined>(undefined)
@@ -274,6 +286,29 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
     }
   }
 
+  // Handle cancel with confirmation if form is modified
+  const handleCancel = () => {
+    // Check if there are unsaved changes
+    if (formRef.current && formRef.current.hasUnsavedChanges()) {
+      // Show confirmation dialog
+      setShowConfirmDialog(true)
+    } else {
+      // No unsaved changes, navigate directly
+      router.push(`/dashboard/lucrari/${id}`)
+    }
+  }
+
+  // Confirm navigation
+  const confirmNavigation = () => {
+    setShowConfirmDialog(false)
+    router.push(`/dashboard/lucrari/${id}`)
+  }
+
+  // Cancel navigation
+  const cancelNavigation = () => {
+    setShowConfirmDialog(false)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -291,6 +326,7 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
         </CardHeader>
         <CardContent>
           <LucrareForm
+            ref={formRef}
             isEdit
             dataEmiterii={dataEmiterii}
             setDataEmiterii={setDataEmiterii}
@@ -302,12 +338,29 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
             handleTehnicieniChange={handleTehnicieniChange}
             handleCustomChange={handleCustomChange}
             onSubmit={handleSubmit}
-            onCancel={() => router.push(`/dashboard/lucrari/${id}`)}
+            onCancel={handleCancel}
             initialData={initialData}
             fieldErrors={fieldErrors}
           />
         </CardContent>
       </Card>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmați închiderea</AlertDialogTitle>
+            <AlertDialogDescription>
+              Aveți modificări nesalvate. Sunteți sigur că doriți să închideți formularul? Toate modificările vor fi
+              pierdute.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelNavigation}>Anulează</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmNavigation}>Închide</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

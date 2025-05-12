@@ -123,7 +123,8 @@ export default function Lucrari() {
   const [isColumnModalOpen, setIsColumnModalOpen] = useState(false)
   const [columnOptions, setColumnOptions] = useState<any[]>([])
   const [showCloseAlert, setShowCloseAlert] = useState(false)
-  const lucrareFormRef = useRef<LucrareFormRef>(null)
+  const addFormRef = useRef<LucrareFormRef>(null)
+  const editFormRef = useRef<LucrareFormRef>(null)
 
   // Obținem lucrările din Firebase
   const {
@@ -1038,6 +1039,36 @@ export default function Lucrari() {
     },
   ]
 
+  // Function to check if we should show the close confirmation dialog
+  const handleCloseAddDialog = () => {
+    if (addFormRef.current?.hasUnsavedChanges()) {
+      setShowCloseAlert(true)
+    } else {
+      setIsAddDialogOpen(false)
+    }
+  }
+
+  // Function to check if we should show the close confirmation dialog for edit
+  const handleCloseEditDialog = () => {
+    if (editFormRef.current?.hasUnsavedChanges()) {
+      setShowCloseAlert(true)
+    } else {
+      setIsEditDialogOpen(false)
+    }
+  }
+
+  // Function to confirm dialog close
+  const confirmCloseDialog = () => {
+    setShowCloseAlert(false)
+
+    // Determine which dialog to close
+    if (isAddDialogOpen) {
+      setIsAddDialogOpen(false)
+    } else if (isEditDialogOpen) {
+      setIsEditDialogOpen(false)
+    }
+  }
+
   return (
     <DashboardShell>
       <DashboardHeader heading="Lucrări" text="Gestionați toate lucrările și intervențiile">
@@ -1045,8 +1076,8 @@ export default function Lucrari() {
           <Dialog
             open={isAddDialogOpen}
             onOpenChange={(open) => {
-              if (!open && lucrareFormRef.current?.hasUnsavedChanges()) {
-                setShowCloseAlert(true)
+              if (!open) {
+                handleCloseAddDialog()
               } else {
                 setIsAddDialogOpen(open)
               }
@@ -1069,7 +1100,7 @@ export default function Lucrari() {
                 </Alert>
               )}
               <LucrareForm
-                ref={lucrareFormRef}
+                ref={addFormRef}
                 dataEmiterii={dataEmiterii}
                 setDataEmiterii={setDataEmiterii}
                 dataInterventie={dataInterventie}
@@ -1079,19 +1110,10 @@ export default function Lucrari() {
                 handleSelectChange={handleSelectChange}
                 handleTehnicieniChange={handleTehnicieniChange}
                 fieldErrors={fieldErrors}
-                onCancel={() => setIsAddDialogOpen(false)}
+                onCancel={() => handleCloseAddDialog()}
               />
               <DialogFooter className="flex-col gap-2 sm:flex-row">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    if (lucrareFormRef.current?.hasUnsavedChanges()) {
-                      setShowCloseAlert(true)
-                    } else {
-                      setIsAddDialogOpen(false)
-                    }
-                  }}
-                >
+                <Button variant="outline" onClick={handleCloseAddDialog}>
                   Anulează
                 </Button>
                 <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSubmit} disabled={isSubmitting}>
@@ -1112,8 +1134,8 @@ export default function Lucrari() {
         <Dialog
           open={isEditDialogOpen}
           onOpenChange={(open) => {
-            if (!open && lucrareFormRef.current?.hasUnsavedChanges()) {
-              setShowCloseAlert(true)
+            if (!open) {
+              handleCloseEditDialog()
             } else {
               setIsEditDialogOpen(open)
             }
@@ -1131,6 +1153,7 @@ export default function Lucrari() {
               </Alert>
             )}
             <LucrareForm
+              ref={editFormRef}
               isEdit={true}
               dataEmiterii={dataEmiterii}
               setDataEmiterii={setDataEmiterii}
@@ -1141,9 +1164,10 @@ export default function Lucrari() {
               handleSelectChange={handleSelectChange}
               handleTehnicieniChange={handleTehnicieniChange}
               fieldErrors={fieldErrors}
+              onCancel={() => handleCloseEditDialog()}
             />
             <DialogFooter className="flex-col gap-2 sm:flex-row">
-              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              <Button variant="outline" onClick={handleCloseEditDialog}>
                 Anulează
               </Button>
               <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleUpdate} disabled={isSubmitting}>
@@ -1374,16 +1398,7 @@ export default function Lucrari() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setShowCloseAlert(false)}>Nu, rămân în formular</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setShowCloseAlert(false)
-                if (lucrareFormRef.current) {
-                  lucrareFormRef.current.confirmClose()
-                }
-              }}
-            >
-              Da, închide formularul
-            </AlertDialogAction>
+            <AlertDialogAction onClick={confirmCloseDialog}>Da, închide formularul</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
