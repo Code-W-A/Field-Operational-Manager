@@ -7,7 +7,7 @@ import { useState, useEffect, forwardRef, useImperativeHandle } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, Loader2, Plus, Trash2, Wrench, MapPin, AlertTriangle } from "lucide-react"
+import { AlertCircle, Loader2, Plus, Trash2, Wrench, MapPin, AlertTriangle, X } from "lucide-react"
 import {
   updateClient,
   type Client,
@@ -56,7 +56,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
     email: client.email || "",
   })
 
-  // Add state for close alert dialog - IMPORTANT: default to true for testing
+  // Add state for close alert dialog
   const [showCloseAlert, setShowCloseAlert] = useState(false)
 
   // Inițializăm locațiile din client sau creăm una goală dacă nu există
@@ -470,21 +470,14 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
   // Stilul pentru câmpurile cu eroare
   const errorStyle = "border-red-500 focus-visible:ring-red-500"
 
-  // New function to handle close attempt - SIMPLIFIED
+  // New function to handle close attempt
   const handleCloseAttempt = () => {
     console.log("handleCloseAttempt called, formModified:", formModified)
-
-    // For testing, always show the dialog
-    setShowCloseAlert(true)
-
-    // Uncomment this for production
-    /*
     if (formModified) {
       setShowCloseAlert(true)
     } else if (onCancel) {
       onCancel()
     }
-    */
   }
 
   // Functions to handle alert dialog responses
@@ -501,10 +494,20 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
     setShowCloseAlert(false)
   }
 
-  // Test function to show the dialog directly
-  const showAlertDialogDirectly = () => {
-    console.log("Showing alert dialog directly")
-    setShowCloseAlert(true)
+  // Funcție pentru a gestiona închiderea dialogului de echipament
+  const handleEchipamentDialogClose = () => {
+    // Verificăm dacă există modificări în formular
+    const isFormEmpty =
+      !echipamentFormData.nume && !echipamentFormData.cod && !echipamentFormData.model && !echipamentFormData.serie
+
+    if (isFormEmpty) {
+      setIsEchipamentDialogOpen(false)
+    } else {
+      // Afișăm un dialog de confirmare
+      if (window.confirm("Aveți modificări nesalvate. Sunteți sigur că doriți să închideți?")) {
+        setIsEchipamentDialogOpen(false)
+      }
+    }
   }
 
   // Add the UnsavedChangesDialog at the end of the component
@@ -810,18 +813,38 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
       </div>
 
       {/* Dialog pentru adăugare/editare echipament */}
-      <Dialog open={isEchipamentDialogOpen} onOpenChange={setIsEchipamentDialogOpen}>
+      <Dialog
+        open={isEchipamentDialogOpen}
+        onOpenChange={(open) => {
+          if ((!open && echipamentFormData.nume) || echipamentFormData.cod) {
+            // Dacă se încearcă închiderea și există date, afișăm confirmarea
+            if (window.confirm("Aveți modificări nesalvate. Sunteți sigur că doriți să închideți?")) {
+              setIsEchipamentDialogOpen(false)
+            }
+          } else {
+            setIsEchipamentDialogOpen(open)
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-[500px] w-[95%] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+          <DialogHeader className="flex flex-row items-center justify-between">
             <DialogTitle>
               {selectedEchipamentIndex !== null ? "Editare Echipament" : "Adăugare Echipament Nou"}
             </DialogTitle>
-            {/* Update the dialog description and label */}
-            <DialogDescription>
-              Completați detaliile echipamentului. Codul trebuie să fie unic, să conțină maxim 10 caractere și să
-              includă atât litere cât și cifre.
-            </DialogDescription>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 absolute right-4 top-4"
+              onClick={handleEchipamentDialogClose}
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </DialogHeader>
+          <DialogDescription>
+            Completați detaliile echipamentului. Codul trebuie să fie unic, să conțină maxim 10 caractere și să includă
+            atât litere cât și cifre.
+          </DialogDescription>
 
           <div className="grid gap-3 py-3 overflow-y-auto">
             {selectedEchipamentIndex !== null && !isAdmin && (
@@ -944,12 +967,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
           </div>
 
           <DialogFooter className="pt-2 flex-col gap-2 sm:flex-row">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsEchipamentDialogOpen(false)}
-              className="w-full sm:w-auto"
-            >
+            <Button type="button" variant="outline" onClick={handleEchipamentDialogClose} className="w-full sm:w-auto">
               Anulează
             </Button>
             <Button
@@ -977,11 +995,6 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
       </Dialog>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-        {/* Test button to directly show the dialog */}
-        <Button type="button" variant="destructive" onClick={showAlertDialogDirectly} className="mb-4">
-          Test Dialog
-        </Button>
-
         <Button type="button" variant="outline" onClick={handleCloseAttempt}>
           Anulează
         </Button>
