@@ -83,16 +83,18 @@ export function MainNav({ className, ...props }: React.HTMLAttributes<HTMLElemen
             <span>Contracte</span>
           </Link>
         )}
-        <Link
-          href="/dashboard/rapoarte"
-          className={cn(
-            "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
-            pathname === "/dashboard/rapoarte" ? "text-primary" : "text-muted-foreground",
-          )}
-        >
-          <BarChart3 className="h-4 w-4" />
-          <span>Rapoarte</span>
-        </Link>
+        {!isTechnician && userData?.role !== "dispecer" && (
+          <Link
+            href="/dashboard/rapoarte"
+            className={cn(
+              "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
+              pathname === "/dashboard/rapoarte" ? "text-primary" : "text-muted-foreground",
+            )}
+          >
+            <BarChart3 className="h-4 w-4" />
+            <span>Rapoarte</span>
+          </Link>
+        )}
         {isAdmin && (
           <>
             <Link
