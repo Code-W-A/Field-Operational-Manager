@@ -130,8 +130,8 @@ export function EquipmentQRCode({
         margin-bottom: 2mm;
       }
       .logo, .logo-placeholder {
-        height: 8mm;
-        max-width: 20mm;
+        height: 6mm;
+        max-width: 15mm;
         object-fit: contain;
         margin-right: 2mm;
       }
