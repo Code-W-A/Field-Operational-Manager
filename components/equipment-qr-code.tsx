@@ -41,8 +41,7 @@ export function EquipmentQRCode({
     location: locationName,
   })
 
-  // Modificăm funcția handlePrint pentru a respecta dimensiunile etichetei: 60mm lățime și 45mm înălțime
-  // și pentru a implementa layout-ul pe 2 coloane
+  // Modificăm funcția handlePrint pentru a implementa toate îmbunătățirile solicitate
 
   const handlePrint = () => {
     const printWindow = window.open("", "_blank")
@@ -59,9 +58,9 @@ export function EquipmentQRCode({
 
     // Ajustăm dimensiunea QR code-ului pentru a se încadra în etichetă
     const svgClone = svgElem.cloneNode(true) as SVGElement
-    // Reducem dimensiunea QR code-ului
-    svgClone.setAttribute("width", "90")
-    svgClone.setAttribute("height", "90")
+    // Reducem dimensiunea QR code-ului și mai mult
+    svgClone.setAttribute("width", "80")
+    svgClone.setAttribute("height", "80")
 
     const html = `<!DOCTYPE html>
 <html lang="ro">
@@ -82,10 +81,24 @@ export function EquipmentQRCode({
         box-sizing: border-box;
         overflow: hidden;
       }
-      .qr-container {
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1mm;
+      }
+      .logo {
+        height: 6mm;
+        margin-right: 1mm;
+      }
+      .company-name {
+        font-size: 7pt;
+        font-weight: bold;
+      }
+      .content {
         display: flex;
         width: 100%;
-        height: 100%;
+        height: calc(100% - 7mm);
       }
       .qr-code {
         flex: 0 0 auto;
@@ -106,9 +119,9 @@ export function EquipmentQRCode({
         margin: 1mm 0;
       }
       .equipment-name {
-        font-size: 9pt;
+        font-size: 8pt;
         font-weight: bold;
-        margin-bottom: 2mm;
+        margin-bottom: 1mm;
         text-align: center;
         white-space: nowrap;
         overflow: hidden;
@@ -125,8 +138,12 @@ export function EquipmentQRCode({
     </style>
   </head>
   <body>
+    <div class="header">
+      <img src="/nrglogo.png" alt="NRG Logo" class="logo" />
+      <div class="company-name">NRG Access Systems SRL</div>
+    </div>
     <div class="equipment-name">${equipment.nume}</div>
-    <div class="qr-container">
+    <div class="content">
       <div class="qr-code">${svgClone.outerHTML}</div>
       <div class="equipment-info">
         <p>Client: ${clientName}</p>
@@ -134,7 +151,7 @@ export function EquipmentQRCode({
         <p>Cod: ${equipment.cod}</p>
       </div>
     </div>
-    <button class="no-print" onclick="window.print()" style="margin-top:2mm;padding:1mm 2mm;font-size:8pt;">Printează</button>
+    <button class="no-print" onclick="window.print()" style="margin-top:1mm;padding:1mm 2mm;font-size:7pt;">Printează</button>
     <script>
       // Auto-print după încărcare
       window.onload = function() {
