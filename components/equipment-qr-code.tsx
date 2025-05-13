@@ -41,10 +41,8 @@ export function EquipmentQRCode({
     location: locationName,
   })
 
-  /**
-   * Deschide o fereastră nouă cu QR‐code‐ul şi detaliile, pregătită de print.
-   * Păstrează implementarea existentă pentru compatibilitate.
-   */
+  // Modificăm funcția handlePrint pentru a respecta dimensiunile etichetei: 60mm lățime și 45mm înălțime
+
   const handlePrint = () => {
     const printWindow = window.open("", "_blank")
     if (!printWindow) {
@@ -58,9 +56,10 @@ export function EquipmentQRCode({
     const svgElem = qrElem.querySelector("svg")
     if (!svgElem) return
 
+    // Ajustăm dimensiunea QR code-ului pentru a se încadra în etichetă
     const svgClone = svgElem.cloneNode(true) as SVGElement
-    svgClone.setAttribute("width", "200")
-    svgClone.setAttribute("height", "200")
+    svgClone.setAttribute("width", "120")
+    svgClone.setAttribute("height", "120")
 
     const html = `<!DOCTYPE html>
 <html lang="ro">
@@ -68,18 +67,67 @@ export function EquipmentQRCode({
     <meta charset="utf-8" />
     <title>QR Code Echipament – ${equipment.nume}</title>
     <style>
-      body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
-      .qr-container { margin: 0 auto; max-width: 400px; padding: 20px; }
-      .qr-code { margin: 20px 0; }
-      .equipment-info { text-align: left; border-top: 1px solid #ccc; padding-top: 10px; }
-      .equipment-info p { margin: 4px 0; }
-      @media print { .no-print { display: none } }
+      @page {
+        size: 60mm 45mm;
+        margin: 0;
+      }
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 2mm;
+        width: 56mm;
+        height: 41mm;
+        box-sizing: border-box;
+        overflow: hidden;
+      }
+      .qr-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+        height: 100%;
+      }
+      .header {
+        font-size: 8pt;
+        font-weight: bold;
+        margin-bottom: 1mm;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        width: 100%;
+      }
+      .qr-code {
+        display: flex;
+        justify-content: center;
+        margin: 0;
+      }
+      .equipment-info {
+        font-size: 6pt;
+        margin-top: 1mm;
+        width: 100%;
+      }
+      .equipment-info p {
+        margin: 0.5mm 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      @media print {
+        .no-print { display: none }
+        html, body {
+          width: 60mm;
+          height: 45mm;
+        }
+      }
     </style>
   </head>
   <body>
     <div class="qr-container">
-      <h2>Echipament: ${equipment.nume}</h2>
-      <h3>Cod: ${equipment.cod}</h3>
+      <div class="header">
+        <div>${equipment.nume}</div>
+        <div>Cod: ${equipment.cod}</div>
+      </div>
       <div class="qr-code">${svgClone.outerHTML}</div>
       <div class="equipment-info">
         <p><strong>Client:</strong> ${clientName}</p>
@@ -87,8 +135,17 @@ export function EquipmentQRCode({
         ${equipment.model ? `<p><strong>Model:</strong> ${equipment.model}</p>` : ""}
         ${equipment.serie ? `<p><strong>Serie:</strong> ${equipment.serie}</p>` : ""}
       </div>
-      <button class="no-print" onclick="window.print()" style="margin-top:20px;padding:8px 16px;">Printează</button>
+      <button class="no-print" onclick="window.print()" style="margin-top:2mm;padding:1mm 2mm;font-size:8pt;">Printează</button>
     </div>
+    <script>
+      // Auto-print după încărcare
+      window.onload = function() {
+        // Delay scurt pentru a permite încărcarea completă
+        setTimeout(function() {
+          window.print();
+        }, 500);
+      };
+    </script>
   </body>
 </html>`
 
