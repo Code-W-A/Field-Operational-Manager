@@ -75,11 +75,10 @@ export function EquipmentQRCode({
     const svgElem = qrElem.querySelector("svg")
     if (!svgElem) return
 
-    // Ajustăm dimensiunea QR code-ului pentru a se încadra în etichetă
+    // Ajustăm dimensiunea QR code-ului - MĂRIM QR CODE-UL
     const svgClone = svgElem.cloneNode(true) as SVGElement
-    // Reducem dimensiunea QR code-ului și mai mult
-    svgClone.setAttribute("width", "80")
-    svgClone.setAttribute("height", "80")
+    svgClone.setAttribute("width", "100")
+    svgClone.setAttribute("height", "100")
 
     // Generăm HTML-ul cu logo-ul
     const logoHtml = logoUrl
@@ -131,7 +130,7 @@ export function EquipmentQRCode({
         margin-top: 1mm;
       }
       .logo, .logo-placeholder {
-        height: 8mm;
+        height: 10mm;
         margin-right: 2mm;
       }
       .logo-placeholder {
@@ -140,36 +139,37 @@ export function EquipmentQRCode({
         justify-content: center;
         font-weight: bold;
         font-size: 8pt;
-        width: 8mm;
+        width: 10mm;
         background-color: #f0f0f0;
         border-radius: 2px;
       }
       .company-name {
-        font-size: 9pt;
+        font-size: 12pt;
         font-weight: bold;
+        text-transform: uppercase;
       }
       .content {
         display: flex;
         width: 100%;
-        height: calc(100% - 10mm);
+        height: calc(100% - 13mm);
       }
       .qr-code {
         flex: 0 0 auto;
         display: flex;
         align-items: center;
         justify-content: center;
-        margin-right: 3mm;
+        margin-right: 2mm;
       }
       .equipment-info {
         flex: 1;
         display: flex;
         flex-direction: column;
         justify-content: center;
-        font-size: 10pt;
+        font-size: 8pt;
         font-weight: bold;
       }
       .equipment-info p {
-        margin: 2mm 0;
+        margin: 1.5mm 0;
       }
       @media print {
         .no-print { display: none }
@@ -184,7 +184,7 @@ export function EquipmentQRCode({
     <div class="header">
       ${logoHtml}
       <div class="logo-placeholder">NRG</div>
-      <div class="company-name">NRG Access Systems SRL</div>
+      <div class="company-name">NRG ACCESS SYSTEMS SRL</div>
     </div>
     <div class="content">
       <div class="qr-code">${svgClone.outerHTML}</div>
