@@ -127,58 +127,49 @@ export function EquipmentQRCode({
         display: flex;
         align-items: center;
         justify-content: center;
-        margin-bottom: 1mm;
+        margin-bottom: 2mm;
+        margin-top: 1mm;
       }
       .logo, .logo-placeholder {
-        height: 6mm;
-        margin-right: 1mm;
+        height: 8mm;
+        margin-right: 2mm;
       }
       .logo-placeholder {
         display: none;
         align-items: center;
         justify-content: center;
         font-weight: bold;
-        font-size: 6pt;
-        width: 6mm;
+        font-size: 8pt;
+        width: 8mm;
         background-color: #f0f0f0;
         border-radius: 2px;
       }
       .company-name {
-        font-size: 7pt;
+        font-size: 9pt;
         font-weight: bold;
       }
       .content {
         display: flex;
         width: 100%;
-        height: calc(100% - 7mm);
+        height: calc(100% - 10mm);
       }
       .qr-code {
         flex: 0 0 auto;
         display: flex;
         align-items: center;
         justify-content: center;
-        margin-right: 2mm;
+        margin-right: 3mm;
       }
       .equipment-info {
         flex: 1;
         display: flex;
         flex-direction: column;
         justify-content: center;
-        font-size: 8pt;
+        font-size: 10pt;
         font-weight: bold;
       }
       .equipment-info p {
-        margin: 1mm 0;
-      }
-      .equipment-name {
-        font-size: 8pt;
-        font-weight: bold;
-        margin-bottom: 1mm;
-        text-align: center;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        width: 100%;
+        margin: 2mm 0;
       }
       @media print {
         .no-print { display: none }
@@ -195,7 +186,6 @@ export function EquipmentQRCode({
       <div class="logo-placeholder">NRG</div>
       <div class="company-name">NRG Access Systems SRL</div>
     </div>
-    <div class="equipment-name">${equipment.nume}</div>
     <div class="content">
       <div class="qr-code">${svgClone.outerHTML}</div>
       <div class="equipment-info">
