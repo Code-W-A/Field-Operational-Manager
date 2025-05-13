@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { QRCodeSVG } from "qrcode.react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
@@ -31,6 +31,31 @@ export function EquipmentQRCode({
   className,
 }: EquipmentQRCodeProps) {
   const [open, setOpen] = useState(false)
+  const [logoBase64, setLogoBase64] = useState<string | null>(null)
+
+  // Încărcăm logo-ul și îl convertim în Base64 pentru a-l încorpora direct în HTML
+  useEffect(() => {
+    const loadLogo = async () => {
+      try {
+        // Încercăm să încărcăm logo-ul
+        const response = await fetch("/nrglogo.png")
+        const blob = await response.blob()
+
+        // Convertim blob-ul în Base64
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          const base64data = reader.result as string
+          setLogoBase64(base64data)
+        }
+        reader.readAsDataURL(blob)
+      } catch (error) {
+        console.error("Eroare la încărcarea logo-ului:", error)
+        setLogoBase64(null)
+      }
+    }
+
+    loadLogo()
+  }, [])
 
   const qrData = JSON.stringify({
     type: "equipment",
@@ -41,7 +66,7 @@ export function EquipmentQRCode({
     location: locationName,
   })
 
-  // Modificăm funcția handlePrint pentru a implementa toate îmbunătățirile solicitate
+  // Modificăm funcția handlePrint pentru a include logo-ul încorporat
 
   const handlePrint = () => {
     const printWindow = window.open("", "_blank")
@@ -61,6 +86,11 @@ export function EquipmentQRCode({
     // Reducem dimensiunea QR code-ului și mai mult
     svgClone.setAttribute("width", "80")
     svgClone.setAttribute("height", "80")
+
+    // Generăm HTML-ul cu logo-ul încorporat
+    const logoHtml = logoBase64
+      ? `<img src="${logoBase64}" alt="NRG Logo" class="logo" />`
+      : `<div class="logo-placeholder">NRG</div>` // Placeholder în caz că logo-ul nu se încarcă
 
     const html = `<!DOCTYPE html>
 <html lang="ro">
@@ -87,9 +117,19 @@ export function EquipmentQRCode({
         justify-content: center;
         margin-bottom: 1mm;
       }
-      .logo {
+      .logo, .logo-placeholder {
         height: 6mm;
         margin-right: 1mm;
+      }
+      .logo-placeholder {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 6pt;
+        width: 6mm;
+        background-color: #f0f0f0;
+        border-radius: 2px;
       }
       .company-name {
         font-size: 7pt;
@@ -139,7 +179,7 @@ export function EquipmentQRCode({
   </head>
   <body>
     <div class="header">
-      <img src="/nrglogo.png" alt="NRG Logo" class="logo" />
+      ${logoHtml}
       <div class="company-name">NRG Access Systems SRL</div>
     </div>
     <div class="equipment-name">${equipment.nume}</div>
