@@ -33,10 +33,10 @@ export function EquipmentQRCode({
   const [open, setOpen] = useState(false)
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
 
-  // Obținem URL-ul complet al logo-ului
+  // Obținem URL-ul complet al noului logo
   useEffect(() => {
     // Folosim URL-ul absolut al logo-ului, inclusiv domeniul
-    const fullLogoUrl = new URL("/nrglogo.png", window.location.origin).href
+    const fullLogoUrl = new URL("/nrglogob.png", window.location.origin).href
     setLogoUrl(fullLogoUrl)
 
     // Preîncărcăm imaginea pentru a verifica dacă este accesibilă
@@ -60,7 +60,7 @@ export function EquipmentQRCode({
     location: locationName,
   })
 
-  // Modificăm funcția handlePrint pentru a include logo-ul cu URL complet
+  // Modificăm funcția handlePrint pentru a include noul logo
 
   const handlePrint = () => {
     const printWindow = window.open("", "_blank")
@@ -75,12 +75,12 @@ export function EquipmentQRCode({
     const svgElem = qrElem.querySelector("svg")
     if (!svgElem) return
 
-    // Ajustăm dimensiunea QR code-ului - MĂRIM QR CODE-UL
+    // Ajustăm dimensiunea QR code-ului
     const svgClone = svgElem.cloneNode(true) as SVGElement
     svgClone.setAttribute("width", "100")
     svgClone.setAttribute("height", "100")
 
-    // Generăm HTML-ul cu logo-ul
+    // Generăm HTML-ul cu noul logo
     const logoHtml = logoUrl
       ? `<img src="${logoUrl}" alt="NRG Logo" class="logo" />`
       : `<div class="logo-placeholder">NRG</div>` // Placeholder în caz că logo-ul nu se încarcă
@@ -124,14 +124,16 @@ export function EquipmentQRCode({
       }
       .header {
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
         margin-bottom: 2mm;
-        margin-top: 1mm;
       }
       .logo, .logo-placeholder {
-        height: 10mm;
-        margin-right: 2mm;
+        height: 12mm;
+        max-width: 40mm;
+        object-fit: contain;
+        margin-bottom: 1mm;
       }
       .logo-placeholder {
         display: none;
@@ -139,19 +141,18 @@ export function EquipmentQRCode({
         justify-content: center;
         font-weight: bold;
         font-size: 8pt;
-        width: 10mm;
+        width: 20mm;
         background-color: #f0f0f0;
         border-radius: 2px;
       }
       .company-name {
-        font-size: 12pt;
+        font-size: 9pt;
         font-weight: bold;
-        text-transform: uppercase;
       }
       .content {
         display: flex;
         width: 100%;
-        height: calc(100% - 13mm);
+        height: calc(100% - 15mm);
       }
       .qr-code {
         flex: 0 0 auto;
@@ -184,7 +185,7 @@ export function EquipmentQRCode({
     <div class="header">
       ${logoHtml}
       <div class="logo-placeholder">NRG</div>
-      <div class="company-name">NRG ACCESS SYSTEMS SRL</div>
+      <div class="company-name">NRG Access Systems SRL</div>
     </div>
     <div class="content">
       <div class="qr-code">${svgClone.outerHTML}</div>
