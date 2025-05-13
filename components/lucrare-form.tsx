@@ -1242,7 +1242,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           )}
         </div>
 
-        {(onSubmit || onCancel) && (
+        {/*{(onSubmit || onCancel) && (
           <div className="flex justify-end space-x-2 mt-6">
             {onCancel && (
               <Button variant="outline" onClick={handleCloseAttempt}>
@@ -1251,7 +1251,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             )}
             {onSubmit && <Button onClick={handleSubmit}>Salvează</Button>}
           </div>
-        )}
+        )}*/}
 
         {/* Unsaved changes dialog */}
         <UnsavedChangesDialog

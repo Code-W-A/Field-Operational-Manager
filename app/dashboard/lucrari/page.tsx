@@ -1184,7 +1184,7 @@ export default function Lucrari() {
             />
             <DialogFooter className="flex-col gap-2 sm:flex-row">
               <Button variant="outline" onClick={handleCloseEditDialog}>
-                Anuleaz
+                Anulează
               </Button>
               <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleUpdate} disabled={isSubmitting}>
                 {isSubmitting ? (
