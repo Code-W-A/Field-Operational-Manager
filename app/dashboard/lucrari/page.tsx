@@ -981,12 +981,28 @@ export default function Lucrari() {
       enableFiltering: true,
     },
     {
-      accessorKey: "locatie",
+      accessorKey: "echipament",
       header: "Echipament",
       enableHiding: true,
       enableFiltering: true,
+      cell: ({ row }) => {
+        // Verificăm dacă există câmpul echipament
+        if (row.original.echipament) {
+          // Dacă există și codul echipamentului, îl afișăm între paranteze
+          if (row.original.echipamentCod) {
+            return (
+              <div>
+                {row.original.echipament} <span className="text-gray-500">({row.original.echipamentCod})</span>
+              </div>
+            )
+          }
+          // Altfel, afișăm doar numele echipamentului
+          return <div>{row.original.echipament}</div>
+        }
+        // Dacă nu există echipament, afișăm locația
+        return <div>{row.original.locatie}</div>
+      },
     },
-
     {
       accessorKey: "statusLucrare",
       header: "Status Lucrare",
@@ -1168,7 +1184,7 @@ export default function Lucrari() {
             />
             <DialogFooter className="flex-col gap-2 sm:flex-row">
               <Button variant="outline" onClick={handleCloseEditDialog}>
-                Anulează
+                Anuleaz
               </Button>
               <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleUpdate} disabled={isSubmitting}>
                 {isSubmitting ? (
@@ -1265,7 +1281,16 @@ export default function Lucrari() {
                   <div className="flex items-center justify-between border-b p-4">
                     <div>
                       <h3 className="font-medium">{lucrare.client}</h3>
-                      <p className="text-sm text-muted-foreground">{lucrare.locatie}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {lucrare.echipament ? (
+                          <>
+                            {lucrare.echipament}
+                            {lucrare.echipamentCod && <span className="text-gray-500"> ({lucrare.echipamentCod})</span>}
+                          </>
+                        ) : (
+                          lucrare.locatie
+                        )}
+                      </p>
                     </div>
                     <Badge className={getStatusColor(lucrare.statusLucrare)}>{lucrare.statusLucrare}</Badge>
                   </div>

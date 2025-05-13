@@ -980,8 +980,8 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
         </DialogContent>
       </Dialog>
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
         {/* Alert Dialog for unsaved changes when clicking Cancel */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
         <Button type="button" variant="outline" onClick={handleCloseAttempt}>
           Anulează
         </Button>

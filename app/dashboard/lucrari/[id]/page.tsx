@@ -10,8 +10,8 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/components/ui/use-toast"
-import { ChevronLeft, FileText, Pencil, Trash2, AlertCircle, CheckCircle, Lock } from "lucide-react"
-import { getLucrareById, deleteLucrare, updateLucrare } from "@/lib/firebase/firestore"
+import { ChevronLeft, FileText, Pencil, Trash2, AlertCircle, CheckCircle, Lock, MapPin } from "lucide-react"
+import { getLucrareById, deleteLucrare, updateLucrare, getClienti } from "@/lib/firebase/firestore"
 import { TehnicianInterventionForm } from "@/components/tehnician-intervention-form"
 import { useAuth } from "@/contexts/AuthContext"
 import type { Lucrare } from "@/lib/firebase/firestore"
@@ -28,17 +28,56 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("detalii")
   const [equipmentVerified, setEquipmentVerified] = useState(false)
+  const [locationAddress, setLocationAddress] = useState<string | null>(null)
 
-  // Încărcăm datele lucrării
+  // Încărcăm datele lucrării și adresa locației
   useEffect(() => {
-    const fetchLucrare = async () => {
+    const fetchLucrareAndLocationAddress = async () => {
       try {
+        // Obținem datele lucrării
         const data = await getLucrareById(params.id)
         setLucrare(data)
 
         // Verificăm dacă echipamentul a fost deja verificat
-        if (data.equipmentVerified) {
+        if (data?.equipmentVerified) {
           setEquipmentVerified(true)
+        }
+
+        // Obținem adresa locației
+        if (data?.client && data?.locatie) {
+          try {
+            console.log("Încercăm să obținem adresa pentru locația:", data.locatie, "a clientului:", data.client)
+
+            // Obținem toți clienții
+            const clienti = await getClienti()
+            console.log("Număr total de clienți:", clienti.length)
+
+            // Găsim clientul după nume
+            const client = clienti.find((c) => c.nume === data.client)
+
+            if (client) {
+              console.log("Client găsit:", client.nume, "ID:", client.id)
+              console.log("Locații disponibile:", client.locatii ? client.locatii.length : 0)
+
+              if (client.locatii && client.locatii.length > 0) {
+                // Căutăm locația în lista de locații a clientului
+                const locatie = client.locatii.find((loc) => loc.nume === data.locatie)
+
+                if (locatie) {
+                  console.log("Locație găsită:", locatie.nume, "Adresă:", locatie.adresa)
+                  setLocationAddress(locatie.adresa)
+                } else {
+                  console.log("Locația nu a fost găsită în lista de locații a clientului")
+                }
+              } else {
+                console.log("Clientul nu are locații definite")
+              }
+            } else {
+              console.log("Clientul nu a fost găsit după nume")
+            }
+          } catch (error) {
+            console.error("Eroare la obținerea adresei locației:", error)
+          }
         }
       } catch (error) {
         console.error("Eroare la încărcarea lucrării:", error)
@@ -52,7 +91,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
       }
     }
 
-    fetchLucrare()
+    fetchLucrareAndLocationAddress()
   }, [params.id])
 
   // Verificăm dacă tehnicianul are acces la această lucrare
@@ -303,7 +342,17 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                 )}
                 <div>
                   <p className="text-sm font-medium">Locație:</p>
-                  <p className="text-sm text-gray-500">{lucrare.locatie}</p>
+                  <div className="flex items-start">
+                    <div className="flex-grow">
+                      <p className="text-sm text-gray-500">{lucrare.locatie}</p>
+                      {locationAddress && (
+                        <p className="text-xs italic text-gray-500 mt-1 flex items-center">
+                          <MapPin className="h-3 w-3 mr-1 inline-block" />
+                          {locationAddress}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <p className="text-sm font-medium">Echipament:</p>
