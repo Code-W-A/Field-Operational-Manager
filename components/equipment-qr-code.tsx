@@ -124,16 +124,16 @@ export function EquipmentQRCode({
       }
       .header {
         display: flex;
-        flex-direction: column;
+        flex-direction: row;
         align-items: center;
         justify-content: center;
         margin-bottom: 2mm;
       }
       .logo, .logo-placeholder {
-        height: 12mm;
-        max-width: 40mm;
+        height: 8mm;
+        max-width: 20mm;
         object-fit: contain;
-        margin-bottom: 1mm;
+        margin-right: 2mm;
       }
       .logo-placeholder {
         display: none;
@@ -141,7 +141,7 @@ export function EquipmentQRCode({
         justify-content: center;
         font-weight: bold;
         font-size: 8pt;
-        width: 20mm;
+        width: 15mm;
         background-color: #f0f0f0;
         border-radius: 2px;
       }
@@ -152,7 +152,7 @@ export function EquipmentQRCode({
       .content {
         display: flex;
         width: 100%;
-        height: calc(100% - 15mm);
+        height: calc(100% - 10mm);
       }
       .qr-code {
         flex: 0 0 auto;
