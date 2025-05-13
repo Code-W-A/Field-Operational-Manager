@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { QRCodeSVG } from "qrcode.react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
@@ -31,6 +31,25 @@ export function EquipmentQRCode({
   className,
 }: EquipmentQRCodeProps) {
   const [open, setOpen] = useState(false)
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+
+  // Obținem URL-ul complet al logo-ului
+  useEffect(() => {
+    // Folosim URL-ul absolut al logo-ului, inclusiv domeniul
+    const fullLogoUrl = new URL("/nrglogo.png", window.location.origin).href
+    setLogoUrl(fullLogoUrl)
+
+    // Preîncărcăm imaginea pentru a verifica dacă este accesibilă
+    const img = new Image()
+    img.onload = () => {
+      console.log("Logo încărcat cu succes:", fullLogoUrl)
+    }
+    img.onerror = () => {
+      console.error("Eroare la încărcarea logo-ului:", fullLogoUrl)
+      setLogoUrl(null)
+    }
+    img.src = fullLogoUrl
+  }, [])
 
   const qrData = JSON.stringify({
     type: "equipment",
@@ -41,7 +60,7 @@ export function EquipmentQRCode({
     location: locationName,
   })
 
-  // Modificăm funcția handlePrint pentru a include un logo SVG încorporat direct
+  // Modificăm funcția handlePrint pentru a include logo-ul cu URL complet
 
   const handlePrint = () => {
     const printWindow = window.open("", "_blank")
@@ -62,11 +81,28 @@ export function EquipmentQRCode({
     svgClone.setAttribute("width", "80")
     svgClone.setAttribute("height", "80")
 
-    // Creăm un logo simplu SVG încorporat direct
-    const inlineSvgLogo = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="2" y="4" width="20" height="16" rx="2" fill="#0066CC"/>
-      <text x="12" y="15" fontFamily="Arial" fontSize="10" fill="white" textAnchor="middle">NRG</text>
-    </svg>`
+    // Generăm HTML-ul cu logo-ul
+    const logoHtml = logoUrl
+      ? `<img src="${logoUrl}" alt="NRG Logo" class="logo" />`
+      : `<div class="logo-placeholder">NRG</div>` // Placeholder în caz că logo-ul nu se încarcă
+
+    // Adăugăm un script pentru a încărca logo-ul din nou în fereastra de printare
+    const reloadLogoScript = logoUrl
+      ? `
+      // Reîncărcăm logo-ul în fereastra de printare
+      const logoImg = document.querySelector('.logo');
+      if (logoImg) {
+        logoImg.onload = function() {
+          console.log('Logo încărcat cu succes în fereastra de printare');
+        };
+        logoImg.onerror = function() {
+          console.error('Eroare la încărcarea logo-ului în fereastra de printare');
+          logoImg.style.display = 'none';
+          document.querySelector('.logo-placeholder').style.display = 'flex';
+        };
+      }
+    `
+      : ""
 
     const html = `<!DOCTYPE html>
 <html lang="ro">
@@ -92,6 +128,20 @@ export function EquipmentQRCode({
         align-items: center;
         justify-content: center;
         margin-bottom: 1mm;
+      }
+      .logo, .logo-placeholder {
+        height: 6mm;
+        margin-right: 1mm;
+      }
+      .logo-placeholder {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 6pt;
+        width: 6mm;
+        background-color: #f0f0f0;
+        border-radius: 2px;
       }
       .company-name {
         font-size: 7pt;
@@ -130,9 +180,6 @@ export function EquipmentQRCode({
         text-overflow: ellipsis;
         width: 100%;
       }
-      .logo-svg {
-        margin-right: 1mm;
-      }
       @media print {
         .no-print { display: none }
         html, body {
@@ -144,7 +191,8 @@ export function EquipmentQRCode({
   </head>
   <body>
     <div class="header">
-      <div class="logo-svg">${inlineSvgLogo}</div>
+      ${logoHtml}
+      <div class="logo-placeholder">NRG</div>
       <div class="company-name">NRG Access Systems SRL</div>
     </div>
     <div class="equipment-name">${equipment.nume}</div>
@@ -160,10 +208,11 @@ export function EquipmentQRCode({
     <script>
       // Auto-print după încărcare
       window.onload = function() {
+        ${reloadLogoScript}
         // Delay scurt pentru a permite încărcarea completă
         setTimeout(function() {
           window.print();
-        }, 500);
+        }, 1000);
       };
     </script>
   </body>
