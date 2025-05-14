@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import nodemailer from "nodemailer"
 import { logDebug, logInfo, logWarning, logError } from "@/lib/utils/logging-service"
+import path from "path"
+import fs from "fs"
 
 // Add this function at the top of the file
 async function validateEmails(data: any) {
@@ -154,6 +156,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Eroare la verificarea conexiunii SMTP: ${error.message}` }, { status: 500 })
     }
 
+    // Încărcăm logo-ul companiei
+    let logoContent: Buffer | null = null
+    const logoContentType = "image/png"
+
+    try {
+      // Încercăm să încărcăm logo-ul din directorul public
+      const logoPath = path.join(process.cwd(), "public", "nrglogo.png")
+      if (fs.existsSync(logoPath)) {
+        logoContent = fs.readFileSync(logoPath)
+        console.log(`[WORK-ORDER-API] [${requestId}] Logo încărcat cu succes din: ${logoPath}`)
+      } else {
+        // Dacă nu găsim logo-ul, folosim logo-ul de rezervă
+        console.log(
+          `[WORK-ORDER-API] [${requestId}] Logo-ul nu a fost găsit la: ${logoPath}, se folosește logo-ul de rezervă`,
+        )
+        logoContent = Buffer.from(FALLBACK_LOGO_BASE64, "base64")
+      }
+    } catch (error) {
+      console.error(`[WORK-ORDER-API] [${requestId}] Eroare la încărcarea logo-ului:`, error)
+      // Folosim logo-ul de rezervă în caz de eroare
+      logoContent = Buffer.from(FALLBACK_LOGO_BASE64, "base64")
+    }
+
     // Prepare email content
     const workOrderInfo = `
       <ul style="list-style-type: none; padding-left: 0;">
@@ -234,8 +259,8 @@ export async function POST(request: NextRequest) {
               attachments: [
                 {
                   filename: "logo.png",
-                  content: Buffer.from(FALLBACK_LOGO_BASE64, "base64"),
-                  contentType: "image/png",
+                  content: logoContent,
+                  contentType: logoContentType,
                   cid: "company-logo",
                 },
               ],
@@ -357,8 +382,8 @@ export async function POST(request: NextRequest) {
           attachments: [
             {
               filename: "logo.png",
-              content: Buffer.from(FALLBACK_LOGO_BASE64, "base64"),
-              contentType: "image/png",
+              content: logoContent,
+              contentType: logoContentType,
               cid: "company-logo",
             },
           ],
