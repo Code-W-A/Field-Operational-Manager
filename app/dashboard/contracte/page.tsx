@@ -533,6 +533,12 @@ export default function ContractsPage() {
     cursor: pointer;
   }
   .data-table tbody tr:hover {
-    background-color: rgba(0, 0, 0, 0.02);
+    background-color: rgba(0, 0, 0, 0.04);
+  }
+  .data-table tbody tr:nth-child(even) {
+    background-color: #f2f2f2;
+  }
+  .data-table tbody tr:nth-child(odd) {
+    background-color: #ffffff;
   }
 `}</style>

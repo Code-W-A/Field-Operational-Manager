@@ -233,7 +233,7 @@ export function DataTable<TData, TValue>({
   return (
     <div className="space-y-4 w-full overflow-x-auto">
       <div className="rounded-md border data-table">
-        <Table>
+        <Table className="data-table">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
