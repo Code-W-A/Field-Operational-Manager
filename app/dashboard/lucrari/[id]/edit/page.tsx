@@ -63,6 +63,7 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
     statusFacturare: "",
     contract: "",
     contractNumber: "",
+    contractType: "", // Adăugăm tipul contractului
     defectReclamat: "",
     persoaneContact: [] as PersoanaContact[],
     echipamentId: "",
@@ -102,6 +103,7 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
             statusFacturare: lucrare.statusFacturare || "Nefacturat",
             contract: lucrare.contract || "",
             contractNumber: lucrare.contractNumber || "",
+            contractType: lucrare.contractType || "", // Adăugăm tipul contractului
             defectReclamat: lucrare.defectReclamat || "",
             persoaneContact: lucrare.persoaneContact || [],
             echipamentId: lucrare.echipamentId || "",

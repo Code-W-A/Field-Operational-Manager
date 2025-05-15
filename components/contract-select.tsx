@@ -10,10 +10,10 @@ import { Label } from "@/components/ui/label"
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 
-// Modificăm interfața pentru a include proprietatea number
+// Modificăm interfața pentru a include proprietatea type
 interface ContractSelectProps {
   value: string
-  onChange: (value: string, number?: string) => void
+  onChange: (value: string, number?: string, type?: string) => void
   hasError?: boolean
   errorStyle?: string
 }
@@ -24,6 +24,7 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [newContractName, setNewContractName] = useState("")
   const [newContractNumber, setNewContractNumber] = useState("")
+  const [newContractType, setNewContractType] = useState("Abonament") // Adăugăm starea pentru tipul contractului
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Încărcăm contractele din Firestore
@@ -66,7 +67,7 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
 
   // Funcție pentru adăugarea unui contract nou
   const handleAddContract = async () => {
-    if (!newContractName || !newContractNumber) return
+    if (!newContractName || !newContractNumber || !newContractType) return
 
     try {
       setIsSubmitting(true)
@@ -75,12 +76,14 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
       await addDoc(collection(db, "contracts"), {
         name: newContractName,
         number: newContractNumber,
+        type: newContractType, // Adăugăm tipul contractului
         createdAt: serverTimestamp(),
       })
 
       // Resetăm formularul și închidem dialogul
       setNewContractName("")
       setNewContractNumber("")
+      setNewContractType("Abonament")
       setIsAddDialogOpen(false)
     } catch (error) {
       console.error("Eroare la adăugarea contractului:", error)
@@ -95,7 +98,7 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
         value={value}
         onValueChange={(selectedValue) => {
           const selectedContract = contracts.find((contract) => contract.id === selectedValue)
-          onChange(selectedValue, selectedContract?.number)
+          onChange(selectedValue, selectedContract?.number, selectedContract?.type)
         }}
       >
         <SelectTrigger id="contract" className={`flex-1 ${hasError ? errorStyle : ""}`}>
@@ -110,7 +113,7 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
           ) : contracts.length > 0 ? (
             contracts.map((contract) => (
               <SelectItem key={contract.id} value={contract.id}>
-                {contract.name} ({contract.number})
+                {contract.name} ({contract.number}) - {contract.type || "Nespecificat"}
               </SelectItem>
             ))
           ) : (
@@ -147,11 +150,26 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
                 placeholder="Introduceți numărul contractului"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="contractType">Tip Contract</Label>
+              <Select value={newContractType} onValueChange={setNewContractType}>
+                <SelectTrigger id="contractType">
+                  <SelectValue placeholder="Selectați tipul contractului" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Abonament">Abonament</SelectItem>
+                  <SelectItem value="Cu plată la intervenție">Cu plată la intervenție</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                 Anulează
               </Button>
-              <Button onClick={handleAddContract} disabled={isSubmitting || !newContractName || !newContractNumber}>
+              <Button
+                onClick={handleAddContract}
+                disabled={isSubmitting || !newContractName || !newContractNumber || !newContractType}
+              >
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...

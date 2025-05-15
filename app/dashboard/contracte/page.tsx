@@ -35,11 +35,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface Contract {
   id: string
   name: string
   number: string
+  type?: string // Adăugăm câmpul pentru tipul contractului
   createdAt: any
 }
 
@@ -54,6 +56,7 @@ export default function ContractsPage() {
 
   const [newContractName, setNewContractName] = useState("")
   const [newContractNumber, setNewContractNumber] = useState("")
+  const [newContractType, setNewContractType] = useState("Abonament") // Adăugăm starea pentru tipul contractului
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -100,7 +103,7 @@ export default function ContractsPage() {
 
   // Funcție pentru adăugarea unui contract nou
   const handleAddContract = async () => {
-    if (!newContractName || !newContractNumber) {
+    if (!newContractName || !newContractNumber || !newContractType) {
       toast({
         title: "Eroare",
         description: "Vă rugăm să completați toate câmpurile",
@@ -132,12 +135,14 @@ export default function ContractsPage() {
       await addDoc(collection(db, "contracts"), {
         name: newContractName,
         number: newContractNumber,
+        type: newContractType, // Adăugăm tipul contractului
         createdAt: serverTimestamp(),
       })
 
       // Resetăm formularul și închidem dialogul
       setNewContractName("")
       setNewContractNumber("")
+      setNewContractType("Abonament")
       setIsAddDialogOpen(false)
 
       toast({
@@ -154,7 +159,7 @@ export default function ContractsPage() {
 
   // Funcție pentru editarea unui contract
   const handleEditContract = async () => {
-    if (!selectedContract || !newContractName || !newContractNumber) {
+    if (!selectedContract || !newContractName || !newContractNumber || !newContractType) {
       toast({
         title: "Eroare",
         description: "Vă rugăm să completați toate câmpurile",
@@ -188,12 +193,14 @@ export default function ContractsPage() {
       await updateDoc(contractRef, {
         name: newContractName,
         number: newContractNumber,
+        type: newContractType, // Actualizăm tipul contractului
         updatedAt: serverTimestamp(),
       })
 
       // Resetăm formularul și închidem dialogul
       setNewContractName("")
       setNewContractNumber("")
+      setNewContractType("Abonament")
       setSelectedContract(null)
       setIsEditDialogOpen(false)
 
@@ -242,6 +249,7 @@ export default function ContractsPage() {
     setSelectedContract(contract)
     setNewContractName(contract.name)
     setNewContractNumber(contract.number)
+    setNewContractType(contract.type || "Abonament") // Setăm tipul contractului sau valoarea implicită
     setIsEditDialogOpen(true)
   }
 
@@ -271,7 +279,9 @@ export default function ContractsPage() {
       setShowCloseAlert(true)
     } else if (
       dialogType === "edit" &&
-      (newContractName !== selectedContract?.name || newContractNumber !== selectedContract?.number)
+      (newContractName !== selectedContract?.name ||
+        newContractNumber !== selectedContract?.number ||
+        newContractType !== selectedContract?.type)
     ) {
       setActiveDialog(dialogType)
       setShowCloseAlert(true)
@@ -329,6 +339,7 @@ export default function ContractsPage() {
               <TableRow>
                 <TableHead>Nume Contract</TableHead>
                 <TableHead>Număr Contract</TableHead>
+                <TableHead>Tip Contract</TableHead>
                 <TableHead>Data Adăugării</TableHead>
                 <TableHead className="text-right">Acțiuni</TableHead>
               </TableRow>
@@ -338,6 +349,7 @@ export default function ContractsPage() {
                 <TableRow key={contract.id} className="cursor-pointer">
                   <TableCell className="font-medium">{contract.name}</TableCell>
                   <TableCell>{contract.number}</TableCell>
+                  <TableCell>{contract.type || "Nespecificat"}</TableCell>
                   <TableCell>{formatDate(contract.createdAt)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
@@ -402,12 +414,27 @@ export default function ContractsPage() {
                 placeholder="Introduceți numărul contractului"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="contractType">Tip Contract</Label>
+              <Select value={newContractType} onValueChange={setNewContractType}>
+                <SelectTrigger id="contractType">
+                  <SelectValue placeholder="Selectați tipul contractului" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Abonament">Abonament</SelectItem>
+                  <SelectItem value="Cu plată la intervenție">Cu plată la intervenție</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => handleCloseDialog("add")}>
               Anulează
             </Button>
-            <Button onClick={handleAddContract} disabled={isSubmitting || !newContractName || !newContractNumber}>
+            <Button
+              onClick={handleAddContract}
+              disabled={isSubmitting || !newContractName || !newContractNumber || !newContractType}
+            >
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
@@ -454,12 +481,27 @@ export default function ContractsPage() {
                 placeholder="Introduceți numărul contractului"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="editContractType">Tip Contract</Label>
+              <Select value={newContractType} onValueChange={setNewContractType}>
+                <SelectTrigger id="editContractType">
+                  <SelectValue placeholder="Selectați tipul contractului" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Abonament">Abonament</SelectItem>
+                  <SelectItem value="Cu plată la intervenție">Cu plată la intervenție</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => handleCloseDialog("edit")}>
               Anulează
             </Button>
-            <Button onClick={handleEditContract} disabled={isSubmitting || !newContractName || !newContractNumber}>
+            <Button
+              onClick={handleEditContract}
+              disabled={isSubmitting || !newContractName || !newContractNumber || !newContractType}
+            >
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...

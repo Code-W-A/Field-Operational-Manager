@@ -30,6 +30,7 @@ export interface Echipament {
 }
 
 // Tipuri pentru lucrări
+// Actualizăm interfața Lucrare pentru a include tipul contractului
 export interface Lucrare {
   id?: string
   client: string
@@ -48,6 +49,8 @@ export interface Lucrare {
   descriereInterventie?: string
   constatareLaLocatie?: string // New field for technician's on-site assessment
   contract?: string
+  contractNumber?: string
+  contractType?: string // Adăugăm tipul contractului
   defectReclamat?: string
   // Câmpuri noi pentru verificarea echipamentului
   equipmentVerified?: boolean

@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, forwardRef, useImperativeHandle } from "react"
+import { useState, useEffect, forwardRef, useImperativeHandle, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -35,10 +35,28 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+// Import pentru verificarea CUI
+import { collection, query, where, getDocs } from "firebase/firestore"
+import { db } from "@/lib/firebase/config"
+import { toast } from "@/components/ui/use-toast"
 
 interface ClientFormProps {
   onSuccess?: (clientName: string) => void
   onCancel?: () => void
+}
+
+// Funcție pentru verificarea CUI-ului
+const checkCuiExists = async (cui: string): Promise<boolean> => {
+  if (!cui || cui.trim() === "") return false
+
+  try {
+    const q = query(collection(db, "clienti"), where("cif", "==", cui.trim()))
+    const querySnapshot = await getDocs(q)
+    return !querySnapshot.empty
+  } catch (error) {
+    console.error("Eroare la verificarea CUI:", error)
+    return false
+  }
 }
 
 // Modify the component definition to use forwardRef
@@ -66,6 +84,12 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
     adresa: "",
     email: "",
   })
+
+  // Adăugăm state pentru verificarea CUI
+  const [isCuiChecking, setIsCuiChecking] = useState(false)
+  const [cuiExists, setCuiExists] = useState(false)
+  const [cuiTouched, setCuiTouched] = useState(false)
+  const cuiTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Adăugăm state pentru locații
   const [locatii, setLocatii] = useState<Locatie[]>([
@@ -144,9 +168,62 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
     console.log("showCloseAlert changed to:", showCloseAlert)
   }, [showCloseAlert])
 
+  // Verificăm CUI-ul când se schimbă
+  useEffect(() => {
+    // Curățăm timeout-ul anterior dacă există
+    if (cuiTimeoutRef.current) {
+      clearTimeout(cuiTimeoutRef.current)
+    }
+
+    // Dacă CUI-ul este gol, resetăm starea
+    if (!formData.cif || formData.cif.trim() === "") {
+      setCuiExists(false)
+      setIsCuiChecking(false)
+      return
+    }
+
+    // Verificăm CUI-ul doar dacă a fost modificat și nu este gol
+    if (cuiTouched && formData.cif.trim() !== "") {
+      setIsCuiChecking(true)
+
+      // Folosim debounce pentru a nu face prea multe cereri
+      cuiTimeoutRef.current = setTimeout(async () => {
+        try {
+          const exists = await checkCuiExists(formData.cif)
+          setCuiExists(exists)
+
+          if (exists) {
+            toast({
+              title: "CUI/CIF duplicat",
+              description: "Există deja un client cu acest CUI/CIF în baza de date.",
+              variant: "destructive",
+            })
+          }
+        } catch (error) {
+          console.error("Eroare la verificarea CUI:", error)
+        } finally {
+          setIsCuiChecking(false)
+        }
+      }, 500) // Verificăm după 500ms de la ultima modificare
+    }
+
+    // Cleanup la unmount
+    return () => {
+      if (cuiTimeoutRef.current) {
+        clearTimeout(cuiTimeoutRef.current)
+      }
+    }
+  }, [formData.cif, cuiTouched])
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target
     console.log(`Input changed: ${id} = ${value}`)
+
+    // Dacă se modifică CUI-ul, marcăm că a fost atins
+    if (id === "cif") {
+      setCuiTouched(true)
+    }
+
     setFormData((prev) => ({ ...prev, [id]: value }))
   }
 
@@ -379,6 +456,16 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
       setIsSubmitting(true)
       setError(null)
 
+      // Verificăm dacă CUI-ul există deja
+      if (formData.cif && formData.cif.trim() !== "") {
+        const exists = await checkCuiExists(formData.cif)
+        if (exists) {
+          setError("Există deja un client cu acest CUI/CIF în baza de date.")
+          setIsSubmitting(false)
+          return
+        }
+      }
+
       // Resetăm erorile de câmp
       const errors: string[] = []
 
@@ -509,7 +596,26 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
         <label htmlFor="cif" className="text-sm font-medium">
           CIF / CUI
         </label>
-        <Input id="cif" placeholder="Introduceți CIF/CUI" value={formData.cif} onChange={handleInputChange} />
+        <div className="relative">
+          <Input
+            id="cif"
+            placeholder="Introduceți CIF/CUI"
+            value={formData.cif}
+            onChange={handleInputChange}
+            className={cuiExists ? errorStyle : ""}
+          />
+          {isCuiChecking && (
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+              <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+            </div>
+          )}
+          {cuiExists && (
+            <div className="flex items-center mt-1 text-red-500 text-xs">
+              <AlertTriangle className="h-3 w-3 mr-1" />
+              <span>Există deja un client cu acest CUI/CIF</span>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -935,11 +1041,15 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
         </DialogContent>
       </Dialog>
 
-       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+      <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
         <Button type="button" variant="outline" onClick={handleCloseAttempt}>
           Anulează
         </Button>
-        <Button className="bg-blue-600 hover:bg-blue-700" type="submit" disabled={isSubmitting}>
+        <Button
+          className="bg-blue-600 hover:bg-blue-700"
+          type="submit"
+          disabled={isSubmitting || cuiExists || isCuiChecking}
+        >
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...

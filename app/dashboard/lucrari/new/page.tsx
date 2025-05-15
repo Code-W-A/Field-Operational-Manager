@@ -17,6 +17,7 @@ export default function NewLucrarePage() {
   const router = useRouter()
   const [dataEmiterii, setDataEmiterii] = useState<Date>(new Date())
   const [dataInterventie, setDataInterventie] = useState<Date | undefined>(new Date())
+  // Actualizăm starea formData pentru a include contractType
   const [formData, setFormData] = useState({
     tipLucrare: "",
     tehnicieni: [] as string[],
@@ -30,6 +31,7 @@ export default function NewLucrarePage() {
     statusFacturare: "Nefacturat",
     contract: "",
     contractNumber: "",
+    contractType: "", // Adăugăm tipul contractului
     defectReclamat: "",
     persoaneContact: [] as PersoanaContact[],
     echipamentId: "",

@@ -68,7 +68,7 @@ interface Lucrare {
   echipamentCod?: string
 }
 
-// Add the defectReclamat field to the LucrareFormProps interface
+// În componenta LucrareForm, actualizăm interfața LucrareFormProps pentru a include contractType
 interface LucrareFormProps {
   isEdit?: boolean
   dataEmiterii: Date | undefined
@@ -88,6 +88,7 @@ interface LucrareFormProps {
     statusFacturare: string
     contract?: string
     contractNumber?: string
+    contractType?: string // Adăugăm tipul contractului
     defectReclamat?: string
     persoaneContact?: PersoanaContact[]
     echipamentId?: string
@@ -921,13 +922,19 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 </label>
                 <ContractSelect
                   value={formData.contract || ""}
-                  onChange={(value, contractNumber) => {
+                  onChange={(value, contractNumber, contractType) => {
                     handleSelectChange("contract", value)
                     handleSelectChange("contractNumber", contractNumber || "")
+                    handleSelectChange("contractType", contractType || "") // Adăugăm tipul contractului
                   }}
                   hasError={hasError("contract")}
                   errorStyle={errorStyle}
                 />
+                {formData.contractType && (
+                  <p className="text-xs text-blue-600">
+                    Tip contract: <span className="font-medium">{formData.contractType}</span>
+                  </p>
+                )}
                 <p className="text-xs text-muted-foreground">Selectați contractul asociat intervenției</p>
               </div>
             )}
