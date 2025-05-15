@@ -323,7 +323,7 @@ export default function ContractsPage() {
           </Button>
         </div>
       ) : (
-        <div className="rounded-md border">
+        <div className="rounded-md border data-table">
           <Table>
             <TableHeader>
               <TableRow>
@@ -335,22 +335,29 @@ export default function ContractsPage() {
             </TableHeader>
             <TableBody>
               {contracts.map((contract) => (
-                <TableRow key={contract.id}>
+                <TableRow key={contract.id} className="cursor-pointer">
                   <TableCell className="font-medium">{contract.name}</TableCell>
                   <TableCell>{contract.number}</TableCell>
                   <TableCell>{formatDate(contract.createdAt)}</TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" size="icon" onClick={() => openEditDialog(contract)}>
-                        <Pencil className="h-4 w-4" />
+                    <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-2 text-blue-600"
+                        onClick={() => openEditDialog(contract)}
+                      >
+                        <Pencil className="h-4 w-4 mr-1" />
+                        Editează
                       </Button>
                       <Button
                         variant="outline"
-                        size="icon"
-                        className="text-red-600"
+                        size="sm"
+                        className="h-8 px-2 text-red-600"
                         onClick={() => openDeleteDialog(contract)}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Șterge
                       </Button>
                     </div>
                   </TableCell>
@@ -521,3 +528,11 @@ export default function ContractsPage() {
     </DashboardShell>
   )
 }
+;<style jsx global>{`
+  .data-table tbody tr {
+    cursor: pointer;
+  }
+  .data-table tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+  }
+`}</style>

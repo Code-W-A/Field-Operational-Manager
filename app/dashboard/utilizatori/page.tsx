@@ -495,40 +495,34 @@ export default function Utilizatori() {
         id: "actions",
         enableFiltering: false,
         cell: ({ row }: any) => (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-4 w-4"
-                >
-                  <circle cx="12" cy="12" r="1" />
-                  <circle cx="19" cy="12" r="1" />
-                  <circle cx="5" cy="12" r="1" />
-                </svg>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleEdit(row.original)}>
-                <Pencil className="mr-2 h-4 w-4" /> Editează
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="text-red-600"
-                onClick={() => handleDeleteClick(row.original)}
-                disabled={row.original.uid === currentUser?.uid}
+          <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2 text-blue-600"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleEdit(row.original)
+              }}
+            >
+              <Pencil className="h-4 w-4 mr-1" />
+              Editează
+            </Button>
+            {row.original.uid !== currentUser?.uid && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-2 text-red-600"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDeleteClick(row.original)
+                }}
               >
-                <Trash2 className="mr-2 h-4 w-4" /> Șterge
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <Trash2 className="h-4 w-4 mr-1" />
+                Șterge
+              </Button>
+            )}
+          </div>
         ),
       },
     ],
@@ -693,7 +687,7 @@ export default function Utilizatori() {
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
                   </>
                 ) : (
-                  "Salveaz��"
+                  "Salvează"
                 )}
               </Button>
             </DialogFooter>
@@ -825,6 +819,7 @@ export default function Utilizatori() {
             defaultSort={{ id: "displayName", desc: false }}
             setTable={setTable}
             showFilters={false}
+            onRowClick={(row) => handleEdit(row)}
           />
         ) : (
           <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3 w-full overflow-auto">
