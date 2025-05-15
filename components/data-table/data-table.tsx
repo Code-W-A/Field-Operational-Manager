@@ -232,7 +232,7 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="space-y-4 w-full overflow-x-auto">
-      <div className="rounded-md border">
+      <div className="rounded-md border data-table">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -264,7 +264,6 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  className={onRowClick ? "hover:bg-muted/50" : ""}
                   onClick={() => onRowClick && onRowClick(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (

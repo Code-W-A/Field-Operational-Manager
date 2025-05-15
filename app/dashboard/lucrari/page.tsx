@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { format, parse, isAfter, isBefore } from "date-fns"
-import { MoreHorizontal, FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check } from "lucide-react"
+import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { addLucrare, deleteLucrare, updateLucrare, getLucrareById } from "@/lib/firebase/firestore"
@@ -1023,34 +1023,55 @@ export default function Lucrari() {
     },
     {
       id: "actions",
+      header: "Acțiuni",
       enableHiding: false,
       enableFiltering: false,
       cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreHorizontal className="h-4 w-4" />
+        <div className="flex items-center justify-end gap-2">
+          {!isTechnician && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleEdit(row.original)
+              }}
+              aria-label="Editează lucrarea"
+            >
+              <Pencil className="h-4 w-4" />
+              <span className="ml-1">Editează</span>
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => handleViewDetails(row.original)}>
-              <Eye className="mr-2 h-4 w-4" /> Vizualizează
-            </DropdownMenuItem>
-            {!isTechnician && (
-              <DropdownMenuItem onClick={() => handleEdit(row.original)}>
-                <Pencil className="mr-2 h-4 w-4" /> Editează
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onClick={() => handleGenerateReport(row.original)}>
-              <FileText className="mr-2 h-4 w-4" /> Generează Raport
-            </DropdownMenuItem>
-            {userData?.role === "admin" && (
-              <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(row.original.id)}>
-                <Trash2 className="mr-2 h-4 w-4" /> Șterge
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 px-2 text-green-600 border-green-200 hover:bg-green-50"
+            onClick={(e) => {
+              e.stopPropagation()
+              handleGenerateReport(row.original)
+            }}
+            aria-label="Generează raport"
+          >
+            <FileText className="h-4 w-4" />
+            <span className="ml-1">Raport</span>
+          </Button>
+          {userData?.role === "admin" && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2 text-red-600 border-red-200 hover:bg-red-50"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleDelete(row.original.id)
+              }}
+              aria-label="Șterge lucrarea"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span className="ml-1">Șterge</span>
+            </Button>
+          )}
+        </div>
       ),
     },
   ]
@@ -1263,7 +1284,7 @@ export default function Lucrari() {
               columns={columns}
               data={filteredData}
               defaultSort={{ id: "dataEmiterii", desc: true }}
-              //    onRowClick={(lucrare) => handleViewDetails(lucrare)}
+              onRowClick={(lucrare) => handleViewDetails(lucrare)}
               table={tableInstance}
               setTable={setTableInstance}
               showFilters={false}
@@ -1430,3 +1451,11 @@ export default function Lucrari() {
     </DashboardShell>
   )
 }
+;<style jsx global>{`
+  .data-table tbody tr {
+    cursor: pointer;
+  }
+  .data-table tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+  }
+`}</style>
