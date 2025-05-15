@@ -1027,7 +1027,7 @@ export default function Lucrari() {
       enableHiding: false,
       enableFiltering: false,
       cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
           {!isTechnician && (
             <Button
               variant="outline"
@@ -1457,5 +1457,14 @@ export default function Lucrari() {
   }
   .data-table tbody tr:hover {
     background-color: rgba(0, 0, 0, 0.02);
+  }
+  .data-table tbody tr:nth-child(even) {
+    background-color: #f9f9f9;
+  }
+  .data-table tbody tr:nth-child(odd) {
+    background-color: #ffffff;
+  }
+  .data-table tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.04);
   }
 `}</style>

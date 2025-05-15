@@ -688,3 +688,20 @@ export default function Clienti() {
     </DashboardShell>
   )
 }
+;<style jsx global>{`
+  .data-table tbody tr {
+    cursor: pointer;
+  }
+  .data-table tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+  }
+  .data-table tbody tr:nth-child(even) {
+    background-color: #f9f9f9;
+  }
+  .data-table tbody tr:nth-child(odd) {
+    background-color: #ffffff;
+  }
+  .data-table tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.04);
+  }
+`}</style>
