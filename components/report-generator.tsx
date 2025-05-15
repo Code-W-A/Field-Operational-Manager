@@ -216,7 +216,6 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           `R.C.: ${clientRC}`,
           `Adresa: ${clientAddress}`,
           `Locație intervenție: ${fullLocationAddress}`,
-          `Navigare: ${navigationLink}`,
         ],
         boxW,
         boxH,

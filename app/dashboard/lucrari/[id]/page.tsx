@@ -357,10 +357,32 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                     <div className="flex-grow">
                       <p className="text-sm text-gray-500">{lucrare.locatie}</p>
                       {locationAddress && (
-                        <p className="text-xs italic text-gray-500 mt-1 flex items-center">
-                          <MapPin className="h-3 w-3 mr-1 inline-block" />
-                          {locationAddress}
-                        </p>
+                        <div className="mt-1">
+                          <p className="text-xs italic text-gray-500 flex items-center mb-2">
+                            <MapPin className="h-3 w-3 mr-1 inline-block" />
+                            {locationAddress}
+                          </p>
+                          <div className="flex space-x-2 mt-2">
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lucrare.locatie}, ${locationAddress}`)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center justify-center px-3 py-1 text-xs bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+                            >
+                              <MapPin className="h-3 w-3 mr-1 inline-block" />
+                              Google Maps
+                            </a>
+                            <a
+                              href={`https://waze.com/ul?q=${encodeURIComponent(`${lucrare.locatie}, ${locationAddress}`)}&navigate=yes`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center justify-center px-3 py-1 text-xs bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
+                            >
+                              <MapPin className="h-3 w-3 mr-1 inline-block" />
+                              Waze
+                            </a>
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>
