@@ -885,6 +885,24 @@ export default function Lucrari() {
     }
   }
 
+  // Funcție pentru a determina clasa CSS a rândului în funcție de statusul lucrării
+  const getRowClassName = (lucrare) => {
+    switch (lucrare.statusLucrare?.toLowerCase()) {
+      case "listată":
+        return "bg-gray-50"
+      case "atribuită":
+        return "bg-yellow-50"
+      case "în lucru":
+        return "bg-blue-50"
+      case "finalizată":
+        return "bg-green-50"
+      case "în așteptare":
+        return "bg-orange-50"
+      default:
+        return "" // Folosim stilizarea alternativă implicită
+    }
+  }
+
   const getFacturaColor = (status) => {
     switch (status.toLowerCase()) {
       case "facturat":
@@ -1221,6 +1239,33 @@ export default function Lucrari() {
         </Dialog>
       </DashboardHeader>
 
+      {/* Legendă pentru statusuri */}
+      <div className="mb-4 p-4 border rounded-md bg-white">
+        <h3 className="text-sm font-medium mb-2">Legendă statusuri:</h3>
+        <div className="flex flex-wrap gap-2">
+          <div className="flex items-center">
+            <div className="w-4 h-4 mr-1 bg-gray-50 border border-gray-200 rounded"></div>
+            <span className="text-xs">Listată</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-4 h-4 mr-1 bg-yellow-50 border border-yellow-200 rounded"></div>
+            <span className="text-xs">Atribuită</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-4 h-4 mr-1 bg-blue-50 border border-blue-200 rounded"></div>
+            <span className="text-xs">În lucru</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-4 h-4 mr-1 bg-green-50 border border-green-200 rounded"></div>
+            <span className="text-xs">Finalizată</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-4 h-4 mr-1 bg-orange-50 border border-orange-200 rounded"></div>
+            <span className="text-xs">În așteptare</span>
+          </div>
+        </div>
+      </div>
+
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:justify-between gap-4">
           <div className="flex items-center space-x-2">
@@ -1288,6 +1333,7 @@ export default function Lucrari() {
               table={tableInstance}
               setTable={setTableInstance}
               showFilters={false}
+              getRowClassName={getRowClassName}
             />
           </div>
         ) : (
@@ -1295,7 +1341,7 @@ export default function Lucrari() {
             {filteredData.map((lucrare) => (
               <Card
                 key={lucrare.id}
-                className="overflow-hidden cursor-pointer hover:shadow-md"
+                className={`overflow-hidden cursor-pointer hover:shadow-md ${getRowClassName(lucrare)}`}
                 onClick={() => handleViewDetails(lucrare)}
               >
                 <CardContent className="p-0">
@@ -1451,17 +1497,3 @@ export default function Lucrari() {
     </DashboardShell>
   )
 }
-;<style jsx global>{`
-  .data-table tbody tr {
-    cursor: pointer;
-  }
-  .data-table tbody tr:hover {
-    background-color: rgba(0, 0, 0, 0.04);
-  }
-  .data-table tbody tr:nth-child(even) {
-    background-color: #f2f2f2;
-  }
-  .data-table tbody tr:nth-child(odd) {
-    background-color: #ffffff;
-  }
-`}</style>

@@ -23,7 +23,8 @@ interface DataTableProps<TData, TValue> {
   onRowClick?: (row: TData) => void
   table?: any
   setTable?: (table: any) => void
-  showFilters?: boolean // Adăugăm acest prop
+  showFilters?: boolean
+  getRowClassName?: (row: TData) => string // Adăugăm această proprietate pentru a permite colorarea rândurilor
 }
 
 export function DataTable<TData, TValue>({
@@ -33,7 +34,8 @@ export function DataTable<TData, TValue>({
   onRowClick,
   table: externalTable,
   setTable: setExternalTable,
-  showFilters = true, // Valoarea implicită este true
+  showFilters = true,
+  getRowClassName,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>(defaultSort ? [defaultSort] : [])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
@@ -232,13 +234,13 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="space-y-4 w-full overflow-x-auto">
-      <div className="rounded-md border data-table">
-        <Table className="data-table">
+      <div className="rounded-md border">
+        <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
+              <TableRow key={headerGroup.id} className="bg-gray-100">
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} className="whitespace-nowrap">
+                  <TableHead key={header.id} className="whitespace-nowrap font-bold">
                     {header.isPlaceholder ? null : (
                       <div
                         className={
@@ -260,17 +262,31 @@ export function DataTable<TData, TValue>({
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                  onClick={() => onRowClick && onRowClick(row.original)}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
-                  ))}
-                </TableRow>
-              ))
+              table.getRowModel().rows.map((row, index) => {
+                // Determinăm clasa pentru rând în funcție de status sau index
+                let rowClass = index % 2 === 0 ? "bg-white" : "bg-gray-50"
+
+                // Dacă avem o funcție pentru a determina clasa rândului, o folosim
+                if (getRowClassName) {
+                  const customClass = getRowClassName(row.original)
+                  if (customClass) {
+                    rowClass = customClass
+                  }
+                }
+
+                return (
+                  <TableRow
+                    key={row.id}
+                    data-state={row.getIsSelected() && "selected"}
+                    onClick={() => onRowClick && onRowClick(row.original)}
+                    className={`${rowClass} hover:bg-gray-100 cursor-pointer transition-colors`}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                    ))}
+                  </TableRow>
+                )
+              })
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
