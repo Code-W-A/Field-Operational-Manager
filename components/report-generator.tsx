@@ -194,9 +194,18 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const clientName = normalize(lucrare.client || "-")
       const clientCUI = normalize(clientInfo.cui || "-")
       const clientRC = normalize(clientInfo.rc || "-")
-      const clientAddress = normalize(lucrare.locatie || clientInfo.adresa || "-")
+      const clientAddress = normalize(clientInfo.adresa || "-")
       const clientBank = normalize(clientInfo.banca || "-")
       const clientAccount = normalize(clientInfo.cont || "-")
+
+      // Adăugăm informații despre locația intervenției
+      const locationName = normalize(lucrare.locatie || "-")
+      const locationAddress = normalize(clientInfo.locationAddress || "-")
+      const fullLocationAddress = locationAddress !== "-" ? `${locationName}, ${locationAddress}` : locationName
+
+      // Generăm link-ul pentru navigare
+      const encodedAddress = encodeURIComponent(fullLocationAddress)
+      const navigationLink = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`
 
       // Draw beneficiar box with complete client information
       drawBox(
@@ -206,8 +215,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           `CUI: ${clientCUI}`,
           `R.C.: ${clientRC}`,
           `Adresa: ${clientAddress}`,
-          `Banca: ${clientBank}`,
-          `Cont: ${clientAccount}`,
+          `Locație intervenție: ${fullLocationAddress}`,
+          `Navigare: ${navigationLink}`,
         ],
         boxW,
         boxH,

@@ -66,6 +66,17 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                 if (locatie) {
                   console.log("Locație găsită:", locatie.nume, "Adresă:", locatie.adresa)
                   setLocationAddress(locatie.adresa)
+
+                  // Actualizăm lucrarea cu ID-ul clientului și adresa locației pentru a le folosi în raport
+                  await updateLucrare(params.id, {
+                    clientId: client.id,
+                    clientInfo: {
+                      ...data.clientInfo,
+                      cui: client.cif,
+                      adresa: client.adresa,
+                      locationAddress: locatie.adresa,
+                    },
+                  })
                 } else {
                   console.log("Locația nu a fost găsită în lista de locații a clientului")
                 }
