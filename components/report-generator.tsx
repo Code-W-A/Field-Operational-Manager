@@ -201,7 +201,9 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // Adăugăm informații despre locația intervenției
       const locationName = normalize(lucrare.locatie || "-")
       const locationAddress = normalize(clientInfo.locationAddress || "-")
-      const fullLocationAddress = locationAddress !== "-" ? `${locationName}, ${locationAddress}` : locationName
+        const fullLocationAddressRaw =
+          locationAddress !== "-" ? `${locationName}, ${locationAddress}` : locationName;
+        const fullLocationAddress = normalize(fullLocationAddressRaw);
 
       // Generăm link-ul pentru navigare
       const encodedAddress = encodeURIComponent(fullLocationAddress)
@@ -215,7 +217,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           `CUI: ${clientCUI}`,
           `R.C.: ${clientRC}`,
           `Adresa: ${clientAddress}`,
-          `Locație intervenție: ${fullLocationAddress}`,
+          `Locatie interventie: ${fullLocationAddress}`,
         ],
         boxW,
         boxH,
@@ -532,7 +534,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           console.error("Error adding technician signature:", err)
           // Adăugăm un text alternativ dacă semnătura nu poate fi încărcată
           doc.setFontSize(8).setFont(undefined, "italic").setTextColor(100)
-          doc.text("Semnătură lipsă", M + signatureWidth / 2, currentY + signatureHeight / 2, { align: "center" })
+          doc.text("Semnatura lipsa", M + signatureWidth / 2, currentY + signatureHeight / 2, { align: "center" })
         }
       } else {
         // Adăugăm un text alternativ dacă semnătura nu există
