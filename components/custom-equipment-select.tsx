@@ -68,7 +68,9 @@ export function CustomEquipmentSelect({
     }
   }, [open])
 
-  // Actualizăm echipamentul selectat când se schimbă valoarea sau lista de echipamente
+  // Modificăm efectul pentru a prioritiza selecția după nume când nu există un ID valid
+  // Înlocuim efectul de la linia ~70 cu această versiune îmbunătățită:
+
   useEffect(() => {
     console.log("CustomEquipmentSelect - value changed:", value)
     console.log("CustomEquipmentSelect - equipments:", equipments)
@@ -133,6 +135,38 @@ export function CustomEquipmentSelect({
       setSelectedEquipment(null)
     }
   }, [value, equipments, fallbackName, fallbackUsed, onSelect, selectedEquipment, manuallySelected])
+
+  // Adăugăm un nou efect pentru a prioritiza selecția după nume
+  // Adăugăm acest efect după efectul de mai sus:
+
+  // Efect special pentru a prioritiza selecția după nume când echipamentele se încarcă
+  useEffect(() => {
+    // Verificăm dacă avem echipamente și un nume de echipament, dar nu avem un echipament selectat
+    if (equipments.length > 0 && fallbackName && !selectedEquipment && !fallbackUsed) {
+      console.log("CustomEquipmentSelect - Prioritizing selection by name:", fallbackName)
+
+      // Căutăm echipamentul după nume exact
+      let equipmentByName = equipments.find((e) => e.nume === fallbackName)
+
+      // Dacă nu găsim o potrivire exactă, încercăm o potrivire parțială (case insensitive)
+      if (!equipmentByName) {
+        const fallbackNameLower = fallbackName.toLowerCase()
+        equipmentByName = equipments.find(
+          (e) => e.nume.toLowerCase().includes(fallbackNameLower) || fallbackNameLower.includes(e.nume.toLowerCase()),
+        )
+      }
+
+      if (equipmentByName) {
+        console.log("CustomEquipmentSelect - Found equipment by name match:", equipmentByName)
+        setSelectedEquipment(equipmentByName)
+        // Notificăm componenta părinte despre selecție
+        onSelect(equipmentByName.id || "", equipmentByName)
+        setFallbackUsed(true)
+      } else {
+        console.log("CustomEquipmentSelect - No equipment found matching name:", fallbackName)
+      }
+    }
+  }, [equipments, fallbackName, selectedEquipment, fallbackUsed, onSelect])
 
   // Funcție pentru a gestiona selecția unui echipament
   const handleEquipmentSelect = (equipment: Echipament) => {
