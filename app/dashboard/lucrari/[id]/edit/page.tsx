@@ -77,8 +77,10 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
   useEffect(() => {
     const fetchLucrare = async () => {
       try {
+        setIsLoading(true)
         const lucrare = await getLucrareById(id)
         if (lucrare) {
+          console.log("Lucrare încărcată pentru editare:", lucrare)
           setInitialData(lucrare)
 
           // Set dates
@@ -103,14 +105,20 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
             statusFacturare: lucrare.statusFacturare || "Nefacturat",
             contract: lucrare.contract || "",
             contractNumber: lucrare.contractNumber || "",
-            contractType: lucrare.contractType || "", // Adăugăm tipul contractului
+            contractType: lucrare.contractType || "",
             defectReclamat: lucrare.defectReclamat || "",
             persoaneContact: lucrare.persoaneContact || [],
             echipamentId: lucrare.echipamentId || "",
             echipamentCod: lucrare.echipamentCod || "",
           })
+
+          // Adăugăm un log pentru debugging
+          console.log("Persoane de contact încărcate:", lucrare.persoaneContact)
+          console.log("Persoană de contact principală:", lucrare.persoanaContact)
+          console.log("Telefon:", lucrare.telefon)
         }
         setLoading(false)
+        setIsLoading(false)
       } catch (error) {
         console.error("Eroare la încărcarea lucrării:", error)
         toast({
@@ -119,6 +127,7 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
           variant: "destructive",
         })
         setLoading(false)
+        setIsLoading(false)
       }
     }
 

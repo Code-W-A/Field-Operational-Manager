@@ -991,13 +991,107 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       }
     }, [selectedLocatie, handleCustomChange])
 
+    // Modificăm efectul pentru a încărca persoanele de contact când se încarcă datele inițiale
+    // Înlocuim efectul existent de la linia ~700 cu această versiune îmbunătățită:
+
     // Adăugăm un efect pentru a actualiza starea când se încarcă datele inițiale
     useEffect(() => {
-      if (initialData && initialData.persoaneContact && initialData.persoaneContact.length > 0) {
-        setPersoaneContact(initialData.persoaneContact)
-        setShowContactAccordion(true)
+      if (initialData) {
+        console.log("Încărcare date inițiale pentru persoanele de contact:", initialData)
+
+        // Verificăm dacă avem persoane de contact în datele inițiale
+        if (initialData.persoaneContact && initialData.persoaneContact.length > 0) {
+          console.log("Persoane de contact găsite în datele inițiale:", initialData.persoaneContact)
+          setPersoaneContact(initialData.persoaneContact)
+          setShowContactAccordion(true)
+        } else {
+          // Dacă nu avem persoane de contact în datele inițiale, dar avem persoanaContact și telefon,
+          // creăm o persoană de contact implicită
+          if (initialData.persoanaContact && initialData.telefon) {
+            console.log("Creăm persoană de contact implicită din datele inițiale")
+            const defaultContact: PersoanaContact = {
+              nume: initialData.persoanaContact,
+              telefon: initialData.telefon,
+              email: "",
+              functie: "",
+            }
+            setPersoaneContact([defaultContact])
+
+            // Actualizăm și formData dacă este necesar
+            if (handleCustomChange && (!formData.persoaneContact || formData.persoaneContact.length === 0)) {
+              handleCustomChange("persoaneContact", [defaultContact])
+            }
+
+            setShowContactAccordion(true)
+          }
+        }
+
+        // Forțăm afișarea acordeonului în modul de editare
+        if (isEdit) {
+          setShowContactAccordion(true)
+        }
       }
-    }, [initialData])
+    }, [initialData, handleCustomChange, formData.persoaneContact, isEdit])
+
+    // Adăugăm un nou efect pentru a forța încărcarea persoanelor de contact când se încarcă locația
+    // Adăugați acest efect după efectul de mai sus:
+
+    // Efect pentru a forța încărcarea persoanelor de contact când se încarcă locația
+    useEffect(() => {
+      if (selectedClient && formData.locatie && isEdit) {
+        console.log("Forțăm încărcarea persoanelor de contact pentru locația:", formData.locatie)
+
+        const locatie = selectedClient.locatii?.find((loc) => loc.nume === formData.locatie)
+
+        if (locatie) {
+          console.log("Locație găsită pentru încărcarea persoanelor de contact:", locatie)
+
+          if (locatie.persoaneContact && locatie.persoaneContact.length > 0) {
+            console.log("Persoane de contact găsite în locație:", locatie.persoaneContact)
+            setPersoaneContact(locatie.persoaneContact)
+
+            // Actualizăm și formData dacă este necesar
+            if (handleCustomChange && (!formData.persoaneContact || formData.persoaneContact.length === 0)) {
+              handleCustomChange("persoaneContact", locatie.persoaneContact)
+            }
+
+            // Dacă nu avem persoanaContact și telefon setate, le setăm cu prima persoană de contact
+            if ((!formData.persoanaContact || !formData.telefon) && locatie.persoaneContact.length > 0) {
+              const primaryContact = locatie.persoaneContact[0]
+              handleSelectChange("persoanaContact", primaryContact.nume || "")
+              handleSelectChange("telefon", primaryContact.telefon || "")
+            }
+          } else if (formData.persoanaContact && formData.telefon) {
+            // Dacă nu avem persoane de contact în locație, dar avem persoanaContact și telefon în formData,
+            // creăm o persoană de contact implicită
+            console.log("Creăm persoană de contact implicită din formData")
+            const defaultContact: PersoanaContact = {
+              nume: formData.persoanaContact,
+              telefon: formData.telefon,
+              email: "",
+              functie: "",
+            }
+            setPersoaneContact([defaultContact])
+
+            // Actualizăm și formData dacă este necesar
+            if (handleCustomChange && (!formData.persoaneContact || formData.persoaneContact.length === 0)) {
+              handleCustomChange("persoaneContact", [defaultContact])
+            }
+          }
+
+          // Forțăm afișarea acordeonului
+          setShowContactAccordion(true)
+        }
+      }
+    }, [
+      selectedClient,
+      formData.locatie,
+      isEdit,
+      formData.persoanaContact,
+      formData.telefon,
+      handleCustomChange,
+      handleSelectChange,
+    ])
 
     // Adăugăm un efect pentru a afișa erori de încărcare a clienților
     useEffect(() => {
