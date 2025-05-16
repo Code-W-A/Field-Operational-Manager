@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { format, parse, isAfter, isBefore } from "date-fns"
-import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check, FileCheck } from "lucide-react"
+import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { addLucrare, deleteLucrare, updateLucrare, getLucrareById } from "@/lib/firebase/firestore"
@@ -136,12 +136,7 @@ export default function Lucrari() {
   // Filtrăm lucrările pentru tehnicieni
   const filteredLucrari = useMemo(() => {
     if (userData?.role === "tehnician" && userData?.displayName) {
-      // Filtrăm lucrările astfel încât tehnicianul să vadă doar lucrările care:
-      // 1. Sunt asignate lui
-      // 2. NU au raport generat (hasGeneratedReport !== true)
-      return lucrari.filter(
-        (lucrare) => lucrare.tehnicieni.includes(userData.displayName) && !lucrare.hasGeneratedReport,
-      )
+      return lucrari.filter((lucrare) => lucrare.tehnicieni.includes(userData.displayName))
     }
     return lucrari
   }, [lucrari, userData?.role, userData?.displayName])
@@ -192,12 +187,6 @@ export default function Lucrari() {
         label: status,
       }),
     )
-
-    // Adăugăm opțiune pentru filtrarea după raport generat
-    const hasReportOptions = [
-      { value: "true", label: "Cu raport generat" },
-      { value: "false", label: "Fără raport generat" },
-    ]
 
     return [
       {
@@ -254,17 +243,10 @@ export default function Lucrari() {
         options: statusuriFacturare,
         value: [],
       },
-      {
-        id: "hasGeneratedReport",
-        label: "Raport generat",
-        type: "multiselect",
-        options: hasReportOptions,
-        value: [],
-      },
     ]
   }, [filteredLucrari, tehnicieni])
 
-  // Modificăm funcția applyFilters pentru a gestiona filtrarea după echipament și raport generat
+  // Modificăm funcția applyFilters pentru a gestiona filtrarea după echipament
   const applyFilters = useCallback(
     (data) => {
       if (!activeFilters.length) return data
@@ -334,16 +316,6 @@ export default function Lucrari() {
             case "locatie":
               // Filtrare după echipament
               return filter.value.includes(item.locatie)
-
-            case "hasGeneratedReport":
-              // Filtrare după raport generat
-              if (filter.value.includes("true")) {
-                return item.hasGeneratedReport === true
-              }
-              if (filter.value.includes("false")) {
-                return !item.hasGeneratedReport
-              }
-              return true
 
             default:
               // Pentru filtrele multiselect (tipLucrare, client, statusLucrare, statusFacturare)
@@ -915,11 +887,6 @@ export default function Lucrari() {
 
   // Funcție pentru a determina clasa CSS a rândului în funcție de statusul lucrării
   const getRowClassName = (lucrare) => {
-    // Dacă lucrarea are raport generat, adăugăm o clasă specială
-    if (lucrare.hasGeneratedReport) {
-      return "bg-green-50 border-l-4 border-green-500"
-    }
-
     switch (lucrare.statusLucrare?.toLowerCase()) {
       case "listată":
         return "bg-gray-50"
@@ -1060,15 +1027,7 @@ export default function Lucrari() {
       enableHiding: true,
       enableFiltering: true,
       cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <Badge className={getStatusColor(row.original.statusLucrare)}>{row.original.statusLucrare}</Badge>
-          {row.original.hasGeneratedReport && (
-            <Badge className="bg-green-100 text-green-800 hover:bg-green-200 flex items-center gap-1">
-              <FileCheck className="h-3 w-3" />
-              Raport
-            </Badge>
-          )}
-        </div>
+        <Badge className={getStatusColor(row.original.statusLucrare)}>{row.original.statusLucrare}</Badge>
       ),
     },
     {
@@ -1304,12 +1263,6 @@ export default function Lucrari() {
             <div className="w-4 h-4 mr-1 bg-orange-50 border border-orange-200 rounded"></div>
             <span className="text-xs">În așteptare</span>
           </div>
-          <div className="flex items-center">
-            <div className="w-4 h-4 mr-1 bg-green-50 border-l-4 border-green-500 rounded"></div>
-            <span className="text-xs flex items-center gap-1">
-              <FileCheck className="h-3 w-3" /> Cu raport generat
-            </span>
-          </div>
         </div>
       </div>
 
@@ -1406,15 +1359,7 @@ export default function Lucrari() {
                         )}
                       </p>
                     </div>
-                    <div className="flex flex-col gap-1">
-                      <Badge className={getStatusColor(lucrare.statusLucrare)}>{lucrare.statusLucrare}</Badge>
-                      {lucrare.hasGeneratedReport && (
-                        <Badge className="bg-green-100 text-green-800 hover:bg-green-200 flex items-center gap-1">
-                          <FileCheck className="h-3 w-3" />
-                          Raport
-                        </Badge>
-                      )}
-                    </div>
+                    <Badge className={getStatusColor(lucrare.statusLucrare)}>{lucrare.statusLucrare}</Badge>
                   </div>
                   <div className="p-4">
                     <div className="mb-4 space-y-2">

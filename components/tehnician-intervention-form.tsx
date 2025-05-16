@@ -206,6 +206,3 @@ export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: 
     </div>
   )
 }
-
-// Adăugăm acest export pentru compatibilitate
-export const TehnicieniInterventionForm = TehnicianInterventionForm

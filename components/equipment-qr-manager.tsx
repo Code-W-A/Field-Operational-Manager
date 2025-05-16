@@ -86,6 +86,3 @@ const EquipmentQrManager: React.FC<EquipmentQrManagerProps> = ({ findEquipmentBy
 }
 
 export default EquipmentQrManager
-
-// Adăugăm acest export pentru compatibilitate
-export const EquipmentQRManager = EquipmentQrManager
