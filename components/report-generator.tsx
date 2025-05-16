@@ -145,11 +145,24 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         x: number,
         titleBold = true,
       ) => {
-        // Check if we need a new page
-        const estimatedHeight = boxHeight || Math.max(36, lines.length * 5 + 15) // Înălțime minimă sau bazată pe numărul de linii
-        checkPageBreak(estimatedHeight + 5)
+        // Procesăm fiecare linie pentru a o împărți dacă este prea lungă
+        const processedLines: string[][] = []
+        let totalLines = 0
+
+        lines.forEach((line) => {
+          // Împărțim textul pe mai multe linii dacă este prea lung
+          const splitLines = doc.splitTextToSize(line, boxWidth - 6) // Reducem lățimea pentru margini
+          processedLines.push(splitLines)
+          totalLines += splitLines.length
+        })
 
         // Calculăm înălțimea reală a box-ului bazată pe conținut dacă nu este specificată
+        const estimatedHeight = boxHeight || Math.max(36, totalLines * 5 + 15) // Înălțime minimă sau bazată pe numărul total de linii
+
+        // Check if we need a new page
+        checkPageBreak(estimatedHeight + 5)
+
+        // Folosim înălțimea calculată sau cea specificată
         const actualBoxHeight = boxHeight || estimatedHeight
 
         doc.setDrawColor(60).setFillColor(LIGHT_GRAY).setLineWidth(STROKE)
@@ -162,34 +175,25 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           .text(title, x + boxWidth / 2, currentY + 6, { align: "center" })
 
         doc.setFontSize(8).setFont(undefined, "normal").setTextColor(20)
-        lines.forEach((txt, i) => {
-          const yy = currentY + 10 + i * 5
 
-          // Verificăm dacă textul este prea lung pentru lățimea box-ului
-          const textLines = doc.splitTextToSize(txt, boxWidth - 6)
+        // Desenăm fiecare linie procesată
+        let currentLineY = currentY + 10
 
-          // Dacă textul are mai multe linii, le desenăm pe fiecare
-          if (textLines.length > 1) {
-            textLines.forEach((line: string, lineIndex: number) => {
-              const lineY = yy + lineIndex * 4
-              doc.text(line, x + 3, lineY)
+        processedLines.forEach((lineGroup, groupIndex) => {
+          lineGroup.forEach((line, lineIndex) => {
+            // Desenăm textul
+            doc.text(line, x + 3, currentLineY)
 
-              // Desenăm linia de subliniere doar pentru ultima linie a textului
-              if (lineIndex === textLines.length - 1) {
-                doc
-                  .setDrawColor(200)
-                  .setLineWidth(0.15)
-                  .line(x + 3, lineY + 1.5, x + boxWidth - 3, lineY + 1.5)
-              }
-            })
-          } else {
-            // Pentru textele simple, desenăm ca înainte
-            doc.text(txt, x + 3, yy)
-            doc
-              .setDrawColor(200)
-              .setLineWidth(0.15)
-              .line(x + 3, yy + 1.5, x + boxWidth - 3, yy + 1.5)
-          }
+            // Desenăm linia de subliniere doar pentru ultima linie din grup
+            if (lineIndex === lineGroup.length - 1) {
+              doc
+                .setDrawColor(200)
+                .setLineWidth(0.15)
+                .line(x + 3, currentLineY + 1.5, x + boxWidth - 3, currentLineY + 1.5)
+            }
+
+            currentLineY += 5 // Incrementăm poziția Y pentru următoarea linie
+          })
         })
 
         return actualBoxHeight // Returnăm înălțimea reală folosită
@@ -224,18 +228,18 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const clientBank = normalize(clientInfo.banca || "-")
       const clientAccount = normalize(clientInfo.cont || "-")
 
-      // Adăugăm informații despre locația intervenției
+      // Adăugăm informații despre locația intervenției - cu normalizare corectă
       const locationName = normalize(lucrare.locatie || "-")
       const locationAddress = normalize(clientInfo.locationAddress || "-")
       const fullLocationAddress = locationAddress !== "-" ? `${locationName}, ${locationAddress}` : locationName
 
       // Pregătim liniile pentru caseta beneficiarului - fără R.C.
-      const beneficiaryLines = [
-        clientName,
-        `CUI: ${clientCUI}`,
-        `Adresa: ${clientAddress}`,
-        `Locație intervenție: ${fullLocationAddress}`,
-      ]
+      const beneficiaryLines = [clientName, `CUI: ${clientCUI}`, `Adresa: ${clientAddress}`]
+
+      // Adăugăm locația intervenției ca linie separată pentru a asigura spațiu suficient
+      if (fullLocationAddress !== "-") {
+        beneficiaryLines.push(`Locație intervenție: ${fullLocationAddress}`)
+      }
 
       // Desenăm caseta beneficiarului cu înălțime dinamică (null pentru calcul automat)
       const actualBeneficiaryBoxHeight = drawBox(
