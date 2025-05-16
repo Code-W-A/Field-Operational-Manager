@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/components/ui/use-toast"
-import { ChevronLeft, FileText, Pencil, Trash2, AlertCircle, CheckCircle, Lock, MapPin } from "lucide-react"
+import { ChevronLeft, FileText, Pencil, Trash2, AlertCircle, CheckCircle, Lock, MapPin, Phone } from "lucide-react"
 import { getLucrareById, deleteLucrare, updateLucrare, getClienti } from "@/lib/firebase/firestore"
 import { TehnicianInterventionForm } from "@/components/tehnician-intervention-form"
 import { useAuth } from "@/contexts/AuthContext"
@@ -225,6 +225,12 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
       })
     }
   })
+
+  // Funcție pentru formatarea numărului de telefon pentru apelare
+  const formatPhoneForCall = (phone: string) => {
+    // Eliminăm toate caracterele non-numerice
+    return phone.replace(/\D/g, "")
+  }
 
   if (loading) {
     return (
@@ -460,7 +466,17 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                 </div>
                 <div>
                   <p className="text-sm font-medium">Telefon:</p>
-                  <p className="text-sm text-gray-500">{lucrare.telefon}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-gray-500">{lucrare.telefon}</p>
+                    <a
+                      href={`tel:${formatPhoneForCall(lucrare.telefon)}`}
+                      className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-green-500 text-white hover:bg-green-600 transition-colors"
+                      aria-label={`Apelează ${lucrare.persoanaContact}`}
+                      title={`Apelează ${lucrare.persoanaContact}`}
+                    >
+                      <Phone className="h-4 w-4" />
+                    </a>
+                  </div>
                 </div>
                 <Separator />
                 <div>
