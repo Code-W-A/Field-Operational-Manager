@@ -18,11 +18,13 @@
 import { useState, forwardRef, useEffect } from "react"
 import { jsPDF } from "jspdf"
 import { Button } from "@/components/ui/button"
-import { Download } from "lucide-react"
+import { Download, CheckCircle2 } from "lucide-react"
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { useStableCallback } from "@/lib/utils/hooks"
-import { toast } from "@/components/ui/use-toast"
 import { ProductTableForm, type Product } from "./product-table-form"
+import { markLucrareAsReportGenerated } from "@/lib/firebase/firestore"
+import { useRouter } from "next/navigation"
+import { useToast } from "@/components/ui/use-toast"
 
 interface ReportGeneratorProps {
   lucrare: Lucrare
@@ -45,11 +47,15 @@ const LIGHT_GRAY = 240 // fill shade (lighter)
 const DARK_GRAY = 210 // darker fill for headers
 
 export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProps>(({ lucrare, onGenerate }, ref) => {
+  const router = useRouter()
+  const { toast } = useToast()
   const [isGen, setIsGen] = useState(false)
+  const [isFinishing, setIsFinishing] = useState(false)
   const [products, setProducts] = useState<Product[]>(lucrare?.products || [])
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null)
   const [logoLoaded, setLogoLoaded] = useState(false)
   const [logoError, setLogoError] = useState(false)
+  const [reportGenerated, setReportGenerated] = useState(false)
 
   // Debug logging
   useEffect(() => {
@@ -60,6 +66,13 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       client: lucrare?.client,
       clientInfo: lucrare?.clientInfo,
     })
+  }, [lucrare])
+
+  // Verificăm dacă lucrarea are deja raport generat
+  useEffect(() => {
+    if (lucrare?.hasGeneratedReport) {
+      setReportGenerated(true)
+    }
   }, [lucrare])
 
   // Preload the logo image and convert to data URL
@@ -114,6 +127,43 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       setLogoLoaded(true)
     }
   }, [])
+
+  // Funcție pentru finalizarea lucrării și transferul către dispecer
+  const finalizeWorkOrder = async () => {
+    //if (!lucrare || !currentUser) return;
+
+    try {
+      setIsFinishing(true)
+
+      // Actualizează lucrarea cu informațiile de finalizare
+      // await updateDoc(doc(db, 'lucrari', lucrare.id), {
+      //   raportGenerat: true,
+      //   dataFinalizare: serverTimestamp(),
+      //   finalizataDe: currentUser.uid,
+      //   status: 'Finalizată', // Actualizează statusul
+      //   // Transferă lucrarea către dispeceri (nu mai este asignată tehnicianului)
+      //   asignatTo: null
+      // });
+
+      toast({
+        title: "Lucrare finalizată",
+        description: "Lucrarea a fost marcată ca finalizată și transferată către dispecer.",
+        variant: "success",
+      })
+
+      // Redirecționează către lista de lucrări
+      router.push("/dashboard/lucrari")
+    } catch (error) {
+      console.error("Eroare la finalizarea lucrării:", error)
+      toast({
+        title: "Eroare",
+        description: "A apărut o eroare la finalizarea lucrării.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsFinishing(false)
+    }
+  }
 
   const generatePDF = useStableCallback(async () => {
     if (!lucrare) return
@@ -201,9 +251,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // Adăugăm informații despre locația intervenției
       const locationName = normalize(lucrare.locatie || "-")
       const locationAddress = normalize(clientInfo.locationAddress || "-")
-        const fullLocationAddressRaw =
-          locationAddress !== "-" ? `${locationName}, ${locationAddress}` : locationName;
-        const fullLocationAddress = normalize(fullLocationAddressRaw);
+      const fullLocationAddressRaw = locationAddress !== "-" ? `${locationName}, ${locationAddress}` : locationName
+      const fullLocationAddress = normalize(fullLocationAddressRaw)
 
       // Generăm link-ul pentru navigare
       const encodedAddress = encodeURIComponent(fullLocationAddress)
@@ -559,7 +608,6 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         doc.text("Semnătură lipsă", M + W / 2 + signatureWidth / 2, currentY + signatureHeight / 2, { align: "center" })
       }
 
-
       // Footer
       currentY = PH - M - 5
       doc
@@ -573,6 +621,10 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       doc.save(`Raport_${lucrare.id}.pdf`)
       onGenerate?.(blob)
       toast({ title: "PDF generat!", description: "Descărcare completă." })
+
+      // Setăm starea pentru a indica că raportul a fost generat
+      setReportGenerated(true)
+
       return blob
     } catch (e) {
       console.error(e)
@@ -581,6 +633,48 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       setIsGen(false)
     }
   })
+
+  // Funcție pentru a marca lucrarea ca finalizată și a o transfera către dispecer
+  const handleFinishAndTransfer = async () => {
+    if (!lucrare?.id) return
+
+    try {
+      setIsFinishing(true)
+
+      // Verificăm dacă lucrarea are semnături
+      if (!lucrare.semnaturaTehnician || !lucrare.semnaturaBeneficiar) {
+        toast({
+          title: "Eroare",
+          description: "Lucrarea trebuie să aibă semnături înainte de a fi finalizată.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Marcăm lucrarea ca finalizată și o transferăm către dispecer
+      await markLucrareAsReportGenerated(lucrare.id)
+
+      toast({
+        title: "Succes!",
+        description: "Lucrarea a fost finalizată și transferată către dispecer.",
+        variant: "success",
+      })
+
+      // Redirecționăm către dashboard după finalizare
+      setTimeout(() => {
+        router.push("/dashboard/lucrari")
+      }, 2000)
+    } catch (error) {
+      console.error("Eroare la finalizarea lucrării:", error)
+      toast({
+        title: "Eroare",
+        description: "A apărut o eroare la finalizarea lucrării.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsFinishing(false)
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -598,11 +692,29 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         </div>
       )}
       <ProductTableForm products={products} onProductsChange={setProducts} />
-      <div className="flex justify-center mt-6">
+      <div className="flex flex-col sm:flex-row justify-center gap-4 mt-6">
         <Button ref={ref} onClick={generatePDF} disabled={isGen} className="gap-2">
           <Download className="h-4 w-4" />
           {isGen ? "În curs..." : "Descarcă PDF"}
         </Button>
+
+        {!reportGenerated && lucrare.statusLucrare !== "Finalizată" && (
+          <Button
+            onClick={handleFinishAndTransfer}
+            disabled={isFinishing || !lucrare.semnaturaTehnician || !lucrare.semnaturaBeneficiar}
+            className="gap-2 bg-green-600 hover:bg-green-700"
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            {isFinishing ? "Se procesează..." : "Finalizează și transferă către dispecer"}
+          </Button>
+        )}
+
+        {reportGenerated && (
+          <div className="flex items-center justify-center px-4 py-2 rounded-md bg-green-50 border border-green-200 text-green-700">
+            <CheckCircle2 className="h-4 w-4 mr-2" />
+            Raport generat și transferat către dispecer
+          </div>
+        )}
       </div>
     </div>
   )

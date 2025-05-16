@@ -21,6 +21,8 @@ import { toast } from "@/components/ui/use-toast"
 // Remove the autotable import since it's causing issues
 // import 'jspdf-autotable'
 import { ReportGenerator } from "@/components/report-generator"
+import { updateDoc, doc } from "firebase/firestore"
+import { db } from "@/lib/firebase/firebase"
 
 export default function RaportPage({ params }: { params: { id: string } }) {
   const SIG_HEIGHT = 160 // px – lasă-l fix
@@ -424,6 +426,20 @@ export default function RaportPage({ params }: { params: { id: string } }) {
     console.log("Button clicked directly")
     handleSubmit()
   }, [handleSubmit])
+
+  const handleGenerateReport = async () => {
+    if (reportGeneratorRef.current) {
+      reportGeneratorRef.current.click()
+    }
+    // După generarea cu succes a raportului, actualizează lucrarea
+    try {
+      await updateDoc(doc(db, "lucrari", params.id as string), {
+        raportGenerat: true,
+      })
+    } catch (error) {
+      console.error("Eroare la actualizarea stării lucrării:", error)
+    }
+  }
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">

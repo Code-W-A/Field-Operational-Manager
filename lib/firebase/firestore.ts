@@ -62,6 +62,13 @@ export interface Lucrare {
   updatedBy?: string
   // Add new field for all contact persons
   persoaneContact?: PersoanaContact[]
+  // Câmpuri pentru raport generat
+  hasGeneratedReport?: boolean
+  reportGeneratedAt?: string
+  reportGeneratedBy?: string
+  transferredToDispatcher?: boolean
+  transferredAt?: string
+  transferredBy?: string
 }
 
 // Adăugăm interfața pentru persoanele de contact
@@ -407,6 +414,30 @@ export const updateLucrare = async (id: string, lucrare: Partial<Lucrare>): Prom
 
 export const deleteLucrare = async (id: string): Promise<void> => {
   return deleteDocument("lucrari", id)
+}
+
+// Funcție pentru a marca o lucrare ca având raport generat
+export const markLucrareAsReportGenerated = async (id: string): Promise<void> => {
+  const user = auth.currentUser
+  const userName = user?.displayName || user?.email || "Sistem"
+
+  await updateLucrare(id, {
+    hasGeneratedReport: true,
+    reportGeneratedAt: new Date().toISOString(),
+    reportGeneratedBy: userName,
+    statusLucrare: "Finalizată",
+    transferredToDispatcher: true,
+    transferredAt: new Date().toISOString(),
+    transferredBy: userName,
+  })
+
+  // Adăugăm un log pentru acțiunea de generare raport
+  await addLog(
+    "Raport generat",
+    `Utilizatorul ${userName} a generat raport pentru lucrare și a transferat-o către dispecer`,
+    "Informație",
+    "Lucrare",
+  )
 }
 
 // Funcții specifice pentru clienți

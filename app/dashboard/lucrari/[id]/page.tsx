@@ -29,31 +29,57 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
   const [activeTab, setActiveTab] = useState("detalii")
   const [equipmentVerified, setEquipmentVerified] = useState(false)
   const [locationAddress, setLocationAddress] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+
+  // Extrage id și currentUser din context
+  const id = params.id
+  const currentUser = userData
 
   // Încărcăm datele lucrării și adresa locației
   useEffect(() => {
     const fetchLucrareAndLocationAddress = async () => {
+      if (!id || !currentUser) return
+
       try {
-        // Obținem datele lucrării
-        const data = await getLucrareById(params.id)
-        setLucrare(data)
+        setIsLoading(true)
+        const lucrareData = await getLucrareById(id as string)
+
+        // Verifică dacă tehnicianul are acces la lucrarea finalizată
+        if (currentUser.role === "tehnician" && lucrareData.raportGenerat && lucrareData.dataFinalizare) {
+          // Redirecționează tehnicianul către lista de lucrări
+          toast({
+            title: "Acces restricționat",
+            description: "Nu mai aveți acces la această lucrare deoarece a fost finalizată.",
+            variant: "destructive",
+          })
+          router.push("/dashboard/lucrari")
+          return
+        }
+
+        setLucrare(lucrareData)
 
         // Verificăm dacă echipamentul a fost deja verificat
-        if (data?.equipmentVerified) {
+        if (lucrareData?.equipmentVerified) {
           setEquipmentVerified(true)
         }
 
         // Obținem adresa locației
-        if (data?.client && data?.locatie) {
+        if (lucrareData?.client && lucrareData?.locatie) {
           try {
-            console.log("Încercăm să obținem adresa pentru locația:", data.locatie, "a clientului:", data.client)
+            console.log(
+              "Încercăm să obținem adresa pentru locația:",
+              lucrareData.locatie,
+              "a clientului:",
+              lucrareData.client,
+            )
 
             // Obținem toți clienții
             const clienti = await getClienti()
             console.log("Număr total de clienți:", clienti.length)
 
             // Găsim clientul după nume
-            const client = clienti.find((c) => c.nume === data.client)
+            const client = clienti.find((c) => c.nume === lucrareData.client)
 
             if (client) {
               console.log("Client găsit:", client.nume, "ID:", client.id)
@@ -61,7 +87,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
 
               if (client.locatii && client.locatii.length > 0) {
                 // Căutăm locația în lista de locații a clientului
-                const locatie = client.locatii.find((loc) => loc.nume === data.locatie)
+                const locatie = client.locatii.find((loc) => loc.nume === lucrareData.locatie)
 
                 if (locatie) {
                   console.log("Locație găsită:", locatie.nume, "Adresă:", locatie.adresa)
@@ -71,7 +97,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                   await updateLucrare(params.id, {
                     clientId: client.id,
                     clientInfo: {
-                      ...data.clientInfo,
+                      ...lucrareData.clientInfo,
                       cui: client.cif,
                       adresa: client.adresa,
                       locationAddress: locatie.adresa,
@@ -99,11 +125,12 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
         })
       } finally {
         setLoading(false)
+        setIsLoading(false)
       }
     }
 
     fetchLucrareAndLocationAddress()
-  }, [params.id])
+  }, [params.id, currentUser, router])
 
   // Verificăm dacă tehnicianul are acces la această lucrare
   useEffect(() => {
@@ -324,193 +351,208 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
         </TabsList>
 
         <TabsContent value="detalii" className="mt-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Detalii lucrare</CardTitle>
-                <CardDescription>Informații despre lucrare</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm font-medium">Data emiterii:</p>
-                    <p className="text-sm text-gray-500">{lucrare.dataEmiterii}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Data intervenție:</p>
-                    <p className="text-sm text-gray-500">{lucrare.dataInterventie}</p>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Tip lucrare:</p>
-                  <p className="text-sm text-gray-500">{lucrare.tipLucrare}</p>
-                </div>
-                {lucrare.tipLucrare === "Intervenție în contract" && (
-                  <div>
-                    <p className="text-sm font-medium">Contract:</p>
-                    <ContractDisplay contractId={lucrare.contract} />
-                  </div>
-                )}
-                {lucrare.defectReclamat && (
-                  <div>
-                    <p className="text-sm font-medium">Defect reclamat:</p>
-                    <p className="text-sm text-gray-500">{lucrare.defectReclamat}</p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm font-medium">Locație:</p>
-                  <div className="flex items-start">
-                    <div className="flex-grow">
-                      <p className="text-sm text-gray-500">{lucrare.locatie}</p>
-                      {locationAddress && (
-                        <div className="mt-1">
-                          <p className="text-xs italic text-gray-500 flex items-center mb-2">
-                            <MapPin className="h-3 w-3 mr-1 inline-block" />
-                            {locationAddress}
-                          </p>
-                          <div className="flex space-x-2 mt-2">
-                            <a
-                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lucrare.locatie}, ${locationAddress}`)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center justify-center px-3 py-1 text-xs bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
-                            >
-                              <MapPin className="h-3 w-3 mr-1 inline-block" />
-                              Google Maps
-                            </a>
-                            <a
-                              href={`https://waze.com/ul?q=${encodeURIComponent(`${lucrare.locatie}, ${locationAddress}`)}&navigate=yes`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center justify-center px-3 py-1 text-xs bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
-                            >
-                              <MapPin className="h-3 w-3 mr-1 inline-block" />
-                              Waze
-                            </a>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Echipament:</p>
-                  <p className="text-sm text-gray-500">
-                    {lucrare.echipament
-                      ? `${lucrare.echipament} (Cod: ${lucrare.echipamentCod || "N/A"})`
-                      : "Nespecificat"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Descriere:</p>
-                  <p className="text-sm text-gray-500">{lucrare.descriere || "Fără descriere"}</p>
-                </div>
-                {lucrare.constatareLaLocatie && (
-                  <div>
-                    <p className="text-sm font-medium">Constatare la locație:</p>
-                    <p className="text-sm text-gray-500">{lucrare.constatareLaLocatie}</p>
-                  </div>
-                )}
-                {lucrare.descriereInterventie && (
-                  <div>
-                    <p className="text-sm font-medium">Descriere intervenție:</p>
-                    <p className="text-sm text-gray-500">{lucrare.descriereInterventie}</p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm font-medium">Status lucrare:</p>
-                  <Badge
-                    variant={
-                      lucrare.statusLucrare.toLowerCase() === "în așteptare"
-                        ? "warning"
-                        : lucrare.statusLucrare.toLowerCase() === "în curs"
-                          ? "default"
-                          : "success"
-                    }
-                  >
-                    {lucrare.statusLucrare}
-                  </Badge>
-                </div>
-                {role !== "tehnician" && (
-                  <div>
-                    <p className="text-sm font-medium">Status facturare:</p>
-                    <Badge
-                      variant={
-                        lucrare.statusFacturare.toLowerCase() === "nefacturat"
-                          ? "outline"
-                          : lucrare.statusFacturare.toLowerCase() === "facturat"
-                            ? "default"
-                            : "success"
-                      }
-                    >
-                      {lucrare.statusFacturare}
-                    </Badge>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+          {lucrare && (
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <h1 className="text-2xl font-bold">Lucrare #{lucrare.numarComanda}</h1>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Informații client</CardTitle>
-                <CardDescription>Detalii despre client și persoana de contact</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <p className="text-sm font-medium">Client:</p>
-                  <p className="text-sm text-gray-500">{lucrare.client}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Persoană contact:</p>
-                  <p className="text-sm text-gray-500">{lucrare.persoanaContact}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Telefon:</p>
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm text-gray-500">{lucrare.telefon}</p>
-                    <a
-                      href={`tel:${formatPhoneForCall(lucrare.telefon)}`}
-                      className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-green-500 text-white hover:bg-green-600 transition-colors"
-                      aria-label={`Apelează ${lucrare.persoanaContact}`}
-                      title={`Apelează ${lucrare.persoanaContact}`}
-                    >
-                      <Phone className="h-4 w-4" />
-                    </a>
+                {lucrare.raportGenerat && lucrare.dataFinalizare && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-100 text-purple-800 rounded-md">
+                    <CheckCircle className="h-4 w-4" />
+                    <span className="font-medium">Lucrare finalizată cu raport generat</span>
                   </div>
-                </div>
-                <Separator />
-                <div>
-                  <p className="text-sm font-medium">Tehnicieni asignați:</p>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {lucrare.tehnicieni.map((tehnician, index) => (
-                      <Badge key={index} variant="secondary">
-                        {tehnician}
+                )}
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Detalii lucrare</CardTitle>
+                    <CardDescription>Informații despre lucrare</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm font-medium">Data emiterii:</p>
+                        <p className="text-sm text-gray-500">{lucrare.dataEmiterii}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">Data intervenție:</p>
+                        <p className="text-sm text-gray-500">{lucrare.dataInterventie}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Tip lucrare:</p>
+                      <p className="text-sm text-gray-500">{lucrare.tipLucrare}</p>
+                    </div>
+                    {lucrare.tipLucrare === "Intervenție în contract" && (
+                      <div>
+                        <p className="text-sm font-medium">Contract:</p>
+                        <ContractDisplay contractId={lucrare.contract} />
+                      </div>
+                    )}
+                    {lucrare.defectReclamat && (
+                      <div>
+                        <p className="text-sm font-medium">Defect reclamat:</p>
+                        <p className="text-sm text-gray-500">{lucrare.defectReclamat}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-sm font-medium">Locație:</p>
+                      <div className="flex items-start">
+                        <div className="flex-grow">
+                          <p className="text-sm text-gray-500">{lucrare.locatie}</p>
+                          {locationAddress && (
+                            <div className="mt-1">
+                              <p className="text-xs italic text-gray-500 flex items-center mb-2">
+                                <MapPin className="h-3 w-3 mr-1 inline-block" />
+                                {locationAddress}
+                              </p>
+                              <div className="flex space-x-2 mt-2">
+                                <a
+                                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lucrare.locatie}, ${locationAddress}`)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center justify-center px-3 py-1 text-xs bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+                                >
+                                  <MapPin className="h-3 w-3 mr-1 inline-block" />
+                                  Google Maps
+                                </a>
+                                <a
+                                  href={`https://waze.com/ul?q=${encodeURIComponent(`${lucrare.locatie}, ${locationAddress}`)}&navigate=yes`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center justify-center px-3 py-1 text-xs bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
+                                >
+                                  <MapPin className="h-3 w-3 mr-1 inline-block" />
+                                  Waze
+                                </a>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Echipament:</p>
+                      <p className="text-sm text-gray-500">
+                        {lucrare.echipament
+                          ? `${lucrare.echipament} (Cod: ${lucrare.echipamentCod || "N/A"})`
+                          : "Nespecificat"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Descriere:</p>
+                      <p className="text-sm text-gray-500">{lucrare.descriere || "Fără descriere"}</p>
+                    </div>
+                    {lucrare.constatareLaLocatie && (
+                      <div>
+                        <p className="text-sm font-medium">Constatare la locație:</p>
+                        <p className="text-sm text-gray-500">{lucrare.constatareLaLocatie}</p>
+                      </div>
+                    )}
+                    {lucrare.descriereInterventie && (
+                      <div>
+                        <p className="text-sm font-medium">Descriere intervenție:</p>
+                        <p className="text-sm text-gray-500">{lucrare.descriereInterventie}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-sm font-medium">Status lucrare:</p>
+                      <Badge
+                        variant={
+                          lucrare.statusLucrare.toLowerCase() === "în așteptare"
+                            ? "warning"
+                            : lucrare.statusLucrare.toLowerCase() === "în curs"
+                              ? "default"
+                              : "success"
+                        }
+                      >
+                        {lucrare.statusLucrare}
                       </Badge>
-                    ))}
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter className="flex justify-between">
-                {(role === "admin" || role === "dispecer") && (
-                  <Button variant="outline" onClick={handleEdit}>
-                    <Pencil className="mr-2 h-4 w-4" /> Editează
-                  </Button>
-                )}
-                {role === "admin" && (
-                  <Button
-                    variant="destructive"
-                    onClick={() => {
-                      if (window.confirm("Sigur doriți să ștergeți această lucrare?")) {
-                        handleDeleteLucrare()
-                      }
-                    }}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" /> Șterge
-                  </Button>
-                )}
-              </CardFooter>
-            </Card>
-          </div>
+                    </div>
+                    {role !== "tehnician" && (
+                      <div>
+                        <p className="text-sm font-medium">Status facturare:</p>
+                        <Badge
+                          variant={
+                            lucrare.statusFacturare.toLowerCase() === "nefacturat"
+                              ? "outline"
+                              : lucrare.statusFacturare.toLowerCase() === "facturat"
+                                ? "default"
+                                : "success"
+                          }
+                        >
+                          {lucrare.statusFacturare}
+                        </Badge>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Informații client</CardTitle>
+                    <CardDescription>Detalii despre client și persoana de contact</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <p className="text-sm font-medium">Client:</p>
+                      <p className="text-sm text-gray-500">{lucrare.client}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Persoană contact:</p>
+                      <p className="text-sm text-gray-500">{lucrare.persoanaContact}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Telefon:</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm text-gray-500">{lucrare.telefon}</p>
+                        <a
+                          href={`tel:${formatPhoneForCall(lucrare.telefon)}`}
+                          className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-green-500 text-white hover:bg-green-600 transition-colors"
+                          aria-label={`Apelează ${lucrare.persoanaContact}`}
+                          title={`Apelează ${lucrare.persoanaContact}`}
+                        >
+                          <Phone className="h-4 w-4" />
+                        </a>
+                      </div>
+                    </div>
+                    <Separator />
+                    <div>
+                      <p className="text-sm font-medium">Tehnicieni asignați:</p>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {lucrare.tehnicieni.map((tehnician, index) => (
+                          <Badge key={index} variant="secondary">
+                            {tehnician}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="flex justify-between">
+                    {(role === "admin" || role === "dispecer") && (
+                      <Button variant="outline" onClick={handleEdit}>
+                        <Pencil className="mr-2 h-4 w-4" /> Editează
+                      </Button>
+                    )}
+                    {role === "admin" && (
+                      <Button
+                        variant="destructive"
+                        onClick={() => {
+                          if (window.confirm("Sigur doriți să ștergeți această lucrare?")) {
+                            handleDeleteLucrare()
+                          }
+                        }}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" /> Șterge
+                      </Button>
+                    )}
+                  </CardFooter>
+                </Card>
+              </div>
+            </div>
+          )}
         </TabsContent>
 
         {role === "tehnician" && (
