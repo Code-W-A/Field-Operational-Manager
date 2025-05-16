@@ -50,11 +50,18 @@ export function CustomEquipmentSelect({
         setSelectedEquipment(equipment)
       } else {
         console.log("CustomEquipmentSelect - equipment not found for value:", value)
+        // Dacă echipamentul nu este găsit în lista curentă, dar avem un ID valid,
+        // păstrăm selecția pentru a evita pierderea datelor
+        if (selectedEquipment && selectedEquipment.id === value) {
+          console.log("CustomEquipmentSelect - keeping current selection:", selectedEquipment)
+        } else {
+          setSelectedEquipment(null)
+        }
       }
     } else if (!value) {
       setSelectedEquipment(null)
     }
-  }, [value, equipments])
+  }, [value, equipments, selectedEquipment])
 
   // Actualizăm lista filtrată de echipamente când se schimbă termenul de căutare sau lista de echipamente
   useEffect(() => {

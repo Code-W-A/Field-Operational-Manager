@@ -736,6 +736,9 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       }
     }, [selectedLocatie, handleCustomChange])
 
+    // Modificăm efectul pentru a încărca corect echipamentele și a seta echipamentul selectat
+    // Înlocuim efectul existent care se ocupă de încărcarea datelor inițiale (în jurul liniei 400-430)
+
     // Adăugăm un efect pentru a actualiza starea când se încarcă datele inițiale
     useEffect(() => {
       if (initialData && initialData.locatie && locatii.length > 0) {
@@ -756,6 +759,17 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           if (locatie.echipamente) {
             setAvailableEquipments(locatie.echipamente)
             setEquipmentsLoaded(true)
+
+            // Verificăm dacă există un echipament selectat în datele inițiale
+            if (initialData.echipamentId) {
+              const selectedEquipment = locatie.echipamente.find((e) => e.id === initialData.echipamentId)
+              if (selectedEquipment) {
+                console.log("Echipament găsit în datele inițiale:", selectedEquipment)
+                // Nu este nevoie să actualizăm formData aici, deoarece este deja setat din datele inițiale
+              } else {
+                console.log("Echipamentul cu ID-ul", initialData.echipamentId, "nu a fost găsit în locația selectată")
+              }
+            }
           }
         }
       }
