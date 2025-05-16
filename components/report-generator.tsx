@@ -141,15 +141,19 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         title: string,
         lines: string[],
         boxWidth: number,
-        boxHeight: number,
+        boxHeight: number | null, // Facem înălțimea opțională pentru a permite calculul dinamic
         x: number,
         titleBold = true,
       ) => {
         // Check if we need a new page
-        checkPageBreak(boxHeight + 5)
+        const estimatedHeight = boxHeight || Math.max(36, lines.length * 5 + 15) // Înălțime minimă sau bazată pe numărul de linii
+        checkPageBreak(estimatedHeight + 5)
+
+        // Calculăm înălțimea reală a box-ului bazată pe conținut dacă nu este specificată
+        const actualBoxHeight = boxHeight || estimatedHeight
 
         doc.setDrawColor(60).setFillColor(LIGHT_GRAY).setLineWidth(STROKE)
-        ;(doc as any).roundedRect(x, currentY, boxWidth, boxHeight, BOX_RADIUS, BOX_RADIUS, "FD")
+        ;(doc as any).roundedRect(x, currentY, boxWidth, actualBoxHeight, BOX_RADIUS, BOX_RADIUS, "FD")
 
         doc
           .setFontSize(10)
@@ -160,12 +164,35 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         doc.setFontSize(8).setFont(undefined, "normal").setTextColor(20)
         lines.forEach((txt, i) => {
           const yy = currentY + 10 + i * 5
-          doc.text(txt, x + 3, yy)
-          doc
-            .setDrawColor(200)
-            .setLineWidth(0.15)
-            .line(x + 3, yy + 1.5, x + boxWidth - 3, yy + 1.5)
+
+          // Verificăm dacă textul este prea lung pentru lățimea box-ului
+          const textLines = doc.splitTextToSize(txt, boxWidth - 6)
+
+          // Dacă textul are mai multe linii, le desenăm pe fiecare
+          if (textLines.length > 1) {
+            textLines.forEach((line: string, lineIndex: number) => {
+              const lineY = yy + lineIndex * 4
+              doc.text(line, x + 3, lineY)
+
+              // Desenăm linia de subliniere doar pentru ultima linie a textului
+              if (lineIndex === textLines.length - 1) {
+                doc
+                  .setDrawColor(200)
+                  .setLineWidth(0.15)
+                  .line(x + 3, lineY + 1.5, x + boxWidth - 3, lineY + 1.5)
+              }
+            })
+          } else {
+            // Pentru textele simple, desenăm ca înainte
+            doc.text(txt, x + 3, yy)
+            doc
+              .setDrawColor(200)
+              .setLineWidth(0.15)
+              .line(x + 3, yy + 1.5, x + boxWidth - 3, yy + 1.5)
+          }
         })
+
+        return actualBoxHeight // Returnăm înălțimea reală folosită
       }
 
       // HEADER BOXES
@@ -193,7 +220,6 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const clientInfo = lucrare.clientInfo || {}
       const clientName = normalize(lucrare.client || "-")
       const clientCUI = normalize(clientInfo.cui || "-")
-      const clientRC = normalize(clientInfo.rc || "-")
       const clientAddress = normalize(clientInfo.adresa || "-")
       const clientBank = normalize(clientInfo.banca || "-")
       const clientAccount = normalize(clientInfo.cont || "-")
@@ -201,37 +227,36 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // Adăugăm informații despre locația intervenției
       const locationName = normalize(lucrare.locatie || "-")
       const locationAddress = normalize(clientInfo.locationAddress || "-")
-        const fullLocationAddressRaw =
-          locationAddress !== "-" ? `${locationName}, ${locationAddress}` : locationName;
-        const fullLocationAddress = normalize(fullLocationAddressRaw);
+      const fullLocationAddress = locationAddress !== "-" ? `${locationName}, ${locationAddress}` : locationName
 
-      // Generăm link-ul pentru navigare
-      const encodedAddress = encodeURIComponent(fullLocationAddress)
-      const navigationLink = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`
+      // Pregătim liniile pentru caseta beneficiarului - fără R.C.
+      const beneficiaryLines = [
+        clientName,
+        `CUI: ${clientCUI}`,
+        `Adresa: ${clientAddress}`,
+        `Locație intervenție: ${fullLocationAddress}`,
+      ]
 
-      // Draw beneficiar box with complete client information
-      drawBox(
+      // Desenăm caseta beneficiarului cu înălțime dinamică (null pentru calcul automat)
+      const actualBeneficiaryBoxHeight = drawBox(
         "BENEFICIAR",
-        [
-          clientName,
-          `CUI: ${clientCUI}`,
-          `R.C.: ${clientRC}`,
-          `Adresa: ${clientAddress}`,
-          `Locatie interventie: ${fullLocationAddress}`,
-        ],
+        beneficiaryLines,
         boxW,
-        boxH,
+        null, // Înălțime null pentru calcul automat
         M + boxW + logoArea,
       )
 
-      // LOGO
+      // Ajustăm înălțimea logo-ului pentru a se potrivi cu caseta beneficiarului
+      const logoBoxHeight = Math.max(boxH, actualBeneficiaryBoxHeight)
+
+      // LOGO - ajustăm poziționarea logo-ului pentru a se potrivi cu caseta beneficiarului
       doc.setDrawColor(60).setLineWidth(STROKE)
-      ;(doc as any).roundedRect(M + boxW + 2, currentY + 3, logoArea - 4, boxH - 6, 1.5, 1.5, "S")
+      ;(doc as any).roundedRect(M + boxW + 2, currentY + 3, logoArea - 4, logoBoxHeight - 6, 1.5, 1.5, "S")
 
       if (logoLoaded && logoDataUrl) {
         try {
           // Use the preloaded logo data URL
-          doc.addImage(logoDataUrl, "PNG", M + boxW + 4, currentY + 5, logoArea - 8, boxH - 10)
+          doc.addImage(logoDataUrl, "PNG", M + boxW + 4, currentY + 5, logoArea - 8, logoBoxHeight - 10)
         } catch (err) {
           console.error("Error adding logo to PDF:", err)
           // Fallback text if logo fails to load
@@ -239,7 +264,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
             .setFontSize(14)
             .setFont(undefined, "bold")
             .setTextColor(60)
-            .text("NRG", M + boxW + logoArea / 2, currentY + boxH / 2, { align: "center" })
+            .text("NRG", M + boxW + logoArea / 2, currentY + logoBoxHeight / 2, { align: "center" })
         }
       } else {
         // Fallback text if logo wasn't loaded
@@ -247,11 +272,11 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           .setFontSize(14)
           .setFont(undefined, "bold")
           .setTextColor(60)
-          .text("NRG", M + boxW + logoArea / 2, currentY + boxH / 2, { align: "center" })
+          .text("NRG", M + boxW + logoArea / 2, currentY + logoBoxHeight / 2, { align: "center" })
       }
 
-      // Update current Y position after header boxes
-      currentY += boxH + 10
+      // Update current Y position after header boxes - folosim înălțimea mai mare dintre cele două casete
+      currentY += Math.max(boxH, actualBeneficiaryBoxHeight) + 10
 
       // MAIN TITLE
       doc
@@ -558,7 +583,6 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         doc.setFontSize(8).setFont(undefined, "italic").setTextColor(100)
         doc.text("Semnătură lipsă", M + W / 2 + signatureWidth / 2, currentY + signatureHeight / 2, { align: "center" })
       }
-
 
       // Footer
       currentY = PH - M - 5
