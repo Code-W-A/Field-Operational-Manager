@@ -425,29 +425,6 @@ export default function RaportPage({ params }: { params: { id: string } }) {
     handleSubmit()
   }, [handleSubmit])
 
-  // Adăugăm un handler pentru a forța trimiterea formularului
-  const forceSubmit = useCallback(() => {
-    console.log("Force submit triggered")
-    if (step === "verificare") {
-      setStep("semnare")
-    } else if (step === "semnare") {
-      // Simulăm un click pe butonul de submit
-      if (submitButtonRef.current) {
-        // Dezactivăm temporar orice listener de evenimente care ar putea interfera
-        const oldPointerEvents = document.body.style.pointerEvents
-        document.body.style.pointerEvents = "none"
-
-        // Executăm direct funcția de submit
-        handleSubmit()
-
-        // Restaurăm pointer events după un scurt delay
-        setTimeout(() => {
-          document.body.style.pointerEvents = oldPointerEvents
-        }, 100)
-      }
-    }
-  }, [step, handleSubmit])
-
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
       <Card className="w-full max-w-3xl">
@@ -676,6 +653,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
                       canvasProps={{
                         className: "w-full h-40 border rounded",
                         width: SIG_MIN_WIDTH,
+
                         height: SIG_HEIGHT,
                       }}
                       onBegin={handleTechBegin}
@@ -699,6 +677,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
                       canvasProps={{
                         className: "w-full h-40 border rounded",
                         width: SIG_MIN_WIDTH,
+
                         height: SIG_HEIGHT,
                       }}
                       onBegin={handleClientBegin}
@@ -717,17 +696,17 @@ export default function RaportPage({ params }: { params: { id: string } }) {
           )}
         </CardContent>
         {!isSubmitted && (
-          <CardFooter className="flex flex-col sm:flex-row gap-2 justify-between">
-            <Button variant="outline" onClick={() => router.back()}>
-              Înapoi
-            </Button>
-
-            {/* Buton principal - modificat pentru a funcționa pe mobil */}
-            <div className="w-full sm:w-auto">
+          <CardFooter className="flex flex-col sm:flex-row gap-4 justify-between pb-6 pt-4">
+            <div className="order-2 sm:order-1 w-full sm:w-auto">
+              <Button variant="outline" onClick={() => router.back()} className="w-full sm:w-auto">
+                Înapoi
+              </Button>
+            </div>
+            <div className="order-1 sm:order-2 w-full sm:w-auto mb-2 sm:mb-0">
               <Button
                 ref={submitButtonRef}
-                className="gap-2 bg-blue-600 hover:bg-blue-700 w-full"
-                onClick={forceSubmit}
+                className="gap-2 bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
+                onClick={handleButtonClick}
                 disabled={isSubmitting}
                 style={{
                   position: "relative",
