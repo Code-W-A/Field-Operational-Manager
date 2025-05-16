@@ -565,8 +565,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
                   </Select>
                   {statusLucrare !== "Finalizat" && (
                     <p className="text-sm text-amber-500">
-                      Lucrarea nu este marcată ca Finalizată. Puteți genera raportul, dar vă recomandăm să finalizați
-                      lucrarea înainte.
+                      Lucrarea nu este marcată ca Finalizată. Puteți genera raportul.
                     </p>
                   )}
                 </div>
