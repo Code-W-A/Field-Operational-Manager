@@ -1,23 +1,63 @@
+import { db, auth } from "./config"
 import {
   collection,
   doc,
   addDoc,
-  updateDoc,
-  deleteDoc,
   getDoc,
   getDocs,
+  updateDoc,
+  deleteDoc,
   query,
+  where,
   orderBy,
   serverTimestamp,
   type DocumentData,
   type QueryConstraint,
   Timestamp,
-  where,
 } from "firebase/firestore"
-import { db } from "./config"
-import { auth } from "./config"
 
-// Update the Echipament interface to reflect the new code format
+// Interfețe pentru tipurile de date
+export interface User {
+  id?: string
+  email: string | null
+  displayName: string | null
+  role: "admin" | "dispecer" | "tehnician"
+  phoneNumber?: string
+  photoURL?: string
+  createdAt?: Date
+  lastLogin?: Date
+  active?: boolean
+  notifications?: {
+    email?: boolean
+    push?: boolean
+    sms?: boolean
+  }
+}
+
+export interface Client {
+  id?: string
+  nume: string
+  cif?: string // Adăugăm CIF
+  adresa: string
+  persoanaContact: string // Păstrăm pentru compatibilitate cu datele existente
+  telefon: string
+  email: string
+  numarLucrari?: number
+  // Adăugăm câmpul pentru persoanele de contact
+  persoaneContact?: PersoanaContact[]
+  // Adăugăm câmpul pentru locații
+  locatii?: Locatie[]
+  createdAt?: Timestamp
+  updatedAt?: Timestamp
+}
+
+export interface Locatie {
+  nume: string
+  adresa: string
+  persoaneContact: PersoanaContact[]
+  echipamente?: Echipament[] // Lista de echipamente pentru această locație
+}
+
 export interface Echipament {
   id?: string
   nume: string
@@ -29,8 +69,24 @@ export interface Echipament {
   observatii?: string
 }
 
-// Tipuri pentru lucrări
-// Actualizăm interfața Lucrare pentru a include tipul contractului
+export interface Contract {
+  id?: string
+  number: string
+  clientId: string
+  startDate: string
+  endDate: string
+  value?: number
+  currency?: string
+  status?: string
+  type?: string
+  notes?: string
+  createdAt?: any
+  updatedAt?: any
+  createdBy?: string
+  active?: boolean
+  equipmentIds?: string[]
+}
+
 export interface Lucrare {
   id?: string
   client: string
@@ -69,9 +125,10 @@ export interface Lucrare {
   transferredToDispatcher?: boolean
   transferredAt?: string
   transferredBy?: string
+  // Câmpuri pentru asignare
+  assignedTo?: string | null
 }
 
-// Adăugăm interfața pentru persoanele de contact
 export interface PersoanaContact {
   nume: string
   telefon: string
@@ -79,33 +136,6 @@ export interface PersoanaContact {
   functie?: string
 }
 
-// Adăugăm interfața pentru locații - actualizată pentru a include echipamente
-export interface Locatie {
-  nume: string
-  adresa: string
-  persoaneContact: PersoanaContact[]
-  echipamente?: Echipament[] // Lista de echipamente pentru această locație
-}
-
-// Tipuri pentru clienți - actualizăm pentru a include CIF și locații
-export interface Client {
-  id?: string
-  nume: string
-  cif?: string // Adăugăm CIF
-  adresa: string
-  persoanaContact: string // Păstrăm pentru compatibilitate cu datele existente
-  telefon: string
-  email: string
-  numarLucrari?: number
-  // Adăugăm câmpul pentru persoanele de contact
-  persoaneContact?: PersoanaContact[]
-  // Adăugăm câmpul pentru locații
-  locatii?: Locatie[]
-  createdAt?: Timestamp
-  updatedAt?: Timestamp
-}
-
-// Tipuri pentru loguri
 export interface Log {
   id?: string
   timestamp: Timestamp
@@ -117,20 +147,395 @@ export interface Log {
   categorie: string
 }
 
-// Tipuri pentru autentificare
-export type UserRole = "admin" | "dispecer" | "tehnician"
-
-export interface UserData {
-  uid: string
-  email: string | null
-  displayName: string | null
-  role: UserRole
-  telefon?: string
-  createdAt?: Date
-  lastLogin?: Date
+// Funcții pentru utilizatori
+export const addUser = async (userData: User): Promise<string> => {
+  const userRef = await addDoc(collection(db, "users"), {
+    ...userData,
+    createdAt: serverTimestamp(),
+  })
+  return userRef.id
 }
 
-// Funcție pentru a obține numele colecției într-un format mai prietenos
+export const getUserById = async (userId: string): Promise<User | null> => {
+  const userDoc = await getDoc(doc(db, "users", userId))
+  if (userDoc.exists()) {
+    return { id: userDoc.id, ...userDoc.data() } as User
+  }
+  return null
+}
+
+export const getUserByEmail = async (email: string): Promise<User | null> => {
+  const usersRef = collection(db, "users")
+  const q = query(usersRef, where("email", "==", email))
+  const querySnapshot = await getDocs(q)
+
+  if (!querySnapshot.empty) {
+    const userDoc = querySnapshot.docs[0]
+    return { id: userDoc.id, ...userDoc.data() } as User
+  }
+
+  return null
+}
+
+export const updateUser = async (userId: string, userData: Partial<User>): Promise<void> => {
+  const userRef = doc(db, "users", userId)
+  await updateDoc(userRef, userData)
+}
+
+export const deleteUser = async (userId: string): Promise<void> => {
+  await deleteDoc(doc(db, "users", userId))
+}
+
+export const getAllUsers = async (): Promise<User[]> => {
+  const usersSnapshot = await getDocs(collection(db, "users"))
+  return usersSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as User)
+}
+
+// Funcții pentru clienți
+export const addClient = async (clientData: Client): Promise<string> => {
+  const clientRef = await addDoc(collection(db, "clients"), {
+    ...clientData,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+  return clientRef.id
+}
+
+export const getClientById = async (clientId: string): Promise<Client | null> => {
+  const clientDoc = await getDoc(doc(db, "clients", clientId))
+  if (clientDoc.exists()) {
+    return { id: clientDoc.id, ...clientDoc.data() } as Client
+  }
+  return null
+}
+
+export const updateClient = async (clientId: string, clientData: Partial<Client>): Promise<void> => {
+  const clientRef = doc(db, "clients", clientId)
+  await updateDoc(clientRef, {
+    ...clientData,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export const deleteClient = async (clientId: string): Promise<void> => {
+  await deleteDoc(doc(db, "clients", clientId))
+}
+
+export const getAllClients = async (): Promise<Client[]> => {
+  const clientsSnapshot = await getDocs(collection(db, "clients"))
+  return clientsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as Client)
+}
+
+// Funcții pentru locații
+export const addLocation = async (locationData: Locatie): Promise<string> => {
+  const locationRef = await addDoc(collection(db, "locations"), {
+    ...locationData,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+  return locationRef.id
+}
+
+export const getLocationById = async (locationId: string): Promise<Locatie | null> => {
+  const locationDoc = await getDoc(doc(db, "locations", locationId))
+  if (locationDoc.exists()) {
+    return { id: locationDoc.id, ...locationDoc.data() } as Locatie
+  }
+  return null
+}
+
+export const updateLocation = async (locationId: string, locationData: Partial<Locatie>): Promise<void> => {
+  const locationRef = doc(db, "locations", locationId)
+  await updateDoc(locationRef, {
+    ...locationData,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export const deleteLocation = async (locationId: string): Promise<void> => {
+  await deleteDoc(doc(db, "locations", locationId))
+}
+
+export const getLocationsByClientId = async (clientId: string): Promise<Locatie[]> => {
+  const locationsRef = collection(db, "locations")
+  const q = query(locationsRef, where("clientId", "==", clientId))
+  const querySnapshot = await getDocs(q)
+  return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as Locatie)
+}
+
+// Funcții pentru echipamente
+export const addEquipment = async (equipmentData: Echipament): Promise<string> => {
+  const equipmentRef = await addDoc(collection(db, "equipment"), {
+    ...equipmentData,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+  return equipmentRef.id
+}
+
+export const getEquipmentById = async (equipmentId: string): Promise<Echipament | null> => {
+  const equipmentDoc = await getDoc(doc(db, "equipment", equipmentId))
+  if (equipmentDoc.exists()) {
+    return { id: equipmentDoc.id, ...equipmentDoc.data() } as Echipament
+  }
+  return null
+}
+
+export const updateEquipment = async (equipmentId: string, equipmentData: Partial<Echipament>): Promise<void> => {
+  const equipmentRef = doc(db, "equipment", equipmentId)
+  await updateDoc(equipmentRef, {
+    ...equipmentData,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export const deleteEquipment = async (equipmentId: string): Promise<void> => {
+  await deleteDoc(doc(db, "equipment", equipmentId))
+}
+
+export const getEquipmentByLocationId = async (locationId: string): Promise<Echipament[]> => {
+  const equipmentRef = collection(db, "equipment")
+  const q = query(equipmentRef, where("locationId", "==", locationId))
+  const querySnapshot = await getDocs(q)
+  return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as Echipament)
+}
+
+export const getEquipmentByClientId = async (clientId: string): Promise<Echipament[]> => {
+  const equipmentRef = collection(db, "equipment")
+  const q = query(equipmentRef, where("clientId", "==", clientId))
+  const querySnapshot = await getDocs(q)
+  return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as Echipament)
+}
+
+// Funcții pentru contracte
+export const addContract = async (contractData: Contract): Promise<string> => {
+  const contractRef = await addDoc(collection(db, "contracts"), {
+    ...contractData,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+  return contractRef.id
+}
+
+export const getContractById = async (contractId: string): Promise<Contract | null> => {
+  const contractDoc = await getDoc(doc(db, "contracts", contractId))
+  if (contractDoc.exists()) {
+    return { id: contractDoc.id, ...contractDoc.data() } as Contract
+  }
+  return null
+}
+
+export const updateContract = async (contractId: string, contractData: Partial<Contract>): Promise<void> => {
+  const contractRef = doc(db, "contracts", contractId)
+  await updateDoc(contractRef, {
+    ...contractData,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export const deleteContract = async (contractId: string): Promise<void> => {
+  await deleteDoc(doc(db, "contracts", contractId))
+}
+
+export const getContractsByClientId = async (clientId: string): Promise<Contract[]> => {
+  const contractsRef = collection(db, "contracts")
+  const q = query(contractsRef, where("clientId", "==", clientId))
+  const querySnapshot = await getDocs(q)
+  return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as Contract)
+}
+
+// Funcții pentru lucrări
+export const addLucrare = async (lucrareData: Omit<Lucrare, "id">): Promise<string> => {
+  return addDocument<Omit<Lucrare, "id">>("lucrari", lucrareData)
+}
+
+export const getLucrareById = async (id: string): Promise<Lucrare | null> => {
+  return getDocumentById<Lucrare>("lucrari", id)
+}
+
+export const updateLucrare = async (id: string, lucrare: Partial<Lucrare>): Promise<void> => {
+  return updateDocument<Lucrare>("lucrari", id, lucrare)
+}
+
+export const deleteLucrare = async (id: string): Promise<void> => {
+  return deleteDocument("lucrari", id)
+}
+
+export const getLucrariByClientId = async (clientId: string): Promise<Lucrare[]> => {
+  const lucrariRef = collection(db, "lucrari")
+  const q = query(lucrariRef, where("client", "==", clientId))
+  const querySnapshot = await getDocs(q)
+  return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as Lucrare)
+}
+
+// Funcție pentru a marca o lucrare ca având raport generat
+export const markLucrareAsReportGenerated = async (id: string): Promise<void> => {
+  const user = auth.currentUser
+  const userName = user?.displayName || user?.email || "Sistem"
+
+  await updateLucrare(id, {
+    hasGeneratedReport: true,
+    reportGeneratedAt: new Date().toISOString(),
+    reportGeneratedBy: userName,
+    statusLucrare: "Finalizată",
+    transferredToDispatcher: true,
+    transferredAt: new Date().toISOString(),
+    transferredBy: userName,
+    assignedTo: null, // Resetăm asignarea pentru a nu mai fi vizibilă pentru tehnician
+  })
+
+  // Adăugăm un log pentru acțiunea de generare raport
+  await addLog(
+    "Raport generat",
+    `Utilizatorul ${userName} a generat raport pentru lucrare și a transferat-o către dispecer`,
+    "Informație",
+    "Lucrare",
+  )
+}
+
+// Funcții pentru loguri
+export const addLog = async (
+  actiune: string,
+  detalii: string,
+  tip = "Informație",
+  categorie = "Sistem",
+): Promise<string> => {
+  try {
+    const user = auth.currentUser
+
+    const logData: Omit<Log, "id"> = {
+      timestamp: Timestamp.now(),
+      utilizator: user?.displayName || user?.email || "Sistem",
+      // Asigurăm-ne că nu trimitem undefined pentru utilizatorId
+      utilizatorId: user?.uid || null, // Folosim null în loc de undefined
+      actiune,
+      detalii,
+      tip,
+      categorie,
+    }
+
+    const docRef = await addDoc(collection(db, "logs"), logData)
+    return docRef.id
+  } catch (error) {
+    console.error("Eroare la adăugarea logului:", error)
+    throw error
+  }
+}
+
+export const getLogById = async (logId: string): Promise<Log | null> => {
+  const logDoc = await getDoc(doc(db, "logs", logId))
+  if (logDoc.exists()) {
+    return { id: logDoc.id, ...logDoc.data() } as Log
+  }
+  return null
+}
+
+export const getLogsByUserId = async (userId: string): Promise<Log[]> => {
+  const logsRef = collection(db, "logs")
+  const q = query(logsRef, where("utilizatorId", "==", userId), orderBy("timestamp", "desc"))
+  const querySnapshot = await getDocs(q)
+  return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as Log)
+}
+
+export const getLogsByEntityId = async (entityId: string): Promise<Log[]> => {
+  const logsRef = collection(db, "logs")
+  const q = query(logsRef, where("entityId", "==", entityId), orderBy("timestamp", "desc"))
+  const querySnapshot = await getDocs(q)
+  return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as Log)
+}
+
+// Funcție pentru a obține toate logurile
+export const getAllLogs = async (limit?: number): Promise<Log[]> => {
+  const logsRef = collection(db, "logs")
+  let q = query(logsRef, orderBy("timestamp", "desc"))
+
+  if (limit) {
+    q = query(q, limit(limit))
+  }
+
+  const querySnapshot = await getDocs(q)
+  return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as Log)
+}
+
+// Funcții specifice pentru lucrări
+export const getLucrari = async (constraints: QueryConstraint[] = []): Promise<Lucrare[]> => {
+  return getCollection<Lucrare>("lucrari", [orderBy("dataEmiterii", "desc"), ...constraints])
+}
+
+// Funcții specifice pentru clienți
+export const getClienti = async (constraints: QueryConstraint[] = []): Promise<Client[]> => {
+  return getCollection<Client>("clienti", [orderBy("nume", "asc"), ...constraints])
+}
+
+// Funcții specifice pentru loguri - adăugăm această funcție pentru compatibilitate
+export const getLogs = async (constraints: QueryConstraint[] = []): Promise<Log[]> => {
+  return getCollection<Log>("logs", [orderBy("timestamp", "desc"), ...constraints])
+}
+
+// Funcție pentru a verifica dacă un cod de echipament este unic pentru un client
+export const isEchipamentCodeUnique = async (
+  clientId: string,
+  cod: string,
+  excludeEchipamentId?: string,
+): Promise<boolean> => {
+  try {
+    const client = await getClientById(clientId)
+    if (!client || !client.locatii) return true
+
+    // Verificăm toate locațiile clientului
+    for (const locatie of client.locatii) {
+      if (!locatie.echipamente) continue
+
+      // Verificăm dacă există un echipament cu același cod
+      const existingEchipament = locatie.echipamente.find(
+        (e) => e.cod === cod && (!excludeEchipamentId || e.id !== excludeEchipamentId),
+      )
+
+      if (existingEchipament) return false
+    }
+
+    return true
+  } catch (error) {
+    console.error("Eroare la verificarea unicității codului de echipament:", error)
+    throw error
+  }
+}
+
+// Adaugă această funcție pentru căutarea echipamentelor după cod
+
+/**
+ * Caută un echipament după codul său
+ * @param code Codul echipamentului
+ * @returns Un obiect care conține echipamentul și clientul, sau null dacă nu este găsit
+ */
+export async function findEquipmentByCode(code: string): Promise<{ equipment: Echipament; client: Client } | null> {
+  try {
+    const clientsRef = collection(db, "clients")
+    const clientsSnapshot = await getDocs(clientsRef)
+
+    for (const clientDoc of clientsSnapshot.docs) {
+      const clientId = clientDoc.id
+      const equipmentRef = collection(db, "clients", clientId, "equipment")
+      const q = query(equipmentRef, where("cod", "==", code))
+      const equipmentSnapshot = await getDocs(q)
+
+      if (!equipmentSnapshot.empty) {
+        const equipmentDoc = equipmentSnapshot.docs[0]
+        const equipment = { id: equipmentDoc.id, ...equipmentDoc.data() } as Echipament
+        const client = { id: clientId, ...clientDoc.data() } as Client
+
+        return { equipment, client }
+      }
+    }
+
+    return null
+  } catch (error) {
+    console.error("Eroare la căutarea echipamentului după cod:", error)
+    return null
+  }
+}
+
+// Funcții generice
 const getCollectionDisplayName = (collectionName: string): string => {
   const displayNames: Record<string, string> = {
     lucrari: "lucrare",
@@ -142,7 +547,6 @@ const getCollectionDisplayName = (collectionName: string): string => {
   return displayNames[collectionName] || collectionName
 }
 
-// Funcție pentru a obține detalii despre document în funcție de colecție
 const getDocumentDetails = async (collectionName: string, docId: string, data?: any): Promise<string> => {
   try {
     // Dacă avem deja datele, le folosim
@@ -179,7 +583,6 @@ const getDocumentDetails = async (collectionName: string, docId: string, data?: 
   }
 }
 
-// Funcție pentru a formata modificările într-un mod mai prietenos
 const formatChanges = (oldData: any, newData: any): string[] => {
   const changes: string[] = []
 
@@ -209,7 +612,6 @@ const formatChanges = (oldData: any, newData: any): string[] => {
   return changes
 }
 
-// Funcție generică pentru a obține toate documentele dintr-o colecție
 export const getCollection = async <T extends DocumentData>(
   collectionName: string,
   constraints: QueryConstraint[] = [],
@@ -228,7 +630,6 @@ export const getCollection = async <T extends DocumentData>(
   }
 }
 
-// Funcție generică pentru a obține un document după ID
 export const getDocumentById = async <T extends DocumentData>(
   collectionName: string,
   docId: string,
@@ -251,7 +652,6 @@ export const getDocumentById = async <T extends DocumentData>(
   }
 }
 
-// Funcție generică pentru a adăuga un document
 export const addDocument = async <T extends DocumentData>(collectionName: string, data: T): Promise<string> => {
   try {
     const user = auth.currentUser
@@ -291,7 +691,6 @@ export const addDocument = async <T extends DocumentData>(collectionName: string
   }
 }
 
-// Funcție generică pentru a actualiza un document
 export const updateDocument = async <T extends DocumentData>(
   collectionName: string,
   docId: string,
@@ -365,7 +764,6 @@ export const updateDocument = async <T extends DocumentData>(
   }
 }
 
-// Funcție generică pentru a șterge un document
 export const deleteDocument = async (collectionName: string, docId: string): Promise<void> => {
   try {
     const user = auth.currentUser
@@ -392,181 +790,5 @@ export const deleteDocument = async (collectionName: string, docId: string): Pro
   } catch (error) {
     console.error(`Eroare la ștergerea documentului ${docId} din ${collectionName}:`, error)
     throw error
-  }
-}
-
-// Funcții specifice pentru lucrări
-export const getLucrari = async (constraints: QueryConstraint[] = []): Promise<Lucrare[]> => {
-  return getCollection<Lucrare>("lucrari", [orderBy("dataEmiterii", "desc"), ...constraints])
-}
-
-export const getLucrareById = async (id: string): Promise<Lucrare | null> => {
-  return getDocumentById<Lucrare>("lucrari", id)
-}
-
-export const addLucrare = async (lucrare: Omit<Lucrare, "id">): Promise<string> => {
-  return addDocument<Omit<Lucrare, "id">>("lucrari", lucrare)
-}
-
-export const updateLucrare = async (id: string, lucrare: Partial<Lucrare>): Promise<void> => {
-  return updateDocument<Lucrare>("lucrari", id, lucrare)
-}
-
-export const deleteLucrare = async (id: string): Promise<void> => {
-  return deleteDocument("lucrari", id)
-}
-
-// Funcție pentru a marca o lucrare ca având raport generat
-export const markLucrareAsReportGenerated = async (id: string): Promise<void> => {
-  const user = auth.currentUser
-  const userName = user?.displayName || user?.email || "Sistem"
-
-  await updateLucrare(id, {
-    hasGeneratedReport: true,
-    reportGeneratedAt: new Date().toISOString(),
-    reportGeneratedBy: userName,
-    statusLucrare: "Finalizată",
-    transferredToDispatcher: true,
-    transferredAt: new Date().toISOString(),
-    transferredBy: userName,
-  })
-
-  // Adăugăm un log pentru acțiunea de generare raport
-  await addLog(
-    "Raport generat",
-    `Utilizatorul ${userName} a generat raport pentru lucrare și a transferat-o către dispecer`,
-    "Informație",
-    "Lucrare",
-  )
-}
-
-// Funcții specifice pentru clienți
-export const getClienti = async (constraints: QueryConstraint[] = []): Promise<Client[]> => {
-  return getCollection<Client>("clienti", [orderBy("nume", "asc"), ...constraints])
-}
-
-export const getClientById = async (id: string): Promise<Client | null> => {
-  return getDocumentById<Client>("clienti", id)
-}
-
-// Modificăm funcția addClient pentru a ne asigura că returnează corect ID-ul
-export const addClient = async (client: Omit<Client, "id">): Promise<string> => {
-  try {
-    // Adăugăm explicit câmpurile createdAt și updatedAt
-    const clientData = {
-      ...client,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    }
-
-    return addDocument<Omit<Client, "id">>("clienti", clientData)
-  } catch (err) {
-    console.error("Eroare la adăugarea clientului:", err)
-    throw err
-  }
-}
-
-export const updateClient = async (id: string, client: Partial<Client>): Promise<void> => {
-  return updateDocument<Client>("clienti", id, client)
-}
-
-export const deleteClient = async (id: string): Promise<void> => {
-  return deleteDocument("clienti", id)
-}
-
-// Funcții specifice pentru loguri
-export const getLogs = async (constraints: QueryConstraint[] = []): Promise<Log[]> => {
-  return getCollection<Log>("logs", [orderBy("timestamp", "desc"), ...constraints])
-}
-
-// Adăugare log
-export const addLog = async (
-  actiune: string,
-  detalii: string,
-  tip = "Informație",
-  categorie = "Sistem",
-): Promise<string> => {
-  try {
-    const user = auth.currentUser
-
-    const logData: Omit<Log, "id"> = {
-      timestamp: Timestamp.now(),
-      utilizator: user?.displayName || user?.email || "Sistem",
-      // Asigurăm-ne că nu trimitem undefined pentru utilizatorId
-      utilizatorId: user?.uid || null, // Folosim null în loc de undefined
-      actiune,
-      detalii,
-      tip,
-      categorie,
-    }
-
-    const docRef = await addDoc(collection(db, "logs"), logData)
-    return docRef.id
-  } catch (error) {
-    console.error("Eroare la adăugarea logului:", error)
-    throw error
-  }
-}
-
-// Funcție pentru a verifica dacă un cod de echipament este unic pentru un client
-export const isEchipamentCodeUnique = async (
-  clientId: string,
-  cod: string,
-  excludeEchipamentId?: string,
-): Promise<boolean> => {
-  try {
-    const client = await getClientById(clientId)
-    if (!client || !client.locatii) return true
-
-    // Verificăm toate locațiile clientului
-    for (const locatie of client.locatii) {
-      if (!locatie.echipamente) continue
-
-      // Verificăm dacă există un echipament cu același cod
-      const existingEchipament = locatie.echipamente.find(
-        (e) => e.cod === cod && (!excludeEchipamentId || e.id !== excludeEchipamentId),
-      )
-
-      if (existingEchipament) return false
-    }
-
-    return true
-  } catch (error) {
-    console.error("Eroare la verificarea unicității codului de echipament:", error)
-    throw error
-  }
-}
-
-// Adaugă această funcție pentru căutarea echipamentelor după cod
-
-/**
- * Caută un echipament după codul său
- * @param code Codul echipamentului
- * @returns Un obiect care conține echipamentul și clientul, sau null dacă nu este găsit
- */
-export async function findEquipmentByCode(code: string): Promise<{ equipment: Echipament; client: Client } | null> {
-  try {
-    const clientsRef = collection(db, "clients")
-    const clientsSnapshot = await getDocs(clientsRef)
-
-    for (const clientDoc of clientsSnapshot.docs) {
-      const clientId = clientDoc.id
-      const equipmentRef = collection(db, "clients", clientId, "equipment")
-      const q = query(equipmentRef, where("cod", "==", code))
-      const equipmentSnapshot = await getDocs(q)
-
-      if (!equipmentSnapshot.empty) {
-        const equipmentDoc = equipmentSnapshot.docs[0]
-        const equipment = { id: equipmentDoc.id, ...equipmentDoc.data() } as Echipament
-        const client = { id: clientId, ...clientDoc.data() } as Client
-
-        return { equipment, client }
-      }
-    }
-
-    return null
-  } catch (error) {
-    console.error("Eroare la căutarea echipamentului după cod:", error)
-    return null
   }
 }
