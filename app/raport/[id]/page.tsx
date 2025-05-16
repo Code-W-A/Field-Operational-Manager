@@ -22,11 +22,9 @@ import { toast } from "@/components/ui/use-toast"
 // import 'jspdf-autotable'
 import { ReportGenerator } from "@/components/report-generator"
 
-
-
 export default function RaportPage({ params }: { params: { id: string } }) {
-const SIG_HEIGHT = 160;          // px – lasă-l fix
-const SIG_MIN_WIDTH = 320;       // px – cât încape pe telefonul cel mai îngust
+  const SIG_HEIGHT = 160 // px – lasă-l fix
+  const SIG_MIN_WIDTH = 320 // px – cât încape pe telefonul cel mai îngust
 
   const router = useRouter()
   const { userData } = useAuth()
@@ -206,18 +204,12 @@ const SIG_MIN_WIDTH = 320;       // px – cât încape pe telefonul cel mai în
     console.log("Submit button clicked, current step:", step)
 
     if (step === "verificare") {
-      if (statusLucrare !== "Finalizat") {
-        toast({
-          title: "Atenție",
-          description: "Lucrarea trebuie să fie marcată ca Finalizată înainte de a genera raportul.",
-          variant: "destructive",
-        })
-        return
-      }
-
       try {
-        // Actualizăm statusul lucrării în baza de date
-        await updateLucrare(params.id, { statusLucrare: "Finalizat" })
+        // Actualizăm statusul lucrării în baza de date, dar nu mai blocăm dacă nu e finalizat
+        // Doar actualizăm statusul dacă utilizatorul a selectat "Finalizat"
+        if (statusLucrare === "Finalizat") {
+          await updateLucrare(params.id, { statusLucrare: "Finalizat" })
+        }
         setStep("semnare")
         console.log("Moving to signing step")
       } catch (err) {
@@ -232,24 +224,20 @@ const SIG_MIN_WIDTH = 320;       // px – cât încape pe telefonul cel mai în
     }
 
     if (step === "semnare") {
-      // Check for tech signature
+      // Check for tech signature - transformăm în avertisment, nu blocaj
       if (!techSignatureData && (!techSignatureRef.current || techSignatureRef.current.isEmpty())) {
         toast({
           title: "Atenție",
-          description: "Vă rugăm să adăugați semnătura tehnicianului înainte de a finaliza raportul.",
-          variant: "destructive",
+          description: "Raportul va fi generat fără semnătura tehnicianului.",
         })
-        return
       }
 
-      // Check for client signature
+      // Check for client signature - transformăm în avertisment, nu blocaj
       if (!clientSignatureData && (!clientSignatureRef.current || clientSignatureRef.current.isEmpty())) {
         toast({
           title: "Atenție",
-          description: "Vă rugăm să adăugați semnătura beneficiarului înainte de a finaliza raportul.",
-          variant: "destructive",
+          description: "Raportul va fi generat fără semnătura beneficiarului.",
         })
-        return
       }
 
       if (!email) {
@@ -278,26 +266,15 @@ const SIG_MIN_WIDTH = 320;       // px – cât încape pe telefonul cel mai în
           setClientSignatureData(semnaturaBeneficiar)
         }
 
-        // Ensure we have both signatures
-        if (!semnaturaTehnician || !semnaturaBeneficiar) {
-          toast({
-            title: "Eroare",
-            description: "Lipsesc semnăturile necesare. Vă rugăm să încercați din nou.",
-            variant: "destructive",
-          })
-          setIsSubmitting(false)
-          return
-        }
-
+        // Nu mai verificăm dacă avem ambele semnături
         await updateLucrare(params.id, {
           semnaturaTehnician,
           semnaturaBeneficiar,
-          statusLucrare: "Finalizat",
+          statusLucrare: statusLucrare, // Păstrăm statusul existent
           products,
           emailDestinatar: email,
         })
 
-        // Inside the try block of the "semnare" step, replace the PDF generation code with:
         // Reîncărcăm datele actualizate
         const updatedLucrare = await getLucrareById(params.id)
         if (updatedLucrare) {
@@ -323,7 +300,6 @@ const SIG_MIN_WIDTH = 320;       // px – cât încape pe telefonul cel mai în
         toast({
           title: "Eroare",
           description: "A apărut o eroare la salvarea semnăturilor.",
-          variant: "destructive",
         })
       } finally {
         setIsSubmitting(false)
@@ -437,7 +413,6 @@ const SIG_MIN_WIDTH = 320;       // px – cât încape pe telefonul cel mai în
       toast({
         title: "Eroare",
         description: "A apărut o eroare la retrimiterea emailului",
-        variant: "destructive",
       })
     } finally {
       setIsSubmitting(false)
@@ -589,8 +564,9 @@ const SIG_MIN_WIDTH = 320;       // px – cât încape pe telefonul cel mai în
                     </SelectContent>
                   </Select>
                   {statusLucrare !== "Finalizat" && (
-                    <p className="text-sm text-red-500">
-                      Lucrarea trebuie să fie marcată ca Finalizată înainte de a genera raportul.
+                    <p className="text-sm text-amber-500">
+                      Lucrarea nu este marcată ca Finalizată. Puteți genera raportul, dar vă recomandăm să finalizați
+                      lucrarea înainte.
                     </p>
                   )}
                 </div>
@@ -677,9 +653,9 @@ const SIG_MIN_WIDTH = 320;       // px – cât încape pe telefonul cel mai în
                       ref={techSignatureRef}
                       canvasProps={{
                         className: "w-full h-40 border rounded",
-                        width: SIG_MIN_WIDTH,        
-                    
-    height: SIG_HEIGHT,
+                        width: SIG_MIN_WIDTH,
+
+                        height: SIG_HEIGHT,
                       }}
                       onBegin={handleTechBegin}
                       onEnd={handleTechEnd}
@@ -701,9 +677,9 @@ const SIG_MIN_WIDTH = 320;       // px – cât încape pe telefonul cel mai în
                       ref={clientSignatureRef}
                       canvasProps={{
                         className: "w-full h-40 border rounded",
-                                           width: SIG_MIN_WIDTH,        
-                    
-    height: SIG_HEIGHT,
+                        width: SIG_MIN_WIDTH,
+
+                        height: SIG_HEIGHT,
                       }}
                       onBegin={handleClientBegin}
                       onEnd={handleClientEnd}
@@ -729,7 +705,7 @@ const SIG_MIN_WIDTH = 320;       // px – cât încape pe telefonul cel mai în
               ref={submitButtonRef}
               className="gap-2 bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
               onClick={handleButtonClick}
-              disabled={isSubmitting || (step === "verificare" ? statusLucrare !== "Finalizat" : false)}
+              disabled={isSubmitting}
             >
               {isSubmitting ? (
                 <>Se procesează...</>

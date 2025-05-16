@@ -530,7 +530,14 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           doc.addImage(lucrare.semnaturaTehnician, "PNG", M, currentY, signatureWidth, signatureHeight)
         } catch (err) {
           console.error("Error adding technician signature:", err)
+          // Adăugăm un text alternativ dacă semnătura nu poate fi încărcată
+          doc.setFontSize(8).setFont(undefined, "italic").setTextColor(100)
+          doc.text("Semnătură lipsă", M + signatureWidth / 2, currentY + signatureHeight / 2, { align: "center" })
         }
+      } else {
+        // Adăugăm un text alternativ dacă semnătura nu există
+        doc.setFontSize(8).setFont(undefined, "italic").setTextColor(100)
+        doc.text("Semnătură lipsă", M + signatureWidth / 2, currentY + signatureHeight / 2, { align: "center" })
       }
 
       if (lucrare.semnaturaBeneficiar) {
@@ -538,7 +545,31 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           doc.addImage(lucrare.semnaturaBeneficiar, "PNG", M + W / 2, currentY, signatureWidth, signatureHeight)
         } catch (err) {
           console.error("Error adding beneficiary signature:", err)
+          // Adăugăm un text alternativ dacă semnătura nu poate fi încărcată
+          doc.setFontSize(8).setFont(undefined, "italic").setTextColor(100)
+          doc.text("Semnătură lipsă", M + W / 2 + signatureWidth / 2, currentY + signatureHeight / 2, {
+            align: "center",
+          })
         }
+      } else {
+        // Adăugăm un text alternativ dacă semnătura nu există
+        doc.setFontSize(8).setFont(undefined, "italic").setTextColor(100)
+        doc.text("Semnătură lipsă", M + W / 2 + signatureWidth / 2, currentY + signatureHeight / 2, { align: "center" })
+      }
+
+      // Adaugă un avertisment dacă lucrarea nu este finalizată
+      if (lucrare.statusLucrare !== "Finalizat") {
+        currentY += signatureHeight + 10
+        doc.setFillColor(255, 240, 240) // Light red background
+        doc.rect(M, currentY, W, 10, "F")
+        doc.setFontSize(8).setFont(undefined, "bold").setTextColor(180, 0, 0) // Red text
+        doc.text(
+          "ATENȚIE: Acest raport a fost generat pentru o lucrare care nu este marcată ca finalizată.",
+          PW / 2,
+          currentY + 6,
+          { align: "center" },
+        )
+        currentY += 15
       }
 
       // Footer
@@ -580,12 +611,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       )}
       <ProductTableForm products={products} onProductsChange={setProducts} />
       <div className="flex justify-center mt-6">
-        <Button
-          ref={ref}
-          onClick={generatePDF}
-          disabled={isGen || !lucrare?.semnaturaTehnician || !lucrare?.semnaturaBeneficiar}
-          className="gap-2"
-        >
+        <Button ref={ref} onClick={generatePDF} disabled={isGen} className="gap-2">
           <Download className="h-4 w-4" />
           {isGen ? "În curs..." : "Descarcă PDF"}
         </Button>
