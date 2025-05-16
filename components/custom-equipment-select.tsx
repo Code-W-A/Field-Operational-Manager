@@ -38,31 +38,6 @@ export function CustomEquipmentSelect({
   const [filteredEquipments, setFilteredEquipments] = useState<Echipament[]>(equipments)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
-  // Actualizăm echipamentul selectat când se schimbă valoarea sau lista de echipamente
-  useEffect(() => {
-    console.log("CustomEquipmentSelect - value changed:", value)
-    console.log("CustomEquipmentSelect - equipments:", equipments)
-
-    if (value && equipments.length > 0) {
-      const equipment = equipments.find((e) => e.id === value)
-      if (equipment) {
-        console.log("CustomEquipmentSelect - equipment found:", equipment)
-        setSelectedEquipment(equipment)
-      } else {
-        console.log("CustomEquipmentSelect - equipment not found for value:", value)
-        // Dacă echipamentul nu este găsit în lista curentă, dar avem un ID valid,
-        // păstrăm selecția pentru a evita pierderea datelor
-        if (selectedEquipment && selectedEquipment.id === value) {
-          console.log("CustomEquipmentSelect - keeping current selection:", selectedEquipment)
-        } else {
-          setSelectedEquipment(null)
-        }
-      }
-    } else if (!value) {
-      setSelectedEquipment(null)
-    }
-  }, [value, equipments, selectedEquipment])
-
   // Actualizăm lista filtrată de echipamente când se schimbă termenul de căutare sau lista de echipamente
   useEffect(() => {
     if (searchTerm.trim() === "") {
@@ -88,6 +63,48 @@ export function CustomEquipmentSelect({
       }, 100)
     }
   }, [open])
+
+  // Actualizăm echipamentul selectat când se schimbă valoarea sau lista de echipamente
+  useEffect(() => {
+    console.log("CustomEquipmentSelect - value changed:", value)
+    console.log("CustomEquipmentSelect - equipments:", equipments)
+
+    // Dacă avem un ID de echipament și lista de echipamente nu este goală
+    if (value) {
+      // Verificăm dacă echipamentul există în lista curentă
+      if (equipments.length > 0) {
+        const equipment = equipments.find((e) => e.id === value)
+        if (equipment) {
+          console.log("CustomEquipmentSelect - equipment found in current list:", equipment)
+          setSelectedEquipment(equipment)
+        } else {
+          console.log("CustomEquipmentSelect - equipment not found in current list for value:", value)
+
+          // Dacă echipamentul nu este în lista curentă dar avem deja un echipament selectat cu același ID
+          // păstrăm selecția pentru a evita pierderea datelor
+          if (selectedEquipment && selectedEquipment.id === value) {
+            console.log("CustomEquipmentSelect - keeping current selection:", selectedEquipment)
+          } else {
+            // Dacă nu avem un echipament selectat cu acest ID, resetăm selecția
+            console.log("CustomEquipmentSelect - resetting selection because equipment not found")
+            setSelectedEquipment(null)
+          }
+        }
+      } else {
+        // Lista de echipamente este goală, dar avem un ID de echipament
+        console.log("CustomEquipmentSelect - equipment list is empty but we have a value:", value)
+
+        // Păstrăm selecția curentă dacă ID-ul coincide
+        if (selectedEquipment && selectedEquipment.id === value) {
+          console.log("CustomEquipmentSelect - keeping current selection with empty list:", selectedEquipment)
+        }
+      }
+    } else {
+      // Nu avem un ID de echipament, resetăm selecția
+      console.log("CustomEquipmentSelect - no value, resetting selection")
+      setSelectedEquipment(null)
+    }
+  }, [value, equipments])
 
   // Funcție pentru a gestiona selecția unui echipament
   const handleEquipmentSelect = (equipment: Echipament) => {
@@ -116,6 +133,17 @@ export function CustomEquipmentSelect({
 
     return formattedName
   }
+
+  // Efect pentru debugging
+  useEffect(() => {
+    console.log("CustomEquipmentSelect - Current state:", {
+      value,
+      selectedEquipment,
+      equipmentsCount: equipments.length,
+      disabled,
+      open,
+    })
+  }, [value, selectedEquipment, equipments.length, disabled, open])
 
   return (
     <div className={cn("relative w-full", className)}>

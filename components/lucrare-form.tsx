@@ -530,6 +530,65 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       }
     }, [formData, formData?.client, clienti, selectedLocatie])
 
+    // Adăugăm un efect special pentru a gestiona încărcarea inițială a locației și echipamentelor
+    useEffect(() => {
+      // Verificăm dacă avem date inițiale și client selectat
+      if (initialData && selectedClient && formData.locatie) {
+        console.log("Încărcare inițială a locației și echipamentelor", {
+          initialData,
+          selectedClient,
+          formDataLocatie: formData.locatie,
+          formDataEchipamentId: formData.echipamentId,
+        })
+
+        // Găsim locația selectată în client
+        const locatie = selectedClient.locatii?.find((loc) => loc.nume === formData.locatie)
+
+        if (locatie) {
+          console.log("Locație găsită în client:", locatie)
+          setSelectedLocatie(locatie)
+
+          // Setăm persoanele de contact
+          if (locatie.persoaneContact) {
+            setPersoaneContact(locatie.persoaneContact)
+
+            // Actualizăm persoanele de contact în formData dacă nu există deja
+            if (handleCustomChange && (!formData.persoaneContact || formData.persoaneContact.length === 0)) {
+              handleCustomChange("persoaneContact", locatie.persoaneContact)
+            }
+          }
+
+          // Activăm afișarea acordeonului
+          setShowContactAccordion(true)
+
+          // Încărcăm echipamentele pentru locația selectată
+          if (locatie.echipamente && locatie.echipamente.length > 0) {
+            console.log("Echipamente găsite pentru locație:", locatie.echipamente)
+            setAvailableEquipments(locatie.echipamente)
+            setEquipmentsLoaded(true)
+
+            // Verificăm dacă există un echipament selectat în datele inițiale
+            if (formData.echipamentId) {
+              console.log("Căutăm echipamentul cu ID:", formData.echipamentId)
+              const selectedEquipment = locatie.echipamente.find((e) => e.id === formData.echipamentId)
+
+              if (selectedEquipment) {
+                console.log("Echipament găsit în locație:", selectedEquipment)
+              } else {
+                console.log("Echipamentul cu ID", formData.echipamentId, "nu a fost găsit în locația", formData.locatie)
+              }
+            }
+          } else {
+            console.log("Nu există echipamente pentru locația", formData.locatie)
+            setAvailableEquipments([])
+            setEquipmentsLoaded(true)
+          }
+        } else {
+          console.log("Locația", formData.locatie, "nu a fost găsită în clientul", selectedClient.nume)
+        }
+      }
+    }, [initialData, selectedClient, formData.locatie, formData.echipamentId, handleCustomChange])
+
     // Adăugăm funcție pentru gestionarea selecției locației
     const handleLocatieSelect = (locatieNume: string) => {
       console.log("Locație selectată:", locatieNume)
@@ -587,6 +646,53 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         handleSelectChange("locatie", locatieNume)
       }
     }
+
+    // Adăugăm o funcție pentru a forța încărcarea echipamentelor pentru o locație
+    // Adăugați această funcție după handleLocatieSelect (în jurul liniei 350):
+
+    // Funcție pentru a forța încărcarea echipamentelor pentru o locație
+    const forceLoadEquipments = useCallback(
+      (locatieNume: string) => {
+        if (!selectedClient) return
+
+        const locatie = selectedClient.locatii?.find((loc) => loc.nume === locatieNume)
+        if (locatie) {
+          console.log("Forțăm încărcarea echipamentelor pentru locația:", locatieNume)
+
+          if (locatie.echipamente && locatie.echipamente.length > 0) {
+            console.log("Echipamente găsite pentru locație:", locatie.echipamente)
+            setAvailableEquipments(locatie.echipamente)
+            setEquipmentsLoaded(true)
+
+            // Verificăm dacă există un echipament selectat în formData
+            if (formData.echipamentId) {
+              const selectedEquipment = locatie.echipamente.find((e) => e.id === formData.echipamentId)
+              if (selectedEquipment) {
+                console.log("Echipament găsit în locație:", selectedEquipment)
+              } else {
+                console.log("Echipamentul cu ID", formData.echipamentId, "nu a fost găsit în locația", locatieNume)
+              }
+            }
+          } else {
+            console.log("Nu există echipamente pentru locația", locatieNume)
+            setAvailableEquipments([])
+            setEquipmentsLoaded(true)
+          }
+        }
+      },
+      [selectedClient, formData.echipamentId],
+    )
+
+    // Adăugăm un efect pentru a forța încărcarea echipamentelor când se schimbă locația
+    // Adăugați acest efect după efectul care actualizează clientul selectat:
+
+    // Efect pentru a forța încărcarea echipamentelor când se schimbă locația
+    useEffect(() => {
+      if (formData.locatie && selectedClient) {
+        console.log("Locația s-a schimbat, forțăm încărcarea echipamentelor:", formData.locatie)
+        forceLoadEquipments(formData.locatie)
+      }
+    }, [formData.locatie, selectedClient, forceLoadEquipments])
 
     // Adăugăm un efect pentru a actualiza echipamentele când se schimbă locația selectată
     // fără a reseta selecția existentă
@@ -741,45 +847,11 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
     // Adăugăm un efect pentru a actualiza starea când se încarcă datele inițiale
     useEffect(() => {
-      if (initialData && initialData.locatie && locatii.length > 0) {
-        const locatie = locatii.find((loc) => loc.nume === initialData.locatie)
-        if (locatie) {
-          setSelectedLocatie(locatie)
-          if (locatie.persoaneContact) {
-            setPersoaneContact(locatie.persoaneContact)
-
-            // If we have initial data but no persoaneContact field, initialize it
-            if (handleCustomChange && (!initialData.persoaneContact || initialData.persoaneContact.length === 0)) {
-              handleCustomChange("persoaneContact", locatie.persoaneContact)
-            }
-          }
-          setShowContactAccordion(true)
-
-          // Încărcăm echipamentele pentru locația inițială
-          if (locatie.echipamente) {
-            setAvailableEquipments(locatie.echipamente)
-            setEquipmentsLoaded(true)
-
-            // Verificăm dacă există un echipament selectat în datele inițiale
-            if (initialData.echipamentId) {
-              const selectedEquipment = locatie.echipamente.find((e) => e.id === initialData.echipamentId)
-              if (selectedEquipment) {
-                console.log("Echipament găsit în datele inițiale:", selectedEquipment)
-                // Nu este nevoie să actualizăm formData aici, deoarece este deja setat din datele inițiale
-              } else {
-                console.log("Echipamentul cu ID-ul", initialData.echipamentId, "nu a fost găsit în locația selectată")
-              }
-            }
-          }
-        }
-      }
-
-      // If we have initial data with persoaneContact, use that
       if (initialData && initialData.persoaneContact && initialData.persoaneContact.length > 0) {
         setPersoaneContact(initialData.persoaneContact)
         setShowContactAccordion(true)
       }
-    }, [initialData, locatii, handleCustomChange])
+    }, [initialData])
 
     // Adăugăm un efect pentru a afișa erori de încărcare a clienților
     useEffect(() => {

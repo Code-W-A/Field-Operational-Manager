@@ -82,8 +82,8 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
       try {
         const lucrare = await getLucrareById(id)
         if (lucrare) {
+          console.log("Lucrare încărcată:", JSON.stringify(lucrare, null, 2))
           setInitialData(lucrare)
-          console.log("Lucrare încărcată:", lucrare)
 
           // Set dates
           if (lucrare.dataEmiterii) {
@@ -115,8 +115,13 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
           })
 
           // Log pentru debugging
-          console.log("Echipament ID încărcat:", lucrare.echipamentId)
-          console.log("Echipament nume încărcat:", lucrare.echipament)
+          console.log("Date formular setate:", {
+            client: lucrare.client,
+            locatie: lucrare.locatie,
+            echipament: lucrare.echipament,
+            echipamentId: lucrare.echipamentId,
+            echipamentCod: lucrare.echipamentCod,
+          })
         }
         setLoading(false)
       } catch (error) {
