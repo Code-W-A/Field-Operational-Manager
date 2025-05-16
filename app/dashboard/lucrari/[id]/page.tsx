@@ -165,7 +165,6 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
       return
     }
 
-    // Navigăm către pagina de raport fără verificări suplimentare
     router.push(`/raport/${lucrare.id}`)
   }, [router, lucrare])
 

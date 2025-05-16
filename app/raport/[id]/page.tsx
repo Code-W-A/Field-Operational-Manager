@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { Send, ArrowLeft } from "lucide-react"
+import { Check, Send, ArrowLeft, Mail, Download } from "lucide-react"
 import SignatureCanvas from "react-signature-canvas"
 import { getLucrareById, updateLucrare } from "@/lib/firebase/firestore"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -18,13 +18,15 @@ import { ProductTableForm, type Product } from "@/components/product-table-form"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/components/ui/use-toast"
-import { DashboardHeader } from "@/components/dashboard-header"
-import { DashboardShell } from "@/components/dashboard-shell"
+// Remove the autotable import since it's causing issues
+// import 'jspdf-autotable'
 import { ReportGenerator } from "@/components/report-generator"
 
+
+
 export default function RaportPage({ params }: { params: { id: string } }) {
-  const SIG_HEIGHT = 160 // px – lasă-l fix
-  const SIG_MIN_WIDTH = 320 // px – cât încape pe telefonul cel mai îngust
+const SIG_HEIGHT = 160;          // px – lasă-l fix
+const SIG_MIN_WIDTH = 320;       // px – cât încape pe telefonul cel mai îngust
 
   const router = useRouter()
   const { userData } = useAuth()
@@ -56,7 +58,6 @@ export default function RaportPage({ params }: { params: { id: string } }) {
 
   const reportGeneratorRef = useRef<React.ElementRef<typeof ReportGenerator>>(null)
   const submitButtonRef = useRef<HTMLButtonElement>(null)
-  const reportButtonRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     const fetchLucrare = async () => {
@@ -449,149 +450,92 @@ export default function RaportPage({ params }: { params: { id: string } }) {
     handleSubmit()
   }, [handleSubmit])
 
-  const handleGeneratePDF = (blob: Blob) => {
-    console.log("PDF generat:", blob)
-    // Aici putem face ceva cu blob-ul PDF, cum ar fi să-l trimitem la server sau să-l salvăm
-  }
-
-  if (loading) {
-    return (
-      <DashboardShell>
-        <DashboardHeader heading="Se încarcă..." text="Vă rugăm așteptați" />
-        <div className="animate-pulse space-y-4">
-          <div className="h-12 bg-gray-200 rounded"></div>
-          <div className="h-64 bg-gray-200 rounded"></div>
-        </div>
-      </DashboardShell>
-    )
-  }
-
-  if (error || !lucrare) {
-    return (
-      <DashboardShell>
-        <DashboardHeader heading="Eroare" text={error || "A apărut o eroare"} />
-        <Button onClick={() => router.push("/dashboard/lucrari")}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Înapoi la lucrări
-        </Button>
-      </DashboardShell>
-    )
-  }
-
   return (
-    <DashboardShell>
-      <DashboardHeader
-        heading={`Raport: ${lucrare.tipLucrare}`}
-        text={`Client: ${lucrare.client} | Locație: ${lucrare.locatie}`}
-      >
-        <div className="flex space-x-2">
-          <Button variant="outline" size="icon" className="absolute left-4" onClick={() => router.back()}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </div>
-      </DashboardHeader>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Generare raport PDF</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ReportGenerator ref={reportButtonRef} lucrare={lucrare} onGenerate={handleGeneratePDF} />
-        </CardContent>
-      </Card>
-
-      {!isSubmitted && (
-        <Card className="w-full max-w-3xl mt-4">
-          <CardHeader className="text-center">
-            <div className="flex items-center">
-              <Button variant="ghost" size="icon" className="absolute left-4" onClick={() => router.back()}>
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div className="w-full">
-                <CardTitle className="text-xl sm:text-2xl font-bold text-blue-700">
-                  Raport Intervenție #{params.id}
-                </CardTitle>
-                <CardDescription>Detalii despre intervenția efectuată</CardDescription>
-              </div>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
+      <Card className="w-full max-w-3xl">
+        <CardHeader className="text-center">
+          <div className="flex items-center">
+            <Button variant="ghost" size="icon" className="absolute left-4" onClick={() => router.back()}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="w-full">
+              <CardTitle className="text-xl sm:text-2xl font-bold text-blue-700">
+                Raport Intervenție #{params.id}
+              </CardTitle>
+              <CardDescription>Detalii despre intervenția efectuată</CardDescription>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {step === "verificare" ? (
-              <Tabs defaultValue="detalii" value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid grid-cols-2 mb-4">
-                  <TabsTrigger value="detalii">Detalii Lucrare</TabsTrigger>
-                  <TabsTrigger value="interventie">Intervenție</TabsTrigger>
-                </TabsList>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {isSubmitted ? (
+            <div className="space-y-6">
+              <div className="flex flex-col items-center justify-center space-y-4 py-6">
+                <div className="rounded-full bg-green-100 p-3">
+                  <Check className="h-8 w-8 text-green-600" />
+                </div>
+                <h2 className="text-xl font-semibold">Raport Finalizat cu Succes!</h2>
+                <p className="text-center text-gray-500">
+                  Raportul a fost generat și {emailSent ? "trimis pe email" : "poate fi descărcat sau trimis pe email"}.
+                </p>
+                {/* Add this inside the first div of the isSubmitted condition */}
+                <div className="hidden">
+                  <ReportGenerator
+                    ref={reportGeneratorRef}
+                    lucrare={lucrare}
+                    onGenerate={(blob) => {
+                      setPdfBlob(blob)
+                      // Send email automatically when PDF is generated
+                      sendEmail(blob).then((success) => {
+                        setEmailSent(success)
+                      })
+                    }}
+                  />
+                </div>
+              </div>
 
-                <TabsContent value="detalii" className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <h3 className="font-medium text-gray-500">Client</h3>
-                      <p>{lucrare?.client}</p>
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-gray-500">Locație</h3>
-                      <p>{lucrare?.locatie}</p>
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-gray-500">Data Intervenție</h3>
-                      <p>{lucrare?.dataInterventie}</p>
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-gray-500">Tehnician</h3>
-                      <p>{lucrare?.tehnicieni?.join(", ")}</p>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div>
-                    <h3 className="font-medium text-gray-500">Defect Reclamat</h3>
-                    <p>{lucrare?.defectReclamat || "Nu a fost specificat"}</p>
-                  </div>
-
-                  <div>
-                    <h3 className="font-medium text-gray-500">Descriere Lucrare</h3>
-                    <p>{lucrare?.descriere}</p>
-                  </div>
-
-                  <Separator />
-
-                  {lucrare?.tipLucrare === "Intervenție în contract" && (
-                    <div>
-                      <h3 className="font-medium text-gray-500">Contract:</h3>
-                      <p>{lucrare?.contractNumber || "N/A"}</p>
-                    </div>
-                  )}
+              <div className="space-y-4">
+                <div className="flex flex-col space-y-2">
+                  <Button onClick={handleDownloadPDF} className="gap-2">
+                    <Download className="h-4 w-4" /> Descarcă PDF
+                  </Button>
 
                   <div className="space-y-2">
-                    <h3 className="font-medium text-gray-500">Status Lucrare</h3>
-                    <Select value={statusLucrare} onValueChange={handleStatusChange}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Selectați statusul" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="În așteptare">În așteptare</SelectItem>
-                        <SelectItem value="În curs">În curs</SelectItem>
-                        <SelectItem value="Finalizat">Finalizat</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {statusLucrare !== "Finalizat" && (
-                      <p className="text-sm text-red-500">
-                        Lucrarea trebuie să fie marcată ca Finalizată înainte de a genera raportul.
-                      </p>
-                    )}
+                    <Label htmlFor="email">Adresă Email</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="email@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                      />
+                      <Button
+                        onClick={handleResendEmail}
+                        disabled={isSubmitting || !email}
+                        className="gap-2 whitespace-nowrap"
+                      >
+                        {isSubmitting ? (
+                          <>Se trimite...</>
+                        ) : (
+                          <>
+                            <Mail className="h-4 w-4" /> Trimite Email
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
-                </TabsContent>
+                </div>
+              </div>
+            </div>
+          ) : step === "verificare" ? (
+            <Tabs defaultValue="detalii" value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid grid-cols-2 mb-4">
+                <TabsTrigger value="detalii">Detalii Lucrare</TabsTrigger>
+                <TabsTrigger value="interventie">Intervenție</TabsTrigger>
+              </TabsList>
 
-                <TabsContent value="interventie" className="space-y-4">
-                  <div>
-                    <h3 className="font-medium text-gray-500">Descriere Intervenție</h3>
-                    <p className="whitespace-pre-line">{lucrare?.descriereInterventie || "Nu a fost specificată"}</p>
-                  </div>
-                </TabsContent>
-              </Tabs>
-            ) : (
-              <>
+              <TabsContent value="detalii" className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <h3 className="font-medium text-gray-500">Client</h3>
@@ -625,113 +569,181 @@ export default function RaportPage({ params }: { params: { id: string } }) {
 
                 <Separator />
 
+                {lucrare?.tipLucrare === "Intervenție în contract" && (
+                  <div>
+                    <h3 className="font-medium text-gray-500">Contract:</h3>
+                    <p>{lucrare?.contractNumber || "N/A"}</p>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <h3 className="font-medium text-gray-500">Status Lucrare</h3>
+                  <Select value={statusLucrare} onValueChange={handleStatusChange}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selectați statusul" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="În așteptare">În așteptare</SelectItem>
+                      <SelectItem value="În curs">În curs</SelectItem>
+                      <SelectItem value="Finalizat">Finalizat</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {statusLucrare !== "Finalizat" && (
+                    <p className="text-sm text-red-500">
+                      Lucrarea trebuie să fie marcată ca Finalizată înainte de a genera raportul.
+                    </p>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="interventie" className="space-y-4">
                 <div>
                   <h3 className="font-medium text-gray-500">Descriere Intervenție</h3>
                   <p className="whitespace-pre-line">{lucrare?.descriereInterventie || "Nu a fost specificată"}</p>
                 </div>
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <h3 className="font-medium text-gray-500">Client</h3>
+                  <p>{lucrare?.client}</p>
+                </div>
+                <div>
+                  <h3 className="font-medium text-gray-500">Locație</h3>
+                  <p>{lucrare?.locatie}</p>
+                </div>
+                <div>
+                  <h3 className="font-medium text-gray-500">Data Intervenție</h3>
+                  <p>{lucrare?.dataInterventie}</p>
+                </div>
+                <div>
+                  <h3 className="font-medium text-gray-500">Tehnician</h3>
+                  <p>{lucrare?.tehnicieni?.join(", ")}</p>
+                </div>
+              </div>
 
-                <Separator />
+              <Separator />
 
-                {/* Adăugăm formularul pentru produse */}
-                <ProductTableForm products={products} onProductsChange={setProducts} />
+              <div>
+                <h3 className="font-medium text-gray-500">Defect Reclamat</h3>
+                <p>{lucrare?.defectReclamat || "Nu a fost specificat"}</p>
+              </div>
 
-                <Separator />
+              <div>
+                <h3 className="font-medium text-gray-500">Descriere Lucrare</h3>
+                <p>{lucrare?.descriere}</p>
+              </div>
 
-                {/* Adăugăm câmpul pentru email */}
+              <Separator />
+
+              <div>
+                <h3 className="font-medium text-gray-500">Descriere Intervenție</h3>
+                <p className="whitespace-pre-line">{lucrare?.descriereInterventie || "Nu a fost specificată"}</p>
+              </div>
+
+              <Separator />
+
+              {/* Adăugăm formularul pentru produse */}
+              <ProductTableForm products={products} onProductsChange={setProducts} />
+
+              <Separator />
+
+              {/* Adăugăm câmpul pentru email */}
+              <div className="space-y-2">
+                <Label htmlFor="email">Adresă Email pentru Trimitere Raport *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="email@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Raportul va fi trimis automat la această adresă după finalizare
+                </p>
+              </div>
+
+              <Separator />
+
+              <div className="grid gap-6 md:grid-cols-2">
+                {/* Semnătură Tehnician */}
                 <div className="space-y-2">
-                  <Label htmlFor="email">Adresă Email pentru Trimitere Raport *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="email@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Raportul va fi trimis automat la această adresă după finalizare
-                  </p>
+                  <h3 className="font-medium text-gray-500">Semnătură Tehnician</h3>
+                  <div className="rounded-md border border-gray-300 bg-white p-2">
+                    <SignatureCanvas
+                      ref={techSignatureRef}
+                      canvasProps={{
+                        className: "w-full h-40 border rounded",
+                        width: SIG_MIN_WIDTH,        
+                    
+    height: SIG_HEIGHT,
+                      }}
+                      onBegin={handleTechBegin}
+                      onEnd={handleTechEnd}
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <Button variant="outline" size="sm" onClick={clearTechSignature}>
+                      Șterge
+                    </Button>
+                  </div>
+                  <p className="text-xs text-center text-gray-500">{lucrare?.tehnicieni?.join(", ") || "Tehnician"}</p>
                 </div>
 
-                <Separator />
-
-                <div className="grid gap-6 md:grid-cols-2">
-                  {/* Semnătură Tehnician */}
-                  <div className="space-y-2">
-                    <h3 className="font-medium text-gray-500">Semnătură Tehnician</h3>
-                    <div className="rounded-md border border-gray-300 bg-white p-2">
-                      <SignatureCanvas
-                        ref={techSignatureRef}
-                        canvasProps={{
-                          className: "w-full h-40 border rounded",
-                          width: SIG_MIN_WIDTH,
-                          height: SIG_HEIGHT,
-                        }}
-                        onBegin={handleTechBegin}
-                        onEnd={handleTechEnd}
-                      />
-                    </div>
-                    <div className="flex justify-end">
-                      <Button variant="outline" size="sm" onClick={clearTechSignature}>
-                        Șterge
-                      </Button>
-                    </div>
-                    <p className="text-xs text-center text-gray-500">
-                      {lucrare?.tehnicieni?.join(", ") || "Tehnician"}
-                    </p>
+                {/* Semnătură Beneficiar */}
+                <div className="space-y-2">
+                  <h3 className="font-medium text-gray-500">Semnătură Beneficiar</h3>
+                  <div className="rounded-md border border-gray-300 bg-white p-2">
+                    <SignatureCanvas
+                      ref={clientSignatureRef}
+                      canvasProps={{
+                        className: "w-full h-40 border rounded",
+                                           width: SIG_MIN_WIDTH,        
+                    
+    height: SIG_HEIGHT,
+                      }}
+                      onBegin={handleClientBegin}
+                      onEnd={handleClientEnd}
+                    />
                   </div>
-
-                  {/* Semnătură Beneficiar */}
-                  <div className="space-y-2">
-                    <h3 className="font-medium text-gray-500">Semnătură Beneficiar</h3>
-                    <div className="rounded-md border border-gray-300 bg-white p-2">
-                      <SignatureCanvas
-                        ref={clientSignatureRef}
-                        canvasProps={{
-                          className: "w-full h-40 border rounded",
-                          width: SIG_MIN_WIDTH,
-                          height: SIG_HEIGHT,
-                        }}
-                        onBegin={handleClientBegin}
-                        onEnd={handleClientEnd}
-                      />
-                    </div>
-                    <div className="flex justify-end">
-                      <Button variant="outline" size="sm" onClick={clearClientSignature}>
-                        Șterge
-                      </Button>
-                    </div>
-                    <p className="text-xs text-center text-gray-500">{lucrare?.persoanaContact || "Beneficiar"}</p>
+                  <div className="flex justify-end">
+                    <Button variant="outline" size="sm" onClick={clearClientSignature}>
+                      Șterge
+                    </Button>
                   </div>
+                  <p className="text-xs text-center text-gray-500">{lucrare?.persoanaContact || "Beneficiar"}</p>
                 </div>
-              </>
-            )}
-          </CardContent>
-          {!isSubmitted && (
-            <CardFooter className="flex flex-col sm:flex-row gap-2 justify-between">
-              <Button variant="outline" onClick={() => router.back()}>
-                Înapoi
-              </Button>
-              <Button
-                ref={submitButtonRef}
-                className="gap-2 bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
-                onClick={handleButtonClick}
-                disabled={isSubmitting || (step === "verificare" ? statusLucrare !== "Finalizat" : false)}
-              >
-                {isSubmitting ? (
-                  <>Se procesează...</>
-                ) : step === "verificare" ? (
-                  <>Continuă spre semnare</>
-                ) : (
-                  <>
-                    <Send className="h-4 w-4" /> Finalizează și Trimite Raport
-                  </>
-                )}
-              </Button>
-            </CardFooter>
+              </div>
+            </>
           )}
-        </Card>
-      )}
-    </DashboardShell>
+        </CardContent>
+        {!isSubmitted && (
+          <CardFooter className="flex flex-col sm:flex-row gap-2 justify-between">
+            <Button variant="outline" onClick={() => router.back()}>
+              Înapoi
+            </Button>
+            <Button
+              ref={submitButtonRef}
+              className="gap-2 bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
+              onClick={handleButtonClick}
+              disabled={isSubmitting || (step === "verificare" ? statusLucrare !== "Finalizat" : false)}
+            >
+              {isSubmitting ? (
+                <>Se procesează...</>
+              ) : step === "verificare" ? (
+                <>Continuă spre semnare</>
+              ) : (
+                <>
+                  <Send className="h-4 w-4" /> Finalizează și Trimite Raport
+                </>
+              )}
+            </Button>
+          </CardFooter>
+        )}
+      </Card>
+    </div>
   )
 }
