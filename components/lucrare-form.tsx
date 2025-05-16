@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useCallback, useImperativeHandle, forwardRef } from "react"
+import { useState, useEffect, useCallback, useImperativeHandle, forwardRef, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -151,6 +151,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     const [formModified, setFormModified] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [showCloseAlert, setShowCloseAlert] = useState(false)
+    const equipmentSelectRef = useRef<any>(null)
 
     // Track initial form state
     const [initialFormState, setInitialFormState] = useState({
@@ -188,6 +189,9 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
     // Adăugăm state pentru a urmări dacă am încercat să găsim echipamentul după nume
     const [triedFindByName, setTriedFindByName] = useState(false)
+
+    // Adăugăm state pentru a urmări dacă am încercat să selectăm echipamentul
+    const [triedSelectEquipment, setTriedSelectEquipment] = useState(false)
 
     // Expose methods to parent component via ref
     useImperativeHandle(ref, () => ({
@@ -681,6 +685,65 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       }
     }, [formData.echipament, formData.echipamentId, availableEquipments, triedFindByName, handleCustomChange])
 
+    // Adăugăm un nou efect pentru a forța selecția echipamentului în dropdown
+    useEffect(() => {
+      // Verificăm dacă avem echipamente disponibile și un echipament selectat
+      if (
+        availableEquipments.length > 0 &&
+        formData.echipament &&
+        isEdit &&
+        !triedSelectEquipment &&
+        equipmentsLoaded
+      ) {
+        console.log("Încercăm să selectăm echipamentul în dropdown:", formData.echipament)
+
+        // Căutăm echipamentul după ID sau nume
+        let selectedEquipment: Echipament | undefined
+
+        if (formData.echipamentId) {
+          selectedEquipment = availableEquipments.find((e) => e.id === formData.echipamentId)
+          if (selectedEquipment) {
+            console.log("Echipament găsit după ID pentru selecție:", selectedEquipment)
+          }
+        }
+
+        if (!selectedEquipment && formData.echipament) {
+          selectedEquipment = availableEquipments.find((e) => e.nume === formData.echipament)
+          if (selectedEquipment) {
+            console.log("Echipament găsit după nume pentru selecție:", selectedEquipment)
+          }
+        }
+
+        if (selectedEquipment) {
+          // Actualizăm ID-ul echipamentului în formData dacă nu există deja
+          if (!formData.echipamentId && handleCustomChange) {
+            handleCustomChange("echipamentId", selectedEquipment.id)
+            handleCustomChange("echipamentCod", selectedEquipment.cod)
+          }
+
+          // Afișăm un toast pentru feedback
+          toast({
+            title: "Echipament selectat automat",
+            description: `Am selectat automat echipamentul "${selectedEquipment.nume}"`,
+            variant: "default",
+          })
+        } else {
+          console.log("Nu am putut găsi echipamentul pentru selecție automată")
+        }
+
+        // Marcăm că am încercat să selectăm echipamentul
+        setTriedSelectEquipment(true)
+      }
+    }, [
+      availableEquipments,
+      formData.echipament,
+      formData.echipamentId,
+      isEdit,
+      triedSelectEquipment,
+      equipmentsLoaded,
+      handleCustomChange,
+    ])
+
     // Adăugăm funcție pentru gestionarea selecției locației
     const handleLocatieSelect = (locatieNume: string) => {
       console.log("Locație selectată:", locatieNume)
@@ -725,6 +788,9 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           console.log("Echipamente găsite pentru locație:", locatie.echipamente)
           setAvailableEquipments(locatie.echipamente)
           setEquipmentsLoaded(true)
+
+          // Resetăm flag-ul pentru a permite o nouă încercare de selecție a echipamentului
+          setTriedSelectEquipment(false)
         } else {
           console.log("Nu există echipamente pentru această locație")
           setAvailableEquipments([])
@@ -755,6 +821,9 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             console.log("Echipamente găsite pentru locație:", locatie.echipamente)
             setAvailableEquipments(locatie.echipamente)
             setEquipmentsLoaded(true)
+
+            // Resetăm flag-ul pentru a permite o nouă încercare de selecție a echipamentului
+            setTriedSelectEquipment(false)
 
             // Verificăm dacă există un echipament selectat în formData
             if (formData.echipamentId) {
@@ -850,6 +919,9 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         console.log("Actualizare echipamente pentru locația selectată:", selectedLocatie.echipamente)
         setAvailableEquipments(selectedLocatie.echipamente || [])
         setEquipmentsLoaded(true)
+
+        // Resetăm flag-ul pentru a permite o nouă încercare de selecție a echipamentului
+        setTriedSelectEquipment(false)
 
         // Verificăm dacă echipamentul selectat există în noua listă
         if (formData.echipamentId) {

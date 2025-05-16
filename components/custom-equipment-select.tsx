@@ -40,6 +40,7 @@ export function CustomEquipmentSelect({
   const [filteredEquipments, setFilteredEquipments] = useState<Echipament[]>(equipments)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [fallbackUsed, setFallbackUsed] = useState(false)
+  const [manuallySelected, setManuallySelected] = useState(false)
 
   // Actualizăm lista filtrată de echipamente când se schimbă termenul de căutare sau lista de echipamente
   useEffect(() => {
@@ -72,6 +73,13 @@ export function CustomEquipmentSelect({
     console.log("CustomEquipmentSelect - value changed:", value)
     console.log("CustomEquipmentSelect - equipments:", equipments)
     console.log("CustomEquipmentSelect - fallbackName:", fallbackName)
+    console.log("CustomEquipmentSelect - manuallySelected:", manuallySelected)
+
+    // Dacă utilizatorul a selectat manual un echipament, păstrăm selecția
+    if (manuallySelected && selectedEquipment) {
+      console.log("CustomEquipmentSelect - keeping manually selected equipment:", selectedEquipment)
+      return
+    }
 
     // Dacă avem un ID de echipament și lista de echipamente nu este goală
     if (value) {
@@ -124,7 +132,7 @@ export function CustomEquipmentSelect({
       console.log("CustomEquipmentSelect - no value and no fallbackName, resetting selection")
       setSelectedEquipment(null)
     }
-  }, [value, equipments, fallbackName, fallbackUsed, onSelect, selectedEquipment])
+  }, [value, equipments, fallbackName, fallbackUsed, onSelect, selectedEquipment, manuallySelected])
 
   // Funcție pentru a gestiona selecția unui echipament
   const handleEquipmentSelect = (equipment: Echipament) => {
@@ -135,6 +143,7 @@ export function CustomEquipmentSelect({
 
     console.log("CustomEquipmentSelect - Selecting equipment:", equipment)
     setSelectedEquipment(equipment)
+    setManuallySelected(true) // Marcăm că utilizatorul a selectat manual
     onSelect(equipment.id, equipment)
     setOpen(false)
     setSearchTerm("")
@@ -164,8 +173,47 @@ export function CustomEquipmentSelect({
       disabled,
       open,
       fallbackUsed,
+      manuallySelected,
     })
-  }, [value, fallbackName, selectedEquipment, equipments.length, disabled, open, fallbackUsed])
+  }, [value, fallbackName, selectedEquipment, equipments.length, disabled, open, fallbackUsed, manuallySelected])
+
+  // Efect pentru a selecta automat echipamentul când lista de echipamente se schimbă
+  useEffect(() => {
+    // Dacă nu avem un echipament selectat și lista de echipamente s-a încărcat
+    if (!selectedEquipment && equipments.length > 0 && !manuallySelected) {
+      console.log("CustomEquipmentSelect - Trying to auto-select equipment")
+
+      // Încercăm să găsim echipamentul după ID
+      if (value) {
+        const equipment = equipments.find((e) => e.id === value)
+        if (equipment) {
+          console.log("CustomEquipmentSelect - Auto-selecting equipment by ID:", equipment)
+          setSelectedEquipment(equipment)
+          return
+        }
+      }
+
+      // Dacă nu am găsit după ID, încercăm după nume
+      if (fallbackName) {
+        const equipmentByName = equipments.find((e) => e.nume === fallbackName)
+        if (equipmentByName) {
+          console.log("CustomEquipmentSelect - Auto-selecting equipment by name:", equipmentByName)
+          setSelectedEquipment(equipmentByName)
+          // Notificăm componenta părinte despre selecție
+          onSelect(equipmentByName.id || "", equipmentByName)
+          setFallbackUsed(true)
+          return
+        }
+      }
+    }
+  }, [equipments, selectedEquipment, value, fallbackName, onSelect, manuallySelected])
+
+  // Adăugăm o funcție pentru a reseta selecția manuală
+  const resetManualSelection = () => {
+    setManuallySelected(false)
+  }
+
+  // Expunem această funcție prin ref dacă este necesar
 
   return (
     <div className={cn("relative w-full", className)}>
