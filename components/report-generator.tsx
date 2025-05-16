@@ -557,20 +557,6 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         doc.text("Semnătură lipsă", M + W / 2 + signatureWidth / 2, currentY + signatureHeight / 2, { align: "center" })
       }
 
-      // Adaugă un avertisment dacă lucrarea nu este finalizată
-      if (lucrare.statusLucrare !== "Finalizat") {
-        currentY += signatureHeight + 10
-        doc.setFillColor(255, 240, 240) // Light red background
-        doc.rect(M, currentY, W, 10, "F")
-        doc.setFontSize(8).setFont(undefined, "bold").setTextColor(180, 0, 0) // Red text
-        doc.text(
-          "ATENȚIE: Acest raport a fost generat pentru o lucrare care nu este marcată ca finalizată.",
-          PW / 2,
-          currentY + 6,
-          { align: "center" },
-        )
-        currentY += 15
-      }
 
       // Footer
       currentY = PH - M - 5
