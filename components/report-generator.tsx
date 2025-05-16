@@ -18,11 +18,12 @@
 import { useState, forwardRef, useEffect } from "react"
 import { jsPDF } from "jspdf"
 import { Button } from "@/components/ui/button"
-import { Download } from "lucide-react"
+import { Download, AlertTriangle } from "lucide-react"
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { useStableCallback } from "@/lib/utils/hooks"
 import { toast } from "@/components/ui/use-toast"
 import { ProductTableForm, type Product } from "./product-table-form"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 interface ReportGeneratorProps {
   lucrare: Lucrare
@@ -202,10 +203,6 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const locationName = normalize(lucrare.locatie || "-")
       const locationAddress = normalize(clientInfo.locationAddress || "-")
       const fullLocationAddress = locationAddress !== "-" ? `${locationName}, ${locationAddress}` : locationName
-
-      // Generăm link-ul pentru navigare
-      const encodedAddress = encodeURIComponent(fullLocationAddress)
-      const navigationLink = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`
 
       // Draw beneficiar box with complete client information
       drawBox(
@@ -525,12 +522,20 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const signatureWidth = W / 2 - 10
       const signatureHeight = 25
 
+      // Verificăm dacă există semnături și le adăugăm dacă există
       if (lucrare.semnaturaTehnician) {
         try {
           doc.addImage(lucrare.semnaturaTehnician, "PNG", M, currentY, signatureWidth, signatureHeight)
         } catch (err) {
           console.error("Error adding technician signature:", err)
+          // Adăugăm text în locul semnăturii lipsă
+          doc.setFontSize(8).setFont(undefined, "italic").setTextColor(100)
+          doc.text("Semnătură lipsă", M + signatureWidth / 2, currentY + signatureHeight / 2, { align: "center" })
         }
+      } else {
+        // Adăugăm text în locul semnăturii lipsă
+        doc.setFontSize(8).setFont(undefined, "italic").setTextColor(100)
+        doc.text("Semnătură lipsă", M + signatureWidth / 2, currentY + signatureHeight / 2, { align: "center" })
       }
 
       if (lucrare.semnaturaBeneficiar) {
@@ -538,7 +543,34 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           doc.addImage(lucrare.semnaturaBeneficiar, "PNG", M + W / 2, currentY, signatureWidth, signatureHeight)
         } catch (err) {
           console.error("Error adding beneficiary signature:", err)
+          // Adăugăm text în locul semnăturii lipsă
+          doc.setFontSize(8).setFont(undefined, "italic").setTextColor(100)
+          doc.text("Semnătură lipsă", M + W / 2 + signatureWidth / 2, currentY + signatureHeight / 2, {
+            align: "center",
+          })
         }
+      } else {
+        // Adăugăm text în locul semnăturii lipsă
+        doc.setFontSize(8).setFont(undefined, "italic").setTextColor(100)
+        doc.text("Semnătură lipsă", M + W / 2 + signatureWidth / 2, currentY + signatureHeight / 2, { align: "center" })
+      }
+
+      // Adăugăm un text de avertizare dacă lipsesc semnăturile
+      if (!lucrare.semnaturaTehnician || !lucrare.semnaturaBeneficiar) {
+        currentY += signatureHeight + 5
+        doc.setFillColor(255, 240, 240) // Culoare de fundal pentru avertisment
+        doc.setDrawColor(255, 200, 200)
+        doc.rect(M, currentY, W, 10, "FD")
+
+        doc.setFontSize(8).setFont(undefined, "bold").setTextColor(180, 0, 0)
+        doc.text(
+          "ATENȚIE: Acest raport este generat fără toate semnăturile necesare și este doar pentru uz informativ.",
+          PW / 2,
+          currentY + 6,
+          { align: "center" },
+        )
+
+        currentY += 15
       }
 
       // Footer
@@ -553,7 +585,21 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const blob = doc.output("blob")
       doc.save(`Raport_${lucrare.id}.pdf`)
       onGenerate?.(blob)
-      toast({ title: "PDF generat!", description: "Descărcare completă." })
+
+      // Afișăm un mesaj diferit în funcție de prezența semnăturilor
+      if (!lucrare.semnaturaTehnician || !lucrare.semnaturaBeneficiar) {
+        toast({
+          title: "PDF generat cu avertisment!",
+          description: "Raportul a fost generat fără toate semnăturile necesare.",
+          variant: "warning",
+        })
+      } else {
+        toast({
+          title: "PDF generat!",
+          description: "Descărcare completă.",
+        })
+      }
+
       return blob
     } catch (e) {
       console.error(e)
@@ -562,6 +608,9 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       setIsGen(false)
     }
   })
+
+  // Verificăm dacă lipsesc semnăturile pentru a afișa un avertisment
+  const missingSemnatura = !lucrare?.semnaturaTehnician || !lucrare?.semnaturaBeneficiar
 
   return (
     <div className="space-y-4">
@@ -578,14 +627,22 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           <p className="whitespace-pre-line">{lucrare.descriereInterventie}</p>
         </div>
       )}
+
       <ProductTableForm products={products} onProductsChange={setProducts} />
+
+      {missingSemnatura && (
+        <Alert variant="warning" className="mt-4">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Lipsesc semnături</AlertTitle>
+          <AlertDescription>
+            Raportul va fi generat fără toate semnăturile necesare. Acesta va conține un avertisment și este recomandat
+            doar pentru uz informativ.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="flex justify-center mt-6">
-        <Button
-          ref={ref}
-          onClick={generatePDF}
-          disabled={isGen || !lucrare?.semnaturaTehnician || !lucrare?.semnaturaBeneficiar}
-          className="gap-2"
-        >
+        <Button ref={ref} onClick={generatePDF} disabled={isGen} className="gap-2">
           <Download className="h-4 w-4" />
           {isGen ? "În curs..." : "Descarcă PDF"}
         </Button>
