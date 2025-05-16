@@ -21,6 +21,7 @@ interface CustomEquipmentSelectProps {
   className?: string
   placeholder?: string
   emptyMessage?: string
+  fallbackName?: string // Adăugăm un nume de echipament de rezervă pentru cazul în care nu avem ID
 }
 
 export function CustomEquipmentSelect({
@@ -31,12 +32,14 @@ export function CustomEquipmentSelect({
   className = "",
   placeholder = "Selectați echipamentul",
   emptyMessage = "Nu există echipamente disponibile",
+  fallbackName = "", // Numele echipamentului din datele inițiale
 }: CustomEquipmentSelectProps) {
   const [open, setOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedEquipment, setSelectedEquipment] = useState<Echipament | null>(null)
   const [filteredEquipments, setFilteredEquipments] = useState<Echipament[]>(equipments)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const [fallbackUsed, setFallbackUsed] = useState(false)
 
   // Actualizăm lista filtrată de echipamente când se schimbă termenul de căutare sau lista de echipamente
   useEffect(() => {
@@ -64,10 +67,13 @@ export function CustomEquipmentSelect({
     }
   }, [open])
 
-  // Actualizăm echipamentul selectat când se schimbă valoarea sau lista de echipamente
+  // Modificăm funcția useEffect pentru a îmbunătăți logica de fallback
+
+  // Înlocuim efectul care se ocupă de actualizarea echipamentului selectat (în jurul liniei 50-90)
   useEffect(() => {
     console.log("CustomEquipmentSelect - value changed:", value)
     console.log("CustomEquipmentSelect - equipments:", equipments)
+    console.log("CustomEquipmentSelect - fallbackName:", fallbackName)
 
     // Dacă avem un ID de echipament și lista de echipamente nu este goală
     if (value) {
@@ -75,19 +81,35 @@ export function CustomEquipmentSelect({
       if (equipments.length > 0) {
         const equipment = equipments.find((e) => e.id === value)
         if (equipment) {
-          console.log("CustomEquipmentSelect - equipment found in current list:", equipment)
+          console.log("CustomEquipmentSelect - equipment found by ID:", equipment)
           setSelectedEquipment(equipment)
+          setFallbackUsed(false)
         } else {
-          console.log("CustomEquipmentSelect - equipment not found in current list for value:", value)
+          console.log("CustomEquipmentSelect - equipment not found by ID:", value)
 
-          // Dacă echipamentul nu este în lista curentă dar avem deja un echipament selectat cu același ID
+          // Dacă echipamentul nu este în lista curentă dar avem un echipament selectat cu același ID
           // păstrăm selecția pentru a evita pierderea datelor
           if (selectedEquipment && selectedEquipment.id === value) {
             console.log("CustomEquipmentSelect - keeping current selection:", selectedEquipment)
           } else {
-            // Dacă nu avem un echipament selectat cu acest ID, resetăm selecția
-            console.log("CustomEquipmentSelect - resetting selection because equipment not found")
-            setSelectedEquipment(null)
+            // Dacă nu avem un echipament selectat cu acest ID, încercăm să găsim după nume
+            if (fallbackName && !fallbackUsed) {
+              console.log("CustomEquipmentSelect - trying to find equipment by name:", fallbackName)
+              const equipmentByName = equipments.find((e) => e.nume === fallbackName)
+              if (equipmentByName) {
+                console.log("CustomEquipmentSelect - equipment found by name:", equipmentByName)
+                setSelectedEquipment(equipmentByName)
+                // Notificăm componenta părinte despre selecție
+                onSelect(equipmentByName.id || "", equipmentByName)
+                setFallbackUsed(true)
+              } else {
+                console.log("CustomEquipmentSelect - equipment not found by name:", fallbackName)
+                setSelectedEquipment(null)
+              }
+            } else {
+              console.log("CustomEquipmentSelect - resetting selection because equipment not found")
+              setSelectedEquipment(null)
+            }
           }
         }
       } else {
@@ -99,12 +121,27 @@ export function CustomEquipmentSelect({
           console.log("CustomEquipmentSelect - keeping current selection with empty list:", selectedEquipment)
         }
       }
-    } else {
-      // Nu avem un ID de echipament, resetăm selecția
-      console.log("CustomEquipmentSelect - no value, resetting selection")
+    } else if (fallbackName && equipments.length > 0 && !fallbackUsed) {
+      // Dacă nu avem un ID, dar avem un nume de echipament și lista nu este goală
+      // Încercăm să găsim echipamentul după nume
+      console.log("CustomEquipmentSelect - trying to find equipment by name:", fallbackName)
+      const equipmentByName = equipments.find((e) => e.nume === fallbackName)
+      if (equipmentByName) {
+        console.log("CustomEquipmentSelect - equipment found by name:", equipmentByName)
+        setSelectedEquipment(equipmentByName)
+        // Notificăm componenta părinte despre selecție
+        onSelect(equipmentByName.id || "", equipmentByName)
+        setFallbackUsed(true)
+      } else {
+        console.log("CustomEquipmentSelect - equipment not found by name:", fallbackName)
+        setSelectedEquipment(null)
+      }
+    } else if (!value && !fallbackName) {
+      // Nu avem nici ID, nici nume de echipament, resetăm selecția
+      console.log("CustomEquipmentSelect - no value and no fallbackName, resetting selection")
       setSelectedEquipment(null)
     }
-  }, [value, equipments])
+  }, [value, equipments, fallbackName, fallbackUsed, onSelect, selectedEquipment])
 
   // Funcție pentru a gestiona selecția unui echipament
   const handleEquipmentSelect = (equipment: Echipament) => {
@@ -138,12 +175,14 @@ export function CustomEquipmentSelect({
   useEffect(() => {
     console.log("CustomEquipmentSelect - Current state:", {
       value,
+      fallbackName,
       selectedEquipment,
       equipmentsCount: equipments.length,
       disabled,
       open,
+      fallbackUsed,
     })
-  }, [value, selectedEquipment, equipments.length, disabled, open])
+  }, [value, fallbackName, selectedEquipment, equipments.length, disabled, open, fallbackUsed])
 
   return (
     <div className={cn("relative w-full", className)}>
@@ -172,6 +211,8 @@ export function CustomEquipmentSelect({
                     {selectedEquipment.cod}
                   </Badge>
                 </>
+              ) : fallbackName && !selectedEquipment ? (
+                <span className="font-semibold">{fallbackName}</span>
               ) : (
                 <span>{placeholder}</span>
               )}

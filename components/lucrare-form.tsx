@@ -186,6 +186,9 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     // Adăugăm state pentru a urmări dacă echipamentele au fost încărcate
     const [equipmentsLoaded, setEquipmentsLoaded] = useState(false)
 
+    // Adăugăm state pentru a urmări dacă am încercat să găsim echipamentul după nume
+    const [triedFindByName, setTriedFindByName] = useState(false)
+
     // Expose methods to parent component via ref
     useImperativeHandle(ref, () => ({
       hasUnsavedChanges: () => formModified,
@@ -409,7 +412,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       // Actualizăm formData cu noul client
       handleSelectChange("client", value)
 
-      // Resetăm câmpurile dependente doar dacă clientul s-a schimbat
+      // Resetăm câmpurile dependente doar dacă clientul s-a schimbă
       if (selectedClient?.id !== client.id) {
         handleSelectChange("locatie", "")
         handleSelectChange("echipament", "")
@@ -539,6 +542,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           selectedClient,
           formDataLocatie: formData.locatie,
           formDataEchipamentId: formData.echipamentId,
+          formDataEchipament: formData.echipament,
         })
 
         // Găsim locația selectată în client
@@ -573,9 +577,57 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
               const selectedEquipment = locatie.echipamente.find((e) => e.id === formData.echipamentId)
 
               if (selectedEquipment) {
-                console.log("Echipament găsit în locație:", selectedEquipment)
+                console.log("Echipament găsit în locație după ID:", selectedEquipment)
               } else {
                 console.log("Echipamentul cu ID", formData.echipamentId, "nu a fost găsit în locația", formData.locatie)
+
+                // Dacă nu am găsit echipamentul după ID, dar avem numele echipamentului, încercăm să-l găsim după nume
+                if (formData.echipament && !triedFindByName) {
+                  console.log("Încercăm să găsim echipamentul după nume:", formData.echipament)
+                  const equipmentByName = locatie.echipamente.find((e) => e.nume === formData.echipament)
+
+                  if (equipmentByName) {
+                    console.log("Echipament găsit în locație după nume:", equipmentByName)
+
+                    // Actualizăm ID-ul echipamentului în formData
+                    if (handleCustomChange) {
+                      handleCustomChange("echipamentId", equipmentByName.id)
+                      handleCustomChange("echipamentCod", equipmentByName.cod)
+                    }
+
+                    setTriedFindByName(true)
+                  } else {
+                    console.log(
+                      "Echipamentul cu numele",
+                      formData.echipament,
+                      "nu a fost găsit în locația",
+                      formData.locatie,
+                    )
+                  }
+                }
+              }
+            } else if (formData.echipament && !triedFindByName) {
+              // Dacă nu avem ID, dar avem numele echipamentului, încercăm să-l găsim după nume
+              console.log("Nu avem ID, încercăm să găsim echipamentul după nume:", formData.echipament)
+              const equipmentByName = locatie.echipamente.find((e) => e.nume === formData.echipament)
+
+              if (equipmentByName) {
+                console.log("Echipament găsit în locație după nume:", equipmentByName)
+
+                // Actualizăm ID-ul echipamentului în formData
+                if (handleCustomChange) {
+                  handleCustomChange("echipamentId", equipmentByName.id)
+                  handleCustomChange("echipamentCod", equipmentByName.cod)
+                }
+
+                setTriedFindByName(true)
+              } else {
+                console.log(
+                  "Echipamentul cu numele",
+                  formData.echipament,
+                  "nu a fost găsit în locația",
+                  formData.locatie,
+                )
               }
             }
           } else {
@@ -587,7 +639,47 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           console.log("Locația", formData.locatie, "nu a fost găsită în clientul", selectedClient.nume)
         }
       }
-    }, [initialData, selectedClient, formData.locatie, formData.echipamentId, handleCustomChange])
+    }, [
+      initialData,
+      selectedClient,
+      formData.locatie,
+      formData.echipamentId,
+      formData.echipament,
+      handleCustomChange,
+      triedFindByName,
+    ])
+
+    // Adăugăm un efect special pentru a încerca să găsim echipamentul după nume când se încarcă datele inițiale
+    useEffect(() => {
+      // Verificăm dacă avem un nume de echipament, dar nu avem ID
+      if (formData.echipament && !formData.echipamentId && availableEquipments.length > 0 && !triedFindByName) {
+        console.log("Încercăm să găsim echipamentul după nume la încărcarea inițială:", formData.echipament)
+
+        const equipmentByName = availableEquipments.find((e) => e.nume === formData.echipament)
+
+        if (equipmentByName) {
+          console.log("Echipament găsit după nume la încărcarea inițială:", equipmentByName)
+
+          // Actualizăm ID-ul echipamentului în formData
+          if (handleCustomChange) {
+            handleCustomChange("echipamentId", equipmentByName.id)
+            handleCustomChange("echipamentCod", equipmentByName.cod)
+
+            // Afișăm un toast pentru feedback
+            toast({
+              title: "Echipament identificat",
+              description: `Am identificat echipamentul "${equipmentByName.nume}" după nume`,
+              variant: "default",
+            })
+
+            setTriedFindByName(true)
+          }
+        } else {
+          console.log("Echipamentul cu numele", formData.echipament, "nu a fost găsit în lista disponibilă")
+          setTriedFindByName(true)
+        }
+      }
+    }, [formData.echipament, formData.echipamentId, availableEquipments, triedFindByName, handleCustomChange])
 
     // Adăugăm funcție pentru gestionarea selecției locației
     const handleLocatieSelect = (locatieNume: string) => {
@@ -668,9 +760,62 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             if (formData.echipamentId) {
               const selectedEquipment = locatie.echipamente.find((e) => e.id === formData.echipamentId)
               if (selectedEquipment) {
-                console.log("Echipament găsit în locație:", selectedEquipment)
+                console.log("Echipament găsit în locație după ID:", selectedEquipment)
               } else {
                 console.log("Echipamentul cu ID", formData.echipamentId, "nu a fost găsit în locația", locatieNume)
+
+                // Dacă nu am găsit echipamentul după ID, dar avem numele echipamentului, încercăm să-l găsim după nume
+                if (formData.echipament) {
+                  console.log("Încercăm să găsim echipamentul după nume:", formData.echipament)
+                  const equipmentByName = locatie.echipamente.find((e) => e.nume === formData.echipament)
+
+                  if (equipmentByName) {
+                    console.log("Echipament găsit în locație după nume:", equipmentByName)
+
+                    // Actualizăm ID-ul echipamentului în formData
+                    if (handleCustomChange) {
+                      handleCustomChange("echipamentId", equipmentByName.id)
+                      handleCustomChange("echipamentCod", equipmentByName.cod)
+
+                      // Afișăm un toast pentru feedback
+                      toast({
+                        title: "Echipament identificat",
+                        description: `Am identificat echipamentul "${equipmentByName.nume}" după nume`,
+                        variant: "default",
+                      })
+                    }
+                  } else {
+                    console.log(
+                      "Echipamentul cu numele",
+                      formData.echipament,
+                      "nu a fost găsit în locația",
+                      locatieNume,
+                    )
+                  }
+                }
+              }
+            } else if (formData.echipament) {
+              // Dacă nu avem ID, dar avem numele echipamentului, încercăm să-l găsim după nume
+              console.log("Nu avem ID, încercăm să găsim echipamentul după nume:", formData.echipament)
+              const equipmentByName = locatie.echipamente.find((e) => e.nume === formData.echipament)
+
+              if (equipmentByName) {
+                console.log("Echipament găsit în locație după nume:", equipmentByName)
+
+                // Actualizăm ID-ul echipamentului în formData
+                if (handleCustomChange) {
+                  handleCustomChange("echipamentId", equipmentByName.id)
+                  handleCustomChange("echipamentCod", equipmentByName.cod)
+
+                  // Afișăm un toast pentru feedback
+                  toast({
+                    title: "Echipament identificat",
+                    description: `Am identificat echipamentul "${equipmentByName.nume}" după nume`,
+                    variant: "default",
+                  })
+                }
+              } else {
+                console.log("Echipamentul cu numele", formData.echipament, "nu a fost găsit în locația", locatieNume)
               }
             }
           } else {
@@ -680,7 +825,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           }
         }
       },
-      [selectedClient, formData.echipamentId],
+      [selectedClient, formData.echipamentId, formData.echipament, handleCustomChange],
     )
 
     // Adăugăm un efect pentru a forța încărcarea echipamentelor când se schimbă locația
@@ -1184,6 +1329,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
               emptyMessage={
                 formData.locatie ? "Nu există echipamente pentru această locație" : "Selectați mai întâi o locație"
               }
+              fallbackName={formData.echipament} // Adăugăm numele echipamentului pentru fallback
             />
             {availableEquipments.length === 0 && formData.locatie && equipmentsLoaded && (
               <div>
