@@ -1333,6 +1333,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                   <SelectItem value="Intervenție contra cost">Intervenție contra cost</SelectItem>
                   <SelectItem value="Intervenție în contract">Intervenție în contract</SelectItem>
                   <SelectItem value="Re-Intervenție">Re-Intervenție</SelectItem>
+                  <SelectItem value="Revizie">Revizie</SelectItem>
                 </SelectContent>
               </Select>
               {formData.tipLucrare === "Intervenție în garanție" && (
