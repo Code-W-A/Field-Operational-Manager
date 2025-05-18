@@ -21,6 +21,8 @@ import { toast } from "@/components/ui/use-toast"
 // Remove the autotable import since it's causing issues
 // import 'jspdf-autotable'
 import { ReportGenerator } from "@/components/report-generator"
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore"
+import { db } from "@/lib/firebase/config"
 
 export default function RaportPage({ params }: { params: { id: string } }) {
   const SIG_HEIGHT = 160 // px – lasă-l fix
@@ -275,9 +277,11 @@ FOM by NRG`,
         await updateLucrare(params.id, {
           semnaturaTehnician,
           semnaturaBeneficiar,
-          statusLucrare: statusLucrare, // Păstrăm statusul existent
+          statusLucrare: "Finalizat", // Setăm statusul la Finalizat când se trimite raportul
           products,
           emailDestinatar: email,
+          raportGenerat: true, // Setăm raportGenerat la true când se trimite raportul
+          updatedAt: serverTimestamp(),
         })
 
         // Reîncărcăm datele actualizate
@@ -300,6 +304,13 @@ FOM by NRG`,
 
         setIsSubmitted(true)
         setStep("finalizat")
+
+        // Afișăm un toast de confirmare
+        toast({
+          title: "Raport finalizat",
+          description: "Lucrarea a fost marcată ca finalizată și raportul a fost generat.",
+          variant: "default",
+        })
       } catch (err) {
         console.error("Eroare la salvarea semnăturilor:", err)
         toast({
@@ -431,31 +442,25 @@ FOM by NRG`,
   }, [handleSubmit])
 
   // Actualizăm statusul lucrării și marcăm raportul ca generat
-  const updateWorkOrderStatus = async (lucrareId, pdfBlob) => {
+  const updateWorkOrderStatus = async (lucrareId: string, pdfBlob: Blob) => {
     try {
-      if (!lucrareId) return
+      if (!lucrareId) {
+        console.error("ID-ul lucrării lipsește")
+        return
+      }
 
       console.log("Actualizăm statusul lucrării și marcăm raportul ca generat:", lucrareId)
 
-      // Importăm doc și updateDoc din firebase/firestore
-      const { doc, updateDoc, serverTimestamp } = require("firebase/firestore")
-      const { db } = require("@/lib/firebase/config")
-
-      // Actualizăm documentul în Firestore
+      // Actualizăm documentul în Firestore direct
       const lucrareRef = doc(db, "lucrari", lucrareId)
+
+      // Folosim updateDoc direct, fără a mai importa din nou
       await updateDoc(lucrareRef, {
         raportGenerat: true,
         updatedAt: serverTimestamp(),
       })
 
       console.log("Lucrare actualizată cu succes, raportGenerat = true, statusLucrare = Finalizat")
-
-      // Afișăm un toast de confirmare
-      toast({
-        title: "Raport finalizat",
-        description: "Lucrarea a fost marcată ca finalizată și raportul a fost generat.",
-        variant: "default",
-      })
     } catch (error) {
       console.error("Eroare la actualizarea statusului lucrării:", error)
       toast({
@@ -504,7 +509,10 @@ FOM by NRG`,
                       sendEmail(blob).then((success) => {
                         setEmailSent(success)
                       })
-                      updateWorkOrderStatus(lucrare.id, blob)
+                      // Actualizăm statusul lucrării
+                      if (lucrare && lucrare.id) {
+                        updateWorkOrderStatus(lucrare.id, blob)
+                      }
                     }}
                   />
                 </div>
