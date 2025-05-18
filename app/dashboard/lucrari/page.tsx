@@ -139,7 +139,7 @@ export default function Lucrari() {
     error: fetchError,
   } = useFirebaseCollection("lucrari", [orderBy("dataEmiterii", "desc")])
 
-  // Filtrăm lucrările pentru tehnicieni
+  // Update the filteredLucrari function to include completed work orders that haven't been picked up
   const filteredLucrari = useMemo(() => {
     if (userData?.role === "tehnician" && userData?.displayName) {
       console.log("Filtrare lucrări pentru tehnician:", userData.displayName)
@@ -149,10 +149,11 @@ export default function Lucrari() {
         const isAssignedToTechnician =
           lucrare.tehnicieni && Array.isArray(lucrare.tehnicieni) && lucrare.tehnicieni.includes(userData.displayName)
 
-        // Verificăm dacă lucrarea este finalizată și are raport generat
+        // Verificăm dacă lucrarea este finalizată și are raport generat și a fost preluată de dispecer
         const isFinalized = lucrare.statusLucrare === "Finalizat"
         const hasReportGenerated = lucrare.raportGenerat === true
-        const isCompletedWithReport = isFinalized && hasReportGenerated
+        const isPickedUpByDispatcher = lucrare.preluatDispecer === true
+        const isCompletedWithReportAndPickedUp = isFinalized && hasReportGenerated && isPickedUpByDispatcher
 
         // Pentru depanare
         if (isAssignedToTechnician && isFinalized) {
@@ -161,12 +162,13 @@ export default function Lucrari() {
             client: lucrare.client,
             statusLucrare: lucrare.statusLucrare,
             raportGenerat: lucrare.raportGenerat,
-            isCompletedWithReport,
+            preluatDispecer: lucrare.preluatDispecer,
+            isCompletedWithReportAndPickedUp,
           })
         }
 
-        // Includem lucrarea doar dacă este atribuită tehnicianului și NU este finalizată cu raport
-        return isAssignedToTechnician && !isCompletedWithReport
+        // Includem lucrarea doar dacă este atribuită tehnicianului și NU este finalizată cu raport și preluată de dispecer
+        return isAssignedToTechnician && !isCompletedWithReportAndPickedUp
       })
 
       console.log(`Filtrat ${lucrari.length} lucrări -> ${filteredList.length} lucrări pentru tehnician`)
@@ -885,6 +887,37 @@ export default function Lucrari() {
     [router],
   )
 
+  // Add this function after handleGenerateReport
+  const handleDispatcherPickup = async (lucrare) => {
+    if (!lucrare || !lucrare.id) {
+      console.error("ID-ul lucrării nu este valid:", lucrare)
+      toast({
+        title: "Eroare",
+        description: "ID-ul lucrării nu este valid",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      await updateLucrare(lucrare.id, { preluatDispecer: true })
+
+      toast({
+        title: "Lucrare preluată",
+        description: "Lucrarea a fost marcată ca preluată de dispecer.",
+        variant: "default",
+        icon: <Check className="h-4 w-4" />,
+      })
+    } catch (error) {
+      console.error("Eroare la preluarea lucrării:", error)
+      toast({
+        title: "Eroare",
+        description: "A apărut o eroare la preluarea lucrării.",
+        variant: "destructive",
+      })
+    }
+  }
+
   const handleApplyFilters = (filters) => {
     // Filtrăm doar filtrele care au valori
     const filtersWithValues = filters.filter((filter) => {
@@ -1011,6 +1044,42 @@ export default function Lucrari() {
       cell: ({ row }) => (
         <Badge className={getInvoiceStatusClass(row.original.statusFacturare)}>{row.original.statusFacturare}</Badge>
       ),
+    },
+    {
+      accessorKey: "preluatDispecer",
+      header: "Preluat Dispecer",
+      enableHiding: true,
+      enableFiltering: true,
+      cell: ({ row }) => {
+        const isFinalized = row.original.statusLucrare === "Finalizat"
+        const hasReportGenerated = row.original.raportGenerat === true
+        const isPickedUp = row.original.preluatDispecer === true
+
+        if (isFinalized && hasReportGenerated) {
+          if (isPickedUp) {
+            return <Badge className="bg-green-100 text-green-800">Preluat</Badge>
+          } else {
+            if (userData?.role === "tehnician") {
+              return <Badge className="bg-yellow-100 text-yellow-800">În așteptare</Badge>
+            } else {
+              return (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleDispatcherPickup(row.original)
+                  }}
+                >
+                  <Check className="h-4 w-4 mr-1" /> Preia
+                </Button>
+              )
+            }
+          }
+        }
+        return null
+      },
     },
     {
       id: "actions",
@@ -1393,6 +1462,32 @@ export default function Lucrari() {
                         <span className="text-sm">{lucrare.telefon}</span>
                       </div>
                     </div>
+                    {lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true && (
+                      <div className="flex justify-between items-center mt-2 mb-2">
+                        <span className="text-sm font-medium text-muted-foreground">Status preluare:</span>
+                        {lucrare.preluatDispecer ? (
+                          <Badge className="bg-green-100 text-green-800">Preluat</Badge>
+                        ) : (
+                          <>
+                            {userData?.role === "tehnician" ? (
+                              <Badge className="bg-yellow-100 text-yellow-800">În așteptare</Badge>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDispatcherPickup(lucrare)
+                                }}
+                              >
+                                <Check className="h-3 w-3 mr-1" /> Preia
+                              </Button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
                     <div className="mb-4">
                       <p className="text-sm font-medium text-muted-foreground">Descriere:</p>
                       <p className="text-sm line-clamp-2" title={lucrare.descriere}>
@@ -1449,6 +1544,19 @@ export default function Lucrari() {
                               <Trash2 className="mr-2 h-4 w-4" /> Șterge
                             </DropdownMenuItem>
                           )}
+                          {userData?.role !== "tehnician" &&
+                            lucrare.statusLucrare === "Finalizat" &&
+                            lucrare.raportGenerat === true &&
+                            !lucrare.preluatDispecer && (
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDispatcherPickup(lucrare)
+                                }}
+                              >
+                                <Check className="mr-2 h-4 w-4" /> Preia lucrarea
+                              </DropdownMenuItem>
+                            )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>

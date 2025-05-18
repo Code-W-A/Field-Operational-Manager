@@ -62,6 +62,9 @@ export interface Lucrare {
   updatedBy?: string
   // Add new field for all contact persons
   persoaneContact?: PersoanaContact[]
+  // Add new field for dispatcher pickup status
+  preluatDispecer?: boolean
+  raportGenerat?: boolean
 }
 
 // Adăugăm interfața pentru persoanele de contact
