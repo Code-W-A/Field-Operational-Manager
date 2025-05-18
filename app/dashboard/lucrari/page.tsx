@@ -48,7 +48,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import {
-  WORK_STATUS,
   getWorkStatusClass,
   getWorkStatusRowClass,
   getInvoiceStatusClass,
@@ -147,16 +146,17 @@ export default function Lucrari() {
 
       const filteredList = lucrari.filter((lucrare) => {
         // Verificăm dacă lucrarea este atribuită tehnicianului
-        const isAssignedToTechnician = lucrare.tehnicieni.includes(userData.displayName)
+        const isAssignedToTechnician =
+          lucrare.tehnicieni && Array.isArray(lucrare.tehnicieni) && lucrare.tehnicieni.includes(userData.displayName)
 
         // Verificăm dacă lucrarea este finalizată și are raport generat
-        const isFinalized = lucrare.statusLucrare === WORK_STATUS.COMPLETED
+        const isFinalized = lucrare.statusLucrare === "Finalizat"
         const hasReportGenerated = lucrare.raportGenerat === true
         const isCompletedWithReport = isFinalized && hasReportGenerated
 
         // Pentru depanare
         if (isAssignedToTechnician && isFinalized) {
-          console.log("Lucrare finalizat pentru tehnician:", {
+          console.log("Lucrare finalizată pentru tehnician:", {
             id: lucrare.id,
             client: lucrare.client,
             statusLucrare: lucrare.statusLucrare,
@@ -1458,7 +1458,16 @@ export default function Lucrari() {
             ))}
             {filteredData.length === 0 && (
               <div className="col-span-full text-center py-10">
-                <p className="text-muted-foreground">Nu există lucrări care să corespundă criteriilor de căutare.</p>
+                {userData?.role === "tehnician" ? (
+                  <div>
+                    <p className="text-muted-foreground mb-2">Nu aveți lucrări active în acest moment.</p>
+                    <p className="text-sm text-muted-foreground">
+                      Lucrările finalizate cu raport generat nu mai sunt afișate.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground">Nu există lucrări care să corespundă criteriilor de căutare.</p>
+                )}
               </div>
             )}
           </div>

@@ -440,15 +440,16 @@ export default function RaportPage({ params }: { params: { id: string } }) {
       const lucrareRef = doc(db, "lucrari", lucrareId)
       await updateDoc(lucrareRef, {
         raportGenerat: true,
+        statusLucrare: "Finalizat", // Setăm statusul la Finalizat când raportul este generat
         updatedAt: serverTimestamp(),
       })
 
-      console.log("Lucrare actualizată cu succes, raportGenerat = true")
+      console.log("Lucrare actualizată cu succes, raportGenerat = true, statusLucrare = Finalizat")
 
       // Afișăm un toast de confirmare
       toast({
-        title: "Raport marcat ca generat",
-        description: "Lucrarea a fost actualizată în sistem.",
+        title: "Raport finalizat",
+        description: "Lucrarea a fost marcată ca finalizată și raportul a fost generat.",
         variant: "default",
       })
     } catch (error) {
