@@ -136,7 +136,16 @@ export default function Lucrari() {
   // Filtrăm lucrările pentru tehnicieni
   const filteredLucrari = useMemo(() => {
     if (userData?.role === "tehnician" && userData?.displayName) {
-      return lucrari.filter((lucrare) => lucrare.tehnicieni.includes(userData.displayName))
+      return lucrari.filter((lucrare) => {
+        // Verificăm dacă lucrarea este atribuită tehnicianului
+        const isAssignedToTechnician = lucrare.tehnicieni.includes(userData.displayName)
+
+        // Verificăm dacă lucrarea este finalizată și are raport generat
+        const isCompletedWithReport = lucrare.statusLucrare === "Finalizată" && lucrare.raportGenerat === true
+
+        // Includem lucrarea doar dacă este atribuită tehnicianului și NU este finalizată cu raport
+        return isAssignedToTechnician && !isCompletedWithReport
+      })
     }
     return lucrari
   }, [lucrari, userData?.role, userData?.displayName])

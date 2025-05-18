@@ -23,6 +23,8 @@ import type { Lucrare } from "@/lib/firebase/firestore"
 import { useStableCallback } from "@/lib/utils/hooks"
 import { toast } from "@/components/ui/use-toast"
 import { ProductTableForm, type Product } from "./product-table-form"
+import { db } from "@/lib/firebase/firebase"
+import { updateDoc, serverTimestamp } from "firebase/firestore"
 
 interface ReportGeneratorProps {
   lucrare: Lucrare
@@ -201,9 +203,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // Adăugăm informații despre locația intervenției
       const locationName = normalize(lucrare.locatie || "-")
       const locationAddress = normalize(clientInfo.locationAddress || "-")
-        const fullLocationAddressRaw =
-          locationAddress !== "-" ? `${locationName}, ${locationAddress}` : locationName;
-        const fullLocationAddress = normalize(fullLocationAddressRaw);
+      const fullLocationAddressRaw = locationAddress !== "-" ? `${locationName}, ${locationAddress}` : locationName
+      const fullLocationAddress = normalize(fullLocationAddressRaw)
 
       // Generăm link-ul pentru navigare
       const encodedAddress = encodeURIComponent(fullLocationAddress)
@@ -559,7 +560,6 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         doc.text("Semnătură lipsă", M + W / 2 + signatureWidth / 2, currentY + signatureHeight / 2, { align: "center" })
       }
 
-
       // Footer
       currentY = PH - M - 5
       doc
@@ -571,6 +571,23 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // Generate the PDF blob
       const blob = doc.output("blob")
       doc.save(`Raport_${lucrare.id}.pdf`)
+
+      // Marcăm lucrarea ca având raport generat
+      if (lucrare.id) {
+        try {
+          // Actualizăm documentul în Firestore
+          const lucrareRef = doc(db, "lucrari", lucrare.id)
+          await updateDoc(lucrareRef, {
+            raportGenerat: true,
+            updatedAt: serverTimestamp(),
+          })
+
+          console.log("Lucrare marcată ca având raport generat:", lucrare.id)
+        } catch (error) {
+          console.error("Eroare la marcarea lucrării ca având raport generat:", error)
+        }
+      }
+
       onGenerate?.(blob)
       toast({ title: "PDF generat!", description: "Descărcare completă." })
       return blob
