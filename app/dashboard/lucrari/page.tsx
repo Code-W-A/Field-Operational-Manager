@@ -133,10 +133,12 @@ export default function Lucrari() {
     error: fetchError,
   } = useFirebaseCollection("lucrari", [orderBy("dataEmiterii", "desc")])
 
-  // Filtrăm lucrările pentru tehnicieni
+  // Filtrăm lucrările pentru tehnicieni - excludem lucrările finalizate
   const filteredLucrari = useMemo(() => {
     if (userData?.role === "tehnician" && userData?.displayName) {
-      return lucrari.filter((lucrare) => lucrare.tehnicieni.includes(userData.displayName))
+      return lucrari.filter(
+        (lucrare) => lucrare.tehnicieni.includes(userData.displayName) && lucrare.statusLucrare !== "Finalizată", // Excludem lucrările finalizate pentru tehnicieni
+      )
     }
     return lucrari
   }, [lucrari, userData?.role, userData?.displayName])
