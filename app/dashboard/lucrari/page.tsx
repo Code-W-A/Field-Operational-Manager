@@ -111,6 +111,7 @@ export default function Lucrari() {
     tehnicieni: [],
     client: "",
     locatie: "",
+    echipament: "",
     descriere: "",
     persoanaContact: "",
     telefon: "",
@@ -118,6 +119,8 @@ export default function Lucrari() {
     statusFacturare: "Nefacturat",
     contract: "",
     defectReclamat: "",
+    echipamentId: "", // Add this field
+    echipamentCod: "", // Add this field
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState(null)
@@ -561,6 +564,10 @@ export default function Lucrari() {
     }
   }
 
+  const handleCustomChange = (field: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [field]: value }))
+  }
+
   const resetForm = () => {
     setDataEmiterii(new Date())
     setDataInterventie(new Date())
@@ -569,6 +576,7 @@ export default function Lucrari() {
       tehnicieni: [],
       client: "",
       locatie: "",
+      echipament: "",
       descriere: "",
       persoanaContact: "",
       telefon: "",
@@ -576,6 +584,8 @@ export default function Lucrari() {
       statusFacturare: "Nefacturat",
       contract: "",
       defectReclamat: "",
+      echipamentId: "", // Reset this field
+      echipamentCod: "", // Reset this field
     })
     setError(null)
     setFieldErrors([])
@@ -610,10 +620,20 @@ export default function Lucrari() {
         return
       }
 
+      // Log the form data to verify echipamentCod is included
+      console.log("Submitting work entry with data:", {
+        ...formData,
+        echipamentId: formData.echipamentId,
+        echipamentCod: formData.echipamentCod,
+      })
+
       const newLucrare = {
         dataEmiterii: format(dataEmiterii, "dd.MM.yyyy HH:mm"),
         dataInterventie: format(dataInterventie, "dd.MM.yyyy HH:mm"),
         ...formData,
+        // Explicitly include these fields to ensure they're saved
+        echipamentId: formData.echipamentId || "",
+        echipamentCod: formData.echipamentCod || "",
       }
 
       // Adăugăm lucrarea în Firestore
@@ -727,6 +747,7 @@ export default function Lucrari() {
       tehnicieni: [...lucrare.tehnicieni],
       client: lucrare.client,
       locatie: lucrare.locatie,
+      echipament: lucrare.echipament || "",
       descriere: lucrare.descriere,
       persoanaContact: lucrare.persoanaContact,
       telefon: lucrare.telefon,
@@ -734,6 +755,8 @@ export default function Lucrari() {
       statusFacturare: lucrare.statusFacturare,
       contract: lucrare.contract || "",
       defectReclamat: lucrare.defectReclamat || "",
+      echipamentId: lucrare.echipamentId || "", // Include this field
+      echipamentCod: lucrare.echipamentCod || "", // Include this field
     })
 
     setIsEditDialogOpen(true)
@@ -752,10 +775,20 @@ export default function Lucrari() {
         return
       }
 
+      // Log the form data to verify echipamentCod is included
+      console.log("Updating work entry with data:", {
+        ...formData,
+        echipamentId: formData.echipamentId,
+        echipamentCod: formData.echipamentCod,
+      })
+
       const updatedLucrare = {
         dataEmiterii: format(dataEmiterii, "dd.MM.yyyy HH:mm"),
         dataInterventie: format(dataInterventie, "dd.MM.yyyy HH:mm"),
         ...formData,
+        // Explicitly include these fields to ensure they're saved
+        echipamentId: formData.echipamentId || "",
+        echipamentCod: formData.echipamentCod || "",
       }
 
       await updateLucrare(selectedLucrare.id, updatedLucrare)
@@ -1317,6 +1350,7 @@ export default function Lucrari() {
                 handleInputChange={handleInputChange}
                 handleSelectChange={handleSelectChange}
                 handleTehnicieniChange={handleTehnicieniChange}
+                handleCustomChange={handleCustomChange} // Add this line
                 fieldErrors={fieldErrors}
                 onCancel={() => handleCloseAddDialog()}
               />
@@ -1371,6 +1405,7 @@ export default function Lucrari() {
               handleInputChange={handleInputChange}
               handleSelectChange={handleSelectChange}
               handleTehnicieniChange={handleTehnicieniChange}
+              handleCustomChange={handleCustomChange} // Add this line
               fieldErrors={fieldErrors}
               onCancel={() => handleCloseEditDialog()}
             />
