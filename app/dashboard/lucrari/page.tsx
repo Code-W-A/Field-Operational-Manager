@@ -1240,8 +1240,12 @@ persoaneContact: [],
       },
     },
   ]
-const handleCustomChange = (field, value) =>
-  setFormData((prev) => ({ ...prev, [field]: value }))
+const handleCustomChange = useCallback(
+  (field: string, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  },
+  []      //  ← dependenţe goale ⇒ funcţia NU-şi mai schimbă referinţa
+)
   // Function to check if we should show the close confirmation dialog
   const handleCloseAddDialog = () => {
     if (addFormRef.current?.hasUnsavedChanges()) {
