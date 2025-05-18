@@ -34,27 +34,66 @@ export const INVOICE_STATUS = {
  */
 export const INVOICE_STATUS_OPTIONS = [INVOICE_STATUS.INVOICED, INVOICE_STATUS.NOT_INVOICED, INVOICE_STATUS.NO_INVOICE]
 
+// Înlocuiesc definiția WORK_TYPE cu WORK_TYPES pentru a păstra consistența cu numele anterior
+// și adaug toate tipurile de lucrări din imagine
+
 /**
  * Constante pentru tipurile de lucrări
  */
-export const WORK_TYPE = {
-  PAID: "Contra cost",
-  WARRANTY: "În garanție",
-  PREPARATION: "Pregătire instalare",
+export const WORK_TYPES = {
+  OFFER: "Ofertare",
+  CONTRACTING: "Contractare",
+  WORKSHOP_PREPARATION: "Pregătire în atelier",
   INSTALLATION: "Instalare",
-  CONTRACT: "Intervenție în contract",
+  DELIVERY: "Predare",
+  WARRANTY_INTERVENTION: "Intervenție în garanție",
+  PAID_INTERVENTION: "Intervenție contra cost",
+  CONTRACT_INTERVENTION: "Intervenție în contract",
+  RE_INTERVENTION: "Re-Intervenție",
+  REVISION: "Revizie",
 }
 
 /**
  * Array cu toate tipurile de lucrări pentru dropdown-uri
  */
-export const WORK_TYPE_OPTIONS = [
-  WORK_TYPE.PAID,
-  WORK_TYPE.WARRANTY,
-  WORK_TYPE.PREPARATION,
-  WORK_TYPE.INSTALLATION,
-  WORK_TYPE.CONTRACT,
-]
+export const WORK_TYPE_OPTIONS = Object.values(WORK_TYPES)
+
+// Actualizez și funcția getWorkTypeClass pentru a include toate tipurile noi
+/**
+ * Funcție pentru a obține clasa CSS pentru tipul lucrării
+ * @param tip Tipul lucrării
+ * @returns Clasa CSS corespunzătoare
+ */
+export function getWorkTypeClass(tip: string): string {
+  if (!tip) return "bg-gray-50 text-gray-700 border-gray-200"
+
+  const tipLower = tip.toLowerCase()
+
+  switch (tipLower) {
+    case WORK_TYPES.PAID_INTERVENTION.toLowerCase():
+      return "bg-red-50 text-red-700 border-red-200"
+    case WORK_TYPES.WARRANTY_INTERVENTION.toLowerCase():
+      return "bg-yellow-50 text-yellow-700 border-yellow-200"
+    case WORK_TYPES.WORKSHOP_PREPARATION.toLowerCase():
+      return "bg-blue-50 text-blue-700 border-blue-200"
+    case WORK_TYPES.INSTALLATION.toLowerCase():
+      return "bg-green-50 text-green-700 border-green-200"
+    case WORK_TYPES.CONTRACT_INTERVENTION.toLowerCase():
+      return "bg-purple-50 text-purple-700 border-purple-200"
+    case WORK_TYPES.OFFER.toLowerCase():
+      return "bg-indigo-50 text-indigo-700 border-indigo-200"
+    case WORK_TYPES.CONTRACTING.toLowerCase():
+      return "bg-pink-50 text-pink-700 border-pink-200"
+    case WORK_TYPES.DELIVERY.toLowerCase():
+      return "bg-cyan-50 text-cyan-700 border-cyan-200"
+    case WORK_TYPES.RE_INTERVENTION.toLowerCase():
+      return "bg-amber-50 text-amber-700 border-amber-200"
+    case WORK_TYPES.REVISION.toLowerCase():
+      return "bg-emerald-50 text-emerald-700 border-emerald-200"
+    default:
+      return "bg-gray-50 text-gray-700 border-gray-200"
+  }
+}
 
 /**
  * Funcție pentru a obține clasa CSS pentru statusul lucrării
@@ -120,27 +159,5 @@ export function getInvoiceStatusClass(status: string): string {
       return "bg-orange-100 text-orange-800 hover:bg-orange-200"
     default:
       return "bg-gray-100 text-gray-800 hover:bg-gray-200"
-  }
-}
-
-/**
- * Funcție pentru a obține clasa CSS pentru tipul lucrării
- * @param tip Tipul lucrării
- * @returns Clasa CSS corespunzătoare
- */
-export function getWorkTypeClass(tip: string): string {
-  switch (tip.toLowerCase()) {
-    case WORK_TYPE.PAID.toLowerCase():
-      return "bg-red-50 text-red-700 border-red-200"
-    case WORK_TYPE.WARRANTY.toLowerCase():
-      return "bg-yellow-50 text-yellow-700 border-yellow-200"
-    case WORK_TYPE.PREPARATION.toLowerCase():
-      return "bg-blue-50 text-blue-700 border-blue-200"
-    case WORK_TYPE.INSTALLATION.toLowerCase():
-      return "bg-green-50 text-green-700 border-green-200"
-    case WORK_TYPE.CONTRACT.toLowerCase():
-      return "bg-purple-50 text-purple-700 border-purple-200"
-    default:
-      return "bg-gray-50 text-gray-700 border-gray-200"
   }
 }
