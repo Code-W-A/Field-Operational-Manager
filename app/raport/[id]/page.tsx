@@ -425,6 +425,42 @@ export default function RaportPage({ params }: { params: { id: string } }) {
     handleSubmit()
   }, [handleSubmit])
 
+  // Actualizăm statusul lucrării și marcăm raportul ca generat
+  const updateWorkOrderStatus = async (lucrareId, pdfBlob) => {
+    try {
+      if (!lucrareId) return
+
+      console.log("Actualizăm statusul lucrării și marcăm raportul ca generat:", lucrareId)
+
+      // Importăm doc și updateDoc din firebase/firestore
+      const { doc, updateDoc, serverTimestamp } = require("firebase/firestore")
+      const { db } = require("@/lib/firebase/config")
+
+      // Actualizăm documentul în Firestore
+      const lucrareRef = doc(db, "lucrari", lucrareId)
+      await updateDoc(lucrareRef, {
+        raportGenerat: true,
+        updatedAt: serverTimestamp(),
+      })
+
+      console.log("Lucrare actualizată cu succes, raportGenerat = true")
+
+      // Afișăm un toast de confirmare
+      toast({
+        title: "Raport marcat ca generat",
+        description: "Lucrarea a fost actualizată în sistem.",
+        variant: "default",
+      })
+    } catch (error) {
+      console.error("Eroare la actualizarea statusului lucrării:", error)
+      toast({
+        title: "Atenție",
+        description: "Raportul a fost generat, dar nu s-a putut actualiza starea în sistem.",
+        variant: "destructive",
+      })
+    }
+  }
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
       <Card className="w-full max-w-3xl">
@@ -463,6 +499,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
                       sendEmail(blob).then((success) => {
                         setEmailSent(success)
                       })
+                      updateWorkOrderStatus(lucrare.id, blob)
                     }}
                   />
                 </div>

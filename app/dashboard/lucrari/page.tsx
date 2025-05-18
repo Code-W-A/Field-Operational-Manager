@@ -136,16 +136,34 @@ export default function Lucrari() {
   // Filtrăm lucrările pentru tehnicieni
   const filteredLucrari = useMemo(() => {
     if (userData?.role === "tehnician" && userData?.displayName) {
-      return lucrari.filter((lucrare) => {
+      console.log("Filtrare lucrări pentru tehnician:", userData.displayName)
+
+      const filteredList = lucrari.filter((lucrare) => {
         // Verificăm dacă lucrarea este atribuită tehnicianului
         const isAssignedToTechnician = lucrare.tehnicieni.includes(userData.displayName)
 
         // Verificăm dacă lucrarea este finalizată și are raport generat
-        const isCompletedWithReport = lucrare.statusLucrare === "Finalizată" && lucrare.raportGenerat === true
+        const isFinalized = lucrare.statusLucrare === "Finalizată"
+        const hasReportGenerated = lucrare.raportGenerat === true
+        const isCompletedWithReport = isFinalized && hasReportGenerated
+
+        // Pentru depanare
+        if (isAssignedToTechnician && isFinalized) {
+          console.log("Lucrare finalizată pentru tehnician:", {
+            id: lucrare.id,
+            client: lucrare.client,
+            statusLucrare: lucrare.statusLucrare,
+            raportGenerat: lucrare.raportGenerat,
+            isCompletedWithReport,
+          })
+        }
 
         // Includem lucrarea doar dacă este atribuită tehnicianului și NU este finalizată cu raport
         return isAssignedToTechnician && !isCompletedWithReport
       })
+
+      console.log(`Filtrat ${lucrari.length} lucrări -> ${filteredList.length} lucrări pentru tehnician`)
+      return filteredList
     }
     return lucrari
   }, [lucrari, userData?.role, userData?.displayName])

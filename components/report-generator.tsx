@@ -23,8 +23,7 @@ import type { Lucrare } from "@/lib/firebase/firestore"
 import { useStableCallback } from "@/lib/utils/hooks"
 import { toast } from "@/components/ui/use-toast"
 import { ProductTableForm, type Product } from "./product-table-form"
-import { db } from "@/lib/firebase/firebase"
-import { updateDoc, serverTimestamp } from "firebase/firestore"
+import { serverTimestamp } from "firebase/firestore"
 
 interface ReportGeneratorProps {
   lucrare: Lucrare
@@ -575,6 +574,12 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // Marcăm lucrarea ca având raport generat
       if (lucrare.id) {
         try {
+          // Importăm doc și updateDoc din firebase/firestore
+          const { doc, updateDoc } = require("firebase/firestore")
+          const { db } = require("@/lib/firebase/config")
+
+          console.log("Marcăm lucrarea ca având raport generat:", lucrare.id)
+
           // Actualizăm documentul în Firestore
           const lucrareRef = doc(db, "lucrari", lucrare.id)
           await updateDoc(lucrareRef, {
@@ -582,9 +587,21 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
             updatedAt: serverTimestamp(),
           })
 
-          console.log("Lucrare marcată ca având raport generat:", lucrare.id)
+          console.log("Lucrare actualizată cu succes, raportGenerat = true")
+
+          // Afișăm un toast de confirmare
+          toast({
+            title: "Raport marcat ca generat",
+            description: "Lucrarea a fost actualizată în sistem.",
+            variant: "default",
+          })
         } catch (error) {
           console.error("Eroare la marcarea lucrării ca având raport generat:", error)
+          toast({
+            title: "Atenție",
+            description: "Raportul a fost generat, dar nu s-a putut actualiza starea în sistem.",
+            variant: "destructive",
+          })
         }
       }
 
