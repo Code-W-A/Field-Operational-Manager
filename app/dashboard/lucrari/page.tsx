@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { format, parse, isAfter, isBefore } from "date-fns"
-import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check, Info } from "lucide-react"
+import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check, Info, X } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { addLucrare, deleteLucrare, updateLucrare, getLucrareById } from "@/lib/firebase/firestore"
@@ -928,19 +928,24 @@ export default function Lucrari() {
     }
 
     try {
-      await updateLucrare(lucrare.id, { preluatDispecer: true })
+      // Toggle the current state
+      const newPickupState = !lucrare.preluatDispecer
+
+      await updateLucrare(lucrare.id, { preluatDispecer: newPickupState })
 
       toast({
-        title: "Lucrare preluată",
-        description: "Lucrarea a fost marcată ca preluată de dispecer.",
+        title: newPickupState ? "Lucrare preluată" : "Preluare anulată",
+        description: newPickupState
+          ? "Lucrarea a fost marcată ca preluată de dispecer."
+          : "Preluarea lucrării a fost anulată.",
         variant: "default",
-        icon: <Check className="h-4 w-4" />,
+        icon: newPickupState ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />,
       })
     } catch (error) {
-      console.error("Eroare la preluarea lucrării:", error)
+      console.error("Eroare la actualizarea stării de preluare:", error)
       toast({
         title: "Eroare",
-        description: "A apărut o eroare la preluarea lucrării.",
+        description: "A apărut o eroare la actualizarea stării de preluare.",
         variant: "destructive",
       })
     }
@@ -1084,26 +1089,38 @@ export default function Lucrari() {
         const isPickedUp = row.original.preluatDispecer === true
 
         if (isFinalized && hasReportGenerated) {
-          if (isPickedUp) {
-            return <Badge className="bg-green-100 text-green-800">Preluat</Badge>
+          if (userData?.role === "tehnician") {
+            return isPickedUp ? (
+              <Badge className="bg-green-100 text-green-800">Preluat</Badge>
+            ) : (
+              <Badge className="bg-yellow-100 text-yellow-800">În așteptare</Badge>
+            )
           } else {
-            if (userData?.role === "tehnician") {
-              return <Badge className="bg-yellow-100 text-yellow-800">În așteptare</Badge>
-            } else {
-              return (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleDispatcherPickup(row.original)
-                  }}
-                >
-                  <Check className="h-4 w-4 mr-1" /> Preia
-                </Button>
-              )
-            }
+            return (
+              <Button
+                variant="outline"
+                size="sm"
+                className={
+                  isPickedUp
+                    ? "h-8 px-2 text-orange-600 border-orange-200 hover:bg-orange-50"
+                    : "h-8 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+                }
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDispatcherPickup(row.original)
+                }}
+              >
+                {isPickedUp ? (
+                  <>
+                    <X className="h-4 w-4 mr-1" /> Anulează
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4 mr-1" /> Preia
+                  </>
+                )}
+              </Button>
+            )
           }
         }
         return null
@@ -1572,13 +1589,25 @@ export default function Lucrari() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="h-7 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+                                  className={
+                                    lucrare.preluatDispecer
+                                      ? "h-7 px-2 text-orange-600 border-orange-200 hover:bg-orange-50"
+                                      : "h-7 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+                                  }
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     handleDispatcherPickup(lucrare)
                                   }}
                                 >
-                                  <Check className="h-3 w-3 mr-1" /> Preia
+                                  {lucrare.preluatDispecer ? (
+                                    <>
+                                      <X className="h-3 w-3 mr-1" /> Anulează
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Check className="h-3 w-3 mr-1" /> Preia
+                                    </>
+                                  )}
                                 </Button>
                               )}
                             </>
@@ -1652,15 +1681,22 @@ export default function Lucrari() {
                             )}
                             {userData?.role !== "tehnician" &&
                               lucrare.statusLucrare === "Finalizat" &&
-                              lucrare.raportGenerat === true &&
-                              !lucrare.preluatDispecer && (
+                              lucrare.raportGenerat === true && (
                                 <DropdownMenuItem
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     handleDispatcherPickup(lucrare)
                                   }}
                                 >
-                                  <Check className="mr-2 h-4 w-4" /> Preia lucrarea
+                                  {lucrare.preluatDispecer ? (
+                                    <>
+                                      <X className="mr-2 h-4 w-4" /> Anulează preluare
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Check className="mr-2 h-4 w-4" /> Preia lucrarea
+                                    </>
+                                  )}
                                 </DropdownMenuItem>
                               )}
                           </DropdownMenuContent>

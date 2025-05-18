@@ -21,6 +21,8 @@ import {
   MapPin,
   Phone,
   Info,
+  Check,
+  X,
 } from "lucide-react"
 import { getLucrareById, deleteLucrare, updateLucrare, getClienti } from "@/lib/firebase/firestore"
 import { TehnicianInterventionForm } from "@/components/tehnician-intervention-form"
@@ -35,11 +37,13 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const { userData } = useAuth()
   const role = userData?.role || "tehnician"
+  const isAdminOrDispatcher = role === "admin" || role === "dispecer"
   const [lucrare, setLucrare] = useState<Lucrare | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("detalii")
   const [equipmentVerified, setEquipmentVerified] = useState(false)
   const [locationAddress, setLocationAddress] = useState<string | null>(null)
+  const [isUpdating, setIsUpdating] = useState(false)
 
   // Încărcăm datele lucrării și adresa locației
   useEffect(() => {
@@ -240,6 +244,40 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
     }
   })
 
+  // Funcție pentru a actualiza starea de preluare a lucrării
+  const handleToggleDispatcherPickup = async () => {
+    if (!lucrare?.id) return
+
+    try {
+      setIsUpdating(true)
+      // Inversăm starea actuală
+      const newPickupState = !lucrare.preluatDispecer
+
+      await updateLucrare(lucrare.id, { preluatDispecer: newPickupState })
+
+      // Actualizăm lucrarea local
+      setLucrare((prev) => (prev ? { ...prev, preluatDispecer: newPickupState } : null))
+
+      toast({
+        title: newPickupState ? "Lucrare preluată" : "Preluare anulată",
+        description: newPickupState
+          ? "Lucrarea a fost marcată ca preluată de dispecer."
+          : "Preluarea lucrării a fost anulată.",
+        variant: "default",
+        icon: newPickupState ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />,
+      })
+    } catch (error) {
+      console.error("Eroare la actualizarea stării de preluare:", error)
+      toast({
+        title: "Eroare",
+        description: "A apărut o eroare la actualizarea stării de preluare.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
   // Funcție pentru formatarea numărului de telefon pentru apelare
   const formatPhoneForCall = (phone: string) => {
     // Eliminăm toate caracterele non-numerice
@@ -269,16 +307,66 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
     )
   }
 
+  const isCompletedWithReport = lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true
+
   return (
     <DashboardShell>
       <DashboardHeader heading={`Lucrare: ${lucrare.tipLucrare}`} text={`Client: ${lucrare.client}`}>
-        <div className="flex space-x-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <Button variant="outline" onClick={() => router.push("/dashboard/lucrari")}>
             <ChevronLeft className="mr-2 h-4 w-4" /> Înapoi
           </Button>
           <Button onClick={handleGenerateReport}>
             <FileText className="mr-2 h-4 w-4" /> Generează raport
           </Button>
+
+          {/* Adăugăm butonul de preluare/anulare preluare pentru admin și dispecer */}
+          {isAdminOrDispatcher && isCompletedWithReport && (
+            <Button
+              variant={lucrare.preluatDispecer ? "outline" : "default"}
+              className={
+                lucrare.preluatDispecer
+                  ? "border-orange-200 text-orange-600 hover:bg-orange-50"
+                  : "bg-blue-600 hover:bg-blue-700 text-white"
+              }
+              onClick={handleToggleDispatcherPickup}
+              disabled={isUpdating}
+            >
+              {isUpdating ? (
+                <span className="flex items-center">
+                  <svg
+                    className="animate-spin -ml-1 mr-2 h-4 w-4 text-current"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  Se procesează...
+                </span>
+              ) : lucrare.preluatDispecer ? (
+                <>
+                  <X className="mr-2 h-4 w-4" /> Anulează preluare
+                </>
+              ) : (
+                <>
+                  <Check className="mr-2 h-4 w-4" /> Preia lucrare
+                </>
+              )}
+            </Button>
+          )}
         </div>
       </DashboardHeader>
 
@@ -313,6 +401,26 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
           <CheckCircle className="h-4 w-4 text-green-500" />
           <AlertTitle>Echipament verificat</AlertTitle>
           <AlertDescription>Echipamentul a fost verificat cu succes. Puteți continua intervenția.</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Adăugăm un banner pentru admin/dispecer care arată starea de preluare */}
+      {isAdminOrDispatcher && isCompletedWithReport && (
+        <Alert
+          variant={lucrare.preluatDispecer ? "default" : "warning"}
+          className={`mb-4 ${lucrare.preluatDispecer ? "bg-green-50 border-green-200" : "bg-yellow-50 border-yellow-200"}`}
+        >
+          {lucrare.preluatDispecer ? (
+            <CheckCircle className="h-4 w-4 text-green-500" />
+          ) : (
+            <AlertCircle className="h-4 w-4 text-yellow-500" />
+          )}
+          <AlertTitle>{lucrare.preluatDispecer ? "Lucrare preluată" : "Lucrare în așteptare"}</AlertTitle>
+          <AlertDescription>
+            {lucrare.preluatDispecer
+              ? "Această lucrare a fost preluată de dispecer și nu mai este vizibilă pentru tehnician."
+              : "Această lucrare nu a fost încă preluată de dispecer și este încă vizibilă pentru tehnician."}
+          </AlertDescription>
         </Alert>
       )}
 
@@ -482,6 +590,16 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                     >
                       {lucrare.statusFacturare}
                     </Badge>
+                  </div>
+                )}
+                {isCompletedWithReport && (
+                  <div>
+                    <p className="text-sm font-medium">Status preluare:</p>
+                    {lucrare.preluatDispecer ? (
+                      <Badge className="bg-green-100 text-green-800">Preluat de dispecer</Badge>
+                    ) : (
+                      <Badge className="bg-yellow-100 text-yellow-800">În așteptare preluare</Badge>
+                    )}
                   </div>
                 )}
               </CardContent>
