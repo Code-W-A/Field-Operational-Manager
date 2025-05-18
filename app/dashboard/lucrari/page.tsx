@@ -111,9 +111,6 @@ export default function Lucrari() {
     tehnicieni: [],
     client: "",
     locatie: "",
-    echipament: "",
-    echipamentId: "",
-    echipamentCod: "",
     descriere: "",
     persoanaContact: "",
     telefon: "",
@@ -564,10 +561,6 @@ export default function Lucrari() {
     }
   }
 
-  const handleCustomChange = (field: string, value: any) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-  }
-
   const resetForm = () => {
     setDataEmiterii(new Date())
     setDataInterventie(new Date())
@@ -576,9 +569,6 @@ export default function Lucrari() {
       tehnicieni: [],
       client: "",
       locatie: "",
-      echipament: "",
-      echipamentId: "",
-      echipamentCod: "",
       descriere: "",
       persoanaContact: "",
       telefon: "",
@@ -737,9 +727,6 @@ export default function Lucrari() {
       tehnicieni: [...lucrare.tehnicieni],
       client: lucrare.client,
       locatie: lucrare.locatie,
-      echipament: lucrare.echipament || "",
-      echipamentId: lucrare.echipamentId || "",
-      echipamentCod: lucrare.echipamentCod || "",
       descriere: lucrare.descriere,
       persoanaContact: lucrare.persoanaContact,
       telefon: lucrare.telefon,
@@ -1330,7 +1317,6 @@ export default function Lucrari() {
                 handleInputChange={handleInputChange}
                 handleSelectChange={handleSelectChange}
                 handleTehnicieniChange={handleTehnicieniChange}
-                handleCustomChange={handleCustomChange}
                 fieldErrors={fieldErrors}
                 onCancel={() => handleCloseAddDialog()}
               />
@@ -1385,7 +1371,6 @@ export default function Lucrari() {
               handleInputChange={handleInputChange}
               handleSelectChange={handleSelectChange}
               handleTehnicieniChange={handleTehnicieniChange}
-              handleCustomChange={handleCustomChange}
               fieldErrors={fieldErrors}
               onCancel={() => handleCloseEditDialog()}
             />
