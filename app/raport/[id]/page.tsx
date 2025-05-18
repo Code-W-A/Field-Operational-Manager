@@ -595,8 +595,10 @@ export default function RaportPage({ params }: { params: { id: string } }) {
                       <SelectValue placeholder="Selectați statusul" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="Listată">Listată</SelectItem>
+                      <SelectItem value="Atribuită">Atribuită</SelectItem>
+                      <SelectItem value="În lucru">În lucru</SelectItem>
                       <SelectItem value="În așteptare">În așteptare</SelectItem>
-                      <SelectItem value="În curs">În curs</SelectItem>
                       <SelectItem value="Finalizat">Finalizat</SelectItem>
                     </SelectContent>
                   </Select>

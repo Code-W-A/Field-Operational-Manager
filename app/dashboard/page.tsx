@@ -12,6 +12,7 @@ import { where, Timestamp } from "firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import type { Lucrare, Client, Log } from "@/lib/firebase/firestore"
 import type { UserData } from "@/lib/firebase/auth"
+import { WORK_STATUS } from "@/lib/utils/constants"
 
 export default function Dashboard() {
   const router = useRouter()
@@ -41,7 +42,8 @@ export default function Dashboard() {
       return toateLucrarile.filter(
         (lucrare) =>
           lucrare.tehnicieni.includes(userData.displayName) &&
-          (lucrare.statusLucrare.toLowerCase() === "în așteptare" || lucrare.statusLucrare.toLowerCase() === "în curs"),
+          (lucrare.statusLucrare.toLowerCase() === WORK_STATUS.WAITING.toLowerCase() ||
+            lucrare.statusLucrare.toLowerCase() === WORK_STATUS.IN_PROGRESS.toLowerCase()),
       )
     }
     // Administratorii și dispecerii văd toate lucrările
@@ -69,9 +71,15 @@ export default function Dashboard() {
   useEffect(() => {
     if (!loadingLucrari && !loadingClienti && !loadingUtilizatori && !loadingToateLogurile && !loadingLoguriAstazi) {
       // Calculăm statisticile pentru lucrări
-      const lucrariAsteptare = lucrari.filter((l) => l.statusLucrare.toLowerCase() === "în așteptare").length
-      const lucrariInCurs = lucrari.filter((l) => l.statusLucrare.toLowerCase() === "în curs").length
-      const lucrariFinalizate = lucrari.filter((l) => l.statusLucrare.toLowerCase() === "finalizat").length
+      const lucrariAsteptare = lucrari.filter(
+        (l) => l.statusLucrare.toLowerCase() === WORK_STATUS.WAITING.toLowerCase(),
+      ).length
+      const lucrariInCurs = lucrari.filter(
+        (l) => l.statusLucrare.toLowerCase() === WORK_STATUS.IN_PROGRESS.toLowerCase(),
+      ).length
+      const lucrariFinalizate = lucrari.filter(
+        (l) => l.statusLucrare.toLowerCase() === WORK_STATUS.COMPLETED.toLowerCase(),
+      ).length
 
       // Calculăm statisticile pentru utilizatori
       const admini = utilizatori.filter((u) => u.role === "admin").length
@@ -155,9 +163,11 @@ export default function Dashboard() {
     const filteredLucrari =
       role === "tehnician" && userData?.displayName
         ? lucrari.filter(
-            (l) => l.statusLucrare.toLowerCase() === "în așteptare" && l.tehnicieni.includes(userData.displayName!),
+            (l) =>
+              l.statusLucrare.toLowerCase() === WORK_STATUS.WAITING.toLowerCase() &&
+              l.tehnicieni.includes(userData.displayName!),
           )
-        : lucrari.filter((l) => l.statusLucrare.toLowerCase() === "în așteptare")
+        : lucrari.filter((l) => l.statusLucrare.toLowerCase() === WORK_STATUS.WAITING.toLowerCase())
 
     return filteredLucrari.slice(0, 5)
   }
@@ -167,9 +177,11 @@ export default function Dashboard() {
     const filteredLucrari =
       role === "tehnician" && userData?.displayName
         ? lucrari.filter(
-            (l) => l.statusLucrare.toLowerCase() === "în curs" && l.tehnicieni.includes(userData.displayName!),
+            (l) =>
+              l.statusLucrare.toLowerCase() === WORK_STATUS.IN_PROGRESS.toLowerCase() &&
+              l.tehnicieni.includes(userData.displayName!),
           )
-        : lucrari.filter((l) => l.statusLucrare.toLowerCase() === "în curs")
+        : lucrari.filter((l) => l.statusLucrare.toLowerCase() === WORK_STATUS.IN_PROGRESS.toLowerCase())
 
     return filteredLucrari.slice(0, 5)
   }

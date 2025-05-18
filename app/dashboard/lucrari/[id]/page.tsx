@@ -417,20 +417,22 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                     <p className="text-sm text-gray-500">{lucrare.descriereInterventie}</p>
                   </div>
                 )}
-                {/* <div>
+                <div>
                   <p className="text-sm font-medium">Status lucrare:</p>
                   <Badge
                     variant={
                       lucrare.statusLucrare.toLowerCase() === "în așteptare"
                         ? "warning"
-                        : lucrare.statusLucrare.toLowerCase() === "în curs"
+                        : lucrare.statusLucrare.toLowerCase() === "în lucru"
                           ? "default"
-                          : "success"
+                          : lucrare.statusLucrare.toLowerCase() === "finalizat"
+                            ? "success"
+                            : "secondary"
                     }
                   >
                     {lucrare.statusLucrare}
                   </Badge>
-                </div> */}
+                </div>
                 {role !== "tehnician" && (
                   <div>
                     <p className="text-sm font-medium">Status facturare:</p>

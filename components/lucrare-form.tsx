@@ -45,6 +45,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { WORK_STATUS_OPTIONS, INVOICE_STATUS_OPTIONS, WORK_TYPE_OPTIONS } from "@/lib/utils/constants"
 
 // Define the Lucrare type
 interface Lucrare {
@@ -1324,16 +1325,11 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                   <SelectValue placeholder="Selectați tipul" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Ofertare">Ofertare</SelectItem>
-                  <SelectItem value="Contractare">Contractare</SelectItem>
-                  <SelectItem value="Pregătire în atelier">Pregătire în atelier</SelectItem>
-                  <SelectItem value="Instalare">Instalare</SelectItem>
-                  <SelectItem value="Predare">Predare</SelectItem>
-                  <SelectItem value="Intervenție în garanție">Intervenție în garanție</SelectItem>
-                  <SelectItem value="Intervenție contra cost">Intervenție contra cost</SelectItem>
-                  <SelectItem value="Intervenție în contract">Intervenție în contract</SelectItem>
-                  <SelectItem value="Re-Intervenție">Re-Intervenție</SelectItem>
-                  <SelectItem value="Revizie">Revizie</SelectItem>
+                  {WORK_TYPE_OPTIONS.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               {formData.tipLucrare === "Intervenție în garanție" && (
@@ -1649,10 +1645,11 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                     <SelectValue placeholder="Selectați statusul" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Listată">Listată</SelectItem>
-                    <SelectItem value="Atribuită">Atribuită</SelectItem>
-                    <SelectItem value="În lucru">În lucru</SelectItem>
-                    <SelectItem value="Finalizată">Finalizată</SelectItem>
+                    {WORK_STATUS_OPTIONS.map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {status}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1668,9 +1665,11 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                     <SelectValue placeholder="Selectați statusul" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Nefacturat">Nefacturat</SelectItem>
-                    <SelectItem value="Facturat">Facturat</SelectItem>
-                    <SelectItem value="Nu se facturează">Nu se facturează</SelectItem>
+                    {INVOICE_STATUS_OPTIONS.map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {status}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

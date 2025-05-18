@@ -12,6 +12,7 @@ import { toast } from "@/components/ui/use-toast"
 import type { PersoanaContact } from "@/lib/firebase/firestore"
 import { sendWorkOrderNotifications } from "@/components/work-order-notification-service"
 import { Check, Mail, AlertCircle } from "lucide-react"
+import { WORK_STATUS, INVOICE_STATUS } from "@/lib/utils/constants"
 
 export default function NewLucrarePage() {
   const router = useRouter()
@@ -27,8 +28,8 @@ export default function NewLucrarePage() {
     descriere: "",
     persoanaContact: "",
     telefon: "",
-    statusLucrare: "În așteptare",
-    statusFacturare: "Nefacturat",
+    statusLucrare: WORK_STATUS.WAITING,
+    statusFacturare: INVOICE_STATUS.NOT_INVOICED,
     contract: "",
     contractNumber: "",
     contractType: "", // Adăugăm tipul contractului

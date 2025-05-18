@@ -47,6 +47,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { WORK_STATUS, getWorkStatusClass, getWorkStatusRowClass } from "@/lib/utils/constants"
 
 const ContractDisplay = ({ contractId }) => {
   const [contractNumber, setContractNumber] = useState(null)
@@ -143,13 +144,13 @@ export default function Lucrari() {
         const isAssignedToTechnician = lucrare.tehnicieni.includes(userData.displayName)
 
         // Verificăm dacă lucrarea este finalizată și are raport generat
-        const isFinalized = lucrare.statusLucrare === "Finalizată"
+        const isFinalized = lucrare.statusLucrare === WORK_STATUS.COMPLETED
         const hasReportGenerated = lucrare.raportGenerat === true
         const isCompletedWithReport = isFinalized && hasReportGenerated
 
         // Pentru depanare
         if (isAssignedToTechnician && isFinalized) {
-          console.log("Lucrare finalizată pentru tehnician:", {
+          console.log("Lucrare finalizat pentru tehnician:", {
             id: lucrare.id,
             client: lucrare.client,
             statusLucrare: lucrare.statusLucrare,
@@ -897,66 +898,13 @@ export default function Lucrari() {
     setActiveFilters([])
   }
 
-  const getStatusColor = (status) => {
-    switch (status.toLowerCase()) {
-      case "listată":
-        return "bg-gray-100 text-gray-800 hover:bg-gray-200"
-      case "atribuită":
-        return "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
-      case "în lucru":
-        return "bg-blue-100 text-blue-800 hover:bg-blue-200"
-      case "finalizată":
-        return "bg-green-100 text-green-800 hover:bg-green-200"
-      default:
-        return "bg-gray-100 text-gray-800 hover:bg-gray-200"
-    }
-  }
+  const getStatusColor = getWorkStatusClass
 
-  // Funcție pentru a determina clasa CSS a rândului în funcție de statusul lucrării
-  const getRowClassName = (lucrare) => {
-    switch (lucrare.statusLucrare?.toLowerCase()) {
-      case "listată":
-        return "bg-gray-50"
-      case "atribuită":
-        return "bg-yellow-50"
-      case "în lucru":
-        return "bg-blue-50"
-      case "finalizată":
-        return "bg-green-50"
-      case "în așteptare":
-        return "bg-orange-50"
-      default:
-        return "" // Folosim stilizarea alternativă implicită
-    }
-  }
+  const getRowClassName = getWorkStatusRowClass
 
-  const getFacturaColor = (status) => {
-    switch (status.toLowerCase()) {
-      case "facturat":
-        return "bg-green-100 text-green-800 hover:bg-green-200"
-      case "nefacturat":
-        return "bg-red-100 text-red-800 hover:bg-red-200"
-      case "nu se facturează":
-        return "bg-orange-100 text-orange-800 hover:bg-orange-200"
-      default:
-        return "bg-gray-100 text-gray-800 hover:bg-gray-200"
-    }
-  }
+  const getFacturaColor = getFacturaColor
 
-  const getTipLucrareColor = (tip) => {
-    switch (tip.toLowerCase()) {
-      case "contra cost":
-        return "bg-red-50 text-red-700 border-red-200"
-      case "în garanție":
-        return "bg-yellow-50 text-yellow-700 border-yellow-200"
-      case "pregătire instalare":
-        return "bg-blue-50 text-blue-700 border-blue-200"
-      case "instalare":
-        return "bg-green-50 text-green-700 border-green-200"
-      default:
-        return "bg-gray-50 text-gray-700 border-gray-200"
-    }
-  }
+  const getTipLucrareColor = getTipLucrareColor
 
   // Definim coloanele pentru DataTable
   const columns = [
@@ -1284,7 +1232,7 @@ export default function Lucrari() {
           </div>
           <div className="flex items-center">
             <div className="w-4 h-4 mr-1 bg-green-50 border border-green-200 rounded"></div>
-            <span className="text-xs">Finalizată</span>
+            <span className="text-xs">Finalizat</span>
           </div>
           <div className="flex items-center">
             <div className="w-4 h-4 mr-1 bg-orange-50 border border-orange-200 rounded"></div>
