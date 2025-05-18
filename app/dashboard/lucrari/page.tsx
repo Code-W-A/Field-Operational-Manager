@@ -47,7 +47,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { WORK_STATUS, getWorkStatusClass, getWorkStatusRowClass } from "@/lib/utils/constants"
+import {
+  WORK_STATUS,
+  getWorkStatusClass,
+  getWorkStatusRowClass,
+  getInvoiceStatusClass,
+  getWorkTypeClass,
+} from "@/lib/utils/constants"
 
 const ContractDisplay = ({ contractId }) => {
   const [contractNumber, setContractNumber] = useState(null)
@@ -898,14 +904,6 @@ export default function Lucrari() {
     setActiveFilters([])
   }
 
-  const getStatusColor = getWorkStatusClass
-
-  const getRowClassName = getWorkStatusRowClass
-
-  const getFacturaColor = getFacturaColor
-
-  const getTipLucrareColor = getTipLucrareColor
-
   // Definim coloanele pentru DataTable
   const columns = [
     {
@@ -926,7 +924,7 @@ export default function Lucrari() {
       enableHiding: true,
       enableFiltering: true,
       cell: ({ row }) => (
-        <Badge variant="outline" className={getTipLucrareColor(row.original.tipLucrare)}>
+        <Badge variant="outline" className={getWorkTypeClass(row.original.tipLucrare)}>
           {row.original.tipLucrare}
         </Badge>
       ),
@@ -1002,7 +1000,7 @@ export default function Lucrari() {
       enableHiding: true,
       enableFiltering: true,
       cell: ({ row }) => (
-        <Badge className={getStatusColor(row.original.statusLucrare)}>{row.original.statusLucrare}</Badge>
+        <Badge className={getWorkStatusClass(row.original.statusLucrare)}>{row.original.statusLucrare}</Badge>
       ),
     },
     {
@@ -1011,7 +1009,7 @@ export default function Lucrari() {
       enableHiding: true,
       enableFiltering: true,
       cell: ({ row }) => (
-        <Badge className={getFacturaColor(row.original.statusFacturare)}>{row.original.statusFacturare}</Badge>
+        <Badge className={getInvoiceStatusClass(row.original.statusFacturare)}>{row.original.statusFacturare}</Badge>
       ),
     },
     {
@@ -1097,6 +1095,15 @@ export default function Lucrari() {
     } else if (isEditDialogOpen) {
       setIsEditDialogOpen(false)
     }
+  }
+
+  // Modificăm funcția getRowClassName pentru a verifica dacă row și row.original există
+  const getRowClassName = (row) => {
+    // Verificăm dacă row și row.original există
+    if (!row || !row.statusLucrare) {
+      return ""
+    }
+    return getWorkStatusRowClass(row)
   }
 
   return (
@@ -1312,11 +1319,12 @@ export default function Lucrari() {
             />
           </div>
         ) : (
+          // Modificăm și partea din vizualizarea carduri pentru a adăuga verificări suplimentare
           <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3 w-full overflow-auto">
             {filteredData.map((lucrare) => (
               <Card
                 key={lucrare.id}
-                className={`overflow-hidden cursor-pointer hover:shadow-md ${getRowClassName(lucrare)}`}
+                className={`overflow-hidden cursor-pointer hover:shadow-md ${lucrare ? getWorkStatusRowClass(lucrare) : ""}`}
                 onClick={() => handleViewDetails(lucrare)}
               >
                 <CardContent className="p-0">
@@ -1334,13 +1342,13 @@ export default function Lucrari() {
                         )}
                       </p>
                     </div>
-                    <Badge className={getStatusColor(lucrare.statusLucrare)}>{lucrare.statusLucrare}</Badge>
+                    <Badge className={getWorkStatusClass(lucrare.statusLucrare)}>{lucrare.statusLucrare}</Badge>
                   </div>
                   <div className="p-4">
                     <div className="mb-4 space-y-2">
                       <div className="flex justify-between">
                         <span className="text-sm font-medium text-muted-foreground">Tip:</span>
-                        <Badge variant="outline" className={getTipLucrareColor(lucrare.tipLucrare)}>
+                        <Badge variant="outline" className={getWorkTypeClass(lucrare.tipLucrare)}>
                           {lucrare.tipLucrare}
                         </Badge>
                       </div>
@@ -1393,7 +1401,9 @@ export default function Lucrari() {
                     </div>
                     <div className="flex items-center justify-between">
                       {userData?.role !== "tehnician" && (
-                        <Badge className={getFacturaColor(lucrare.statusFacturare)}>{lucrare.statusFacturare}</Badge>
+                        <Badge className={getInvoiceStatusClass(lucrare.statusFacturare)}>
+                          {lucrare.statusFacturare}
+                        </Badge>
                       )}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>

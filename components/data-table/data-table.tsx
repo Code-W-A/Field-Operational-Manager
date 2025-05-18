@@ -267,7 +267,7 @@ export function DataTable<TData, TValue>({
                 let rowClass = index % 2 === 0 ? "bg-white" : "bg-gray-50"
 
                 // Dacă avem o funcție pentru a determina clasa rândului, o folosim
-                if (getRowClassName) {
+                if (getRowClassName && row.original) {
                   const customClass = getRowClassName(row.original)
                   if (customClass) {
                     rowClass = customClass
