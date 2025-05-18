@@ -1,20 +1,5 @@
 "use client"
 
-// ---------------------------------------------------------------------------
-// ReportGenerator – Refined PDF layout with improved spacing and pagination
-// ---------------------------------------------------------------------------
-// 🔄 IMPROVEMENTS:
-//   • Fixed element overlapping with proper spacing and pagination
-//   • Enhanced table display with dynamic row heights for product details
-//   • Improved signature positioning and display
-//   • Added automatic page breaks to prevent content overflow
-//   • Better handling of long text with proper wrapping
-//   • Fixed diacritics issues in total section
-//   • Added equipment information section
-//   • Enhanced beneficiary information with client details
-//   • Dynamic text block heights for constatare and descriere
-// ---------------------------------------------------------------------------
-
 import { useState, forwardRef, useEffect } from "react"
 import { jsPDF } from "jspdf"
 import { Button } from "@/components/ui/button"
@@ -52,65 +37,34 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
   const [logoLoaded, setLogoLoaded] = useState(false)
   const [logoError, setLogoError] = useState(false)
 
-  // Debug logging
+  // Preload the logo image as data URL (fallback included)
   useEffect(() => {
-    console.log("Report generator received lucrare:", {
-      constatareLaLocatie: lucrare?.constatareLaLocatie,
-      descriere: lucrare?.descriere,
-      descriereInterventie: lucrare?.descriereInterventie,
-      client: lucrare?.client,
-      clientInfo: lucrare?.clientInfo,
-    })
-  }, [lucrare])
-
-  // Preload the logo image and convert to data URL
-  useEffect(() => {
-    // Simple NRG logo as base64 - this is a fallback that will always work
-    // This is a very basic placeholder logo - replace with your actual logo if needed
     const fallbackLogo =
       "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAABkCAYAAADDhn8LAAADsklEQVR4nO3dy27UQBCF4T7vwIINCIQQj8CCBYgbAgQIJO5PwCNwCUgIkEDiBQhrFizYAFIUy5E8GsfT7e7q7vN/UkuTiZNMprqrfLqSGQEAAAAAAAAAAAAAAAAAAAAAAAAAAADQpZnUDUBnTkk6J+m0pFOSjks6IumQpL2S9tj/+yDpvaR3kt5KeiPptaRXkl5K+tJpy9GKA5IuS7oi6aKkC5LOWlJMYknzXNJTSU8kPZb0Y+J7oiVnJN2UdE/SN0nrDV/fJd2VdMPagg7tl3RD0kNJP9V8UvS9fkq6L+m6pJkG7QQOSLoj6Zfan/xbX7/s3nRCYZqZpKuSXqj7xNj6emH3pjOLCR2V9EjdJ0HM66Hd+9BjZummpO/qPuHjXt/t3oeGzkv6qO6TvK3XR+sHGnBY0hN1n9RtvZ5YfzCh65K+qvtkbvv11fqDCc5J+qzuk7ir12frFyZwW90ncdfXLesXRnRU0jt1n7h9vN5Z/zCCmaSn6j5Z+3w9tX5iBDfUfZL2fb1W/mPzWdkv6aO6T9AhXh+snxjgmvJfFI99rVX+Y/RZ2afuk3LI1z3lP0afje/qPhGHfH1T/mP1WXim7pNw6Ncz5T9mn4Xryn+3eOzruvIfuw/eIeW/Wzz265DyH78P2i3ln3hjXbeU//h9sA5K+qT8E26s1yflvw0+WDeVf7KNfbGDPGBHlH+ijX0dUf7b4oN0XfknWVvXdeW/PT4o+5R/grV97VP+2+SDclH5J1fb10Xlv10+GDPlv8Xb1TXTgG33QbikYRPjv6Qnkh5IuivpD0l/Svpb0j+S/pL0u6TfJP1qP/9L0p+S/rD//0DSY0nfB7ThouiHDMZMwyZFcZb7oaTfJf0xoA1/2e8+tN8tzvIfMqAdM+U/jh+EmYZNiEeSrg1ow1VJjwe24ZryH8cPwkzDJsNY/8NnA9txVfmP4wdhpmGTYcxzrYY+5Zon3WDMNGwyMEEGZKZhk4EJMiAzDZsMTJABmWnYZGCCDMhMwyYDE2RAZho2GZggAzLTsMnABBmQmYZNBibIgMw0bDIwQQZkpmGTgQkyIDMNmwxMkAGZadhkYIIMyEzDJgMTZEBmGjYZmCADMtOwyTDWBJlp2LnWTJAOzTRsMox1LtRMw861ZoJ0aKZhk2GsE/VmGnauNROkQzMNmwxjnahfU/5j+EGYadgEKU7U+9/+98X//l/8738P+d//iv/9f8j//lf87/9D/ve/4n//H/K//xX/+/+Q//2v+N//h/zvf8X//j/kf/8r/vd/AAAAAAAAAAAAAAAAAAAAAAAAAAAAgAz9C5gVeUGpivY2AAAAAElFTkSuQmCC"
 
     try {
-      // First try to load the image from the public folder
       const img = new Image()
-      img.crossOrigin = "anonymous" // Important to avoid CORS issues with canvas
-
+      img.crossOrigin = "anonymous"
       img.onload = () => {
-        // Create canvas to convert image to data URL
         const canvas = document.createElement("canvas")
         canvas.width = img.width
         canvas.height = img.height
-
         const ctx = canvas.getContext("2d")
-        if (ctx) {
-          ctx.drawImage(img, 0, 0)
-          try {
-            const dataUrl = canvas.toDataURL("image/png")
-            setLogoDataUrl(dataUrl)
-            setLogoLoaded(true)
-            console.log("Logo loaded successfully from public folder")
-          } catch (err) {
-            console.error("Error converting logo to data URL:", err)
-            // Use fallback logo
-            setLogoDataUrl(fallbackLogo)
-            setLogoLoaded(true)
-          }
+        ctx?.drawImage(img, 0, 0)
+        try {
+          setLogoDataUrl(canvas.toDataURL("image/png"))
+          setLogoLoaded(true)
+        } catch {
+          setLogoDataUrl(fallbackLogo)
+          setLogoLoaded(true)
         }
       }
-
-      img.onerror = (e) => {
-        console.error("Error loading logo image from public folder:", e)
-        // Use fallback logo
+      img.onerror = () => {
         setLogoDataUrl(fallbackLogo)
         setLogoLoaded(true)
       }
-
-      // Use the correct path to the logo in the public folder
-      // The public folder is accessible at the root path in Next.js
       img.src = "/nrglogo.png"
-    } catch (err) {
-      console.error("Error in logo loading process:", err)
-      // Use fallback logo
+    } catch {
       setLogoDataUrl(fallbackLogo)
       setLogoLoaded(true)
     }
@@ -123,30 +77,20 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const doc = new jsPDF({ unit: "mm", format: "a4" })
       const PW = doc.internal.pageSize.getWidth()
       const PH = doc.internal.pageSize.getHeight()
-
-      // Track current Y position for content placement
       let currentY = M
 
-      // Function to check if we need a new page
-      const checkPageBreak = (neededHeight: number) => {
-        if (currentY + neededHeight > PH - M) {
+      // Helper: add new page if required
+      const checkPageBreak = (needed: number) => {
+        if (currentY + needed > PH - M) {
           doc.addPage()
           currentY = M
-          return true
         }
-        return false
       }
 
-      // Draw box with title and content
-      const drawBox = (
-        title: string,
-        lines: string[],
-        boxWidth: number,
-        boxHeight: number,
-        x: number,
-        titleBold = true,
-      ) => {
-        // Check if we need a new page
+      // Helper: draw a labelled box (no fixed rows)
+      const drawBox = (title: string, lines: string[], boxWidth: number, x: number, titleBold = true) => {
+        const lineHeight = 5
+        const boxHeight = lines.length * lineHeight + 12
         checkPageBreak(boxHeight + 5)
 
         doc.setDrawColor(60).setFillColor(LIGHT_GRAY).setLineWidth(STROKE)
@@ -160,7 +104,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 
         doc.setFontSize(8).setFont(undefined, "normal").setTextColor(20)
         lines.forEach((txt, i) => {
-          const yy = currentY + 10 + i * 5
+          const yy = currentY + 10 + i * lineHeight
           doc.text(txt, x + 3, yy)
           doc
             .setDrawColor(200)
@@ -169,12 +113,11 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         })
       }
 
-      // HEADER BOXES
+      // HEADER
       const boxH = 36
       const logoArea = 40
       const boxW = (W - logoArea) / 2
 
-      // Draw prestator box
       drawBox(
         "PRESTATOR",
         [
@@ -186,83 +129,48 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           "RO79BTRL RON CRT 0294 5948 01",
         ],
         boxW,
-        boxH,
         M,
       )
 
-      // Extract client information
       const clientInfo = lucrare.clientInfo || {}
-      const clientName = normalize(lucrare.client || "-")
-      const clientCUI = normalize(clientInfo.cui || "-")
-      const clientRC = normalize(clientInfo.rc || "-")
-      const clientAddress = normalize(clientInfo.adresa || "-")
-      const clientBank = normalize(clientInfo.banca || "-")
-      const clientAccount = normalize(clientInfo.cont || "-")
-
-      // Adăugăm informații despre locația intervenției
-      const locationName = normalize(lucrare.locatie || "-")
-      const locationAddress = normalize(clientInfo.locationAddress || "-")
-      const fullLocationAddressRaw = locationAddress !== "-" ? `${locationName}, ${locationAddress}` : locationName
-      const fullLocationAddress = normalize(fullLocationAddressRaw)
-
-      // Generăm link-ul pentru navigare
-      const encodedAddress = encodeURIComponent(fullLocationAddress)
-      const navigationLink = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`
-
-      // Draw beneficiar box with complete client information
       drawBox(
         "BENEFICIAR",
         [
-          clientName,
-          `CUI: ${clientCUI}`,
-          `R.C.: ${clientRC}`,
-          `Adresa: ${clientAddress}`,
-          `Locatie interventie: ${fullLocationAddress}`,
+          normalize(lucrare.client || "-"),
+          `CUI: ${normalize(clientInfo.cui || "-")}`,
+          `R.C.: ${normalize(clientInfo.rc || "-")}`,
+          `Adresa: ${normalize(clientInfo.adresa || "-")}`,
+          `Locatie interventie: ${normalize(lucrare.locatie || "-")}`,
         ],
         boxW,
-        boxH,
         M + boxW + logoArea,
       )
 
-      // LOGO
+      // LOGO placeholder
       doc.setDrawColor(60).setLineWidth(STROKE)
       ;(doc as any).roundedRect(M + boxW + 2, currentY + 3, logoArea - 4, boxH - 6, 1.5, 1.5, "S")
-
       if (logoLoaded && logoDataUrl) {
         try {
-          // Use the preloaded logo data URL
           doc.addImage(logoDataUrl, "PNG", M + boxW + 4, currentY + 5, logoArea - 8, boxH - 10)
-        } catch (err) {
-          console.error("Error adding logo to PDF:", err)
-          // Fallback text if logo fails to load
+        } catch {
           doc
             .setFontSize(14)
             .setFont(undefined, "bold")
-            .setTextColor(60)
             .text("NRG", M + boxW + logoArea / 2, currentY + boxH / 2, { align: "center" })
         }
-      } else {
-        // Fallback text if logo wasn't loaded
-        doc
-          .setFontSize(14)
-          .setFont(undefined, "bold")
-          .setTextColor(60)
-          .text("NRG", M + boxW + logoArea / 2, currentY + boxH / 2, { align: "center" })
       }
 
-      // Update current Y position after header boxes
       currentY += boxH + 10
 
-      // MAIN TITLE
+      // TITLE
       doc
         .setFontSize(16)
         .setFont(undefined, "bold")
-        .setTextColor(20)
         .text("RAPORT DE INTERVENTIE", PW / 2, currentY, { align: "center" })
       currentY += 10
 
-      // META INFO
-      doc.setFontSize(9).setFont(undefined, "normal").setTextColor(0)
+      // META
+      doc.setFontSize(9).setFont(undefined, "normal")
       const [d, t] = (lucrare.dataInterventie || " - -").split(" ")
       doc.text(`Data: ${normalize(d)}`, M, currentY)
       doc.text(`Sosire: ${t || "-"}`, M + 70, currentY)
@@ -270,341 +178,168 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       doc.text(`Raport #${lucrare.id || ""}`, PW - M, currentY, { align: "right" })
       currentY += 10
 
-      // EQUIPMENT INFO (if available)
+      // EQUIPMENT
       if (lucrare.echipament || lucrare.echipamentCod) {
-        // Draw equipment box
-        const equipmentBoxHeight = 25
-        doc.setDrawColor(60).setFillColor(LIGHT_GRAY).setLineWidth(STROKE)
-        ;(doc as any).roundedRect(M, currentY, W, equipmentBoxHeight, BOX_RADIUS, BOX_RADIUS, "FD")
-
-        // Title
-        doc
-          .setFontSize(10)
-          .setFont(undefined, "bold")
-          .setTextColor(40)
-          .text("ECHIPAMENT", M + W / 2, currentY + 6, { align: "center" })
-
-        // Equipment details
-        doc.setFontSize(9).setFont(undefined, "normal").setTextColor(20)
-
-        // First row
-        let equipmentText = normalize(lucrare.echipament || "Nespecificat")
-        if (lucrare.echipamentCod) {
-          equipmentText += ` (Cod: ${normalize(lucrare.echipamentCod)})`
-        }
-        doc.text(equipmentText, M + 5, currentY + 15)
-
-        // Update position
-        currentY += equipmentBoxHeight + 5
+        const equipLines = [
+          `${normalize(lucrare.echipament || "Nespecificat")}${lucrare.echipamentCod ? ` (Cod: ${normalize(lucrare.echipamentCod)})` : ""}`,
+        ]
+        drawBox("ECHIPAMENT", equipLines, W, M, true)
+        currentY += equipLines.length * 5 + 12 + 5
       }
 
-      // COMMENT BLOCKS - Dynamic height based on content
-      const addTextBlock = (label: string, text: string) => {
-        // Check if we need a new page for the label
-        checkPageBreak(10)
-
-        // Draw label
-        doc.setFont(undefined, "bold").setFontSize(10).setTextColor(20)
+      // Dynamic text blocks helper (no fixed 5 lines)
+      const addTextBlock = (label: string, text?: string) => {
+        if (!text?.trim()) return
+        doc.setFont(undefined, "bold").setFontSize(10)
         doc.text(label, M, currentY)
         currentY += 4
 
-        // Calculate needed height based on text content
-        doc.setFont(undefined, "normal").setFontSize(8).setTextColor(20)
-        const normalizedText = normalize(text || "")
-        const textLines = doc.splitTextToSize(normalizedText, W - 4)
-
-        // Calculate box height based on text content
-        // Each line is about 4mm high, add some padding
+        const textLines = doc.splitTextToSize(normalize(text), W - 4)
         const lineHeight = 4
-        const minBoxHeight = 30 // Minimum box height
-        const calculatedHeight = Math.max(minBoxHeight, textLines.length * lineHeight + 10)
+        const boxHeight = textLines.length * lineHeight + 4
 
-        // Check if we need a new page for the box
-        checkPageBreak(calculatedHeight + 5)
+        checkPageBreak(boxHeight + 5)
+        doc.setDrawColor(150).rect(M, currentY, W, boxHeight, "S")
 
-        // Draw box
-        doc.setDrawColor(150).setLineWidth(0.2)
-        doc.rect(M, currentY, W, calculatedHeight, "S")
-
-        // Draw horizontal lines - dynamic based on box height
-        const linesCount = Math.floor(calculatedHeight / 6)
-        for (let i = 1; i < linesCount; i++) {
-          doc.line(M, currentY + i * 6, M + W, currentY + i * 6)
+        // Horizontal guide lines only for actual content
+        for (let i = 1; i <= textLines.length; i++) {
+          doc.line(M, currentY + i * lineHeight, M + W, currentY + i * lineHeight)
         }
 
-        // Add text content
-        doc.text(textLines, M + 2, currentY + 5)
-
-        // Update position
-        currentY += calculatedHeight + 10
+        doc.setFont(undefined, "normal").setFontSize(8)
+        doc.text(textLines, M + 2, currentY + lineHeight)
+        currentY += boxHeight + 6
       }
 
-      // Add text blocks with dynamic heights
-      addTextBlock("Constatare la locatie:", lucrare.constatareLaLocatie || "")
-      addTextBlock("Descriere interventie:", lucrare.descriereInterventie || "")
+      addTextBlock("Constatare la locatie:", lucrare.constatareLaLocatie)
+      addTextBlock("Descriere interventie:", lucrare.descriereInterventie)
 
-      // PRODUCT TABLE
-      // Check if we need a new page for the table header
-      checkPageBreak(15)
+      // PRODUCT TABLE (shown only if there are products)
+      if (products.length) {
+        checkPageBreak(15)
+        doc.setFillColor(DARK_GRAY).rect(M, currentY, W, 8, "FD")
+        doc
+          .setFontSize(10)
+          .setFont(undefined, "bold")
+          .text("DEVIZ ESTIMATIV", PW / 2, currentY + 5, { align: "center" })
+        currentY += 8
 
-      // Table header
-      doc.setFillColor(DARK_GRAY).setDrawColor(60).setLineWidth(STROKE)
-      doc.rect(M, currentY, W, 8, "FD")
-      doc
-        .setFontSize(10)
-        .setFont(undefined, "bold")
-        .setTextColor(20)
-        .text("DEVIZ ESTIMATIV", PW / 2, currentY + 5, { align: "center" })
-      currentY += 8
+        const colWidths = [W * 0.08, W * 0.47, W * 0.1, W * 0.1, W * 0.125, W * 0.125]
+        const colPos = [M]
+        for (let i = 0; i < colWidths.length; i++) colPos.push(colPos[i] + colWidths[i])
+        const headers = ["#", "Produs", "UM", "Cant.", "Preț", "Total"]
 
-      // Define column widths (percentage of total width)
-      const colWidths = [
-        W * 0.08, // # (8%)
-        W * 0.47, // Product name (47%)
-        W * 0.1, // UM (10%)
-        W * 0.1, // Quantity (10%)
-        W * 0.125, // Price (12.5%)
-        W * 0.125, // Total (12.5%)
-      ]
-
-      // Calculate column positions
-      const colPos = [M]
-      for (let i = 0; i < colWidths.length; i++) {
-        colPos.push(colPos[i] + colWidths[i])
-      }
-
-      // Table column headers
-      checkPageBreak(10)
-      doc.setFillColor(LIGHT_GRAY)
-      doc.rect(M, currentY, W, 7, "FD")
-
-      const headers = ["#", "Produs", "UM", "Cant.", "Preț", "Total"]
-      doc.setFontSize(8).setFont(undefined, "bold").setTextColor(40)
-
-      headers.forEach((header, i) => {
-        const x = colPos[i] + colWidths[i] / 2
-        doc.text(header, x, currentY + 5, { align: "center" })
-      })
-
-      // Draw vertical lines for headers
-      for (let i = 0; i <= colWidths.length; i++) {
-        doc.line(colPos[i], currentY, colPos[i], currentY + 7)
-      }
-
-      // Draw horizontal line after headers
-      doc.line(M, currentY + 7, M + W, currentY + 7)
-      currentY += 7
-
-      // Table rows
-      const productsToShow =
-        products.length > 0 ? products : [{ id: "1", name: "", um: "", quantity: 0, price: 0, total: 0 }]
-
-      productsToShow.forEach((product, index) => {
-        // Calculate row height based on product name length
-        const productName = normalize(product.name || "")
-        const nameLines = doc.splitTextToSize(productName, colWidths[1] - 4)
-        const rowHeight = Math.max(7, nameLines.length * 4 + 2)
-
-        // Check if we need a new page
-        if (checkPageBreak(rowHeight)) {
-          // If new page, redraw the table headers
-          doc.setFillColor(LIGHT_GRAY)
-          doc.rect(M, currentY, W, 7, "FD")
-
-          doc.setFontSize(8).setFont(undefined, "bold").setTextColor(40)
-          headers.forEach((header, i) => {
-            const x = colPos[i] + colWidths[i] / 2
-            doc.text(header, x, currentY + 5, { align: "center" })
+        const drawTableHeader = () => {
+          doc.setFillColor(LIGHT_GRAY).rect(M, currentY, W, 7, "FD")
+          doc.setFontSize(8).setFont(undefined, "bold")
+          headers.forEach((h, i) => {
+            doc.text(h, colPos[i] + colWidths[i] / 2, currentY + 5, { align: "center" })
           })
-
-          for (let i = 0; i <= colWidths.length; i++) {
-            doc.line(colPos[i], currentY, colPos[i], currentY + 7)
-          }
-
+          for (let i = 0; i <= colWidths.length; i++) doc.line(colPos[i], currentY, colPos[i], currentY + 7)
           doc.line(M, currentY + 7, M + W, currentY + 7)
           currentY += 7
         }
 
-        // Zebra striping
-        if (index % 2 === 1) {
-          doc.setFillColor(248)
-          doc.rect(M, currentY, W, rowHeight, "F")
-        }
+        drawTableHeader()
 
-        // Draw cell borders
-        doc.setDrawColor(180).setLineWidth(0.2)
-        for (let i = 0; i <= colWidths.length; i++) {
-          doc.line(colPos[i], currentY, colPos[i], currentY + rowHeight)
-        }
-        doc.line(M, currentY + rowHeight, M + W, currentY + rowHeight)
+        products.forEach((product, index) => {
+          const nameLines = doc.splitTextToSize(normalize(product.name || ""), colWidths[1] - 4)
+          const rowHeight = nameLines.length * 4 + 2
+          if (currentY + rowHeight > PH - M) {
+            doc.addPage()
+            currentY = M
+            drawTableHeader()
+          }
 
-        // Cell content
-        doc.setFontSize(8).setFont(undefined, "normal").setTextColor(20)
+          // zebra
+          if (index % 2) {
+            doc.setFillColor(248).rect(M, currentY, W, rowHeight, "F")
+          }
 
-        // Row number
-        doc.text((index + 1).toString(), colPos[0] + colWidths[0] / 2, currentY + 4, { align: "center" })
+          doc.setDrawColor(180).setLineWidth(0.2)
+          for (let i = 0; i <= colWidths.length; i++) doc.line(colPos[i], currentY, colPos[i], currentY + rowHeight)
+          doc.line(M, currentY + rowHeight, M + W, currentY + rowHeight)
 
-        // Product name (with wrapping)
-        nameLines.forEach((line: string, lineIndex: number) => {
-          doc.text(line, colPos[1] + 2, currentY + 4 + lineIndex * 4)
+          doc.setFontSize(8).setFont(undefined, "normal")
+          doc.text((index + 1).toString(), colPos[0] + colWidths[0] / 2, currentY + 4, { align: "center" })
+          nameLines.forEach((l, li) => doc.text(l, colPos[1] + 2, currentY + 4 + li * 4))
+          doc.text(product.um || "-", colPos[2] + colWidths[2] / 2, currentY + 4, { align: "center" })
+          doc.text((product.quantity || 0).toString(), colPos[3] + colWidths[3] / 2, currentY + 4, { align: "center" })
+          doc.text((product.price || 0).toFixed(2), colPos[4] + colWidths[4] / 2, currentY + 4, { align: "center" })
+          const tot = (product.quantity || 0) * (product.price || 0)
+          doc.text(tot.toFixed(2), colPos[5] + colWidths[5] / 2, currentY + 4, { align: "center" })
+
+          currentY += rowHeight
         })
 
-        // Other cells
-        doc.text(product.um || "-", colPos[2] + colWidths[2] / 2, currentY + 4, { align: "center" })
-        doc.text(product.quantity?.toString() || "0", colPos[3] + colWidths[3] / 2, currentY + 4, { align: "center" })
-        doc.text(product.price?.toFixed(2) || "0.00", colPos[4] + colWidths[4] / 2, currentY + 4, { align: "center" })
-
-        const total = (product.quantity || 0) * (product.price || 0)
-        doc.text(total.toFixed(2), colPos[5] + colWidths[5] / 2, currentY + 4, { align: "center" })
-
-        // Update position
-        currentY += rowHeight
-      })
-
-      // TOTALS
-      checkPageBreak(30) // Asigură spațiu suficient pentru totaluri
-      currentY += 10 // Spațiu suplimentar după tabel
-
-      const subtotal = products.reduce((sum, p) => sum + (p.quantity || 0) * (p.price || 0), 0)
-      const vat = subtotal * 0.19
-      const total = subtotal + vat
-
-      // Poziționare dinamică pentru totaluri
-      const totalLabelX = PW - 70 // Poziția pentru etichete (fixă)
-      const totalValueX = PW - 20 // Poziția pentru valori (fixă)
-
-      // Folosim text hardcodat fără diacritice pentru a evita problemele de randare
-      // Subtotal - poziționare simplificată
-      doc.setFontSize(9).setFont(undefined, "bold").setTextColor(20)
-      doc.text("Total fara TVA:", totalLabelX, currentY, { align: "right" })
-
-      doc.setFont(undefined, "normal")
-      doc.text(`${subtotal.toFixed(2)} RON`, totalValueX, currentY, { align: "right" })
-
-      // TVA - cu spațiere adecvată
-      currentY += 8 // Spațiere mărită între rânduri
-      doc.setFont(undefined, "bold")
-      doc.text("TVA (19%):", totalLabelX, currentY, { align: "right" })
-
-      doc.setFont(undefined, "normal")
-      doc.text(`${vat.toFixed(2)} RON`, totalValueX, currentY, { align: "right" })
-
-      // Total cu TVA - cu spațiere adecvată
-      currentY += 8 // Spațiere mărită între rânduri
-      doc.setFont(undefined, "bold")
-      doc.text("Total cu TVA:", totalLabelX, currentY, { align: "right" })
-
-      doc.setFont(undefined, "normal")
-      doc.text(`${total.toFixed(2)} RON`, totalValueX, currentY, { align: "right" })
-
-      // Linie separatoare opțională pentru claritate vizuală
-      doc.setDrawColor(150).setLineWidth(0.2)
-      doc.line(totalLabelX - 40, currentY + 4, totalValueX + 5, currentY + 4)
-
-      currentY += 20 // Spațiu după secțiunea de totaluri
+        // TOTALS
+        checkPageBreak(30)
+        currentY += 10
+        const subtotal = products.reduce((s, p) => s + (p.quantity || 0) * (p.price || 0), 0)
+        const vat = subtotal * 0.19
+        const total = subtotal + vat
+        const labelX = PW - 70
+        const valX = PW - 20
+        doc.setFontSize(9).setFont(undefined, "bold").text("Total fara TVA:", labelX, currentY, { align: "right" })
+        doc.setFont(undefined, "normal").text(`${subtotal.toFixed(2)} RON`, valX, currentY, { align: "right" })
+        currentY += 6
+        doc.setFont(undefined, "bold").text("TVA (19%):", labelX, currentY, { align: "right" })
+        doc.setFont(undefined, "normal").text(`${vat.toFixed(2)} RON`, valX, currentY, { align: "right" })
+        currentY += 6
+        doc.setFont(undefined, "bold").text("Total cu TVA:", labelX, currentY, { align: "right" })
+        doc.setFont(undefined, "normal").text(`${total.toFixed(2)} RON`, valX, currentY, { align: "right" })
+        doc.setDrawColor(150).line(labelX - 40, currentY + 3, valX + 5, currentY + 3)
+        currentY += 15
+      }
 
       // SIGNATURES
       checkPageBreak(40)
-
-      // Signature labels
-      doc
-        .setFontSize(9)
-        .setFont(undefined, "bold")
-        .text("Tehnician:", M, currentY)
-        .text("Beneficiar:", M + W / 2, currentY)
-
+      doc.setFontSize(9).setFont(undefined, "bold")
+      doc.text("Tehnician:", M, currentY)
+      doc.text("Beneficiar:", M + W / 2, currentY)
+      currentY += 5
+      doc.setFont(undefined, "normal")
+      doc.text(normalize(lucrare.tehnicieni?.join(", ") || ""), M, currentY)
+      doc.text(normalize(lucrare.persoanaContact || ""), M + W / 2, currentY)
       currentY += 5
 
-      // Names
-      doc
-        .setFont(undefined, "normal")
-        .text(normalize(lucrare.tehnicieni?.join(", ") || ""), M, currentY)
-        .text(normalize(lucrare.persoanaContact || ""), M + W / 2, currentY)
-
-      currentY += 5
-
-      // Signature images
-      const signatureWidth = W / 2 - 10
-      const signatureHeight = 25
-
-      if (lucrare.semnaturaTehnician) {
-        try {
-          doc.addImage(lucrare.semnaturaTehnician, "PNG", M, currentY, signatureWidth, signatureHeight)
-        } catch (err) {
-          console.error("Error adding technician signature:", err)
-          // Adăugăm un text alternativ dacă semnătura nu poate fi încărcată
-          doc.setFontSize(8).setFont(undefined, "italic").setTextColor(100)
-          doc.text("Semnatura lipsa", M + signatureWidth / 2, currentY + signatureHeight / 2, { align: "center" })
+      const signW = W / 2 - 10
+      const signH = 25
+      const addSig = (data: string | undefined, x: number) => {
+        if (data) {
+          try {
+            doc.addImage(data, "PNG", x, currentY, signW, signH)
+            return
+          } catch {}
         }
-      } else {
-        // Adăugăm un text alternativ dacă semnătura nu există
-        doc.setFontSize(8).setFont(undefined, "italic").setTextColor(100)
-        doc.text("Semnătură lipsă", M + signatureWidth / 2, currentY + signatureHeight / 2, { align: "center" })
+        doc
+          .setFontSize(8)
+          .setFont(undefined, "italic")
+          .text("Semnatura lipsa", x + signW / 2, currentY + signH / 2, { align: "center" })
       }
+      addSig(lucrare.semnaturaTehnician, M)
+      addSig(lucrare.semnaturaBeneficiar, M + W / 2)
 
-      if (lucrare.semnaturaBeneficiar) {
-        try {
-          doc.addImage(lucrare.semnaturaBeneficiar, "PNG", M + W / 2, currentY, signatureWidth, signatureHeight)
-        } catch (err) {
-          console.error("Error adding beneficiary signature:", err)
-          // Adăugăm un text alternativ dacă semnătura nu poate fi încărcată
-          doc.setFontSize(8).setFont(undefined, "italic").setTextColor(100)
-          doc.text("Semnătură lipsă", M + W / 2 + signatureWidth / 2, currentY + signatureHeight / 2, {
-            align: "center",
-          })
-        }
-      } else {
-        // Adăugăm un text alternativ dacă semnătura nu există
-        doc.setFontSize(8).setFont(undefined, "italic").setTextColor(100)
-        doc.text("Semnătură lipsă", M + W / 2 + signatureWidth / 2, currentY + signatureHeight / 2, { align: "center" })
-      }
-
-      // Footer
-      currentY = PH - M - 5
+      // FOOTER
       doc
         .setFontSize(7)
         .setFont(undefined, "normal")
-        .setTextColor(100)
-        .text("Document generat automat • Field Operational Manager", PW / 2, currentY, { align: "center" })
+        .text("Document generat automat • Field Operational Manager", PW / 2, PH - M, { align: "center" })
 
-      // Generate the PDF blob
       const blob = doc.output("blob")
       doc.save(`Raport_${lucrare.id}.pdf`)
 
-      // Marcăm lucrarea ca având raport generat
+      // Mark document as generated
       if (lucrare.id) {
         try {
-          // Importăm doc și updateDoc din firebase/firestore
-          const { doc, updateDoc } = require("firebase/firestore")
+          const { doc: fbDoc, updateDoc } = require("firebase/firestore")
           const { db } = require("@/lib/firebase/config")
-
-          console.log("Marcăm lucrarea ca având raport generat:", lucrare.id)
-
-          // Actualizăm documentul în Firestore
-          const lucrareRef = doc(db, "lucrari", lucrare.id)
-          await updateDoc(lucrareRef, {
-            raportGenerat: true,
-            updatedAt: serverTimestamp(),
-          })
-
-          console.log("Lucrare actualizată cu succes, raportGenerat = true")
-
-          // Afișăm un toast de confirmare
-          toast({
-            title: "Raport marcat ca generat",
-            description: "Lucrarea a fost actualizată în sistem.",
-            variant: "default",
-          })
-        } catch (error) {
-          console.error("Eroare la marcarea lucrării ca având raport generat:", error)
-          toast({
-            title: "Atenție",
-            description: "Raportul a fost generat, dar nu s-a putut actualiza starea în sistem.",
-            variant: "destructive",
-          })
+          await updateDoc(fbDoc(db, "lucrari", lucrare.id), { raportGenerat: true, updatedAt: serverTimestamp() })
+          toast({ title: "Raport marcat ca generat", description: "Lucrarea a fost actualizata.", variant: "default" })
+        } catch {
+          toast({ title: "Atenție", description: "Nu s-a putut actualiza starea în sistem.", variant: "destructive" })
         }
       }
-
       onGenerate?.(blob)
       toast({ title: "PDF generat!", description: "Descărcare completă." })
       return blob
@@ -624,7 +359,6 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           <p className="whitespace-pre-line">{lucrare.constatareLaLocatie}</p>
         </div>
       )}
-
       {lucrare.descriereInterventie && (
         <div className="mb-4">
           <h3 className="text-lg font-semibold mb-2">Descriere intervenție</h3>
