@@ -118,6 +118,9 @@ export default function Lucrari() {
     statusFacturare: "Nefacturat",
     contract: "",
     defectReclamat: "",
+    echipamentId: "",
+echipamentCod: "",
+persoaneContact: [],
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState(null)
@@ -1237,7 +1240,8 @@ export default function Lucrari() {
       },
     },
   ]
-
+const handleCustomChange = (field, value) =>
+  setFormData((prev) => ({ ...prev, [field]: value }))
   // Function to check if we should show the close confirmation dialog
   const handleCloseAddDialog = () => {
     if (addFormRef.current?.hasUnsavedChanges()) {
@@ -1319,6 +1323,7 @@ export default function Lucrari() {
                 handleTehnicieniChange={handleTehnicieniChange}
                 fieldErrors={fieldErrors}
                 onCancel={() => handleCloseAddDialog()}
+                handleCustomChange={handleCustomChange}
               />
               <DialogFooter className="flex-col gap-2 sm:flex-row">
                 <Button variant="outline" onClick={handleCloseAddDialog}>
