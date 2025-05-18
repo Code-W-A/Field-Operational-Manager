@@ -23,9 +23,6 @@ import type { Lucrare } from "@/lib/firebase/firestore"
 import { useStableCallback } from "@/lib/utils/hooks"
 import { toast } from "@/components/ui/use-toast"
 import { ProductTableForm, type Product } from "./product-table-form"
-import { auth } from "@/lib/firebase/firebase"
-import { updateDoc, serverTimestamp } from "firebase/firestore"
-import { db } from "@/lib/firebase/firebase"
 
 interface ReportGeneratorProps {
   lucrare: Lucrare
@@ -204,8 +201,9 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // Adăugăm informații despre locația intervenției
       const locationName = normalize(lucrare.locatie || "-")
       const locationAddress = normalize(clientInfo.locationAddress || "-")
-      const fullLocationAddressRaw = locationAddress !== "-" ? `${locationName}, ${locationAddress}` : locationName
-      const fullLocationAddress = normalize(fullLocationAddressRaw)
+        const fullLocationAddressRaw =
+          locationAddress !== "-" ? `${locationName}, ${locationAddress}` : locationName;
+        const fullLocationAddress = normalize(fullLocationAddressRaw);
 
       // Generăm link-ul pentru navigare
       const encodedAddress = encodeURIComponent(fullLocationAddress)
@@ -561,6 +559,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         doc.text("Semnătură lipsă", M + W / 2 + signatureWidth / 2, currentY + signatureHeight / 2, { align: "center" })
       }
 
+
       // Footer
       currentY = PH - M - 5
       doc
@@ -572,38 +571,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // Generate the PDF blob
       const blob = doc.output("blob")
       doc.save(`Raport_${lucrare.id}.pdf`)
-
-      // După generarea PDF-ului, marchează lucrarea ca finalizată
-      if (lucrare.id) {
-        try {
-          // Obținem utilizatorul curent (tehnicianul)
-          const currentUser = auth.currentUser
-          const technicianName = currentUser?.displayName || "Tehnician necunoscut"
-
-          // Actualizăm lucrarea - statusul = "Finalizată"
-          await updateDoc(doc(db, "lucrari", lucrare.id), {
-            statusLucrare: "Finalizată",
-            dataFinalizare: serverTimestamp(),
-            tehnicianFinalizat: technicianName,
-            updatedAt: serverTimestamp(),
-          })
-
-          // Afișăm un mesaj de confirmare
-          toast({
-            title: "Lucrare finalizată",
-            description: "Raportul a fost generat și lucrarea a fost marcată ca finalizată.",
-          })
-        } catch (error) {
-          console.error("Eroare la marcarea lucrării ca finalizată:", error)
-          toast({
-            title: "Avertisment",
-            description: "Raportul a fost generat, dar statusul lucrării nu a putut fi actualizat.",
-            variant: "warning",
-          })
-        }
-      }
-
       onGenerate?.(blob)
+      toast({ title: "PDF generat!", description: "Descărcare completă." })
       return blob
     } catch (e) {
       console.error(e)
@@ -634,14 +603,6 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           <Download className="h-4 w-4" />
           {isGen ? "În curs..." : "Descarcă PDF"}
         </Button>
-      </div>
-
-      {/* Adăugăm un avertisment pentru tehnician */}
-      <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-md">
-        <p className="text-amber-800 text-sm">
-          <strong>Notă:</strong> După generarea raportului, lucrarea va fi marcată ca finalizată și nu va mai fi
-          vizibilă în lista dvs. de lucrări.
-        </p>
       </div>
     </div>
   )
