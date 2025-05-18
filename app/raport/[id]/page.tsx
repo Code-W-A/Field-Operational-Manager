@@ -77,7 +77,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
           }
 
           // Dacă lucrarea are deja semnături, trecem direct la pasul finalizat
-          if (data.semnaturaTehnician && data.semnaturaBeneficiar) {
+          if (data.statusLucrare === "Finalizat" && data.raportGenerat === true) {
             setIsSubmitted(true)
             setStep("finalizat")
           }
@@ -155,7 +155,12 @@ export default function RaportPage({ params }: { params: { id: string } }) {
         formData.append("subject", `Raport Interventie - ${lucrare.client} - ${lucrare.dataInterventie}`)
         formData.append(
           "message",
-          `Stimata/Stimate ${lucrare.persoanaContact},\n\nVa transmitem atasat raportul de interventie pentru lucrarea efectuata in data de ${lucrare.dataInterventie}.\n\nCu stima,\nFOM by NRG`,
+          `Stimata/Stimate ${lucrare.persoanaContact},
+
+Va transmitem atasat raportul de interventie pentru lucrarea efectuata in data de ${lucrare.dataInterventie}.
+
+Cu stima,
+FOM by NRG`,
         )
         formData.append("senderName", `FOM by NRG - ${lucrare.tehnicieni?.join(", ")}`)
 
@@ -440,7 +445,6 @@ export default function RaportPage({ params }: { params: { id: string } }) {
       const lucrareRef = doc(db, "lucrari", lucrareId)
       await updateDoc(lucrareRef, {
         raportGenerat: true,
-        statusLucrare: "Finalizat", // Setăm statusul la Finalizat când raportul este generat
         updatedAt: serverTimestamp(),
       })
 
