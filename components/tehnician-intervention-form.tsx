@@ -7,13 +7,12 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2, Info } from "lucide-react"
+import { Loader2, Info, FileText, Check } from "lucide-react"
 import { updateLucrare, getLucrareById } from "@/lib/firebase/firestore"
 import { toast } from "@/components/ui/use-toast"
 import { useStableCallback } from "@/lib/utils/hooks"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { FileText } from "lucide-react"
 import { addLog } from "@/lib/firebase/firestore"
 
 // First, let's add a new prop to the component to check if the work order is completed and the report is generated
@@ -93,17 +92,16 @@ export function TehnicianInterventionForm({
     try {
       setIsSaving(true)
 
-      console.log("Saving data:", {
-        descriereInterventie: formData.descriereInterventie,
-        constatareLaLocatie: formData.constatareLaLocatie,
-        statusLucrare: formData.statusLucrare,
-      })
+      // Actualizăm datele din formData cu valorile curente din state
+      const updatedData = {
+        descriereInterventie,
+        constatareLaLocatie,
+        statusLucrare,
+      }
 
-      await updateLucrare(lucrareId, {
-        descriereInterventie: formData.descriereInterventie,
-        constatareLaLocatie: formData.constatareLaLocatie,
-        statusLucrare: formData.statusLucrare,
-      })
+      console.log("Saving data:", updatedData)
+
+      await updateLucrare(lucrareId, updatedData)
 
       const updatedLucrare = await getLucrareById(lucrareId)
       console.log("Data after save:", {
@@ -177,14 +175,12 @@ export function TehnicianInterventionForm({
         constatareLaLocatie,
         descriereInterventie,
         statusLucrare,
-        raportGenerat: true,
-        preluatDispecer: false, // Set preluatDispecer to false when a report is generated
       })
 
       // Adăugăm un log pentru generarea raportului
       await addLog(
         "Generare raport",
-        `A fost generat raportul pentru lucrarea cu ID-ul ${lucrareId}`,
+        `A fost inițiată generarea raportului pentru lucrarea cu ID-ul ${lucrareId}`,
         "Informație",
         "Rapoarte",
       )
@@ -259,35 +255,43 @@ export function TehnicianInterventionForm({
               </Alert>
             ) : (
               <div className="flex justify-end space-x-2">
-                <Button type="submit" onClick={handleSave} disabled={isSubmitting || formDisabled}>
-                  {isSubmitting ? (
+                <Button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={isSaving || formDisabled}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {isSaving ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Se salvează...
                     </>
                   ) : (
-                    "Salvează"
+                    <>
+                      <Check className="mr-2 h-4 w-4" />
+                      Salvează
+                    </>
                   )}
                 </Button>
-                {statusLucrare === "Finalizat" && (
-                  <Button
-                    type="button"
-                    onClick={handleGenerateReport}
-                    disabled={isSubmitting || isGeneratingReport || formDisabled}
-                  >
-                    {isGeneratingReport ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Se generează...
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="mr-2 h-4 w-4" />
-                        Generează raport
-                      </>
-                    )}
-                  </Button>
-                )}
+
+                <Button
+                  type="button"
+                  onClick={handleGenerateReport}
+                  disabled={isGeneratingReport || formDisabled || !descriereInterventie}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {isGeneratingReport ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Se generează...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="mr-2 h-4 w-4" />
+                      Generează raport
+                    </>
+                  )}
+                </Button>
               </div>
             )}
           </div>

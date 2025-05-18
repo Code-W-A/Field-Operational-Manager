@@ -196,8 +196,23 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
       if (data.equipmentVerified) {
         setEquipmentVerified(true)
       }
+
+      // Actualizăm și tab-ul activ dacă este cazul
+      if (data.statusLucrare === "Finalizat" && activeTab !== "detalii") {
+        setActiveTab("detalii")
+      }
+
+      toast({
+        title: "Actualizat",
+        description: "Datele lucrării au fost actualizate.",
+      })
     } catch (error) {
       console.error("Eroare la reîncărcarea lucrării:", error)
+      toast({
+        title: "Eroare",
+        description: "Nu s-au putut reîncărca datele lucrării.",
+        variant: "destructive",
+      })
     }
   })
 
@@ -717,7 +732,9 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                 lucrareId={lucrare.id!}
                 initialData={{
                   descriereInterventie: lucrare.descriereInterventie,
+                  constatareLaLocatie: lucrare.constatareLaLocatie,
                   statusLucrare: lucrare.statusLucrare,
+                  raportGenerat: lucrare.raportGenerat,
                 }}
                 onUpdate={refreshLucrare}
                 isCompleted={lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true}
