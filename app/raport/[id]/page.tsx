@@ -277,11 +277,11 @@ FOM by NRG`,
         await updateLucrare(params.id, {
           semnaturaTehnician,
           semnaturaBeneficiar,
-          statusLucrare: "Finalizat", // Setăm statusul la Finalizat când se trimite raportul
           products,
           emailDestinatar: email,
           raportGenerat: true, // Setăm raportGenerat la true când se trimite raportul
           updatedAt: serverTimestamp(),
+          preluatDispecer:false,
         })
 
         // Reîncărcăm datele actualizate
