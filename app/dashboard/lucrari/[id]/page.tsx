@@ -10,7 +10,18 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/components/ui/use-toast"
-import { ChevronLeft, FileText, Pencil, Trash2, AlertCircle, CheckCircle, Lock, MapPin, Phone } from "lucide-react"
+import {
+  ChevronLeft,
+  FileText,
+  Pencil,
+  Trash2,
+  AlertCircle,
+  CheckCircle,
+  Lock,
+  MapPin,
+  Phone,
+  Info,
+} from "lucide-react"
 import { getLucrareById, deleteLucrare, updateLucrare, getClienti } from "@/lib/firebase/firestore"
 import { TehnicianInterventionForm } from "@/components/tehnician-intervention-form"
 import { useAuth } from "@/contexts/AuthContext"
@@ -111,16 +122,19 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
       !loading &&
       lucrare &&
       userData?.role === "tehnician" &&
-      userData?.displayName &&
-      !lucrare.tehnicieni.includes(userData.displayName)
+      ((userData?.displayName && !lucrare.tehnicieni.includes(userData.displayName)) ||
+        (lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true))
     ) {
-      // Tehnicianul nu este alocat la această lucrare, redirecționăm la dashboard
+      // Tehnicianul nu este alocat la această lucrare sau lucrarea este finalizată cu raport generat
+      // redirecționăm la dashboard
       toast({
         title: "Acces restricționat",
-        description: "Nu aveți acces la această lucrare.",
+        description: lucrare.tehnicieni.includes(userData.displayName || "")
+          ? "Lucrarea este finalizată și raportul a fost generat. Nu mai puteți face modificări."
+          : "Nu aveți acces la această lucrare.",
         variant: "destructive",
       })
-      router.push("/dashboard")
+      router.push("/dashboard/lucrari")
     }
   }, [loading, lucrare, userData, router])
 
@@ -268,6 +282,19 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
         </div>
       </DashboardHeader>
 
+      {role === "tehnician" && lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true && (
+        <Alert variant="info" className="mb-4 bg-blue-50 border-blue-200">
+          <Info className="h-4 w-4 text-blue-500" />
+          <AlertTitle>Lucrare finalizată</AlertTitle>
+          <AlertDescription>
+            Această lucrare este finalizată și raportul a fost generat. Nu mai puteți face modificări.
+            {lucrare.preluatDispecer
+              ? " Lucrarea a fost preluată de dispecer."
+              : " Lucrarea nu a fost încă preluată de dispecer."}
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Adăugăm un banner de notificare pentru tehnicieni dacă echipamentul nu a fost verificat */}
       {role === "tehnician" && !equipmentVerified && (
         <Alert variant="warning" className="mb-4">
@@ -291,8 +318,6 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList
-          /*   ↘ container flexibil, se împachetează și își calculează înălțimea
-       ↘ păstrăm fundalul gri și padding-ul original  */
           className="inline-flex w-full flex-wrap gap-2 h-auto
              bg-muted p-1 rounded-md text-muted-foreground
              md:flex-nowrap md:w-auto"
@@ -303,21 +328,31 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
           </TabsTrigger>
 
           {/* ------------ 3. Verificare Echipament (100 % pe mobil) ------- */}
-          {role === "tehnician" && (
+          {role === "tehnician" && !lucrare.raportGenerat && (
             <TabsTrigger value="verificare" className="basis-full md:basis-auto text-center whitespace-normal">
               Confirmare echipament
             </TabsTrigger>
           )}
           {/* ------------ 2. Intervenție (50 %) --------------------------- */}
-          {role === "tehnician" && (
+          {role === "tehnician" && !lucrare.raportGenerat && (
             <TabsTrigger
               value="interventie"
-              disabled={role === "tehnician" && !equipmentVerified}
+              disabled={
+                role === "tehnician" &&
+                (!equipmentVerified || (lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true))
+              }
               className={`flex-1 basis-1/2 text-center whitespace-normal ${
-                role === "tehnician" && !equipmentVerified ? "relative" : ""
+                role === "tehnician" &&
+                (!equipmentVerified || (lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true))
+                  ? "relative"
+                  : ""
               }`}
             >
               {role === "tehnician" && !equipmentVerified && <Lock className="h-3 w-3 absolute right-2" />}
+              {role === "tehnician" &&
+                equipmentVerified &&
+                lucrare.statusLucrare === "Finalizat" &&
+                lucrare.raportGenerat === true && <CheckCircle className="h-3 w-3 absolute right-2" />}
               Intervenție
             </TabsTrigger>
           )}
@@ -537,6 +572,28 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                   </div>
                 </CardContent>
               </Card>
+            ) : lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Intervenție finalizată</CardTitle>
+                  <CardDescription>
+                    Această lucrare este finalizată și raportul a fost generat. Nu mai puteți face modificări.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Alert variant="info">
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertTitle>Lucrare încheiată</AlertTitle>
+                    <AlertDescription>
+                      Ați finalizat această lucrare și ați generat raportul. Lucrarea așteaptă să fie preluată de
+                      dispecer.
+                      {lucrare.preluatDispecer
+                        ? " Lucrarea a fost preluată de dispecer."
+                        : " Lucrarea nu a fost încă preluată de dispecer."}
+                    </AlertDescription>
+                  </Alert>
+                </CardContent>
+              </Card>
             ) : (
               <TehnicianInterventionForm
                 lucrareId={lucrare.id!}
@@ -545,6 +602,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                   statusLucrare: lucrare.statusLucrare,
                 }}
                 onUpdate={refreshLucrare}
+                isCompleted={lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true}
               />
             )}
           </TabsContent>

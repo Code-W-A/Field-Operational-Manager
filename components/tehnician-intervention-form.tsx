@@ -7,22 +7,35 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2, Save } from "lucide-react"
+import { Loader2, Info } from "lucide-react"
 import { updateLucrare, getLucrareById } from "@/lib/firebase/firestore"
 import { toast } from "@/components/ui/use-toast"
 import { useStableCallback } from "@/lib/utils/hooks"
+import { Label } from "@/components/ui/label"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { FileText } from "lucide-react"
+import { addLog } from "@/lib/firebase/firestore"
 
+// First, let's add a new prop to the component to check if the work order is completed and the report is generated
 interface TehnicianInterventionFormProps {
   lucrareId: string
   initialData: {
     descriereInterventie?: string
     constatareLaLocatie?: string
     statusLucrare: string
+    raportGenerat?: boolean
   }
   onUpdate: () => void
+  isCompleted?: boolean
 }
 
-export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: TehnicianInterventionFormProps) {
+// Then, let's update the component to use this prop
+export function TehnicianInterventionForm({
+  lucrareId,
+  initialData,
+  onUpdate,
+  isCompleted = false,
+}: TehnicianInterventionFormProps) {
   const router = useRouter()
   const [formData, setFormData] = useState({
     descriereInterventie: initialData.descriereInterventie || "",
@@ -31,17 +44,38 @@ export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: 
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false)
+  const [descriereInterventie, setDescriereInterventie] = useState(initialData.descriereInterventie || "")
+  const [constatareLaLocatie, setConstatareLaLocatie] = useState(initialData.constatareLaLocatie || "")
+  const [statusLucrare, setStatusLucrare] = useState(initialData.statusLucrare)
+  const [formDisabled, setFormDisabled] = useState(isCompleted || initialData.raportGenerat)
 
-  // Add effect to update form data when initialData changes
+  useEffect(() => {
+    const checkWorkOrderStatus = async () => {
+      try {
+        const lucrare = await getLucrareById(lucrareId)
+        if (lucrare && lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true) {
+          setFormDisabled(true)
+        }
+      } catch (error) {
+        console.error("Eroare la verificarea stării lucrării:", error)
+      }
+    }
+
+    checkWorkOrderStatus()
+  }, [lucrareId])
+
   useEffect(() => {
     setFormData({
       descriereInterventie: initialData.descriereInterventie || "",
       constatareLaLocatie: initialData.constatareLaLocatie || "",
       statusLucrare: initialData.statusLucrare,
     })
+    setDescriereInterventie(initialData.descriereInterventie || "")
+    setConstatareLaLocatie(initialData.constatareLaLocatie || "")
+    setStatusLucrare(initialData.statusLucrare)
   }, [initialData])
 
-  // Debug logging
   useEffect(() => {
     console.log("Initial data loaded:", initialData)
   }, [initialData])
@@ -55,12 +89,10 @@ export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: 
     setFormData((prev) => ({ ...prev, statusLucrare: value }))
   }
 
-  // Function to just save the data without navigating
   const handleSave = useStableCallback(async () => {
     try {
       setIsSaving(true)
 
-      // Log what we're saving
       console.log("Saving data:", {
         descriereInterventie: formData.descriereInterventie,
         constatareLaLocatie: formData.constatareLaLocatie,
@@ -73,7 +105,6 @@ export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: 
         statusLucrare: formData.statusLucrare,
       })
 
-      // Verify the data was saved correctly
       const updatedLucrare = await getLucrareById(lucrareId)
       console.log("Data after save:", {
         descriereInterventie: updatedLucrare?.descriereInterventie,
@@ -98,8 +129,6 @@ export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: 
     }
   })
 
-  // Use useStableCallback to ensure we have access to the latest state values
-  // without causing unnecessary re-renders
   const handleSubmit = useStableCallback(async () => {
     try {
       setIsSubmitting(true)
@@ -117,7 +146,6 @@ export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: 
 
       onUpdate()
 
-      // Navigate to the report generation page
       router.push(`/raport/${lucrareId}`)
     } catch (error) {
       console.error("Eroare la actualizarea intervenției:", error)
@@ -131,80 +159,140 @@ export function TehnicianInterventionForm({ lucrareId, initialData, onUpdate }: 
     }
   })
 
+  const handleGenerateReport = async () => {
+    if (!descriereInterventie) {
+      toast({
+        title: "Eroare",
+        description: "Trebuie să completați descrierea intervenției înainte de a genera raportul.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      setIsGeneratingReport(true)
+
+      // Salvăm mai întâi datele formularului
+      await updateLucrare(lucrareId, {
+        constatareLaLocatie,
+        descriereInterventie,
+        statusLucrare,
+        raportGenerat: true,
+        preluatDispecer: false, // Set preluatDispecer to false when a report is generated
+      })
+
+      // Adăugăm un log pentru generarea raportului
+      await addLog(
+        "Generare raport",
+        `A fost generat raportul pentru lucrarea cu ID-ul ${lucrareId}`,
+        "Informație",
+        "Rapoarte",
+      )
+
+      // Redirecționăm către pagina de raport
+      router.push(`/raport/${lucrareId}`)
+    } catch (error) {
+      console.error("Eroare la generarea raportului:", error)
+      toast({
+        title: "Eroare",
+        description: "A apărut o eroare la generarea raportului. Vă rugăm să încercați din nou.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsGeneratingReport(false)
+    }
+  }
+
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Constatare la locație</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Textarea
-            id="constatareLaLocatie"
-            placeholder="Descrieți constatările făcute la locație înainte de intervenție"
-            value={formData.constatareLaLocatie}
-            onChange={handleInputChange}
-            className="min-h-[150px] resize-y"
-          />
-        </CardContent>
-      </Card>
+    <Card>
+      <CardHeader>
+        <CardTitle>Formular intervenție tehnician</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="constatareLaLocatie">Constatare la locație</Label>
+              <Textarea
+                id="constatareLaLocatie"
+                placeholder="Descrieți ce ați constatat la locație..."
+                value={constatareLaLocatie}
+                onChange={(e) => setConstatareLaLocatie(e.target.value)}
+                disabled={formDisabled}
+                className={formDisabled ? "opacity-70 cursor-not-allowed" : ""}
+              />
+            </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Descriere Intervenție</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Textarea
-            id="descriereInterventie"
-            placeholder="Descrieți acțiunile efectuate în cadrul intervenției"
-            value={formData.descriereInterventie}
-            onChange={handleInputChange}
-            className="min-h-[150px] resize-y"
-          />
-        </CardContent>
-      </Card>
+            <div className="space-y-2">
+              <Label htmlFor="descriereInterventie">Descriere intervenție</Label>
+              <Textarea
+                id="descriereInterventie"
+                placeholder="Descrieți intervenția efectuată..."
+                value={descriereInterventie}
+                onChange={(e) => setDescriereInterventie(e.target.value)}
+                disabled={formDisabled}
+                className={formDisabled ? "opacity-70 cursor-not-allowed" : ""}
+              />
+            </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Status Lucrare</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Select value={formData.statusLucrare} onValueChange={handleSelectChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selectați statusul" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Listată">Listată</SelectItem>
-              <SelectItem value="Atribuită">Atribuită</SelectItem>
-              <SelectItem value="În lucru">În lucru</SelectItem>
-              <SelectItem value="În așteptare">În așteptare</SelectItem>
-              <SelectItem value="Finalizat">Finalizat</SelectItem>
-            </SelectContent>
-          </Select>
-        </CardContent>
-      </Card>
+            <div className="space-y-2">
+              <Label htmlFor="statusLucrare">Status lucrare</Label>
+              <Select value={statusLucrare} onValueChange={setStatusLucrare} disabled={formDisabled}>
+                <SelectTrigger id="statusLucrare" className={formDisabled ? "opacity-70 cursor-not-allowed" : ""}>
+                  <SelectValue placeholder="Selectați statusul lucrării" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="În așteptare">În așteptare</SelectItem>
+                  <SelectItem value="În lucru">În lucru</SelectItem>
+                  <SelectItem value="Finalizat">Finalizat</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-      <div className="flex justify-end space-x-2">
-        <Button variant="outline" onClick={handleSave} disabled={isSaving}>
-          {isSaving ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se salvează...
-            </>
-          ) : (
-            <>
-              <Save className="mr-2 h-4 w-4" /> Salvează
-            </>
-          )}
-        </Button>
-        <Button onClick={handleSubmit} disabled={isSubmitting}>
-          {isSubmitting ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
-            </>
-          ) : (
-            "Finalizează și emite raport"
-          )}
-        </Button>
-      </div>
-    </div>
+            {formDisabled ? (
+              <Alert variant="info">
+                <Info className="h-4 w-4" />
+                <AlertTitle>Lucrare finalizată</AlertTitle>
+                <AlertDescription>
+                  Această lucrare este finalizată și raportul a fost generat. Nu mai puteți face modificări.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <div className="flex justify-end space-x-2">
+                <Button type="submit" onClick={handleSave} disabled={isSubmitting || formDisabled}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Se salvează...
+                    </>
+                  ) : (
+                    "Salvează"
+                  )}
+                </Button>
+                {statusLucrare === "Finalizat" && (
+                  <Button
+                    type="button"
+                    onClick={handleGenerateReport}
+                    disabled={isSubmitting || isGeneratingReport || formDisabled}
+                  >
+                    {isGeneratingReport ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Se generează...
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="mr-2 h-4 w-4" />
+                        Generează raport
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   )
 }

@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { format, parse, isAfter, isBefore } from "date-fns"
-import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check } from "lucide-react"
+import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check, Info } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { addLucrare, deleteLucrare, updateLucrare, getLucrareById } from "@/lib/firebase/firestore"
@@ -53,6 +53,7 @@ import {
   getInvoiceStatusClass,
   getWorkTypeClass,
 } from "@/lib/utils/constants"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 const ContractDisplay = ({ contractId }) => {
   const [contractNumber, setContractNumber] = useState(null)
@@ -176,6 +177,11 @@ export default function Lucrari() {
     }
     return lucrari
   }, [lucrari, userData?.role, userData?.displayName])
+
+  // Helper function to check if a work order is completed with report but not picked up
+  const isCompletedWithReportNotPickedUp = useCallback((lucrare) => {
+    return lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true && lucrare.preluatDispecer === false
+  }, [])
 
   // Modificăm funcția filterOptions pentru a include și echipamentele
   const { data: tehnicieni } = useFirebaseCollection("users", [])
@@ -855,6 +861,17 @@ export default function Lucrari() {
 
   // De asemenea, trebuie să actualizăm funcția handleViewDetails pentru a asigura consistența
   const handleViewDetails = (lucrare) => {
+    // For technicians, if the work order is completed with report but not picked up, don't allow navigation
+    if (isTechnician && isCompletedWithReportNotPickedUp(lucrare)) {
+      toast({
+        title: "Acces restricționat",
+        description: "Lucrarea este finalizată și în așteptare de preluare de către dispecer.",
+        variant: "default",
+        icon: <Info className="h-4 w-4" />,
+      })
+      return
+    }
+
     if (!lucrare || !lucrare.id) {
       console.error("ID-ul lucrării nu este valid:", lucrare)
       toast({
@@ -870,6 +887,17 @@ export default function Lucrari() {
 
   const handleGenerateReport = useCallback(
     (lucrare) => {
+      // For technicians, if the work order is completed with report but not picked up, don't allow report generation
+      if (isTechnician && isCompletedWithReportNotPickedUp(lucrare)) {
+        toast({
+          title: "Acces restricționat",
+          description: "Lucrarea este finalizată și în așteptare de preluare de către dispecer.",
+          variant: "default",
+          icon: <Info className="h-4 w-4" />,
+        })
+        return
+      }
+
       // Verificăm că lucrare și lucrare.id sunt valide
       if (!lucrare || !lucrare.id) {
         console.error("ID-ul lucrării nu este valid:", lucrare)
@@ -884,7 +912,7 @@ export default function Lucrari() {
       // Redirecționăm către pagina de raport cu ID-ul corect
       router.push(`/raport/${lucrare.id}`)
     },
-    [router],
+    [router, isTechnician, isCompletedWithReportNotPickedUp],
   )
 
   // Add this function after handleGenerateReport
@@ -1086,53 +1114,110 @@ export default function Lucrari() {
       header: "Acțiuni",
       enableHiding: false,
       enableFiltering: false,
-      cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-          {!isTechnician && (
+      cell: ({ row }) => {
+        // Check if the work order is completed with report but not picked up
+        const isCompletedNotPickedUp = isCompletedWithReportNotPickedUp(row.original)
+
+        // For technicians, if the work order is completed with report but not picked up, show a disabled state
+        if (isTechnician && isCompletedNotPickedUp) {
+          return (
+            <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-2 text-gray-400 border-gray-200 cursor-not-allowed opacity-60"
+                        disabled
+                        aria-label="Vizualizare dezactivată"
+                      >
+                        <Eye className="h-4 w-4" />
+                        <span className="ml-1">Vizualizează</span>
+                      </Button>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Lucrarea este finalizată și în așteptare de preluare de către dispecer</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-2 text-gray-400 border-gray-200 cursor-not-allowed opacity-60"
+                        disabled
+                        aria-label="Raport dezactivat"
+                      >
+                        <FileText className="h-4 w-4" />
+                        <span className="ml-1">Raport</span>
+                      </Button>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Lucrarea este finalizată și în așteptare de preluare de către dispecer</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          )
+        }
+
+        // Normal actions for non-technicians or non-completed work orders
+        return (
+          <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+            {!isTechnician && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleEdit(row.original)
+                }}
+                aria-label="Editează lucrarea"
+              >
+                <Pencil className="h-4 w-4" />
+                <span className="ml-1">Editează</span>
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
-              className="h-8 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+              className="h-8 px-2 text-green-600 border-green-200 hover:bg-green-50"
               onClick={(e) => {
                 e.stopPropagation()
-                handleEdit(row.original)
+                handleGenerateReport(row.original)
               }}
-              aria-label="Editează lucrarea"
+              aria-label="Generează raport"
             >
-              <Pencil className="h-4 w-4" />
-              <span className="ml-1">Editează</span>
+              <FileText className="h-4 w-4" />
+              <span className="ml-1">Raport</span>
             </Button>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 px-2 text-green-600 border-green-200 hover:bg-green-50"
-            onClick={(e) => {
-              e.stopPropagation()
-              handleGenerateReport(row.original)
-            }}
-            aria-label="Generează raport"
-          >
-            <FileText className="h-4 w-4" />
-            <span className="ml-1">Raport</span>
-          </Button>
-          {userData?.role === "admin" && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-2 text-red-600 border-red-200 hover:bg-red-50"
-              onClick={(e) => {
-                e.stopPropagation()
-                handleDelete(row.original.id)
-              }}
-              aria-label="Șterge lucrarea"
-            >
-              <Trash2 className="h-4 w-4" />
-              <span className="ml-1">Șterge</span>
-            </Button>
-          )}
-        </div>
-      ),
+            {userData?.role === "admin" && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-2 text-red-600 border-red-200 hover:bg-red-50"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDelete(row.original.id)
+                }}
+                aria-label="Șterge lucrarea"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span className="ml-1">Șterge</span>
+              </Button>
+            )}
+          </div>
+        )
+      },
     },
   ]
 
@@ -1390,187 +1475,209 @@ export default function Lucrari() {
         ) : (
           // Modificăm și partea din vizualizarea carduri pentru a adăuga verificări suplimentare
           <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3 w-full overflow-auto">
-            {filteredData.map((lucrare) => (
-              <Card
-                key={lucrare.id}
-                className={`overflow-hidden cursor-pointer hover:shadow-md ${lucrare ? getWorkStatusRowClass(lucrare) : ""}`}
-                onClick={() => handleViewDetails(lucrare)}
-              >
-                <CardContent className="p-0">
-                  <div className="flex items-center justify-between border-b p-4">
-                    <div>
-                      <h3 className="font-medium">{lucrare.client}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {lucrare.echipament ? (
-                          <>
-                            {lucrare.echipament}
-                            {lucrare.echipamentCod && <span className="text-gray-500"> ({lucrare.echipamentCod})</span>}
-                          </>
-                        ) : (
-                          lucrare.locatie
-                        )}
-                      </p>
-                    </div>
-                    <Badge className={getWorkStatusClass(lucrare.statusLucrare)}>{lucrare.statusLucrare}</Badge>
-                  </div>
-                  <div className="p-4">
-                    <div className="mb-4 space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-sm font-medium text-muted-foreground">Tip:</span>
-                        <Badge variant="outline" className={getWorkTypeClass(lucrare.tipLucrare)}>
-                          {lucrare.tipLucrare}
-                        </Badge>
-                      </div>
-                      {lucrare.defectReclamat && (
-                        <div>
-                          <span className="text-sm font-medium text-muted-foreground">Defect reclamat:</span>
-                          <p className="text-sm line-clamp-2" title={lucrare.defectReclamat}>
-                            {lucrare.defectReclamat}
-                          </p>
-                        </div>
-                      )}
-                      {lucrare.tipLucrare === "Intervenție în contract" && (
-                        <div className="flex justify-between">
-                          <span className="text-sm font-medium text-muted-foreground">Contract:</span>
-                          <ContractDisplay contractId={lucrare.contract} />
-                        </div>
-                      )}
-                      <div className="flex justify-between">
-                        <span className="text-sm font-medium text-muted-foreground">Data emiterii:</span>
-                        <span className="text-sm">{lucrare.dataEmiterii}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm font-medium text-muted-foreground">Data solicitată:</span>
-                        <span className="text-sm">{lucrare.dataInterventie}</span>
-                      </div>
+            {filteredData.map((lucrare) => {
+              // Check if the work order is completed with report but not picked up
+              const isCompletedNotPickedUp = isCompletedWithReportNotPickedUp(lucrare)
+
+              return (
+                <Card
+                  key={lucrare.id}
+                  className={`overflow-hidden ${
+                    isTechnician && isCompletedNotPickedUp ? "cursor-default" : "cursor-pointer hover:shadow-md"
+                  } ${lucrare ? getWorkStatusRowClass(lucrare) : ""}`}
+                  onClick={() => {
+                    if (!(isTechnician && isCompletedNotPickedUp)) {
+                      handleViewDetails(lucrare)
+                    }
+                  }}
+                >
+                  <CardContent className="p-0">
+                    <div className="flex items-center justify-between border-b p-4">
                       <div>
-                        <span className="text-sm font-medium text-muted-foreground">Tehnicieni:</span>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {lucrare.tehnicieni.map((tehnician, index) => (
-                            <Badge key={index} variant="secondary" className="bg-gray-100">
-                              {tehnician}
-                            </Badge>
-                          ))}
+                        <h3 className="font-medium">{lucrare.client}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {lucrare.echipament ? (
+                            <>
+                              {lucrare.echipament}
+                              {lucrare.echipamentCod && (
+                                <span className="text-gray-500"> ({lucrare.echipamentCod})</span>
+                              )}
+                            </>
+                          ) : (
+                            lucrare.locatie
+                          )}
+                        </p>
+                      </div>
+                      <Badge className={getWorkStatusClass(lucrare.statusLucrare)}>{lucrare.statusLucrare}</Badge>
+                    </div>
+                    <div className="p-4">
+                      <div className="mb-4 space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-muted-foreground">Tip:</span>
+                          <Badge variant="outline" className={getWorkTypeClass(lucrare.tipLucrare)}>
+                            {lucrare.tipLucrare}
+                          </Badge>
+                        </div>
+                        {lucrare.defectReclamat && (
+                          <div>
+                            <span className="text-sm font-medium text-muted-foreground">Defect reclamat:</span>
+                            <p className="text-sm line-clamp-2" title={lucrare.defectReclamat}>
+                              {lucrare.defectReclamat}
+                            </p>
+                          </div>
+                        )}
+                        {lucrare.tipLucrare === "Intervenție în contract" && (
+                          <div className="flex justify-between">
+                            <span className="text-sm font-medium text-muted-foreground">Contract:</span>
+                            <ContractDisplay contractId={lucrare.contract} />
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-muted-foreground">Data emiterii:</span>
+                          <span className="text-sm">{lucrare.dataEmiterii}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-muted-foreground">Data solicitată:</span>
+                          <span className="text-sm">{lucrare.dataInterventie}</span>
+                        </div>
+                        <div>
+                          <span className="text-sm font-medium text-muted-foreground">Tehnicieni:</span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {lucrare.tehnicieni.map((tehnician, index) => (
+                              <Badge key={index} variant="secondary" className="bg-gray-100">
+                                {tehnician}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-muted-foreground">Contact:</span>
+                          <span className="text-sm">{lucrare.persoanaContact}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-muted-foreground">Telefon:</span>
+                          <span className="text-sm">{lucrare.telefon}</span>
                         </div>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm font-medium text-muted-foreground">Contact:</span>
-                        <span className="text-sm">{lucrare.persoanaContact}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm font-medium text-muted-foreground">Telefon:</span>
-                        <span className="text-sm">{lucrare.telefon}</span>
-                      </div>
-                    </div>
-                    {lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true && (
-                      <div className="flex justify-between items-center mt-2 mb-2">
-                        <span className="text-sm font-medium text-muted-foreground">Status preluare:</span>
-                        {lucrare.preluatDispecer ? (
-                          <Badge className="bg-green-100 text-green-800">Preluat</Badge>
-                        ) : (
-                          <>
-                            {userData?.role === "tehnician" ? (
-                              <Badge className="bg-yellow-100 text-yellow-800">În așteptare</Badge>
-                            ) : (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-7 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleDispatcherPickup(lucrare)
-                                }}
-                              >
-                                <Check className="h-3 w-3 mr-1" /> Preia
-                              </Button>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    )}
-                    <div className="mb-4">
-                      <p className="text-sm font-medium text-muted-foreground">Descriere:</p>
-                      <p className="text-sm line-clamp-2" title={lucrare.descriere}>
-                        {lucrare.descriere}
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      {userData?.role !== "tehnician" && (
-                        <Badge className={getInvoiceStatusClass(lucrare.statusFacturare)}>
-                          {lucrare.statusFacturare}
-                        </Badge>
+                      {lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true && (
+                        <div className="flex justify-between items-center mt-2 mb-2">
+                          <span className="text-sm font-medium text-muted-foreground">Status preluare:</span>
+                          {lucrare.preluatDispecer ? (
+                            <Badge className="bg-green-100 text-green-800">Preluat</Badge>
+                          ) : (
+                            <>
+                              {userData?.role === "tehnician" ? (
+                                <Badge className="bg-yellow-100 text-yellow-800">În așteptare</Badge>
+                              ) : (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDispatcherPickup(lucrare)
+                                  }}
+                                >
+                                  <Check className="h-3 w-3 mr-1" /> Preia
+                                </Button>
+                              )}
+                            </>
+                          )}
+                        </div>
                       )}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                          <Button variant="ghost" size="sm" className="gap-1">
-                            Acțiuni
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleViewDetails(lucrare)
-                            }}
-                          >
-                            <Eye className="mr-2 h-4 w-4" /> Vizualizează
-                          </DropdownMenuItem>
-                          {!isTechnician && (
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleEdit(lucrare)
-                              }}
-                            >
-                              <Pencil className="mr-2 h-4 w-4" /> Editează
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleGenerateReport(lucrare)
-                            }}
-                          >
-                            <FileText className="mr-2 h-4 w-4" /> Generează Raport
-                          </DropdownMenuItem>
-                          {userData?.role === "admin" && (
-                            <DropdownMenuItem
-                              className="text-red-600"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleDelete(lucrare.id)
-                              }}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" /> Șterge
-                            </DropdownMenuItem>
-                          )}
-                          {userData?.role !== "tehnician" &&
-                            lucrare.statusLucrare === "Finalizat" &&
-                            lucrare.raportGenerat === true &&
-                            !lucrare.preluatDispecer && (
-                              <DropdownMenuItem
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleDispatcherPickup(lucrare)
-                                }}
-                              >
-                                <Check className="mr-2 h-4 w-4" /> Preia lucrarea
+                      <div className="mb-4">
+                        <p className="text-sm font-medium text-muted-foreground">Descriere:</p>
+                        <p className="text-sm line-clamp-2" title={lucrare.descriere}>
+                          {lucrare.descriere}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        {userData?.role !== "tehnician" && (
+                          <Badge className={getInvoiceStatusClass(lucrare.statusFacturare)}>
+                            {lucrare.statusFacturare}
+                          </Badge>
+                        )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <Button variant="ghost" size="sm" className="gap-1">
+                              Acțiuni
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                            {/* For technicians, if the work order is completed with report but not picked up, disable actions */}
+                            {isTechnician && isCompletedNotPickedUp ? (
+                              <DropdownMenuItem disabled className="text-gray-400 cursor-not-allowed">
+                                <Info className="mr-2 h-4 w-4" /> Lucrare în așteptare de preluare
                               </DropdownMenuItem>
+                            ) : (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleViewDetails(lucrare)
+                                  }}
+                                >
+                                  <Eye className="mr-2 h-4 w-4" /> Vizualizează
+                                </DropdownMenuItem>
+                                {!isTechnician && (
+                                  <DropdownMenuItem
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleEdit(lucrare)
+                                    }}
+                                  >
+                                    <Pencil className="mr-2 h-4 w-4" /> Editează
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleGenerateReport(lucrare)
+                                  }}
+                                >
+                                  <FileText className="mr-2 h-4 w-4" /> Generează Raport
+                                </DropdownMenuItem>
+                                {userData?.role === "admin" && (
+                                  <DropdownMenuItem
+                                    className="text-red-600"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleDelete(lucrare.id)
+                                    }}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" /> Șterge
+                                  </DropdownMenuItem>
+                                )}
+                              </>
                             )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                            {userData?.role !== "tehnician" &&
+                              lucrare.statusLucrare === "Finalizat" &&
+                              lucrare.raportGenerat === true &&
+                              !lucrare.preluatDispecer && (
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDispatcherPickup(lucrare)
+                                  }}
+                                >
+                                  <Check className="mr-2 h-4 w-4" /> Preia lucrarea
+                                </DropdownMenuItem>
+                              )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              )
+            })}
             {filteredData.length === 0 && (
               <div className="col-span-full text-center py-10">
                 {userData?.role === "tehnician" ? (
                   <div>
                     <p className="text-muted-foreground mb-2">Nu aveți lucrări active în acest moment.</p>
                     <p className="text-sm text-muted-foreground">
-                      Lucrările finalizate cu raport generat nu mai sunt afișate.
+                      Lucrările finalizate cu raport generat și preluate de dispecer nu mai sunt afișate.
                     </p>
                   </div>
                 ) : (
