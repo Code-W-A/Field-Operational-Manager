@@ -37,6 +37,9 @@ const manualCodeSchema = z.object({
 
 type ManualCodeFormValues = z.infer<typeof manualCodeSchema>
 
+// Constanta pentru durata timeout-ului global (în milisecunde)
+const GLOBAL_SCAN_TIMEOUT = 15000 // 15 secunde
+
 export function QRCodeScanner({
   expectedEquipmentCode,
   expectedLocationName,
@@ -72,6 +75,8 @@ export function QRCodeScanner({
   const lastScanAttemptRef = useRef<number>(0)
   // Timeout pentru scanare continuă
   const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  // Timeout global pentru scanare
+  const globalTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Inițializăm formularul pentru introducerea manuală a codului
   const form = useForm<ManualCodeFormValues>({
@@ -105,10 +110,14 @@ export function QRCodeScanner({
       setShowManualCodeInput(false)
       form.reset()
 
-      // Curățăm timeout-ul la închiderea dialogului
+      // Curățăm timeout-urile la închiderea dialogului
       if (scanTimeoutRef.current) {
         clearTimeout(scanTimeoutRef.current)
         scanTimeoutRef.current = null
+      }
+      if (globalTimeoutRef.current) {
+        clearTimeout(globalTimeoutRef.current)
+        globalTimeoutRef.current = null
       }
     } else {
       // Verificăm permisiunile camerei când se deschide dialogul
@@ -122,6 +131,9 @@ export function QRCodeScanner({
 
       // Inițiem un timeout pentru a verifica dacă scanarea continuă nu produce rezultate
       startContinuousScanTimeout()
+
+      // Pornim timerul global pentru timeout
+      startGlobalScanTimeout()
     }
   }, [isOpen, form])
 
@@ -146,6 +158,24 @@ export function QRCodeScanner({
         }
       }
     }, 5000) // Verificăm la fiecare 5 secunde
+  }
+
+  // Funcție pentru a porni timeout-ul global pentru scanare
+  const startGlobalScanTimeout = () => {
+    // Curățăm timeout-ul existent dacă există
+    if (globalTimeoutRef.current) {
+      clearTimeout(globalTimeoutRef.current)
+    }
+
+    // Setăm un nou timeout global
+    globalTimeoutRef.current = setTimeout(() => {
+      // Dacă suntem încă în modul de scanare și nu am avut un rezultat valid
+      if (isScanning && !scanResult && !showManualCodeInput) {
+        console.log("Timeout global de scanare atins")
+        // Afișăm butonul de introducere manuală
+        setShowManualEntryButton(true)
+      }
+    }, GLOBAL_SCAN_TIMEOUT)
   }
 
   // Verificăm permisiunile camerei
@@ -335,10 +365,14 @@ export function QRCodeScanner({
     setShowManualCodeInput(true)
     setIsScanning(false) // Oprim scanarea când se activează introducerea manuală
 
-    // Curățăm timeout-ul de scanare continuă
+    // Curățăm timeout-urile când se activează introducerea manuală
     if (scanTimeoutRef.current) {
       clearTimeout(scanTimeoutRef.current)
       scanTimeoutRef.current = null
+    }
+    if (globalTimeoutRef.current) {
+      clearTimeout(globalTimeoutRef.current)
+      globalTimeoutRef.current = null
     }
   }
 
@@ -358,6 +392,9 @@ export function QRCodeScanner({
 
     // Pornim un nou timeout pentru scanare continuă
     startContinuousScanTimeout()
+
+    // Pornim un nou timer global
+    startGlobalScanTimeout()
   }
 
   const handleScan = (result: any) => {
@@ -366,10 +403,14 @@ export function QRCodeScanner({
       setScanResult(result.text)
       setIsScanning(false) // Oprim starea de scanare când am detectat un QR code
 
-      // Curățăm timeout-ul de scanare continuă
+      // Curățăm timeout-urile când detectăm un cod QR
       if (scanTimeoutRef.current) {
         clearTimeout(scanTimeoutRef.current)
         scanTimeoutRef.current = null
+      }
+      if (globalTimeoutRef.current) {
+        clearTimeout(globalTimeoutRef.current)
+        globalTimeoutRef.current = null
       }
 
       verifyScannedData(result.text)
@@ -549,6 +590,20 @@ export function QRCodeScanner({
     )
   }
 
+  // Curățăm intervalele de scanare la dezmontarea componentei
+  useEffect(() => {
+    return () => {
+      if (scanTimeoutRef.current) {
+        clearTimeout(scanTimeoutRef.current)
+        scanTimeoutRef.current = null
+      }
+      if (globalTimeoutRef.current) {
+        clearTimeout(globalTimeoutRef.current)
+        globalTimeoutRef.current = null
+      }
+    }
+  }, [])
+
   return (
     <>
       <Button onClick={() => setIsOpen(true)} variant="outline">
@@ -609,7 +664,7 @@ export function QRCodeScanner({
                         {/* Indicator de scanare în colțul din dreapta sus */}
                         <div className="absolute top-2 right-2 flex items-center bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded-full">
                           <div className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></div>
-                          <span>Scanare... ({failedScanAttempts}/3)</span>
+                          <span>Scanare...</span>
                         </div>
                       </div>
                     )}

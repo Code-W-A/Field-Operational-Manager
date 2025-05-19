@@ -453,7 +453,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
           {/* ------------ 3. Verificare Echipament (100 % pe mobil) ------- */}
           {role === "tehnician" && !lucrare.raportGenerat && (
             <TabsTrigger value="verificare" className="basis-full md:basis-auto text-center whitespace-normal">
-              Confirmare echipament
+              Verificare echipament
             </TabsTrigger>
           )}
           {/* ------------ 2. Intervenție (50 %) --------------------------- */}
