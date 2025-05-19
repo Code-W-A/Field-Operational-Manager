@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { format, parse, isAfter, isBefore } from "date-fns"
-import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check, Info, X } from "lucide-react"
+import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check, Info } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { addLucrare, deleteLucrare, updateLucrare, getLucrareById } from "@/lib/firebase/firestore"
@@ -118,7 +118,7 @@ export default function Lucrari() {
     statusFacturare: "Nefacturat",
     contract: "",
     defectReclamat: "",
-    echipament:"",
+    echipament: "",
     echipamentId: "",
     echipamentCod: "",
     persoaneContact: [],
@@ -583,7 +583,7 @@ export default function Lucrari() {
       echipamentId: "",
       echipamentCod: "",
       echipament: "", //  ← NOU
-      persoaneContact: []
+      persoaneContact: [],
     })
     setError(null)
     setFieldErrors([])
@@ -926,7 +926,7 @@ export default function Lucrari() {
     [router, isTechnician, isCompletedWithReportNotPickedUp],
   )
 
-  // Add this function after handleGenerateReport
+  // Modificăm funcția handleDispatcherPickup pentru a permite doar preluarea, nu și anularea
   const handleDispatcherPickup = async (lucrare) => {
     if (!lucrare || !lucrare.id) {
       console.error("ID-ul lucrării nu este valid:", lucrare)
@@ -938,19 +938,17 @@ export default function Lucrari() {
       return
     }
 
-    try {
-      // Toggle the current state
-      const newPickupState = !lucrare.preluatDispecer
+    // Dacă lucrarea este deja preluată, nu facem nimic
+    if (lucrare.preluatDispecer) return
 
-      await updateLucrare(lucrare.id, { preluatDispecer: newPickupState })
+    try {
+      await updateLucrare(lucrare.id, { preluatDispecer: true })
 
       toast({
-        title: newPickupState ? "Lucrare preluată" : "Preluare anulată",
-        description: newPickupState
-          ? "Lucrarea a fost marcată ca preluată de dispecer."
-          : "Preluarea lucrării a fost anulată.",
+        title: "Lucrare preluată",
+        description: "Lucrarea a fost marcată ca preluată de dispecer.",
         variant: "default",
-        icon: newPickupState ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />,
+        icon: <Check className="h-4 w-4" />,
       })
     } catch (error) {
       console.error("Eroare la actualizarea stării de preluare:", error)
@@ -1107,29 +1105,19 @@ export default function Lucrari() {
               <Badge className="bg-yellow-100 text-yellow-800">În așteptare</Badge>
             )
           } else {
-            return (
+            return isPickedUp ? (
+              <Badge className="bg-green-100 text-green-800">Preluat</Badge>
+            ) : (
               <Button
                 variant="outline"
                 size="sm"
-                className={
-                  isPickedUp
-                    ? "h-8 px-2 text-orange-600 border-orange-200 hover:bg-orange-50"
-                    : "h-8 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
-                }
+                className="h-8 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
                 onClick={(e) => {
                   e.stopPropagation()
                   handleDispatcherPickup(row.original)
                 }}
               >
-                {isPickedUp ? (
-                  <>
-                    <X className="h-4 w-4 mr-1" /> Anulează
-                  </>
-                ) : (
-                  <>
-                    <Check className="h-4 w-4 mr-1" /> Preia
-                  </>
-                )}
+                <Check className="h-4 w-4 mr-1" /> Preia
               </Button>
             )
           }
@@ -1390,7 +1378,7 @@ export default function Lucrari() {
               handleTehnicieniChange={handleTehnicieniChange}
               fieldErrors={fieldErrors}
               onCancel={() => handleCloseEditDialog()}
-              handleCustomChange={handleCustomChange}   
+              handleCustomChange={handleCustomChange}
             />
             <DialogFooter className="flex-col gap-2 sm:flex-row">
               <Button variant="outline" onClick={handleCloseEditDialog}>
@@ -1607,25 +1595,13 @@ export default function Lucrari() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className={
-                                    lucrare.preluatDispecer
-                                      ? "h-7 px-2 text-orange-600 border-orange-200 hover:bg-orange-50"
-                                      : "h-7 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
-                                  }
+                                  className="h-7 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     handleDispatcherPickup(lucrare)
                                   }}
                                 >
-                                  {lucrare.preluatDispecer ? (
-                                    <>
-                                      <X className="h-3 w-3 mr-1" /> Anulează
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Check className="h-3 w-3 mr-1" /> Preia
-                                    </>
-                                  )}
+                                  <Check className="h-3 w-3 mr-1" /> Preia
                                 </Button>
                               )}
                             </>
@@ -1699,22 +1675,15 @@ export default function Lucrari() {
                             )}
                             {userData?.role !== "tehnician" &&
                               lucrare.statusLucrare === "Finalizat" &&
-                              lucrare.raportGenerat === true && (
+                              lucrare.raportGenerat === true &&
+                              !lucrare.preluatDispecer && (
                                 <DropdownMenuItem
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     handleDispatcherPickup(lucrare)
                                   }}
                                 >
-                                  {lucrare.preluatDispecer ? (
-                                    <>
-                                      <X className="mr-2 h-4 w-4" /> Anulează preluare
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Check className="mr-2 h-4 w-4" /> Preia lucrarea
-                                    </>
-                                  )}
+                                  <Check className="mr-2 h-4 w-4" /> Preia lucrarea
                                 </DropdownMenuItem>
                               )}
                           </DropdownMenuContent>

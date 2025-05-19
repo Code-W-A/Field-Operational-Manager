@@ -22,7 +22,6 @@ import {
   Phone,
   Info,
   Check,
-  X,
 } from "lucide-react"
 import { getLucrareById, deleteLucrare, updateLucrare, getClienti } from "@/lib/firebase/firestore"
 import { TehnicianInterventionForm } from "@/components/tehnician-intervention-form"
@@ -263,23 +262,21 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
   const handleToggleDispatcherPickup = async () => {
     if (!lucrare?.id) return
 
+    // Dacă lucrarea este deja preluată, nu facem nimic
+    if (lucrare.preluatDispecer) return
+
     try {
       setIsUpdating(true)
-      // Inversăm starea actuală
-      const newPickupState = !lucrare.preluatDispecer
-
-      await updateLucrare(lucrare.id, { preluatDispecer: newPickupState })
+      await updateLucrare(lucrare.id, { preluatDispecer: true })
 
       // Actualizăm lucrarea local
-      setLucrare((prev) => (prev ? { ...prev, preluatDispecer: newPickupState } : null))
+      setLucrare((prev) => (prev ? { ...prev, preluatDispecer: true } : null))
 
       toast({
-        title: newPickupState ? "Lucrare preluată" : "Preluare anulată",
-        description: newPickupState
-          ? "Lucrarea a fost marcată ca preluată de dispecer."
-          : "Preluarea lucrării a fost anulată.",
+        title: "Lucrare preluată",
+        description: "Lucrarea a fost marcată ca preluată de dispecer.",
         variant: "default",
-        icon: newPickupState ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />,
+        icon: <Check className="h-4 w-4" />,
       })
     } catch (error) {
       console.error("Eroare la actualizarea stării de preluare:", error)
@@ -336,14 +333,10 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
           </Button>
 
           {/* Adăugăm butonul de preluare/anulare preluare pentru admin și dispecer */}
-          {isAdminOrDispatcher && isCompletedWithReport && (
+          {isAdminOrDispatcher && isCompletedWithReport && !lucrare.preluatDispecer && (
             <Button
-              variant={lucrare.preluatDispecer ? "outline" : "default"}
-              className={
-                lucrare.preluatDispecer
-                  ? "border-orange-200 text-orange-600 hover:bg-orange-50"
-                  : "bg-blue-600 hover:bg-blue-700 text-white"
-              }
+              variant="default"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
               onClick={handleToggleDispatcherPickup}
               disabled={isUpdating}
             >
@@ -371,10 +364,6 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                   </svg>
                   Se procesează...
                 </span>
-              ) : lucrare.preluatDispecer ? (
-                <>
-                  <X className="mr-2 h-4 w-4" /> Anulează preluare
-                </>
               ) : (
                 <>
                   <Check className="mr-2 h-4 w-4" /> Preia lucrare
