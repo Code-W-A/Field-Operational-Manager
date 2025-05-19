@@ -928,7 +928,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           }
         }
       },
-      [selectedClient, formData.echipamentId, formData.echipament, handleCustomChange],
+      [selectedClient, formData.echipamentId, formData.echipament, handleCustomChange, toast],
     )
 
     // Adăugăm un efect pentru a forța încărcarea echipamentelor când se schimbă locația
@@ -1234,6 +1234,69 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       setShowCloseAlert(false)
     }
 
+    // Adaugă acest efect special pentru a forța încărcarea și selecția echipamentului la editare
+    useEffect(() => {
+      // Rulăm acest efect doar în modul de editare și când avem date inițiale
+      if (isEdit && initialData && selectedClient && formData.locatie) {
+        console.log("LucrareForm - Forțăm încărcarea și selecția echipamentului la editare")
+
+        // Găsim locația selectată
+        const locatie = selectedClient.locatii?.find((loc) => loc.nume === formData.locatie)
+
+        if (locatie && locatie.echipamente && locatie.echipamente.length > 0) {
+          console.log("LucrareForm - Locație găsită cu echipamente:", locatie.echipamente.length)
+
+          // Actualizăm lista de echipamente disponibile
+          setAvailableEquipments(locatie.echipamente)
+          setEquipmentsLoaded(true)
+
+          // Resetăm flag-urile pentru a permite o nouă încercare de selecție
+          setTriedFindByName(false)
+          setTriedSelectEquipment(false)
+
+          // Verificăm dacă avem un echipament în datele inițiale
+          if (initialData.echipament) {
+            console.log("LucrareForm - Echipament în datele inițiale:", initialData.echipament)
+
+            // Căutăm echipamentul după ID
+            if (initialData.echipamentId) {
+              const equipment = locatie.echipamente.find((e) => e.id === initialData.echipamentId)
+              if (equipment) {
+                console.log("LucrareForm - Echipament găsit după ID:", equipment)
+                // Nu este nevoie să facem nimic, CustomEquipmentSelect va găsi echipamentul după ID
+              } else {
+                console.log("LucrareForm - Echipamentul cu ID", initialData.echipamentId, "nu a fost găsit")
+
+                // Încercăm să găsim echipamentul după nume
+                const equipmentByName = locatie.echipamente.find((e) => e.nume === initialData.echipament)
+                if (equipmentByName) {
+                  console.log("LucrareForm - Echipament găsit după nume:", equipmentByName)
+
+                  // Actualizăm ID-ul echipamentului în formData
+                  if (handleCustomChange) {
+                    handleCustomChange("echipamentId", equipmentByName.id)
+                    handleCustomChange("echipamentCod", equipmentByName.cod)
+                  }
+                }
+              }
+            } else {
+              // Nu avem ID, încercăm să găsim echipamentul după nume
+              const equipmentByName = locatie.echipamente.find((e) => e.nume === initialData.echipament)
+              if (equipmentByName) {
+                console.log("LucrareForm - Echipament găsit după nume:", equipmentByName)
+
+                // Actualizăm ID-ul echipamentului în formData
+                if (handleCustomChange) {
+                  handleCustomChange("echipamentId", equipmentByName.id)
+                  handleCustomChange("echipamentCod", equipmentByName.cod)
+                }
+              }
+            }
+          }
+        }
+      }
+    }, [isEdit, initialData, selectedClient, formData.locatie, handleCustomChange])
+
     return (
       <div className="modal-calendar-container">
         {error && <div className="text-red-500 mb-4">{error}</div>}
@@ -1514,6 +1577,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
               Echipament
             </label>
             <CustomEquipmentSelect
+              key={`equipment-select-${availableEquipments.length}-${formData.echipamentId || formData.echipament}`}
               equipments={availableEquipments}
               value={formData.echipamentId}
               onSelect={handleEquipmentSelect}
