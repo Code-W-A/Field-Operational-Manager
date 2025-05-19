@@ -118,9 +118,10 @@ export default function Lucrari() {
     statusFacturare: "Nefacturat",
     contract: "",
     defectReclamat: "",
+    echipament:"",
     echipamentId: "",
-echipamentCod: "",
-persoaneContact: [],
+    echipamentCod: "",
+    persoaneContact: [],
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState(null)
@@ -579,8 +580,10 @@ persoaneContact: [],
       statusFacturare: "Nefacturat",
       contract: "",
       defectReclamat: "",
-      echipamentId:"", 
-      echipamentCod:""
+      echipamentId: "",
+      echipamentCod: "",
+      echipament: "", //  ← NOU
+      persoaneContact: []
     })
     setError(null)
     setFieldErrors([])
@@ -739,9 +742,9 @@ persoaneContact: [],
       statusFacturare: lucrare.statusFacturare,
       contract: lucrare.contract || "",
       defectReclamat: lucrare.defectReclamat || "",
-        echipamentId:      lucrare.echipamentId || "",   // ← nou
-  echipamentCod:     lucrare.echipamentCod || "",  // ← nou
-  echipament: lucrare.echipament
+      echipamentId: lucrare.echipamentId || "", // ← nou
+      echipamentCod: lucrare.echipamentCod || "", // ← nou
+      echipament: lucrare.echipament,
     })
 
     setIsEditDialogOpen(true)
@@ -761,9 +764,9 @@ persoaneContact: [],
       }
 
       const updatedLucrare = {
-...formData,
-  dataEmiterii:    format(dataEmiterii, "dd.MM.yyyy HH:mm"),
-  dataInterventie: format(dataInterventie, "dd.MM.yyyy HH:mm"),
+        ...formData,
+        dataEmiterii: format(dataEmiterii, "dd.MM.yyyy HH:mm"),
+        dataInterventie: format(dataInterventie, "dd.MM.yyyy HH:mm"),
       }
 
       await updateLucrare(selectedLucrare.id, updatedLucrare)
@@ -1245,12 +1248,12 @@ persoaneContact: [],
       },
     },
   ]
-const handleCustomChange = useCallback(
-  (field: string, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
-  },
-  []      //  ← dependenţe goale ⇒ funcţia NU-şi mai schimbă referinţa
-)
+  const handleCustomChange = useCallback(
+    (field: string, value: any) => {
+      setFormData((prev) => ({ ...prev, [field]: value }))
+    },
+    [], //  ← dependenţe goale ⇒ funcţia NU-şi mai schimbă referinţa
+  )
   // Function to check if we should show the close confirmation dialog
   const handleCloseAddDialog = () => {
     if (addFormRef.current?.hasUnsavedChanges()) {
@@ -1387,6 +1390,7 @@ const handleCustomChange = useCallback(
               handleTehnicieniChange={handleTehnicieniChange}
               fieldErrors={fieldErrors}
               onCancel={() => handleCloseEditDialog()}
+              handleCustomChange={handleCustomChange}   {/*  ← ADĂUGAT */}
             />
             <DialogFooter className="flex-col gap-2 sm:flex-row">
               <Button variant="outline" onClick={handleCloseEditDialog}>
