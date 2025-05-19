@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle, CheckCircle2, XCircle, Camera, KeyRound } from "lucide-react"
+import { AlertCircle, CheckCircle2, XCircle, Camera, KeyRound, Clock } from "lucide-react"
 import { Spinner } from "@/components/ui/spinner"
 import { useToast } from "@/components/ui/use-toast"
 import { Input } from "@/components/ui/input"
@@ -80,6 +80,10 @@ export function QRCodeScanner({
   // Adăugăm un state pentru a urmări progresul timerului global
   const [globalTimeoutProgress, setGlobalTimeoutProgress] = useState(0)
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  // Adăugăm un state pentru a urmări dacă timerul global a expirat
+  const [globalTimeoutExpired, setGlobalTimeoutExpired] = useState(false)
+  // Adăugăm un state pentru a afișa timpul rămas
+  const [timeRemaining, setTimeRemaining] = useState(GLOBAL_SCAN_TIMEOUT / 1000)
 
   // Inițializăm formularul pentru introducerea manuală a codului
   const form = useForm<ManualCodeFormValues>({
@@ -100,6 +104,14 @@ export function QRCodeScanner({
     checkMobile()
   }, [])
 
+  // Efect pentru a afișa butonul de introducere manuală când timerul global expiră
+  useEffect(() => {
+    if (globalTimeoutExpired && isScanning && !showManualCodeInput && !showManualEntryButton) {
+      console.log("Afișare buton introducere manuală după expirarea timerului global")
+      setShowManualEntryButton(true)
+    }
+  }, [globalTimeoutExpired, isScanning, showManualCodeInput, showManualEntryButton])
+
   // Resetăm starea când se deschide/închide dialogul
   useEffect(() => {
     if (!isOpen) {
@@ -111,6 +123,9 @@ export function QRCodeScanner({
       setFailedScanAttempts(0)
       setShowManualEntryButton(false)
       setShowManualCodeInput(false)
+      setGlobalTimeoutProgress(0)
+      setGlobalTimeoutExpired(false)
+      setTimeRemaining(GLOBAL_SCAN_TIMEOUT / 1000)
       form.reset()
 
       // Curățăm timeout-urile la închiderea dialogului
@@ -135,25 +150,16 @@ export function QRCodeScanner({
       setFailedScanAttempts(0)
       // Resetăm timestamp-ul ultimei scanări
       lastScanAttemptRef.current = Date.now()
+      // Resetăm starea de expirare a timerului global
+      setGlobalTimeoutExpired(false)
+      // Resetăm timpul rămas
+      setTimeRemaining(GLOBAL_SCAN_TIMEOUT / 1000)
 
       // Inițiem un timeout pentru a verifica dacă scanarea continuă nu produce rezultate
       startContinuousScanTimeout()
 
-      // Pornim timerul global pentru timeout și ne asigurăm că este pornit după ce camera este inițializată
-      console.log("Inițializare scanner și pornire timer global")
+      // Pornim timerul global pentru timeout
       startGlobalScanTimeout()
-
-      // Asigurăm-ne că timerul global este pornit după ce camera este inițializată complet
-      const ensureGlobalTimer = setTimeout(() => {
-        if (isScanning && !globalTimeoutRef.current) {
-          console.log("Repornire timer global (siguranță)")
-          startGlobalScanTimeout()
-        }
-      }, 1000)
-
-      return () => {
-        clearTimeout(ensureGlobalTimer)
-      }
     }
   }, [isOpen, form])
 
@@ -180,49 +186,67 @@ export function QRCodeScanner({
     }, 5000) // Verificăm la fiecare 5 secunde
   }
 
-  // Modificăm funcția startGlobalScanTimeout pentru a actualiza și progresul
+  // Funcție simplificată pentru timerul global
   const startGlobalScanTimeout = () => {
-    // Curățăm timeout-ul existent dacă există
-    if (globalTimeoutRef.current) {
-      clearTimeout(globalTimeoutRef.current)
-      globalTimeoutRef.current = null
-    }
-
-    // Resetăm progresul
-    setGlobalTimeoutProgress(0)
-
-    // Curățăm intervalul de progres dacă există
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current)
-      progressIntervalRef.current = null
-    }
-
     console.log("Pornire timer global de 15 secunde")
 
-    // Setăm un interval pentru a actualiza progresul
-    const updateInterval = 100 // Actualizăm la fiecare 100ms
-    const totalSteps = GLOBAL_SCAN_TIMEOUT / updateInterval
-    let currentStep = 0
+    // Resetăm starea
+    setGlobalTimeoutProgress(0)
+    setGlobalTimeoutExpired(false)
+    setTimeRemaining(GLOBAL_SCAN_TIMEOUT / 1000)
+
+    // Curățăm timeout-urile existente
+    if (globalTimeoutRef.current) {
+      clearTimeout(globalTimeoutRef.current)
+    }
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current)
+    }
+
+    // Setăm un interval pentru actualizarea progresului (la fiecare secundă)
+    const startTime = Date.now()
+    const endTime = startTime + GLOBAL_SCAN_TIMEOUT
 
     progressIntervalRef.current = setInterval(() => {
-      currentStep++
-      const newProgress = (currentStep / totalSteps) * 100
-      setGlobalTimeoutProgress(newProgress)
+      const now = Date.now()
+      const elapsed = now - startTime
+      const remaining = Math.max(0, GLOBAL_SCAN_TIMEOUT - elapsed)
+      const progress = (elapsed / GLOBAL_SCAN_TIMEOUT) * 100
 
-      // Oprim intervalul când ajungem la 100%
-      if (newProgress >= 100 && progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current)
-        progressIntervalRef.current = null
+      setGlobalTimeoutProgress(Math.min(100, progress))
+      setTimeRemaining(Math.ceil(remaining / 1000))
+
+      // Verificăm dacă timpul a expirat
+      if (now >= endTime) {
+        if (progressIntervalRef.current) {
+          clearInterval(progressIntervalRef.current)
+          progressIntervalRef.current = null
+        }
+
+        // Marcăm timerul ca expirat și afișăm butonul de introducere manuală
+        console.log("Timerul global a expirat")
+        setGlobalTimeoutExpired(true)
+        setGlobalTimeoutProgress(100)
+        setTimeRemaining(0)
+
+        // Afișăm butonul de introducere manuală direct
+        if (isScanning && !showManualCodeInput && !showManualEntryButton) {
+          console.log("Afișare buton introducere manuală după expirarea timerului global")
+          setShowManualEntryButton(true)
+        }
       }
-    }, updateInterval)
+    }, 100)
 
-    // Setăm un nou timeout global
+    // Setăm un timeout pentru a marca expirarea timerului global
     globalTimeoutRef.current = setTimeout(() => {
       console.log("Timeout global de 15 secunde atins")
-      // Verificăm explicit dacă suntem încă în starea de scanare
-      if (isScanning && !scanResult && !showManualCodeInput && !showManualEntryButton) {
-        console.log("Afișare buton introducere manuală după timeout global")
-        // Afișăm butonul de introducere manuală
+      setGlobalTimeoutExpired(true)
+      setGlobalTimeoutProgress(100)
+      setTimeRemaining(0)
+
+      // Afișăm butonul de introducere manuală direct
+      if (isScanning && !showManualCodeInput && !showManualEntryButton) {
+        console.log("Afișare buton introducere manuală după expirarea timerului global")
         setShowManualEntryButton(true)
       }
     }, GLOBAL_SCAN_TIMEOUT)
@@ -415,6 +439,8 @@ export function QRCodeScanner({
     setShowManualCodeInput(true)
     setIsScanning(false) // Oprim scanarea când se activează introducerea manuală
     setGlobalTimeoutProgress(0) // Resetăm progresul
+    setGlobalTimeoutExpired(false) // Resetăm starea de expirare a timerului global
+    setTimeRemaining(GLOBAL_SCAN_TIMEOUT / 1000) // Resetăm timpul rămas
 
     // Curățăm timeout-urile când se activează introducerea manuală
     if (scanTimeoutRef.current) {
@@ -441,6 +467,8 @@ export function QRCodeScanner({
     setVerificationResult(null)
     setIsScanning(true)
     setGlobalTimeoutProgress(0) // Resetăm progresul
+    setGlobalTimeoutExpired(false) // Resetăm starea de expirare a timerului global
+    setTimeRemaining(GLOBAL_SCAN_TIMEOUT / 1000) // Resetăm timpul rămas
     form.reset()
 
     // Resetăm timestamp-ul ultimei scanări
@@ -459,6 +487,8 @@ export function QRCodeScanner({
       setScanResult(result.text)
       setIsScanning(false) // Oprim starea de scanare când am detectat un QR code
       setGlobalTimeoutProgress(0) // Resetăm progresul
+      setGlobalTimeoutExpired(false) // Resetăm starea de expirare a timerului global
+      setTimeRemaining(GLOBAL_SCAN_TIMEOUT / 1000) // Resetăm timpul rămas
 
       // Curățăm timeout-urile când detectăm un cod QR
       if (scanTimeoutRef.current) {
@@ -732,8 +762,14 @@ export function QRCodeScanner({
                           <span>Scanare...</span>
                         </div>
 
+                        {/* Indicator de timp rămas */}
+                        <div className="absolute top-2 left-2 flex items-center bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded-full">
+                          <Clock className="w-3 h-3 mr-1" />
+                          <span>{timeRemaining}s</span>
+                        </div>
+
                         {/* Bară de progres pentru timerul global */}
-                        <div className="absolute bottom-2 left-2 right-2 h-1 bg-gray-700 bg-opacity-50 rounded-full overflow-hidden">
+                        <div className="absolute bottom-2 left-2 right-2 h-1.5 bg-gray-700 bg-opacity-50 rounded-full overflow-hidden">
                           <div
                             className="h-full bg-blue-500 transition-all duration-100 ease-linear"
                             style={{ width: `${globalTimeoutProgress}%` }}
@@ -751,7 +787,7 @@ export function QRCodeScanner({
               </>
             )}
 
-            {/* Afișăm butonul de introducere manuală după 3 încercări eșuate */}
+            {/* Afișăm butonul de introducere manuală după 3 încercări eșuate sau după expirarea timerului global */}
             {renderManualEntryButton()}
 
             {/* Afișăm formularul de introducere manuală când utilizatorul apasă butonul */}
@@ -796,6 +832,9 @@ export function QRCodeScanner({
                 <p>Failed Attempts: {failedScanAttempts}</p>
                 <p>Show Manual Entry Button: {showManualEntryButton ? "Yes" : "No"}</p>
                 <p>Show Manual Input: {showManualCodeInput ? "Yes" : "No"}</p>
+                <p>Global Timeout Progress: {globalTimeoutProgress.toFixed(1)}%</p>
+                <p>Global Timeout Expired: {globalTimeoutExpired ? "Yes" : "No"}</p>
+                <p>Time Remaining: {timeRemaining}s</p>
                 <p>Scan Result: {scanResult ? scanResult.substring(0, 100) + "..." : "None"}</p>
                 <p>Error: {scanError || "None"}</p>
                 <p>
