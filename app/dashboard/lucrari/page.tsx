@@ -1390,7 +1390,7 @@ export default function Lucrari() {
               handleTehnicieniChange={handleTehnicieniChange}
               fieldErrors={fieldErrors}
               onCancel={() => handleCloseEditDialog()}
-              handleCustomChange={handleCustomChange}   {/*  ← ADĂUGAT */}
+              handleCustomChange={handleCustomChange}   
             />
             <DialogFooter className="flex-col gap-2 sm:flex-row">
               <Button variant="outline" onClick={handleCloseEditDialog}>
