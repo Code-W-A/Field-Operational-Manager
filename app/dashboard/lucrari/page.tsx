@@ -579,6 +579,8 @@ persoaneContact: [],
       statusFacturare: "Nefacturat",
       contract: "",
       defectReclamat: "",
+      echipamentId:"", 
+      echipamentCod:""
     })
     setError(null)
     setFieldErrors([])
@@ -737,6 +739,9 @@ persoaneContact: [],
       statusFacturare: lucrare.statusFacturare,
       contract: lucrare.contract || "",
       defectReclamat: lucrare.defectReclamat || "",
+        echipamentId:      lucrare.echipamentId || "",   // ← nou
+  echipamentCod:     lucrare.echipamentCod || "",  // ← nou
+  echipament: lucrare.echipament
     })
 
     setIsEditDialogOpen(true)
@@ -756,9 +761,9 @@ persoaneContact: [],
       }
 
       const updatedLucrare = {
-        dataEmiterii: format(dataEmiterii, "dd.MM.yyyy HH:mm"),
-        dataInterventie: format(dataInterventie, "dd.MM.yyyy HH:mm"),
-        ...formData,
+...formData,
+  dataEmiterii:    format(dataEmiterii, "dd.MM.yyyy HH:mm"),
+  dataInterventie: format(dataInterventie, "dd.MM.yyyy HH:mm"),
       }
 
       await updateLucrare(selectedLucrare.id, updatedLucrare)
