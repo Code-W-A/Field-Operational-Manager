@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle, CheckCircle2, XCircle, Camera, KeyRound, Clock } from "lucide-react"
+import { AlertCircle, CheckCircle2, XCircle, Camera, KeyRound } from "lucide-react"
 import { Spinner } from "@/components/ui/spinner"
 import { useToast } from "@/components/ui/use-toast"
 import { Input } from "@/components/ui/input"
@@ -760,20 +760,6 @@ export function QRCodeScanner({
                         <div className="absolute top-2 right-2 flex items-center bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded-full">
                           <div className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></div>
                           <span>Scanare...</span>
-                        </div>
-
-                        {/* Indicator de timp rămas */}
-                        <div className="absolute top-2 left-2 flex items-center bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded-full">
-                          <Clock className="w-3 h-3 mr-1" />
-                          <span>{timeRemaining}s</span>
-                        </div>
-
-                        {/* Bară de progres pentru timerul global */}
-                        <div className="absolute bottom-2 left-2 right-2 h-1.5 bg-gray-700 bg-opacity-50 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-blue-500 transition-all duration-100 ease-linear"
-                            style={{ width: `${globalTimeoutProgress}%` }}
-                          ></div>
                         </div>
                       </div>
                     )}
