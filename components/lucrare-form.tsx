@@ -1579,7 +1579,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             <CustomEquipmentSelect
               key={`equipment-select-${availableEquipments.length}-${formData.echipamentCod || formData.echipament}`}
               equipments={availableEquipments}
-              value={formData.echipamentCod}
+              value={formData.echipamentId || formData.echipamentCod || formData.echipament}
               onSelect={handleEquipmentSelect}
               disabled={!formData.locatie}
               placeholder={formData.locatie ? "Selectați echipamentul" : "Selectați mai întâi o locație"}

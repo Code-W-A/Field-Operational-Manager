@@ -81,7 +81,16 @@ export function CustomEquipmentSelect({
 
     // Prioritate 1: Selecție după ID (cea mai precisă)
     if (value) {
-      const equipment = equipments.find((e) => e.id === value)
+  const vLower = value.toLowerCase()
+
+  const equipment = equipments.find(
+    e => e.id  === value           // id
+      || e.cod === value           // cod
+      || e.nume === value          // nume exact
+      // opțional: potrivire case-insensitive
+      || e.cod?.toLowerCase()  === vLower
+      || e.nume.toLowerCase()   === vLower
+  )
       if (equipment) {
         console.log("CustomEquipmentSelect - Echipament găsit după ID:", equipment)
         setSelectedEquipment(equipment)
