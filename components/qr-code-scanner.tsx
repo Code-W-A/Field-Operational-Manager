@@ -77,6 +77,9 @@ export function QRCodeScanner({
   const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   // Timeout global pentru scanare
   const globalTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  // Adăugăm un state pentru a urmări progresul timerului global
+  const [globalTimeoutProgress, setGlobalTimeoutProgress] = useState(0)
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // Inițializăm formularul pentru introducerea manuală a codului
   const form = useForm<ManualCodeFormValues>({
@@ -119,6 +122,10 @@ export function QRCodeScanner({
         clearTimeout(globalTimeoutRef.current)
         globalTimeoutRef.current = null
       }
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current)
+        progressIntervalRef.current = null
+      }
     } else {
       // Verificăm permisiunile camerei când se deschide dialogul
       checkCameraPermissions()
@@ -132,8 +139,21 @@ export function QRCodeScanner({
       // Inițiem un timeout pentru a verifica dacă scanarea continuă nu produce rezultate
       startContinuousScanTimeout()
 
-      // Pornim timerul global pentru timeout
+      // Pornim timerul global pentru timeout și ne asigurăm că este pornit după ce camera este inițializată
+      console.log("Inițializare scanner și pornire timer global")
       startGlobalScanTimeout()
+
+      // Asigurăm-ne că timerul global este pornit după ce camera este inițializată complet
+      const ensureGlobalTimer = setTimeout(() => {
+        if (isScanning && !globalTimeoutRef.current) {
+          console.log("Repornire timer global (siguranță)")
+          startGlobalScanTimeout()
+        }
+      }, 1000)
+
+      return () => {
+        clearTimeout(ensureGlobalTimer)
+      }
     }
   }, [isOpen, form])
 
@@ -160,18 +180,48 @@ export function QRCodeScanner({
     }, 5000) // Verificăm la fiecare 5 secunde
   }
 
-  // Funcție pentru a porni timeout-ul global pentru scanare
+  // Modificăm funcția startGlobalScanTimeout pentru a actualiza și progresul
   const startGlobalScanTimeout = () => {
     // Curățăm timeout-ul existent dacă există
     if (globalTimeoutRef.current) {
       clearTimeout(globalTimeoutRef.current)
+      globalTimeoutRef.current = null
     }
+
+    // Resetăm progresul
+    setGlobalTimeoutProgress(0)
+
+    // Curățăm intervalul de progres dacă există
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current)
+      progressIntervalRef.current = null
+    }
+
+    console.log("Pornire timer global de 15 secunde")
+
+    // Setăm un interval pentru a actualiza progresul
+    const updateInterval = 100 // Actualizăm la fiecare 100ms
+    const totalSteps = GLOBAL_SCAN_TIMEOUT / updateInterval
+    let currentStep = 0
+
+    progressIntervalRef.current = setInterval(() => {
+      currentStep++
+      const newProgress = (currentStep / totalSteps) * 100
+      setGlobalTimeoutProgress(newProgress)
+
+      // Oprim intervalul când ajungem la 100%
+      if (newProgress >= 100 && progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current)
+        progressIntervalRef.current = null
+      }
+    }, updateInterval)
 
     // Setăm un nou timeout global
     globalTimeoutRef.current = setTimeout(() => {
-      // Dacă suntem încă în modul de scanare și nu am avut un rezultat valid
-      if (isScanning && !scanResult && !showManualCodeInput) {
-        console.log("Timeout global de scanare atins")
+      console.log("Timeout global de 15 secunde atins")
+      // Verificăm explicit dacă suntem încă în starea de scanare
+      if (isScanning && !scanResult && !showManualCodeInput && !showManualEntryButton) {
+        console.log("Afișare buton introducere manuală după timeout global")
         // Afișăm butonul de introducere manuală
         setShowManualEntryButton(true)
       }
@@ -364,6 +414,7 @@ export function QRCodeScanner({
   const activateManualCodeInput = () => {
     setShowManualCodeInput(true)
     setIsScanning(false) // Oprim scanarea când se activează introducerea manuală
+    setGlobalTimeoutProgress(0) // Resetăm progresul
 
     // Curățăm timeout-urile când se activează introducerea manuală
     if (scanTimeoutRef.current) {
@@ -373,6 +424,10 @@ export function QRCodeScanner({
     if (globalTimeoutRef.current) {
       clearTimeout(globalTimeoutRef.current)
       globalTimeoutRef.current = null
+    }
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current)
+      progressIntervalRef.current = null
     }
   }
 
@@ -385,6 +440,7 @@ export function QRCodeScanner({
     setScanError(null)
     setVerificationResult(null)
     setIsScanning(true)
+    setGlobalTimeoutProgress(0) // Resetăm progresul
     form.reset()
 
     // Resetăm timestamp-ul ultimei scanări
@@ -402,6 +458,7 @@ export function QRCodeScanner({
       console.log("QR Code detected:", result.text)
       setScanResult(result.text)
       setIsScanning(false) // Oprim starea de scanare când am detectat un QR code
+      setGlobalTimeoutProgress(0) // Resetăm progresul
 
       // Curățăm timeout-urile când detectăm un cod QR
       if (scanTimeoutRef.current) {
@@ -411,6 +468,10 @@ export function QRCodeScanner({
       if (globalTimeoutRef.current) {
         clearTimeout(globalTimeoutRef.current)
         globalTimeoutRef.current = null
+      }
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current)
+        progressIntervalRef.current = null
       }
 
       verifyScannedData(result.text)
@@ -601,6 +662,10 @@ export function QRCodeScanner({
         clearTimeout(globalTimeoutRef.current)
         globalTimeoutRef.current = null
       }
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current)
+        progressIntervalRef.current = null
+      }
     }
   }, [])
 
@@ -665,6 +730,14 @@ export function QRCodeScanner({
                         <div className="absolute top-2 right-2 flex items-center bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded-full">
                           <div className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></div>
                           <span>Scanare...</span>
+                        </div>
+
+                        {/* Bară de progres pentru timerul global */}
+                        <div className="absolute bottom-2 left-2 right-2 h-1 bg-gray-700 bg-opacity-50 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-blue-500 transition-all duration-100 ease-linear"
+                            style={{ width: `${globalTimeoutProgress}%` }}
+                          ></div>
                         </div>
                       </div>
                     )}
