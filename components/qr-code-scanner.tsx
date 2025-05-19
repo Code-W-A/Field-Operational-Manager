@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef } from "react"
 import { QrReader } from "react-qr-reader"
 import { Button } from "@/components/ui/button"
 import {
@@ -37,149 +37,6 @@ const manualCodeSchema = z.object({
 
 type ManualCodeFormValues = z.infer<typeof manualCodeSchema>
 
-// Constante pentru îmbunătățirea detecției
-const SCAN_ATTEMPTS_BEFORE_PROCESSING = 1 // Numărul de încercări înainte de a aplica procesare
-const IMAGE_PROCESSING_LEVELS = [
-  { contrast: 1, brightness: 1, grayscale: false, sharpen: false }, // fără procesare
-  { contrast: 1.2, brightness: 1.2, grayscale: true, sharpen: false }, // contrast și luminozitate crescute + grayscale
-  { contrast: 1.4, brightness: 1.1, grayscale: true, sharpen: true }, // nivel mediu cu sharpen
-  { contrast: 1.6, brightness: 1.3, grayscale: true, sharpen: true }, // contrast puternic
-  { contrast: 1.8, brightness: 0.9, grayscale: true, sharpen: true }, // contrast extra pentru iluminare slabă
-]
-
-// Funcție pentru procesarea imaginii și îmbunătățirea detecției QR
-const processImageForQRDetection = (imageData: ImageData, settings: any): ImageData => {
-  const canvas = document.createElement("canvas")
-  const ctx = canvas.getContext("2d")
-  if (!ctx) return imageData
-
-  canvas.width = imageData.width
-  canvas.height = imageData.height
-
-  // Desenează imaginea originală
-  ctx.putImageData(imageData, 0, 0)
-
-  // Aplică grayscale dacă e activat
-  if (settings.grayscale) {
-    const grayscaleCanvas = document.createElement("canvas")
-    const grayscaleCtx = grayscaleCanvas.getContext("2d")
-    if (grayscaleCtx) {
-      grayscaleCanvas.width = imageData.width
-      grayscaleCanvas.height = imageData.height
-      grayscaleCtx.drawImage(canvas, 0, 0)
-
-      const grayscaleImageData = grayscaleCtx.getImageData(0, 0, grayscaleCanvas.width, grayscaleCanvas.height)
-      const data = grayscaleImageData.data
-
-      for (let i = 0; i < data.length; i += 4) {
-        const avg = (data[i] + data[i + 1] + data[i + 2]) / 3
-        data[i] = avg // R
-        data[i + 1] = avg // G
-        data[i + 2] = avg // B
-      }
-
-      grayscaleCtx.putImageData(grayscaleImageData, 0, 0)
-      ctx.drawImage(grayscaleCanvas, 0, 0)
-    }
-  }
-
-  // Aplică filtrul de contrast și luminozitate
-  if (settings.contrast !== 1 || settings.brightness !== 1) {
-    const processedCanvas = document.createElement("canvas")
-    const processedCtx = processedCanvas.getContext("2d")
-    if (processedCtx) {
-      processedCanvas.width = imageData.width
-      processedCanvas.height = imageData.height
-      processedCtx.drawImage(canvas, 0, 0)
-
-      const processedImageData = processedCtx.getImageData(0, 0, processedCanvas.width, processedCanvas.height)
-      const data = processedImageData.data
-
-      for (let i = 0; i < data.length; i += 4) {
-        // Brightness
-        data[i] = data[i] * settings.brightness // R
-        data[i + 1] = data[i + 1] * settings.brightness // G
-        data[i + 2] = data[i + 2] * settings.brightness // B
-
-        // Contrast
-        data[i] = (data[i] - 128) * settings.contrast + 128 // R
-        data[i + 1] = (data[i + 1] - 128) * settings.contrast + 128 // G
-        data[i + 2] = (data[i + 2] - 128) * settings.contrast + 128 // B
-      }
-
-      processedCtx.putImageData(processedImageData, 0, 0)
-      ctx.drawImage(processedCanvas, 0, 0)
-    }
-  }
-
-  // Aplică sharpen dacă e activat
-  if (settings.sharpen) {
-    const sharpenCanvas = document.createElement("canvas")
-    const sharpenCtx = sharpenCanvas.getContext("2d")
-    if (sharpenCtx) {
-      sharpenCanvas.width = imageData.width
-      sharpenCanvas.height = imageData.height
-      sharpenCtx.drawImage(canvas, 0, 0)
-
-      const sharpenImageData = sharpenCtx.getImageData(0, 0, sharpenCanvas.width, sharpenCanvas.height)
-      const data = sharpenImageData.data
-      const width = sharpenImageData.width
-      const height = sharpenImageData.height
-
-      // Aplicăm un kernel de sharpen simplu 3x3
-      const kernel = [0, -1, 0, -1, 5, -1, 0, -1, 0]
-
-      const tempData = new Uint8ClampedArray(data)
-
-      for (let y = 1; y < height - 1; y++) {
-        for (let x = 1; x < width - 1; x++) {
-          for (let c = 0; c < 3; c++) {
-            let sum = 0
-            for (let ky = -1; ky <= 1; ky++) {
-              for (let kx = -1; kx <= 1; kx++) {
-                const idx = ((y + ky) * width + (x + kx)) * 4 + c
-                sum += tempData[idx] * kernel[(ky + 1) * 3 + (kx + 1)]
-              }
-            }
-
-            const idx = (y * width + x) * 4 + c
-            data[idx] = Math.min(255, Math.max(0, sum))
-          }
-        }
-      }
-
-      sharpenCtx.putImageData(sharpenImageData, 0, 0)
-      ctx.drawImage(sharpenCanvas, 0, 0)
-    }
-  }
-
-  // Returnează imaginea procesată
-  return ctx.getImageData(0, 0, canvas.width, canvas.height)
-}
-
-// Funcție pentru extragerea unei imagini din cadrul video
-const extractImageFromVideo = (video: HTMLVideoElement): ImageData | null => {
-  if (video) {
-    const canvas = document.createElement("canvas")
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    const ctx = canvas.getContext("2d")
-
-    if (ctx) {
-      // Desenăm frame-ul curent din video pe canvas
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-
-      // Extragem datele imaginii
-      try {
-        return ctx.getImageData(0, 0, canvas.width, canvas.height)
-      } catch (error) {
-        console.error("Error extracting image data:", error)
-      }
-    }
-  }
-  return null
-}
-
 export function QRCodeScanner({
   expectedEquipmentCode,
   expectedLocationName,
@@ -204,15 +61,6 @@ export function QRCodeScanner({
   const [cameraPermissionStatus, setCameraPermissionStatus] = useState<"prompt" | "granted" | "denied" | "unknown">(
     "unknown",
   )
-
-  // State-uri pentru îmbunătățirea detecției
-  const [currentProcessingLevel, setCurrentProcessingLevel] = useState(0)
-  const [isUsingProcessing, setIsUsingProcessing] = useState(false)
-  const [processingAttempts, setProcessingAttempts] = useState(0)
-  const [detectionFeedback, setDetectionFeedback] = useState("")
-  const videoRef = useRef<HTMLVideoElement | null>(null)
-  const scanIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  const [advancedMode, setAdvancedMode] = useState(false)
 
   // Adăugăm un contor pentru încercările de scanare eșuate
   const [failedScanAttempts, setFailedScanAttempts] = useState(0)
@@ -336,36 +184,6 @@ export function QRCodeScanner({
       incrementFailedAttempts()
     }
   }
-
-  // Configurăm referința video folosind un efect
-  useEffect(() => {
-    if (isScanning && !showManualCodeInput) {
-      // Găsim elementul video din QrReader
-      const videoElement = document.getElementById("qr-video-element") as HTMLVideoElement
-      if (videoElement && videoElement !== videoRef.current) {
-        videoRef.current = videoElement
-        console.log("Video element găsit și înregistrat")
-      }
-
-      // Configurăm un interval pentru scanare avansată dacă suntem în modul de procesare
-      if (isUsingProcessing && videoRef.current) {
-        if (scanIntervalRef.current) {
-          clearInterval(scanIntervalRef.current)
-        }
-
-        scanIntervalRef.current = setInterval(() => {
-          performAdvancedScanning()
-        }, 1000) // Scanăm la fiecare secundă
-
-        return () => {
-          if (scanIntervalRef.current) {
-            clearInterval(scanIntervalRef.current)
-            scanIntervalRef.current = null
-          }
-        }
-      }
-    }
-  }, [isScanning, showManualCodeInput, isUsingProcessing])
 
   // Funcție pentru verificarea datelor scanate
   const verifyScannedData = (data: any) => {
@@ -497,43 +315,13 @@ export function QRCodeScanner({
     }
   }
 
-  // Funcție pentru incrementarea contorului de încercări eșuate și activarea procesării
+  // Funcție pentru incrementarea contorului de încercări eșuate
   const incrementFailedAttempts = () => {
     setFailedScanAttempts((prev) => {
       const newCount = prev + 1
       console.log(`Încercare eșuată ${newCount}/3`)
 
-      // După un anumit număr de încercări, activăm procesarea imaginii
-      if (newCount >= SCAN_ATTEMPTS_BEFORE_PROCESSING && !isUsingProcessing) {
-        setIsUsingProcessing(true)
-        setCurrentProcessingLevel(0)
-        setDetectionFeedback("Activare procesare imagine pentru îmbunătățirea detecției...")
-        console.log("Activare procesare imagine pentru detecție îmbunătățită")
-
-        // Resetăm starea de scanare pentru a începe cu noile setări
-        if (scanTimeoutRef.current) {
-          clearTimeout(scanTimeoutRef.current)
-        }
-        startContinuousScanTimeout()
-      } else if (isUsingProcessing) {
-        // Dacă deja folosim procesarea, trecem la următorul nivel
-        setProcessingAttempts((prev) => {
-          const newAttempts = prev + 1
-          if (newAttempts >= 2) {
-            // Încercăm de 2 ori la fiecare nivel de procesare
-            const nextLevel = (currentProcessingLevel + 1) % IMAGE_PROCESSING_LEVELS.length
-            setCurrentProcessingLevel(nextLevel)
-            setDetectionFeedback(
-              `Încercare cu setări avansate (nivel ${nextLevel + 1}/${IMAGE_PROCESSING_LEVELS.length})...`,
-            )
-            console.log(`Încercare cu setări de procesare nivel ${nextLevel + 1}`)
-            return 0 // resetăm numărul de încercări pentru noul nivel
-          }
-          return newAttempts
-        })
-      }
-
-      // După 3 încercări eșuate (standard), afișăm butonul de introducere manuală
+      // După 3 încercări eșuate, afișăm butonul de introducere manuală
       if (newCount >= 3) {
         setShowManualEntryButton(true)
       }
@@ -598,73 +386,6 @@ export function QRCodeScanner({
     // Incrementăm contorul de încercări eșuate
     incrementFailedAttempts()
   }
-
-  // Funcție pentru scanarea manuală cu procesare avansată a imaginii
-  const performAdvancedScanning = useCallback(() => {
-    if (!videoRef.current || !isScanning || scanResult || showManualCodeInput) return
-
-    try {
-      // Extragem imaginea din video
-      const imageData = extractImageFromVideo(videoRef.current)
-      if (!imageData) return
-
-      // Obținem setările de procesare curente
-      const processingSettings = IMAGE_PROCESSING_LEVELS[currentProcessingLevel]
-
-      // Procesăm imaginea pentru a îmbunătăți detecția
-      const processedImageData = processImageForQRDetection(imageData, processingSettings)
-
-      // Creăm un nou canvas pentru a afișa imaginea procesată și a o scana
-      const canvas = document.createElement("canvas")
-      const ctx = canvas.getContext("2d")
-      if (!ctx) return
-
-      canvas.width = processedImageData.width
-      canvas.height = processedImageData.height
-      ctx.putImageData(processedImageData, 0, 0)
-
-      // Convertim canvas-ul într-un URL de date pentru a putea fi scanat
-      const dataUrl = canvas.toDataURL("image/png")
-
-      // Creăm o imagine pentru a încărca datelele URL și a le scana
-      const img = new Image()
-      img.crossOrigin = "anonymous" // Pentru a evita probleme CORS
-
-      img.onload = () => {
-        // Creăm un nou canvas pentru a desena imaginea și a extrage datele
-        const scanCanvas = document.createElement("canvas")
-        const scanCtx = scanCanvas.getContext("2d")
-        if (!scanCtx) return
-
-        scanCanvas.width = img.width
-        scanCanvas.height = img.height
-        scanCtx.drawImage(img, 0, 0)
-
-        try {
-          // Folosim jsQR sau o altă librărie QR code pentru a scana imaginea
-          // Această secțiune este pentru demo - react-qr-reader nu expune scanarea din imagini direct
-          console.log("Scanare avansată aplicată - nivelul " + (currentProcessingLevel + 1))
-
-          // Aici am putea folosi o altă bibliotecă cum ar fi jsQR, dar deocamdată
-          // doar logăm faptul că încercăm să îmbunătățim scanarea
-        } catch (error) {
-          console.error("Eroare la scanarea avansată:", error)
-        }
-      }
-
-      img.src = dataUrl
-    } catch (error) {
-      console.error("Eroare la scanarea avansată:", error)
-    }
-  }, [isScanning, scanResult, showManualCodeInput, currentProcessingLevel])
-
-  // Funcție pentru a înregistra video elementul din QrReader pentru procesare avansată
-  const handleVideoRef = useCallback((element: HTMLVideoElement | null) => {
-    if (element && element !== videoRef.current) {
-      videoRef.current = element
-      console.log("Video element înregistrat pentru procesare avansată")
-    }
-  }, [])
 
   // Funcție pentru verificarea codului introdus manual
   const onSubmitManualCode = (values: ManualCodeFormValues) => {
@@ -828,20 +549,6 @@ export function QRCodeScanner({
     )
   }
 
-  // Curățăm intervalele de scanare la dezmontarea componentei
-  useEffect(() => {
-    return () => {
-      if (scanIntervalRef.current) {
-        clearInterval(scanIntervalRef.current)
-        scanIntervalRef.current = null
-      }
-      if (scanTimeoutRef.current) {
-        clearTimeout(scanTimeoutRef.current)
-        scanTimeoutRef.current = null
-      }
-    }
-  }, [])
-
   return (
     <>
       <Button onClick={() => setIsOpen(true)} variant="outline">
@@ -906,17 +613,6 @@ export function QRCodeScanner({
                     </div>
                   )}
                 </div>
-
-                {/* Indicator pentru procesarea imaginii */}
-                {isUsingProcessing && isScanning && (
-                  <div className="absolute bottom-2 left-2 right-2 flex items-center justify-center bg-black bg-opacity-70 text-white text-xs p-2 rounded-lg">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full mr-2 animate-pulse"></div>
-                    <span>
-                      {detectionFeedback ||
-                        `Procesare avansată (nivel ${currentProcessingLevel + 1}/${IMAGE_PROCESSING_LEVELS.length})`}
-                    </span>
-                  </div>
-                )}
               </div>
               <p className="text-xs text-muted-foreground text-center mt-2">
                 {isMobile
@@ -980,32 +676,7 @@ export function QRCodeScanner({
             </div>
           )}
 
-          {advancedMode && debugMode && (
-            <div className="mt-2 p-2 bg-muted/30 rounded text-xs">
-              <p>Setări procesare:</p>
-              <ul className="pl-4 list-disc space-y-1">
-                <li>
-                  Nivel curent: {currentProcessingLevel + 1}/{IMAGE_PROCESSING_LEVELS.length}
-                </li>
-                <li>Contrast: {IMAGE_PROCESSING_LEVELS[currentProcessingLevel].contrast.toFixed(1)}</li>
-                <li>Luminozitate: {IMAGE_PROCESSING_LEVELS[currentProcessingLevel].brightness.toFixed(1)}</li>
-                <li>Grayscale: {IMAGE_PROCESSING_LEVELS[currentProcessingLevel].grayscale ? "Da" : "Nu"}</li>
-                <li>Sharpen: {IMAGE_PROCESSING_LEVELS[currentProcessingLevel].sharpen ? "Da" : "Nu"}</li>
-                <li>Folosește procesare: {isUsingProcessing ? "Da" : "Nu"}</li>
-                <li>Încercări la nivel curent: {processingAttempts}</li>
-              </ul>
-            </div>
-          )}
-
           <DialogFooter className="flex flex-col sm:flex-row gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setAdvancedMode(!advancedMode)}
-              className="w-full sm:w-auto"
-            >
-              {advancedMode ? "Dezactivează mod avansat" : "Activează mod avansat"}
-            </Button>
             <Button variant="outline" onClick={() => setIsOpen(false)} className="w-full sm:w-auto">
               Închide
             </Button>
