@@ -556,139 +556,141 @@ export function QRCodeScanner({
       </Button>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Scanare QR Code Echipament</DialogTitle>
-            <DialogDescription>Îndreptați camera către QR code-ul echipamentului pentru a-l scana.</DialogDescription>
-          </DialogHeader>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+          <div className="dialog-content-scrollable">
+            <DialogHeader>
+              <DialogTitle>Scanare QR Code Echipament</DialogTitle>
+              <DialogDescription>Îndreptați camera către QR code-ul echipamentului pentru a-l scana.</DialogDescription>
+            </DialogHeader>
 
-          {renderCameraPermissionMessage()}
+            {renderCameraPermissionMessage()}
 
-          {isScanning && !showManualCodeInput && cameraPermissionStatus !== "denied" && (
-            <>
-              <div className="relative aspect-square w-full max-w-sm mx-auto overflow-hidden rounded-lg">
-                <QrReader
-                  constraints={{
-                    facingMode: isMobile ? "environment" : "user",
-                    width: isMobile ? { ideal: 1280, max: 1920 } : { min: 640, ideal: 1280 },
-                    height: isMobile ? { ideal: 720, max: 1080 } : { min: 480, ideal: 720 },
-                  }}
-                  onResult={handleScan}
-                  scanDelay={300}
-                  videoId="qr-video-element"
-                  className="w-full h-full"
-                  videoStyle={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                    transform: isMobile ? "scaleX(1)" : "scaleX(-1)", // Flip camera for desktop
-                  }}
-                  videoContainerStyle={{
-                    width: "100%",
-                    height: "100%",
-                    position: "relative",
-                    overflow: "hidden",
-                  }}
-                  containerStyle={{
-                    width: "100%",
-                    height: "100%",
-                    position: "relative",
-                    overflow: "hidden",
-                  }}
-                />
-                <div className="absolute inset-0 border-2 border-dashed border-white pointer-events-none"></div>
+            {isScanning && !showManualCodeInput && cameraPermissionStatus !== "denied" && (
+              <>
+                <div className="relative aspect-square w-full max-w-sm mx-auto overflow-hidden rounded-lg">
+                  <QrReader
+                    constraints={{
+                      facingMode: isMobile ? "environment" : "user",
+                      width: isMobile ? { ideal: 1280, max: 1920 } : { min: 640, ideal: 1280 },
+                      height: isMobile ? { ideal: 720, max: 1080 } : { min: 480, ideal: 720 },
+                    }}
+                    onResult={handleScan}
+                    scanDelay={300}
+                    videoId="qr-video-element"
+                    className="w-full h-full"
+                    videoStyle={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      transform: isMobile ? "scaleX(1)" : "scaleX(-1)", // Flip camera for desktop
+                    }}
+                    videoContainerStyle={{
+                      width: "100%",
+                      height: "100%",
+                      position: "relative",
+                      overflow: "hidden",
+                    }}
+                    containerStyle={{
+                      width: "100%",
+                      height: "100%",
+                      position: "relative",
+                      overflow: "hidden",
+                    }}
+                  />
+                  <div className="absolute inset-0 border-2 border-dashed border-white pointer-events-none"></div>
 
-                {/* Indicator de scanare animat */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  {isScanning && (
-                    <div className="relative w-full h-full">
-                      {/* Linie de scanare animată */}
-                      <div className="absolute left-0 right-0 h-0.5 bg-green-500 opacity-70 animate-scan-line"></div>
+                  {/* Indicator de scanare animat */}
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    {isScanning && (
+                      <div className="relative w-full h-full">
+                        {/* Linie de scanare animată */}
+                        <div className="absolute left-0 right-0 h-0.5 bg-green-500 opacity-70 animate-scan-line"></div>
 
-                      {/* Indicator de scanare în colțul din dreapta sus */}
-                      <div className="absolute top-2 right-2 flex items-center bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded-full">
-                        <div className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></div>
-                        <span>Scanare... ({failedScanAttempts}/3)</span>
+                        {/* Indicator de scanare în colțul din dreapta sus */}
+                        <div className="absolute top-2 right-2 flex items-center bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded-full">
+                          <div className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></div>
+                          <span>Scanare... ({failedScanAttempts}/3)</span>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
+                <p className="text-xs text-muted-foreground text-center mt-2">
+                  {isMobile
+                    ? "Asigurați-vă că QR code-ul este în cadrul camerei și bine iluminat."
+                    : "Dacă camera nu se afișează, verificați permisiunile browserului și reîncărcați pagina."}
+                </p>
+              </>
+            )}
+
+            {/* Afișăm butonul de introducere manuală după 3 încercări eșuate */}
+            {renderManualEntryButton()}
+
+            {/* Afișăm formularul de introducere manuală când utilizatorul apasă butonul */}
+            {renderManualCodeInput()}
+
+            {scanError && cameraPermissionStatus !== "denied" && !showManualCodeInput && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Eroare</AlertTitle>
+                <AlertDescription>{scanError}</AlertDescription>
+              </Alert>
+            )}
+
+            {isVerifying && !showManualCodeInput && (
+              <div className="flex flex-col items-center justify-center p-4">
+                <Spinner className="h-8 w-8" />
+                <p className="mt-2">Se verifică echipamentul...</p>
               </div>
-              <p className="text-xs text-muted-foreground text-center mt-2">
-                {isMobile
-                  ? "Asigurați-vă că QR code-ul este în cadrul camerei și bine iluminat."
-                  : "Dacă camera nu se afișează, verificați permisiunile browserului și reîncărcați pagina."}
-              </p>
-            </>
-          )}
+            )}
 
-          {/* Afișăm butonul de introducere manuală după 3 încercări eșuate */}
-          {renderManualEntryButton()}
+            {verificationResult && (
+              <Alert variant={verificationResult.success ? "default" : "destructive"}>
+                {verificationResult.success ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                <AlertTitle>{verificationResult.message}</AlertTitle>
+                <AlertDescription>
+                  <ul className="list-disc pl-5 mt-2">
+                    {verificationResult.details?.map((detail, index) => (
+                      <li key={index}>{detail}</li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
 
-          {/* Afișăm formularul de introducere manuală când utilizatorul apasă butonul */}
-          {renderManualCodeInput()}
+            {debugMode && (
+              <div className="bg-muted p-2 rounded text-xs overflow-auto max-h-32">
+                <p className="font-bold">Debug Info:</p>
+                <p>Device: {isMobile ? "Mobile" : "Desktop"}</p>
+                <p>Camera Permission: {cameraPermissionStatus}</p>
+                <p>Scanning: {isScanning ? "Yes" : "No"}</p>
+                <p>Verifying: {isVerifying ? "Yes" : "No"}</p>
+                <p>Failed Attempts: {failedScanAttempts}</p>
+                <p>Show Manual Entry Button: {showManualEntryButton ? "Yes" : "No"}</p>
+                <p>Show Manual Input: {showManualCodeInput ? "Yes" : "No"}</p>
+                <p>Scan Result: {scanResult ? scanResult.substring(0, 100) + "..." : "None"}</p>
+                <p>Error: {scanError || "None"}</p>
+                <p>
+                  Verification:{" "}
+                  {verificationResult ? JSON.stringify(verificationResult).substring(0, 100) + "..." : "None"}
+                </p>
+              </div>
+            )}
 
-          {scanError && cameraPermissionStatus !== "denied" && !showManualCodeInput && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Eroare</AlertTitle>
-              <AlertDescription>{scanError}</AlertDescription>
-            </Alert>
-          )}
-
-          {isVerifying && !showManualCodeInput && (
-            <div className="flex flex-col items-center justify-center p-4">
-              <Spinner className="h-8 w-8" />
-              <p className="mt-2">Se verifică echipamentul...</p>
-            </div>
-          )}
-
-          {verificationResult && (
-            <Alert variant={verificationResult.success ? "default" : "destructive"}>
-              {verificationResult.success ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-              <AlertTitle>{verificationResult.message}</AlertTitle>
-              <AlertDescription>
-                <ul className="list-disc pl-5 mt-2">
-                  {verificationResult.details?.map((detail, index) => (
-                    <li key={index}>{detail}</li>
-                  ))}
-                </ul>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {debugMode && (
-            <div className="bg-muted p-2 rounded text-xs overflow-auto max-h-32">
-              <p className="font-bold">Debug Info:</p>
-              <p>Device: {isMobile ? "Mobile" : "Desktop"}</p>
-              <p>Camera Permission: {cameraPermissionStatus}</p>
-              <p>Scanning: {isScanning ? "Yes" : "No"}</p>
-              <p>Verifying: {isVerifying ? "Yes" : "No"}</p>
-              <p>Failed Attempts: {failedScanAttempts}</p>
-              <p>Show Manual Entry Button: {showManualEntryButton ? "Yes" : "No"}</p>
-              <p>Show Manual Input: {showManualCodeInput ? "Yes" : "No"}</p>
-              <p>Scan Result: {scanResult ? scanResult.substring(0, 100) + "..." : "None"}</p>
-              <p>Error: {scanError || "None"}</p>
-              <p>
-                Verification:{" "}
-                {verificationResult ? JSON.stringify(verificationResult).substring(0, 100) + "..." : "None"}
-              </p>
-            </div>
-          )}
-
-          <DialogFooter className="flex flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => setIsOpen(false)} className="w-full sm:w-auto">
-              Închide
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setDebugMode(!debugMode)}
-              className="text-xs w-full sm:w-auto"
-            >
-              {debugMode ? "Dezactivează Debug" : "Activează Debug"}
-            </Button>
-          </DialogFooter>
+            <DialogFooter className="flex flex-col sm:flex-row gap-2">
+              <Button variant="outline" onClick={() => setIsOpen(false)} className="w-full sm:w-auto">
+                Închide
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDebugMode(!debugMode)}
+                className="text-xs w-full sm:w-auto"
+              >
+                {debugMode ? "Dezactivează Debug" : "Activează Debug"}
+              </Button>
+            </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </>

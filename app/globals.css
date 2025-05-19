@@ -422,9 +422,29 @@ body {
 
 /* Ensure dialog content is scrollable on small screens */
 .dialog-content-scrollable {
-  max-height: 80vh;
+  width: 100%;
+  padding-bottom: 1rem;
+  -webkit-overflow-scrolling: touch; /* For smooth scrolling on iOS */
+}
+
+/* Ensure the modal doesn't exceed viewport height */
+[data-radix-dialog-content] {
+  max-height: 90vh;
   overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+}
+
+/* Improve scrollbar appearance */
+[data-radix-dialog-content]::-webkit-scrollbar {
+  width: 6px;
+}
+
+[data-radix-dialog-content]::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-radix-dialog-content]::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 20px;
 }
 
 /* Fix for iOS input zooming */
