@@ -215,7 +215,9 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
     }
   })
 
-  // Funcție pentru a actualiza starea de verificare a echipamentului
+  // Modificăm funcția handleVerificationComplete pentru a actualiza și statusul lucrării la "În lucru"
+  // când tehnicianul scanează cu succes codul QR al echipamentului
+
   const handleVerificationComplete = useStableCallback(async (success: boolean) => {
     if (!lucrare?.id) return
 
@@ -224,12 +226,26 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
 
       // Actualizăm lucrarea în baza de date
       try {
-        await updateLucrare(lucrare.id, {
+        // Pregătim datele pentru actualizare
+        const updateData = {
           ...lucrare,
           equipmentVerified: true,
           equipmentVerifiedAt: new Date().toISOString(),
           equipmentVerifiedBy: userData?.displayName || "Tehnician necunoscut",
-        })
+        }
+
+        // Actualizăm statusul lucrării la "În lucru" doar dacă statusul curent este "Listată" sau "Atribuită"
+        // Astfel nu vom modifica statusul dacă lucrarea este deja "Finalizat" sau are alt status special
+        if (lucrare.statusLucrare === "Listată" || lucrare.statusLucrare === "Atribuită") {
+          updateData.statusLucrare = "În lucru"
+        }
+
+        await updateLucrare(lucrare.id, updateData)
+
+        // Actualizăm și starea locală dacă am modificat statusul
+        if (lucrare.statusLucrare === "Listată" || lucrare.statusLucrare === "Atribuită") {
+          setLucrare((prev) => (prev ? { ...prev, statusLucrare: "În lucru" } : null))
+        }
 
         toast({
           title: "Verificare completă",
