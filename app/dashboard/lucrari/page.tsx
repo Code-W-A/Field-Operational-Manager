@@ -25,8 +25,6 @@ import { orderBy } from "firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import { LucrareForm, type LucrareFormRef } from "@/components/lucrare-form"
 import { DataTable } from "@/components/data-table/data-table"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { doc, getDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
@@ -52,8 +50,11 @@ import {
   getWorkStatusRowClass,
   getInvoiceStatusClass,
   getWorkTypeClass,
+  getEquipmentStatusClass,
 } from "@/lib/utils/constants"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Card, CardContent } from "@/components/ui/card"
 
 const ContractDisplay = ({ contractId }) => {
   const [contractNumber, setContractNumber] = useState(null)
@@ -187,7 +188,7 @@ export default function Lucrari() {
     return lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true && lucrare.preluatDispecer === false
   }, [])
 
-  // Modificăm funcția filterOptions pentru a include și echipamentele
+  // Modificăm funcția filterOptions pentru a include și echipamentele și statusul echipamentului
   const { data: tehnicieni } = useFirebaseCollection("users", [])
   const filterOptions = useMemo(() => {
     // Extragem toate valorile unice pentru tipuri de lucrări
@@ -233,6 +234,18 @@ export default function Lucrari() {
         label: status,
       }),
     )
+
+    // Extragem toate statusurile de echipament unice
+    const statusuriEchipament = Array.from(
+      new Set(
+        filteredLucrari
+          .map((lucrare) => lucrare.statusEchipament)
+          .filter(Boolean), // Filtrăm valorile null/undefined
+      ),
+    ).map((status) => ({
+      value: status,
+      label: status,
+    }))
 
     return [
       {
@@ -289,10 +302,17 @@ export default function Lucrari() {
         options: statusuriFacturare,
         value: [],
       },
+      {
+        id: "statusEchipament",
+        label: "Status echipament",
+        type: "multiselect",
+        options: statusuriEchipament,
+        value: [],
+      },
     ]
   }, [filteredLucrari, tehnicieni])
 
-  // Modificăm funcția applyFilters pentru a gestiona filtrarea după echipament
+  // Modificăm funcția applyFilters pentru a gestiona filtrarea după echipament și statusul echipamentului
   const applyFilters = useCallback(
     (data) => {
       if (!activeFilters.length) return data
@@ -362,6 +382,14 @@ export default function Lucrari() {
             case "locatie":
               // Filtrare după echipament
               return filter.value.includes(item.locatie)
+
+            case "statusEchipament":
+              // Filtrare după statusul echipamentului
+              // Dacă item.statusEchipament este undefined/null și filtrul include o valoare goală, returnăm true
+              if (!item.statusEchipament) {
+                return filter.value.includes("")
+              }
+              return filter.value.includes(item.statusEchipament)
 
             default:
               // Pentru filtrele multiselect (tipLucrare, client, statusLucrare, statusFacturare)
@@ -1098,6 +1126,20 @@ export default function Lucrari() {
       },
     },
     {
+      accessorKey: "statusEchipament",
+      header: "Status Echipament",
+      enableHiding: true,
+      enableFiltering: true,
+      cell: ({ row }) => {
+        if (!row.original.statusEchipament) return null
+        return (
+          <Badge className={getEquipmentStatusClass(row.original.statusEchipament)}>
+            {row.original.statusEchipament}
+          </Badge>
+        )
+      },
+    },
+    {
       accessorKey: "statusLucrare",
       header: "Status Lucrare",
       enableHiding: true,
@@ -1601,6 +1643,14 @@ export default function Lucrari() {
                             ))}
                           </div>
                         </div>
+                        {lucrare.statusEchipament && (
+                          <div className="flex justify-between">
+                            <span className="text-sm font-medium text-muted-foreground">Status echipament:</span>
+                            <Badge className={getEquipmentStatusClass(lucrare.statusEchipament)}>
+                              {lucrare.statusEchipament}
+                            </Badge>
+                          </div>
+                        )}
                         <div className="flex justify-between">
                           <span className="text-sm font-medium text-muted-foreground">Contact:</span>
                           <span className="text-sm">{lucrare.persoanaContact}</span>
