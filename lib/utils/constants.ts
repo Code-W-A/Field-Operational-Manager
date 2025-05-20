@@ -161,3 +161,41 @@ export function getInvoiceStatusClass(status: string): string {
       return "bg-gray-100 text-gray-800 hover:bg-gray-200"
   }
 }
+
+// Adăugăm constantele pentru statusurile echipamentului după celelalte constante existente
+
+/**
+ * Constante pentru statusurile echipamentului
+ */
+export const EQUIPMENT_STATUS = {
+  FUNCTIONAL: "Funcțional",
+  PARTIALLY_FUNCTIONAL: "Parțial funcțional",
+  NON_FUNCTIONAL: "Nefuncțional",
+}
+
+/**
+ * Array cu toate statusurile echipamentului pentru dropdown-uri
+ */
+export const EQUIPMENT_STATUS_OPTIONS = [
+  EQUIPMENT_STATUS.FUNCTIONAL,
+  EQUIPMENT_STATUS.PARTIALLY_FUNCTIONAL,
+  EQUIPMENT_STATUS.NON_FUNCTIONAL,
+]
+
+/**
+ * Funcție pentru a obține clasa CSS pentru statusul echipamentului
+ * @param status Statusul echipamentului
+ * @returns Clasa CSS corespunzătoare
+ */
+export function getEquipmentStatusClass(status: string): string {
+  switch (status.toLowerCase()) {
+    case EQUIPMENT_STATUS.FUNCTIONAL.toLowerCase():
+      return "bg-green-100 text-green-800 hover:bg-green-200"
+    case EQUIPMENT_STATUS.PARTIALLY_FUNCTIONAL.toLowerCase():
+      return "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
+    case EQUIPMENT_STATUS.NON_FUNCTIONAL.toLowerCase():
+      return "bg-red-100 text-red-800 hover:bg-red-200"
+    default:
+      return "bg-gray-100 text-gray-800 hover:bg-gray-200"
+  }
+}

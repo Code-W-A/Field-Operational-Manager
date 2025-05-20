@@ -23,6 +23,8 @@ import { toast } from "@/components/ui/use-toast"
 import { ReportGenerator } from "@/components/report-generator"
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
+// Importăm constantele pentru statusurile echipamentului
+import { EQUIPMENT_STATUS_OPTIONS } from "@/lib/utils/constants"
 
 export default function RaportPage({ params }: { params: { id: string } }) {
   const SIG_HEIGHT = 160 // px – lasă-l fix
@@ -59,6 +61,9 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   const reportGeneratorRef = useRef<React.ElementRef<typeof ReportGenerator>>(null)
   const submitButtonRef = useRef<HTMLButtonElement>(null)
 
+  // Adăugăm starea pentru statusul echipamentului
+  const [statusEchipament, setStatusEchipament] = useState<string>("")
+
   useEffect(() => {
     const fetchLucrare = async () => {
       try {
@@ -67,6 +72,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
         if (data) {
           setLucrare(data)
           setStatusLucrare(data.statusLucrare)
+          setStatusEchipament(data.statusEchipament || "")
 
           // If the work has products, load them
           if (data.products) {
@@ -281,7 +287,8 @@ FOM by NRG`,
           emailDestinatar: email,
           raportGenerat: true, // Setăm raportGenerat la true când se trimite raportul
           updatedAt: serverTimestamp(),
-          preluatDispecer:false,
+          preluatDispecer: false,
+          statusEchipament, // Adăugăm statusul echipamentului
         })
 
         // Reîncărcăm datele actualizate
@@ -457,7 +464,7 @@ FOM by NRG`,
       // Folosim updateDoc direct, fără a mai importa din nou
       await updateDoc(lucrareRef, {
         raportGenerat: true,
-        preluatDispecer:false,
+        preluatDispecer: false,
         updatedAt: serverTimestamp(),
       })
 
@@ -691,6 +698,27 @@ FOM by NRG`,
                 />
                 <p className="text-xs text-muted-foreground">
                   Raportul va fi trimis automat la această adresă după finalizare
+                </p>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <Label htmlFor="statusEchipament">Status Echipament *</Label>
+                <Select value={statusEchipament} onValueChange={setStatusEchipament} required>
+                  <SelectTrigger id="statusEchipament">
+                    <SelectValue placeholder="Selectați statusul echipamentului" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EQUIPMENT_STATUS_OPTIONS.map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {status}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Specificați starea în care a fost lăsat echipamentul după intervenție
                 </p>
               </div>
 

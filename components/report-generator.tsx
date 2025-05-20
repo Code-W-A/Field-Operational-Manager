@@ -183,6 +183,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         const equipLines = [
           `${normalize(lucrare.echipament || "Nespecificat")}${lucrare.echipamentCod ? ` (Cod: ${normalize(lucrare.echipamentCod)})` : ""}`,
         ]
+
         drawBox("ECHIPAMENT", equipLines, W, M, true)
         currentY += equipLines.length * 5 + 12 + 5
       }
