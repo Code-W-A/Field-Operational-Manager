@@ -483,6 +483,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     }
 
     // Adăugăm funcție pentru selectarea echipamentului
+    // Înlocuim funcția handleEquipmentSelect existentă cu această versiune actualizată:
     const handleEquipmentSelect = (equipmentId: string, equipment: Echipament) => {
       console.log("Echipament selectat în LucrareForm:", equipment)
 
@@ -492,6 +493,10 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       if (handleCustomChange) {
         handleCustomChange("echipamentId", equipmentId)
         handleCustomChange("echipamentCod", equipment.cod)
+        // Adăugăm și modelul echipamentului dacă există
+        if (equipment.model) {
+          handleCustomChange("echipamentModel", equipment.model)
+        }
       }
 
       // Afișăm un toast pentru feedback

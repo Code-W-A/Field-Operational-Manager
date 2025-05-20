@@ -42,6 +42,7 @@ export interface Lucrare {
   locatie: string
   echipament?: string
   echipamentCod?: string
+  echipamentModel?: string // Adăugăm câmpul pentru modelul echipamentului
   descriere: string
   statusLucrare: string
   statusFacturare: string
