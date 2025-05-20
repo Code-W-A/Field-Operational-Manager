@@ -188,6 +188,8 @@ export const EQUIPMENT_STATUS_OPTIONS = [
  * @returns Clasa CSS corespunzătoare
  */
 export function getEquipmentStatusClass(status: string): string {
+  if (!status) return "bg-gray-100 text-gray-800 hover:bg-gray-200"
+
   switch (status.toLowerCase()) {
     case EQUIPMENT_STATUS.FUNCTIONAL.toLowerCase():
       return "bg-green-100 text-green-800 hover:bg-green-200"

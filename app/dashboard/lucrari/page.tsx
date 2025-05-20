@@ -237,14 +237,10 @@ export default function Lucrari() {
 
     // Extragem toate statusurile de echipament unice
     const statusuriEchipament = Array.from(
-      new Set(
-        filteredLucrari
-          .map((lucrare) => lucrare.statusEchipament)
-          .filter(Boolean), // Filtrăm valorile null/undefined
-      ),
+      new Set(filteredLucrari.map((lucrare) => lucrare.statusEchipament || "Nedefinit")),
     ).map((status) => ({
       value: status,
-      label: status,
+      label: status === "Nedefinit" ? "Nedefinit" : status,
     }))
 
     return [
@@ -311,6 +307,11 @@ export default function Lucrari() {
       },
     ]
   }, [filteredLucrari, tehnicieni])
+
+  // Adaugă această funcție după declararea constantei filterOptions
+  const hasEquipmentStatusFilter = useMemo(() => {
+    return activeFilters.some((filter) => filter.id === "statusEchipament" && filter.value && filter.value.length > 0)
+  }, [activeFilters])
 
   // Modificăm funcția applyFilters pentru a gestiona filtrarea după echipament și statusul echipamentului
   const applyFilters = useCallback(
@@ -385,9 +386,9 @@ export default function Lucrari() {
 
             case "statusEchipament":
               // Filtrare după statusul echipamentului
-              // Dacă item.statusEchipament este undefined/null și filtrul include o valoare goală, returnăm true
               if (!item.statusEchipament) {
-                return filter.value.includes("")
+                // Dacă lucrarea nu are status de echipament și filtrul include valoarea goală sau "Nedefinit"
+                return filter.value.includes("") || filter.value.includes("Nedefinit")
               }
               return filter.value.includes(item.statusEchipament)
 
@@ -1518,6 +1519,15 @@ export default function Lucrari() {
             />
           </div>
         </div>
+
+        {/* Adaugă acest cod după secțiunea de căutare universală și butonul de filtrare */}
+        {hasEquipmentStatusFilter && (
+          <div className="mt-2">
+            <Badge variant="outline" className="bg-blue-50 text-blue-800 border-blue-200">
+              Filtrare după status echipament activă
+            </Badge>
+          </div>
+        )}
 
         {/* Modal de filtrare */}
         <FilterModal
