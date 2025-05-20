@@ -114,7 +114,7 @@ export default function Lucrari() {
     descriere: "",
     persoanaContact: "",
     telefon: "",
-    statusLucrare: "În așteptare",
+    statusLucrare: "Listată",
     statusFacturare: "Nefacturat",
     contract: "",
     defectReclamat: "",
@@ -552,15 +552,31 @@ export default function Lucrari() {
     // Verificăm dacă tehnicianul este deja selectat
     if (formData.tehnicieni.includes(value)) {
       // Dacă da, îl eliminăm
+      const newTehnicieni = formData.tehnicieni.filter((tech) => tech !== value)
+
+      // Actualizăm statusul doar dacă este "Listată" sau "Atribuită"
+      let newStatus = formData.statusLucrare
+      if (formData.statusLucrare === "Listată" || formData.statusLucrare === "Atribuită") {
+        newStatus = newTehnicieni.length > 0 ? "Atribuită" : "Listată"
+      }
+
       setFormData((prev) => ({
         ...prev,
-        tehnicieni: prev.tehnicieni.filter((tech) => tech !== value),
+        tehnicieni: newTehnicieni,
+        statusLucrare: newStatus,
       }))
     } else {
       // Dacă nu, îl adăugăm
+      // Actualizăm statusul doar dacă este "Listată" sau "Atribuită"
+      let newStatus = formData.statusLucrare
+      if (formData.statusLucrare === "Listată" || formData.statusLucrare === "Atribuită") {
+        newStatus = "Atribuită" // Dacă adăugăm un tehnician, statusul devine "Atribuită"
+      }
+
       setFormData((prev) => ({
         ...prev,
         tehnicieni: [...prev.tehnicieni, value],
+        statusLucrare: newStatus,
       }))
     }
   }
@@ -576,13 +592,13 @@ export default function Lucrari() {
       descriere: "",
       persoanaContact: "",
       telefon: "",
-      statusLucrare: "În așteptare",
+      statusLucrare: "Listată", // Schimbat din "În așteptare" în "Listată"
       statusFacturare: "Nefacturat",
       contract: "",
       defectReclamat: "",
       echipamentId: "",
       echipamentCod: "",
-      echipament: "", //  ← NOU
+      echipament: "",
       persoaneContact: [],
     })
     setError(null)
@@ -618,10 +634,14 @@ export default function Lucrari() {
         return
       }
 
+      // Setăm automat statusul lucrării în funcție de prezența tehnicienilor
+      const statusLucrare = formData.tehnicieni && formData.tehnicieni.length > 0 ? "Atribuită" : "Listată"
+
       const newLucrare = {
         dataEmiterii: format(dataEmiterii, "dd.MM.yyyy HH:mm"),
         dataInterventie: format(dataInterventie, "dd.MM.yyyy HH:mm"),
         ...formData,
+        statusLucrare: statusLucrare, // Suprascriem statusul cu valoarea calculată
       }
 
       // Adăugăm lucrarea în Firestore
@@ -763,8 +783,16 @@ export default function Lucrari() {
         return
       }
 
+      // Verificăm dacă statusul curent este "Listată" sau "Atribuită"
+      // Doar în acest caz actualizăm automat statusul
+      let statusLucrare = formData.statusLucrare
+      if (statusLucrare === "Listată" || statusLucrare === "Atribuită") {
+        statusLucrare = formData.tehnicieni && formData.tehnicieni.length > 0 ? "Atribuită" : "Listată"
+      }
+
       const updatedLucrare = {
         ...formData,
+        statusLucrare: statusLucrare, // Folosim statusul calculat
         dataEmiterii: format(dataEmiterii, "dd.MM.yyyy HH:mm"),
         dataInterventie: format(dataInterventie, "dd.MM.yyyy HH:mm"),
       }
