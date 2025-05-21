@@ -188,28 +188,26 @@ export async function POST(request: NextRequest) {
       logoContent = Buffer.from(FALLBACK_LOGO_BASE64, "base64")
     }
 
-    // Prepare email content
-    // Prepare email content for technicians - include all details
+    // Prepare email content for technicians - include all details and rename "Descriere" to "Sfaturi pt tehnician"
     const technicianWorkOrderInfo = `
       <ul style="list-style-type: none; padding-left: 0;">
         <li><strong>Data emiterii:</strong> ${details?.issueDate || "N/A"}</li>
         <li><strong>Data intervenție:</strong> ${details?.interventionDate || "N/A"}</li>
         <li><strong>Tip lucrare:</strong> ${details?.workType || "N/A"}</li>
         <li><strong>Locație:</strong> ${details?.location || "N/A"}</li>
-        <li><strong>Descriere:</strong> ${details?.description || "N/A"}</li>
+        <li><strong>Sfaturi pt tehnician:</strong> ${details?.description || "N/A"}</li>
         <li><strong>Defect reclamat:</strong> ${details?.reportedIssue || "N/A"}</li>
         <li><strong>Status:</strong> ${details?.status || "N/A"}</li>
       </ul>
     `
 
-    // Prepare email content for client - exclude technical details
+    // Prepare email content for client - exclude technical details and description (which is actually "Sfaturi pt tehnician")
     const clientWorkOrderInfo = `
       <ul style="list-style-type: none; padding-left: 0;">
         <li><strong>Data emiterii:</strong> ${details?.issueDate || "N/A"}</li>
         <li><strong>Data intervenție:</strong> ${details?.interventionDate || "N/A"}</li>
         <li><strong>Tip lucrare:</strong> ${details?.workType || "N/A"}</li>
         <li><strong>Locație:</strong> ${details?.location || "N/A"}</li>
-        <li><strong>Descriere:</strong> ${details?.description || "N/A"}</li>
       </ul>
     `
 
