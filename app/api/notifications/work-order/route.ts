@@ -189,7 +189,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Prepare email content
-    const workOrderInfo = `
+    // Prepare email content for technicians - include all details
+    const technicianWorkOrderInfo = `
       <ul style="list-style-type: none; padding-left: 0;">
         <li><strong>Data emiterii:</strong> ${details?.issueDate || "N/A"}</li>
         <li><strong>Data intervenție:</strong> ${details?.interventionDate || "N/A"}</li>
@@ -198,6 +199,17 @@ export async function POST(request: NextRequest) {
         <li><strong>Descriere:</strong> ${details?.description || "N/A"}</li>
         <li><strong>Defect reclamat:</strong> ${details?.reportedIssue || "N/A"}</li>
         <li><strong>Status:</strong> ${details?.status || "N/A"}</li>
+      </ul>
+    `
+
+    // Prepare email content for client - exclude technical details
+    const clientWorkOrderInfo = `
+      <ul style="list-style-type: none; padding-left: 0;">
+        <li><strong>Data emiterii:</strong> ${details?.issueDate || "N/A"}</li>
+        <li><strong>Data intervenție:</strong> ${details?.interventionDate || "N/A"}</li>
+        <li><strong>Tip lucrare:</strong> ${details?.workType || "N/A"}</li>
+        <li><strong>Locație:</strong> ${details?.location || "N/A"}</li>
+        <li><strong>Descriere:</strong> ${details?.description || "N/A"}</li>
       </ul>
     `
 
@@ -256,7 +268,7 @@ export async function POST(request: NextRequest) {
                 
                 <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 15px 0;">
                   <h3 style="margin-top: 0;">Detalii lucrare</h3>
-                  ${workOrderInfo}
+                  ${technicianWorkOrderInfo}
                 </div>
                 
                 <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 15px 0;">
@@ -386,7 +398,7 @@ export async function POST(request: NextRequest) {
             
             <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 15px 0;">
               <h3 style="margin-top: 0;">Detalii lucrare</h3>
-              ${workOrderInfo}
+              ${clientWorkOrderInfo}
             </div>
             
             <p>Vă mulțumim pentru înțelegere.</p>
