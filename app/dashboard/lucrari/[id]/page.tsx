@@ -592,7 +592,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                   </div>
                 </div>
                 <div>
-                  <p className="text-sm font-medium">Descriere:</p>
+                  <p className="text-sm font-medium">Notă internă:</p>
                   <p className="text-sm text-gray-500">{lucrare.descriere || "Fără descriere"}</p>
                 </div>
                 {lucrare.constatareLaLocatie && (
