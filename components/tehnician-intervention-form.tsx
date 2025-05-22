@@ -14,6 +14,7 @@ import { useStableCallback } from "@/lib/utils/hooks"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { addLog } from "@/lib/firebase/firestore"
+import { Switch } from "@/components/ui/switch"
 
 // First, let's add a new prop to the component to check if the work order is completed and the report is generated
 interface TehnicianInterventionFormProps {
@@ -23,6 +24,8 @@ interface TehnicianInterventionFormProps {
     constatareLaLocatie?: string
     statusLucrare: string
     raportGenerat?: boolean
+    necesitaOferta?: boolean
+    comentariiOferta?: string
   }
   onUpdate: () => void
   isCompleted?: boolean
@@ -40,6 +43,8 @@ export function TehnicianInterventionForm({
     descriereInterventie: initialData.descriereInterventie || "",
     constatareLaLocatie: initialData.constatareLaLocatie || "",
     statusLucrare: initialData.statusLucrare,
+    necesitaOferta: initialData.necesitaOferta || false,
+    comentariiOferta: initialData.comentariiOferta || "",
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -47,6 +52,8 @@ export function TehnicianInterventionForm({
   const [descriereInterventie, setDescriereInterventie] = useState(initialData.descriereInterventie || "")
   const [constatareLaLocatie, setConstatareLaLocatie] = useState(initialData.constatareLaLocatie || "")
   const [statusLucrare, setStatusLucrare] = useState(initialData.statusLucrare)
+  const [necesitaOferta, setNecesitaOferta] = useState(initialData.necesitaOferta || false)
+  const [comentariiOferta, setComentariiOferta] = useState(initialData.comentariiOferta || "")
   const [formDisabled, setFormDisabled] = useState(isCompleted || initialData.raportGenerat)
 
   useEffect(() => {
@@ -69,10 +76,14 @@ export function TehnicianInterventionForm({
       descriereInterventie: initialData.descriereInterventie || "",
       constatareLaLocatie: initialData.constatareLaLocatie || "",
       statusLucrare: initialData.statusLucrare,
+      necesitaOferta: initialData.necesitaOferta || false,
+      comentariiOferta: initialData.comentariiOferta || "",
     })
     setDescriereInterventie(initialData.descriereInterventie || "")
     setConstatareLaLocatie(initialData.constatareLaLocatie || "")
     setStatusLucrare(initialData.statusLucrare)
+    setNecesitaOferta(initialData.necesitaOferta || false)
+    setComentariiOferta(initialData.comentariiOferta || "")
   }, [initialData])
 
   useEffect(() => {
@@ -97,6 +108,8 @@ export function TehnicianInterventionForm({
         descriereInterventie,
         constatareLaLocatie,
         statusLucrare,
+        necesitaOferta,
+        comentariiOferta,
       }
 
       console.log("Saving data:", updatedData)
@@ -107,6 +120,8 @@ export function TehnicianInterventionForm({
       console.log("Data after save:", {
         descriereInterventie: updatedLucrare?.descriereInterventie,
         constatareLaLocatie: updatedLucrare?.constatareLaLocatie,
+        necesitaOferta: updatedLucrare?.necesitaOferta,
+        comentariiOferta: updatedLucrare?.comentariiOferta,
       })
 
       toast({
@@ -135,6 +150,8 @@ export function TehnicianInterventionForm({
         descriereInterventie: formData.descriereInterventie,
         constatareLaLocatie: formData.constatareLaLocatie,
         statusLucrare: formData.statusLucrare,
+        necesitaOferta: formData.necesitaOferta,
+        comentariiOferta: formData.comentariiOferta,
       })
 
       toast({
@@ -175,6 +192,8 @@ export function TehnicianInterventionForm({
         constatareLaLocatie,
         descriereInterventie,
         statusLucrare,
+        necesitaOferta,
+        comentariiOferta,
       })
 
       // Adăugăm un log pentru generarea raportului
@@ -197,6 +216,11 @@ export function TehnicianInterventionForm({
     } finally {
       setIsGeneratingReport(false)
     }
+  }
+
+  const handleToggleOferta = (checked: boolean) => {
+    setNecesitaOferta(checked)
+    setFormData((prev) => ({ ...prev, necesitaOferta: checked }))
   }
 
   return (
@@ -243,6 +267,44 @@ export function TehnicianInterventionForm({
                   <SelectItem value="Finalizat">Finalizat</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Adăugăm secțiunea pentru necesitatea ofertei */}
+            <div className="border p-4 rounded-md bg-gray-50">
+              <div className="flex items-center justify-between mb-2">
+                <Label htmlFor="necesitaOferta" className="font-medium">
+                  Necesită ofertă
+                </Label>
+                <Switch
+                  id="necesitaOferta"
+                  checked={necesitaOferta}
+                  onCheckedChange={handleToggleOferta}
+                  disabled={formDisabled}
+                />
+              </div>
+
+              {necesitaOferta && (
+                <div className="mt-3 space-y-2">
+                  <Label htmlFor="comentariiOferta">Comentarii ofertă</Label>
+                  <Textarea
+                    id="comentariiOferta"
+                    placeholder="Descrieți ce trebuie inclus în ofertă..."
+                    value={comentariiOferta}
+                    onChange={(e) => setComentariiOferta(e.target.value)}
+                    disabled={formDisabled}
+                    className={formDisabled ? "opacity-70 cursor-not-allowed" : ""}
+                  />
+                </div>
+              )}
+
+              {necesitaOferta && (
+                <Alert variant="info" className="mt-3">
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    Dispecerul va fi notificat că această lucrare necesită o ofertă pentru client.
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
 
             {formDisabled ? (

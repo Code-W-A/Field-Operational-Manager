@@ -592,9 +592,16 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                   </div>
                 </div>
                 <div>
-                  <p className="text-sm font-medium">Notă internă:</p>
-                  <p className="text-sm text-gray-500">{lucrare.descriere || "Fără descriere"}</p>
+                  {lucrare.descriere ? (
+                    <>
+                      <p className="text-sm font-medium">Notă internă:</p>
+                      <p className="text-sm text-gray-500">{lucrare.descriere || "Fără descriere"}</p>
+                    </>
+                  ) : (
+                    <p className="text-sm font-medium">Fără notă</p>
+                  )}
                 </div>
+
                 {lucrare.constatareLaLocatie && (
                   <div>
                     <p className="text-sm font-medium">Constatare la locație:</p>
@@ -623,6 +630,20 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                     {lucrare.statusLucrare}
                   </Badge>
                 </div>
+                {lucrare.necesitaOferta && (
+                  <div>
+                    <p className="text-sm font-medium">Necesită ofertă:</p>
+                    <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-200">
+                      Da
+                    </Badge>
+                    {lucrare.comentariiOferta && (
+                      <div className="mt-2">
+                        <p className="text-sm font-medium">Comentarii ofertă:</p>
+                        <p className="text-sm text-gray-500">{lucrare.comentariiOferta}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {role !== "tehnician" && (
                   <div>
                     <p className="text-sm font-medium">Status facturare:</p>

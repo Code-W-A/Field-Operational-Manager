@@ -409,7 +409,7 @@ export async function POST(request: NextRequest) {
         const mailOptions = {
           from: `"Field Operational Manager" <${process.env.EMAIL_USER || "fom@nrg-acces.ro"}>`,
           to: client.email,
-          subject: `Confirmare lucrare: ${workOrderNumber || workOrderId}`,
+          subject: `Confirmare intervenție: ${details?.location || "Locație nedefinită"}`,
           text: `Stimate ${client.contactPerson || client.name}, vă confirmăm programarea unei intervenții.`,
           html: htmlContent,
           attachments: [
