@@ -294,32 +294,56 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       }
 
       // SIGNATURES
-      checkPageBreak(40)
+      checkPageBreak(45)
       doc.setFontSize(9).setFont(undefined, "bold")
       doc.text("Tehnician:", M, currentY)
       doc.text("Beneficiar:", M + W / 2, currentY)
       currentY += 5
-      doc.setFont(undefined, "normal")
-      doc.text(normalize(lucrare.tehnicieni?.join(", ") || ""), M, currentY)
-      doc.text(normalize(lucrare.persoanaContact || ""), M + W / 2, currentY)
-      currentY += 5
 
       const signW = W / 2 - 10
       const signH = 25
-      const addSig = (data: string | undefined, x: number) => {
+      const addSig = (data: string | undefined, x: number, email: string | undefined) => {
         if (data) {
           try {
             doc.addImage(data, "PNG", x, currentY, signW, signH)
-            return
-          } catch {}
+          } catch {
+            doc
+              .setFontSize(8)
+              .setFont(undefined, "italic")
+              .text("Semnatura lipsa", x + signW / 2, currentY + signH / 2, { align: "center" })
+          }
+        } else {
+          doc
+            .setFontSize(8)
+            .setFont(undefined, "italic")
+            .text("Semnatura lipsa", x + signW / 2, currentY + signH / 2, { align: "center" })
         }
-        doc
-          .setFontSize(8)
-          .setFont(undefined, "italic")
-          .text("Semnatura lipsa", x + signW / 2, currentY + signH / 2, { align: "center" })
+
+        // Add email below signature
+        if (email) {
+          doc
+            .setFontSize(8)
+            .setFont(undefined, "normal")
+            .text(normalize(email), x + signW / 2, currentY + signH + 5, { align: "center" })
+        }
       }
-      addSig(lucrare.semnaturaTehnician, M)
-      addSig(lucrare.semnaturaBeneficiar, M + W / 2)
+
+      // Get technician email (assuming it's stored in lucrare.tehnicianEmail)
+      const tehnicianEmail = lucrare.tehnicianEmail || lucrare.emailTehnician || ""
+
+      // Get beneficiary email (assuming it's stored in lucrare.emailContact)
+      const beneficiarEmail = lucrare.emailContact || lucrare.persoanaContactEmail || ""
+
+      addSig(lucrare.semnaturaTehnician, M, tehnicianEmail)
+      addSig(lucrare.semnaturaBeneficiar, M + W / 2, beneficiarEmail)
+
+      // Add technician and beneficiary names above signatures
+      doc.setFontSize(8).setFont(undefined, "normal")
+      doc.text(normalize(lucrare.tehnicieni?.join(", ") || ""), M + signW / 2, currentY - 2, { align: "center" })
+      doc.text(normalize(lucrare.persoanaContact || ""), M + W / 2 + signW / 2, currentY - 2, { align: "center" })
+
+      // Adjust currentY to account for the added email text
+      currentY += signH + 10
 
       // FOOTER
       doc

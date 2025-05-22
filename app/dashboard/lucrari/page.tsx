@@ -56,6 +56,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Card, CardContent } from "@/components/ui/card"
 
+// Add these imports at the top of the file
+// Add a constant for the localStorage key
+const FILTER_STORAGE_KEY = "lucrari-filter-state"
+
 const ContractDisplay = ({ contractId }) => {
   const [contractNumber, setContractNumber] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -135,6 +139,10 @@ export default function Lucrari() {
   const [isColumnModalOpen, setIsColumnModalOpen] = useState(false)
   const [columnOptions, setColumnOptions] = useState<any[]>([])
   const [showCloseAlert, setShowCloseAlert] = useState(false)
+  // Modify the Lucrari component to add filter persistence
+  // Find the existing state declarations and add a new ref
+  const isInitialMount = useRef(true)
+  const isFilterReset = useRef(false)
   const addFormRef = useRef<LucrareFormRef>(null)
   const editFormRef = useRef<LucrareFormRef>(null)
 
@@ -440,6 +448,55 @@ export default function Lucrari() {
 
     setFilteredData(filtered)
   }, [searchText, filteredLucrari, activeFilters, applyFilters])
+
+  // Add this effect after the other useEffect hooks to save filters when they change
+  useEffect(() => {
+    // Skip saving on initial mount to avoid overwriting stored filters
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
+    }
+
+    // Don't save if this is a filter reset operation
+    if (isFilterReset.current) {
+      isFilterReset.current = false
+      return
+    }
+
+    // Save filter state to localStorage
+    const filterState = {
+      activeFilters,
+      searchText,
+    }
+    localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filterState))
+  }, [activeFilters, searchText])
+
+  // Add this effect to load saved filters on component mount
+  // Place it after the other useEffect hooks but before the one that initializes filteredData
+  useEffect(() => {
+    // Only load filters on initial mount
+    if (!isInitialMount.current) return
+
+    try {
+      const savedFilterState = localStorage.getItem(FILTER_STORAGE_KEY)
+      if (savedFilterState) {
+        const { activeFilters: savedFilters, searchText: savedSearchText } = JSON.parse(savedFilterState)
+
+        // Apply saved filters
+        if (savedFilters && Array.isArray(savedFilters)) {
+          setActiveFilters(savedFilters)
+        }
+
+        // Apply saved search text
+        if (savedSearchText) {
+          setSearchText(savedSearchText)
+        }
+      }
+    } catch (error) {
+      console.error("Error loading saved filter state:", error)
+      // If there's an error, we'll just use the default empty filters
+    }
+  }, [])
 
   // Detectăm dacă suntem pe un dispozitiv mobil
   const isMobile = useMediaQuery("(max-width: 768px)")
@@ -1017,6 +1074,14 @@ export default function Lucrari() {
     }
   }
 
+  // Modify the handleResetFilters function to clear localStorage as well
+  const handleResetFilters = () => {
+    isFilterReset.current = true
+    setActiveFilters([])
+    setSearchText("")
+    localStorage.removeItem(FILTER_STORAGE_KEY)
+  }
+
   const handleApplyFilters = (filters) => {
     // Filtrăm doar filtrele care au valori
     const filtersWithValues = filters.filter((filter) => {
@@ -1030,10 +1095,6 @@ export default function Lucrari() {
     })
 
     setActiveFilters(filtersWithValues)
-  }
-
-  const handleResetFilters = () => {
-    setActiveFilters([])
   }
 
   // Definim coloanele pentru DataTable
@@ -1510,7 +1571,7 @@ export default function Lucrari() {
 
         {/* Adăugăm câmpul de căutare universal și butonul de filtrare */}
         <div className="flex flex-col sm:flex-row gap-2">
-          <UniversalSearch onSearch={setSearchText} className="flex-1" />
+          <UniversalSearch onSearch={setSearchText} className="flex-1" initialValue={searchText} />
           <div className="flex gap-2">
             <FilterButton onClick={() => setIsFilterModalOpen(true)} activeFilters={activeFilters.length} />
             <ColumnSelectionButton
