@@ -190,31 +190,36 @@ export function TehnicianInterventionForm({
     try {
       setIsGeneratingReport(true)
 
-      // Salvăm mai întâi datele formularului
+      // Salvăm datele formularului
       await updateLucrare(lucrareId, {
         constatareLaLocatie,
         descriereInterventie,
         statusEchipament,
         necesitaOferta,
         comentariiOferta: necesitaOferta ? comentariiOferta : "", // Clear comments if necesitaOferta is false
-        statusLucrare: "Finalizat", // Set status to Finalizat when generating report
+        statusLucrare, // Keep the current status, don't automatically set to "Finalizat"
       })
 
-      // Adăugăm un log pentru generarea raportului
+      // Adăugăm un log pentru navigarea către pagina de raport
       await addLog(
-        "Generare raport",
-        `A fost inițiată generarea raportului pentru lucrarea cu ID-ul ${lucrareId}`,
+        "Navigare către raport",
+        `Utilizatorul a navigat către pagina de raport pentru lucrarea cu ID-ul ${lucrareId}`,
         "Informație",
         "Rapoarte",
       )
 
-      // Redirecționăm către pagina de raport
+      toast({
+        title: "Date salvate",
+        description: "Datele au fost salvate. Veți fi redirecționat către pagina de generare raport.",
+      })
+
+      // Redirecționăm către pagina de raport fără a genera automat raportul
       router.push(`/raport/${lucrareId}`)
     } catch (error) {
-      console.error("Eroare la generarea raportului:", error)
+      console.error("Eroare la salvarea datelor:", error)
       toast({
         title: "Eroare",
-        description: "A apărut o eroare la generarea raportului. Vă rugăm să încercați din nou.",
+        description: "A apărut o eroare la salvarea datelor. Vă rugăm să încercați din nou.",
         variant: "destructive",
       })
     } finally {
@@ -361,7 +366,7 @@ export function TehnicianInterventionForm({
                   {isGeneratingReport ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Se generează...
+                      Se procesează...
                     </>
                   ) : (
                     <>
