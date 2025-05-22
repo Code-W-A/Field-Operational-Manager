@@ -310,26 +310,23 @@ export default function Lucrari() {
       {
         id: "preluatStatus",
         label: "Status preluare",
-        type: "select",
+        type: "multiselect",
         options: [
-          { value: "toate", label: "Toate" },
           { value: "preluat", label: "Preluat" },
           { value: "nepreluat", label: "Nepreluat" },
           { value: "nedefinit", label: "Nedefinit" },
         ],
-        value: "toate",
+        value: [],
       },
-      // Modificăm opțiunea de filtrare pentru "necesitaOferta" pentru a o face mai clară și mai ușor de utilizat
       {
         id: "necesitaOferta",
         label: "Necesită ofertă",
-        type: "select", // Schimbăm de la boolean la select pentru o interfață mai clară
+        type: "multiselect",
         options: [
-          { value: "toate", label: "Toate" },
           { value: "da", label: "Da" },
           { value: "nu", label: "Nu" },
         ],
-        value: "toate",
+        value: [],
       },
     ]
   }, [filteredLucrari, tehnicieni])
@@ -421,26 +418,29 @@ export default function Lucrari() {
             // În funcția applyFilters, adăugăm un nou caz pentru necesitaOferta
             // Acest cod trebuie adăugat în switch-ul din funcția applyFilters
             case "preluatStatus":
-              if (filter.value === "toate") return true
-              if (filter.value === "preluat") return item.preluatDispecer === true
-              if (filter.value === "nepreluat")
-                return (
-                  item.preluatDispecer === false && item.statusLucrare === "Finalizat" && item.raportGenerat === true
-                )
-              if (filter.value === "nedefinit")
-                return (
-                  item.preluatDispecer === undefined ||
-                  item.statusLucrare !== "Finalizat" ||
-                  item.raportGenerat !== true
-                )
-              return true
+              if (!filter.value || filter.value.length === 0) return true
+              return filter.value.some((val) => {
+                if (val === "preluat") return item.preluatDispecer === true
+                if (val === "nepreluat")
+                  return (
+                    item.preluatDispecer === false && item.statusLucrare === "Finalizat" && item.raportGenerat === true
+                  )
+                if (val === "nedefinit")
+                  return (
+                    item.preluatDispecer === undefined ||
+                    item.statusLucrare !== "Finalizat" ||
+                    item.raportGenerat !== true
+                  )
+                return false
+              })
 
             case "necesitaOferta":
-              // Filtrare după necesitaOferta (boolean)
-              if (filter.value === "toate") return true
-              if (filter.value === "da") return item[filter.id] === true
-              if (filter.value === "nu") return item[filter.id] !== true
-              return true
+              if (!filter.value || filter.value.length === 0) return true
+              return filter.value.some((val) => {
+                if (val === "da") return item[filter.id] === true
+                if (val === "nu") return item[filter.id] !== true
+                return false
+              })
 
             default:
               // Pentru filtrele multiselect (tipLucrare, client, statusLucrare, statusFacturare)

@@ -183,6 +183,150 @@ export function FilterModal({
             </div>
           )
         }
+        // Stilizare specială pentru statusul preluare
+        if (filter.id === "preluatStatus") {
+          return (
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-1 mb-2">
+                {filter.value && Array.isArray(filter.value) && filter.value.length > 0 ? (
+                  filter.value.map((val) => {
+                    const option = filter.options?.find((opt) => opt.value === val)
+                    // Determină clasa de stil pentru badge în funcție de valoarea statusului
+                    let badgeClass = "flex items-center gap-1"
+                    if (val === "preluat") badgeClass += " bg-green-100 text-green-800 border-green-200"
+                    else if (val === "nepreluat") badgeClass += " bg-yellow-100 text-yellow-800 border-yellow-200"
+                    else if (val === "nedefinit") badgeClass += " bg-gray-100 text-gray-800 border-gray-200"
+                    else badgeClass += " bg-gray-100 text-gray-800 border-gray-200"
+
+                    return (
+                      <Badge key={val} variant="secondary" className={badgeClass}>
+                        {option?.label || val}
+                        <X
+                          className="h-3 w-3 cursor-pointer"
+                          onClick={() =>
+                            handleFilterChange(
+                              filter.id,
+                              filter.value.filter((v: string) => v !== val),
+                            )
+                          }
+                        />
+                      </Badge>
+                    )
+                  })
+                ) : (
+                  <span className="text-sm text-muted-foreground">Nicio selecție</span>
+                )}
+              </div>
+              <ScrollArea className="h-40 rounded-md border">
+                <div className="p-2 space-y-2">
+                  {filter.options?.map((option) => {
+                    // Determină clasa de stil pentru checkbox în funcție de valoarea statusului
+                    let labelClass = "text-sm"
+                    if (option.value === "preluat") labelClass += " text-green-700"
+                    else if (option.value === "nepreluat") labelClass += " text-yellow-700"
+                    else if (option.value === "nedefinit") labelClass += " text-gray-700"
+
+                    return (
+                      <div key={option.value} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`${filter.id}-${option.value}`}
+                          checked={
+                            filter.value && Array.isArray(filter.value) ? filter.value.includes(option.value) : false
+                          }
+                          onCheckedChange={(checked) => {
+                            const currentValues = Array.isArray(filter.value) ? filter.value : []
+                            if (checked) {
+                              handleFilterChange(filter.id, [...currentValues, option.value])
+                            } else {
+                              handleFilterChange(
+                                filter.id,
+                                currentValues.filter((val) => val !== option.value),
+                              )
+                            }
+                          }}
+                        />
+                        <Label htmlFor={`${filter.id}-${option.value}`} className={labelClass}>
+                          {option.label}
+                        </Label>
+                      </div>
+                    )
+                  })}
+                </div>
+              </ScrollArea>
+            </div>
+          )
+        }
+        // Stilizare specială pentru necesitaOferta
+        if (filter.id === "necesitaOferta") {
+          return (
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-1 mb-2">
+                {filter.value && Array.isArray(filter.value) && filter.value.length > 0 ? (
+                  filter.value.map((val) => {
+                    const option = filter.options?.find((opt) => opt.value === val)
+                    // Determină clasa de stil pentru badge în funcție de valoarea
+                    let badgeClass = "flex items-center gap-1"
+                    if (val === "da") badgeClass += " bg-orange-100 text-orange-800 border-orange-200"
+                    else if (val === "nu") badgeClass += " bg-blue-100 text-blue-800 border-blue-200"
+                    else badgeClass += " bg-gray-100 text-gray-800 border-gray-200"
+
+                    return (
+                      <Badge key={val} variant="secondary" className={badgeClass}>
+                        {option?.label || val}
+                        <X
+                          className="h-3 w-3 cursor-pointer"
+                          onClick={() =>
+                            handleFilterChange(
+                              filter.id,
+                              filter.value.filter((v: string) => v !== val),
+                            )
+                          }
+                        />
+                      </Badge>
+                    )
+                  })
+                ) : (
+                  <span className="text-sm text-muted-foreground">Nicio selecție</span>
+                )}
+              </div>
+              <ScrollArea className="h-40 rounded-md border">
+                <div className="p-2 space-y-2">
+                  {filter.options?.map((option) => {
+                    // Determină clasa de stil pentru checkbox în funcție de valoarea
+                    let labelClass = "text-sm"
+                    if (option.value === "da") labelClass += " text-orange-700"
+                    else if (option.value === "nu") labelClass += " text-blue-700"
+
+                    return (
+                      <div key={option.value} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`${filter.id}-${option.value}`}
+                          checked={
+                            filter.value && Array.isArray(filter.value) ? filter.value.includes(option.value) : false
+                          }
+                          onCheckedChange={(checked) => {
+                            const currentValues = Array.isArray(filter.value) ? filter.value : []
+                            if (checked) {
+                              handleFilterChange(filter.id, [...currentValues, option.value])
+                            } else {
+                              handleFilterChange(
+                                filter.id,
+                                currentValues.filter((val) => val !== option.value),
+                              )
+                            }
+                          }}
+                        />
+                        <Label htmlFor={`${filter.id}-${option.value}`} className={labelClass}>
+                          {option.label}
+                        </Label>
+                      </div>
+                    )
+                  })}
+                </div>
+              </ScrollArea>
+            </div>
+          )
+        }
         return (
           <div className="space-y-2">
             <div className="flex flex-wrap gap-1 mb-2">
