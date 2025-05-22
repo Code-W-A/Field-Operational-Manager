@@ -10,8 +10,6 @@ import { Separator } from "@/components/ui/separator"
 import { Check, Send, ArrowLeft, Mail, Download } from "lucide-react"
 import SignatureCanvas from "react-signature-canvas"
 import { getLucrareById, updateLucrare } from "@/lib/firebase/firestore"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/contexts/AuthContext"
 import { useStableCallback } from "@/lib/utils/hooks"
 import { ProductTableForm, type Product } from "@/components/product-table-form"
@@ -45,7 +43,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   const [lucrare, setLucrare] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [step, setStep] = useState<"verificare" | "semnare" | "finalizat">("verificare")
+  const [step, setStep] = useState<"semnare" | "finalizat">("semnare")
   const [statusLucrare, setStatusLucrare] = useState<string>("")
   const [activeTab, setActiveTab] = useState<string>("detalii")
   const [products, setProducts] = useState<Product[]>([])
@@ -280,6 +278,7 @@ FOM by NRG`,
           products,
           emailDestinatar: email,
           raportGenerat: true, // Setăm raportGenerat la true când se trimite raportul
+          statusLucrare: "Finalizat", // Setăm automat statusul la Finalizat
           updatedAt: serverTimestamp(),
           preluatDispecer: false,
         })
@@ -322,10 +321,6 @@ FOM by NRG`,
       }
     }
   })
-
-  const handleStatusChange = useCallback((value: string) => {
-    setStatusLucrare(value)
-  }, [])
 
   // Tech signature handlers
   const handleTechBegin = useCallback(() => {
@@ -554,83 +549,6 @@ FOM by NRG`,
                 </div>
               </div>
             </div>
-          ) : step === "verificare" ? (
-            <Tabs defaultValue="detalii" value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid grid-cols-2 mb-4">
-                <TabsTrigger value="detalii">Detalii Lucrare</TabsTrigger>
-                <TabsTrigger value="interventie">Intervenție</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="detalii" className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <h3 className="font-medium text-gray-500">Client</h3>
-                    <p>{lucrare?.client}</p>
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-500">Locație</h3>
-                    <p>{lucrare?.locatie}</p>
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-500">Data Intervenție</h3>
-                    <p>{lucrare?.dataInterventie}</p>
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-500">Tehnician</h3>
-                    <p>{lucrare?.tehnicieni?.join(", ")}</p>
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div>
-                  <h3 className="font-medium text-gray-500">Defect Reclamat</h3>
-                  <p>{lucrare?.defectReclamat || "Nu a fost specificat"}</p>
-                </div>
-
-                <div>
-                  <h3 className="font-medium text-gray-500">Descriere Lucrare</h3>
-                  <p>{lucrare?.descriere}</p>
-                </div>
-
-                <Separator />
-
-                {lucrare?.tipLucrare === "Intervenție în contract" && (
-                  <div>
-                    <h3 className="font-medium text-gray-500">Contract:</h3>
-                    <p>{lucrare?.contractNumber || "N/A"}</p>
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <h3 className="font-medium text-gray-500">Status Lucrare</h3>
-                  <Select value={statusLucrare} onValueChange={handleStatusChange}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selectați statusul" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Listată">Listată</SelectItem>
-                      <SelectItem value="Atribuită">Atribuită</SelectItem>
-                      <SelectItem value="În lucru">În lucru</SelectItem>
-                      <SelectItem value="În așteptare">În așteptare</SelectItem>
-                      <SelectItem value="Finalizat">Finalizat</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {statusLucrare !== "Finalizat" && (
-                    <p className="text-sm text-amber-500">
-                      Lucrarea nu este marcată ca Finalizată. Puteți genera raportul.
-                    </p>
-                  )}
-                </div>
-              </TabsContent>
-
-              <TabsContent value="interventie" className="space-y-4">
-                <div>
-                  <h3 className="font-medium text-gray-500">Descriere Intervenție</h3>
-                  <p className="whitespace-pre-line">{lucrare?.descriereInterventie || "Nu a fost specificată"}</p>
-                </div>
-              </TabsContent>
-            </Tabs>
           ) : (
             <>
               <div className="grid gap-4 md:grid-cols-2">
@@ -765,8 +683,6 @@ FOM by NRG`,
               >
                 {isSubmitting ? (
                   <>Se procesează...</>
-                ) : step === "verificare" ? (
-                  <>Continuă spre semnare</>
                 ) : (
                   <>
                     <Send className="h-4 w-4" /> Finalizează și Trimite Raport

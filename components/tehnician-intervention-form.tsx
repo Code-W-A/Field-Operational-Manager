@@ -205,7 +205,7 @@ export function TehnicianInterventionForm({
 
       toast({
         title: "Date salvate",
-        description: "Datele au fost salvate. Veți fi redirecționat către pagina de generare raport.",
+        description: "Datele au fost salvate. Veți fi redirecționat către pagina de semnare și generare raport.",
       })
 
       // Navigate to the report page
