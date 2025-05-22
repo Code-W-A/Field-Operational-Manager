@@ -32,15 +32,22 @@ const DARK_GRAY = 210 // darker fill for headers
 
 export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProps>(({ lucrare, onGenerate }, ref) => {
   const [isGen, setIsGen] = useState(false)
-  const [products, setProducts] = useState<Product[]>(lucrare?.products || [])
+  const [products, setProducts] = useState<Product[]>([])
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null)
   const [logoLoaded, setLogoLoaded] = useState(false)
   const [logoError, setLogoError] = useState(false)
 
+  // Update products when lucrare changes
+  useEffect(() => {
+    if (lucrare?.products) {
+      setProducts(lucrare.products)
+    }
+  }, [lucrare])
+
   // Preload the logo image as data URL (fallback included)
   useEffect(() => {
     const fallbackLogo =
-      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAABkCAYAAADDhn8LAAADsklEQVR4nO3dy27UQBCF4T7vwIINCIQQj8CCBYgbAgQIJO5PwCNwCUgIkEDiBQhrFizYAFIUy5E8GsfT7e7q7vN/UkuTiZNMprqrfLqSGQEAAAAAAAAAAAAAAAAAAAAAAAAAAADQpZnUDUBnTkk6J+m0pFOSjks6IumQpL2S9tj/+yDpvaR3kt5KeiPptaRXkl5K+tJpy9GKA5IuS7oi6aKkC5LOWlJMYknzXNJTSU8kPZb0Y+J7oiVnJN2UdE/SN0nrDV/fJd2VdMPagg7tl3RD0kNJP9V8UvS9fkq6L+m6pJkG7QQOSLoj6Zfan/xbX7/s3nRCYZqZpKuSXqj7xNj6emH3pjOLCR2V9EjdJ0HM66Hd+9BjZummpO/qPuHjXt/t3oeGzkv6qO6TvK3XR+sHGnBY0hN1n9RtvZ5YfzCh65K+qvtkbvv11fqDCc5J+qzuk7ir12frFyZwW90ncdfXLesXRnRU0jt1n7h9vN5Z/zCCmaSn6j5Z+3w9tX5iBDfUfZL2fb1W/mPzWdkv6aO6T9AhXh+snxjgmvJfFI99rVX+Y/RZ2afuk3LI1z3lP0afje/qPhGHfH1T/mP1WXim7pNw6Ncz5T9mn4Xryn+3eOzruvIfuw/eIeW/Wzz265DyH78P2i3ln3hjXbeU//h9sA5K+qT8E26s1yflvw0+WDeVf7KNfbGDPGBHlH+ijX0dUf7b4oN0XfknWVvXdeW/PT4o+5R/grV97VP+2+SDclH5J1fb10Xlv10+GDPlv8Xb1TXTgG33QbikYRPjv6Qnkh5IuivpD0l/Svpb0j+S/pL0u6TfJP1qP/9L0p+S/rD//0DSY0nfB7ThouiHDMZMwyZFcZb7oaTfJf0xoA1/2e8+tN8tzvIfMqAdM+U/jh+EmYZNiEeSrg1ow1VJjwe24ZryH8cPwkzDJsNY/8NnA9txVfmP4wdhpmGTYcxzrYY+5Zon3WDMNGwyMEEGZKZhk4EJMiAzDZsMTJABmWnYZGCCDMhMwyYDE2RAZho2GZggAzLTsMnABBmQmYZNBibIgMw0bDIwQQZkpmGTgQkyIDMNmwxMkAGZadhkYIIMyEzDJgMTZEBmGjYZmCADMtOwyTDWBJlp2LnWTJAOzTRsMox1LtRMw861ZoJ0aKZhk2GsE/VmGnauNROkQzMNmwxjnahfU/5j+EGYadgEKU7U+9/+98X//l/8738P+d//iv/9f8j//lf87/9D/ve/4n//H/K//xX/+/+Q//2v+N//h/zvf8X//j/kf/8r/vd/AAAAAAAAAAAAAAAAAAAAAAAAAAAAgAz9C5gVeUGpivY2AAAAAElFTkSuQmCC"
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAABkCAYAAADDhn8LAAADsklEQVR4nO3dy27UQBCF4T7vwIINCIQQj8CCBYgbAgQIJO5PwCNwCUgIkEDiBQhrFizYAFIUy5E8GsfT7e7q7vN/UkuTiZNMprqrfLqSGQEAAAAAAAAAAAAAAAAAAAAAAAAAAADQpZnUDUBnTkk6J+m0pFOSjks6IumQpL2S9tj/+yDpvaR3kt5KeiPptaRXkl5K+tJpy9GKA5IuS7oi6aKkC5LOWlJMYknzXNJTSU8kPZb0Y+J7oiVnJN2UdE/SN0nrDV/fJd2VdMPagg7tl3RD0kNJP9V8UvS9fkq6L+m6pJkG7QQOSLoj6Zfan/xbX7/s3nRCYZqZpKuSXqj7xNj6emH3pjOLCR2V9EjdJ0HM66Hd+9BjZummpO/qPuHjXt/t3oeGzkv6qO6TvK3XR+sHGnBY0hN1n9RtvZ5YfzCh65K+qvtkbvv11fqDCc5J+qzuk7ir12frFyZwW90ncdfXLesXRnRU0jt1n7h9vN5Z/zCCmaSn6j5Z+3w9tX5iBDfUfZL2fb1W/mPzWdkv6aO6T9AhXh+snxjgmvJfFI99rVX+Y/RZ2afuk3LI1z3lP0afje/qPhGHfH1T/mP1WXim7pNw6Ncz5T9mn4Xryn+3eOzruvIfuw/eIeW/Wzz265DyH78P2i3ln3hjXbeU//h9sA5K+qT8E26s1yflvw0+WDeVf7KNfbGDPGBHlH+ijX0dUf7b4oN0XfknWVvXdeW/PT4o+5R/grV97VP+2+SDclH5J1fb10Xlv10+GDPlv8Xb1TXTgG33QbikYRPjv6Qnkh5IuivpD0l/Svpb0j+S/pL0u6TfJP1qP/9L0p+S/rD//0DSY0nfB7ThouiHDMZMwyZFcZb7oaTfJf0xoA1/2e8+tN8tzvIfMqAdM+U/jh+EmYZNiEeSrg1ow1VJjwe24ZryH8cPwkzDJsNY/8NnA9txVfmP4wdhpmGTYcxzrYY+5Zon3WDMNGwyMEEGZKZhk4EJMiAzDZsMTJABmWnYZGCCDMhMwyYDE2RAZho2GZggAzLTsMnABBmQmYZNBibIgMw0bDIwQQZkpmGTgQkyIDMNmwxMkAGZadhkYIIMyEzDJgMTZEBmGjYZmCADMtOwyTDWBJlp2LnWTJAOzTRsMox1LtRMw861ZoJ0aKZhk2GsE/VmGnauNROkQzMNmwxjnahfU/5j+EGYadgEKU7U+9/+98X//l/8738P+d//iv/9f8j//lf87/9D/ve/4n//H/K//xX/+/+Q//2v+N//h/zvf8X//j/kf/8r/vf/AAAAAAAAAAAAAAAAAAAAAAAAAAAAgAz9C5gVeUGpivY2AAAAAElFTkSuQmCC"
 
     try {
       const img = new Image()
@@ -74,6 +81,13 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
     if (!lucrare) return
     setIsGen(true)
     try {
+      console.log("Generating PDF with lucrare:", lucrare)
+      console.log("Products:", products)
+      console.log("Signatures:", {
+        tech: lucrare.semnaturaTehnician ? "Present" : "Missing",
+        client: lucrare.semnaturaBeneficiar ? "Present" : "Missing",
+      })
+
       const doc = new jsPDF({ unit: "mm", format: "a4" })
       const PW = doc.internal.pageSize.getWidth()
       const PH = doc.internal.pageSize.getHeight()
@@ -215,8 +229,11 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       addTextBlock("Constatare la locatie:", lucrare.constatareLaLocatie)
       addTextBlock("Descriere interventie:", lucrare.descriereInterventie)
 
+      // Use the products from the lucrare object directly
+      const productsToUse = lucrare.products || products
+
       // PRODUCT TABLE (shown only if there are products)
-      if (products.length) {
+      if (productsToUse && productsToUse.length > 0) {
         checkPageBreak(15)
         doc.setFillColor(DARK_GRAY).rect(M, currentY, W, 8, "FD")
         doc
@@ -243,7 +260,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 
         drawTableHeader()
 
-        products.forEach((product, index) => {
+        productsToUse.forEach((product, index) => {
           const nameLines = doc.splitTextToSize(normalize(product.name || ""), colWidths[1] - 4)
           const rowHeight = nameLines.length * 4 + 2
           if (currentY + rowHeight > PH - M) {
@@ -276,7 +293,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         // TOTALS
         checkPageBreak(30)
         currentY += 10
-        const subtotal = products.reduce((s, p) => s + (p.quantity || 0) * (p.price || 0), 0)
+        const subtotal = productsToUse.reduce((s, p) => s + (p.quantity || 0) * (p.price || 0), 0)
         const vat = subtotal * 0.19
         const total = subtotal + vat
         const labelX = PW - 70
@@ -311,7 +328,9 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           try {
             doc.addImage(data, "PNG", x, currentY, signW, signH)
             return
-          } catch {}
+          } catch (e) {
+            console.error("Error adding signature image:", e)
+          }
         }
         doc
           .setFontSize(8)
@@ -328,7 +347,9 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         .text("Document generat automat • Field Operational Manager", PW / 2, PH - M, { align: "center" })
 
       const blob = doc.output("blob")
-      doc.save(`Raport_${lucrare.id}.pdf`)
+
+      // Don't save the PDF for download, just generate it for email
+      // doc.save(`Raport_${lucrare.id}.pdf`)
 
       // Mark document as generated
       if (lucrare.id) {
@@ -336,16 +357,16 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           const { doc: fbDoc, updateDoc } = require("firebase/firestore")
           const { db } = require("@/lib/firebase/config")
           await updateDoc(fbDoc(db, "lucrari", lucrare.id), { raportGenerat: true, updatedAt: serverTimestamp() })
-          toast({ title: "Raport marcat ca generat", description: "Lucrarea a fost actualizata.", variant: "default" })
-        } catch {
-          toast({ title: "Atenție", description: "Nu s-a putut actualiza starea în sistem.", variant: "destructive" })
+          console.log("Raport marcat ca generat în Firestore")
+        } catch (e) {
+          console.error("Nu s-a putut actualiza starea în sistem:", e)
         }
       }
+
       onGenerate?.(blob)
-      toast({ title: "PDF generat!", description: "Descărcare completă." })
       return blob
     } catch (e) {
-      console.error(e)
+      console.error("Error generating PDF:", e)
       toast({ title: "Eroare", description: "Generare eșuată.", variant: "destructive" })
     } finally {
       setIsGen(false)
@@ -354,13 +375,13 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 
   return (
     <div className="space-y-4">
-      {lucrare.constatareLaLocatie && (
+      {lucrare?.constatareLaLocatie && (
         <div className="mb-4">
           <h3 className="text-lg font-semibold mb-2">Constatare la locație</h3>
           <p className="whitespace-pre-line">{lucrare.constatareLaLocatie}</p>
         </div>
       )}
-      {lucrare.descriereInterventie && (
+      {lucrare?.descriereInterventie && (
         <div className="mb-4">
           <h3 className="text-lg font-semibold mb-2">Descriere intervenție</h3>
           <p className="whitespace-pre-line">{lucrare.descriereInterventie}</p>
@@ -370,7 +391,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       <div className="flex justify-center mt-6">
         <Button ref={ref} onClick={generatePDF} disabled={isGen} className="gap-2">
           <Download className="h-4 w-4" />
-          {isGen ? "În curs..." : "Descarcă PDF"}
+          {isGen ? "În curs..." : "Generează PDF"}
         </Button>
       </div>
     </div>

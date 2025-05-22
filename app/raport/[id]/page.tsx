@@ -46,6 +46,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   // Add email state
   const [email, setEmail] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [updatedLucrare, setUpdatedLucrare] = useState<any>(null)
 
   const reportGeneratorRef = useRef<React.ElementRef<typeof ReportGenerator>>(null)
   const submitButtonRef = useRef<HTMLButtonElement>(null)
@@ -120,6 +121,13 @@ export default function RaportPage({ params }: { params: { id: string } }) {
     checkAccess()
   }, [loading, lucrare, userData, router])
 
+  // Effect to trigger PDF generation when updatedLucrare changes
+  useEffect(() => {
+    if (updatedLucrare && reportGeneratorRef.current) {
+      reportGeneratorRef.current.click()
+    }
+  }, [updatedLucrare])
+
   const clearTechSignature = useCallback(() => {
     if (techSignatureRef.current) {
       techSignatureRef.current.clear()
@@ -140,7 +148,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   const sendEmail = useCallback(
     async (pdfBlob: Blob) => {
       try {
-        if (!lucrare) {
+        if (!updatedLucrare) {
           throw new Error("Datele lucrării nu sunt disponibile")
         }
 
@@ -149,21 +157,21 @@ export default function RaportPage({ params }: { params: { id: string } }) {
         formData.append("to", email)
         formData.append(
           "subject",
-          `Raport Interventie - ${lucrare.client || "Client"} - ${lucrare.dataInterventie || "Data"}`,
+          `Raport Interventie - ${updatedLucrare.client || "Client"} - ${updatedLucrare.dataInterventie || "Data"}`,
         )
         formData.append(
           "message",
-          `Stimata/Stimate ${lucrare.persoanaContact || "Client"},
+          `Stimata/Stimate ${updatedLucrare.persoanaContact || "Client"},
 
-Va transmitem atasat raportul de interventie pentru lucrarea efectuata in data de ${lucrare.dataInterventie || "N/A"}.
+Va transmitem atasat raportul de interventie pentru lucrarea efectuata in data de ${updatedLucrare.dataInterventie || "N/A"}.
 
 Cu stima,
 FOM by NRG`,
         )
-        formData.append("senderName", `FOM by NRG - ${lucrare.tehnicieni?.join(", ") || "Tehnician"}`)
+        formData.append("senderName", `FOM by NRG - ${updatedLucrare.tehnicieni?.join(", ") || "Tehnician"}`)
 
         // Add PDF as file
-        const pdfFile = new File([pdfBlob], `Raport_Interventie_${lucrare.id || params.id}.pdf`, {
+        const pdfFile = new File([pdfBlob], `Raport_Interventie_${updatedLucrare.id || params.id}.pdf`, {
           type: "application/pdf",
         })
         formData.append("pdfFile", pdfFile)
@@ -193,7 +201,7 @@ FOM by NRG`,
         return false
       }
     },
-    [email, lucrare, params.id],
+    [email, updatedLucrare, params.id],
   )
 
   // Use useStableCallback to ensure we have access to the latest state values
@@ -241,8 +249,9 @@ FOM by NRG`,
         setClientSignatureData(semnaturaBeneficiar)
       }
 
-      // Nu mai verificăm dacă avem ambele semnături
-      await updateLucrare(params.id, {
+      // Create updated lucrare object with all necessary data
+      const updatedLucrareData = {
+        ...lucrare,
         semnaturaTehnician,
         semnaturaBeneficiar,
         products,
@@ -251,7 +260,13 @@ FOM by NRG`,
         statusLucrare: "Finalizat",
         updatedAt: serverTimestamp(),
         preluatDispecer: false,
-      })
+      }
+
+      // Save to Firestore
+      await updateLucrare(params.id, updatedLucrareData)
+
+      // Update local state with the updated data
+      setUpdatedLucrare(updatedLucrareData)
 
       // Afișăm un toast de procesare
       toast({
@@ -259,18 +274,7 @@ FOM by NRG`,
         description: "Se generează raportul și se trimite pe email...",
       })
 
-      // Generate PDF using the ReportGenerator component
-      if (reportGeneratorRef.current) {
-        reportGeneratorRef.current.click()
-      } else {
-        // Fallback if ref is not available
-        toast({
-          title: "Eroare",
-          description: "Nu s-a putut genera raportul PDF",
-          variant: "destructive",
-        })
-        setIsSubmitting(false)
-      }
+      // PDF generation will be triggered by the useEffect when updatedLucrare changes
     } catch (err) {
       console.error("Eroare la salvarea semnăturilor:", err)
       toast({
@@ -559,7 +563,7 @@ FOM by NRG`,
           <div className="hidden">
             <ReportGenerator
               ref={reportGeneratorRef}
-              lucrare={lucrare}
+              lucrare={updatedLucrare || lucrare}
               onGenerate={(blob) => {
                 // Send email automatically when PDF is generated
                 sendEmail(blob)
@@ -573,8 +577,8 @@ FOM by NRG`,
                       })
 
                       // Actualizăm statusul lucrării
-                      if (lucrare && lucrare.id) {
-                        updateWorkOrderStatus(lucrare.id)
+                      if (updatedLucrare && updatedLucrare.id) {
+                        updateWorkOrderStatus(updatedLucrare.id)
                       }
 
                       // Redirect to dashboard after a short delay
