@@ -60,7 +60,6 @@ type FilterOperator =
   | "in"
   | "isNull"
   | "isNotNull"
-  | "notEquals"
 
 interface FilterCondition {
   id: string
@@ -233,7 +232,7 @@ export function EnhancedFilterSystem<TData>({ table }: EnhancedFilterSystemProps
   }
 
   // Get column data type
-  const getColumnDataType = (columnId: string): "text" | "number" | "date" | "array" | "boolean" => {
+  const getColumnDataType = (columnId: string): "text" | "number" | "date" | "array" => {
     const column = table.getColumn(columnId)
     if (!column) return "text"
 
@@ -247,7 +246,6 @@ export function EnhancedFilterSystem<TData>({ table }: EnhancedFilterSystemProps
     if (!firstRow) return "text"
 
     const value = firstRow.getValue(columnId)
-    if (columnId === "necesitaOferta") return "boolean"
     if (value instanceof Date) return "date"
     if (Array.isArray(value)) return "array"
     if (typeof value === "number") return "number"
@@ -294,11 +292,6 @@ export function EnhancedFilterSystem<TData>({ table }: EnhancedFilterSystemProps
           { label: "Include oricare", value: "in" },
           { label: "Este gol", value: "isNull" },
           { label: "Nu este gol", value: "isNotNull" },
-        ]
-      case "boolean":
-        return [
-          { label: "Este", value: "equals" },
-          { label: "Nu este", value: "notEquals" },
         ]
       default:
         return [
@@ -388,9 +381,6 @@ export function EnhancedFilterSystem<TData>({ table }: EnhancedFilterSystemProps
       case "isNotNull":
         column.setFilterValue("not-null")
         break
-      case "notEquals":
-        column.setFilterValue(!condition.value)
-        break
     }
   }
 
@@ -441,8 +431,6 @@ export function EnhancedFilterSystem<TData>({ table }: EnhancedFilterSystemProps
         return "este gol"
       case "isNotNull":
         return "nu este gol"
-      case "notEquals":
-        return "nu este egal cu"
       default:
         return operator
     }

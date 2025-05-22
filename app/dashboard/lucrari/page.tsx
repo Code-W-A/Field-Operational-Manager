@@ -305,28 +305,12 @@ export default function Lucrari() {
         options: statusuriEchipament,
         value: [],
       },
-      // Modificăm opțiunea de filtrare pentru "necesitaOferta" pentru a fi consistentă cu celelalte filtre de status
-      {
-        id: "necesitaOferta",
-        label: "Necesită ofertă",
-        type: "multiselect", // Schimbăm la multiselect pentru consistență cu celelalte filtre de status
-        options: [
-          { value: "da", label: "Da" },
-          { value: "nu", label: "Nu" },
-        ],
-        value: [],
-      },
     ]
   }, [filteredLucrari, tehnicieni])
 
   // Adaugă această funcție după declararea constantei filterOptions
   const hasEquipmentStatusFilter = useMemo(() => {
     return activeFilters.some((filter) => filter.id === "statusEchipament" && filter.value && filter.value.length > 0)
-  }, [activeFilters])
-
-  // Adăugăm o funcție similară pentru a verifica dacă există un filtru activ pentru "necesitaOferta"
-  const hasOfertaFilter = useMemo(() => {
-    return activeFilters.some((filter) => filter.id === "necesitaOferta" && filter.value && filter.value.length > 0)
   }, [activeFilters])
 
   // Modificăm funcția applyFilters pentru a gestiona filtrarea după echipament și statusul echipamentului
@@ -407,29 +391,6 @@ export default function Lucrari() {
                 return filter.value.includes("") || filter.value.includes("Nedefinit")
               }
               return filter.value.includes(item.statusEchipament)
-
-            // Modificăm cazul pentru necesitaOferta pentru a gestiona filtrarea multiselect
-            case "necesitaOferta":
-              // Verificăm dacă filtrul include "da" sau "nu"
-              const includesDa = filter.value.includes("da")
-              const includesNu = filter.value.includes("nu")
-
-              // Dacă sunt selectate ambele opțiuni sau niciuna, returnăm toate lucrările
-              if ((includesDa && includesNu) || (!includesDa && !includesNu)) {
-                return true
-              }
-
-              // Dacă este selectat doar "da", returnăm doar lucrările care necesită ofertă
-              if (includesDa) {
-                return item.necesitaOferta === true
-              }
-
-              // Dacă este selectat doar "nu", returnăm doar lucrările care nu necesită ofertă
-              if (includesNu) {
-                return item.necesitaOferta !== true
-              }
-
-              return true
 
             default:
               // Pentru filtrele multiselect (tipLucrare, client, statusLucrare, statusFacturare)
@@ -1075,11 +1036,6 @@ export default function Lucrari() {
     setActiveFilters([])
   }
 
-  // Funcție pentru a obține clasa CSS pentru badge-ul "Necesită ofertă"
-  const getOfertaStatusClass = (necesitaOferta) => {
-    return necesitaOferta ? "bg-orange-100 text-orange-800 border-orange-200" : ""
-  }
-
   // Definim coloanele pentru DataTable
   const columns = [
     {
@@ -1236,18 +1192,6 @@ export default function Lucrari() {
               </Button>
             )
           }
-        }
-        return null
-      },
-    },
-    {
-      accessorKey: "necesitaOferta",
-      header: "Necesită ofertă",
-      enableHiding: true,
-      enableFiltering: true,
-      cell: ({ row }) => {
-        if (row.original.necesitaOferta) {
-          return <Badge className="bg-orange-100 text-orange-800 border-orange-200">Necesită ofertă</Badge>
         }
         return null
       },
@@ -1549,10 +1493,6 @@ export default function Lucrari() {
             <div className="w-4 h-4 mr-1 bg-orange-50 border border-orange-200 rounded"></div>
             <span className="text-xs">În așteptare</span>
           </div>
-          <div className="flex items-center">
-            <div className="w-4 h-4 mr-1 bg-orange-50 border border-orange-200 rounded"></div>
-            <span className="text-xs">Necesită ofertă</span>
-          </div>
         </div>
       </div>
 
@@ -1585,15 +1525,6 @@ export default function Lucrari() {
           <div className="mt-2">
             <Badge variant="outline" className="bg-blue-50 text-blue-800 border-blue-200">
               Filtrare după status echipament activă
-            </Badge>
-          </div>
-        )}
-
-        {/* Adăugăm badge pentru filtrarea după "necesitaOferta" */}
-        {hasOfertaFilter && (
-          <div className="mt-2">
-            <Badge variant="outline" className="bg-orange-50 text-orange-800 border-orange-200">
-              Filtrare după necesită ofertă activă
             </Badge>
           </div>
         )}
@@ -1739,14 +1670,6 @@ export default function Lucrari() {
                           <span className="text-sm">{lucrare.telefon}</span>
                         </div>
                       </div>
-                      {/* Adăugăm acest cod în secțiunea de carduri, după statusul lucrării
-                      Acest cod trebuie adăugat în componenta Card, în secțiunea de detalii */}
-                      {lucrare.necesitaOferta && (
-                        <div className="flex justify-between mt-2">
-                          <span className="text-sm font-medium text-muted-foreground">Ofertă:</span>
-                          <Badge className="bg-orange-100 text-orange-800 border-orange-200">Necesită ofertă</Badge>
-                        </div>
-                      )}
                       {lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true && (
                         <div className="flex justify-between items-center mt-2 mb-2">
                           <span className="text-sm font-medium text-muted-foreground">Status preluare:</span>
