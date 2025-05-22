@@ -307,7 +307,18 @@ export default function Lucrari() {
       },
       // Adăugăm această opțiune în array-ul filterOptions
       // Acest cod trebuie adăugat în array-ul filterOptions
-
+      {
+        id: "preluatStatus",
+        label: "Status preluare",
+        type: "select",
+        options: [
+          { value: "toate", label: "Toate" },
+          { value: "preluat", label: "Preluat" },
+          { value: "nepreluat", label: "Nepreluat" },
+          { value: "nedefinit", label: "Nedefinit" },
+        ],
+        value: "toate",
+      },
       // Modificăm opțiunea de filtrare pentru "necesitaOferta" pentru a o face mai clară și mai ușor de utilizat
       {
         id: "necesitaOferta",
@@ -409,6 +420,20 @@ export default function Lucrari() {
 
             // În funcția applyFilters, adăugăm un nou caz pentru necesitaOferta
             // Acest cod trebuie adăugat în switch-ul din funcția applyFilters
+            case "preluatStatus":
+              if (filter.value === "toate") return true
+              if (filter.value === "preluat") return item.preluatDispecer === true
+              if (filter.value === "nepreluat")
+                return (
+                  item.preluatDispecer === false && item.statusLucrare === "Finalizat" && item.raportGenerat === true
+                )
+              if (filter.value === "nedefinit")
+                return (
+                  item.preluatDispecer === undefined ||
+                  item.statusLucrare !== "Finalizat" ||
+                  item.raportGenerat !== true
+                )
+              return true
 
             case "necesitaOferta":
               // Filtrare după necesitaOferta (boolean)
