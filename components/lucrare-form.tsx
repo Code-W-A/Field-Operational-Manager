@@ -45,7 +45,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { WORK_STATUS_OPTIONS, INVOICE_STATUS_OPTIONS, WORK_TYPE_OPTIONS } from "@/lib/utils/constants"
+import { INVOICE_STATUS_OPTIONS, WORK_TYPE_OPTIONS } from "@/lib/utils/constants"
+import { getWorkStatusClass } from "@/lib/utils/status-classes"
 
 // Define the Lucrare type
 interface Lucrare {
@@ -1706,21 +1707,13 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 <label htmlFor="statusLucrare" className="text-sm font-medium">
                   Status Lucrare
                 </label>
-                <Select
-                  value={formData.statusLucrare}
-                  onValueChange={(value) => handleSelectChange("statusLucrare", value)}
-                >
-                  <SelectTrigger id="statusLucrare">
-                    <SelectValue placeholder="Selectați statusul" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {WORK_STATUS_OPTIONS.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {status}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center h-10 px-3 py-2 text-sm border rounded-md bg-muted/50">
+                  <Badge className={getWorkStatusClass(formData.statusLucrare)}>{formData.statusLucrare}</Badge>
+                  <span className="ml-2 text-xs text-muted-foreground">Status automatizat</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Statusul lucrării este actualizat automat în funcție de atribuirea tehnicienilor și progresul lucrării
+                </p>
               </div>
               <div className="space-y-2">
                 <label htmlFor="statusFacturare" className="text-sm font-medium">
