@@ -213,8 +213,14 @@ export function TehnicianInterventionForm({
         description: "Datele au fost salvate. Veți fi redirecționat către pagina de generare raport.",
       })
 
-      // Redirecționăm către pagina de raport fără a genera automat raportul
-      router.push(`/raport/${lucrareId}`)
+      // Ensure we're using the correct navigation method
+      // Force navigation with replace: true to ensure it happens
+      router.push(`/raport/${lucrareId}`, { forceHardNavigate: true })
+
+      // Add a fallback navigation after a short delay if the router.push doesn't work
+      setTimeout(() => {
+        window.location.href = `/raport/${lucrareId}`
+      }, 500)
     } catch (error) {
       console.error("Eroare la salvarea datelor:", error)
       toast({
