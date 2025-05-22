@@ -62,9 +62,7 @@ export function FilterModal({
     handleClose()
   }
 
-  // Modify the handleReset function to properly trigger the filter reset flag
   const handleReset = () => {
-    // Call the parent's reset function which now handles localStorage cleanup
     onResetFilters()
     handleClose()
   }
