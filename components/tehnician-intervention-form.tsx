@@ -87,9 +87,7 @@ export function TehnicianInterventionForm({
     setStatusLucrare(initialData.statusLucrare)
     setNecesitaOferta(initialData.necesitaOferta || false)
     setComentariiOferta(initialData.comentariiOferta || "")
-  }, [initialData])
 
-  useEffect(() => {
     console.log("Initial data loaded:", initialData)
   }, [initialData])
 
@@ -112,7 +110,8 @@ export function TehnicianInterventionForm({
         constatareLaLocatie,
         statusEchipament,
         necesitaOferta,
-        comentariiOferta,
+        comentariiOferta: necesitaOferta ? comentariiOferta : "", // Clear comments if necesitaOferta is false
+        statusLucrare, // Make sure we're also saving the status lucrare
       }
 
       console.log("Saving data:", updatedData)
@@ -155,7 +154,7 @@ export function TehnicianInterventionForm({
         constatareLaLocatie: formData.constatareLaLocatie,
         statusEchipament: formData.statusEchipament,
         necesitaOferta: formData.necesitaOferta,
-        comentariiOferta: formData.comentariiOferta,
+        comentariiOferta: formData.necesitaOferta ? formData.comentariiOferta : "", // Clear comments if necesitaOferta is false
       })
 
       toast({
@@ -197,7 +196,8 @@ export function TehnicianInterventionForm({
         descriereInterventie,
         statusEchipament,
         necesitaOferta,
-        comentariiOferta,
+        comentariiOferta: necesitaOferta ? comentariiOferta : "", // Clear comments if necesitaOferta is false
+        statusLucrare: "Finalizat", // Set status to Finalizat when generating report
       })
 
       // Adăugăm un log pentru generarea raportului
@@ -224,7 +224,15 @@ export function TehnicianInterventionForm({
 
   const handleToggleOferta = (checked: boolean) => {
     setNecesitaOferta(checked)
-    setFormData((prev) => ({ ...prev, necesitaOferta: checked }))
+    // If turning off the offer requirement, clear the comments
+    if (!checked) {
+      setComentariiOferta("")
+    }
+    setFormData((prev) => ({
+      ...prev,
+      necesitaOferta: checked,
+      comentariiOferta: checked ? prev.comentariiOferta : "", // Clear comments if necesitaOferta is false
+    }))
   }
 
   const handleStatusEchipamentChange = (value: string) => {

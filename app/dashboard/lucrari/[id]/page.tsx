@@ -201,6 +201,8 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
         setActiveTab("detalii")
       }
 
+      console.log("Refreshed lucrare data:", data)
+
       toast({
         title: "Actualizat",
         description: "Datele lucrării au fost actualizate.",
@@ -630,18 +632,23 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                     {lucrare.statusLucrare}
                   </Badge>
                 </div>
-                {lucrare.necesitaOferta && (
+                <div>
+                  <p className="text-sm font-medium">Necesită ofertă:</p>
+                  <Badge
+                    variant="outline"
+                    className={
+                      lucrare.necesitaOferta
+                        ? "bg-orange-100 text-orange-800 border-orange-200"
+                        : "bg-gray-100 text-gray-800 border-gray-200"
+                    }
+                  >
+                    {lucrare.necesitaOferta ? "Da" : "Nu"}
+                  </Badge>
+                </div>
+                {lucrare.necesitaOferta && lucrare.comentariiOferta && (
                   <div>
-                    <p className="text-sm font-medium">Necesită ofertă:</p>
-                    <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-200">
-                      Da
-                    </Badge>
-                    {lucrare.comentariiOferta && (
-                      <div className="mt-2">
-                        <p className="text-sm font-medium">Comentarii ofertă:</p>
-                        <p className="text-sm text-gray-500">{lucrare.comentariiOferta}</p>
-                      </div>
-                    )}
+                    <p className="text-sm font-medium">Comentarii ofertă:</p>
+                    <p className="text-sm text-gray-500">{lucrare.comentariiOferta}</p>
                   </div>
                 )}
                 {role !== "tehnician" && (
@@ -788,6 +795,9 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                   constatareLaLocatie: lucrare.constatareLaLocatie,
                   statusLucrare: lucrare.statusLucrare,
                   raportGenerat: lucrare.raportGenerat,
+                  necesitaOferta: lucrare.necesitaOferta,
+                  comentariiOferta: lucrare.comentariiOferta,
+                  statusEchipament: lucrare.statusEchipament,
                 }}
                 onUpdate={refreshLucrare}
                 isCompleted={lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true}
