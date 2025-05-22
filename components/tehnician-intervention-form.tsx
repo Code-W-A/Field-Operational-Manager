@@ -13,8 +13,8 @@ import { toast } from "@/components/ui/use-toast"
 import { useStableCallback } from "@/lib/utils/hooks"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { addLog } from "@/lib/firebase/firestore"
 import { Switch } from "@/components/ui/switch"
+import { logInfo } from "@/lib/utils/logging-service" // Import the logging service
 
 // First, let's update the interface to include statusEchipament
 interface TehnicianInterventionFormProps {
@@ -200,27 +200,16 @@ export function TehnicianInterventionForm({
         statusLucrare, // Keep the current status, don't automatically set to "Finalizat"
       })
 
-      // Adăugăm un log pentru navigarea către pagina de raport
-      await addLog(
-        "Navigare către raport",
-        `Utilizatorul a navigat către pagina de raport pentru lucrarea cu ID-ul ${lucrareId}`,
-        "Informație",
-        "Rapoarte",
-      )
+      // Use the safe logging service instead of addLog to avoid database issues
+      logInfo(`Navigare către pagina de raport pentru lucrarea ${lucrareId}`, { lucrareId }, { category: "rapoarte" })
 
       toast({
         title: "Date salvate",
         description: "Datele au fost salvate. Veți fi redirecționat către pagina de generare raport.",
       })
 
-      // Ensure we're using the correct navigation method
-      // Force navigation with replace: true to ensure it happens
-      router.push(`/raport/${lucrareId}`, { forceHardNavigate: true })
-
-      // Add a fallback navigation after a short delay if the router.push doesn't work
-      setTimeout(() => {
-        window.location.href = `/raport/${lucrareId}`
-      }, 500)
+      // Navigate to the report page
+      router.push(`/raport/${lucrareId}`)
     } catch (error) {
       console.error("Eroare la salvarea datelor:", error)
       toast({
