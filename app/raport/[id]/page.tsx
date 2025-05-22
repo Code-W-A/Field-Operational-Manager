@@ -63,21 +63,39 @@ export default function RaportPage({ params }: { params: { id: string } }) {
         setLoading(true)
         const data = await getLucrareById(params.id)
         if (data) {
-          setLucrare(data)
-          setStatusLucrare(data.statusLucrare)
+          // Ensure all required fields exist with default values if missing
+          const processedData = {
+            ...data,
+            // Add default values for potentially missing fields
+            constatareLaLocatie: data.constatareLaLocatie || "",
+            descriereInterventie: data.descriereInterventie || "",
+            defectReclamat: data.defectReclamat || "",
+            descriere: data.descriere || "",
+            persoanaContact: data.persoanaContact || "",
+            products: data.products || [],
+            emailDestinatar: data.emailDestinatar || "",
+            statusLucrare: data.statusLucrare || "În lucru",
+            tehnicieni: data.tehnicieni || [],
+            client: data.client || "",
+            locatie: data.locatie || "",
+            dataInterventie: data.dataInterventie || "",
+          }
+
+          setLucrare(processedData)
+          setStatusLucrare(processedData.statusLucrare)
 
           // If the work has products, load them
-          if (data.products) {
-            setProducts(data.products)
+          if (processedData.products && processedData.products.length > 0) {
+            setProducts(processedData.products)
           }
 
           // If the work has an email address, load it
-          if (data.emailDestinatar) {
-            setEmail(data.emailDestinatar)
+          if (processedData.emailDestinatar) {
+            setEmail(processedData.emailDestinatar)
           }
 
           // Dacă lucrarea are deja semnături, trecem direct la pasul finalizat
-          if (data.statusLucrare === "Finalizat" && data.raportGenerat === true) {
+          if (processedData.statusLucrare === "Finalizat" && processedData.raportGenerat === true) {
             setIsSubmitted(true)
             setStep("finalizat")
           }
@@ -149,23 +167,32 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   const sendEmail = useCallback(
     async (pdfBlob: Blob) => {
       try {
+        if (!lucrare) {
+          throw new Error("Datele lucrării nu sunt disponibile")
+        }
+
         // Create FormData for email sending
         const formData = new FormData()
         formData.append("to", email)
-        formData.append("subject", `Raport Interventie - ${lucrare.client} - ${lucrare.dataInterventie}`)
+        formData.append(
+          "subject",
+          `Raport Interventie - ${lucrare.client || "Client"} - ${lucrare.dataInterventie || "Data"}`,
+        )
         formData.append(
           "message",
-          `Stimata/Stimate ${lucrare.persoanaContact},
+          `Stimata/Stimate ${lucrare.persoanaContact || "Client"},
 
-Va transmitem atasat raportul de interventie pentru lucrarea efectuata in data de ${lucrare.dataInterventie}.
+Va transmitem atasat raportul de interventie pentru lucrarea efectuata in data de ${lucrare.dataInterventie || "N/A"}.
 
 Cu stima,
 FOM by NRG`,
         )
-        formData.append("senderName", `FOM by NRG - ${lucrare.tehnicieni?.join(", ")}`)
+        formData.append("senderName", `FOM by NRG - ${lucrare.tehnicieni?.join(", ") || "Tehnician"}`)
 
         // Add PDF as file
-        const pdfFile = new File([pdfBlob], `Raport_Interventie_${lucrare.id}.pdf`, { type: "application/pdf" })
+        const pdfFile = new File([pdfBlob], `Raport_Interventie_${lucrare.id || params.id}.pdf`, {
+          type: "application/pdf",
+        })
         formData.append("pdfFile", pdfFile)
 
         // Add company logo
@@ -199,7 +226,7 @@ FOM by NRG`,
         return false
       }
     },
-    [email, lucrare],
+    [email, lucrare, params.id],
   )
 
   // Use useStableCallback to ensure we have access to the latest state values
@@ -460,6 +487,53 @@ FOM by NRG`,
     }
   }
 
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
+        <Card className="w-full max-w-3xl">
+          <CardContent className="flex flex-col items-center justify-center p-8">
+            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-blue-600"></div>
+            <p className="mt-4 text-gray-500">Se încarcă datele raportului...</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (error || !lucrare) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
+        <Card className="w-full max-w-3xl">
+          <CardContent className="flex flex-col items-center justify-center p-8">
+            <div className="rounded-full bg-red-100 p-3">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-6 w-6 text-red-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+            </div>
+            <h2 className="mt-4 text-xl font-semibold text-red-600">Eroare</h2>
+            <p className="mt-2 text-center text-gray-500">{error || "Nu s-au putut încărca datele raportului."}</p>
+            <Button className="mt-6" onClick={() => router.push("/dashboard/lucrari")}>
+              Înapoi la lucrări
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
       <Card className="w-full max-w-3xl">
@@ -480,19 +554,19 @@ FOM by NRG`,
           <div className="grid gap-4 md:grid-cols-2">
             <div>
               <h3 className="font-medium text-gray-500">Client</h3>
-              <p>{lucrare?.client}</p>
+              <p>{lucrare?.client || "N/A"}</p>
             </div>
             <div>
               <h3 className="font-medium text-gray-500">Locație</h3>
-              <p>{lucrare?.locatie}</p>
+              <p>{lucrare?.locatie || "N/A"}</p>
             </div>
             <div>
               <h3 className="font-medium text-gray-500">Data Intervenție</h3>
-              <p>{lucrare?.dataInterventie}</p>
+              <p>{lucrare?.dataInterventie || "N/A"}</p>
             </div>
             <div>
               <h3 className="font-medium text-gray-500">Tehnician</h3>
-              <p>{lucrare?.tehnicieni?.join(", ")}</p>
+              <p>{lucrare?.tehnicieni?.join(", ") || "N/A"}</p>
             </div>
           </div>
 
@@ -505,7 +579,7 @@ FOM by NRG`,
 
           <div>
             <h3 className="font-medium text-gray-500">Descriere Lucrare</h3>
-            <p>{lucrare?.descriere}</p>
+            <p>{lucrare?.descriere || "Nu a fost specificată"}</p>
           </div>
 
           <Separator />
