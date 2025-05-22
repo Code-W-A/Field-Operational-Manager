@@ -16,7 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { addLog } from "@/lib/firebase/firestore"
 import { Switch } from "@/components/ui/switch"
 
-// First, let's add a new prop to the component to check if the work order is completed and the report is generated
+// First, let's update the interface to include statusEchipament
 interface TehnicianInterventionFormProps {
   lucrareId: string
   initialData: {
@@ -26,12 +26,13 @@ interface TehnicianInterventionFormProps {
     raportGenerat?: boolean
     necesitaOferta?: boolean
     comentariiOferta?: string
+    statusEchipament?: string
   }
   onUpdate: () => void
   isCompleted?: boolean
 }
 
-// Then, let's update the component to use this prop
+// Then, let's update the component to use this prop and add the statusEchipament state
 export function TehnicianInterventionForm({
   lucrareId,
   initialData,
@@ -42,7 +43,7 @@ export function TehnicianInterventionForm({
   const [formData, setFormData] = useState({
     descriereInterventie: initialData.descriereInterventie || "",
     constatareLaLocatie: initialData.constatareLaLocatie || "",
-    statusLucrare: initialData.statusLucrare,
+    statusEchipament: initialData.statusEchipament || "Funcțional",
     necesitaOferta: initialData.necesitaOferta || false,
     comentariiOferta: initialData.comentariiOferta || "",
   })
@@ -52,6 +53,7 @@ export function TehnicianInterventionForm({
   const [descriereInterventie, setDescriereInterventie] = useState(initialData.descriereInterventie || "")
   const [constatareLaLocatie, setConstatareLaLocatie] = useState(initialData.constatareLaLocatie || "")
   const [statusLucrare, setStatusLucrare] = useState(initialData.statusLucrare)
+  const [statusEchipament, setStatusEchipament] = useState(initialData.statusEchipament || "Funcțional")
   const [necesitaOferta, setNecesitaOferta] = useState(initialData.necesitaOferta || false)
   const [comentariiOferta, setComentariiOferta] = useState(initialData.comentariiOferta || "")
   const [formDisabled, setFormDisabled] = useState(isCompleted || initialData.raportGenerat)
@@ -75,12 +77,13 @@ export function TehnicianInterventionForm({
     setFormData({
       descriereInterventie: initialData.descriereInterventie || "",
       constatareLaLocatie: initialData.constatareLaLocatie || "",
-      statusLucrare: initialData.statusLucrare,
+      statusEchipament: initialData.statusEchipament || "Funcțional",
       necesitaOferta: initialData.necesitaOferta || false,
       comentariiOferta: initialData.comentariiOferta || "",
     })
     setDescriereInterventie(initialData.descriereInterventie || "")
     setConstatareLaLocatie(initialData.constatareLaLocatie || "")
+    setStatusEchipament(initialData.statusEchipament || "Funcțional")
     setStatusLucrare(initialData.statusLucrare)
     setNecesitaOferta(initialData.necesitaOferta || false)
     setComentariiOferta(initialData.comentariiOferta || "")
@@ -107,7 +110,7 @@ export function TehnicianInterventionForm({
       const updatedData = {
         descriereInterventie,
         constatareLaLocatie,
-        statusLucrare,
+        statusEchipament,
         necesitaOferta,
         comentariiOferta,
       }
@@ -120,6 +123,7 @@ export function TehnicianInterventionForm({
       console.log("Data after save:", {
         descriereInterventie: updatedLucrare?.descriereInterventie,
         constatareLaLocatie: updatedLucrare?.constatareLaLocatie,
+        statusEchipament: updatedLucrare?.statusEchipament,
         necesitaOferta: updatedLucrare?.necesitaOferta,
         comentariiOferta: updatedLucrare?.comentariiOferta,
       })
@@ -149,7 +153,7 @@ export function TehnicianInterventionForm({
       await updateLucrare(lucrareId, {
         descriereInterventie: formData.descriereInterventie,
         constatareLaLocatie: formData.constatareLaLocatie,
-        statusLucrare: formData.statusLucrare,
+        statusEchipament: formData.statusEchipament,
         necesitaOferta: formData.necesitaOferta,
         comentariiOferta: formData.comentariiOferta,
       })
@@ -191,7 +195,7 @@ export function TehnicianInterventionForm({
       await updateLucrare(lucrareId, {
         constatareLaLocatie,
         descriereInterventie,
-        statusLucrare,
+        statusEchipament,
         necesitaOferta,
         comentariiOferta,
       })
@@ -221,6 +225,10 @@ export function TehnicianInterventionForm({
   const handleToggleOferta = (checked: boolean) => {
     setNecesitaOferta(checked)
     setFormData((prev) => ({ ...prev, necesitaOferta: checked }))
+  }
+
+  const handleStatusEchipamentChange = (value: string) => {
+    setStatusEchipament(value)
   }
 
   return (
@@ -256,15 +264,15 @@ export function TehnicianInterventionForm({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="statusLucrare">Status lucrare</Label>
-              <Select value={statusLucrare} onValueChange={setStatusLucrare} disabled={formDisabled}>
-                <SelectTrigger id="statusLucrare" className={formDisabled ? "opacity-70 cursor-not-allowed" : ""}>
-                  <SelectValue placeholder="Selectați statusul lucrării" />
+              <Label htmlFor="statusEchipament">Status echipament</Label>
+              <Select value={statusEchipament} onValueChange={setStatusEchipament} disabled={formDisabled}>
+                <SelectTrigger id="statusEchipament" className={formDisabled ? "opacity-70 cursor-not-allowed" : ""}>
+                  <SelectValue placeholder="Selectați statusul echipamentului" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="În așteptare">În așteptare</SelectItem>
-                  <SelectItem value="În lucru">În lucru</SelectItem>
-                  <SelectItem value="Finalizat">Finalizat</SelectItem>
+                  <SelectItem value="Funcțional">Funcțional</SelectItem>
+                  <SelectItem value="Parțial funcțional">Parțial funcțional</SelectItem>
+                  <SelectItem value="Nefuncțional">Nefuncțional</SelectItem>
                 </SelectContent>
               </Select>
             </div>

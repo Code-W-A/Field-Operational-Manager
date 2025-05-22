@@ -182,6 +182,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       if (lucrare.echipament || lucrare.echipamentCod) {
         const equipLines = [
           `${normalize(lucrare.echipament || "Nespecificat")}${lucrare.echipamentCod ? ` (Cod: ${normalize(lucrare.echipamentCod)})` : ""}`,
+          `Status: ${normalize(lucrare.statusEchipament || "Funcțional")}`,
         ]
 
         drawBox("ECHIPAMENT", equipLines, W, M, true)
