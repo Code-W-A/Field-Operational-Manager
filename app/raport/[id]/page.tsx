@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { Check, Send, ArrowLeft, Mail, Download } from "lucide-react"
+import { Send, ArrowLeft } from "lucide-react"
 import SignatureCanvas from "react-signature-canvas"
 import { getLucrareById, updateLucrare } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
@@ -210,8 +210,6 @@ FOM by NRG`,
 
     if (step === "verificare") {
       try {
-        // Actualizăm statusul lucrării în baza de date, dar nu mai blocăm dacă nu e finalizat
-        // Doar actualizăm statusul dacă utilizatorul a selectat "Finalizat"
         if (statusLucrare === "Finalizat") {
           await updateLucrare(params.id, { statusLucrare: "Finalizat" })
         }
@@ -277,46 +275,41 @@ FOM by NRG`,
           semnaturaBeneficiar,
           products,
           emailDestinatar: email,
-          raportGenerat: true, // Setăm raportGenerat la true când se trimite raportul
-          statusLucrare: "Finalizat", // Setăm automat statusul la Finalizat
+          raportGenerat: true,
+          statusLucrare: "Finalizat",
           updatedAt: serverTimestamp(),
           preluatDispecer: false,
         })
 
-        // Reîncărcăm datele actualizate
-        const updatedLucrare = await getLucrareById(params.id)
-        if (updatedLucrare) {
-          setLucrare(updatedLucrare)
-
-          // Generate PDF using the ReportGenerator component
-          if (reportGeneratorRef.current) {
-            reportGeneratorRef.current.click()
-          } else {
-            // Fallback if ref is not available
-            toast({
-              title: "Eroare",
-              description: "Nu s-a putut genera raportul PDF",
-              variant: "destructive",
-            })
-          }
-        }
-
-        setIsSubmitted(true)
-        setStep("finalizat")
-
-        // Afișăm un toast de confirmare
+        // Afișăm un toast de procesare
         toast({
-          title: "Raport finalizat",
-          description: "Lucrarea a fost marcată ca finalizată și raportul a fost generat.",
-          variant: "default",
+          title: "Procesare în curs",
+          description: "Se generează raportul și se trimite pe email...",
         })
+
+        // Generate PDF using the ReportGenerator component
+        if (reportGeneratorRef.current) {
+          reportGeneratorRef.current.click()
+
+          // Nu mai setăm step-ul la "finalizat" și nu mai afișăm ecranul final
+          // În schimb, vom redirecționa utilizatorul înapoi la dashboard după ce se trimite emailul
+
+          // Notă: Redirecționarea se va face în callback-ul onGenerate al ReportGenerator
+        } else {
+          // Fallback if ref is not available
+          toast({
+            title: "Eroare",
+            description: "Nu s-a putut genera raportul PDF",
+            variant: "destructive",
+          })
+          setIsSubmitting(false)
+        }
       } catch (err) {
         console.error("Eroare la salvarea semnăturilor:", err)
         toast({
           title: "Eroare",
           description: "A apărut o eroare la salvarea semnăturilor.",
         })
-      } finally {
         setIsSubmitting(false)
       }
     }
@@ -484,214 +477,193 @@ FOM by NRG`,
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          {isSubmitted ? (
-            <div className="space-y-6">
-              <div className="flex flex-col items-center justify-center space-y-4 py-6">
-                <div className="rounded-full bg-green-100 p-3">
-                  <Check className="h-8 w-8 text-green-600" />
-                </div>
-                <h2 className="text-xl font-semibold">Raport Finalizat cu Succes!</h2>
-                <p className="text-center text-gray-500">
-                  Raportul a fost generat și {emailSent ? "trimis pe email" : "poate fi descărcat sau trimis pe email"}.
-                </p>
-                {/* Add this inside the first div of the isSubmitted condition */}
-                <div className="hidden">
-                  <ReportGenerator
-                    ref={reportGeneratorRef}
-                    lucrare={lucrare}
-                    onGenerate={(blob) => {
-                      setPdfBlob(blob)
-                      // Send email automatically when PDF is generated
-                      sendEmail(blob).then((success) => {
-                        setEmailSent(success)
-                      })
-                      // Actualizăm statusul lucrării
-                      if (lucrare && lucrare.id) {
-                        updateWorkOrderStatus(lucrare.id, blob)
-                      }
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex flex-col space-y-2">
-                  <Button onClick={handleDownloadPDF} className="gap-2">
-                    <Download className="h-4 w-4" /> Descarcă PDF
-                  </Button>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Adresă Email</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder="email@example.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                      />
-                      <Button
-                        onClick={handleResendEmail}
-                        disabled={isSubmitting || !email}
-                        className="gap-2 whitespace-nowrap"
-                      >
-                        {isSubmitting ? (
-                          <>Se trimite...</>
-                        ) : (
-                          <>
-                            <Mail className="h-4 w-4" /> Trimite Email
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <h3 className="font-medium text-gray-500">Client</h3>
+              <p>{lucrare?.client}</p>
             </div>
-          ) : (
-            <>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <h3 className="font-medium text-gray-500">Client</h3>
-                  <p>{lucrare?.client}</p>
-                </div>
-                <div>
-                  <h3 className="font-medium text-gray-500">Locație</h3>
-                  <p>{lucrare?.locatie}</p>
-                </div>
-                <div>
-                  <h3 className="font-medium text-gray-500">Data Intervenție</h3>
-                  <p>{lucrare?.dataInterventie}</p>
-                </div>
-                <div>
-                  <h3 className="font-medium text-gray-500">Tehnician</h3>
-                  <p>{lucrare?.tehnicieni?.join(", ")}</p>
-                </div>
-              </div>
+            <div>
+              <h3 className="font-medium text-gray-500">Locație</h3>
+              <p>{lucrare?.locatie}</p>
+            </div>
+            <div>
+              <h3 className="font-medium text-gray-500">Data Intervenție</h3>
+              <p>{lucrare?.dataInterventie}</p>
+            </div>
+            <div>
+              <h3 className="font-medium text-gray-500">Tehnician</h3>
+              <p>{lucrare?.tehnicieni?.join(", ")}</p>
+            </div>
+          </div>
 
-              <Separator />
+          <Separator />
 
-              <div>
-                <h3 className="font-medium text-gray-500">Defect Reclamat</h3>
-                <p>{lucrare?.defectReclamat || "Nu a fost specificat"}</p>
-              </div>
+          <div>
+            <h3 className="font-medium text-gray-500">Defect Reclamat</h3>
+            <p>{lucrare?.defectReclamat || "Nu a fost specificat"}</p>
+          </div>
 
-              <div>
-                <h3 className="font-medium text-gray-500">Descriere Lucrare</h3>
-                <p>{lucrare?.descriere}</p>
-              </div>
+          <div>
+            <h3 className="font-medium text-gray-500">Descriere Lucrare</h3>
+            <p>{lucrare?.descriere}</p>
+          </div>
 
-              <Separator />
+          <Separator />
 
-              <div>
-                <h3 className="font-medium text-gray-500">Descriere Intervenție</h3>
-                <p className="whitespace-pre-line">{lucrare?.descriereInterventie || "Nu a fost specificată"}</p>
-              </div>
+          <div>
+            <h3 className="font-medium text-gray-500">Descriere Intervenție</h3>
+            <p className="whitespace-pre-line">{lucrare?.descriereInterventie || "Nu a fost specificată"}</p>
+          </div>
 
-              <Separator />
+          <Separator />
 
-              {/* Adăugăm formularul pentru produse */}
-              <ProductTableForm products={products} onProductsChange={setProducts} />
+          {/* Adăugăm formularul pentru produse */}
+          <ProductTableForm products={products} onProductsChange={setProducts} />
 
-              <Separator />
+          <Separator />
 
-              <div className="grid gap-6 md:grid-cols-2">
-                {/* Semnătură Tehnician */}
-                <div className="space-y-2">
-                  <h3 className="font-medium text-gray-500">Semnătură Tehnician</h3>
-                  <div className="rounded-md border border-gray-300 bg-white p-2">
-                    <SignatureCanvas
-                      ref={techSignatureRef}
-                      canvasProps={{
-                        className: "w-full h-40 border rounded",
-                        width: SIG_MIN_WIDTH,
-                        height: SIG_HEIGHT,
-                      }}
-                      onBegin={handleTechBegin}
-                      onEnd={handleTechEnd}
-                    />
-                  </div>
-                  <div className="flex justify-end">
-                    <Button variant="outline" size="sm" onClick={clearTechSignature}>
-                      Șterge
-                    </Button>
-                  </div>
-                  <p className="text-xs text-center text-gray-500">{lucrare?.tehnicieni?.join(", ") || "Tehnician"}</p>
-                </div>
-
-                {/* Semnătură Beneficiar */}
-                <div className="space-y-2">
-                  <h3 className="font-medium text-gray-500">Semnătură Beneficiar</h3>
-                  <div className="rounded-md border border-gray-300 bg-white p-2">
-                    <SignatureCanvas
-                      ref={clientSignatureRef}
-                      canvasProps={{
-                        className: "w-full h-40 border rounded",
-                        width: SIG_MIN_WIDTH,
-                        height: SIG_HEIGHT,
-                      }}
-                      onBegin={handleClientBegin}
-                      onEnd={handleClientEnd}
-                    />
-                  </div>
-                  <div className="flex justify-end">
-                    <Button variant="outline" size="sm" onClick={clearClientSignature}>
-                      Șterge
-                    </Button>
-                  </div>
-                  <p className="text-xs text-center text-gray-500">{lucrare?.persoanaContact || "Beneficiar"}</p>
-                </div>
-              </div>
-
-              {/* Adăugăm câmpul pentru email */}
-              <div className="space-y-2">
-                <Label htmlFor="email">E-mail semnatar</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="email@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Semnătură Tehnician */}
+            <div className="space-y-2">
+              <h3 className="font-medium text-gray-500">Semnătură Tehnician</h3>
+              <div className="rounded-md border border-gray-300 bg-white p-2">
+                <SignatureCanvas
+                  ref={techSignatureRef}
+                  canvasProps={{
+                    className: "w-full h-40 border rounded",
+                    width: SIG_MIN_WIDTH,
+                    height: SIG_HEIGHT,
+                  }}
+                  onBegin={handleTechBegin}
+                  onEnd={handleTechEnd}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Raportul va fi trimis automat la această adresă după finalizare
-                </p>
               </div>
-            </>
-          )}
+              <div className="flex justify-end">
+                <Button variant="outline" size="sm" onClick={clearTechSignature} disabled={isSubmitting}>
+                  Șterge
+                </Button>
+              </div>
+              <p className="text-xs text-center text-gray-500">{lucrare?.tehnicieni?.join(", ") || "Tehnician"}</p>
+            </div>
+
+            {/* Semnătură Beneficiar */}
+            <div className="space-y-2">
+              <h3 className="font-medium text-gray-500">Semnătură Beneficiar</h3>
+              <div className="rounded-md border border-gray-300 bg-white p-2">
+                <SignatureCanvas
+                  ref={clientSignatureRef}
+                  canvasProps={{
+                    className: "w-full h-40 border rounded",
+                    width: SIG_MIN_WIDTH,
+                    height: SIG_HEIGHT,
+                  }}
+                  onBegin={handleClientBegin}
+                  onEnd={handleClientEnd}
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button variant="outline" size="sm" onClick={clearClientSignature} disabled={isSubmitting}>
+                  Șterge
+                </Button>
+              </div>
+              <p className="text-xs text-center text-gray-500">{lucrare?.persoanaContact || "Beneficiar"}</p>
+            </div>
+          </div>
+
+          {/* Adăugăm câmpul pentru email */}
+          <div className="space-y-2">
+            <Label htmlFor="email">E-mail semnatar</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="email@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={isSubmitting}
+            />
+            <p className="text-xs text-muted-foreground">
+              Raportul va fi trimis automat la această adresă după finalizare
+            </p>
+          </div>
+
+          {/* Hidden ReportGenerator component */}
+          <div className="hidden">
+            <ReportGenerator
+              ref={reportGeneratorRef}
+              lucrare={lucrare}
+              onGenerate={(blob) => {
+                setPdfBlob(blob)
+                // Send email automatically when PDF is generated
+                sendEmail(blob)
+                  .then((success) => {
+                    setEmailSent(success)
+
+                    // Show success toast
+                    toast({
+                      title: "Raport finalizat",
+                      description: "Raportul a fost generat și trimis pe email cu succes.",
+                      variant: "default",
+                    })
+
+                    // Redirect to dashboard after a short delay
+                    setTimeout(() => {
+                      router.push("/dashboard/lucrari")
+                    }, 2000)
+                  })
+                  .catch((error) => {
+                    console.error("Eroare la trimiterea emailului:", error)
+                    toast({
+                      title: "Eroare",
+                      description: "Raportul a fost generat, dar trimiterea pe email a eșuat.",
+                      variant: "destructive",
+                    })
+                    setIsSubmitting(false)
+                  })
+
+                // Actualizăm statusul lucrării
+                if (lucrare && lucrare.id) {
+                  updateWorkOrderStatus(lucrare.id, blob)
+                }
+              }}
+            />
+          </div>
         </CardContent>
-        {!isSubmitted && (
-          <CardFooter className="flex flex-col sm:flex-row gap-4 justify-between pb-6 pt-4">
-            <div className="order-2 sm:order-1 w-full sm:w-auto">
-              <Button variant="outline" onClick={() => router.back()} className="w-full sm:w-auto">
-                Înapoi
-              </Button>
-            </div>
-            <div className="order-1 sm:order-2 w-full sm:w-auto mb-2 sm:mb-0">
-              <Button
-                ref={submitButtonRef}
-                className="gap-2 bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
-                onClick={handleButtonClick}
-                disabled={isSubmitting}
-                style={{
-                  position: "relative",
-                  zIndex: 50,
-                  touchAction: "manipulation",
-                }}
-              >
-                {isSubmitting ? (
-                  <>Se procesează...</>
-                ) : (
-                  <>
-                    <Send className="h-4 w-4" /> Finalizează și Trimite Raport
-                  </>
-                )}
-              </Button>
-            </div>
-          </CardFooter>
-        )}
+
+        {/* Modify the footer to always show the buttons */}
+        <CardFooter className="flex flex-col sm:flex-row gap-4 justify-between pb-6 pt-4">
+          <div className="order-2 sm:order-1 w-full sm:w-auto">
+            <Button
+              variant="outline"
+              onClick={() => router.back()}
+              className="w-full sm:w-auto"
+              disabled={isSubmitting}
+            >
+              Înapoi
+            </Button>
+          </div>
+          <div className="order-1 sm:order-2 w-full sm:w-auto mb-2 sm:mb-0">
+            <Button
+              ref={submitButtonRef}
+              className="gap-2 bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
+              onClick={handleButtonClick}
+              disabled={isSubmitting}
+              style={{
+                position: "relative",
+                zIndex: 50,
+                touchAction: "manipulation",
+              }}
+            >
+              {isSubmitting ? (
+                <>Se procesează...</>
+              ) : (
+                <>
+                  <Send className="h-4 w-4" /> Finalizează și Trimite Raport
+                </>
+              )}
+            </Button>
+          </div>
+        </CardFooter>
       </Card>
     </div>
   )
