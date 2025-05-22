@@ -23,10 +23,6 @@ import { toast } from "@/components/ui/use-toast"
 import { ReportGenerator } from "@/components/report-generator"
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
-// Importăm constantele pentru statusurile echipamentului
-import { EQUIPMENT_STATUS_OPTIONS } from "@/lib/utils/constants"
-import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
 
 export default function RaportPage({ params }: { params: { id: string } }) {
   const SIG_HEIGHT = 160 // px – lasă-l fix
@@ -63,11 +59,6 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   const reportGeneratorRef = useRef<React.ElementRef<typeof ReportGenerator>>(null)
   const submitButtonRef = useRef<HTMLButtonElement>(null)
 
-  // Adăugăm starea pentru statusul echipamentului
-  const [statusEchipament, setStatusEchipament] = useState<string>("")
-  const [necesitaOferta, setNecesitaOferta] = useState<boolean>(false)
-  const [comentariiOferta, setComentariiOferta] = useState<string>("")
-
   useEffect(() => {
     const fetchLucrare = async () => {
       try {
@@ -76,9 +67,6 @@ export default function RaportPage({ params }: { params: { id: string } }) {
         if (data) {
           setLucrare(data)
           setStatusLucrare(data.statusLucrare)
-          setStatusEchipament(data.statusEchipament || "")
-          setNecesitaOferta(data.necesitaOferta || false)
-          setComentariiOferta(data.comentariiOferta || "")
 
           // If the work has products, load them
           if (data.products) {
@@ -294,9 +282,6 @@ FOM by NRG`,
           raportGenerat: true, // Setăm raportGenerat la true când se trimite raportul
           updatedAt: serverTimestamp(),
           preluatDispecer: false,
-          statusEchipament, // Adăugăm statusul echipamentului
-          necesitaOferta,
-          comentariiOferta,
         })
 
         // Reîncărcăm datele actualizate
@@ -693,75 +678,6 @@ FOM by NRG`,
 
               <Separator />
 
-              {/* Adăugăm câmpul pentru email */}
-              <div className="space-y-2">
-                <Label htmlFor="email">Adresă Email pentru Trimitere Raport *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="email@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-                <p className="text-xs text-muted-foreground">
-                  Raportul va fi trimis automat la această adresă după finalizare
-                </p>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-2">
-                <Label htmlFor="statusEchipament">Status Echipament *</Label>
-                <Select value={statusEchipament} onValueChange={setStatusEchipament} required>
-                  <SelectTrigger id="statusEchipament">
-                    <SelectValue placeholder="Selectați statusul echipamentului" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {EQUIPMENT_STATUS_OPTIONS.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {status}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Specificați starea în care a fost lăsat echipamentul după intervenție
-                </p>
-              </div>
-
-              <Separator />
-
-              <div className="border p-4 rounded-md bg-gray-50">
-                <div className="flex items-center justify-between mb-2">
-                  <Label htmlFor="necesitaOferta" className="font-medium">
-                    Necesită ofertă
-                  </Label>
-                  <Switch
-                    id="necesitaOferta"
-                    checked={necesitaOferta}
-                    onCheckedChange={setNecesitaOferta}
-                    disabled={isSubmitted}
-                  />
-                </div>
-
-                {necesitaOferta && (
-                  <div className="mt-3 space-y-2">
-                    <Label htmlFor="comentariiOferta">Comentarii ofertă</Label>
-                    <Textarea
-                      id="comentariiOferta"
-                      placeholder="Descrieți ce trebuie inclus în ofertă..."
-                      value={comentariiOferta}
-                      onChange={(e) => setComentariiOferta(e.target.value)}
-                      disabled={isSubmitted}
-                      className={isSubmitted ? "opacity-70 cursor-not-allowed" : ""}
-                    />
-                  </div>
-                )}
-              </div>
-
-              <Separator />
-
               <div className="grid gap-6 md:grid-cols-2">
                 {/* Semnătură Tehnician */}
                 <div className="space-y-2">
@@ -772,7 +688,6 @@ FOM by NRG`,
                       canvasProps={{
                         className: "w-full h-40 border rounded",
                         width: SIG_MIN_WIDTH,
-
                         height: SIG_HEIGHT,
                       }}
                       onBegin={handleTechBegin}
@@ -796,7 +711,6 @@ FOM by NRG`,
                       canvasProps={{
                         className: "w-full h-40 border rounded",
                         width: SIG_MIN_WIDTH,
-
                         height: SIG_HEIGHT,
                       }}
                       onBegin={handleClientBegin}
@@ -810,6 +724,22 @@ FOM by NRG`,
                   </div>
                   <p className="text-xs text-center text-gray-500">{lucrare?.persoanaContact || "Beneficiar"}</p>
                 </div>
+              </div>
+
+              {/* Adăugăm câmpul pentru email */}
+              <div className="space-y-2">
+                <Label htmlFor="email">E-mail semnatar</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="email@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Raportul va fi trimis automat la această adresă după finalizare
+                </p>
               </div>
             </>
           )}
