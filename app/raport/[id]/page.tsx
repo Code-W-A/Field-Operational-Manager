@@ -16,8 +16,6 @@ import { ProductTableForm, type Product } from "@/components/product-table-form"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/components/ui/use-toast"
-// Remove the autotable import since it's causing issues
-// import 'jspdf-autotable'
 import { ReportGenerator } from "@/components/report-generator"
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
@@ -34,7 +32,6 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   const clientSignatureRef = useRef<SignatureCanvas | null>(null)
   const [isTechSigned, setIsTechSigned] = useState(false)
   const [isClientSigned, setIsClientSigned] = useState(false)
-  const [isSubmitted, setIsSubmitted] = useState(false)
   const [techSignatureData, setTechSignatureData] = useState<string | null>(null)
   const [clientSignatureData, setClientSignatureData] = useState<string | null>(null)
   const [isTechDrawing, setIsTechDrawing] = useState(false)
@@ -43,16 +40,12 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   const [lucrare, setLucrare] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [step, setStep] = useState<"semnare" | "finalizat">("semnare")
   const [statusLucrare, setStatusLucrare] = useState<string>("")
-  const [activeTab, setActiveTab] = useState<string>("detalii")
   const [products, setProducts] = useState<Product[]>([])
 
   // Add email state
   const [email, setEmail] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [emailSent, setEmailSent] = useState(false)
-  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null)
 
   const reportGeneratorRef = useRef<React.ElementRef<typeof ReportGenerator>>(null)
   const submitButtonRef = useRef<HTMLButtonElement>(null)
@@ -92,12 +85,6 @@ export default function RaportPage({ params }: { params: { id: string } }) {
           // If the work has an email address, load it
           if (processedData.emailDestinatar) {
             setEmail(processedData.emailDestinatar)
-          }
-
-          // Dacă lucrarea are deja semnături, trecem direct la pasul finalizat
-          if (processedData.statusLucrare === "Finalizat" && processedData.raportGenerat === true) {
-            setIsSubmitted(true)
-            setStep("finalizat")
           }
         } else {
           setError("Lucrarea nu a fost găsită")
@@ -149,20 +136,6 @@ export default function RaportPage({ params }: { params: { id: string } }) {
     }
   }, [])
 
-  // Helper function to remove diacritics for PDF generation
-  const removeDiacritics = (text: string): string =>
-    text
-      .replace(/ă/g, "a")
-      .replace(/â/g, "a")
-      .replace(/î/g, "i")
-      .replace(/ș/g, "s")
-      .replace(/ț/g, "t")
-      .replace(/Ă/g, "A")
-      .replace(/Â/g, "A")
-      .replace(/Î/g, "I")
-      .replace(/Ș/g, "S")
-      .replace(/Ț/g, "T")
-
   // Function to send email
   const sendEmail = useCallback(
     async (pdfBlob: Blob) => {
@@ -209,12 +182,6 @@ FOM by NRG`,
           throw new Error(data.error || "A aparut o eroare la trimiterea emailului")
         }
 
-        // Show success message
-        toast({
-          title: "Email trimis cu succes",
-          description: `Raportul a fost trimis la adresa ${email}`,
-        })
-
         return true
       } catch (error) {
         console.error("Eroare la trimiterea emailului:", error)
@@ -231,114 +198,86 @@ FOM by NRG`,
 
   // Use useStableCallback to ensure we have access to the latest state values
   // without causing unnecessary re-renders
-  // În funcția handleSubmit, când se salvează semnăturile
   const handleSubmit = useStableCallback(async () => {
-    console.log("Submit button clicked, current step:", step)
+    // Check for tech signature - transformăm în avertisment, nu blocaj
+    if (!techSignatureData && (!techSignatureRef.current || techSignatureRef.current.isEmpty())) {
+      toast({
+        title: "Atenție",
+        description: "Raportul va fi generat fără semnătura tehnicianului.",
+      })
+    }
 
-    if (step === "verificare") {
-      try {
-        if (statusLucrare === "Finalizat") {
-          await updateLucrare(params.id, { statusLucrare: "Finalizat" })
-        }
-        setStep("semnare")
-        console.log("Moving to signing step")
-      } catch (err) {
-        console.error("Eroare la actualizarea statusului lucrării:", err)
-        toast({
-          title: "Eroare",
-          description: "A apărut o eroare la actualizarea statusului lucrării.",
-          variant: "destructive",
-        })
-      }
+    // Check for client signature - transformăm în avertisment, nu blocaj
+    if (!clientSignatureData && (!clientSignatureRef.current || clientSignatureRef.current.isEmpty())) {
+      toast({
+        title: "Atenție",
+        description: "Raportul va fi generat fără semnătura beneficiarului.",
+      })
+    }
+
+    if (!email) {
+      toast({
+        title: "Atenție",
+        description: "Vă rugăm să introduceți adresa de email pentru trimiterea raportului.",
+        variant: "destructive",
+      })
       return
     }
 
-    if (step === "semnare") {
-      // Check for tech signature - transformăm în avertisment, nu blocaj
-      if (!techSignatureData && (!techSignatureRef.current || techSignatureRef.current.isEmpty())) {
-        toast({
-          title: "Atenție",
-          description: "Raportul va fi generat fără semnătura tehnicianului.",
-        })
+    setIsSubmitting(true)
+
+    try {
+      // Get signatures from refs or from stored state
+      let semnaturaTehnician = techSignatureData
+      let semnaturaBeneficiar = clientSignatureData
+
+      if (techSignatureRef.current && !techSignatureRef.current.isEmpty()) {
+        semnaturaTehnician = techSignatureRef.current.toDataURL("image/png")
+        setTechSignatureData(semnaturaTehnician)
       }
 
-      // Check for client signature - transformăm în avertisment, nu blocaj
-      if (!clientSignatureData && (!clientSignatureRef.current || clientSignatureRef.current.isEmpty())) {
-        toast({
-          title: "Atenție",
-          description: "Raportul va fi generat fără semnătura beneficiarului.",
-        })
+      if (clientSignatureRef.current && !clientSignatureRef.current.isEmpty()) {
+        semnaturaBeneficiar = clientSignatureRef.current.toDataURL("image/png")
+        setClientSignatureData(semnaturaBeneficiar)
       }
 
-      if (!email) {
-        toast({
-          title: "Atenție",
-          description: "Vă rugăm să introduceți adresa de email pentru trimiterea raportului.",
-          variant: "destructive",
-        })
-        return
-      }
+      // Nu mai verificăm dacă avem ambele semnături
+      await updateLucrare(params.id, {
+        semnaturaTehnician,
+        semnaturaBeneficiar,
+        products,
+        emailDestinatar: email,
+        raportGenerat: true,
+        statusLucrare: "Finalizat",
+        updatedAt: serverTimestamp(),
+        preluatDispecer: false,
+      })
 
-      setIsSubmitting(true)
+      // Afișăm un toast de procesare
+      toast({
+        title: "Procesare în curs",
+        description: "Se generează raportul și se trimite pe email...",
+      })
 
-      try {
-        // Get signatures from refs or from stored state
-        let semnaturaTehnician = techSignatureData
-        let semnaturaBeneficiar = clientSignatureData
-
-        if (techSignatureRef.current && !techSignatureRef.current.isEmpty()) {
-          semnaturaTehnician = techSignatureRef.current.toDataURL("image/png")
-          setTechSignatureData(semnaturaTehnician)
-        }
-
-        if (clientSignatureRef.current && !clientSignatureRef.current.isEmpty()) {
-          semnaturaBeneficiar = clientSignatureRef.current.toDataURL("image/png")
-          setClientSignatureData(semnaturaBeneficiar)
-        }
-
-        // Nu mai verificăm dacă avem ambele semnături
-        await updateLucrare(params.id, {
-          semnaturaTehnician,
-          semnaturaBeneficiar,
-          products,
-          emailDestinatar: email,
-          raportGenerat: true,
-          statusLucrare: "Finalizat",
-          updatedAt: serverTimestamp(),
-          preluatDispecer: false,
-        })
-
-        // Afișăm un toast de procesare
-        toast({
-          title: "Procesare în curs",
-          description: "Se generează raportul și se trimite pe email...",
-        })
-
-        // Generate PDF using the ReportGenerator component
-        if (reportGeneratorRef.current) {
-          reportGeneratorRef.current.click()
-
-          // Nu mai setăm step-ul la "finalizat" și nu mai afișăm ecranul final
-          // În schimb, vom redirecționa utilizatorul înapoi la dashboard după ce se trimite emailul
-
-          // Notă: Redirecționarea se va face în callback-ul onGenerate al ReportGenerator
-        } else {
-          // Fallback if ref is not available
-          toast({
-            title: "Eroare",
-            description: "Nu s-a putut genera raportul PDF",
-            variant: "destructive",
-          })
-          setIsSubmitting(false)
-        }
-      } catch (err) {
-        console.error("Eroare la salvarea semnăturilor:", err)
+      // Generate PDF using the ReportGenerator component
+      if (reportGeneratorRef.current) {
+        reportGeneratorRef.current.click()
+      } else {
+        // Fallback if ref is not available
         toast({
           title: "Eroare",
-          description: "A apărut o eroare la salvarea semnăturilor.",
+          description: "Nu s-a putut genera raportul PDF",
+          variant: "destructive",
         })
         setIsSubmitting(false)
       }
+    } catch (err) {
+      console.error("Eroare la salvarea semnăturilor:", err)
+      toast({
+        title: "Eroare",
+        description: "A apărut o eroare la salvarea semnăturilor.",
+      })
+      setIsSubmitting(false)
     }
   })
 
@@ -411,53 +350,8 @@ FOM by NRG`,
     }
   }, [techSignatureData, clientSignatureData, isTechDrawing, isClientDrawing])
 
-  const handleDownloadPDF = useCallback(async () => {
-    if (reportGeneratorRef.current) {
-      reportGeneratorRef.current.click()
-    }
-  }, [])
-
-  const handleResendEmail = useCallback(async () => {
-    if (!email) {
-      toast({
-        title: "Atenție",
-        description: "Vă rugăm să introduceți adresa de email pentru trimiterea raportului.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsSubmitting(true)
-    try {
-      const blob = pdfBlob
-      if (!blob && reportGeneratorRef.current) {
-        // Trigger PDF generation through the ReportGenerator component
-        reportGeneratorRef.current.click()
-        return // The onGenerate callback will handle sending the email
-      }
-
-      if (blob) {
-        await sendEmail(blob)
-      }
-    } catch (error) {
-      console.error("Eroare la retrimiterea emailului:", error)
-      toast({
-        title: "Eroare",
-        description: "A apărut o eroare la retrimiterea emailului",
-      })
-    } finally {
-      setIsSubmitting(false)
-    }
-  }, [email, pdfBlob, sendEmail])
-
-  // This function will be called directly from the button
-  const handleButtonClick = useCallback(() => {
-    console.log("Button clicked directly")
-    handleSubmit()
-  }, [handleSubmit])
-
   // Actualizăm statusul lucrării și marcăm raportul ca generat
-  const updateWorkOrderStatus = async (lucrareId: string, pdfBlob: Blob) => {
+  const updateWorkOrderStatus = async (lucrareId: string) => {
     try {
       if (!lucrareId) {
         console.error("ID-ul lucrării lipsește")
@@ -667,23 +561,29 @@ FOM by NRG`,
               ref={reportGeneratorRef}
               lucrare={lucrare}
               onGenerate={(blob) => {
-                setPdfBlob(blob)
                 // Send email automatically when PDF is generated
                 sendEmail(blob)
                   .then((success) => {
-                    setEmailSent(success)
+                    if (success) {
+                      // Show success toast
+                      toast({
+                        title: "Raport finalizat",
+                        description: "Raportul a fost generat și trimis pe email cu succes.",
+                        variant: "default",
+                      })
 
-                    // Show success toast
-                    toast({
-                      title: "Raport finalizat",
-                      description: "Raportul a fost generat și trimis pe email cu succes.",
-                      variant: "default",
-                    })
+                      // Actualizăm statusul lucrării
+                      if (lucrare && lucrare.id) {
+                        updateWorkOrderStatus(lucrare.id)
+                      }
 
-                    // Redirect to dashboard after a short delay
-                    setTimeout(() => {
-                      router.push("/dashboard/lucrari")
-                    }, 2000)
+                      // Redirect to dashboard after a short delay
+                      setTimeout(() => {
+                        router.push("/dashboard/lucrari")
+                      }, 2000)
+                    } else {
+                      setIsSubmitting(false)
+                    }
                   })
                   .catch((error) => {
                     console.error("Eroare la trimiterea emailului:", error)
@@ -694,17 +594,12 @@ FOM by NRG`,
                     })
                     setIsSubmitting(false)
                   })
-
-                // Actualizăm statusul lucrării
-                if (lucrare && lucrare.id) {
-                  updateWorkOrderStatus(lucrare.id, blob)
-                }
               }}
             />
           </div>
         </CardContent>
 
-        {/* Modify the footer to always show the buttons */}
+        {/* Footer with buttons */}
         <CardFooter className="flex flex-col sm:flex-row gap-4 justify-between pb-6 pt-4">
           <div className="order-2 sm:order-1 w-full sm:w-auto">
             <Button
@@ -720,7 +615,7 @@ FOM by NRG`,
             <Button
               ref={submitButtonRef}
               className="gap-2 bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
-              onClick={handleButtonClick}
+              onClick={handleSubmit}
               disabled={isSubmitting}
               style={{
                 position: "relative",
