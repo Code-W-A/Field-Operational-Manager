@@ -7,6 +7,8 @@ import { Loader2, AlertCircle } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import type { Log } from "@/lib/firebase/firestore"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { orderBy, query, collection, getDocs } from "firebase/firestore"
+import { db } from "@/lib/firebase/config"
 import { DataTable } from "@/components/data-table/data-table"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -16,12 +18,11 @@ import { ColumnSelectionButton } from "@/components/column-selection-button"
 import { ColumnSelectionModal } from "@/components/column-selection-modal"
 import { FilterButton } from "@/components/filter-button"
 import { FilterModal, type FilterOption } from "@/components/filter-modal"
-import { useFirebasePagination } from "@/hooks/use-firebase-pagination"
-import { Button } from "@/components/ui/button"
 
-// În componenta Loguri, înlocuim useFirebaseCollection cu useFirebasePagination
 export default function Loguri() {
   const [activeTab, setActiveTab] = useState("tabel")
+  const [logs, setLogs] = useState<Log[]>([])
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [table, setTable] = useState<any>(null)
   const [searchText, setSearchText] = useState("")
@@ -43,24 +44,33 @@ export default function Loguri() {
     }
   }, [isMobile])
 
-  // Folosim noul hook de paginație pentru loguri
-  const {
-    data: logs,
-    loading,
-    error: fetchError,
-    hasMore,
-    loadNextPage,
-    loadFirstPage,
-    totalCount,
-    currentPage,
-  } = useFirebasePagination<Log>("logs", [], { pageSize: 20, orderBy: { field: "timestamp", direction: "desc" } })
+  // Încărcăm logurile din Firebase
+  useEffect(() => {
+    const fetchLogs = async () => {
+      try {
+        setLoading(true)
 
-  // Funcție pentru a naviga la pagina anterioară
-  const handlePreviousPage = useCallback(() => {
-    // Deoarece Firestore nu suportă direct navigarea înapoi,
-    // reîncărcăm prima pagină și apoi navigăm înainte până la pagina dorită
-    loadFirstPage()
-  }, [loadFirstPage])
+        const logsQuery = query(collection(db, "logs"), orderBy("timestamp", "desc"))
+        const querySnapshot = await getDocs(logsQuery)
+
+        const logsData: Log[] = []
+        querySnapshot.forEach((doc) => {
+          logsData.push({ id: doc.id, ...doc.data() } as Log)
+        })
+
+        setLogs(logsData)
+        setFilteredData(logsData) // Inițializăm datele filtrate
+        setError(null)
+      } catch (err) {
+        console.error("Eroare la încărcarea logurilor:", err)
+        setError("A apărut o eroare la încărcarea logurilor.")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchLogs()
+  }, [])
 
   // Define filter options based on log data
   const filterOptions = useMemo(() => {
@@ -403,15 +413,15 @@ export default function Loguri() {
           onDeselectAll={handleDeselectAllColumns}
         />
 
-        {loading && filteredData.length === 0 ? (
+        {loading ? (
           <div className="flex justify-center items-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
             <span className="ml-2 text-gray-600">Se încarcă logurile...</span>
           </div>
-        ) : error || fetchError ? (
+        ) : error ? (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error || "A apărut o eroare la încărcarea logurilor."}</AlertDescription>
+            <AlertDescription>{error}</AlertDescription>
           </Alert>
         ) : activeTab === "tabel" ? (
           <DataTable
@@ -421,16 +431,6 @@ export default function Loguri() {
             table={table}
             setTable={setTable}
             showFilters={false}
-            // Adăugăm proprietățile pentru paginația Firestore
-            useFirestorePagination={true}
-            currentPage={currentPage}
-            totalCount={totalCount}
-            pageSize={20}
-            loading={loading}
-            hasMore={hasMore}
-            onFirstPage={loadFirstPage}
-            onNextPage={loadNextPage}
-            onPreviousPage={handlePreviousPage}
           />
         ) : (
           <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3 w-full overflow-auto">
@@ -469,21 +469,6 @@ export default function Loguri() {
             {filteredData.length === 0 && (
               <div className="col-span-full text-center py-10">
                 <p className="text-muted-foreground">Nu există loguri care să corespundă criteriilor de căutare.</p>
-              </div>
-            )}
-
-            {/* Adăugăm buton "Încarcă mai multe" pentru vizualizarea de carduri */}
-            {hasMore && (
-              <div className="col-span-full flex justify-center py-4">
-                <Button variant="outline" onClick={loadNextPage} disabled={loading} className="w-full max-w-xs">
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se încarcă...
-                    </>
-                  ) : (
-                    "Încarcă mai multe"
-                  )}
-                </Button>
               </div>
             )}
           </div>

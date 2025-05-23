@@ -17,6 +17,7 @@ import { DashboardShell } from "@/components/dashboard-shell"
 import { Eye, Pencil, Trash2, Loader2, AlertCircle, Plus } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/contexts/AuthContext"
+import { useClientLucrari } from "@/hooks/use-client-lucrari"
 import { ClientEditForm } from "@/components/client-edit-form"
 import { useSearchParams, useRouter } from "next/navigation"
 import { type Client, deleteClient } from "@/lib/firebase/firestore"
@@ -43,10 +44,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-// Modificăm importurile pentru a include noul hook de paginație
-import { useFirebasePagination } from "@/hooks/use-firebase-pagination"
-
-// În componenta Clienti, înlocuim useClientLucrari cu useFirebasePagination
 export default function Clienti() {
   const { userData } = useAuth()
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
@@ -75,24 +72,8 @@ export default function Clienti() {
   // Detect if we're on a mobile device
   const isMobile = useMediaQuery("(max-width: 768px)")
 
-  // Folosim noul hook de paginație pentru clienți
-  const {
-    data: clienti,
-    loading,
-    error: fetchError,
-    hasMore,
-    loadNextPage,
-    loadFirstPage,
-    totalCount,
-    currentPage,
-  } = useFirebasePagination<Client>("clienti", [], { pageSize: 15, orderBy: { field: "nume", direction: "asc" } })
-
-  // Funcție pentru a naviga la pagina anterioară
-  const handlePreviousPage = useCallback(() => {
-    // Deoarece Firestore nu suportă direct navigarea înapoi,
-    // reîncărcăm prima pagină și apoi navigăm înainte până la pagina dorită
-    loadFirstPage()
-  }, [loadFirstPage])
+  // Get clients from Firebase
+  const { clienti, loading, error: fetchError, refreshData } = useClientLucrari()
 
   // Define filter options based on client data
   const filterOptions = useMemo(() => {
@@ -300,7 +281,7 @@ export default function Clienti() {
       try {
         await deleteClient(id)
         // Refresh data after deletion
-        loadFirstPage()
+        refreshData()
       } catch (err) {
         console.error("Eroare la ștergerea clientului:", err)
         alert("A apărut o eroare la ștergerea clientului.")
@@ -343,7 +324,7 @@ export default function Clienti() {
   // Modify handleEditSuccess function to refresh data
   const handleEditSuccess = () => {
     handleEditDialogClose()
-    // refreshData() // Add call to refreshData - removed because we are using pagination
+    refreshData() // Add call to refreshData
   }
 
   // Function to check if we should show the close confirmation dialog for add
@@ -487,7 +468,7 @@ export default function Clienti() {
               ref={addFormRef}
               onSuccess={(clientName) => {
                 setIsAddDialogOpen(false)
-                // refreshData() // Refresh data after addition - removed because we are using pagination
+                refreshData() // Refresh data after addition
               }}
               onCancel={handleCloseAddDialog}
             />
@@ -571,7 +552,7 @@ export default function Clienti() {
           onDeselectAll={handleDeselectAllColumns}
         />
 
-        {loading && filteredData.length === 0 ? (
+        {loading ? (
           <div className="flex justify-center items-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
             <span className="ml-2 text-gray-600">Se încarcă clienții...</span>
@@ -592,16 +573,6 @@ export default function Clienti() {
               setTable={setTable}
               showFilters={false}
               onRowClick={(row) => handleViewDetails(row.id!)}
-              // Adăugăm proprietățile pentru paginația Firestore
-              useFirestorePagination={true}
-              currentPage={currentPage}
-              totalCount={totalCount}
-              pageSize={15}
-              loading={loading}
-              hasMore={hasMore}
-              onFirstPage={loadFirstPage}
-              onNextPage={loadNextPage}
-              onPreviousPage={handlePreviousPage}
             />
           </div>
         ) : (
@@ -696,25 +667,9 @@ export default function Clienti() {
                 <p className="text-muted-foreground">Nu există clienți care să corespundă criteriilor de căutare.</p>
               </div>
             )}
-
-            {/* Adăugăm buton "Încarcă mai multe" pentru vizualizarea de carduri */}
-            {hasMore && (
-              <div className="col-span-full flex justify-center py-4">
-                <Button variant="outline" onClick={loadNextPage} disabled={loading} className="w-full max-w-xs">
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se încarcă...
-                    </>
-                  ) : (
-                    "Încarcă mai multe"
-                  )}
-                </Button>
-              </div>
-            )}
           </div>
         )}
       </div>
-
       <AlertDialog open={showCloseAlert} onOpenChange={setShowCloseAlert}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -733,3 +688,17 @@ export default function Clienti() {
     </DashboardShell>
   )
 }
+;<style jsx global>{`
+  .data-table tbody tr {
+    cursor: pointer;
+  }
+  .data-table tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.04);
+  }
+  .data-table tbody tr:nth-child(even) {
+    background-color: #f2f2f2;
+  }
+  .data-table tbody tr:nth-child(odd) {
+    background-color: #ffffff;
+  }
+`}</style>
