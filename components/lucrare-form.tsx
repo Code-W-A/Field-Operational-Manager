@@ -1675,11 +1675,11 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             />
           </div>
 
-          {/* Modificăm câmpul "Descriere Intervenție" în "Sfaturi pt tehnician" */}
+          {/* Modificăm câmpul "Descriere Intervenție" în "Notă internă" */}
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <label htmlFor="descriere" className="text-sm font-medium">
-                Sfaturi pt tehnician
+                Notă internă
               </label>
               {isAdminOrDispatcher && (
                 <Badge variant="outline" className="bg-blue-50 text-blue-700">

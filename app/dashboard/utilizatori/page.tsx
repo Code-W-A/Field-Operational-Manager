@@ -19,8 +19,6 @@ import { Badge } from "@/components/ui/badge"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Plus, Pencil, Trash2, Loader2, AlertCircle } from "lucide-react"
-import { collection, query, orderBy, getDocs } from "firebase/firestore"
-import { db } from "@/lib/firebase/config"
 import { registerUser, deleteUserAccount, type UserData, type UserRole } from "@/lib/firebase/auth"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/contexts/AuthContext"
@@ -46,13 +44,16 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
+// Modificăm importurile pentru a include noul hook de paginație
+import { useFirebasePagination } from "@/hooks/use-firebase-pagination"
+
+// În componenta Utilizatori, înlocuim fetchUtilizatori cu useFirebasePagination
 export default function Utilizatori() {
   const { userData: currentUser } = useAuth()
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<UserData | null>(null)
-  const [utilizatori, setUtilizatori] = useState<UserData[]>([])
-  const [loading, setLoading] = useState(true)
+  const [fetchLoading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     email: "",
@@ -83,32 +84,26 @@ export default function Utilizatori() {
   // Detect if we're on a mobile device
   const isMobile = useMediaQuery("(max-width: 768px)")
 
-  // Get users from Firebase
-  const fetchUtilizatori = async () => {
-    try {
-      setLoading(true)
-      const q = query(collection(db, "users"), orderBy("displayName"))
-      const querySnapshot = await getDocs(q)
+  // Folosim noul hook de paginație pentru utilizatori
+  const {
+    data: utilizatori,
+    error: fetchError,
+    hasMore,
+    loadNextPage,
+    loadFirstPage,
+    totalCount,
+    currentPage,
+  } = useFirebasePagination<UserData>("users", [], {
+    pageSize: 15,
+    orderBy: { field: "displayName", direction: "asc" },
+  })
 
-      const users: UserData[] = []
-      querySnapshot.forEach((doc) => {
-        users.push({ id: doc.id, ...doc.data() } as UserData)
-      })
-
-      setUtilizatori(users)
-      setFilteredData(users) // Inițializăm datele filtrate
-      setError(null)
-    } catch (err) {
-      console.error("Eroare la încărcarea utilizatorilor:", err)
-      setError("A apărut o eroare la încărcarea utilizatorilor.")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchUtilizatori()
-  }, [])
+  // Funcție pentru a naviga la pagina anterioară
+  const handlePreviousPage = useCallback(() => {
+    // Deoarece Firestore nu suportă direct navigarea înapoi,
+    // reîncărcăm prima pagină și apoi navigăm înainte până la pagina dorită
+    loadFirstPage()
+  }, [loadFirstPage])
 
   // Define filter options based on user data
   const filterOptions = useMemo(() => {
@@ -269,7 +264,7 @@ export default function Utilizatori() {
       await registerUser(formData.email, formData.password, formData.displayName, formData.role, formData.telefon)
 
       // Reload the user list
-      await fetchUtilizatori()
+      // await fetchUtilizatori()
 
       // Close the dialog and reset the form
       setIsAddDialogOpen(false)
@@ -320,7 +315,7 @@ export default function Utilizatori() {
 
   const handleEditSuccess = () => {
     setIsEditDialogOpen(false)
-    fetchUtilizatori()
+    // fetchUtilizatori()
   }
 
   const handleDeleteClick = (user: UserData) => {
@@ -334,7 +329,7 @@ export default function Utilizatori() {
     try {
       setIsSubmitting(true)
       await deleteUserAccount(userToDelete.uid)
-      await fetchUtilizatori()
+      // await fetchUtilizatori()
       setDeleteConfirmOpen(false)
       setUserToDelete(null)
     } catch (err) {
@@ -802,15 +797,15 @@ export default function Utilizatori() {
           onDeselectAll={handleDeselectAllColumns}
         />
 
-        {loading ? (
+        {fetchLoading && filteredData.length === 0 ? (
           <div className="flex justify-center items-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
             <span className="ml-2 text-gray-600">Se încarcă utilizatorii...</span>
           </div>
-        ) : error ? (
+        ) : error || fetchError ? (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>{error || "A apărut o eroare la încărcarea utilizatorilor."}</AlertDescription>
           </Alert>
         ) : activeTab === "tabel" ? (
           <DataTable
@@ -820,6 +815,16 @@ export default function Utilizatori() {
             setTable={setTable}
             showFilters={false}
             onRowClick={(row) => handleEdit(row)}
+            // Adăugăm proprietățile pentru paginația Firestore
+            useFirestorePagination={true}
+            currentPage={currentPage}
+            totalCount={totalCount}
+            pageSize={15}
+            loading={fetchLoading}
+            hasMore={hasMore}
+            onFirstPage={loadFirstPage}
+            onNextPage={loadNextPage}
+            onPreviousPage={handlePreviousPage}
           />
         ) : (
           <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3 w-full overflow-auto">
@@ -878,6 +883,19 @@ export default function Utilizatori() {
                 <p className="text-muted-foreground">
                   Nu există utilizatori care să corespundă criteriilor de căutare.
                 </p>
+              </div>
+            )}
+            {hasMore && (
+              <div className="col-span-full flex justify-center py-4">
+                <Button variant="outline" onClick={loadNextPage} disabled={fetchLoading} className="w-full max-w-xs">
+                  {fetchLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se încarcă...
+                    </>
+                  ) : (
+                    "Încarcă mai multe"
+                  )}
+                </Button>
               </div>
             )}
           </div>

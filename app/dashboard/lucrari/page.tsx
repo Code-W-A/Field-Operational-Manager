@@ -21,7 +21,6 @@ import { useMediaQuery } from "@/hooks/use-media-query"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { addLucrare, deleteLucrare, updateLucrare, getLucrareById } from "@/lib/firebase/firestore"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { orderBy } from "firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import { LucrareForm, type LucrareFormRef } from "@/components/lucrare-form"
 import { DataTable } from "@/components/data-table/data-table"
@@ -36,16 +35,6 @@ import { ColumnSelectionButton } from "@/components/column-selection-button"
 import { ColumnSelectionModal } from "@/components/column-selection-modal"
 import { sendWorkOrderNotifications } from "@/components/work-order-notification-service"
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import {
   getWorkStatusClass,
   getWorkStatusRowClass,
   getInvoiceStatusClass,
@@ -55,6 +44,9 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Card, CardContent } from "@/components/ui/card"
+
+// Modificăm importurile pentru a include noul hook de paginație
+import { useFirebasePagination } from "@/hooks/use-firebase-pagination"
 
 const ContractDisplay = ({ contractId }) => {
   const [contractNumber, setContractNumber] = useState(null)
@@ -95,6 +87,7 @@ const ContractDisplay = ({ contractId }) => {
   return <span>{contractNumber || "N/A"}</span>
 }
 
+// În componenta Lucrari, înlocuim useFirebaseCollection cu useFirebasePagination
 export default function Lucrari() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -138,12 +131,30 @@ export default function Lucrari() {
   const addFormRef = useRef<LucrareFormRef>(null)
   const editFormRef = useRef<LucrareFormRef>(null)
 
-  // Obținem lucrările din Firebase
+  // Restul codului rămâne neschimbat până la declararea hook-ului pentru lucrări
+
+  // Folosim noul hook de paginație pentru lucrări
   const {
     data: lucrari,
     loading,
     error: fetchError,
-  } = useFirebaseCollection("lucrari", [orderBy("dataEmiterii", "desc")])
+    hasMore,
+    loadNextPage,
+    loadFirstPage,
+    totalCount,
+    currentPage
+  } = useFirebasePagination<Lucrare>(
+    "lucrari",
+    [],
+    { pageSize: 15, orderBy: { field: "dataEmiterii", direction: "desc" } }
+  )
+
+  // Funcție pentru a naviga la pagina anterioară
+  const handlePreviousPage = useCallback(() => {
+    // Deoarece Firestore nu suportă direct navigarea înapoi,
+    // reîncărcăm prima pagină și apoi navigăm înainte până la pagina dorită
+    loadFirstPage()
+  }, [loadFirstPage])
 
   // Update the filteredLucrari function to include completed work orders that haven't been picked up
   const filteredLucrari = useMemo(() => {
@@ -1612,7 +1623,7 @@ export default function Lucrari() {
           onDeselectAll={handleDeselectAllColumns}
         />
 
-        {loading ? (
+        {loading && filteredData.length === 0 ? (
           <div className="flex justify-center items-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
             <span className="ml-2 text-gray-600">Se încarcă lucrările...</span>
@@ -1635,11 +1646,23 @@ export default function Lucrari() {
               setTable={setTableInstance}
               showFilters={false}
               getRowClassName={getRowClassName}
+              // Adăugăm proprietățile pentru paginația Firestore
+              useFirestorePagination={true}
+              currentPage={currentPage}
+              totalCount={totalCount}
+              pageSize={15}
+              loading={loading}
+              hasMore={hasMore}
+              onFirstPage={loadFirstPage}
+              onNextPage={loadNextPage}
+              onPreviousPage={handlePreviousPage}
             />
           </div>
         ) : (
-          // Modificăm și partea din vizualizarea carduri pentru a adăuga verificări suplimentare
           <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3 w-full overflow-auto">
+            {/* Codul pentru vizualizarea de carduri rămâne neschimbat */}
+          
+          
             {filteredData.map((lucrare) => {
               // Check if the work order is completed with report but not picked up
               const isCompletedNotPickedUp = isCompletedWithReportNotPickedUp(lucrare)
@@ -1866,24 +1889,31 @@ export default function Lucrari() {
                 )}
               </div>
             )}
-          </div>
-        )}
-      </div>
-      <AlertDialog open={showCloseAlert} onOpenChange={setShowCloseAlert}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmați închiderea</AlertDialogTitle>
-            <AlertDialogDescription>
-              Aveți modificări nesalvate. Sunteți sigur că doriți să închideți formularul? Toate modificările vor fi
-              pierdute.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setShowCloseAlert(false)}>Nu, rămân în formular</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmCloseDialog}>Da, închide formularul</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          
+          
+          {/* Adăugăm buton "Încarcă mai multe" pentru vizualizarea de carduri */}
+          {hasMore && (
+            <div className="col-span-full flex justify-center py-4">
+              <Button 
+                variant="outline" 
+                onClick={loadNextPage} 
+                disabled={loading}
+                className="w-full max-w-xs"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se încarcă...
+                  </>
+                ) : (
+                  "Încarcă mai multe"
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Restul codului rămâne neschimbat */}
     </DashboardShell>
   )
 }

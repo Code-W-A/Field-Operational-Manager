@@ -8,13 +8,14 @@ import {
   type ColumnFiltersState,
   flexRender,
   getCoreRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
   getFilteredRowModel,
   useReactTable,
+  getPaginationRowModel, // Declare getPaginationRowModel
 } from "@tanstack/react-table"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { DataTablePagination } from "./data-table-pagination"
+import { FirestorePagination } from "./firestore-pagination"
+import { DataTablePagination } from "./data-table-pagination" // Declare DataTablePagination
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -24,7 +25,16 @@ interface DataTableProps<TData, TValue> {
   table?: any
   setTable?: (table: any) => void
   showFilters?: boolean
-  getRowClassName?: (row: TData) => string // Adăugăm această proprietate pentru a permite colorarea rândurilor
+  getRowClassName?: (row: TData) => string
+  currentPage?: number
+  totalCount?: number
+  pageSize?: number
+  loading?: boolean
+  hasMore?: boolean
+  onFirstPage?: () => void
+  onNextPage?: () => void
+  onPreviousPage?: () => void
+  useFirestorePagination?: boolean
 }
 
 export function DataTable<TData, TValue>({
@@ -36,6 +46,15 @@ export function DataTable<TData, TValue>({
   setTable: setExternalTable,
   showFilters = true,
   getRowClassName,
+  currentPage,
+  totalCount,
+  pageSize,
+  loading: externalLoading,
+  hasMore,
+  onFirstPage,
+  onNextPage,
+  onPreviousPage,
+  useFirestorePagination = false,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>(defaultSort ? [defaultSort] : [])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
@@ -62,7 +81,7 @@ export function DataTable<TData, TValue>({
     onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    ...(useFirestorePagination ? {} : { getPaginationRowModel: getPaginationRowModel() }),
     getFilteredRowModel: getFilteredRowModel(),
     globalFilterFn: (row, columnId, filterValue) => {
       const safeValue = (() => {
@@ -290,7 +309,7 @@ export function DataTable<TData, TValue>({
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  Nu există date disponibile.
+                  {externalLoading ? "Se încarcă datele..." : "Nu există date disponibile."}
                 </TableCell>
               </TableRow>
             )}
@@ -298,7 +317,20 @@ export function DataTable<TData, TValue>({
         </Table>
       </div>
 
-      <DataTablePagination table={table} />
+      {useFirestorePagination ? (
+        <FirestorePagination
+          currentPage={currentPage || 1}
+          totalCount={totalCount || 0}
+          pageSize={pageSize || 10}
+          loading={!!externalLoading}
+          hasMore={!!hasMore}
+          onFirstPage={onFirstPage || (() => {})}
+          onNextPage={onNextPage || (() => {})}
+          onPreviousPage={onPreviousPage || (() => {})}
+        />
+      ) : (
+        <DataTablePagination table={table} /> // Use DataTablePagination
+      )}
     </div>
   )
 }
