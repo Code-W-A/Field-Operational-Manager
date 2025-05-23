@@ -219,7 +219,19 @@ export async function POST(request: NextRequest) {
 
     // Asigurăm că URL-ul aplicației este complet
     const appBaseUrl = ensureCompleteUrl(process.env.NEXT_PUBLIC_APP_URL || "fom.nrg-acces.ro")
-    const workOrderUrl = `${appBaseUrl}/dashboard/lucrari/${workOrderId}`
+
+    // Asigurăm-ne că workOrderId este un string valid
+    const safeWorkOrderId =
+      typeof workOrderId === "string"
+        ? workOrderId
+        : workOrderId && typeof workOrderId.toString === "function"
+          ? workOrderId.toString()
+          : workOrderNumber || "unknown"
+
+    // Construim URL-ul corect pentru lucrare
+    const workOrderUrl = `${appBaseUrl}/dashboard/lucrari/${safeWorkOrderId}`
+
+    console.log(`[WORK-ORDER-API] [${requestId}] URL lucrare generat: ${workOrderUrl}`)
 
     // Send emails to technicians
     const technicianEmails = []
