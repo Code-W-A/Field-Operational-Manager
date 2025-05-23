@@ -46,6 +46,43 @@ async function safeAddLog(action: string, details: string, type = "Informație",
   }
 }
 
+// Funcție pentru a extrage ID-ul lucrării în mod sigur
+function extractWorkOrderId(workOrderId: any): string {
+  // Verificăm dacă este string
+  if (typeof workOrderId === "string") {
+    return workOrderId
+  }
+
+  // Verificăm dacă este un obiect cu o proprietate id sau _id
+  if (workOrderId && typeof workOrderId === "object") {
+    if (typeof workOrderId.id === "string") return workOrderId.id
+    if (typeof workOrderId._id === "string") return workOrderId._id
+    if (typeof workOrderId.docId === "string") return workOrderId.docId
+
+    // Încercăm să convertim obiectul la JSON și să extragem informații
+    try {
+      const jsonStr = JSON.stringify(workOrderId)
+      console.log(`[DEBUG] workOrderId as JSON: ${jsonStr}`)
+
+      // Dacă obiectul are o proprietate care pare a fi un ID
+      const obj = JSON.parse(jsonStr)
+      for (const key of ["id", "_id", "docId", "documentId", "uid"]) {
+        if (typeof obj[key] === "string") return obj[key]
+      }
+    } catch (e) {
+      console.error("Error parsing workOrderId:", e)
+    }
+  }
+
+  // Dacă este un număr, îl convertim la string
+  if (typeof workOrderId === "number") {
+    return workOrderId.toString()
+  }
+
+  // Fallback la un ID generic
+  return "unknown-id"
+}
+
 // Base64 encoded logo to use when file is not available
 const FALLBACK_LOGO_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAMgAAABkCAYAAADDhn8LAAADsklEQVR4nO3dy27UQBCF4T7vwIINCIQQj8CCBYgbAgQIJO5PwCNwCUgIkEDiBQhrFizYAFIUy5E8GsfT7e7q7vN/UkuTiZNMprqrfLqSGQEAAAAAAAAAAAAAAAAAAAAAAAAAAADQpZnUDUBnTkk6J+m0pFOSjks6IumQpL2S9tj/+yDpvaR3kt5KeiPptaRXkl5K+tJpy9GKA5IuS7oi6aKkC5LOWlJMYknzXNJTSU8kPZb0Y+J7oiVnJN2UdE/SN0nrDV/fJd2VdMPagg7tl3RD0kNJP9V8UvS9fkq6L+m6pJkG7QQOSLoj6Zfan/xbX7/s3nRCYZqZpKuSXqj7xNj6emH3pjOLCR2V9EjdJ0HM66Hd+9BjZummpO/qPuHjXt/t3oeGzkv6qO6TvK3XR+sHGnBY0hN1n9RtvZ5YfzCh65K+qvtkbvv11fqDCc5J+qzuk7ir12frFyZwW90ncdfXLesXRnRU0jt1n7h9vN5Z/zCCmaSn6j5Z+3w9tX5iBDfUfZL2fb1W/mPzWdkv6aO6T9AhXh+snxjgmvJfFI99rVX+Y/RZ2afuk3LI1z3lP0afje/qPhGHfH1T/mP1WXim7pNw6Ncz5T9mn4Xryn+3eOzruvIfuw/eIeW/Wzz265DyH78P2i3ln3hjXbeU//h9sA5K+qT8E26s1yflvw0+WDeVf7KNfbGDPGBHlH+ijX0dUf7b4oN0XfknWVvXdeW/PT4o+5R/grV97VP+2+SDclH5J1fb10Xlv10+GDPlv8Xb1TXTgG33QbikYRPjv6Qnkh5IuivpD0l/Svpb0j+S/pL0u6TfJP1qP/9L0p+S/rD//0DSY0nfB7ThouiHDMZMwyZFcZb7oaTfJf0xoA1/2e8+tN8tzvIfMqAdM+U/jh+EmYZNiEeSrg1ow1VJjwe24ZryH8cPwkzDJsNY/8NnA9txVfmP4wdhpmGTYcxzrYY+5Zon3WDMNGwyMEEGZKZhk4EJMiAzDZsMTJABmWnYZGCCDMhMwyYDE2RAZho2GZggAzLTsMnABBmQmYZNBibIgMw0bDIwQQZkpmGTgQkyIDMNmwxMkAGZadhkYIIMyEzDJgMTZEBmGjYZmCADMtOwyTDWBJlp2LnWTJAOzTRsMox1LtRMw861ZoJ0aKZhk2GsE/VmGnauNROkQzMNmwxjnahfU/5j+EGYadgEKU7U+9/+98X//l/8738P+d//iv/9f8j//lf87/9D/ve/4n//H/K//xX/+/+Q//2v+N//h/zvf8X//j/kf/8r/vf/AAAAAAAAAAAAAAAAAAAAAAAAAAAAgAz9C5gVeUGpivY2AAAAAElFTkSuQmCC"
@@ -88,7 +125,11 @@ export async function POST(request: NextRequest) {
 
     // Log pentru datele extrase
     console.log(`[WORK-ORDER-API] [${requestId}] Date extrase:`)
-    console.log(`- workOrderId: ${workOrderId}`)
+    console.log(`- workOrderId (raw):`, workOrderId)
+    console.log(`- workOrderId (type): ${typeof workOrderId}`)
+    if (typeof workOrderId === "object") {
+      console.log(`- workOrderId (JSON): ${JSON.stringify(workOrderId)}`)
+    }
     console.log(`- workOrderNumber: ${workOrderNumber}`)
     console.log(`- client:`, JSON.stringify(client, null, 2))
     console.log(`- technicians:`, JSON.stringify(technicians, null, 2))
@@ -220,17 +261,12 @@ export async function POST(request: NextRequest) {
     // Asigurăm că URL-ul aplicației este complet
     const appBaseUrl = ensureCompleteUrl(process.env.NEXT_PUBLIC_APP_URL || "fom.nrg-acces.ro")
 
-    // Asigurăm-ne că workOrderId este un string valid
-    const safeWorkOrderId =
-      typeof workOrderId === "string"
-        ? workOrderId
-        : workOrderId && typeof workOrderId.toString === "function"
-          ? workOrderId.toString()
-          : workOrderNumber || "unknown"
+    // Extragem ID-ul lucrării în mod sigur
+    const safeWorkOrderId = extractWorkOrderId(workOrderId)
+    console.log(`[WORK-ORDER-API] [${requestId}] ID lucrare extras: ${safeWorkOrderId}`)
 
     // Construim URL-ul corect pentru lucrare
     const workOrderUrl = `${appBaseUrl}/dashboard/lucrari/${safeWorkOrderId}`
-
     console.log(`[WORK-ORDER-API] [${requestId}] URL lucrare generat: ${workOrderUrl}`)
 
     // Send emails to technicians
