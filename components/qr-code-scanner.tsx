@@ -1,5 +1,6 @@
 "use client"
 
+// Adăugați formatarea datei și timpului la importuri
 import { useState, useEffect, useRef } from "react"
 import { QrReader } from "react-qr-reader"
 import { Button } from "@/components/ui/button"
@@ -20,7 +21,11 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
+import { updateLucrare } from "@/lib/firebase/firestore"
+import { format } from "date-fns"
+import { ro } from "date-fns/locale"
 
+// Modificați interfața pentru a include funcția onTimeSaved
 interface QRCodeScannerProps {
   expectedEquipmentCode?: string
   expectedLocationName?: string
@@ -28,6 +33,8 @@ interface QRCodeScannerProps {
   onScanSuccess?: (data: any) => void
   onScanError?: (error: string) => void
   onVerificationComplete?: (success: boolean) => void
+  lucrareId?: string // Adăugăm ID-ul lucrării pentru a putea actualiza documentul
+  onTimeSaved?: () => void // Callback pentru când timpul este salvat
 }
 
 // Schema pentru validarea codului introdus manual
@@ -40,6 +47,7 @@ type ManualCodeFormValues = z.infer<typeof manualCodeSchema>
 // Constanta pentru durata timeout-ului global (în milisecunde)
 const GLOBAL_SCAN_TIMEOUT = 15000 // 15 secunde
 
+// Asigurați-vă că destructurarea props include și noile proprietăți
 export function QRCodeScanner({
   expectedEquipmentCode,
   expectedLocationName,
@@ -47,6 +55,8 @@ export function QRCodeScanner({
   onScanSuccess,
   onScanError,
   onVerificationComplete,
+  lucrareId,
+  onTimeSaved,
 }: QRCodeScannerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [scanResult, setScanResult] = useState<any>(null)
@@ -155,10 +165,10 @@ export function QRCodeScanner({
       // Resetăm timpul rămas
       setTimeRemaining(GLOBAL_SCAN_TIMEOUT / 1000)
 
-      // Inițiem un timeout pentru a verifica dacă scanarea continuă nu produce rezultate
+      // Pornim un nou timeout pentru scanare continuă
       startContinuousScanTimeout()
 
-      // Pornim timerul global pentru timeout
+      // Pornim un nou timer global
       startGlobalScanTimeout()
     }
   }, [isOpen, form])
@@ -289,7 +299,7 @@ export function QRCodeScanner({
     }
   }
 
-  // Funcție pentru verificarea datelor scanate
+  // În funcția verifyScannedData, adăugați înregistrarea timpului de sosire
   const verifyScannedData = (data: any) => {
     setIsVerifying(true)
     setIsScanning(false)
@@ -368,6 +378,30 @@ export function QRCodeScanner({
           message: "Verificare reușită!",
           details: ["Echipamentul scanat corespunde cu lucrarea."],
         })
+
+        // Salvăm timpul de sosire
+        if (lucrareId) {
+          const now = new Date()
+          const timpSosire = format(now, "yyyy-MM-dd", { locale: ro })
+          const oraSosire = format(now, "HH:mm:ss", { locale: ro })
+
+          // Actualizăm documentul din Firestore
+          updateLucrare(lucrareId, {
+            timpSosire,
+            oraSosire,
+            equipmentVerified: true,
+            equipmentVerifiedAt: now.toISOString(),
+            equipmentVerifiedBy: "Scanner QR",
+          })
+            .then(() => {
+              console.log("Timp de sosire salvat:", timpSosire, oraSosire)
+              if (onTimeSaved) onTimeSaved()
+            })
+            .catch((error) => {
+              console.error("Eroare la salvarea timpului de sosire:", error)
+            })
+        }
+
         if (onScanSuccess) onScanSuccess(parsedData)
         if (onVerificationComplete) onVerificationComplete(true)
 
@@ -481,45 +515,7 @@ export function QRCodeScanner({
     startGlobalScanTimeout()
   }
 
-  const handleScan = (result: any) => {
-    if (result?.text) {
-      console.log("QR Code detected:", result.text)
-      setScanResult(result.text)
-      setIsScanning(false) // Oprim starea de scanare când am detectat un QR code
-      setGlobalTimeoutProgress(0) // Resetăm progresul
-      setGlobalTimeoutExpired(false) // Resetăm starea de expirare a timerului global
-      setTimeRemaining(GLOBAL_SCAN_TIMEOUT / 1000) // Resetăm timpul rămas
-
-      // Curățăm timeout-urile când detectăm un cod QR
-      if (scanTimeoutRef.current) {
-        clearTimeout(scanTimeoutRef.current)
-        scanTimeoutRef.current = null
-      }
-      if (globalTimeoutRef.current) {
-        clearTimeout(globalTimeoutRef.current)
-        globalTimeoutRef.current = null
-      }
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current)
-        progressIntervalRef.current = null
-      }
-
-      verifyScannedData(result.text)
-    }
-  }
-
-  const handleError = (error: any) => {
-    console.error("Eroare la scanarea QR code-ului:", error)
-    setScanError("A apărut o eroare la scanarea QR code-ului. Verificați permisiunile camerei.")
-    setIsScanning(false)
-    if (onScanError) onScanError("Eroare la scanare")
-    if (onVerificationComplete) onVerificationComplete(false)
-
-    // Incrementăm contorul de încercări eșuate
-    incrementFailedAttempts()
-  }
-
-  // Funcție pentru verificarea codului introdus manual
+  // Modificați funcția pentru verificarea codului introdus manual
   const onSubmitManualCode = (values: ManualCodeFormValues) => {
     console.log("Verificare cod manual:", values.equipmentCode)
     setIsVerifying(true)
@@ -539,6 +535,29 @@ export function QRCodeScanner({
         message: "Verificare reușită!",
         details: ["Codul introdus manual corespunde cu echipamentul din lucrare."],
       })
+
+      // Salvăm timpul de sosire
+      if (lucrareId) {
+        const now = new Date()
+        const timpSosire = format(now, "yyyy-MM-dd", { locale: ro })
+        const oraSosire = format(now, "HH:mm:ss", { locale: ro })
+
+        // Actualizăm documentul din Firestore
+        updateLucrare(lucrareId, {
+          timpSosire,
+          oraSosire,
+          equipmentVerified: true,
+          equipmentVerifiedAt: now.toISOString(),
+          equipmentVerifiedBy: "Introducere manuală",
+        })
+          .then(() => {
+            console.log("Timp de sosire salvat:", timpSosire, oraSosire)
+            if (onTimeSaved) onTimeSaved()
+          })
+          .catch((error) => {
+            console.error("Eroare la salvarea timpului de sosire:", error)
+          })
+      }
 
       if (onScanSuccess) onScanSuccess(manualData)
       if (onVerificationComplete) onVerificationComplete(true)
@@ -698,6 +717,13 @@ export function QRCodeScanner({
       }
     }
   }, [])
+
+  const handleScan = (result: any) => {
+    if (result && result.text) {
+      setScanResult(result.text)
+      verifyScannedData(result.text)
+    }
+  }
 
   return (
     <>
