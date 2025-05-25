@@ -46,6 +46,10 @@ export interface Lucrare {
   oraSosire?: string // Format: HH:mm
   dataPlecare?: string // Format: dd-MM-yyyy
   oraPlecare?: string // Format: HH:mm
+  // Câmpuri pentru durata intervenției
+  durataTotala?: number // Durata în minute
+  durataOre?: number // Componenta ore
+  durataMinute?: number // Componenta minute
   createdAt?: Timestamp
   updatedAt?: Timestamp
   createdBy?: string

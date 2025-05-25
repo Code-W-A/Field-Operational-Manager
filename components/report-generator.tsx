@@ -11,6 +11,7 @@ import { ProductTableForm, type Product } from "./product-table-form"
 import { serverTimestamp, doc, updateDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/firebase"
 import { format } from "date-fns"
+import { calculateDuration, formatDuration } from "@/lib/utils/time-calculations"
 
 interface ReportGeneratorProps {
   lucrare: Lucrare
@@ -40,6 +41,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
   const [logoError, setLogoError] = useState(false)
   const [departureDate, setDepartureDate] = useState<string>("")
   const [departureTime, setDepartureTime] = useState<string>("")
+  const [duration, setDuration] = useState<{ hours: number; minutes: number; totalMinutes: number } | null>(null)
 
   // Update products when lucrare changes
   useEffect(() => {
@@ -51,9 +53,17 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
   // Set current date and time for departure when component mounts
   useEffect(() => {
     const now = new Date()
-    setDepartureDate(format(now, "dd-MM-yyyy"))
-    setDepartureTime(format(now, "HH:mm"))
-  }, [])
+    const formattedDate = format(now, "dd-MM-yyyy")
+    const formattedTime = format(now, "HH:mm")
+    setDepartureDate(formattedDate)
+    setDepartureTime(formattedTime)
+
+    // Calculate duration if arrival time is available
+    if (lucrare?.dataSosire && lucrare?.oraSosire) {
+      const calculatedDuration = calculateDuration(lucrare.dataSosire, lucrare.oraSosire, formattedDate, formattedTime)
+      setDuration(calculatedDuration)
+    }
+  }, [lucrare])
 
   // Preload the logo image as data URL (fallback included)
   useEffect(() => {
@@ -99,15 +109,31 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         client: lucrare.semnaturaBeneficiar ? "Present" : "Missing",
       })
 
+      // Calculate duration
+      const calculatedDuration = calculateDuration(lucrare.dataSosire, lucrare.oraSosire, departureDate, departureTime)
+      setDuration(calculatedDuration)
+
       // Store departure date and time in Firestore
       if (lucrare.id) {
         try {
-          await updateDoc(doc(db, "lucrari", lucrare.id), {
+          const updateData: any = {
             dataPlecare: departureDate,
             oraPlecare: departureTime,
             updatedAt: serverTimestamp(),
-          })
+          }
+
+          // Add duration if available
+          if (calculatedDuration) {
+            updateData.durataTotala = calculatedDuration.totalMinutes
+            updateData.durataOre = calculatedDuration.hours
+            updateData.durataMinute = calculatedDuration.minutes
+          }
+
+          await updateDoc(doc(db, "lucrari", lucrare.id), updateData)
           console.log("Departure date and time stored in Firestore:", departureDate, departureTime)
+          if (calculatedDuration) {
+            console.log("Duration stored:", calculatedDuration)
+          }
         } catch (e) {
           console.error("Error storing departure date and time:", e)
         }
@@ -220,9 +246,16 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const departureTimeToShow = departureTime || "-"
 
       doc.text(`Data: ${normalize(arrivalDate)}`, M, currentY)
-      doc.text(`Sosire: ${arrivalTime}`, M + 70, currentY)
-      doc.text(`Plecare: ${departureTimeToShow}`, M + 120, currentY)
-      doc.text(`Raport #${lucrare.id || ""}`, PW - M, currentY, { align: "right" })
+      doc.text(`Sosire: ${arrivalTime}`, M + 50, currentY)
+      doc.text(`Plecare: ${departureTimeToShow}`, M + 100, currentY)
+
+      // Add duration if available
+      if (calculatedDuration) {
+        const durationText = formatDuration(calculatedDuration.hours, calculatedDuration.minutes)
+        doc.text(`Durata: ${durationText}`, M + 150, currentY)
+      }
+
+     // doc.text(`Raport #${lucrare.id || ""}`, PW - M, currentY, { align: "right" })
       currentY += 10
 
       // EQUIPMENT
@@ -429,7 +462,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 
       <div className="mb-4 p-4 bg-gray-50 rounded-md border">
         <h3 className="text-lg font-semibold mb-2">Informații despre intervenție</h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <p className="text-sm text-gray-500">Data și ora sosirii:</p>
             <p className="font-medium">
@@ -437,9 +470,15 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
             </p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">Data și ora plecării (la generare raport):</p>
+            <p className="text-sm text-gray-500">Data și ora plecării:</p>
             <p className="font-medium">
               {departureDate} {departureTime}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Durata intervenției:</p>
+            <p className="font-medium">
+              {duration ? formatDuration(duration.hours, duration.minutes) : "Se va calcula la generarea raportului"}
             </p>
           </div>
         </div>
