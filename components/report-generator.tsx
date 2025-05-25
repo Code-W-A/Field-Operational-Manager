@@ -232,7 +232,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         .setFontSize(16)
         .setFont(undefined, "bold")
         .text("RAPORT DE INTERVENTIE", PW / 2, currentY, { align: "center" })
-      currentY += 10
+      currentY += 20
 
       // META
       doc.setFontSize(9).setFont(undefined, "normal")
