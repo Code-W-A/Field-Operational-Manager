@@ -22,6 +22,27 @@ const normalize = (text = "") =>
     (c) => (({ ă: "a", â: "a", î: "i", ș: "s", ț: "t", Ă: "A", Â: "A", Î: "I", Ș: "S", Ț: "T" }) as any)[c],
   )
 
+// Format date from yyyy-MM-dd to dd-MM-yyyy
+const formatDate = (dateStr?: string) => {
+  if (!dateStr) return "-"
+  try {
+    const [year, month, day] = dateStr.split("-")
+    return `${day}-${month}-${year}`
+  } catch (e) {
+    return dateStr
+  }
+}
+
+// Format time from HH:mm:ss to HH:mm
+const formatTime = (timeStr?: string) => {
+  if (!timeStr) return "-"
+  try {
+    return timeStr.substring(0, 5) // Extract only HH:mm
+  } catch (e) {
+    return timeStr
+  }
+}
+
 // A4 portrait: 210×297 mm
 const M = 15 // page margin
 const W = 210 - 2 * M // content width
@@ -186,17 +207,9 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // META
       doc.setFontSize(9).setFont(undefined, "normal")
       const [d, t] = (lucrare.dataInterventie || " - -").split(" ")
-      doc.text(`Data: ${normalize(d)}`, M, currentY)
-      doc.text(
-        `Sosire: ${lucrare.oraSosire || lucrare.timpSosire ? `${lucrare.timpSosire} ${lucrare.oraSosire}` : t || "-"}`,
-        M + 70,
-        currentY,
-      )
-      doc.text(
-        `Plecare: ${lucrare.oraPlecare || lucrare.timpPlecare ? `${lucrare.timpPlecare} ${lucrare.oraPlecare}` : "-"}`,
-        M + 120,
-        currentY,
-      )
+      doc.text(`Data: ${formatDate(lucrare.timpSosire || d)}`, M, currentY)
+      doc.text(`Sosire: ${formatTime(lucrare.oraSosire) || t || "-"}`, M + 70, currentY)
+      doc.text(`Plecare: ${formatTime(lucrare.oraPlecare) || "-"}`, M + 120, currentY)
       doc.text(`Raport #${lucrare.id || ""}`, PW - M, currentY, { align: "right" })
       currentY += 10
 
