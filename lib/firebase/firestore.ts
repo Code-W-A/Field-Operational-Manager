@@ -41,11 +41,6 @@ export interface Lucrare {
   equipmentVerified?: boolean
   equipmentVerifiedAt?: string
   equipmentVerifiedBy?: string
-  // Câmpuri pentru timpul de sosire și plecare
-  dataSosire?: string // Format: dd-MM-yyyy
-  oraSosire?: string // Format: HH:mm
-  dataPlecare?: string // Format: dd-MM-yyyy
-  oraPlecare?: string // Format: HH:mm
   createdAt?: Timestamp
   updatedAt?: Timestamp
   createdBy?: string
