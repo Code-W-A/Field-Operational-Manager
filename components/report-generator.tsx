@@ -187,8 +187,16 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       doc.setFontSize(9).setFont(undefined, "normal")
       const [d, t] = (lucrare.dataInterventie || " - -").split(" ")
       doc.text(`Data: ${normalize(d)}`, M, currentY)
-      doc.text(`Sosire: ${t || "-"}`, M + 70, currentY)
-      doc.text(`Plecare: ${lucrare.oraPlecare || "-"}`, M + 120, currentY)
+      doc.text(
+        `Sosire: ${lucrare.oraSosire || lucrare.timpSosire ? `${lucrare.timpSosire} ${lucrare.oraSosire}` : t || "-"}`,
+        M + 70,
+        currentY,
+      )
+      doc.text(
+        `Plecare: ${lucrare.oraPlecare || lucrare.timpPlecare ? `${lucrare.timpPlecare} ${lucrare.oraPlecare}` : "-"}`,
+        M + 120,
+        currentY,
+      )
       doc.text(`Raport #${lucrare.id || ""}`, PW - M, currentY, { align: "right" })
       currentY += 10
 

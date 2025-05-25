@@ -19,6 +19,8 @@ import { toast } from "@/components/ui/use-toast"
 import { ReportGenerator } from "@/components/report-generator"
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
+import { format } from "date-fns"
+import { ro } from "date-fns/locale"
 
 export default function RaportPage({ params }: { params: { id: string } }) {
   const SIG_HEIGHT = 160 // px – lasă-l fix
@@ -249,6 +251,11 @@ FOM by NRG`,
         setClientSignatureData(semnaturaBeneficiar)
       }
 
+      // Înregistrăm timpul de plecare
+      const now = new Date()
+      const timpPlecare = format(now, "yyyy-MM-dd", { locale: ro })
+      const oraPlecare = format(now, "HH:mm:ss", { locale: ro })
+
       // Create updated lucrare object with all necessary data
       const updatedLucrareData = {
         ...lucrare,
@@ -260,6 +267,8 @@ FOM by NRG`,
         statusLucrare: "Finalizat",
         updatedAt: serverTimestamp(),
         preluatDispecer: false,
+        timpPlecare,
+        oraPlecare,
       }
 
       // Save to Firestore
