@@ -381,16 +381,18 @@ export function QRCodeScanner({
           // Format time as HH:mm
           const oraSosire = format(now, "HH:mm")
 
+          console.log("Salvare timp sosire în Firestore:", { dataSosire, oraSosire, lucrareId })
+
           // Actualizăm documentul din Firestore
           updateLucrare(lucrareId, {
-            dataSosire,
-            oraSosire,
+            dataSosire: dataSosire,
+            oraSosire: oraSosire,
             equipmentVerified: true,
             equipmentVerifiedAt: now.toISOString(),
             equipmentVerifiedBy: "Scanner QR",
           })
             .then(() => {
-              console.log("Timp de sosire salvat:", dataSosire, oraSosire)
+              console.log("Timp de sosire salvat cu succes:", dataSosire, oraSosire)
             })
             .catch((error) => {
               console.error("Eroare la salvarea timpului de sosire:", error)
@@ -577,16 +579,18 @@ export function QRCodeScanner({
         // Format time as HH:mm
         const oraSosire = format(now, "HH:mm")
 
+        console.log("Salvare timp sosire în Firestore (manual):", { dataSosire, oraSosire, lucrareId })
+
         // Actualizăm documentul din Firestore
         updateLucrare(lucrareId, {
-          dataSosire,
-          oraSosire,
+          dataSosire: dataSosire,
+          oraSosire: oraSosire,
           equipmentVerified: true,
           equipmentVerifiedAt: now.toISOString(),
           equipmentVerifiedBy: "Introducere manuală",
         })
           .then(() => {
-            console.log("Timp de sosire salvat:", dataSosire, oraSosire)
+            console.log("Timp de sosire salvat cu succes:", dataSosire, oraSosire)
           })
           .catch((error) => {
             console.error("Eroare la salvarea timpului de sosire:", error)
