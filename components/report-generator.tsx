@@ -8,7 +8,9 @@ import type { Lucrare } from "@/lib/firebase/firestore"
 import { useStableCallback } from "@/lib/utils/hooks"
 import { toast } from "@/components/ui/use-toast"
 import { ProductTableForm, type Product } from "./product-table-form"
-import { serverTimestamp } from "firebase/firestore"
+import { serverTimestamp, doc, updateDoc } from "firebase/firestore"
+import { db } from "@/lib/firebase/firebase"
+import { format } from "date-fns"
 
 interface ReportGeneratorProps {
   lucrare: Lucrare
@@ -36,6 +38,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null)
   const [logoLoaded, setLogoLoaded] = useState(false)
   const [logoError, setLogoError] = useState(false)
+  const [departureDate, setDepartureDate] = useState<string>("")
+  const [departureTime, setDepartureTime] = useState<string>("")
 
   // Update products when lucrare changes
   useEffect(() => {
@@ -43,6 +47,13 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       setProducts(lucrare.products)
     }
   }, [lucrare])
+
+  // Set current date and time for departure when component mounts
+  useEffect(() => {
+    const now = new Date()
+    setDepartureDate(format(now, "dd-MM-yyyy"))
+    setDepartureTime(format(now, "HH:mm"))
+  }, [])
 
   // Preload the logo image as data URL (fallback included)
   useEffect(() => {
@@ -87,6 +98,20 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         tech: lucrare.semnaturaTehnician ? "Present" : "Missing",
         client: lucrare.semnaturaBeneficiar ? "Present" : "Missing",
       })
+
+      // Store departure date and time in Firestore
+      if (lucrare.id) {
+        try {
+          await updateDoc(doc(db, "lucrari", lucrare.id), {
+            dataPlecare: departureDate,
+            oraPlecare: departureTime,
+            updatedAt: serverTimestamp(),
+          })
+          console.log("Departure date and time stored in Firestore:", departureDate, departureTime)
+        } catch (e) {
+          console.error("Error storing departure date and time:", e)
+        }
+      }
 
       const doc = new jsPDF({ unit: "mm", format: "a4" })
       const PW = doc.internal.pageSize.getWidth()
@@ -186,9 +211,17 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // META
       doc.setFontSize(9).setFont(undefined, "normal")
       const [d, t] = (lucrare.dataInterventie || " - -").split(" ")
-      doc.text(`Data: ${normalize(d)}`, M, currentY)
-      doc.text(`Sosire: ${t || "-"}`, M + 70, currentY)
-      doc.text(`Plecare: ${lucrare.oraPlecare || "-"}`, M + 120, currentY)
+
+      // Use stored arrival date/time if available, otherwise use the intervention date
+      const arrivalDate = lucrare.dataSosire || d
+      const arrivalTime = lucrare.oraSosire || t || "-"
+
+      // Use the departure date/time we just stored
+      const departureTimeToShow = departureTime || "-"
+
+      doc.text(`Data: ${normalize(arrivalDate)}`, M, currentY)
+      doc.text(`Sosire: ${arrivalTime}`, M + 70, currentY)
+      doc.text(`Plecare: ${departureTimeToShow}`, M + 120, currentY)
       doc.text(`Raport #${lucrare.id || ""}`, PW - M, currentY, { align: "right" })
       currentY += 10
 
@@ -354,9 +387,10 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // Mark document as generated
       if (lucrare.id) {
         try {
-          const { doc: fbDoc, updateDoc } = require("firebase/firestore")
-          const { db } = require("@/lib/firebase/config")
-          await updateDoc(fbDoc(db, "lucrari", lucrare.id), { raportGenerat: true, updatedAt: serverTimestamp() })
+          await updateDoc(doc(db, "lucrari", lucrare.id), {
+            raportGenerat: true,
+            updatedAt: serverTimestamp(),
+          })
           console.log("Raport marcat ca generat în Firestore")
         } catch (e) {
           console.error("Nu s-a putut actualiza starea în sistem:", e)
@@ -364,6 +398,11 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       }
 
       onGenerate?.(blob)
+      toast({
+        title: "Succes",
+        description: "Raport generat și ora plecării înregistrată.",
+        variant: "default",
+      })
       return blob
     } catch (e) {
       console.error("Error generating PDF:", e)
@@ -387,11 +426,30 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           <p className="whitespace-pre-line">{lucrare.descriereInterventie}</p>
         </div>
       )}
+
+      <div className="mb-4 p-4 bg-gray-50 rounded-md border">
+        <h3 className="text-lg font-semibold mb-2">Informații despre intervenție</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-sm text-gray-500">Data și ora sosirii:</p>
+            <p className="font-medium">
+              {lucrare?.dataSosire || "-"} {lucrare?.oraSosire || "-"}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Data și ora plecării (la generare raport):</p>
+            <p className="font-medium">
+              {departureDate} {departureTime}
+            </p>
+          </div>
+        </div>
+      </div>
+
       <ProductTableForm products={products} onProductsChange={setProducts} />
       <div className="flex justify-center mt-6">
         <Button ref={ref} onClick={generatePDF} disabled={isGen} className="gap-2">
           <Download className="h-4 w-4" />
-          {isGen ? "În curs..." : "Generează PDF"}
+          {isGen ? "În curs..." : "Generează PDF și înregistrează ora plecării"}
         </Button>
       </div>
     </div>
