@@ -41,11 +41,6 @@ export interface Lucrare {
   equipmentVerified?: boolean
   equipmentVerifiedAt?: string
   equipmentVerifiedBy?: string
-  // Adăugăm câmpuri noi pentru timpii de sosire și plecare
-  timpSosire?: string
-  timpPlecare?: string
-  oraSosire?: string
-  oraPlecare?: string
   createdAt?: Timestamp
   updatedAt?: Timestamp
   createdBy?: string
