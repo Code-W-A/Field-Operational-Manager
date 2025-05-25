@@ -1,224 +1,652 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import type React from "react"
+
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { db } from "@/firebase"
-import { collection, addDoc, doc, getDoc, updateDoc } from "firebase/firestore"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
+import { Send, ArrowLeft } from "lucide-react"
+import SignatureCanvas from "react-signature-canvas"
+import { getLucrareById, updateLucrare } from "@/lib/firebase/firestore"
+import { useAuth } from "@/contexts/AuthContext"
+import { useStableCallback } from "@/lib/utils/hooks"
+import { ProductTableForm, type Product } from "@/components/product-table-form"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { toast } from "@/components/ui/use-toast"
+import { ReportGenerator } from "@/components/report-generator"
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore"
+import { db } from "@/lib/firebase/config"
 import { format } from "date-fns"
 import { ro } from "date-fns/locale"
 
-interface Raport {
-  id?: string
-  nume: string
-  prenume: string
-  telefon: string
-  email: string
-  departament: string
-  problema: string
-  status: string
-  timpCreare?: string
-  dataCreare?: string
-  timpPlecare?: string
-  dataPlecare?: string
-  observatii?: string
-}
+export default function RaportPage({ params }: { params: { id: string } }) {
+  const SIG_HEIGHT = 160 // px – lasă-l fix
+  const SIG_MIN_WIDTH = 320 // px – cât încape pe telefonul cel mai îngust
 
-const RaportPage = ({ params }: { params: { id: string } }) => {
-  const [raport, setRaport] = useState<Raport>({
-    nume: "",
-    prenume: "",
-    telefon: "",
-    email: "",
-    departament: "",
-    problema: "",
-    status: "Nou",
-  })
-  const [isEditing, setIsEditing] = useState(false)
   const router = useRouter()
+  const { userData } = useAuth()
+
+  // Signature references and states
+  const techSignatureRef = useRef<SignatureCanvas | null>(null)
+  const clientSignatureRef = useRef<SignatureCanvas | null>(null)
+  const [isTechSigned, setIsTechSigned] = useState(false)
+  const [isClientSigned, setIsClientSigned] = useState(false)
+  const [techSignatureData, setTechSignatureData] = useState<string | null>(null)
+  const [clientSignatureData, setClientSignatureData] = useState<string | null>(null)
+  const [isTechDrawing, setIsTechDrawing] = useState(false)
+  const [isClientDrawing, setIsClientDrawing] = useState(false)
+
+  const [lucrare, setLucrare] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [statusLucrare, setStatusLucrare] = useState<string>("")
+  const [products, setProducts] = useState<Product[]>([])
+
+  // Add email state
+  const [email, setEmail] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [updatedLucrare, setUpdatedLucrare] = useState<any>(null)
+
+  const reportGeneratorRef = useRef<React.ElementRef<typeof ReportGenerator>>(null)
+  const submitButtonRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
-    const loadRaport = async () => {
-      if (params.id === "new") {
-        setIsEditing(true)
+    const fetchLucrare = async () => {
+      try {
+        setLoading(true)
+        const data = await getLucrareById(params.id)
+        if (data) {
+          // Ensure all required fields exist with default values if missing
+          const processedData = {
+            ...data,
+            // Add default values for potentially missing fields
+            constatareLaLocatie: data.constatareLaLocatie || "",
+            descriereInterventie: data.descriereInterventie || "",
+            defectReclamat: data.defectReclamat || "",
+            descriere: data.descriere || "",
+            persoanaContact: data.persoanaContact || "",
+            products: data.products || [],
+            emailDestinatar: data.emailDestinatar || "",
+            statusLucrare: data.statusLucrare || "În lucru",
+            tehnicieni: data.tehnicieni || [],
+            client: data.client || "",
+            locatie: data.locatie || "",
+            dataInterventie: data.dataInterventie || "",
+          }
+
+          setLucrare(processedData)
+          setStatusLucrare(processedData.statusLucrare)
+
+          // If the work has products, load them
+          if (processedData.products && processedData.products.length > 0) {
+            setProducts(processedData.products)
+          }
+
+          // If the work has an email address, load it
+          if (processedData.emailDestinatar) {
+            setEmail(processedData.emailDestinatar)
+          }
+        } else {
+          setError("Lucrarea nu a fost găsită")
+        }
+      } catch (err) {
+        console.error("Eroare la încărcarea lucrării:", err)
+        setError("A apărut o eroare la încărcarea lucrării")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchLucrare()
+  }, [params.id])
+
+  // Verificăm dacă tehnicianul are acces la această lucrare
+  useEffect(() => {
+    const checkAccess = async () => {
+      if (
+        !loading &&
+        lucrare &&
+        userData?.role === "tehnician" &&
+        userData?.displayName &&
+        lucrare.tehnicieni &&
+        !lucrare.tehnicieni.includes(userData.displayName)
+      ) {
+        // Tehnicianul nu este alocat la această lucrare, redirecționăm la dashboard
+        alert("Nu aveți acces la raportul acestei lucrări.")
+        router.push("/dashboard")
+      }
+    }
+
+    checkAccess()
+  }, [loading, lucrare, userData, router])
+
+  // Effect to trigger PDF generation when updatedLucrare changes
+  useEffect(() => {
+    if (updatedLucrare && reportGeneratorRef.current) {
+      reportGeneratorRef.current.click()
+    }
+  }, [updatedLucrare])
+
+  const clearTechSignature = useCallback(() => {
+    if (techSignatureRef.current) {
+      techSignatureRef.current.clear()
+      setIsTechSigned(false)
+      setTechSignatureData(null)
+    }
+  }, [])
+
+  const clearClientSignature = useCallback(() => {
+    if (clientSignatureRef.current) {
+      clientSignatureRef.current.clear()
+      setIsClientSigned(false)
+      setClientSignatureData(null)
+    }
+  }, [])
+
+  // Function to send email
+  const sendEmail = useCallback(
+    async (pdfBlob: Blob) => {
+      try {
+        if (!updatedLucrare) {
+          throw new Error("Datele lucrării nu sunt disponibile")
+        }
+
+        // Create FormData for email sending
+        const formData = new FormData()
+        formData.append("to", email)
+        formData.append(
+          "subject",
+          `Raport Interventie - ${updatedLucrare.client || "Client"} - ${updatedLucrare.dataInterventie || "Data"}`,
+        )
+        formData.append(
+          "message",
+          `Stimata/Stimate ${updatedLucrare.persoanaContact || "Client"},
+
+Va transmitem atasat raportul de interventie pentru lucrarea efectuata in data de ${updatedLucrare.dataInterventie || "N/A"}.
+
+Cu stima,
+FOM by NRG`,
+        )
+        formData.append("senderName", `FOM by NRG - ${updatedLucrare.tehnicieni?.join(", ") || "Tehnician"}`)
+
+        // Add PDF as file
+        const pdfFile = new File([pdfBlob], `Raport_Interventie_${updatedLucrare.id || params.id}.pdf`, {
+          type: "application/pdf",
+        })
+        formData.append("pdfFile", pdfFile)
+
+        // Add company logo
+        formData.append("companyLogo", "/logo-placeholder.png")
+
+        // Send request to API
+        const response = await fetch("/api/send-email", {
+          method: "POST",
+          body: formData,
+        })
+
+        if (!response.ok) {
+          const data = await response.json()
+          throw new Error(data.error || "A aparut o eroare la trimiterea emailului")
+        }
+
+        return true
+      } catch (error) {
+        console.error("Eroare la trimiterea emailului:", error)
+        toast({
+          title: "Eroare",
+          description: error instanceof Error ? error.message : "A aparut o eroare la trimiterea emailului",
+          variant: "destructive",
+        })
+        return false
+      }
+    },
+    [email, updatedLucrare, params.id],
+  )
+
+  // Use useStableCallback to ensure we have access to the latest state values
+  // without causing unnecessary re-renders
+  const handleSubmit = useStableCallback(async () => {
+    // Check for tech signature - transformăm în avertisment, nu blocaj
+    if (!techSignatureData && (!techSignatureRef.current || techSignatureRef.current.isEmpty())) {
+      toast({
+        title: "Atenție",
+        description: "Raportul va fi generat fără semnătura tehnicianului.",
+      })
+    }
+
+    // Check for client signature - transformăm în avertisment, nu blocaj
+    if (!clientSignatureData && (!clientSignatureRef.current || clientSignatureRef.current.isEmpty())) {
+      toast({
+        title: "Atenție",
+        description: "Raportul va fi generat fără semnătura beneficiarului.",
+      })
+    }
+
+    if (!email) {
+      toast({
+        title: "Atenție",
+        description: "Vă rugăm să introduceți adresa de email pentru trimiterea raportului.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      // Get signatures from refs or from stored state
+      let semnaturaTehnician = techSignatureData
+      let semnaturaBeneficiar = clientSignatureData
+
+      if (techSignatureRef.current && !techSignatureRef.current.isEmpty()) {
+        semnaturaTehnician = techSignatureRef.current.toDataURL("image/png")
+        setTechSignatureData(semnaturaTehnician)
+      }
+
+      if (clientSignatureRef.current && !clientSignatureRef.current.isEmpty()) {
+        semnaturaBeneficiar = clientSignatureRef.current.toDataURL("image/png")
+        setClientSignatureData(semnaturaBeneficiar)
+      }
+
+      // Înregistrăm timpul de plecare
+      const now = new Date()
+      const timpPlecare = format(now, "yyyy-MM-dd", { locale: ro })
+      const oraPlecare = format(now, "HH:mm:ss", { locale: ro })
+
+      // Create updated lucrare object with all necessary data
+      const updatedLucrareData = {
+        ...lucrare,
+        semnaturaTehnician,
+        semnaturaBeneficiar,
+        products,
+        emailDestinatar: email,
+        raportGenerat: true,
+        statusLucrare: "Finalizat",
+        updatedAt: serverTimestamp(),
+        preluatDispecer: false,
+        timpPlecare,
+        oraPlecare,
+      }
+
+      // Save to Firestore
+      await updateLucrare(params.id, updatedLucrareData)
+
+      // Update local state with the updated data
+      setUpdatedLucrare(updatedLucrareData)
+
+      // Afișăm un toast de procesare
+      toast({
+        title: "Procesare în curs",
+        description: "Se generează raportul și se trimite pe email...",
+      })
+
+      // PDF generation will be triggered by the useEffect when updatedLucrare changes
+    } catch (err) {
+      console.error("Eroare la salvarea semnăturilor:", err)
+      toast({
+        title: "Eroare",
+        description: "A apărut o eroare la salvarea semnăturilor.",
+      })
+      setIsSubmitting(false)
+    }
+  })
+
+  // Tech signature handlers
+  const handleTechBegin = useCallback(() => {
+    setIsTechDrawing(true)
+  }, [])
+
+  const handleTechEnd = useCallback(() => {
+    setIsTechDrawing(false)
+    if (techSignatureRef.current) {
+      const isEmpty = techSignatureRef.current.isEmpty()
+      setIsTechSigned(!isEmpty)
+
+      if (!isEmpty) {
+        // Store the signature data to prevent loss on mobile
+        const data = techSignatureRef.current.toDataURL()
+        setTechSignatureData(data)
+      }
+    }
+  }, [])
+
+  // Client signature handlers
+  const handleClientBegin = useCallback(() => {
+    setIsClientDrawing(true)
+  }, [])
+
+  const handleClientEnd = useCallback(() => {
+    setIsClientDrawing(false)
+    if (clientSignatureRef.current) {
+      const isEmpty = clientSignatureRef.current.isEmpty()
+      setIsClientSigned(!isEmpty)
+
+      if (!isEmpty) {
+        // Store the signature data to prevent loss on mobile
+        const data = clientSignatureRef.current.toDataURL()
+        setClientSignatureData(data)
+      }
+    }
+  }, [])
+
+  // Add document-wide click/touch handler to restore signatures if they get cleared
+  useEffect(() => {
+    const handleDocumentInteraction = () => {
+      // Skip if we're currently drawing
+      if (isTechDrawing || isClientDrawing) return
+
+      // Small delay to let other events process
+      setTimeout(() => {
+        // Restore tech signature if needed
+        if (techSignatureData && techSignatureRef.current && techSignatureRef.current.isEmpty()) {
+          techSignatureRef.current.fromDataURL(techSignatureData)
+          setIsTechSigned(true)
+        }
+
+        // Restore client signature if needed
+        if (clientSignatureData && clientSignatureRef.current && clientSignatureRef.current.isEmpty()) {
+          clientSignatureRef.current.fromDataURL(clientSignatureData)
+          setIsClientSigned(true)
+        }
+      }, 100)
+    }
+
+    document.addEventListener("click", handleDocumentInteraction)
+    document.addEventListener("touchend", handleDocumentInteraction)
+
+    return () => {
+      document.removeEventListener("click", handleDocumentInteraction)
+      document.removeEventListener("touchend", handleDocumentInteraction)
+    }
+  }, [techSignatureData, clientSignatureData, isTechDrawing, isClientDrawing])
+
+  // Actualizăm statusul lucrării și marcăm raportul ca generat
+  const updateWorkOrderStatus = async (lucrareId: string) => {
+    try {
+      if (!lucrareId) {
+        console.error("ID-ul lucrării lipsește")
         return
       }
 
-      try {
-        const raportDoc = await getDoc(doc(db, "rapoarte", params.id))
+      console.log("Actualizăm statusul lucrării și marcăm raportul ca generat:", lucrareId)
 
-        if (raportDoc.exists()) {
-          setRaport({ id: raportDoc.id, ...raportDoc.data() } as Raport)
-        } else {
-          console.log("Raportul nu a fost gasit")
-        }
-      } catch (error) {
-        console.error("Eroare la incarcarea raportului:", error)
-      }
+      // Actualizăm documentul în Firestore direct
+      const lucrareRef = doc(db, "lucrari", lucrareId)
+
+      // Folosim updateDoc direct, fără a mai importa din nou
+      await updateDoc(lucrareRef, {
+        raportGenerat: true,
+        preluatDispecer: false,
+        updatedAt: serverTimestamp(),
+      })
+
+      console.log("Lucrare actualizată cu succes, raportGenerat = true, statusLucrare = Finalizat")
+    } catch (error) {
+      console.error("Eroare la actualizarea statusului lucrării:", error)
+      toast({
+        title: "Atenție",
+        description: "Raportul a fost generat, dar nu s-a putut actualiza starea în sistem.",
+        variant: "destructive",
+      })
     }
-
-    loadRaport()
-  }, [params.id])
-
-  const handleChange = (e: any) => {
-    setRaport({ ...raport, [e.target.name]: e.target.value })
   }
 
-  const handleSubmit = async (e: any) => {
-    e.preventDefault()
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
+        <Card className="w-full max-w-3xl">
+          <CardContent className="flex flex-col items-center justify-center p-8">
+            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-blue-600"></div>
+            <p className="mt-4 text-gray-500">Se încarcă datele raportului...</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
-    try {
-      if (params.id === "new") {
-        // Înregistrăm timpul și data creării
-        const now = new Date()
-        const dataCreare = format(now, "yyyy-MM-dd", { locale: ro })
-        const timpCreare = format(now, "HH:mm:ss", { locale: ro })
-
-        // Înregistrăm timpul de plecare
-        const timpPlecare = format(now, "yyyy-MM-dd", { locale: ro })
-        const oraPlecare = format(now, "HH:mm:ss", { locale: ro })
-
-        await addDoc(collection(db, "rapoarte"), {
-          ...raport,
-          dataCreare,
-          timpCreare,
-          timpPlecare: timpPlecare,
-          dataPlecare: oraPlecare,
-        })
-      } else {
-        // Actualizăm raportul existent
-        const raportRef = doc(db, "rapoarte", params.id)
-        await updateDoc(raportRef, raport)
-      }
-
-      router.push("/")
-    } catch (error) {
-      console.error("Eroare la salvarea raportului:", error)
-    }
+  // Show error state
+  if (error || !lucrare) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
+        <Card className="w-full max-w-3xl">
+          <CardContent className="flex flex-col items-center justify-center p-8">
+            <div className="rounded-full bg-red-100 p-3">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-6 w-6 text-red-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+            </div>
+            <h2 className="mt-4 text-xl font-semibold text-red-600">Eroare</h2>
+            <p className="mt-2 text-center text-gray-500">{error || "Nu s-au putut încărca datele raportului."}</p>
+            <Button className="mt-6" onClick={() => router.push("/dashboard/lucrari")}>
+              Înapoi la lucrări
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
-    <div className="container mx-auto mt-8">
-      <h1 className="text-2xl font-bold mb-4">{isEditing ? "Creare Raport Nou" : "Vizualizare/Editare Raport"}</h1>
-      <form onSubmit={handleSubmit} className="max-w-lg">
-        <div className="mb-4">
-          <label htmlFor="nume" className="block text-gray-700 text-sm font-bold mb-2">
-            Nume:
-          </label>
-          <input
-            type="text"
-            id="nume"
-            name="nume"
-            value={raport.nume}
-            onChange={handleChange}
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            disabled={!isEditing}
-          />
-        </div>
-        <div className="mb-4">
-          <label htmlFor="prenume" className="block text-gray-700 text-sm font-bold mb-2">
-            Prenume:
-          </label>
-          <input
-            type="text"
-            id="prenume"
-            name="prenume"
-            value={raport.prenume}
-            onChange={handleChange}
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            disabled={!isEditing}
-          />
-        </div>
-        <div className="mb-4">
-          <label htmlFor="telefon" className="block text-gray-700 text-sm font-bold mb-2">
-            Telefon:
-          </label>
-          <input
-            type="text"
-            id="telefon"
-            name="telefon"
-            value={raport.telefon}
-            onChange={handleChange}
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            disabled={!isEditing}
-          />
-        </div>
-        <div className="mb-4">
-          <label htmlFor="email" className="block text-gray-700 text-sm font-bold mb-2">
-            Email:
-          </label>
-          <input
-            type="email"
-            id="email"
-            name="email"
-            value={raport.email}
-            onChange={handleChange}
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            disabled={!isEditing}
-          />
-        </div>
-        <div className="mb-4">
-          <label htmlFor="departament" className="block text-gray-700 text-sm font-bold mb-2">
-            Departament:
-          </label>
-          <input
-            type="text"
-            id="departament"
-            name="departament"
-            value={raport.departament}
-            onChange={handleChange}
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            disabled={!isEditing}
-          />
-        </div>
-        <div className="mb-4">
-          <label htmlFor="problema" className="block text-gray-700 text-sm font-bold mb-2">
-            Problema:
-          </label>
-          <textarea
-            id="problema"
-            name="problema"
-            value={raport.problema}
-            onChange={handleChange}
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            disabled={!isEditing}
-          />
-        </div>
-        <div className="mb-4">
-          <label htmlFor="status" className="block text-gray-700 text-sm font-bold mb-2">
-            Status:
-          </label>
-          <select
-            id="status"
-            name="status"
-            value={raport.status}
-            onChange={handleChange}
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            disabled={!isEditing}
-          >
-            <option>Nou</option>
-            <option>In lucru</option>
-            <option>Finalizat</option>
-          </select>
-        </div>
-        <button
-          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-          type="submit"
-          disabled={!isEditing}
-        >
-          Salveaza
-        </button>
-        {params.id !== "new" && (
-          <button
-            className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline ml-4"
-            type="button"
-            onClick={() => setIsEditing(!isEditing)}
-          >
-            {isEditing ? "Anuleaza" : "Editeaza"}
-          </button>
-        )}
-      </form>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
+      <Card className="w-full max-w-3xl">
+        <CardHeader className="text-center">
+          <div className="flex items-center">
+            <Button variant="ghost" size="icon" className="absolute left-4" onClick={() => router.back()}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="w-full">
+              <CardTitle className="text-xl sm:text-2xl font-bold text-blue-700">
+                Raport Intervenție #{params.id}
+              </CardTitle>
+              <CardDescription>Detalii despre intervenția efectuată</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <h3 className="font-medium text-gray-500">Client</h3>
+              <p>{lucrare?.client || "N/A"}</p>
+            </div>
+            <div>
+              <h3 className="font-medium text-gray-500">Locație</h3>
+              <p>{lucrare?.locatie || "N/A"}</p>
+            </div>
+            <div>
+              <h3 className="font-medium text-gray-500">Data Intervenție</h3>
+              <p>{lucrare?.dataInterventie || "N/A"}</p>
+            </div>
+            <div>
+              <h3 className="font-medium text-gray-500">Tehnician</h3>
+              <p>{lucrare?.tehnicieni?.join(", ") || "N/A"}</p>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div>
+            <h3 className="font-medium text-gray-500">Defect Reclamat</h3>
+            <p>{lucrare?.defectReclamat || "Nu a fost specificat"}</p>
+          </div>
+
+          <div>
+            <h3 className="font-medium text-gray-500">Descriere Lucrare</h3>
+            <p>{lucrare?.descriere || "Nu a fost specificată"}</p>
+          </div>
+
+          <Separator />
+
+          <div>
+            <h3 className="font-medium text-gray-500">Descriere Intervenție</h3>
+            <p className="whitespace-pre-line">{lucrare?.descriereInterventie || "Nu a fost specificată"}</p>
+          </div>
+
+          <Separator />
+
+          {/* Adăugăm formularul pentru produse */}
+          <ProductTableForm products={products} onProductsChange={setProducts} />
+
+          <Separator />
+
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Semnătură Tehnician */}
+            <div className="space-y-2">
+              <h3 className="font-medium text-gray-500">Semnătură Tehnician</h3>
+              <div className="rounded-md border border-gray-300 bg-white p-2">
+                <SignatureCanvas
+                  ref={techSignatureRef}
+                  canvasProps={{
+                    className: "w-full h-40 border rounded",
+                    width: SIG_MIN_WIDTH,
+                    height: SIG_HEIGHT,
+                  }}
+                  onBegin={handleTechBegin}
+                  onEnd={handleTechEnd}
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button variant="outline" size="sm" onClick={clearTechSignature} disabled={isSubmitting}>
+                  Șterge
+                </Button>
+              </div>
+              <p className="text-xs text-center text-gray-500">{lucrare?.tehnicieni?.join(", ") || "Tehnician"}</p>
+            </div>
+
+            {/* Semnătură Beneficiar */}
+            <div className="space-y-2">
+              <h3 className="font-medium text-gray-500">Semnătură Beneficiar</h3>
+              <div className="rounded-md border border-gray-300 bg-white p-2">
+                <SignatureCanvas
+                  ref={clientSignatureRef}
+                  canvasProps={{
+                    className: "w-full h-40 border rounded",
+                    width: SIG_MIN_WIDTH,
+                    height: SIG_HEIGHT,
+                  }}
+                  onBegin={handleClientBegin}
+                  onEnd={handleClientEnd}
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button variant="outline" size="sm" onClick={clearClientSignature} disabled={isSubmitting}>
+                  Șterge
+                </Button>
+              </div>
+              <p className="text-xs text-center text-gray-500">{lucrare?.persoanaContact || "Beneficiar"}</p>
+            </div>
+          </div>
+
+          {/* Adăugăm câmpul pentru email */}
+          <div className="space-y-2">
+            <Label htmlFor="email">E-mail semnatar</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="email@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={isSubmitting}
+            />
+            <p className="text-xs text-muted-foreground">
+              Raportul va fi trimis automat la această adresă după finalizare
+            </p>
+          </div>
+
+          {/* Hidden ReportGenerator component */}
+          <div className="hidden">
+            <ReportGenerator
+              ref={reportGeneratorRef}
+              lucrare={updatedLucrare || lucrare}
+              onGenerate={(blob) => {
+                // Send email automatically when PDF is generated
+                sendEmail(blob)
+                  .then((success) => {
+                    if (success) {
+                      // Show success toast
+                      toast({
+                        title: "Raport finalizat",
+                        description: "Raportul a fost generat și trimis pe email cu succes.",
+                        variant: "default",
+                      })
+
+                      // Actualizăm statusul lucrării
+                      if (updatedLucrare && updatedLucrare.id) {
+                        updateWorkOrderStatus(updatedLucrare.id)
+                      }
+
+                      // Redirect to dashboard after a short delay
+                      setTimeout(() => {
+                        router.push("/dashboard/lucrari")
+                      }, 2000)
+                    } else {
+                      setIsSubmitting(false)
+                    }
+                  })
+                  .catch((error) => {
+                    console.error("Eroare la trimiterea emailului:", error)
+                    toast({
+                      title: "Eroare",
+                      description: "Raportul a fost generat, dar trimiterea pe email a eșuat.",
+                      variant: "destructive",
+                    })
+                    setIsSubmitting(false)
+                  })
+              }}
+            />
+          </div>
+        </CardContent>
+
+        {/* Footer with buttons */}
+        <CardFooter className="flex flex-col sm:flex-row gap-4 justify-between pb-6 pt-4">
+          <div className="order-2 sm:order-1 w-full sm:w-auto">
+            <Button
+              variant="outline"
+              onClick={() => router.back()}
+              className="w-full sm:w-auto"
+              disabled={isSubmitting}
+            >
+              Înapoi
+            </Button>
+          </div>
+          <div className="order-1 sm:order-2 w-full sm:w-auto mb-2 sm:mb-0">
+            <Button
+              ref={submitButtonRef}
+              className="gap-2 bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              style={{
+                position: "relative",
+                zIndex: 50,
+                touchAction: "manipulation",
+              }}
+            >
+              {isSubmitting ? (
+                <>Se procesează...</>
+              ) : (
+                <>
+                  <Send className="h-4 w-4" /> Finalizează și Trimite Raport
+                </>
+              )}
+            </Button>
+          </div>
+        </CardFooter>
+      </Card>
     </div>
   )
 }
-
-export default RaportPage

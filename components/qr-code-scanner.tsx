@@ -160,7 +160,7 @@ export function QRCodeScanner({
       // Resetăm timpul rămas
       setTimeRemaining(GLOBAL_SCAN_TIMEOUT / 1000)
 
-      // Pornim un nou timeout pentru scanare continuă
+      // Inițiem un timeout pentru a verifica dacă scanarea continuă nu produce rezultate
       startContinuousScanTimeout()
 
       // Pornim timerul global pentru timeout
