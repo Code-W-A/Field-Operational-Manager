@@ -7,8 +7,6 @@ import { Loader2, AlertCircle } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import type { Log } from "@/lib/firebase/firestore"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { orderBy, query, collection, getDocs } from "firebase/firestore"
-import { db } from "@/lib/firebase/config"
 import { DataTable } from "@/components/data-table/data-table"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -18,19 +16,32 @@ import { ColumnSelectionButton } from "@/components/column-selection-button"
 import { ColumnSelectionModal } from "@/components/column-selection-modal"
 import { FilterButton } from "@/components/filter-button"
 import { FilterModal, type FilterOption } from "@/components/filter-modal"
+import { usePaginatedFirestore } from "@/hooks/use-paginated-firestore"
+import { ServerPagination } from "@/components/data-table/server-pagination"
 
 export default function Loguri() {
   const [activeTab, setActiveTab] = useState("tabel")
-  const [logs, setLogs] = useState<Log[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [table, setTable] = useState<any>(null)
   const [searchText, setSearchText] = useState("")
   const [filteredData, setFilteredData] = useState<Log[]>([])
   const [isColumnModalOpen, setIsColumnModalOpen] = useState(false)
   const [columnOptions, setColumnOptions] = useState<any[]>([])
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
   const [activeFilters, setActiveFilters] = useState<FilterOption[]>([])
+  const [pageSize, setPageSize] = useState(10)
+  const [table, setTable] = useState<any>(null) // Declare the table and setTable variables
+
+  // Folosim hook-ul de paginare pentru logs
+  const {
+    data: logs,
+    loading,
+    error,
+    currentPage,
+    totalPages,
+    goToPage,
+    loadFirstPage,
+    pageSize: currentPageSize,
+    totalCount,
+  } = usePaginatedFirestore<Log>("logs", pageSize, "timestamp", "desc")
 
   // Detectăm dacă suntem pe un dispozitiv mobil
   const isMobile = useMediaQuery("(max-width: 768px)")
@@ -44,33 +55,9 @@ export default function Loguri() {
     }
   }, [isMobile])
 
-  // Încărcăm logurile din Firebase
-  useEffect(() => {
-    const fetchLogs = async () => {
-      try {
-        setLoading(true)
-
-        const logsQuery = query(collection(db, "logs"), orderBy("timestamp", "desc"))
-        const querySnapshot = await getDocs(logsQuery)
-
-        const logsData: Log[] = []
-        querySnapshot.forEach((doc) => {
-          logsData.push({ id: doc.id, ...doc.data() } as Log)
-        })
-
-        setLogs(logsData)
-        setFilteredData(logsData) // Inițializăm datele filtrate
-        setError(null)
-      } catch (err) {
-        console.error("Eroare la încărcarea logurilor:", err)
-        setError("A apărut o eroare la încărcarea logurilor.")
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchLogs()
-  }, [])
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize)
+  }
 
   // Define filter options based on log data
   const filterOptions = useMemo(() => {
@@ -365,7 +352,7 @@ export default function Loguri() {
     <DashboardShell>
       <DashboardHeader
         heading="Loguri Sistem"
-        text="Monitorizați activitatea utilizatorilor și evenimentele sistemului"
+        text={`Monitorizați activitatea utilizatorilor și evenimentele sistemului (${totalCount} loguri)`}
       />
 
       <div className="space-y-4">
@@ -421,57 +408,77 @@ export default function Loguri() {
         ) : error ? (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>{error.message}</AlertDescription>
           </Alert>
         ) : activeTab === "tabel" ? (
-          <DataTable
-            columns={columns}
-            data={filteredData}
-            defaultSort={{ id: "timestamp", desc: true }}
-            table={table}
-            setTable={setTable}
-            showFilters={false}
-          />
+          <>
+            <DataTable
+              columns={columns}
+              data={filteredData}
+              defaultSort={{ id: "timestamp", desc: true }}
+              table={table}
+              setTable={setTable}
+              showFilters={false}
+            />
+            <ServerPagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              pageSize={currentPageSize}
+              onPageChange={goToPage}
+              onPageSizeChange={handlePageSizeChange}
+              isLoading={loading}
+            />
+          </>
         ) : (
-          <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3 w-full overflow-auto">
-            {filteredData.map((log) => (
-              <Card key={log.id}>
-                <CardContent className="p-4">
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <p className="font-mono text-sm text-muted-foreground">{formatDate(log.timestamp)}</p>
-                    </div>
-                    <Badge className={getTipColor(log.tip)}>{log.tip}</Badge>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div>
-                      <h3 className="font-medium">{log.actiune}</h3>
-                      <p className="text-sm mt-1 text-muted-foreground line-clamp-2" title={log.detalii}>
-                        {log.detalii}
-                      </p>
+          <>
+            <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3 w-full overflow-auto">
+              {filteredData.map((log) => (
+                <Card key={log.id}>
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <p className="font-mono text-sm text-muted-foreground">{formatDate(log.timestamp)}</p>
+                      </div>
+                      <Badge className={getTipColor(log.tip)}>{log.tip}</Badge>
                     </div>
 
-                    <div className="pt-2 border-t space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-sm font-medium text-muted-foreground">Utilizator:</span>
-                        <span className="text-sm">{log.utilizator}</span>
+                    <div className="space-y-3">
+                      <div>
+                        <h3 className="font-medium">{log.actiune}</h3>
+                        <p className="text-sm mt-1 text-muted-foreground line-clamp-2" title={log.detalii}>
+                          {log.detalii}
+                        </p>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm font-medium text-muted-foreground">Categorie:</span>
-                        <span className="text-sm">{log.categorie}</span>
+
+                      <div className="pt-2 border-t space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-muted-foreground">Utilizator:</span>
+                          <span className="text-sm">{log.utilizator}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium text-muted-foreground">Categorie:</span>
+                          <span className="text-sm">{log.categorie}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-            {filteredData.length === 0 && (
-              <div className="col-span-full text-center py-10">
-                <p className="text-muted-foreground">Nu există loguri care să corespundă criteriilor de căutare.</p>
-              </div>
-            )}
-          </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {filteredData.length === 0 && (
+                <div className="col-span-full text-center py-10">
+                  <p className="text-muted-foreground">Nu există loguri care să corespundă criteriilor de căutare.</p>
+                </div>
+              )}
+            </div>
+            <ServerPagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              pageSize={currentPageSize}
+              onPageChange={goToPage}
+              onPageSizeChange={handlePageSizeChange}
+              isLoading={loading}
+            />
+          </>
         )}
       </div>
     </DashboardShell>

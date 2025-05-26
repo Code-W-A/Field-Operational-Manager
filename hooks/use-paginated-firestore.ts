@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import {
   collection,
   query,
@@ -34,6 +34,10 @@ export function usePaginatedFirestore<T extends DocumentData>(
   const [hasMore, setHasMore] = useState(true)
   const { isPreview, lucrari, clienti, users, logs } = useMockData()
 
+  // Use refs to prevent infinite loops
+  const initialLoadDone = useRef(false)
+  const previousPageSize = useRef(pageSize)
+
   // Function to get total count
   const fetchTotalCount = useCallback(async () => {
     if (isPreview) {
@@ -55,13 +59,16 @@ export function usePaginatedFirestore<T extends DocumentData>(
           mockCount = 0
       }
       setTotalCount(mockCount)
+      console.log(`[Pagination] Total count for ${collectionName}: ${mockCount}`)
       return
     }
 
     try {
       const coll = collection(db, collectionName)
       const snapshot = await getCountFromServer(coll)
-      setTotalCount(snapshot.data().count)
+      const count = snapshot.data().count
+      setTotalCount(count)
+      console.log(`[Pagination] Total count for ${collectionName}: ${count}`)
     } catch (err) {
       console.error("Error getting count:", err)
     }
@@ -70,6 +77,7 @@ export function usePaginatedFirestore<T extends DocumentData>(
   // Function to load the first page
   const loadFirstPage = useCallback(async () => {
     setLoading(true)
+    console.log(`[Pagination] Loading first page of ${collectionName} with page size ${pageSize}`)
     setCurrentPage(1)
 
     if (isPreview) {
@@ -122,6 +130,7 @@ export function usePaginatedFirestore<T extends DocumentData>(
       })) as T[]
 
       setData(documents)
+      console.log(`[Pagination] Loaded ${documents.length} items for first page of ${collectionName}`)
       setLoading(false)
     } catch (err) {
       setError(err instanceof Error ? err : new Error(String(err)))
@@ -146,6 +155,7 @@ export function usePaginatedFirestore<T extends DocumentData>(
     if (!hasMore || loading) return
 
     setLoading(true)
+    console.log(`[Pagination] Loading page ${currentPage + 1} of ${collectionName}`)
 
     if (isPreview) {
       // Handle mock data for preview mode
@@ -213,7 +223,11 @@ export function usePaginatedFirestore<T extends DocumentData>(
         ...doc.data(),
       })) as T[]
 
-      setData((prevData) => [...prevData, ...newDocuments])
+      setData((prevData) => {
+        const newData = [...prevData, ...newDocuments]
+        console.log(`[Pagination] Loaded ${newData.length} total items for ${collectionName} (page ${currentPage + 1})`)
+        return newData
+      })
       setCurrentPage((prev) => prev + 1)
       setLoading(false)
     } catch (err) {
@@ -244,6 +258,7 @@ export function usePaginatedFirestore<T extends DocumentData>(
       if (page < 1 || page === currentPage) return
 
       setLoading(true)
+      console.log(`[Pagination] Going to page ${page} of ${collectionName}`)
 
       if (isPreview) {
         // Handle mock data for preview mode
@@ -348,11 +363,24 @@ export function usePaginatedFirestore<T extends DocumentData>(
     ],
   )
 
-  // Load first page and total count on initial render
+  // Load first page and total count on initial render only
   useEffect(() => {
-    fetchTotalCount()
-    loadFirstPage()
-  }, [fetchTotalCount, loadFirstPage])
+    if (!initialLoadDone.current) {
+      fetchTotalCount()
+      loadFirstPage()
+      initialLoadDone.current = true
+    }
+  }, []) // Empty dependency array - run only once on mount
+
+  // Handle pageSize changes
+  useEffect(() => {
+    // Only reload if pageSize actually changed and initial load is done
+    if (initialLoadDone.current && previousPageSize.current !== pageSize) {
+      console.log(`[Pagination] Page size changed from ${previousPageSize.current} to ${pageSize}, reloading data`)
+      previousPageSize.current = pageSize
+      loadFirstPage()
+    }
+  }, [pageSize, loadFirstPage])
 
   return {
     data,

@@ -93,6 +93,11 @@ export default function Utilizatori() {
     loadFirstPage,
   } = usePaginatedFirestore<UserData>("users", pageSize, "displayName", "asc")
 
+  // Add console log to verify pagination
+  console.log(
+    `[UtilizatoriPage] Current page: ${currentPage}, Total pages: ${totalPages}, Items: ${utilizatori.length}`,
+  )
+
   // Define filter options based on user data
   const filterOptions = useMemo(() => {
     // Extract unique roles for multiselect filter
@@ -393,6 +398,7 @@ export default function Utilizatori() {
 
   // Handle page size change
   const handlePageSizeChange = (newPageSize: number) => {
+    console.log(`[UtilizatoriPage] Page size changed to: ${newPageSize}`)
     setPageSize(newPageSize)
   }
 
