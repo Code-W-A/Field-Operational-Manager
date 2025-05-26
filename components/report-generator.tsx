@@ -82,7 +82,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
     if (!lucrare) return
     setIsGen(true)
     try {
-      // Calculate and set departure time and duration BEFORE generating the PDF
+      // Calculează plecarea și durata
       const now = new Date()
       const timpPlecare = now.toISOString()
       const dataPlecare = formatDate(now)
@@ -91,17 +91,21 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       if (lucrare.timpSosire) {
         durataInterventie = calculateDuration(lucrare.timpSosire, timpPlecare)
       }
-      // Set these values on lucrare so the PDF uses them
-      lucrare.timpPlecare = timpPlecare
-      lucrare.dataPlecare = dataPlecare
-      lucrare.oraPlecare = oraPlecare
-      lucrare.durataInterventie = durataInterventie
 
-      console.log("Generating PDF with lucrare:", lucrare)
+      // Construiește un obiect local cu toate valorile
+      const lucrareForPDF = {
+        ...lucrare,
+        timpPlecare,
+        dataPlecare,
+        oraPlecare,
+        durataInterventie,
+      }
+
+      console.log("Generating PDF with lucrare:", lucrareForPDF)
       console.log("Products:", products)
       console.log("Signatures:", {
-        tech: lucrare.semnaturaTehnician ? "Present" : "Missing",
-        client: lucrare.semnaturaBeneficiar ? "Present" : "Missing",
+        tech: lucrareForPDF.semnaturaTehnician ? "Present" : "Missing",
+        client: lucrareForPDF.semnaturaBeneficiar ? "Present" : "Missing",
       })
 
       const doc = new jsPDF({ unit: "mm", format: "a4" })
@@ -162,15 +166,15 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         M,
       )
 
-      const clientInfo = lucrare.clientInfo || {}
+      const clientInfo = lucrareForPDF.clientInfo || {}
       drawBox(
         "BENEFICIAR",
         [
-          normalize(lucrare.client || "-"),
+          normalize(lucrareForPDF.client || "-"),
           `CUI: ${normalize(clientInfo.cui || "-")}`,
           `R.C.: ${normalize(clientInfo.rc || "-")}`,
           `Adresa: ${normalize(clientInfo.adresa || "-")}`,
-          `Locatie interventie: ${normalize(lucrare.locatie || "-")}`,
+          `Locatie interventie: ${normalize(lucrareForPDF.locatie || "-")}`,
         ],
         boxW,
         M + boxW + logoArea,
@@ -201,15 +205,15 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 
       // META
       doc.setFontSize(9).setFont(undefined, "normal")
-      const [d, t] = (lucrare.dataInterventie || " - -").split(" ")
+      const [d, t] = (lucrareForPDF.dataInterventie || " - -").split(" ")
       doc.text(`Data: ${normalize(d)}`, M, currentY)
 
       // Folosim datele de sosire și plecare dacă există
       // Extragem datele și orele pentru afișare formatată
-      const sosireData = lucrare.dataSosire || (lucrare.timpSosire ? formatDate(new Date(lucrare.timpSosire)) : "-")
-      const sosireOra = lucrare.oraSosire || (lucrare.timpSosire ? formatTime(new Date(lucrare.timpSosire)) : "-")
-      const plecareData = lucrare.dataPlecare || (lucrare.timpPlecare ? formatDate(new Date(lucrare.timpPlecare)) : "-")
-      const plecareOra = lucrare.oraPlecare || (lucrare.timpPlecare ? formatTime(new Date(lucrare.timpPlecare)) : "-")
+      const sosireData = lucrareForPDF.dataSosire || (lucrareForPDF.timpSosire ? formatDate(new Date(lucrareForPDF.timpSosire)) : "-")
+      const sosireOra = lucrareForPDF.oraSosire || (lucrareForPDF.timpSosire ? formatTime(new Date(lucrareForPDF.timpSosire)) : "-")
+      const plecareData = lucrareForPDF.dataPlecare || (lucrareForPDF.timpPlecare ? formatDate(new Date(lucrareForPDF.timpPlecare)) : "-")
+      const plecareOra = lucrareForPDF.oraPlecare || (lucrareForPDF.timpPlecare ? formatTime(new Date(lucrareForPDF.timpPlecare)) : "-")
 
       doc.text(`Sosire: ${sosireData}, ${sosireOra}`, M + 70, currentY)
       doc.text(`Plecare: ${plecareData}, ${plecareOra}`, M + 120, currentY)
@@ -217,8 +221,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 
       // Calculăm și afișăm durata intervenției în ore și minute
       let durataText = "-"
-      if (lucrare.timpSosire && lucrare.timpPlecare) {
-        const ms = new Date(lucrare.timpPlecare).getTime() - new Date(lucrare.timpSosire).getTime()
+      if (lucrareForPDF.timpSosire && lucrareForPDF.timpPlecare) {
+        const ms = new Date(lucrareForPDF.timpPlecare).getTime() - new Date(lucrareForPDF.timpSosire).getTime()
         if (ms > 0) {
           const totalMinutes = Math.floor(ms / 60000)
           const ore = Math.floor(totalMinutes / 60)
@@ -230,9 +234,9 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       currentY += 6
 
       // EQUIPMENT
-      if (lucrare.echipament || lucrare.echipamentCod) {
+      if (lucrareForPDF.echipament || lucrareForPDF.echipamentCod) {
         const equipLines = [
-          `${normalize(lucrare.echipament || "Nespecificat")}${lucrare.echipamentCod ? ` (Cod: ${normalize(lucrare.echipamentCod)})` : ""}`,
+          `${normalize(lucrareForPDF.echipament || "Nespecificat")}${lucrareForPDF.echipamentCod ? ` (Cod: ${normalize(lucrareForPDF.echipamentCod)})` : ""}`,
         ]
 
         drawBox("ECHIPAMENT", equipLines, W, M, true)
@@ -263,11 +267,11 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         currentY += boxHeight + 6
       }
 
-      addTextBlock("Constatare la locatie:", lucrare.constatareLaLocatie)
-      addTextBlock("Descriere interventie:", lucrare.descriereInterventie)
+      addTextBlock("Constatare la locatie:", lucrareForPDF.constatareLaLocatie)
+      addTextBlock("Descriere interventie:", lucrareForPDF.descriereInterventie)
 
       // Use the products from the lucrare object directly
-      const productsToUse = lucrare.products || products
+      const productsToUse = lucrareForPDF.products || products
 
       // PRODUCT TABLE (shown only if there are products)
       if (productsToUse && productsToUse.length > 0) {
@@ -354,8 +358,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       doc.text("Beneficiar:", M + W / 2, currentY)
       currentY += 5
       doc.setFont(undefined, "normal")
-      doc.text(normalize(lucrare.tehnicieni?.join(", ") || ""), M, currentY)
-      doc.text(normalize(lucrare.persoanaContact || ""), M + W / 2, currentY)
+      doc.text(normalize(lucrareForPDF.tehnicieni?.join(", ") || ""), M, currentY)
+      doc.text(normalize(lucrareForPDF.persoanaContact || ""), M + W / 2, currentY)
       currentY += 5
 
       const signW = W / 2 - 10
@@ -374,8 +378,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           .setFont(undefined, "italic")
           .text("Semnatura lipsa", x + signW / 2, currentY + signH / 2, { align: "center" })
       }
-      addSig(lucrare.semnaturaTehnician, M)
-      addSig(lucrare.semnaturaBeneficiar, M + W / 2)
+      addSig(lucrareForPDF.semnaturaTehnician, M)
+      addSig(lucrareForPDF.semnaturaBeneficiar, M + W / 2)
 
       // FOOTER
       doc
@@ -395,10 +399,10 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           await updateDoc(doc(db, "lucrari", lucrare.id), {
             raportGenerat: true,
             updatedAt: serverTimestamp(),
-            timpPlecare: lucrare.timpPlecare,
-            dataPlecare: lucrare.dataPlecare,
-            oraPlecare: lucrare.oraPlecare,
-            durataInterventie: lucrare.durataInterventie,
+            timpPlecare: lucrareForPDF.timpPlecare,
+            dataPlecare: lucrareForPDF.dataPlecare,
+            oraPlecare: lucrareForPDF.oraPlecare,
+            durataInterventie: lucrareForPDF.durataInterventie,
           })
         } catch (e) {
           console.error("Nu s-a putut actualiza starea în sistem:", e)
