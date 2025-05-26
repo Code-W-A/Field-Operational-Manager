@@ -71,12 +71,6 @@ export function calculateDuration(startTime: string, endTime: string | Date): st
   const hours = Math.floor(diffMinutes / 60)
   const minutes = diffMinutes % 60
 
-  // Formatăm rezultatul
-  if (hours === 0) {
-    return `${minutes}m`
-  } else if (minutes === 0) {
-    return `${hours}h`
-  } else {
-    return `${hours}h ${minutes}m`
-  }
+  // Formatăm rezultatul mereu ca "Xh Ym"
+  return `${hours}h ${minutes}m`
 }
