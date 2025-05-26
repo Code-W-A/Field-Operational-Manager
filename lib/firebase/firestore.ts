@@ -56,6 +56,21 @@ export interface Lucrare {
   necesitaOferta?: boolean
   // Adăugăm câmpul pentru comentarii legate de ofertă
   comentariiOferta?: string
+  // Câmpuri pentru timpul de sosire și plecare
+  timpSosire?: string
+  dataSosire?: string
+  oraSosire?: string
+  timpPlecare?: string
+  dataPlecare?: string
+  oraPlecare?: string
+  durataInterventie?: string
+  // Câmpuri pentru semnături
+  semnaturaTehnician?: string
+  semnaturaBeneficiar?: string
+  // Câmp pentru informații client
+  clientInfo?: any
+  // Câmp pentru produse
+  products?: ProductItem[]
 }
 
 export interface Client {
@@ -105,6 +120,13 @@ export interface Log {
   targetId: string
   details: string
   timestamp: any
+}
+
+export interface ProductItem {
+  name: string
+  quantity: number
+  price: number
+  um: string
 }
 
 // Get all clients
