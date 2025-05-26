@@ -15,8 +15,6 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Switch } from "@/components/ui/switch"
 import { logInfo } from "@/lib/utils/logging-service" // Import the logging service
-import { Input } from "@/components/ui/input"
-import { parseRomanianDateTime, isValid, differenceInMinutes } from "@/lib/utils/date-utils"
 
 // First, let's update the interface to include statusEchipament
 interface TehnicianInterventionFormProps {
@@ -29,8 +27,6 @@ interface TehnicianInterventionFormProps {
     necesitaOferta?: boolean
     comentariiOferta?: string
     statusEchipament?: string
-    oraPlecare?: string
-    observatiiDurata?: string
   }
   onUpdate: () => void
   isCompleted?: boolean
@@ -50,22 +46,17 @@ export function TehnicianInterventionForm({
     statusEchipament: initialData.statusEchipament || "Funcțional",
     necesitaOferta: initialData.necesitaOferta || false,
     comentariiOferta: initialData.comentariiOferta || "",
-    statusLucrare: initialData.statusLucrare || "",
-    oraPlecare: initialData.oraPlecare || "",
-    observatiiDurata: initialData.observatiiDurata || "",
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isGeneratingReport, setIsGeneratingReport] = useState(false)
   const [descriereInterventie, setDescriereInterventie] = useState(initialData.descriereInterventie || "")
   const [constatareLaLocatie, setConstatareLaLocatie] = useState(initialData.constatareLaLocatie || "")
-  const [statusLucrare, setStatusLucrare] = useState(initialData.statusLucrare || "")
+  const [statusLucrare, setStatusLucrare] = useState(initialData.statusLucrare)
   const [statusEchipament, setStatusEchipament] = useState(initialData.statusEchipament || "Funcțional")
   const [necesitaOferta, setNecesitaOferta] = useState(initialData.necesitaOferta || false)
   const [comentariiOferta, setComentariiOferta] = useState(initialData.comentariiOferta || "")
   const [formDisabled, setFormDisabled] = useState(isCompleted || initialData.raportGenerat)
-  const [oraPlecare, setOraPlecare] = useState(initialData.oraPlecare || "")
-  const [observatiiDurata, setObservatiiDurata] = useState(initialData.observatiiDurata || "")
 
   useEffect(() => {
     const checkWorkOrderStatus = async () => {
@@ -89,18 +80,13 @@ export function TehnicianInterventionForm({
       statusEchipament: initialData.statusEchipament || "Funcțional",
       necesitaOferta: initialData.necesitaOferta || false,
       comentariiOferta: initialData.comentariiOferta || "",
-      statusLucrare: initialData.statusLucrare || "",
-      oraPlecare: initialData.oraPlecare || "",
-      observatiiDurata: initialData.observatiiDurata || "",
     })
     setDescriereInterventie(initialData.descriereInterventie || "")
     setConstatareLaLocatie(initialData.constatareLaLocatie || "")
     setStatusEchipament(initialData.statusEchipament || "Funcțional")
-    setStatusLucrare(initialData.statusLucrare || "")
+    setStatusLucrare(initialData.statusLucrare)
     setNecesitaOferta(initialData.necesitaOferta || false)
     setComentariiOferta(initialData.comentariiOferta || "")
-    setOraPlecare(initialData.oraPlecare || "")
-    setObservatiiDurata(initialData.observatiiDurata || "")
 
     console.log("Initial data loaded:", initialData)
   }, [initialData])
@@ -201,31 +187,8 @@ export function TehnicianInterventionForm({
       return
     }
 
-    if (!oraPlecare) {
-      toast({
-        title: "Eroare",
-        description: "Trebuie să completați ora plecării înainte de a genera raportul.",
-        variant: "destructive",
-      })
-      return
-    }
-
     try {
       setIsGeneratingReport(true)
-
-      // Calculăm durata serviciului
-      let durataServiciu: number | undefined
-      if (initialData?.oraSosire && oraPlecare) {
-        const arrivalDate = parseRomanianDateTime(`${initialData.dataInterventie.split(" ")[0]} ${initialData.oraSosire}`)
-        const departureDate = parseRomanianDateTime(`${initialData.dataInterventie.split(" ")[0]} ${oraPlecare}`)
-        
-        if (arrivalDate && departureDate && isValid(arrivalDate) && isValid(departureDate)) {
-          const minutes = differenceInMinutes(departureDate, arrivalDate)
-          if (minutes > 0 && minutes < 24 * 60) {
-            durataServiciu = minutes
-          }
-        }
-      }
 
       // Salvăm datele formularului
       await updateLucrare(lucrareId, {
@@ -233,11 +196,8 @@ export function TehnicianInterventionForm({
         descriereInterventie,
         statusEchipament,
         necesitaOferta,
-        comentariiOferta: necesitaOferta ? comentariiOferta : "",
-        statusLucrare,
-        oraPlecare,
-        durataServiciu,
-        observatiiDurata,
+        comentariiOferta: necesitaOferta ? comentariiOferta : "", // Clear comments if necesitaOferta is false
+        statusLucrare, // Keep the current status, don't automatically set to "Finalizat"
       })
 
       // Use the safe logging service instead of addLog to avoid database issues
@@ -361,36 +321,6 @@ export function TehnicianInterventionForm({
                   </AlertDescription>
                 </Alert>
               )}
-            </div>
-
-            {/* Adăugăm câmpurile pentru ora plecării și observații */}
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="oraPlecare">Ora plecării</Label>
-                <Input
-                  id="oraPlecare"
-                  type="time"
-                  value={oraPlecare}
-                  onChange={(e) => {
-                    setOraPlecare(e.target.value)
-                    setFormData((prev) => ({ ...prev, oraPlecare: e.target.value }))
-                  }}
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="observatiiDurata">Observații legate de durata serviciului</Label>
-                <Textarea
-                  id="observatiiDurata"
-                  value={observatiiDurata}
-                  onChange={(e) => {
-                    setObservatiiDurata(e.target.value)
-                    setFormData((prev) => ({ ...prev, observatiiDurata: e.target.value }))
-                  }}
-                  placeholder="Ex: Întârziere din cauza traficului, pauză de masă, etc."
-                />
-              </div>
             </div>
 
             {formDisabled ? (

@@ -31,6 +31,7 @@ import { useStableCallback } from "@/lib/utils/hooks"
 import { ContractDisplay } from "@/components/contract-display"
 import { QRCodeScanner } from "@/components/qr-code-scanner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { format } from "date-fns"
 
 export default function LucrarePage({ params }: { params: { id: string } }) {
   const router = useRouter()
@@ -228,26 +229,30 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
 
       // Actualizăm lucrarea în baza de date
       try {
+        // Zeitstempel pentru sosire
+        const now = new Date()
+
         // Pregătim datele pentru actualizare
-        const updateData = {
-          ...lucrare,
+        const updateData: Partial<Lucrare> = {
           equipmentVerified: true,
-          equipmentVerifiedAt: new Date().toISOString(),
+          equipmentVerifiedAt: now.toISOString(),
           equipmentVerifiedBy: userData?.displayName || "Tehnician necunoscut",
+          // Salvăm separat data și ora pentru afișare
+          dataSosire: format(now, "dd.MM.yyyy"),
+          oraSosire: format(now, "HH:mm"),
+          // Stocăm și un timestamp complet pentru interogări ulterioare
+          timpSosire: now.toISOString(),
         }
 
         // Actualizăm statusul lucrării la "În lucru" doar dacă statusul curent este "Listată" sau "Atribuită"
-        // Astfel nu vom modifica statusul dacă lucrarea este deja "Finalizat" sau are alt status special
         if (lucrare.statusLucrare === "Listată" || lucrare.statusLucrare === "Atribuită") {
           updateData.statusLucrare = "În lucru"
         }
 
         await updateLucrare(lucrare.id, updateData)
 
-        // Actualizăm și starea locală dacă am modificat statusul
-        if (lucrare.statusLucrare === "Listată" || lucrare.statusLucrare === "Atribuită") {
-          setLucrare((prev) => (prev ? { ...prev, statusLucrare: "În lucru" } : null))
-        }
+        // Actualizăm și starea locală cu datele noi
+        setLucrare((prev) => (prev ? { ...prev, ...updateData } : null))
 
         toast({
           title: "Verificare completă",

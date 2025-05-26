@@ -9,7 +9,6 @@ import { useStableCallback } from "@/lib/utils/hooks"
 import { toast } from "@/components/ui/use-toast"
 import { ProductTableForm, type Product } from "./product-table-form"
 import { serverTimestamp } from "firebase/firestore"
-import { formatDuration } from "@/lib/utils/date-utils"
 
 interface ReportGeneratorProps {
   lucrare: Lucrare
@@ -147,15 +146,15 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         M,
       )
 
+      const clientInfo = lucrare.clientInfo || {}
       drawBox(
         "BENEFICIAR",
         [
-          normalize(lucrare.numeClient || "-"),
-          `CUI: ${normalize(lucrare.clientInfo?.cui || "-")}`,
-          `R.C.: ${normalize(lucrare.clientInfo?.rc || "-")}`,
-          `Adresa: ${normalize(lucrare.adresaClient || "-")}`,
-          `Email: ${normalize(lucrare.emailClient || "-")}`,
-          `Telefon: ${normalize(lucrare.telefonClient || "-")}`,
+          normalize(lucrare.client || "-"),
+          `CUI: ${normalize(clientInfo.cui || "-")}`,
+          `R.C.: ${normalize(clientInfo.rc || "-")}`,
+          `Adresa: ${normalize(clientInfo.adresa || "-")}`,
+          `Locatie interventie: ${normalize(lucrare.locatie || "-")}`,
         ],
         boxW,
         M + boxW + logoArea,
@@ -186,74 +185,21 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 
       // META
       doc.setFontSize(9).setFont(undefined, "normal")
-      const [d, t] = (lucrare.dataInterventie || " - -").split(" ")
-      doc.text(`Data: ${normalize(d)}`, M, currentY)
-      doc.text(`Sosire: ${t || "-"}`, M + 70, currentY)
-      doc.text(`Plecare: ${lucrare.oraPlecare || "-"}`, M + 120, currentY)
+      // Folosim datele reale de sosire/plecare dacă există
+      const dataRaport = lucrare.dataSosire || lucrare.dataInterventie || "-"
+      doc.text(`Data: ${normalize(dataRaport)}`, M, currentY)
+      doc.text(`Sosire: ${lucrare.oraSosire || "-"}`, M + 60, currentY)
+      doc.text(`Plecare: ${lucrare.oraPlecare || "-"}`, M + 100, currentY)
+      if (lucrare.durataInterventie) {
+        doc.text(`Durata: ${lucrare.durataInterventie}`, M + 140, currentY)
+      }
+      //doc.text(`Raport #${lucrare.id || ""}`, PW - M, currentY, { align: "right" })
       currentY += 10
 
-      // DURATA SERVICIU
-      if (typeof lucrare.durataServiciu === 'number') {
-        doc.text(`Durata serviciu: ${formatDuration(lucrare.durataServiciu)}`, M, currentY)
-        if (lucrare.observatiiDurata) {
-          doc.text(`Observații: ${normalize(lucrare.observatiiDurata)}`, M + 120, currentY)
-        }
-        currentY += 10
-      }
-
-      // OBSERVATII
-      if (lucrare.observatii) {
-        doc.text(`Observații: ${normalize(lucrare.observatii)}`, M, currentY)
-        currentY += 10
-      }
-
-      // SEMNATURI
-      if (lucrare.semnaturaClient) {
-        doc.text("Semnat client:", M, currentY)
-        doc.addImage(lucrare.semnaturaClient, "PNG", M + 120, currentY - 5, 50, 20)
-        currentY += 20
-      }
-
-      if (lucrare.semnaturaTehnician) {
-        doc.text("Semnat tehnician:", M, currentY)
-        doc.addImage(lucrare.semnaturaTehnician, "PNG", M + 120, currentY - 5, 50, 20)
-        currentY += 20
-      }
-
-      // PRODUSE
-      if (lucrare.produse && lucrare.produse.length > 0) {
-        doc.text("Produse utilizate:", M, currentY)
-        currentY += 10
-
-        // Header
-        doc.text("Produs", M, currentY)
-        doc.text("Cantitate", M + 120, currentY)
-        currentY += 10
-
-        // Produse
-        lucrare.produse.forEach((produs) => {
-          doc.text(normalize(produs.nume), M, currentY)
-          doc.text(produs.cantitate.toString(), M + 120, currentY)
-          currentY += 10
-        })
-      }
-
-      // INFORMATII CLIENT
-      if (lucrare.clientInfo) {
-        doc.text("Informații client:", M, currentY)
-        currentY += 10
-        doc.text(`CUI: ${lucrare.clientInfo.cui}`, M, currentY)
-        currentY += 10
-        doc.text(`RC: ${lucrare.clientInfo.rc}`, M, currentY)
-        currentY += 10
-        doc.text(`Adresă: ${lucrare.clientInfo.adresa}`, M, currentY)
-        currentY += 10
-      }
-
       // EQUIPMENT
-      if (lucrare.echipament || lucrare.serieEchipament) {
+      if (lucrare.echipament || lucrare.echipamentCod) {
         const equipLines = [
-          `${normalize(lucrare.echipament || "Nespecificat")}${lucrare.serieEchipament ? ` (Serie: ${normalize(lucrare.serieEchipament)})` : ""}`,
+          `${normalize(lucrare.echipament || "Nespecificat")}${lucrare.echipamentCod ? ` (Cod: ${normalize(lucrare.echipamentCod)})` : ""}`,
         ]
 
         drawBox("ECHIPAMENT", equipLines, W, M, true)
@@ -284,7 +230,6 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         currentY += boxHeight + 6
       }
 
-      addTextBlock("Descriere problemă:", lucrare.descriereProblema)
       addTextBlock("Constatare la locatie:", lucrare.constatareLaLocatie)
       addTextBlock("Descriere interventie:", lucrare.descriereInterventie)
 
@@ -307,61 +252,108 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         const headers = ["#", "Produs", "UM", "Cant.", "Preț", "Total"]
 
         const drawTableHeader = () => {
-          doc.setFillColor(DARK_GRAY).rect(M, currentY, W, 6, "FD")
-          doc.setFontSize(8).setFont(undefined, "bold").setTextColor(255)
+          doc.setFillColor(LIGHT_GRAY).rect(M, currentY, W, 7, "FD")
+          doc.setFontSize(8).setFont(undefined, "bold")
           headers.forEach((h, i) => {
-            doc.text(h, colPos[i] + colWidths[i] / 2, currentY + 4, { align: "center" })
+            doc.text(h, colPos[i] + colWidths[i] / 2, currentY + 5, { align: "center" })
           })
-          currentY += 6
+          for (let i = 0; i <= colWidths.length; i++) doc.line(colPos[i], currentY, colPos[i], currentY + 7)
+          doc.line(M, currentY + 7, M + W, currentY + 7)
+          currentY += 7
         }
 
         drawTableHeader()
 
-        productsToUse.forEach((p, i) => {
-          checkPageBreak(6)
-          doc.setFontSize(8).setFont(undefined, "normal").setTextColor(0)
-          doc.text((i + 1).toString(), colPos[0] + colWidths[0] / 2, currentY + 4, { align: "center" })
-          doc.text(normalize(p.name || ""), colPos[1] + 1, currentY + 4)
-          doc.text(p.unit || "-", colPos[2] + colWidths[2] / 2, currentY + 4, { align: "center" })
-          doc.text((p.quantity || 0).toString(), colPos[3] + colWidths[3] / 2, currentY + 4, { align: "center" })
-          doc.text((p.price || 0).toFixed(2), colPos[4] + colWidths[4] / 2, currentY + 4, { align: "center" })
-          doc.text((p.total || 0).toFixed(2), colPos[5] + colWidths[5] / 2, currentY + 4, { align: "center" })
-          currentY += 6
+        productsToUse.forEach((product, index) => {
+          const nameLines = doc.splitTextToSize(normalize(product.name || ""), colWidths[1] - 4)
+          const rowHeight = nameLines.length * 4 + 2
+          if (currentY + rowHeight > PH - M) {
+            doc.addPage()
+            currentY = M
+            drawTableHeader()
+          }
+
+          // zebra
+          if (index % 2) {
+            doc.setFillColor(248).rect(M, currentY, W, rowHeight, "F")
+          }
+
+          doc.setDrawColor(180).setLineWidth(0.2)
+          for (let i = 0; i <= colWidths.length; i++) doc.line(colPos[i], currentY, colPos[i], currentY + rowHeight)
+          doc.line(M, currentY + rowHeight, M + W, currentY + rowHeight)
+
+          doc.setFontSize(8).setFont(undefined, "normal")
+          doc.text((index + 1).toString(), colPos[0] + colWidths[0] / 2, currentY + 4, { align: "center" })
+          nameLines.forEach((l, li) => doc.text(l, colPos[1] + 2, currentY + 4 + li * 4))
+          doc.text(product.um || "-", colPos[2] + colWidths[2] / 2, currentY + 4, { align: "center" })
+          doc.text((product.quantity || 0).toString(), colPos[3] + colWidths[3] / 2, currentY + 4, { align: "center" })
+          doc.text((product.price || 0).toFixed(2), colPos[4] + colWidths[4] / 2, currentY + 4, { align: "center" })
+          const tot = (product.quantity || 0) * (product.price || 0)
+          doc.text(tot.toFixed(2), colPos[5] + colWidths[5] / 2, currentY + 4, { align: "center" })
+
+          currentY += rowHeight
         })
 
-        currentY += 5
+        // TOTALS
+        checkPageBreak(30)
+        currentY += 10
+        const subtotal = productsToUse.reduce((s, p) => s + (p.quantity || 0) * (p.price || 0), 0)
+        const vat = subtotal * 0.19
+        const total = subtotal + vat
+        const labelX = PW - 70
+        const valX = PW - 20
+        doc.setFontSize(9).setFont(undefined, "bold").text("Total fara TVA:", labelX, currentY, { align: "right" })
+        doc.setFont(undefined, "normal").text(`${subtotal.toFixed(2)} RON`, valX, currentY, { align: "right" })
+        currentY += 6
+        doc.setFont(undefined, "bold").text("TVA (19%):", labelX, currentY, { align: "right" })
+        doc.setFont(undefined, "normal").text(`${vat.toFixed(2)} RON`, valX, currentY, { align: "right" })
+        currentY += 6
+        doc.setFont(undefined, "bold").text("Total cu TVA:", labelX, currentY, { align: "right" })
+        doc.setFont(undefined, "normal").text(`${total.toFixed(2)} RON`, valX, currentY, { align: "right" })
+        doc.setDrawColor(150).line(labelX - 40, currentY + 3, valX + 5, currentY + 3)
+        currentY += 15
       }
 
       // SIGNATURES
-      if (lucrare.semnaturaTehnician || lucrare.semnaturaBeneficiar) {
-        checkPageBreak(40)
-        doc.setFontSize(10).setFont(undefined, "bold")
-        doc.text("SEMNĂTURI", PW / 2, currentY, { align: "center" })
-        currentY += 10
+      checkPageBreak(40)
+      doc.setFontSize(9).setFont(undefined, "bold")
+      doc.text("Tehnician:", M, currentY)
+      doc.text("Beneficiar:", M + W / 2, currentY)
+      currentY += 5
+      doc.setFont(undefined, "normal")
+      doc.text(normalize(lucrare.tehnicieni?.join(", ") || ""), M, currentY)
+      doc.text(normalize(lucrare.persoanaContact || ""), M + W / 2, currentY)
+      currentY += 5
 
-        const addSig = (data: string | undefined, x: number) => {
-          if (!data) return
+      const signW = W / 2 - 10
+      const signH = 25
+      const addSig = (data: string | undefined, x: number) => {
+        if (data) {
           try {
-            doc.addImage(data, "PNG", x, currentY, 40, 20)
-          } catch {
-            doc.setFontSize(8).setFont(undefined, "normal").text("Semnătură invalidă", x, currentY + 10)
+            doc.addImage(data, "PNG", x, currentY, signW, signH)
+            return
+          } catch (e) {
+            console.error("Error adding signature image:", e)
           }
         }
-
-        addSig(lucrare.semnaturaTehnician, M)
-        addSig(lucrare.semnaturaBeneficiar, PW - M - 40)
-
-        doc.setFontSize(8).setFont(undefined, "normal")
-        doc.text("Tehnician", M + 20, currentY + 25, { align: "center" })
-        doc.text("Beneficiar", PW - M - 20, currentY + 25, { align: "center" })
+        doc
+          .setFontSize(8)
+          .setFont(undefined, "italic")
+          .text("Semnatura lipsa", x + signW / 2, currentY + signH / 2, { align: "center" })
       }
+      addSig(lucrare.semnaturaTehnician, M)
+      addSig(lucrare.semnaturaBeneficiar, M + W / 2)
 
-      const pdfBlob = doc.output("blob")
-      if (onGenerate) {
-        onGenerate(pdfBlob)
-      } else {
-        doc.save(`raport-${lucrare.id || "new"}.pdf`)
-      }
+      // FOOTER
+      doc
+        .setFontSize(7)
+        .setFont(undefined, "normal")
+        .text("Document generat automat • Field Operational Manager", PW / 2, PH - M, { align: "center" })
+
+      const blob = doc.output("blob")
+
+      // Don't save the PDF for download, just generate it for email
+      // doc.save(`Raport_${lucrare.id}.pdf`)
 
       // Mark document as generated
       if (lucrare.id) {
@@ -375,14 +367,11 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         }
       }
 
-      return pdfBlob
-    } catch (error) {
-      console.error("Error generating PDF:", error)
-      toast({
-        title: "Eroare",
-        description: "A apărut o eroare la generarea raportului. Vă rugăm să încercați din nou.",
-        variant: "destructive",
-      })
+      onGenerate?.(blob)
+      return blob
+    } catch (e) {
+      console.error("Error generating PDF:", e)
+      toast({ title: "Eroare", description: "Generare eșuată.", variant: "destructive" })
     } finally {
       setIsGen(false)
     }
@@ -414,4 +403,3 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 })
 
 ReportGenerator.displayName = "ReportGenerator"
-
