@@ -31,6 +31,7 @@ import { useStableCallback } from "@/lib/utils/hooks"
 import { ContractDisplay } from "@/components/contract-display"
 import { QRCodeScanner } from "@/components/qr-code-scanner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { formatDate, formatTime } from "@/lib/utils/time-format"
 
 export default function LucrarePage({ params }: { params: { id: string } }) {
   const router = useRouter()
@@ -228,12 +229,21 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
 
       // Actualizăm lucrarea în baza de date
       try {
+        // Get current date and time
+        const now = new Date()
+        const timpSosire = now.toISOString()
+        const dataSosire = formatDate(now)
+        const oraSosire = formatTime(now)
+
         // Pregătim datele pentru actualizare
         const updateData = {
           ...lucrare,
           equipmentVerified: true,
           equipmentVerifiedAt: new Date().toISOString(),
           equipmentVerifiedBy: userData?.displayName || "Tehnician necunoscut",
+          timpSosire,
+          dataSosire,
+          oraSosire,
         }
 
         // Actualizăm statusul lucrării la "În lucru" doar dacă statusul curent este "Listată" sau "Atribuită"
@@ -246,7 +256,28 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
 
         // Actualizăm și starea locală dacă am modificat statusul
         if (lucrare.statusLucrare === "Listată" || lucrare.statusLucrare === "Atribuită") {
-          setLucrare((prev) => (prev ? { ...prev, statusLucrare: "În lucru" } : null))
+          setLucrare((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  statusLucrare: "În lucru",
+                  timpSosire,
+                  dataSosire,
+                  oraSosire,
+                }
+              : null,
+          )
+        } else {
+          setLucrare((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  timpSosire,
+                  dataSosire,
+                  oraSosire,
+                }
+              : null,
+          )
         }
 
         toast({
@@ -506,6 +537,28 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                     <p className="text-sm text-gray-500">{lucrare.dataInterventie}</p>
                   </div>
                 </div>
+                {lucrare.timpSosire && (
+                  <div>
+                    <p className="text-sm font-medium">Sosire la locație:</p>
+                    <p className="text-sm text-gray-500">
+                      {lucrare.dataSosire} {lucrare.oraSosire}
+                    </p>
+                  </div>
+                )}
+                {lucrare.timpPlecare && (
+                  <div>
+                    <p className="text-sm font-medium">Plecare de la locație:</p>
+                    <p className="text-sm text-gray-500">
+                      {lucrare.dataPlecare} {lucrare.oraPlecare}
+                    </p>
+                  </div>
+                )}
+                {lucrare.durataInterventie && (
+                  <div>
+                    <p className="text-sm font-medium">Durata intervenție:</p>
+                    <p className="text-sm text-gray-500">{lucrare.durataInterventie}</p>
+                  </div>
+                )}
                 <div>
                   <p className="text-sm font-medium">Tip lucrare:</p>
                   <p className="text-sm text-gray-500">{lucrare.tipLucrare}</p>

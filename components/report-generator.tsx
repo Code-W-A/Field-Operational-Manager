@@ -1,5 +1,9 @@
 "use client"
 
+import { useRouter } from "next/navigation"
+
+import { useRef } from "react"
+
 import { useState, forwardRef, useEffect } from "react"
 import { jsPDF } from "jspdf"
 import { Button } from "@/components/ui/button"
@@ -9,11 +13,13 @@ import { useStableCallback } from "@/lib/utils/hooks"
 import { toast } from "@/components/ui/use-toast"
 import { ProductTableForm, type Product } from "./product-table-form"
 import { serverTimestamp } from "firebase/firestore"
-
-interface ReportGeneratorProps {
-  lucrare: Lucrare
-  onGenerate?: (pdf: Blob) => void
-}
+import { formatDate, formatTime, calculateDuration } from "@/lib/utils/time-format"
+import { db } from "@/lib/firebase/firebase"
+import { doc, updateDoc } from "firebase/firestore"
+import { SignaturePad } from "@/components/signature-pad"
+import { Spinner } from "@/components/ui/spinner"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Textarea } from "@/components/ui/textarea"
 
 // strip diacritics to use built‑in Helvetica; swap to custom TTF if needed
 const normalize = (text = "") =>
@@ -30,12 +36,24 @@ const STROKE = 0.3 // line width (pt)
 const LIGHT_GRAY = 240 // fill shade (lighter)
 const DARK_GRAY = 210 // darker fill for headers
 
+interface ReportGeneratorProps {
+  lucrare: Lucrare
+  onGenerate?: (pdf: Blob) => void
+}
+
 export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProps>(({ lucrare, onGenerate }, ref) => {
+  const [observatii, setObservatii] = useState("")
+  const [clientSignature, setClientSignature] = useState<string | null>(null)
+  const [tehnicianSignature, setTehnicianSignature] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const clientSignatureRef = useRef<any>(null)
+  const tehnicianSignatureRef = useRef<any>(null)
   const [isGen, setIsGen] = useState(false)
   const [products, setProducts] = useState<Product[]>([])
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null)
   const [logoLoaded, setLogoLoaded] = useState(false)
   const [logoError, setLogoError] = useState(false)
+  const router = useRouter()
 
   // Update products when lucrare changes
   useEffect(() => {
@@ -47,7 +65,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
   // Preload the logo image as data URL (fallback included)
   useEffect(() => {
     const fallbackLogo =
-      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAABkCAYAAADDhn8LAAADsklEQVR4nO3dy27UQBCF4T7vwIINCIQQj8CCBYgbAgQIJO5PwCNwCUgIkEDiBQhrFizYAFIUy5E8GsfT7e7q7vN/UkuTiZNMprqrfLqSGQEAAAAAAAAAAAAAAAAAAAAAAAAAAADQpZnUDUBnTkk6J+m0pFOSjks6IumQpL2S9tj/+yDpvaR3kt5KeiPptaRXkl5K+tJpy9GKA5IuS7oi6aKkC5LOWlJMYknzXNJTSU8kPZb0Y+J7oiVnJN2UdE/SN0nrDV/fJd2VdMPagg7tl3RD0kNJP9V8UvS9fkq6L+m6pJkG7QQOSLoj6Zfan/xbX7/s3nRCYZqZpKuSXqj7xNj6emH3pjOLCR2V9EjdJ0HM66Hd+9BjZummpO/qPuHjXt/t3oeGzkv6qO6TvK3XR+sHGnBY0hN1n9RtvZ5YfzCh65K+qvtkbvv11fqDCc5J+qzuk7ir12frFyZwW90ncdfXLesXRnRU0jt1n7h9vN5Z/zCCmaSn6j5Z+3w9tX5iBDfUfZL2fb1W/mPzWdkv6aO6T9AhXh+snxjgmvJfFI99rVX+Y/RZ2afuk3LI1z3lP0afje/qPhGHfH1T/mP1WXim7pNw6Ncz5T9mn4Xryn+3eOzruvIfuw/eIeW/Wzz265DyH78P2i3ln3hjXbeU//h9sA5K+qT8E26s1yflvw0+WDeVf7KNfbGDPGBHlH+ijX0dUf7b4oN0XfknWVvXdeW/PT4o+5R/grV97VP+2+SDclH5J1fb10Xlv10+GDPlv8Xb1TXTgG33QbikYRPjv6Qnkh5IuivpD0l/Svpb0j+S/pL0u6TfJP1qP/9L0p+S/rD//0DSY0nfB7ThouiHDMZMwyZFcZb7oaTfJf0xoA1/2e8+tN8tzvIfMqAdM+U/jh+EmYZNiEeSrg1ow1VJjwe24ZryH8cPwkzDJsNY/8NnA9txVfmP4wdhpmGTYcxzrYY+5Zon3WDMNGwyMEEGZKZhk4EJMiAzDZsMTJABmWnYZGCCDMhMwyYDE2RAZho2GZggAzLTsMnABBmQmYZNBibIgMw0bDIwQQZkpmGTgQkyIDMNmwxMkAGZadhkYIIMyEzDJgMTZEBmGjYZmCADMtOwyTDWBJlp2LnWTJAOzTRsMox1LtRMw861ZoJ0aKZhk2GsE/VmGnauNROkQzMNmwxjnahfU/5j+EGYadgEKU7U+9/+98X//l/8738P+d//iv/9f8j//lf87/9D/ve/4n//H/K//xX/+/+Q//2v+N//h/zvf8X//j/kf/8r/vf/AAAAAAAAAAAAAAAAAAAAAAAAAAAAgAz9C5gVeUGpivY2AAAAAElFTkSuQmCC"
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAABkCAYAAADDhn8LAAADsklEQVR4nO3dy27UQBCF4T7vwIINCIQQj8CCBYgbAgQIJO5PwCNwCUgIkEDiBQhrFizYAFIUy5E8GsfT7e7q7vN/UkuTiZNMprqrfLqSGQEAAAAAAAAAAAAAAAAAAAAAAAAAAADQpZnUDUBnTkk6J+m0pFOSjks6IumQpL2S9tj/+yDpvaR3kt5KeiPptaRXkl5K+tJpy9GKA5IuS7oi6aKkC5LOWlJMYknzXNJTSU8kPZb0Y+J7oiVnJN2UdE/SN0nrDV/fJd2VdMPagg7tl3RD0kNJP9V8UvS9fkq6L+m6pJkG7QQOSLoj6Zfan/xbX7/s3nRCYZqZpKuSXqj7xNj6emH3pjOLCR2V9EjdJ0HM66Hd+9BjZummpO/qPuHjXt+t3oeGzkv6qO6TvK3XR+sHGnBY0hN1n9RtvZ5YfzCh65K+qvtkbvv11fqDCc5J+qzuk7ir12frFyZwW90ncdfXLesXRnRU0jt1n7h9vN5Z/zCCmaSn6j5Z+3w9tX5iBDfUfZL2fb1W/mPzWdkv6aO6T9AhXh+snxjgmvJfFI99rVX+Y/RZ2afuk3LI1z3lP0afje/qPhGHfH1T/mP1WXim7pNw6Ncz5T9mn4Xryn+3eOzruvIfuw/eIeW/Wzz265DyH78P2i3ln3hjXbeU//h9sA5K+qT8E26s1yflvw0+WDeVf7KNfbGDPGBHlH+ijX0dUf7b4oN0XfknWVvXdeW/PT4o+5R/grV97VP+2+SDclH5J1fb10Xlv10+GDPlv8Xb1TXTgG33QbikYRPjv6Qnkh5IuivpD0l/Svpb0j+S/pL0u6TfJP1qP/9L0p+S/rD//0DSY0nfB7ThouiHDMZMwyZFcZb7oaTfJf0xoA1/2e8+tN8tzvIfMqAdM+U/jh+EmYZNiEeSrg1ow1VJjwe24ZryH8cPwkzDJsNY/8NnA9txVfmP4wdhpmGTYcxzrYY+5Zon3WDMNGwyMEEGZKZhk4EJMiAzDZsMTJABmWnYZGCCDMhMwyYDE2RAZho2GZggAzLTsMnABBmQmYZNBibIgMw0bDIwQQZkpmGTgQkyIDMNmwxMkAGZadhkYIIMyEzDJgMTZEBmGjYZmCADMtOwyTDWBJlp2LnWTJAOzTRsMox1LtRMw861ZoJ0aKZhk2GsE/VmGnauNROkQzMNmwxjnahfU/5j+EGYadgEKU7U+9/+98X//l/8738P+d//iv/9f8j//lf87/9D/ve/4n//H/K//xX/+/+Q//2v+N//h/zvf8X//j/kf/8r/vf/AAAAAAAAAAAAAAAAAAAAAAAAAAAAgAz9C5gVeUGpivY2AAAAAElFTkSuQmCC"
 
     try {
       const img = new Image()
@@ -187,10 +205,16 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       doc.setFontSize(9).setFont(undefined, "normal")
       const [d, t] = (lucrare.dataInterventie || " - -").split(" ")
       doc.text(`Data: ${normalize(d)}`, M, currentY)
-      doc.text(`Sosire: ${t || "-"}`, M + 70, currentY)
+      doc.text(`Sosire: ${lucrare.oraSosire || "-"}`, M + 70, currentY)
       doc.text(`Plecare: ${lucrare.oraPlecare || "-"}`, M + 120, currentY)
       doc.text(`Raport #${lucrare.id || ""}`, PW - M, currentY, { align: "right" })
-      currentY += 10
+      currentY += 6
+
+      // Add duration if available
+      if (lucrare.durataInterventie) {
+        doc.text(`Durata intervenție: ${lucrare.durataInterventie}`, M, currentY)
+        currentY += 6
+      }
 
       // EQUIPMENT
       if (lucrare.echipament || lucrare.echipamentCod) {
@@ -351,13 +375,29 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // Don't save the PDF for download, just generate it for email
       // doc.save(`Raport_${lucrare.id}.pdf`)
 
-      // Mark document as generated
+      // Mark document as generated and record departure time
       if (lucrare.id) {
         try {
-          const { doc: fbDoc, updateDoc } = require("firebase/firestore")
-          const { db } = require("@/lib/firebase/config")
-          await updateDoc(fbDoc(db, "lucrari", lucrare.id), { raportGenerat: true, updatedAt: serverTimestamp() })
-          console.log("Raport marcat ca generat în Firestore")
+          const now = new Date()
+          const timpPlecare = now.toISOString()
+          const dataPlecare = formatDate(now)
+          const oraPlecare = formatTime(now)
+
+          // Calculate duration if arrival time exists
+          let durataInterventie = "-"
+          if (lucrare.timpSosire) {
+            durataInterventie = calculateDuration(lucrare.timpSosire, timpPlecare)
+          }
+
+          await updateDoc(doc(db, "lucrari", lucrare.id), {
+            raportGenerat: true,
+            updatedAt: serverTimestamp(),
+            timpPlecare,
+            dataPlecare,
+            oraPlecare,
+            durataInterventie,
+          })
+          console.log("Raport marcat ca generat în Firestore cu timpul de plecare înregistrat")
         } catch (e) {
           console.error("Nu s-a putut actualiza starea în sistem:", e)
         }
@@ -372,6 +412,86 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       setIsGen(false)
     }
   })
+
+  const handleGenerateReport = async () => {
+    if (!clientSignature) {
+      toast({
+        title: "Semnătură lipsă",
+        description: "Este necesară semnătura clientului",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!tehnicianSignature) {
+      toast({
+        title: "Semnătură lipsă",
+        description: "Este necesară semnătura tehnicianului",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setLoading(true)
+
+    try {
+      // Record departure time
+      const now = new Date()
+      const timpPlecare = now.toISOString()
+      const dataPlecare = formatDate(now)
+      const oraPlecare = formatTime(now)
+
+      // Calculate duration if arrival time exists
+      let durataInterventie = "-"
+      if (lucrare.timpSosire) {
+        durataInterventie = calculateDuration(lucrare.timpSosire, timpPlecare)
+      }
+
+      // Update the document with report data and departure time
+      const docRef = doc(db, "lucrari", lucrare.id)
+      await updateDoc(docRef, {
+        raportGenerat: true,
+        observatii,
+        clientSignature,
+        tehnicianSignature,
+        status: "Finalizat",
+        timpPlecare,
+        dataPlecare,
+        oraPlecare,
+        durataInterventie,
+      })
+
+      toast({
+        title: "Raport generat",
+        description: "Raportul a fost generat cu succes",
+      })
+
+      // Redirect to dashboard after a short delay
+      setTimeout(() => {
+        router.push("/dashboard/lucrari")
+      }, 1500)
+    } catch (error) {
+      console.error("Error generating report:", error)
+      toast({
+        title: "Eroare",
+        description: "A apărut o eroare la generarea raportului",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const clearSignatures = () => {
+    if (clientSignatureRef.current) {
+      clientSignatureRef.current.clear()
+      setClientSignature(null)
+    }
+    if (tehnicianSignatureRef.current) {
+      tehnicianSignatureRef.current.clear()
+      setTehnicianSignature(null)
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -394,6 +514,69 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           {isGen ? "În curs..." : "Generează PDF"}
         </Button>
       </div>
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>Generare Raport Intervenție</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <h3 className="font-medium">Observații și recomandări</h3>
+            <Textarea
+              placeholder="Introduceți observații și recomandări pentru client..."
+              value={observatii}
+              onChange={(e) => setObservatii(e.target.value)}
+              rows={4}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <h3 className="font-medium">Semnătură Client</h3>
+              <SignaturePad ref={clientSignatureRef} onSignatureChange={setClientSignature} />
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-medium">Semnătură Tehnician</h3>
+              <SignaturePad ref={tehnicianSignatureRef} onSignatureChange={setTehnicianSignature} />
+            </div>
+          </div>
+
+          {/* Informații despre timpul de sosire și plecare */}
+          <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+            <h3 className="font-medium">Informații despre intervenție</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm font-medium text-gray-500">Data și ora sosirii:</p>
+                <p>{lucrare?.dataSosire ? `${lucrare.dataSosire} ${lucrare.oraSosire}` : "Neînregistrat"}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-500">Data și ora plecării (estimată):</p>
+                <p>{`${formatDate(new Date())} ${formatTime(new Date())}`}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-500">Durata intervenției (estimată):</p>
+                <p>{lucrare?.timpSosire ? calculateDuration(lucrare.timpSosire, new Date()) : "Neînregistrat"}</p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Notă: Aceste informații vor fi înregistrate în momentul generării raportului.
+            </p>
+          </div>
+        </CardContent>
+        <CardFooter className="flex justify-between">
+          <Button variant="outline" onClick={clearSignatures}>
+            Șterge Semnături
+          </Button>
+          <Button onClick={handleGenerateReport} disabled={loading}>
+            {loading ? (
+              <>
+                <Spinner className="mr-2 h-4 w-4" /> Generare...
+              </>
+            ) : (
+              "Generează Raport"
+            )}
+          </Button>
+        </CardFooter>
+      </Card>
     </div>
   )
 })
