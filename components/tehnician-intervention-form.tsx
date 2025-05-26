@@ -245,12 +245,7 @@ export function TehnicianInterventionForm({
         <CardTitle>Formular intervenție tehnician</CardTitle>
       </CardHeader>
       <CardContent>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            handleSubmit()
-          }}
-        >
+        <form onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="constatareLaLocatie">Constatare la locație</Label>
@@ -278,7 +273,7 @@ export function TehnicianInterventionForm({
 
             <div className="space-y-2">
               <Label htmlFor="statusEchipament">Status echipament</Label>
-              <Select value={statusEchipament} onValueChange={handleStatusEchipamentChange} disabled={formDisabled}>
+              <Select value={statusEchipament} onValueChange={setStatusEchipament} disabled={formDisabled}>
                 <SelectTrigger id="statusEchipament" className={formDisabled ? "opacity-70 cursor-not-allowed" : ""}>
                   <SelectValue placeholder="Selectați statusul echipamentului" />
                 </SelectTrigger>

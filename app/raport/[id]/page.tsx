@@ -1,11 +1,13 @@
 "use client"
 
 import type React from "react"
+
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Send } from "lucide-react"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
+import { Send, ArrowLeft } from "lucide-react"
 import SignatureCanvas from "react-signature-canvas"
 import { getLucrareById, updateLucrare } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
@@ -17,7 +19,6 @@ import { toast } from "@/components/ui/use-toast"
 import { ReportGenerator } from "@/components/report-generator"
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
-import { Spinner } from "@/components/ui/spinner"
 
 export default function RaportPage({ params }: { params: { id: string } }) {
   const SIG_HEIGHT = 160 // px – lasă-l fix
@@ -387,8 +388,13 @@ FOM by NRG`,
   // Show loading state
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-[calc(100vh-4rem)]">
-        <Spinner className="h-8 w-8" />
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
+        <Card className="w-full max-w-3xl">
+          <CardContent className="flex flex-col items-center justify-center p-8">
+            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-blue-600"></div>
+            <p className="mt-4 text-gray-500">Se încarcă datele raportului...</p>
+          </CardContent>
+        </Card>
       </div>
     )
   }
@@ -396,34 +402,30 @@ FOM by NRG`,
   // Show error state
   if (error || !lucrare) {
     return (
-      <div className="container mx-auto p-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-red-600">Eroare</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>{error || "Nu s-au putut încărca datele raportului."}</p>
-          </CardContent>
-          <CardContent>
-            <Button onClick={() => router.back()}>Înapoi</Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  if (lucrare?.raportGenerat) {
-    return (
-      <div className="container mx-auto p-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Raport deja generat</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>Raportul pentru această lucrare a fost deja generat. Puteți vedea detaliile în pagina lucrării.</p>
-            <div className="mt-4">
-              <Button onClick={() => router.push(`/dashboard/lucrari/${params.id}`)}>Vezi Detalii Lucrare</Button>
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
+        <Card className="w-full max-w-3xl">
+          <CardContent className="flex flex-col items-center justify-center p-8">
+            <div className="rounded-full bg-red-100 p-3">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-6 w-6 text-red-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
             </div>
+            <h2 className="mt-4 text-xl font-semibold text-red-600">Eroare</h2>
+            <p className="mt-2 text-center text-gray-500">{error || "Nu s-au putut încărca datele raportului."}</p>
+            <Button className="mt-6" onClick={() => router.push("/dashboard/lucrari")}>
+              Înapoi la lucrări
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -431,130 +433,117 @@ FOM by NRG`,
   }
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="mb-4 flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Raport Intervenție #{params.id}</h1>
-        <Button variant="outline" onClick={() => router.back()}>
-          Înapoi
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="md:col-span-1">
-          <CardHeader>
-            <CardTitle>Detalii Lucrare</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
+      <Card className="w-full max-w-3xl">
+        <CardHeader className="text-center">
+          <div className="flex items-center">
+            <Button variant="ghost" size="icon" className="absolute left-4" onClick={() => router.back()}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="w-full">
+              <CardTitle className="text-xl sm:text-2xl font-bold text-blue-700">
+                Raport Intervenție #{params.id}
+              </CardTitle>
+              <CardDescription>Detalii despre intervenția efectuată</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-2">
             <div>
-              <h3 className="font-semibold mb-1">Client</h3>
+              <h3 className="font-medium text-gray-500">Client</h3>
               <p>{lucrare?.client || "N/A"}</p>
             </div>
             <div>
-              <h3 className="font-semibold mb-1">Locație</h3>
+              <h3 className="font-medium text-gray-500">Locație</h3>
               <p>{lucrare?.locatie || "N/A"}</p>
             </div>
             <div>
-              <h3 className="font-semibold mb-1">Data Intervenție</h3>
+              <h3 className="font-medium text-gray-500">Data Intervenție</h3>
               <p>{lucrare?.dataInterventie || "N/A"}</p>
             </div>
             <div>
-              <h3 className="font-semibold mb-1">Tehnician</h3>
+              <h3 className="font-medium text-gray-500">Tehnician</h3>
               <p>{lucrare?.tehnicieni?.join(", ") || "N/A"}</p>
             </div>
-            <div>
-              <h3 className="font-semibold mb-1">Defect Reclamat</h3>
-              <p>{lucrare?.defectReclamat || "Nu a fost specificat"}</p>
-            </div>
-            <div>
-              <h3 className="font-semibold mb-1">Descriere Lucrare</h3>
-              <p>{lucrare?.descriere || "Nu a fost specificată"}</p>
-            </div>
-            <div>
-              <h3 className="font-semibold mb-1">Descriere Intervenție</h3>
-              <p className="whitespace-pre-line">{lucrare?.descriereInterventie || "Nu a fost specificată"}</p>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        <div className="md:col-span-2">
-          <ReportGenerator lucrareId={params.id} lucrareData={lucrare} />
-        </div>
-      </div>
+          <Separator />
 
-      <div className="mt-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Produse</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ProductTableForm products={products} onProductsChange={setProducts} />
-          </CardContent>
-        </Card>
-      </div>
+          <div>
+            <h3 className="font-medium text-gray-500">Defect Reclamat</h3>
+            <p>{lucrare?.defectReclamat || "Nu a fost specificat"}</p>
+          </div>
 
-      <div className="mt-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Semnături</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid gap-4 md:grid-cols-2">
-              {/* Semnătură Tehnician */}
-              <div className="space-y-2">
-                <h3 className="font-medium text-gray-500">Semnătură Tehnician</h3>
-                <div className="rounded-md border border-gray-300 bg-white p-2">
-                  <SignatureCanvas
-                    ref={techSignatureRef}
-                    canvasProps={{
-                      className: "w-full h-40 border rounded",
-                      width: SIG_MIN_WIDTH,
-                      height: SIG_HEIGHT,
-                    }}
-                    onBegin={handleTechBegin}
-                    onEnd={handleTechEnd}
-                  />
-                </div>
-                <div className="flex justify-end">
-                  <Button variant="outline" size="sm" onClick={clearTechSignature} disabled={isSubmitting}>
-                    Șterge
-                  </Button>
-                </div>
-                <p className="text-xs text-center text-gray-500">{lucrare?.tehnicieni?.join(", ") || "Tehnician"}</p>
+          <div>
+            <h3 className="font-medium text-gray-500">Descriere Lucrare</h3>
+            <p>{lucrare?.descriere || "Nu a fost specificată"}</p>
+          </div>
+
+          <Separator />
+
+          <div>
+            <h3 className="font-medium text-gray-500">Descriere Intervenție</h3>
+            <p className="whitespace-pre-line">{lucrare?.descriereInterventie || "Nu a fost specificată"}</p>
+          </div>
+
+          <Separator />
+
+          {/* Adăugăm formularul pentru produse */}
+          <ProductTableForm products={products} onProductsChange={setProducts} />
+
+          <Separator />
+
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Semnătură Tehnician */}
+            <div className="space-y-2">
+              <h3 className="font-medium text-gray-500">Semnătură Tehnician</h3>
+              <div className="rounded-md border border-gray-300 bg-white p-2">
+                <SignatureCanvas
+                  ref={techSignatureRef}
+                  canvasProps={{
+                    className: "w-full h-40 border rounded",
+                    width: SIG_MIN_WIDTH,
+                    height: SIG_HEIGHT,
+                  }}
+                  onBegin={handleTechBegin}
+                  onEnd={handleTechEnd}
+                />
               </div>
-
-              {/* Semnătură Beneficiar */}
-              <div className="space-y-2">
-                <h3 className="font-medium text-gray-500">Semnătură Beneficiar</h3>
-                <div className="rounded-md border border-gray-300 bg-white p-2">
-                  <SignatureCanvas
-                    ref={clientSignatureRef}
-                    canvasProps={{
-                      className: "w-full h-40 border rounded",
-                      width: SIG_MIN_WIDTH,
-                      height: SIG_HEIGHT,
-                    }}
-                    onBegin={handleClientBegin}
-                    onEnd={handleClientEnd}
-                  />
-                </div>
-                <div className="flex justify-end">
-                  <Button variant="outline" size="sm" onClick={clearClientSignature} disabled={isSubmitting}>
-                    Șterge
-                  </Button>
-                </div>
-                <p className="text-xs text-center text-gray-500">{lucrare?.persoanaContact || "Beneficiar"}</p>
+              <div className="flex justify-end">
+                <Button variant="outline" size="sm" onClick={clearTechSignature} disabled={isSubmitting}>
+                  Șterge
+                </Button>
               </div>
+              <p className="text-xs text-center text-gray-500">{lucrare?.tehnicieni?.join(", ") || "Tehnician"}</p>
             </div>
-          </CardContent>
-        </Card>
-      </div>
 
-      <div className="mt-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>E-mail</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
+            {/* Semnătură Beneficiar */}
+            <div className="space-y-2">
+              <h3 className="font-medium text-gray-500">Semnătură Beneficiar</h3>
+              <div className="rounded-md border border-gray-300 bg-white p-2">
+                <SignatureCanvas
+                  ref={clientSignatureRef}
+                  canvasProps={{
+                    className: "w-full h-40 border rounded",
+                    width: SIG_MIN_WIDTH,
+                    height: SIG_HEIGHT,
+                  }}
+                  onBegin={handleClientBegin}
+                  onEnd={handleClientEnd}
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button variant="outline" size="sm" onClick={clearClientSignature} disabled={isSubmitting}>
+                  Șterge
+                </Button>
+              </div>
+              <p className="text-xs text-center text-gray-500">{lucrare?.persoanaContact || "Beneficiar"}</p>
+            </div>
+          </div>
+
+          {/* Adăugăm câmpul pentru email */}
+          <div className="space-y-2">
             <Label htmlFor="email">E-mail semnatar</Label>
             <Input
               id="email"
@@ -568,91 +557,87 @@ FOM by NRG`,
             <p className="text-xs text-muted-foreground">
               Raportul va fi trimis automat la această adresă după finalizare
             </p>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
 
-      {/* Hidden ReportGenerator component */}
-      <div className="hidden">
-        <ReportGenerator
-          ref={reportGeneratorRef}
-          lucrare={updatedLucrare || lucrare}
-          onGenerate={(blob) => {
-            // Send email automatically when PDF is generated
-            sendEmail(blob)
-              .then((success) => {
-                if (success) {
-                  // Show success toast
-                  toast({
-                    title: "Raport finalizat",
-                    description: "Raportul a fost generat și trimis pe email cu succes.",
-                    variant: "default",
+          {/* Hidden ReportGenerator component */}
+          <div className="hidden">
+            <ReportGenerator
+              ref={reportGeneratorRef}
+              lucrare={updatedLucrare || lucrare}
+              onGenerate={(blob) => {
+                // Send email automatically when PDF is generated
+                sendEmail(blob)
+                  .then((success) => {
+                    if (success) {
+                      // Show success toast
+                      toast({
+                        title: "Raport finalizat",
+                        description: "Raportul a fost generat și trimis pe email cu succes.",
+                        variant: "default",
+                      })
+
+                      // Actualizăm statusul lucrării
+                      if (updatedLucrare && updatedLucrare.id) {
+                        updateWorkOrderStatus(updatedLucrare.id)
+                      }
+
+                      // Redirect to dashboard after a short delay
+                      setTimeout(() => {
+                        router.push("/dashboard/lucrari")
+                      }, 2000)
+                    } else {
+                      setIsSubmitting(false)
+                    }
                   })
+                  .catch((error) => {
+                    console.error("Eroare la trimiterea emailului:", error)
+                    toast({
+                      title: "Eroare",
+                      description: "Raportul a fost generat, dar trimiterea pe email a eșuat.",
+                      variant: "destructive",
+                    })
+                    setIsSubmitting(false)
+                  })
+              }}
+            />
+          </div>
+        </CardContent>
 
-                  // Actualizăm statusul lucrării
-                  if (updatedLucrare && updatedLucrare.id) {
-                    updateWorkOrderStatus(updatedLucrare.id)
-                  }
-
-                  // Redirect to dashboard after a short delay
-                  setTimeout(() => {
-                    router.push("/dashboard/lucrari")
-                  }, 2000)
-                } else {
-                  setIsSubmitting(false)
-                }
-              })
-              .catch((error) => {
-                console.error("Eroare la trimiterea emailului:", error)
-                toast({
-                  title: "Eroare",
-                  description: "Raportul a fost generat, dar trimiterea pe email a eșuat.",
-                  variant: "destructive",
-                })
-                setIsSubmitting(false)
-              })
-          }}
-        />
-      </div>
-
-      {/* Footer with buttons */}
-      <div className="mt-8">
-        <Card>
-          <CardFooter className="flex flex-col sm:flex-row gap-4 justify-between pb-6 pt-4">
-            <div className="order-2 sm:order-1 w-full sm:w-auto">
-              <Button
-                variant="outline"
-                onClick={() => router.back()}
-                className="w-full sm:w-auto"
-                disabled={isSubmitting}
-              >
-                Înapoi
-              </Button>
-            </div>
-            <div className="order-1 sm:order-2 w-full sm:w-auto mb-2 sm:mb-0">
-              <Button
-                ref={submitButtonRef}
-                className="gap-2 bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-                style={{
-                  position: "relative",
-                  zIndex: 50,
-                  touchAction: "manipulation",
-                }}
-              >
-                {isSubmitting ? (
-                  <>Se procesează...</>
-                ) : (
-                  <>
-                    <Send className="h-4 w-4" /> Finalizează și Trimite Raport
-                  </>
-                )}
-              </Button>
-            </div>
-          </CardFooter>
-        </Card>
-      </div>
+        {/* Footer with buttons */}
+        <CardFooter className="flex flex-col sm:flex-row gap-4 justify-between pb-6 pt-4">
+          <div className="order-2 sm:order-1 w-full sm:w-auto">
+            <Button
+              variant="outline"
+              onClick={() => router.back()}
+              className="w-full sm:w-auto"
+              disabled={isSubmitting}
+            >
+              Înapoi
+            </Button>
+          </div>
+          <div className="order-1 sm:order-2 w-full sm:w-auto mb-2 sm:mb-0">
+            <Button
+              ref={submitButtonRef}
+              className="gap-2 bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              style={{
+                position: "relative",
+                zIndex: 50,
+                touchAction: "manipulation",
+              }}
+            >
+              {isSubmitting ? (
+                <>Se procesează...</>
+              ) : (
+                <>
+                  <Send className="h-4 w-4" /> Finalizează și Trimite Raport
+                </>
+              )}
+            </Button>
+          </div>
+        </CardFooter>
+      </Card>
     </div>
   )
 }
