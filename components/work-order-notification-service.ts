@@ -212,6 +212,10 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
         description: workOrderData.descriere || "",
         reportedIssue: workOrderData.defectReclamat || "",
         status: workOrderData.statusLucrare || "Programat",
+        // Adăugăm informațiile despre echipament
+        equipment: workOrderData.echipament || "",
+        equipmentCode: workOrderData.echipamentCod || "",
+        equipmentModel: workOrderData.echipamentModel || "",
       },
       workOrderId: workOrderData.id || "", // Asigurăm-ne că ID-ul lucrării este transmis corect
       workOrderNumber: workOrderData.number || workOrderData.id || "",
