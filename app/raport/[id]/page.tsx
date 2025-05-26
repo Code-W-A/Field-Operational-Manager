@@ -582,7 +582,7 @@ FOM by NRG`,
                       }
 
                       // Redirect to dashboard after a short delay
-                      router.push("/lucrari")
+                      router.push("/dashboard/lucrari")
                     } else {
                       setIsSubmitting(false)
                     }
