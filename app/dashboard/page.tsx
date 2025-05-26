@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import type { Lucrare, Client, Log } from "@/lib/firebase/firestore"
 import type { UserData } from "@/lib/firebase/auth"
 import { WORK_STATUS } from "@/lib/utils/constants"
+import { getCollectionCount } from "@/lib/firebase/firestore"
 
 export default function Dashboard() {
   const router = useRouter()
@@ -66,6 +67,28 @@ export default function Dashboard() {
     loguriAstazi: 0,
     rapoarteGenerate: 0,
   })
+  const [loadingStats, setLoadingStats] = useState(true)
+
+  useEffect(() => {
+    async function fetchCounts() {
+      setLoadingStats(true)
+      const [lucrariTotal, clientiTotal, utilizatoriTotal, loguriTotal] = await Promise.all([
+        getCollectionCount("lucrari"),
+        getCollectionCount("clienti"),
+        getCollectionCount("users"),
+        getCollectionCount("logs"),
+      ])
+      setStats((s) => ({
+        ...s,
+        lucrariTotal,
+        clientiTotal,
+        utilizatoriTotal,
+        loguriTotal,
+      }))
+      setLoadingStats(false)
+    }
+    fetchCounts()
+  }, [])
 
   // Calculăm statisticile când datele sunt încărcate
   useEffect(() => {
@@ -130,8 +153,7 @@ export default function Dashboard() {
   ])
 
   // Verificăm dacă datele sunt încă în curs de încărcare
-  const isLoading =
-    loadingLucrari || loadingClienti || loadingUtilizatori || loadingToateLogurile || loadingLoguriAstazi
+  const isLoading = loadingStats
 
   // Funcție pentru a obține lucrările recente pentru afișare în taburi
   const getLucrariRecente = () => {

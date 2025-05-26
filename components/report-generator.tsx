@@ -82,6 +82,21 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
     if (!lucrare) return
     setIsGen(true)
     try {
+      // Calculate and set departure time and duration BEFORE generating the PDF
+      const now = new Date()
+      const timpPlecare = now.toISOString()
+      const dataPlecare = formatDate(now)
+      const oraPlecare = formatTime(now)
+      let durataInterventie = "-"
+      if (lucrare.timpSosire) {
+        durataInterventie = calculateDuration(lucrare.timpSosire, timpPlecare)
+      }
+      // Set these values on lucrare so the PDF uses them
+      lucrare.timpPlecare = timpPlecare
+      lucrare.dataPlecare = dataPlecare
+      lucrare.oraPlecare = oraPlecare
+      lucrare.durataInterventie = durataInterventie
+
       console.log("Generating PDF with lucrare:", lucrare)
       console.log("Products:", products)
       console.log("Signatures:", {
@@ -373,19 +388,6 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // Mark document as generated and record departure time
       if (lucrare.id) {
         try {
-          // Record departure time
-          const now = new Date()
-          const timpPlecare = now.toISOString()
-          const dataPlecare = formatDate(now)
-          const oraPlecare = formatTime(now)
-
-          // Calculate duration if arrival time exists
-          let durataInterventie = "-"
-          let timpSosire = lucrare.timpSosire
-          if (lucrare.timpSosire) {
-            durataInterventie = calculateDuration(lucrare.timpSosire, timpPlecare)
-          }
-
           // Folosim updateDoc din firebase/firestore
           const { doc, updateDoc } = require("firebase/firestore")
           const { db } = require("@/lib/firebase/firebase")
@@ -393,17 +395,11 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           await updateDoc(doc(db, "lucrari", lucrare.id), {
             raportGenerat: true,
             updatedAt: serverTimestamp(),
-            timpPlecare,
-            dataPlecare,
-            oraPlecare,
-            durataInterventie,
+            timpPlecare: lucrare.timpPlecare,
+            dataPlecare: lucrare.dataPlecare,
+            oraPlecare: lucrare.oraPlecare,
+            durataInterventie: lucrare.durataInterventie,
           })
-
-          // Also update the lucrare object locally so the PDF displays the new values
-          lucrare.timpPlecare = timpPlecare
-          lucrare.dataPlecare = dataPlecare
-          lucrare.oraPlecare = oraPlecare
-          lucrare.durataInterventie = durataInterventie
         } catch (e) {
           console.error("Nu s-a putut actualiza starea în sistem:", e)
         }

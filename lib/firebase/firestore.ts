@@ -12,6 +12,7 @@ import {
   where,
   orderBy,
   serverTimestamp,
+  getCountFromServer,
 } from "firebase/firestore"
 import { db } from "./firebase"
 
@@ -275,4 +276,11 @@ export const addLog = async (log: Log) => {
     id: docRef.id,
     ...log,
   }
+}
+
+// Efficiently count documents in a collection (no full read)
+export const getCollectionCount = async (collectionName: string) => {
+  const coll = collection(db, collectionName)
+  const snapshot = await getCountFromServer(coll)
+  return snapshot.data().count as number
 }
