@@ -1,5 +1,6 @@
 import { format } from "date-fns"
 import { ro } from "date-fns/locale"
+import { parse, isValid as dateFnsIsValid, differenceInMinutes } from "date-fns"
 
 /**
  * Formats a date to Romanian format with 24-hour time
@@ -15,34 +16,9 @@ export function formatRomanianDateTime(date: Date): string {
  * @param dateString Date string in format "dd.MM.yyyy HH:mm"
  * @returns Date object
  */
-export function parseRomanianDateTime(dateString: string): Date | null {
+export function parseRomanianDateTime(dateTimeStr: string): Date | null {
   try {
-    if (!dateString) return null
-
-    // If the date is already in a different format, try to parse it
-    if (!dateString.includes(".") || !dateString.includes(":")) {
-      return new Date(dateString)
-    }
-
-    // Split the date and time parts
-    const [datePart, timePart] = dateString.split(" ")
-
-    if (!datePart) return null
-
-    // Split the date components
-    const [day, month, year] = datePart.split(".")
-    const [hour, minute] = timePart ? timePart.split(":") : ["00", "00"]
-
-    if (!day || !month || !year) return null
-
-    // Create a date object
-    return new Date(
-      Number.parseInt(year),
-      Number.parseInt(month) - 1,
-      Number.parseInt(day),
-      Number.parseInt(hour),
-      Number.parseInt(minute),
-    )
+    return parse(dateTimeStr, "dd.MM.yyyy HH:mm", new Date())
   } catch (error) {
     console.error("Error parsing date:", error)
     return null
@@ -57,3 +33,15 @@ export function parseRomanianDateTime(dateString: string): Date | null {
 export function extractTime24(date: Date): string {
   return format(date, "HH:mm")
 }
+
+export function isValid(date: Date): boolean {
+  return dateFnsIsValid(date)
+}
+
+export function formatDuration(minutes: number): string {
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+  return `${hours}h ${remainingMinutes}m`
+}
+
+export { differenceInMinutes }

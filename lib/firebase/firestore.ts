@@ -15,50 +15,50 @@ import {
 } from "firebase/firestore"
 import { db } from "./firebase"
 
+export interface Product {
+  id: string
+  nume: string
+  unitate: string
+  cantitate: number
+  pret: number
+  total: number
+}
+
+export interface ClientInfo {
+  cui: string
+  rc: string
+  adresa: string
+}
+
 export interface Lucrare {
-  id?: string
-  client: string
-  persoanaContact: string
+  id: string
+  numeClient: string
+  adresa: string
   telefon: string
-  dataEmiterii: string
+  email: string
+  dataSosire: string
+  oraSosire: string
+  oraPlecare: string
+  durataServiciu: number
+  observatiiDurata: string
+  observatii: string
+  semnaturaClient: string
+  semnaturaTehnician: string
+  produse: Product[]
+  status: "pending" | "in_progress" | "completed"
+  createdAt: any
+  updatedAt: any
+  echipament: string
+  serieEchipament: string
+  descriereProblema: string
   dataInterventie: string
-  tipLucrare: string
-  locatie: string
-  echipament?: string
-  echipamentCod?: string
-  echipamentModel?: string
-  descriere: string
-  statusLucrare: string
-  statusFacturare: string
-  tehnicieni: string[]
-  descriereInterventie?: string
-  constatareLaLocatie?: string
-  contract?: string
-  contractNumber?: string
-  contractType?: string
-  defectReclamat?: string
-  // Câmpuri noi pentru verificarea echipamentului
-  equipmentVerified?: boolean
-  equipmentVerifiedAt?: string
-  equipmentVerifiedBy?: string
-  // Câmpuri pentru timpul de sosire
-  dataSosire?: string // Format: dd-MM-yyyy
-  oraSosire?: string // Format: HH:mm
-  createdAt?: Timestamp
-  updatedAt?: Timestamp
-  createdBy?: string
-  updatedBy?: string
-  // Add new field for all contact persons
-  persoaneContact?: PersoanaContact[]
-  // Add new field for dispatcher pickup status
-  preluatDispecer?: boolean
-  raportGenerat?: boolean
-  // Adăugăm câmpul pentru statusul echipamentului
-  statusEchipament?: string
-  // Adăugăm câmpul pentru necesitatea unei oferte
-  necesitaOferta?: boolean
-  // Adăugăm câmpul pentru comentarii legate de ofertă
-  comentariiOferta?: string
+  constatareLaLocatie: string
+  descriereInterventie: string
+  necesitaOferta: boolean
+  comentariiOferta: string
+  statusEchipament: string
+  raportGenerat: boolean
+  clientInfo: ClientInfo
 }
 
 export interface Client {

@@ -5,44 +5,44 @@ import { Textarea } from "@/components/ui/textarea"
 import { Plus, Trash2 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 
-export interface ProductItem {
+export interface Product {
   id: string
   name: string
-  um: string
+  unit: string
   quantity: number
   price: number
   total: number
 }
 
 interface ProductTableFormProps {
-  products: ProductItem[]
-  onProductsChange: (products: ProductItem[]) => void
+  products: Product[]
+  onChange: (products: Product[]) => void
 }
 
-export function ProductTableForm({ products, onProductsChange }: ProductTableFormProps) {
+export function ProductTableForm({ products, onChange }: ProductTableFormProps) {
   // Funcție pentru a genera un ID unic
   const generateId = () => `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
   // Funcție pentru a adăuga un produs nou
   const addProduct = () => {
-    const newProduct: ProductItem = {
+    const newProduct: Product = {
       id: generateId(),
       name: "",
-      um: "buc",
+      unit: "buc",
       quantity: 1,
       price: 0,
       total: 0,
     }
-    onProductsChange([...products, newProduct])
+    onChange([...products, newProduct])
   }
 
   // Funcție pentru a șterge un produs
   const removeProduct = (id: string) => {
-    onProductsChange(products.filter((product) => product.id !== id))
+    onChange(products.filter((product) => product.id !== id))
   }
 
   // Funcție pentru a actualiza un produs
-  const updateProduct = (id: string, field: keyof ProductItem, value: any) => {
+  const updateProduct = (id: string, field: keyof Product, value: any) => {
     const updatedProducts = products.map((product) => {
       if (product.id === id) {
         const updatedProduct = { ...product, [field]: value }
@@ -57,21 +57,22 @@ export function ProductTableForm({ products, onProductsChange }: ProductTableFor
       return product
     })
 
-    onProductsChange(updatedProducts)
+    onChange(updatedProducts)
   }
 
   // Calculăm totalul general
   const totalWithoutVAT = products.reduce((sum, product) => sum + product.total, 0)
   const totalWithVAT = totalWithoutVAT * 1.19 // Presupunem TVA 19%
-const handleNumberChange = (
-  id: string,
-  field: "price" | "quantity",
-) => (e: React.ChangeEvent<HTMLInputElement>) => {
-  const raw = e.target.value           // string
-  const parsed = raw === "" ? undefined : parseFloat(raw)
 
-  updateProduct(id, field, parsed ?? 0) // păstrăm 0 doar când vrem noi
-}
+  const handleNumberChange = (
+    id: string,
+    field: "price" | "quantity",
+  ) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value           // string
+    const parsed = raw === "" ? undefined : parseFloat(raw)
+
+    updateProduct(id, field, parsed ?? 0) // păstrăm 0 doar când vrem noi
+  }
 
   return (
     <div className="space-y-6">
@@ -110,13 +111,13 @@ const handleNumberChange = (
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div>
-                      <label htmlFor={`um-${product.id}`} className="block text-sm font-medium text-gray-700 mb-1">
+                      <label htmlFor={`unit-${product.id}`} className="block text-sm font-medium text-gray-700 mb-1">
                         UM
                       </label>
                       <Input
-                        id={`um-${product.id}`}
-                        value={product.um}
-                        onChange={(e) => updateProduct(product.id, "um", e.target.value)}
+                        id={`unit-${product.id}`}
+                        value={product.unit}
+                        onChange={(e) => updateProduct(product.id, "unit", e.target.value)}
                         placeholder="buc"
                       />
                     </div>
@@ -147,8 +148,8 @@ const handleNumberChange = (
                         type="number"
                         min="0"
                         step="0.01"
-                     value={product.price === 0 ? "" : product.price}
-                      onChange={handleNumberChange(product.id, "price")}
+                        value={product.price === 0 ? "" : product.price}
+                        onChange={handleNumberChange(product.id, "price")}
                       />
                     </div>
 
