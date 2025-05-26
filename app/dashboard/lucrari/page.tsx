@@ -1640,6 +1640,7 @@ export default function Lucrari() {
               setTable={setTableInstance}
               showFilters={false}
               getRowClassName={getRowClassName}
+              disablePagination={true} // Adaugă această proprietate
             />
             <div className="border-t">
               <ServerPagination

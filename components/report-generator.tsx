@@ -181,7 +181,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         .setFontSize(16)
         .setFont(undefined, "bold")
         .text("RAPORT DE INTERVENTIE", PW / 2, currentY, { align: "center" })
-      currentY += 10
+      currentY += 20
 
       // META
       doc.setFontSize(9).setFont(undefined, "normal")
@@ -189,7 +189,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       doc.text(`Data: ${normalize(d)}`, M, currentY)
       doc.text(`Sosire: ${t || "-"}`, M + 70, currentY)
       doc.text(`Plecare: ${lucrare.oraPlecare || "-"}`, M + 120, currentY)
-      doc.text(`Raport #${lucrare.id || ""}`, PW - M, currentY, { align: "right" })
+      //doc.text(`Raport #${lucrare.id || ""}`, PW - M, currentY, { align: "right" })
       currentY += 10
 
       // EQUIPMENT

@@ -419,6 +419,7 @@ export default function Loguri() {
               table={table}
               setTable={setTable}
               showFilters={false}
+              disablePagination={true} // Adaugă această proprietate
             />
             <ServerPagination
               currentPage={currentPage}

@@ -588,6 +588,7 @@ export default function Clienti() {
               setTable={setTable}
               showFilters={false}
               onRowClick={(row) => handleViewDetails(row.id!)}
+              disablePagination={true} // Adaugă această proprietate
             />
             <div className="border-t">
               <ServerPagination

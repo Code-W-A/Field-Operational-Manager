@@ -815,6 +815,7 @@ export default function Utilizatori() {
               setTable={setTable}
               showFilters={false}
               onRowClick={(row) => handleEdit(row)}
+              disablePagination={true} // Adaugă această proprietate
             />
             <div className="border-t">
               <ServerPagination
