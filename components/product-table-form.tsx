@@ -14,6 +14,13 @@ export interface ProductItem {
   total: number
 }
 
+// Re-export a simplified `Product` alias so other modules can depend on
+// a common shape without necessarily caring about `id` or `total`.
+// This keeps backwards compatibility for existing code that already
+// relies on `ProductItem`, while satisfying the named export expected
+// by consumers such as `ReportGenerator`.
+export type Product = ProductItem
+
 interface ProductTableFormProps {
   products: ProductItem[]
   onProductsChange: (products: ProductItem[]) => void

@@ -127,21 +127,21 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         const boxHeight = lines.length * lineHeight + 12
         checkPageBreak(boxHeight + 5)
 
-        doc.setDrawColor(60).setFillColor(LIGHT_GRAY).setLineWidth(STROKE)
+        doc.setDrawColor(60, 60, 60).setFillColor(LIGHT_GRAY, LIGHT_GRAY, LIGHT_GRAY).setLineWidth(STROKE)
         ;(doc as any).roundedRect(x, currentY, boxWidth, boxHeight, BOX_RADIUS, BOX_RADIUS, "FD")
 
         doc
           .setFontSize(10)
-          .setFont(undefined, titleBold ? "bold" : "normal")
+          .setFont("helvetica", titleBold ? "bold" : "normal")
           .setTextColor(40)
           .text(title, x + boxWidth / 2, currentY + 6, { align: "center" })
 
-        doc.setFontSize(8).setFont(undefined, "normal").setTextColor(20)
+        doc.setFontSize(8).setFont("helvetica", "normal").setTextColor(20)
         lines.forEach((txt, i) => {
           const yy = currentY + 10 + i * lineHeight
           doc.text(txt, x + 3, yy)
           doc
-            .setDrawColor(200)
+            .setDrawColor(200, 200, 200)
             .setLineWidth(0.15)
             .line(x + 3, yy + 1.5, x + boxWidth - 3, yy + 1.5)
         })
@@ -181,7 +181,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       )
 
       // LOGO placeholder
-      doc.setDrawColor(60).setLineWidth(STROKE)
+      doc.setDrawColor(60, 60, 60).setLineWidth(STROKE)
       ;(doc as any).roundedRect(M + boxW + 2, currentY + 3, logoArea - 4, boxH - 6, 1.5, 1.5, "S")
       if (logoLoaded && logoDataUrl) {
         try {
@@ -189,7 +189,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         } catch {
           doc
             .setFontSize(14)
-            .setFont(undefined, "bold")
+            .setFont("helvetica", "bold")
             .text("NRG", M + boxW + logoArea / 2, currentY + boxH / 2, { align: "center" })
         }
       }
@@ -199,12 +199,12 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // TITLE
       doc
         .setFontSize(16)
-        .setFont(undefined, "bold")
+        .setFont("helvetica", "bold")
         .text("RAPORT DE INTERVENTIE", PW / 2, currentY, { align: "center" })
       currentY += 10
 
       // META
-      doc.setFontSize(9).setFont(undefined, "normal")
+      doc.setFontSize(9).setFont("helvetica", "normal")
       const [d, t] = (lucrareForPDF.dataInterventie || " - -").split(" ")
       doc.text(`Data: ${normalize(d)}`, M, currentY)
 
@@ -246,7 +246,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // Dynamic text blocks helper (no fixed 5 lines)
       const addTextBlock = (label: string, text?: string) => {
         if (!text?.trim()) return
-        doc.setFont(undefined, "bold").setFontSize(10)
+        doc.setFont("helvetica", "bold").setFontSize(10)
         doc.text(label, M, currentY)
         currentY += 4
 
@@ -255,15 +255,15 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         const boxHeight = textLines.length * lineHeight + 4
 
         checkPageBreak(boxHeight + 5)
-        doc.setDrawColor(150).rect(M, currentY, W, boxHeight, "S")
+        doc.setDrawColor(150, 150, 150).rect(M, currentY, W, boxHeight, "S")
 
         // Horizontal guide lines only for actual content
         for (let i = 1; i <= textLines.length; i++) {
           doc.line(M, currentY + i * lineHeight, M + W, currentY + i * lineHeight)
         }
 
-        doc.setFont(undefined, "normal").setFontSize(8)
-        doc.text(textLines, M + 2, currentY + lineHeight)
+        doc.setFont("helvetica", "normal").setFontSize(8)
+        textLines.forEach((l: string, li: number) => doc.text(l, M + 2, currentY + lineHeight + li * lineHeight))
         currentY += boxHeight + 6
       }
 
@@ -276,10 +276,10 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // PRODUCT TABLE (shown only if there are products)
       if (productsToUse && productsToUse.length > 0) {
         checkPageBreak(15)
-        doc.setFillColor(DARK_GRAY).rect(M, currentY, W, 8, "FD")
+        doc.setFillColor(DARK_GRAY, DARK_GRAY, DARK_GRAY).rect(M, currentY, W, 8, "FD")
         doc
           .setFontSize(10)
-          .setFont(undefined, "bold")
+          .setFont("helvetica", "bold")
           .text("DEVIZ ESTIMATIV", PW / 2, currentY + 5, { align: "center" })
         currentY += 8
 
@@ -289,8 +289,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         const headers = ["#", "Produs", "UM", "Cant.", "Preț", "Total"]
 
         const drawTableHeader = () => {
-          doc.setFillColor(LIGHT_GRAY).rect(M, currentY, W, 7, "FD")
-          doc.setFontSize(8).setFont(undefined, "bold")
+          doc.setFillColor(LIGHT_GRAY, LIGHT_GRAY, LIGHT_GRAY).rect(M, currentY, W, 7, "FD")
+          doc.setFontSize(8).setFont("helvetica", "bold")
           headers.forEach((h, i) => {
             doc.text(h, colPos[i] + colWidths[i] / 2, currentY + 5, { align: "center" })
           })
@@ -312,16 +312,16 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 
           // zebra
           if (index % 2) {
-            doc.setFillColor(248).rect(M, currentY, W, rowHeight, "F")
+            doc.setFillColor(248, 248, 248).rect(M, currentY, W, rowHeight, "F")
           }
 
-          doc.setDrawColor(180).setLineWidth(0.2)
+          doc.setDrawColor(180, 180, 180).setLineWidth(0.2)
           for (let i = 0; i <= colWidths.length; i++) doc.line(colPos[i], currentY, colPos[i], currentY + rowHeight)
           doc.line(M, currentY + rowHeight, M + W, currentY + rowHeight)
 
-          doc.setFontSize(8).setFont(undefined, "normal")
+          doc.setFontSize(8).setFont("helvetica", "normal")
           doc.text((index + 1).toString(), colPos[0] + colWidths[0] / 2, currentY + 4, { align: "center" })
-          nameLines.forEach((l, li) => doc.text(l, colPos[1] + 2, currentY + 4 + li * 4))
+          nameLines.forEach((l: string, li: number) => doc.text(l, colPos[1] + 2, currentY + 4 + li * 4))
           doc.text(product.um || "-", colPos[2] + colWidths[2] / 2, currentY + 4, { align: "center" })
           doc.text((product.quantity || 0).toString(), colPos[3] + colWidths[3] / 2, currentY + 4, { align: "center" })
           doc.text((product.price || 0).toFixed(2), colPos[4] + colWidths[4] / 2, currentY + 4, { align: "center" })
@@ -339,25 +339,25 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         const total = subtotal + vat
         const labelX = PW - 70
         const valX = PW - 20
-        doc.setFontSize(9).setFont(undefined, "bold").text("Total fara TVA:", labelX, currentY, { align: "right" })
-        doc.setFont(undefined, "normal").text(`${subtotal.toFixed(2)} RON`, valX, currentY, { align: "right" })
+        doc.setFontSize(9).setFont("helvetica", "bold").text("Total fara TVA:", labelX, currentY, { align: "right" })
+        doc.setFont("helvetica", "normal").text(`${subtotal.toFixed(2)} RON`, valX, currentY, { align: "right" })
         currentY += 6
-        doc.setFont(undefined, "bold").text("TVA (19%):", labelX, currentY, { align: "right" })
-        doc.setFont(undefined, "normal").text(`${vat.toFixed(2)} RON`, valX, currentY, { align: "right" })
+        doc.setFont("helvetica", "bold").text("TVA (19%):", labelX, currentY, { align: "right" })
+        doc.setFont("helvetica", "normal").text(`${vat.toFixed(2)} RON`, valX, currentY, { align: "right" })
         currentY += 6
-        doc.setFont(undefined, "bold").text("Total cu TVA:", labelX, currentY, { align: "right" })
-        doc.setFont(undefined, "normal").text(`${total.toFixed(2)} RON`, valX, currentY, { align: "right" })
-        doc.setDrawColor(150).line(labelX - 40, currentY + 3, valX + 5, currentY + 3)
+        doc.setFont("helvetica", "bold").text("Total cu TVA:", labelX, currentY, { align: "right" })
+        doc.setFont("helvetica", "normal").text(`${total.toFixed(2)} RON`, valX, currentY, { align: "right" })
+        doc.setDrawColor(150, 150, 150).line(labelX - 40, currentY + 3, valX + 5, currentY + 3)
         currentY += 15
       }
 
       // SIGNATURES
       checkPageBreak(40)
-      doc.setFontSize(9).setFont(undefined, "bold")
+      doc.setFontSize(9).setFont("helvetica", "bold")
       doc.text("Tehnician:", M, currentY)
       doc.text("Beneficiar:", M + W / 2, currentY)
       currentY += 5
-      doc.setFont(undefined, "normal")
+      doc.setFont("helvetica", "normal")
       doc.text(normalize(lucrareForPDF.tehnicieni?.join(", ") || ""), M, currentY)
       doc.text(normalize(lucrareForPDF.persoanaContact || ""), M + W / 2, currentY)
       currentY += 5
@@ -375,7 +375,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         }
         doc
           .setFontSize(8)
-          .setFont(undefined, "italic")
+          .setFont("helvetica", "italic")
           .text("Semnatura lipsa", x + signW / 2, currentY + signH / 2, { align: "center" })
       }
       addSig(lucrareForPDF.semnaturaTehnician, M)
@@ -384,7 +384,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // FOOTER
       doc
         .setFontSize(7)
-        .setFont(undefined, "normal")
+        .setFont("helvetica", "normal")
         .text("Document generat automat • Field Operational Manager", PW / 2, PH - M, { align: "center" })
 
       const blob = doc.output("blob")
