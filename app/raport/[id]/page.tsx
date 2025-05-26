@@ -582,9 +582,7 @@ FOM by NRG`,
                       }
 
                       // Redirect to dashboard after a short delay
-                      setTimeout(() => {
-                        router.push("/dashboard/lucrari")
-                      }, 2000)
+                      router.push("/lucrari")
                     } else {
                       setIsSubmitting(false)
                     }
