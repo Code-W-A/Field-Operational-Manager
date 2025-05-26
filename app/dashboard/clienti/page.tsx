@@ -17,6 +17,7 @@ import { DashboardShell } from "@/components/dashboard-shell"
 import { Eye, Pencil, Trash2, Loader2, AlertCircle, Plus } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/contexts/AuthContext"
+import { useClientLucrari } from "@/hooks/use-client-lucrari"
 import { ClientEditForm } from "@/components/client-edit-form"
 import { useSearchParams, useRouter } from "next/navigation"
 import { type Client, deleteClient } from "@/lib/firebase/firestore"
@@ -32,8 +33,6 @@ import { ColumnSelectionButton } from "@/components/column-selection-button"
 import { ColumnSelectionModal } from "@/components/column-selection-modal"
 import { FilterButton } from "@/components/filter-button"
 import { FilterModal, type FilterOption } from "@/components/filter-modal"
-import { usePaginatedFirestore } from "@/hooks/use-paginated-firestore"
-import { ServerPagination } from "@/components/data-table/server-pagination"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -58,7 +57,6 @@ export default function Clienti() {
   const [activeFilters, setActiveFilters] = useState<FilterOption[]>([])
   const [showCloseAlert, setShowCloseAlert] = useState(false)
   const [activeDialog, setActiveDialog] = useState<"add" | "edit" | null>(null)
-  const [pageSize, setPageSize] = useState(10)
   const addFormRef = useRef<any>(null)
   const editFormRef = useRef<any>(null)
 
@@ -74,16 +72,8 @@ export default function Clienti() {
   // Detect if we're on a mobile device
   const isMobile = useMediaQuery("(max-width: 768px)")
 
-  // Get clients from Firebase with pagination
-  const {
-    data: clienti,
-    loading,
-    error: fetchError,
-    currentPage,
-    totalPages,
-    goToPage,
-    loadFirstPage,
-  } = usePaginatedFirestore<Client>("clienti", pageSize, "nume", "asc")
+  // Get clients from Firebase
+  const { clienti, loading, error: fetchError, refreshData } = useClientLucrari()
 
   // Define filter options based on client data
   const filterOptions = useMemo(() => {
@@ -291,7 +281,7 @@ export default function Clienti() {
       try {
         await deleteClient(id)
         // Refresh data after deletion
-        loadFirstPage()
+        refreshData()
       } catch (err) {
         console.error("Eroare la ștergerea clientului:", err)
         alert("A apărut o eroare la ștergerea clientului.")
@@ -334,7 +324,7 @@ export default function Clienti() {
   // Modify handleEditSuccess function to refresh data
   const handleEditSuccess = () => {
     handleEditDialogClose()
-    loadFirstPage() // Refresh data after edit
+    refreshData() // Add call to refreshData
   }
 
   // Function to check if we should show the close confirmation dialog for add
@@ -370,11 +360,6 @@ export default function Clienti() {
 
     // Reset activeDialog
     setActiveDialog(null)
-  }
-
-  // Handle page size change
-  const handlePageSizeChange = (newPageSize: number) => {
-    setPageSize(newPageSize)
   }
 
   // Define columns for DataTable
@@ -483,7 +468,7 @@ export default function Clienti() {
               ref={addFormRef}
               onSuccess={(clientName) => {
                 setIsAddDialogOpen(false)
-                loadFirstPage() // Refresh data after addition
+                refreshData() // Refresh data after addition
               }}
               onCancel={handleCloseAddDialog}
             />
@@ -588,18 +573,7 @@ export default function Clienti() {
               setTable={setTable}
               showFilters={false}
               onRowClick={(row) => handleViewDetails(row.id!)}
-              disablePagination={true} // Adaugă această proprietate
             />
-            <div className="border-t">
-              <ServerPagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                pageSize={pageSize}
-                onPageChange={goToPage}
-                onPageSizeChange={handlePageSizeChange}
-                isLoading={loading}
-              />
-            </div>
           </div>
         ) : (
           <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3 w-full overflow-auto">
@@ -693,20 +667,6 @@ export default function Clienti() {
                 <p className="text-muted-foreground">Nu există clienți care să corespundă criteriilor de căutare.</p>
               </div>
             )}
-          </div>
-        )}
-
-        {/* Add server pagination for card view */}
-        {activeTab === "carduri" && filteredData.length > 0 && (
-          <div className="border rounded-md bg-white p-2 mt-4">
-            <ServerPagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              pageSize={pageSize}
-              onPageChange={goToPage}
-              onPageSizeChange={handlePageSizeChange}
-              isLoading={loading}
-            />
           </div>
         )}
       </div>

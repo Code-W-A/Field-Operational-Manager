@@ -593,33 +593,6 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                     )}
                   </div>
                 </div>
-                {/* Afișăm data și ora sosirii dacă sunt disponibile */}
-                {lucrare.equipmentVerified && (
-                  <div className="mt-2">
-                    <p className="text-sm font-medium">Sosire la locație:</p>
-                    <div className="flex flex-col space-y-1 mt-1">
-                      {lucrare.dataSosire && (
-                        <p className="text-sm text-gray-500 flex items-center">
-                          <span className="font-medium text-xs mr-2 bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
-                            Data:
-                          </span>
-                          {lucrare.dataSosire}
-                        </p>
-                      )}
-                      {lucrare.oraSosire && (
-                        <p className="text-sm text-gray-500 flex items-center">
-                          <span className="font-medium text-xs mr-2 bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
-                            Ora:
-                          </span>
-                          {lucrare.oraSosire}
-                        </p>
-                      )}
-                      {!lucrare.dataSosire && !lucrare.oraSosire && (
-                        <p className="text-sm text-gray-500 italic">Informații despre sosire indisponibile</p>
-                      )}
-                    </div>
-                  </div>
-                )}
                 <div>
                   {lucrare.descriere ? (
                     <>
@@ -861,12 +834,10 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                         expectedEquipmentCode={lucrare.echipamentCod}
                         expectedLocationName={lucrare.locatie}
                         expectedClientName={lucrare.client}
-                        lucrareId={lucrare.id}
                         onScanSuccess={(data) => {
                           toast({
                             title: "Verificare reușită",
-                            description:
-                              "Echipamentul scanat corespunde cu lucrarea. Timpul de sosire a fost înregistrat.",
+                            description: "Echipamentul scanat corespunde cu lucrarea.",
                           })
                         }}
                         onScanError={(error) => {
