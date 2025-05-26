@@ -598,24 +598,20 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                     )}
                   </div>
                 </div>
-                {/* Afișăm data și ora sosirii dacă sunt disponibile */}
-                {lucrare.equipmentVerified && (
+                {/* Sosire și plecare la locație + durata intervenție */}
+                {(lucrare.equipmentVerified || lucrare.dataSosire || lucrare.oraSosire || lucrare.dataPlecare || lucrare.oraPlecare || lucrare.durataInterventie) && (
                   <div className="mt-2">
                     <p className="text-sm font-medium">Sosire la locație:</p>
                     <div className="flex flex-col space-y-1 mt-1">
                       {lucrare.dataSosire && (
                         <p className="text-sm text-gray-500 flex items-center">
-                          <span className="font-medium text-xs mr-2 bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
-                            Data:
-                          </span>
+                          <span className="font-medium text-xs mr-2 bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Data:</span>
                           {lucrare.dataSosire}
                         </p>
                       )}
                       {lucrare.oraSosire && (
                         <p className="text-sm text-gray-500 flex items-center">
-                          <span className="font-medium text-xs mr-2 bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
-                            Ora:
-                          </span>
+                          <span className="font-medium text-xs mr-2 bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Ora:</span>
                           {lucrare.oraSosire}
                         </p>
                       )}
@@ -623,6 +619,32 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                         <p className="text-sm text-gray-500 italic">Informații despre sosire indisponibile</p>
                       )}
                     </div>
+                    {(lucrare.dataPlecare || lucrare.oraPlecare) && (
+                      <div className="flex flex-col space-y-1 mt-2">
+                        <p className="text-sm font-medium">Plecare de la locație:</p>
+                        {lucrare.dataPlecare && (
+                          <p className="text-sm text-gray-500 flex items-center">
+                            <span className="font-medium text-xs mr-2 bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Data:</span>
+                            {lucrare.dataPlecare}
+                          </p>
+                        )}
+                        {lucrare.oraPlecare && (
+                          <p className="text-sm text-gray-500 flex items-center">
+                            <span className="font-medium text-xs mr-2 bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Ora:</span>
+                            {lucrare.oraPlecare}
+                          </p>
+                        )}
+                        {!lucrare.dataPlecare && !lucrare.oraPlecare && (
+                          <p className="text-sm text-gray-500 italic">Informații despre plecare indisponibile</p>
+                        )}
+                      </div>
+                    )}
+                    {lucrare.durataInterventie && (
+                      <div className="flex flex-col space-y-1 mt-2">
+                        <p className="text-sm font-medium">Durata intervenție:</p>
+                        <p className="text-sm text-gray-500">{lucrare.durataInterventie}</p>
+                      </div>
+                    )}
                   </div>
                 )}
                 <div>
