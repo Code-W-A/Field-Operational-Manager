@@ -41,18 +41,6 @@ export interface Lucrare {
   equipmentVerified?: boolean
   equipmentVerifiedAt?: string
   equipmentVerifiedBy?: string
-  // Câmpuri pentru timpul de sosire
-  dataSosire?: string // Format: dd-MM-yyyy
-  oraSosire?: string // Format: HH:mm
-  // Timestamp ISO for the exact arrival moment (date & time)
-  timpSosire?: string
-  // Câmpuri pentru plecare
-  dataPlecare?: string // Format: dd-MM-yyyy
-  oraPlecare?: string // Format: HH:mm
-  // Timestamp ISO for departure
-  timpPlecare?: string
-  // Durata totală a intervenției (ex: "2h 30m" sau "150min")
-  durataInterventie?: string
   createdAt?: Timestamp
   updatedAt?: Timestamp
   createdBy?: string

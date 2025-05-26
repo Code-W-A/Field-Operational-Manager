@@ -181,19 +181,15 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         .setFontSize(16)
         .setFont(undefined, "bold")
         .text("RAPORT DE INTERVENTIE", PW / 2, currentY, { align: "center" })
-      currentY += 20
+      currentY += 10
 
       // META
       doc.setFontSize(9).setFont(undefined, "normal")
-      // Folosim datele reale de sosire/plecare dacă există
-      const dataRaport = lucrare.dataSosire || lucrare.dataInterventie || "-"
-      doc.text(`Data: ${normalize(dataRaport)}`, M, currentY)
-      doc.text(`Sosire: ${lucrare.oraSosire || "-"}`, M + 60, currentY)
-      doc.text(`Plecare: ${lucrare.oraPlecare || "-"}`, M + 100, currentY)
-      if (lucrare.durataInterventie) {
-        doc.text(`Durata: ${lucrare.durataInterventie}`, M + 140, currentY)
-      }
-      //doc.text(`Raport #${lucrare.id || ""}`, PW - M, currentY, { align: "right" })
+      const [d, t] = (lucrare.dataInterventie || " - -").split(" ")
+      doc.text(`Data: ${normalize(d)}`, M, currentY)
+      doc.text(`Sosire: ${t || "-"}`, M + 70, currentY)
+      doc.text(`Plecare: ${lucrare.oraPlecare || "-"}`, M + 120, currentY)
+      doc.text(`Raport #${lucrare.id || ""}`, PW - M, currentY, { align: "right" })
       currentY += 10
 
       // EQUIPMENT

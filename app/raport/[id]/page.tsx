@@ -19,7 +19,6 @@ import { toast } from "@/components/ui/use-toast"
 import { ReportGenerator } from "@/components/report-generator"
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
-import { format, differenceInMinutes } from "date-fns"
 
 export default function RaportPage({ params }: { params: { id: string } }) {
   const SIG_HEIGHT = 160 // px – lasă-l fix
@@ -250,17 +249,6 @@ FOM by NRG`,
         setClientSignatureData(semnaturaBeneficiar)
       }
 
-      const now = new Date()
-
-      // Compute durata intervenție dacă există timpSosire
-      let durataInterventie: string | undefined = undefined
-      if (lucrare.timpSosire) {
-        const diffMin = differenceInMinutes(now, new Date(lucrare.timpSosire))
-        const ore = Math.floor(diffMin / 60)
-        const minute = diffMin % 60
-        durataInterventie = ore > 0 ? `${ore}h ${minute}m` : `${minute}m`
-      }
-
       // Create updated lucrare object with all necessary data
       const updatedLucrareData = {
         ...lucrare,
@@ -272,12 +260,7 @@ FOM by NRG`,
         statusLucrare: "Finalizat",
         updatedAt: serverTimestamp(),
         preluatDispecer: false,
-        // Departure fields
-        dataPlecare: format(now, "dd.MM.yyyy"),
-        oraPlecare: format(now, "HH:mm"),
-        timpPlecare: now.toISOString(),
-        durataInterventie,
-      } as any
+      }
 
       // Save to Firestore
       await updateLucrare(params.id, updatedLucrareData)

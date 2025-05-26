@@ -20,8 +20,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
-import { format } from "date-fns"
-import { updateLucrare } from "@/lib/firebase/firestore"
 
 interface QRCodeScannerProps {
   expectedEquipmentCode?: string
@@ -30,7 +28,6 @@ interface QRCodeScannerProps {
   onScanSuccess?: (data: any) => void
   onScanError?: (error: string) => void
   onVerificationComplete?: (success: boolean) => void
-  lucrareId?: string // Add this to identify which work order to update
 }
 
 // Schema pentru validarea codului introdus manual
@@ -50,7 +47,6 @@ export function QRCodeScanner({
   onScanSuccess,
   onScanError,
   onVerificationComplete,
-  lucrareId,
 }: QRCodeScannerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [scanResult, setScanResult] = useState<any>(null)
@@ -372,33 +368,6 @@ export function QRCodeScanner({
           message: "Verificare reușită!",
           details: ["Echipamentul scanat corespunde cu lucrarea."],
         })
-
-        // Salvăm timpul de sosire în Firestore
-        if (lucrareId) {
-          const now = new Date()
-          // Format date as dd-MM-yyyy
-          const dataSosire = format(now, "dd-MM-yyyy")
-          // Format time as HH:mm
-          const oraSosire = format(now, "HH:mm")
-
-          console.log("Salvare timp sosire în Firestore:", { dataSosire, oraSosire, lucrareId })
-
-          // Actualizăm documentul din Firestore
-          updateLucrare(lucrareId, {
-            dataSosire: dataSosire,
-            oraSosire: oraSosire,
-            equipmentVerified: true,
-            equipmentVerifiedAt: now.toISOString(),
-            equipmentVerifiedBy: "Scanner QR",
-          })
-            .then(() => {
-              console.log("Timp de sosire salvat cu succes:", dataSosire, oraSosire)
-            })
-            .catch((error) => {
-              console.error("Eroare la salvarea timpului de sosire:", error)
-            })
-        }
-
         if (onScanSuccess) onScanSuccess(parsedData)
         if (onVerificationComplete) onVerificationComplete(true)
 
@@ -411,7 +380,7 @@ export function QRCodeScanner({
           setIsOpen(false)
           toast({
             title: "Verificare reușită",
-            description: "Echipamentul scanat corespunde cu lucrarea. Timpul de sosire a fost înregistrat.",
+            description: "Echipamentul scanat corespunde cu lucrarea. Puteți continua intervenția.",
           })
         }, 2000)
       } else {
@@ -571,32 +540,6 @@ export function QRCodeScanner({
         details: ["Codul introdus manual corespunde cu echipamentul din lucrare."],
       })
 
-      // Salvăm timpul de sosire în Firestore
-      if (lucrareId) {
-        const now = new Date()
-        // Format date as dd-MM-yyyy
-        const dataSosire = format(now, "dd-MM-yyyy")
-        // Format time as HH:mm
-        const oraSosire = format(now, "HH:mm")
-
-        console.log("Salvare timp sosire în Firestore (manual):", { dataSosire, oraSosire, lucrareId })
-
-        // Actualizăm documentul din Firestore
-        updateLucrare(lucrareId, {
-          dataSosire: dataSosire,
-          oraSosire: oraSosire,
-          equipmentVerified: true,
-          equipmentVerifiedAt: now.toISOString(),
-          equipmentVerifiedBy: "Introducere manuală",
-        })
-          .then(() => {
-            console.log("Timp de sosire salvat cu succes:", dataSosire, oraSosire)
-          })
-          .catch((error) => {
-            console.error("Eroare la salvarea timpului de sosire:", error)
-          })
-      }
-
       if (onScanSuccess) onScanSuccess(manualData)
       if (onVerificationComplete) onVerificationComplete(true)
 
@@ -605,8 +548,7 @@ export function QRCodeScanner({
         setIsOpen(false)
         toast({
           title: "Verificare reușită",
-          description:
-            "Codul introdus manual corespunde cu echipamentul din lucrare. Timpul de sosire a fost înregistrat.",
+          description: "Codul introdus manual corespunde cu echipamentul din lucrare. Puteți continua intervenția.",
         })
       }, 2000)
     } else {

@@ -18,8 +18,10 @@ import { DashboardShell } from "@/components/dashboard-shell"
 import { format, parse, isAfter, isBefore } from "date-fns"
 import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check, Info } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
+import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { addLucrare, deleteLucrare, updateLucrare, getLucrareById } from "@/lib/firebase/firestore"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { orderBy } from "firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import { LucrareForm, type LucrareFormRef } from "@/components/lucrare-form"
 import { DataTable } from "@/components/data-table/data-table"
@@ -53,8 +55,6 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Card, CardContent } from "@/components/ui/card"
-import { usePaginatedFirestore } from "@/hooks/use-paginated-firestore"
-import { ServerPagination } from "@/components/data-table/server-pagination"
 
 const ContractDisplay = ({ contractId }) => {
   const [contractNumber, setContractNumber] = useState(null)
@@ -122,7 +122,6 @@ export default function Lucrari() {
     echipament: "",
     echipamentId: "",
     echipamentCod: "",
-    echipamentCod: "",
     persoaneContact: [],
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -136,24 +135,21 @@ export default function Lucrari() {
   const [isColumnModalOpen, setIsColumnModalOpen] = useState(false)
   const [columnOptions, setColumnOptions] = useState<any[]>([])
   const [showCloseAlert, setShowCloseAlert] = useState(false)
-  const [pageSize, setPageSize] = useState(10)
   const addFormRef = useRef<LucrareFormRef>(null)
   const editFormRef = useRef<LucrareFormRef>(null)
 
-  // Obținem lucrările din Firebase cu paginare
+  // Obținem lucrările din Firebase
   const {
     data: lucrari,
     loading,
     error: fetchError,
-    currentPage,
-    totalPages,
-    goToPage,
-    loadFirstPage,
-  } = usePaginatedFirestore("lucrari", pageSize, "dataEmiterii", "desc")
+  } = useFirebaseCollection("lucrari", [orderBy("dataEmiterii", "desc")])
 
   // Update the filteredLucrari function to include completed work orders that haven't been picked up
   const filteredLucrari = useMemo(() => {
     if (userData?.role === "tehnician" && userData?.displayName) {
+      console.log("Filtrare lucrări pentru tehnician:", userData.displayName)
+
       const filteredList = lucrari.filter((lucrare) => {
         // Verificăm dacă lucrarea este atribuită tehnicianului
         const isAssignedToTechnician =
@@ -165,10 +161,23 @@ export default function Lucrari() {
         const isPickedUpByDispatcher = lucrare.preluatDispecer === true
         const isCompletedWithReportAndPickedUp = isFinalized && hasReportGenerated && isPickedUpByDispatcher
 
+        // Pentru depanare
+        if (isAssignedToTechnician && isFinalized) {
+          console.log("Lucrare finalizată pentru tehnician:", {
+            id: lucrare.id,
+            client: lucrare.client,
+            statusLucrare: lucrare.statusLucrare,
+            raportGenerat: lucrare.raportGenerat,
+            preluatDispecer: lucrare.preluatDispecer,
+            isCompletedWithReportAndPickedUp,
+          })
+        }
+
         // Includem lucrarea doar dacă este atribuită tehnicianului și NU este finalizată cu raport și preluată de dispecer
         return isAssignedToTechnician && !isCompletedWithReportAndPickedUp
       })
 
+      console.log(`Filtrat ${lucrari.length} lucrări -> ${filteredList.length} lucrări pentru tehnician`)
       return filteredList
     }
     return lucrari
@@ -180,7 +189,7 @@ export default function Lucrari() {
   }, [])
 
   // Modificăm funcția filterOptions pentru a include și echipamentele și statusul echipamentului
-  const { data: tehnicieni } = usePaginatedFirestore("users", 100, "displayName", "asc")
+  const { data: tehnicieni } = useFirebaseCollection("users", [])
   const filterOptions = useMemo(() => {
     // Extragem toate valorile unice pentru tipuri de lucrări
     const tipuriLucrare = Array.from(new Set(filteredLucrari.map((lucrare) => lucrare.tipLucrare))).map((tip) => ({
@@ -722,6 +731,8 @@ export default function Lucrari() {
         // Obținem lucrarea completă cu ID pentru a o trimite la notificări
         const lucrareCompleta = { id: lucrareId, ...newLucrare }
 
+        console.log("Sending notifications for new work order:", lucrareId)
+
         // Trimitem notificările
         const notificationResult = await sendWorkOrderNotifications(lucrareCompleta)
 
@@ -780,9 +791,6 @@ export default function Lucrari() {
       // Închidem dialogul și resetăm formularul
       setIsAddDialogOpen(false)
       resetForm()
-
-      // Reîncărcăm prima pagină pentru a vedea noua lucrare
-      loadFirstPage()
 
       // Afișăm toast de succes pentru adăugarea lucrării
       toast({
@@ -938,9 +946,6 @@ export default function Lucrari() {
       setIsEditDialogOpen(false)
       resetForm()
 
-      // Reîncărcăm prima pagină pentru a vedea modificările
-      loadFirstPage()
-
       // Afișăm toast de succes pentru actualizarea lucrării
       toast({
         title: "Lucrare actualizată",
@@ -965,8 +970,6 @@ export default function Lucrari() {
     if (window.confirm("Sunteți sigur că doriți să ștergeți această lucrare?")) {
       try {
         await deleteLucrare(id)
-        // Reîncărcăm prima pagină pentru a actualiza lista
-        loadFirstPage()
       } catch (err) {
         console.error("Eroare la ștergerea lucrării:", err)
         alert("A apărut o eroare la ștergerea lucrării.")
@@ -1048,9 +1051,6 @@ export default function Lucrari() {
     try {
       await updateLucrare(lucrare.id, { preluatDispecer: true })
 
-      // Reîncărcăm prima pagină pentru a actualiza lista
-      loadFirstPage()
-
       toast({
         title: "Lucrare preluată",
         description: "Lucrarea a fost marcată ca preluată de dispecer.",
@@ -1084,11 +1084,6 @@ export default function Lucrari() {
 
   const handleResetFilters = () => {
     setActiveFilters([])
-  }
-
-  // Handle page size change
-  const handlePageSizeChange = (newPageSize: number) => {
-    setPageSize(newPageSize)
   }
 
   // Definim coloanele pentru DataTable
@@ -1640,18 +1635,7 @@ export default function Lucrari() {
               setTable={setTableInstance}
               showFilters={false}
               getRowClassName={getRowClassName}
-              disablePagination={true} // Adaugă această proprietate
             />
-            <div className="border-t">
-              <ServerPagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                pageSize={pageSize}
-                onPageChange={goToPage}
-                onPageSizeChange={handlePageSizeChange}
-                isLoading={loading}
-              />
-            </div>
           </div>
         ) : (
           // Modificăm și partea din vizualizarea carduri pentru a adăuga verificări suplimentare
@@ -1882,20 +1866,6 @@ export default function Lucrari() {
                 )}
               </div>
             )}
-          </div>
-        )}
-
-        {/* Add server pagination for card view */}
-        {activeTab === "carduri" && filteredData.length > 0 && (
-          <div className="border rounded-md bg-white p-2 mt-4">
-            <ServerPagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              pageSize={pageSize}
-              onPageChange={goToPage}
-              onPageSizeChange={handlePageSizeChange}
-              isLoading={loading}
-            />
           </div>
         )}
       </div>

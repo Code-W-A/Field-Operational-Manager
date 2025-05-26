@@ -31,7 +31,6 @@ import { useStableCallback } from "@/lib/utils/hooks"
 import { ContractDisplay } from "@/components/contract-display"
 import { QRCodeScanner } from "@/components/qr-code-scanner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { format } from "date-fns"
 
 export default function LucrarePage({ params }: { params: { id: string } }) {
   const router = useRouter()
@@ -229,30 +228,26 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
 
       // Actualizăm lucrarea în baza de date
       try {
-        // Zeitstempel pentru sosire
-        const now = new Date()
-
         // Pregătim datele pentru actualizare
-        const updateData: Partial<Lucrare> = {
+        const updateData = {
+          ...lucrare,
           equipmentVerified: true,
-          equipmentVerifiedAt: now.toISOString(),
+          equipmentVerifiedAt: new Date().toISOString(),
           equipmentVerifiedBy: userData?.displayName || "Tehnician necunoscut",
-          // Salvăm separat data și ora pentru afișare
-          dataSosire: format(now, "dd.MM.yyyy"),
-          oraSosire: format(now, "HH:mm"),
-          // Stocăm și un timestamp complet pentru interogări ulterioare
-          timpSosire: now.toISOString(),
         }
 
         // Actualizăm statusul lucrării la "În lucru" doar dacă statusul curent este "Listată" sau "Atribuită"
+        // Astfel nu vom modifica statusul dacă lucrarea este deja "Finalizat" sau are alt status special
         if (lucrare.statusLucrare === "Listată" || lucrare.statusLucrare === "Atribuită") {
           updateData.statusLucrare = "În lucru"
         }
 
         await updateLucrare(lucrare.id, updateData)
 
-        // Actualizăm și starea locală cu datele noi
-        setLucrare((prev) => (prev ? { ...prev, ...updateData } : null))
+        // Actualizăm și starea locală dacă am modificat statusul
+        if (lucrare.statusLucrare === "Listată" || lucrare.statusLucrare === "Atribuită") {
+          setLucrare((prev) => (prev ? { ...prev, statusLucrare: "În lucru" } : null))
+        }
 
         toast({
           title: "Verificare completă",
@@ -598,55 +593,6 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                     )}
                   </div>
                 </div>
-                {/* Sosire și plecare la locație + durata intervenție */}
-                {(lucrare.equipmentVerified || lucrare.dataSosire || lucrare.oraSosire || lucrare.dataPlecare || lucrare.oraPlecare || lucrare.durataInterventie) && (
-                  <div className="mt-2">
-                    <p className="text-sm font-medium">Sosire la locație:</p>
-                    <div className="flex flex-col space-y-1 mt-1">
-                      {lucrare.dataSosire && (
-                        <p className="text-sm text-gray-500 flex items-center">
-                          <span className="font-medium text-xs mr-2 bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Data:</span>
-                          {lucrare.dataSosire}
-                        </p>
-                      )}
-                      {lucrare.oraSosire && (
-                        <p className="text-sm text-gray-500 flex items-center">
-                          <span className="font-medium text-xs mr-2 bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Ora:</span>
-                          {lucrare.oraSosire}
-                        </p>
-                      )}
-                      {!lucrare.dataSosire && !lucrare.oraSosire && (
-                        <p className="text-sm text-gray-500 italic">Informații despre sosire indisponibile</p>
-                      )}
-                    </div>
-                    {(lucrare.dataPlecare || lucrare.oraPlecare) && (
-                      <div className="flex flex-col space-y-1 mt-2">
-                        <p className="text-sm font-medium">Plecare de la locație:</p>
-                        {lucrare.dataPlecare && (
-                          <p className="text-sm text-gray-500 flex items-center">
-                            <span className="font-medium text-xs mr-2 bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Data:</span>
-                            {lucrare.dataPlecare}
-                          </p>
-                        )}
-                        {lucrare.oraPlecare && (
-                          <p className="text-sm text-gray-500 flex items-center">
-                            <span className="font-medium text-xs mr-2 bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Ora:</span>
-                            {lucrare.oraPlecare}
-                          </p>
-                        )}
-                        {!lucrare.dataPlecare && !lucrare.oraPlecare && (
-                          <p className="text-sm text-gray-500 italic">Informații despre plecare indisponibile</p>
-                        )}
-                      </div>
-                    )}
-                    {lucrare.durataInterventie && (
-                      <div className="flex flex-col space-y-1 mt-2">
-                        <p className="text-sm font-medium">Durata intervenție:</p>
-                        <p className="text-sm text-gray-500">{lucrare.durataInterventie}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
                 <div>
                   {lucrare.descriere ? (
                     <>
@@ -888,12 +834,10 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                         expectedEquipmentCode={lucrare.echipamentCod}
                         expectedLocationName={lucrare.locatie}
                         expectedClientName={lucrare.client}
-                        lucrareId={lucrare.id}
                         onScanSuccess={(data) => {
                           toast({
                             title: "Verificare reușită",
-                            description:
-                              "Echipamentul scanat corespunde cu lucrarea. Timpul de sosire a fost înregistrat.",
+                            description: "Echipamentul scanat corespunde cu lucrarea.",
                           })
                         }}
                         onScanError={(error) => {
