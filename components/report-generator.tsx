@@ -190,18 +190,29 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       doc.text(`Data: ${normalize(d)}`, M, currentY)
 
       // Folosim datele de sosire și plecare dacă există
-      const sosire = lucrare.oraSosire || "-"
-      const plecare = lucrare.oraPlecare || "-"
+      // Extragem datele și orele pentru afișare formatată
+      const sosireData = lucrare.dataSosire || (lucrare.timpSosire ? formatDate(new Date(lucrare.timpSosire)) : "-")
+      const sosireOra = lucrare.oraSosire || (lucrare.timpSosire ? formatTime(new Date(lucrare.timpSosire)) : "-")
+      const plecareData = lucrare.dataPlecare || (lucrare.timpPlecare ? formatDate(new Date(lucrare.timpPlecare)) : "-")
+      const plecareOra = lucrare.oraPlecare || (lucrare.timpPlecare ? formatTime(new Date(lucrare.timpPlecare)) : "-")
 
-      doc.text(`Sosire: ${sosire}`, M + 70, currentY)
-      doc.text(`Plecare: ${plecare}`, M + 120, currentY)
+      doc.text(`Sosire: ${sosireData}, ${sosireOra}`, M + 70, currentY)
+      doc.text(`Plecare: ${plecareData}, ${plecareOra}`, M + 120, currentY)
       currentY += 10
 
-      // Adăugăm durata intervenției dacă există
-      if (lucrare.durataInterventie) {
-        doc.text(`Durata interventie: ${lucrare.durataInterventie}`, M, currentY)
-        currentY += 6
+      // Calculăm și afișăm durata intervenției în ore și minute
+      let durataText = "-"
+      if (lucrare.timpSosire && lucrare.timpPlecare) {
+        const ms = new Date(lucrare.timpPlecare).getTime() - new Date(lucrare.timpSosire).getTime()
+        if (ms > 0) {
+          const totalMinutes = Math.floor(ms / 60000)
+          const ore = Math.floor(totalMinutes / 60)
+          const minute = totalMinutes % 60
+          durataText = `${ore}h ${minute}m`
+        }
       }
+      doc.text(`Durata: ${durataText}`, M, currentY)
+      currentY += 6
 
       // EQUIPMENT
       if (lucrare.echipament || lucrare.echipamentCod) {
@@ -370,6 +381,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 
           // Calculate duration if arrival time exists
           let durataInterventie = "-"
+          let timpSosire = lucrare.timpSosire
           if (lucrare.timpSosire) {
             durataInterventie = calculateDuration(lucrare.timpSosire, timpPlecare)
           }
@@ -387,7 +399,11 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
             durataInterventie,
           })
 
-          console.log("Raport marcat ca generat în Firestore cu timpul de plecare înregistrat")
+          // Also update the lucrare object locally so the PDF displays the new values
+          lucrare.timpPlecare = timpPlecare
+          lucrare.dataPlecare = dataPlecare
+          lucrare.oraPlecare = oraPlecare
+          lucrare.durataInterventie = durataInterventie
         } catch (e) {
           console.error("Nu s-a putut actualiza starea în sistem:", e)
         }
