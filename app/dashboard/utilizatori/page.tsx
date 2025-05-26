@@ -19,8 +19,6 @@ import { Badge } from "@/components/ui/badge"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Plus, Pencil, Trash2, Loader2, AlertCircle } from "lucide-react"
-import { collection, query, orderBy, getDocs } from "firebase/firestore"
-import { db } from "@/lib/firebase/config"
 import { registerUser, deleteUserAccount, type UserData, type UserRole } from "@/lib/firebase/auth"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/contexts/AuthContext"
@@ -35,6 +33,8 @@ import { ColumnSelectionButton } from "@/components/column-selection-button"
 import { ColumnSelectionModal } from "@/components/column-selection-modal"
 import { FilterButton } from "@/components/filter-button"
 import { FilterModal, type FilterOption } from "@/components/filter-modal"
+import { usePaginatedFirestore } from "@/hooks/use-paginated-firestore"
+import { ServerPagination } from "@/components/data-table/server-pagination"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,8 +51,6 @@ export default function Utilizatori() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<UserData | null>(null)
-  const [utilizatori, setUtilizatori] = useState<UserData[]>([])
-  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     email: "",
@@ -75,6 +73,7 @@ export default function Utilizatori() {
   const [activeFilters, setActiveFilters] = useState<FilterOption[]>([])
   const [showCloseAlert, setShowCloseAlert] = useState(false)
   const [activeDialog, setActiveDialog] = useState<"add" | "edit" | "delete" | null>(null)
+  const [pageSize, setPageSize] = useState(10)
   const editFormRef = useRef<any>(null)
 
   // Add state for activeTab
@@ -83,32 +82,16 @@ export default function Utilizatori() {
   // Detect if we're on a mobile device
   const isMobile = useMediaQuery("(max-width: 768px)")
 
-  // Get users from Firebase
-  const fetchUtilizatori = async () => {
-    try {
-      setLoading(true)
-      const q = query(collection(db, "users"), orderBy("displayName"))
-      const querySnapshot = await getDocs(q)
-
-      const users: UserData[] = []
-      querySnapshot.forEach((doc) => {
-        users.push({ id: doc.id, ...doc.data() } as UserData)
-      })
-
-      setUtilizatori(users)
-      setFilteredData(users) // Inițializăm datele filtrate
-      setError(null)
-    } catch (err) {
-      console.error("Eroare la încărcarea utilizatorilor:", err)
-      setError("A apărut o eroare la încărcarea utilizatorilor.")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchUtilizatori()
-  }, [])
+  // Get users from Firebase with pagination
+  const {
+    data: utilizatori,
+    loading,
+    error: fetchError,
+    currentPage,
+    totalPages,
+    goToPage,
+    loadFirstPage,
+  } = usePaginatedFirestore<UserData>("users", pageSize, "displayName", "asc")
 
   // Define filter options based on user data
   const filterOptions = useMemo(() => {
@@ -269,7 +252,7 @@ export default function Utilizatori() {
       await registerUser(formData.email, formData.password, formData.displayName, formData.role, formData.telefon)
 
       // Reload the user list
-      await fetchUtilizatori()
+      loadFirstPage()
 
       // Close the dialog and reset the form
       setIsAddDialogOpen(false)
@@ -320,7 +303,7 @@ export default function Utilizatori() {
 
   const handleEditSuccess = () => {
     setIsEditDialogOpen(false)
-    fetchUtilizatori()
+    loadFirstPage()
   }
 
   const handleDeleteClick = (user: UserData) => {
@@ -334,7 +317,7 @@ export default function Utilizatori() {
     try {
       setIsSubmitting(true)
       await deleteUserAccount(userToDelete.uid)
-      await fetchUtilizatori()
+      loadFirstPage()
       setDeleteConfirmOpen(false)
       setUserToDelete(null)
     } catch (err) {
@@ -406,6 +389,11 @@ export default function Utilizatori() {
         isVisible: option.id === "actions" ? true : false,
       })),
     )
+  }
+
+  // Handle page size change
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize)
   }
 
   const getRolColor = (rol: string) => {
@@ -813,14 +801,26 @@ export default function Utilizatori() {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         ) : activeTab === "tabel" ? (
-          <DataTable
-            columns={columns}
-            data={filteredData}
-            defaultSort={{ id: "displayName", desc: false }}
-            setTable={setTable}
-            showFilters={false}
-            onRowClick={(row) => handleEdit(row)}
-          />
+          <div className="rounded-md border">
+            <DataTable
+              columns={columns}
+              data={filteredData}
+              defaultSort={{ id: "displayName", desc: false }}
+              setTable={setTable}
+              showFilters={false}
+              onRowClick={(row) => handleEdit(row)}
+            />
+            <div className="border-t">
+              <ServerPagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                onPageChange={goToPage}
+                onPageSizeChange={handlePageSizeChange}
+                isLoading={loading}
+              />
+            </div>
+          </div>
         ) : (
           <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3 w-full overflow-auto">
             {filteredData.map((user) => (
@@ -880,6 +880,20 @@ export default function Utilizatori() {
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Add server pagination for card view */}
+        {activeTab === "carduri" && filteredData.length > 0 && (
+          <div className="border rounded-md bg-white p-2 mt-4">
+            <ServerPagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              onPageChange={goToPage}
+              onPageSizeChange={handlePageSizeChange}
+              isLoading={loading}
+            />
           </div>
         )}
       </div>
