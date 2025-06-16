@@ -143,13 +143,25 @@ export default function Lucrari() {
   // Persistența tabelului
   const { loadSettings, saveFilters, saveColumnVisibility, saveSorting } = useTablePersistence("lucrari")
 
+  // State pentru sorting persistent
+  const [tableSorting, setTableSorting] = useState([{ id: "updatedAt", desc: true }])
+
   // Încărcăm setările salvate la inițializare
   useEffect(() => {
     const savedSettings = loadSettings()
     if (savedSettings.activeFilters) {
       setActiveFilters(savedSettings.activeFilters)
     }
+    if (savedSettings.sorting) {
+      setTableSorting(savedSettings.sorting)
+    }
   }, [loadSettings])
+
+  // Handler pentru schimbarea sortării
+  const handleSortingChange = (newSorting: { id: string; desc: boolean }[]) => {
+    setTableSorting(newSorting)
+    saveSorting(newSorting)
+  }
 
   // Obținem lucrările din Firebase - sortate după momentul introducerii în sistem
   const {
@@ -1776,6 +1788,8 @@ export default function Lucrari() {
             columns={columns}
             data={filteredData}
             defaultSort={{ id: "updatedAt", desc: true }}
+            sorting={tableSorting}
+            onSortingChange={handleSortingChange}
             onRowClick={(lucrare) => handleViewDetails(lucrare)}
             table={tableInstance}
             setTable={setTableInstance}

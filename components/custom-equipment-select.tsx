@@ -280,8 +280,18 @@ export function CustomEquipmentSelect({
           </div>
 
           {filteredEquipments.length > 0 ? (
-            <ScrollArea className="h-[250px] overflow-y-auto">
-              <div className="p-1">
+            <ScrollArea className="h-[250px]">
+              <div 
+                className="p-1"
+                onWheel={(e) => {
+                  // Permite scroll cu roata mouse-ului
+                  const scrollContainer = e.currentTarget.closest('[data-radix-scroll-area-viewport]');
+                  if (scrollContainer) {
+                    scrollContainer.scrollTop += e.deltaY;
+                    e.preventDefault();
+                  }
+                }}
+              >
                 {filteredEquipments.map((equipment) => (
                   <EquipmentItem
                     key={equipment.id || `eq-${equipment.cod}`}
@@ -368,19 +378,14 @@ function EquipmentItem({
                   <span className="font-medium">Serie:</span> {equipment.serie}
                 </p>
               )}
-              {equipment.dataInstalare && (
-                <p>
-                  <span className="font-medium">Data instalare:</span> {equipment.dataInstalare}
-                </p>
-              )}
               {equipment.ultimaInterventie && (
                 <p>
                   <span className="font-medium">Ultima intervenție:</span> {equipment.ultimaInterventie}
                 </p>
               )}
-              {equipment.observatii && (
+              {equipment.status && (
                 <p>
-                  <span className="font-medium">Observații:</span> {equipment.observatii}
+                  <span className="font-medium">Status:</span> {equipment.status}
                 </p>
               )}
             </div>

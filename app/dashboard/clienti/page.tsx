@@ -66,13 +66,25 @@ export default function Clienti() {
   // Persistența tabelului
   const { loadSettings, saveFilters, saveColumnVisibility, saveSorting } = useTablePersistence("clienti")
 
+  // State pentru sorting persistent
+  const [tableSorting, setTableSorting] = useState([{ id: "updatedAt", desc: true }])
+
   // Încărcăm setările salvate la inițializare
   useEffect(() => {
     const savedSettings = loadSettings()
     if (savedSettings.activeFilters) {
       setActiveFilters(savedSettings.activeFilters)
     }
+    if (savedSettings.sorting) {
+      setTableSorting(savedSettings.sorting)
+    }
   }, [loadSettings])
+
+  // Handler pentru schimbarea sortării
+  const handleSortingChange = (newSorting: { id: string; desc: boolean }[]) => {
+    setTableSorting(newSorting)
+    saveSorting(newSorting)
+  }
 
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -712,6 +724,8 @@ export default function Clienti() {
             columns={columns}
             data={filteredData}
             defaultSort={{ id: "updatedAt", desc: true }}
+            sorting={tableSorting}
+            onSortingChange={handleSortingChange}
             table={table}
             setTable={setTable}
             showFilters={false}

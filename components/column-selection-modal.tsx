@@ -93,8 +93,18 @@ export function ColumnSelectionModal({
           </Button>
         </div>
 
-        <ScrollArea className="flex-1 pr-4">
-          <div className="space-y-4 py-4">
+        <ScrollArea className="flex-1 pr-4 max-h-[400px]">
+          <div 
+            className="space-y-4 py-4"
+            onWheel={(e) => {
+              // Permite scroll cu roata mouse-ului
+              const scrollContainer = e.currentTarget.closest('[data-radix-scroll-area-viewport]');
+              if (scrollContainer) {
+                scrollContainer.scrollTop += e.deltaY;
+                e.preventDefault();
+              }
+            }}
+          >
             {columns.map((column) => (
               <div key={column.id} className="flex items-center space-x-2">
                 <Checkbox id={column.id} checked={column.isVisible} onCheckedChange={() => onToggleColumn(column.id)} />

@@ -20,6 +20,8 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
   defaultSort?: { id: string; desc: boolean }
+  sorting?: SortingState
+  onSortingChange?: (sorting: SortingState) => void
   onRowClick?: (row: TData) => void
   table?: any
   setTable?: (table: any) => void
@@ -31,17 +33,35 @@ export function DataTable<TData, TValue>({
   columns,
   data,
   defaultSort,
+  sorting: externalSorting,
+  onSortingChange: onExternalSortingChange,
   onRowClick,
   table: externalTable,
   setTable: setExternalTable,
   showFilters = true,
   getRowClassName,
 }: DataTableProps<TData, TValue>) {
-  const [sorting, setSorting] = useState<SortingState>(defaultSort ? [defaultSort] : [])
+  const [internalSorting, setInternalSorting] = useState<SortingState>(defaultSort ? [defaultSort] : [])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = useState({})
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState("")
+
+  // Use external sorting if provided, otherwise use internal
+  const sorting = externalSorting !== undefined ? externalSorting : internalSorting
+  
+  // Handle sorting changes with updater function support
+  const handleSortingChange = (updaterOrValue: any) => {
+    if (onExternalSortingChange) {
+      if (typeof updaterOrValue === 'function') {
+        onExternalSortingChange(updaterOrValue(sorting))
+      } else {
+        onExternalSortingChange(updaterOrValue)
+      }
+    } else {
+      setInternalSorting(updaterOrValue)
+    }
+  }
 
   // Create a table instance
   const table = useReactTable({
@@ -56,7 +76,7 @@ export function DataTable<TData, TValue>({
     },
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
-    onSortingChange: setSorting,
+    onSortingChange: handleSortingChange,
     onColumnVisibilityChange: setColumnVisibility,
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
@@ -213,9 +233,9 @@ export function DataTable<TData, TValue>({
           typeof column.columnDef.header === "string" ? column.columnDef.header.toLowerCase() : column.id.toLowerCase()
 
         if (headerText.includes("data")) {
-          column.columnDef.filterFn = "equals"
+          column.columnDef.filterFn = table.options.filterFns?.equals
         } else {
-          column.columnDef.filterFn = "multiSelect"
+          column.columnDef.filterFn = table.options.filterFns?.multiSelect
         }
       }
     })
