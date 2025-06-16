@@ -25,6 +25,7 @@ interface FilterModalProps {
   onClose: () => void
   title: string
   filterOptions: FilterOption[]
+  activeFilters?: FilterOption[]
   onApplyFilters: (filters: FilterOption[]) => void
   onResetFilters: () => void
 }
@@ -34,6 +35,7 @@ export function FilterModal({
   onClose,
   title,
   filterOptions,
+  activeFilters,
   onApplyFilters,
   onResetFilters,
 }: FilterModalProps) {
@@ -48,10 +50,19 @@ export function FilterModal({
     onClose() // Apelează funcția originală onClose
   }
 
-  // Actualizăm starea filtrelor când se schimbă opțiunile
+  // Actualizăm starea filtrelor când se schimbă opțiunile sau filtrele active
   useEffect(() => {
-    setFilters(filterOptions)
-  }, [filterOptions])
+    const mergedFilters = filterOptions.map((option) => {
+      // Căutăm filtrul activ corespunzător
+      const activeFilter = activeFilters?.find((af) => af.id === option.id)
+      if (activeFilter) {
+        // Folosim valoarea din filtrul activ
+        return { ...option, value: activeFilter.value }
+      }
+      return option
+    })
+    setFilters(mergedFilters)
+  }, [filterOptions, activeFilters])
 
   const handleFilterChange = (id: string, value: any) => {
     setFilters((prev) => prev.map((filter) => (filter.id === id ? { ...filter, value } : filter)))

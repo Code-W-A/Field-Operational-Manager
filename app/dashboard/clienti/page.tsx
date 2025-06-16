@@ -31,6 +31,7 @@ import { useMediaQuery } from "@/hooks/use-media-query"
 import { Badge } from "@/components/ui/badge"
 import { ClientForm } from "@/components/client-form"
 import { UniversalSearch } from "@/components/universal-search"
+import { useTablePersistence } from "@/hooks/use-table-persistence"
 import { ColumnSelectionButton } from "@/components/column-selection-button"
 import { ColumnSelectionModal } from "@/components/column-selection-modal"
 import { FilterButton } from "@/components/filter-button"
@@ -61,6 +62,17 @@ export default function Clienti() {
   const [activeDialog, setActiveDialog] = useState<"add" | "edit" | null>(null)
   const addFormRef = useRef<any>(null)
   const editFormRef = useRef<any>(null)
+
+  // Persistența tabelului
+  const { loadSettings, saveFilters, saveColumnVisibility, saveSorting } = useTablePersistence("clienti")
+
+  // Încărcăm setările salvate la inițializare
+  useEffect(() => {
+    const savedSettings = loadSettings()
+    if (savedSettings.activeFilters) {
+      setActiveFilters(savedSettings.activeFilters)
+    }
+  }, [loadSettings])
 
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -162,6 +174,11 @@ export default function Clienti() {
 
   // Apply manual filtering based on search text and active filters
   useEffect(() => {
+    if (!searchText.trim() && !activeFilters.length) {
+      setFilteredData(clienti)
+      return
+    }
+
     let filtered = clienti
 
     // Apply active filters
@@ -221,15 +238,23 @@ export default function Clienti() {
     }
   }, [editId, clienti])
 
-  // Initialize filtered data
-  useEffect(() => {
-    setFilteredData(clienti)
-  }, [clienti])
+  // Datele filtrate sunt gestionate de useEffect-ul pentru filtrare
 
   // Populate column options when table is available
   useEffect(() => {
     if (table) {
+      const savedSettings = loadSettings()
+      const savedColumnVisibility = savedSettings.columnVisibility || {}
+      
       const allColumns = table.getAllColumns()
+      
+      // Aplicăm vizibilitatea salvată
+      allColumns.forEach((column) => {
+        if (column.getCanHide() && savedColumnVisibility.hasOwnProperty(column.id)) {
+          column.toggleVisibility(savedColumnVisibility[column.id])
+        }
+      })
+      
       const options = allColumns
         .filter((column) => column.getCanHide())
         .map((column) => ({
@@ -242,7 +267,7 @@ export default function Clienti() {
         }))
       setColumnOptions(options)
     }
-  }, [table, isColumnModalOpen])
+  }, [table, isColumnModalOpen, loadSettings])
 
   const handleToggleColumn = (columnId: string) => {
     if (!table) return
@@ -252,9 +277,17 @@ export default function Clienti() {
       column.toggleVisibility(!column.getIsVisible())
 
       // Update options state to reflect changes
-      setColumnOptions((prev) =>
-        prev.map((option) => (option.id === columnId ? { ...option, isVisible: !option.isVisible } : option)),
+      const newColumnOptions = columnOptions.map((option) => 
+        option.id === columnId ? { ...option, isVisible: !option.isVisible } : option
       )
+      setColumnOptions(newColumnOptions)
+      
+      // Salvăm vizibilitatea coloanelor
+      const columnVisibility = newColumnOptions.reduce((acc, option) => {
+        acc[option.id] = option.isVisible
+        return acc
+      }, {})
+      saveColumnVisibility(columnVisibility)
     }
   }
 
@@ -268,7 +301,15 @@ export default function Clienti() {
     })
 
     // Update all options to visible
-    setColumnOptions((prev) => prev.map((option) => ({ ...option, isVisible: true })))
+    const newColumnOptions = columnOptions.map((option) => ({ ...option, isVisible: true }))
+    setColumnOptions(newColumnOptions)
+    
+    // Salvăm vizibilitatea coloanelor
+    const columnVisibility = newColumnOptions.reduce((acc, option) => {
+      acc[option.id] = option.isVisible
+      return acc
+    }, {})
+    saveColumnVisibility(columnVisibility)
   }
 
   const handleDeselectAllColumns = () => {
@@ -281,12 +322,18 @@ export default function Clienti() {
     })
 
     // Update all options except actions to not visible
-    setColumnOptions((prev) =>
-      prev.map((option) => ({
-        ...option,
-        isVisible: option.id === "actions" ? true : false,
-      })),
-    )
+    const newColumnOptions = columnOptions.map((option) => ({
+      ...option,
+      isVisible: option.id === "actions" ? true : false,
+    }))
+    setColumnOptions(newColumnOptions)
+    
+    // Salvăm vizibilitatea coloanelor
+    const columnVisibility = newColumnOptions.reduce((acc, option) => {
+      acc[option.id] = option.isVisible
+      return acc
+    }, {})
+    saveColumnVisibility(columnVisibility)
   }
 
   const handleApplyFilters = (filters: FilterOption[]) => {
@@ -302,10 +349,12 @@ export default function Clienti() {
     })
 
     setActiveFilters(filtersWithValues)
+    saveFilters(filtersWithValues) // Salvăm filtrele în localStorage
   }
 
   const handleResetFilters = () => {
     setActiveFilters([])
+    saveFilters([]) // Salvăm lista goală în localStorage
   }
 
   const handleDelete = async (id: string) => {
@@ -630,6 +679,7 @@ export default function Clienti() {
           onClose={() => setIsFilterModalOpen(false)}
           title="Filtrare clienți"
           filterOptions={filterOptions}
+          activeFilters={activeFilters}
           onApplyFilters={handleApplyFilters}
           onResetFilters={handleResetFilters}
         />
@@ -658,17 +708,15 @@ export default function Clienti() {
             </AlertDescription>
           </Alert>
         ) : activeTab === "tabel" ? (
-          <div className="rounded-md border">
-            <DataTable
-              columns={columns}
-              data={filteredData}
-              defaultSort={{ id: "updatedAt", desc: true }}
-              table={table}
-              setTable={setTable}
-              showFilters={false}
-              onRowClick={(row) => handleViewDetails(row.id!)}
-            />
-          </div>
+          <DataTable
+            columns={columns}
+            data={filteredData}
+            defaultSort={{ id: "updatedAt", desc: true }}
+            table={table}
+            setTable={setTable}
+            showFilters={false}
+            onRowClick={(row) => handleViewDetails(row.id!)}
+          />
         ) : (
           <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3 w-full overflow-auto">
             {filteredData.map((client) => (

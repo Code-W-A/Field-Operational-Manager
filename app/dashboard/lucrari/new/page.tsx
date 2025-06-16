@@ -193,7 +193,7 @@ export default function NewLucrarePage() {
   }
 
   return (
-    <div className="container mx-auto py-6">
+          <div className="w-full mx-auto py-6">
       <Card>
         <CardHeader>
           <CardTitle>Adaugă Lucrare Nouă</CardTitle>

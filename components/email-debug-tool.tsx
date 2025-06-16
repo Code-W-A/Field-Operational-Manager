@@ -216,7 +216,7 @@ export default function EmailDebugTool() {
   }
 
   return (
-    <div className="container mx-auto py-6">
+    <div className="w-full mx-auto py-6">
       <Card className="w-full">
         <CardHeader>
           <CardTitle>Email Notification Debug Tool</CardTitle>

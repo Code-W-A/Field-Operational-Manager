@@ -329,7 +329,7 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
   }
 
   return (
-    <div className="container mx-auto py-6">
+          <div className="w-full mx-auto py-6">
       <Card>
         <CardHeader>
           <CardTitle>Editare Lucrare</CardTitle>
