@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { format, parse, isAfter, isBefore } from "date-fns"
+import { ro } from "date-fns/locale"
 import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check, Info } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
@@ -138,12 +139,44 @@ export default function Lucrari() {
   const addFormRef = useRef<LucrareFormRef>(null)
   const editFormRef = useRef<LucrareFormRef>(null)
 
-  // Obținem lucrările din Firebase
+  // Obținem lucrările din Firebase - sortate după momentul introducerii în sistem
   const {
-    data: lucrari,
+    data: rawLucrari,
     loading,
     error: fetchError,
-  } = useFirebaseCollection("lucrari", [orderBy("dataEmiterii", "desc")])
+  } = useFirebaseCollection("lucrari", [orderBy("createdAt", "desc")])
+
+  // Sortare hibridă: prioritizăm lucrările cu updatedAt (modificate recent), apoi cele cu createdAt
+  const lucrari = useMemo(() => {
+    if (!rawLucrari || rawLucrari.length === 0) return []
+    
+    return [...rawLucrari].sort((a, b) => {
+      // Ambele au updatedAt - sortăm după updatedAt
+      if (a.updatedAt && b.updatedAt) {
+        return b.updatedAt.toMillis() - a.updatedAt.toMillis()
+      }
+      
+      // Doar a are updatedAt - a vine primul
+      if (a.updatedAt && !b.updatedAt) {
+        return -1
+      }
+      
+      // Doar b are updatedAt - b vine primul  
+      if (!a.updatedAt && b.updatedAt) {
+        return 1
+      }
+      
+      // Niciunul nu are updatedAt - sortăm după createdAt
+      if (a.createdAt && b.createdAt) {
+        return b.createdAt.toMillis() - a.createdAt.toMillis()
+      }
+      
+      // Fallback la dataEmiterii dacă nu avem timestamps
+      const dateA = a.dataEmiterii.split(".").reverse().join("")
+      const dateB = b.dataEmiterii.split(".").reverse().join("")
+      return dateB.localeCompare(dateA)
+    })
+  }, [rawLucrari])
 
   // Update the filteredLucrari function to include completed work orders that haven't been picked up
   const filteredLucrari = useMemo(() => {
@@ -1089,6 +1122,67 @@ export default function Lucrari() {
   // Definim coloanele pentru DataTable
   const columns = [
     {
+      accessorKey: "updatedAt",
+      header: "Ultima modificare",
+      enableHiding: true,
+      enableFiltering: false,
+      cell: ({ row }) => {
+        const lucrare = row.original
+        const hasUpdatedAt = lucrare.updatedAt
+        const hasCreatedAt = lucrare.createdAt
+        
+        // Verificăm dacă lucrarea a fost modificată (updatedAt diferit de createdAt)
+        const wasModified = hasUpdatedAt && hasCreatedAt && 
+          Math.abs(lucrare.updatedAt.toMillis() - lucrare.createdAt.toMillis()) > 1000; // diferență > 1 secundă
+        
+        if (wasModified) {
+          // Afișăm data ultimei modificări
+          const updatedDate = lucrare.updatedAt.toDate()
+          const formattedDate = format(updatedDate, "dd.MM.yyyy", { locale: ro })
+          const formattedTime = format(updatedDate, "HH:mm", { locale: ro })
+          
+          return (
+            <div className="flex flex-col text-sm">
+              <div className="font-medium text-blue-600">
+                Modificat: {formattedDate}
+              </div>
+              <div className="text-gray-500 text-xs">
+                {formattedTime}
+              </div>
+            </div>
+          )
+        } else if (hasCreatedAt) {
+          // Afișăm data creării dacă nu a fost modificată
+          const createdDate = lucrare.createdAt.toDate()
+          const formattedDate = format(createdDate, "dd.MM.yyyy", { locale: ro })
+          const formattedTime = format(createdDate, "HH:mm", { locale: ro })
+          
+          return (
+            <div className="flex flex-col text-sm">
+              <div className="font-medium text-green-600">
+                Creat: {formattedDate}
+              </div>
+              <div className="text-gray-500 text-xs">
+                {formattedTime}
+              </div>
+            </div>
+          )
+        } else {
+          // Fallback la data emiterii
+          return (
+            <div className="flex flex-col text-sm">
+              <div className="font-medium text-gray-600">
+                {lucrare.dataEmiterii}
+              </div>
+              <div className="text-gray-500 text-xs">
+                Din formular
+              </div>
+            </div>
+          )
+        }
+      },
+    },
+    {
       accessorKey: "dataEmiterii",
       header: "Data Emiterii",
       enableHiding: true,
@@ -1629,7 +1723,7 @@ export default function Lucrari() {
             <DataTable
               columns={columns}
               data={filteredData}
-              defaultSort={{ id: "dataEmiterii", desc: true }}
+              defaultSort={{ id: "updatedAt", desc: true }}
               onRowClick={(lucrare) => handleViewDetails(lucrare)}
               table={tableInstance}
               setTable={setTableInstance}
