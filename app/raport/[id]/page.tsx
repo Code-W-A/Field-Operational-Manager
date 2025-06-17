@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/components/ui/use-toast"
 import { ReportGenerator } from "@/components/report-generator"
-import { doc, updateDoc, serverTimestamp } from "firebase/firestore"
+import { doc, updateDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 
 export default function RaportPage({ params }: { params: { id: string } }) {
@@ -46,6 +46,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   // Add email state
   const [email, setEmail] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isEmailSending, setIsEmailSending] = useState(false)
   const [updatedLucrare, setUpdatedLucrare] = useState<any>(null)
   
   // Add name states for signers
@@ -71,7 +72,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
             descriere: data.descriere || "",
             persoanaContact: data.persoanaContact || "",
             products: data.products || [],
-            emailDestinatar: data.emailDestinatar || "",
+            emailDestinatar: (data as any).emailDestinatar || "",
             statusLucrare: data.statusLucrare || "În lucru",
             tehnicieni: data.tehnicieni || [],
             client: data.client || "",
@@ -84,7 +85,16 @@ export default function RaportPage({ params }: { params: { id: string } }) {
 
           // If the work has products, load them
           if (processedData.products && processedData.products.length > 0) {
-            setProducts(processedData.products)
+            // Convert products to the expected format for the form
+            const convertedProducts = processedData.products.map((product: any, index: number) => ({
+              id: product.id || index.toString(),
+              name: product.name || product.denumire || "",
+              um: product.um || "buc",
+              quantity: product.quantity || product.cantitate || 0,
+              price: product.price || product.pretUnitar || 0,
+              total: (product.quantity || product.cantitate || 0) * (product.price || product.pretUnitar || 0),
+            }))
+            setProducts(convertedProducts)
           }
 
           // If the work has an email address, load it
@@ -177,45 +187,127 @@ export default function RaportPage({ params }: { params: { id: string } }) {
           throw new Error("Datele lucrării nu sunt disponibile")
         }
 
-        // Create FormData for email sending
-        const formData = new FormData()
-        formData.append("to", email)
-        formData.append(
-          "subject",
-          `Raport Interventie - ${updatedLucrare.client || "Client"} - ${updatedLucrare.dataInterventie || "Data"}`,
-        )
-        formData.append(
-          "message",
-          `Stimata/Stimate ${updatedLucrare.persoanaContact || "Client"},
+        // Prevent double email sending
+        if (isEmailSending) {
+          console.log("Email sending already in progress, skipping...")
+          return false
+        }
+
+        setIsEmailSending(true)
+
+        // Obținem emailul clientului din Firestore pe baza numelui clientului
+        let clientEmail = ""
+        if (updatedLucrare.client && typeof updatedLucrare.client === "string") {
+          try {
+            console.log("Căutăm clientul:", updatedLucrare.client)
+            const clientsRef = collection(db, "clienti")
+            const q = query(clientsRef, where("nume", "==", updatedLucrare.client))
+            const querySnapshot = await getDocs(q)
+
+            if (!querySnapshot.empty) {
+              const clientData = querySnapshot.docs[0].data()
+              if (clientData.email) {
+                clientEmail = clientData.email
+                console.log("Am găsit emailul clientului:", clientEmail)
+              }
+            } else {
+              console.log("Clientul nu a fost găsit în Firestore:", updatedLucrare.client)
+            }
+          } catch (firestoreError) {
+            console.error("Eroare la căutarea clientului în Firestore:", firestoreError)
+          }
+        }
+
+        // Construim lista de emailuri pentru trimitere (evităm duplicatele)
+        const emailsToSend = []
+        const sentToEmails = []
+
+        // Adăugăm emailul introdus manual (prioritar)
+        if (email && email.trim()) {
+          emailsToSend.push({ 
+            email: email.trim(), 
+            label: "E-mail semnatar (introdus manual)" 
+          })
+        }
+
+        // Adăugăm emailul clientului din Firestore dacă este diferit
+        if (clientEmail && clientEmail.trim() && clientEmail.trim().toLowerCase() !== email.trim().toLowerCase()) {
+          emailsToSend.push({ 
+            email: clientEmail.trim(), 
+            label: "Email client (din Firestore)" 
+          })
+        }
+
+        if (emailsToSend.length === 0) {
+          throw new Error("Nu există adrese de email pentru trimitere")
+        }
+
+        console.log("Se vor trimite emailuri către:", emailsToSend)
+
+        // Trimitem emailul către fiecare adresă
+        for (const emailInfo of emailsToSend) {
+          try {
+            // Create FormData for email sending
+            const formData = new FormData()
+            formData.append("to", emailInfo.email)
+            formData.append(
+              "subject",
+              `Raport Interventie - ${updatedLucrare.client || "Client"} - ${updatedLucrare.dataInterventie || "Data"}`,
+            )
+            formData.append(
+              "message",
+              `Stimata/Stimate ${updatedLucrare.persoanaContact || "Client"},
 
 Va transmitem atasat raportul de interventie pentru lucrarea efectuata in data de ${updatedLucrare.dataInterventie || "N/A"}.
 
 Cu stima,
 FOM by NRG`,
-        )
-        formData.append("senderName", `FOM by NRG - ${updatedLucrare.tehnicieni?.join(", ") || "Tehnician"}`)
+            )
+            formData.append("senderName", `FOM by NRG - ${updatedLucrare.tehnicieni?.join(", ") || "Tehnician"}`)
 
-        // Add PDF as file
-        const pdfFile = new File([pdfBlob], `Raport_Interventie_${updatedLucrare.id || params.id}.pdf`, {
-          type: "application/pdf",
-        })
-        formData.append("pdfFile", pdfFile)
+            // Add PDF as file
+            const pdfFile = new File([pdfBlob], `Raport_Interventie_${updatedLucrare.id || params.id}.pdf`, {
+              type: "application/pdf",
+            })
+            formData.append("pdfFile", pdfFile)
 
-        // Add company logo
-        formData.append("companyLogo", "/logo-placeholder.png")
+            // Add company logo
+            formData.append("companyLogo", "/logo-placeholder.png")
 
-        // Send request to API
-        const response = await fetch("/api/send-email", {
-          method: "POST",
-          body: formData,
-        })
+            // Send request to API
+            const response = await fetch("/api/send-email", {
+              method: "POST",
+              body: formData,
+            })
 
-        if (!response.ok) {
-          const data = await response.json()
-          throw new Error(data.error || "A aparut o eroare la trimiterea emailului")
+            if (!response.ok) {
+              const data = await response.json()
+              throw new Error(data.error || "A aparut o eroare la trimiterea emailului")
+            }
+
+            sentToEmails.push(emailInfo.label + ": " + emailInfo.email)
+            console.log(`Email trimis cu succes către ${emailInfo.email} (${emailInfo.label})`)
+          } catch (emailError) {
+            console.error(`Eroare la trimiterea emailului către ${emailInfo.email}:`, emailError)
+            // Nu aruncăm eroarea aici, continuăm cu următorul email
+          }
         }
 
-        return true
+        setIsEmailSending(false)
+
+        // Afișăm un toast cu rezultatele trimiterii
+        if (sentToEmails.length > 0) {
+          toast({
+            title: "Email-uri trimise cu succes",
+            description: `Raportul a fost trimis către:\n${sentToEmails.join('\n')}`,
+            variant: "default",
+            className: "whitespace-pre-line",
+          })
+          return true
+        } else {
+          throw new Error("Nu s-a putut trimite emailul către nicio adresă")
+        }
+
       } catch (error) {
         console.error("Eroare la trimiterea emailului:", error)
         toast({
@@ -223,10 +315,11 @@ FOM by NRG`,
           description: error instanceof Error ? error.message : "A aparut o eroare la trimiterea emailului",
           variant: "destructive",
         })
+        setIsEmailSending(false)
         return false
       }
     },
-    [email, updatedLucrare, params.id],
+    [email, updatedLucrare, params.id, isEmailSending],
   )
 
   // Use useStableCallback to ensure we have access to the latest state values

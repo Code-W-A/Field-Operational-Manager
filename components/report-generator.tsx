@@ -33,6 +33,7 @@ const DARK_GRAY = 210 // darker fill for headers
 
 export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProps>(({ lucrare, onGenerate }, ref) => {
   const [isGen, setIsGen] = useState(false)
+  const [hasGenerated, setHasGenerated] = useState(false)
   const [products, setProducts] = useState<Product[]>([])
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null)
   const [logoLoaded, setLogoLoaded] = useState(false)
@@ -80,7 +81,15 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 
   const generatePDF = useStableCallback(async () => {
     if (!lucrare) return
+    
+    // Prevent double generation
+    if (hasGenerated) {
+      console.log("PDF already generated, skipping...")
+      return
+    }
+    
     setIsGen(true)
+    setHasGenerated(true)
     try {
       // Calculează plecarea și durata
       const now = new Date()
@@ -417,6 +426,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
     } catch (e) {
       console.error("Error generating PDF:", e)
       toast({ title: "Eroare", description: "Generare eșuată.", variant: "destructive" })
+      setHasGenerated(false) // Reset flag on error
     } finally {
       setIsGen(false)
     }

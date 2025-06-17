@@ -47,7 +47,6 @@ import {
 } from "@/components/ui/alert-dialog"
 import { INVOICE_STATUS_OPTIONS, WORK_TYPE_OPTIONS } from "@/lib/utils/constants"
 import { getWorkStatusClass } from "@/lib/utils/status-classes"
-
 // Define the Lucrare type
 interface Lucrare {
   dataEmiterii: string
