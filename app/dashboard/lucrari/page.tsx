@@ -1798,7 +1798,7 @@ export default function Lucrari() {
           />
         ) : (
           // Modificăm și partea din vizualizarea carduri pentru a adăuga verificări suplimentare
-          <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3 w-full overflow-auto">
+          <div className="grid gap-4 px-4 sm:px-0 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 w-full overflow-auto">
             {filteredData.map((lucrare) => {
               // Check if the work order is completed with report but not picked up
               const isCompletedNotPickedUp = isCompletedWithReportNotPickedUp(lucrare)
