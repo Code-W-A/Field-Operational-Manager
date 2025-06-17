@@ -47,6 +47,10 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   const [email, setEmail] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [updatedLucrare, setUpdatedLucrare] = useState<any>(null)
+  
+  // Add name states for signers
+  const [numeTehnician, setNumeTehnician] = useState("")
+  const [numeBeneficiar, setNumeBeneficiar] = useState("")
 
   const reportGeneratorRef = useRef<React.ElementRef<typeof ReportGenerator>>(null)
   const submitButtonRef = useRef<HTMLButtonElement>(null)
@@ -87,6 +91,27 @@ export default function RaportPage({ params }: { params: { id: string } }) {
           if (processedData.emailDestinatar) {
             setEmail(processedData.emailDestinatar)
           }
+          
+          // Initialize signer names with default values
+          // Pentru tehnician, folosim numele utilizatorului autentificat dacă este disponibil
+          // și dacă utilizatorul este în lista de tehnicieni pentru această lucrare
+          let defaultNumeTehnician = processedData.numeTehnician || ""
+          
+          if (!defaultNumeTehnician) {
+            // Verificăm dacă utilizatorul autentificat este tehnician și este alocat la această lucrare
+            if (userData?.displayName && 
+                userData?.role === "tehnician" && 
+                processedData.tehnicieni && 
+                processedData.tehnicieni.includes(userData.displayName)) {
+              defaultNumeTehnician = userData.displayName
+            } else if (processedData.tehnicieni && processedData.tehnicieni.length > 0) {
+              // Fallback la primul tehnician din listă
+              defaultNumeTehnician = processedData.tehnicieni[0]
+            }
+          }
+          
+          setNumeTehnician(defaultNumeTehnician)
+          setNumeBeneficiar(processedData.numeBeneficiar || processedData.persoanaContact || "")
         } else {
           setError("Lucrarea nu a fost găsită")
         }
@@ -99,7 +124,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
     }
 
     fetchLucrare()
-  }, [params.id])
+  }, [params.id, userData])
 
   // Verificăm dacă tehnicianul are acces la această lucrare
   useEffect(() => {
@@ -254,6 +279,8 @@ FOM by NRG`,
         ...lucrare,
         semnaturaTehnician,
         semnaturaBeneficiar,
+        numeTehnician,
+        numeBeneficiar,
         products,
         emailDestinatar: email,
         raportGenerat: true,
@@ -498,6 +525,17 @@ FOM by NRG`,
             {/* Semnătură Tehnician */}
             <div className="space-y-2">
               <h3 className="font-medium text-gray-500">Semnătură Tehnician</h3>
+              <div className="space-y-2">
+                <Label htmlFor="numeTehnician">Nume și prenume tehnician</Label>
+                <Input
+                  id="numeTehnician"
+                  type="text"
+                  placeholder="Numele complet al tehnicianului"
+                  value={numeTehnician}
+                  onChange={(e) => setNumeTehnician(e.target.value)}
+                  disabled={isSubmitting}
+                />
+              </div>
               <div className="rounded-md border border-gray-300 bg-white p-2">
                 <SignatureCanvas
                   ref={techSignatureRef}
@@ -515,12 +553,23 @@ FOM by NRG`,
                   Șterge
                 </Button>
               </div>
-              <p className="text-xs text-center text-gray-500">{lucrare?.tehnicieni?.join(", ") || "Tehnician"}</p>
+              <p className="text-xs text-center text-gray-500">Semnătura tehnicianului</p>
             </div>
 
             {/* Semnătură Beneficiar */}
             <div className="space-y-2">
               <h3 className="font-medium text-gray-500">Semnătură Beneficiar</h3>
+              <div className="space-y-2">
+                <Label htmlFor="numeBeneficiar">Nume și prenume beneficiar</Label>
+                <Input
+                  id="numeBeneficiar"
+                  type="text"
+                  placeholder="Numele complet al beneficiarului"
+                  value={numeBeneficiar}
+                  onChange={(e) => setNumeBeneficiar(e.target.value)}
+                  disabled={isSubmitting}
+                />
+              </div>
               <div className="rounded-md border border-gray-300 bg-white p-2">
                 <SignatureCanvas
                   ref={clientSignatureRef}
@@ -538,7 +587,7 @@ FOM by NRG`,
                   Șterge
                 </Button>
               </div>
-              <p className="text-xs text-center text-gray-500">{lucrare?.persoanaContact || "Beneficiar"}</p>
+              <p className="text-xs text-center text-gray-500">Semnătura beneficiarului</p>
             </div>
           </div>
 

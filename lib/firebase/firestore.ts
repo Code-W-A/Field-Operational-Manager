@@ -68,6 +68,9 @@ export interface Lucrare {
   // Câmpuri pentru semnături
   semnaturaTehnician?: string
   semnaturaBeneficiar?: string
+  // Câmpuri pentru numele semnatarilor
+  numeTehnician?: string
+  numeBeneficiar?: string
   // Câmp pentru informații client
   clientInfo?: any
   // Câmp pentru produse

@@ -358,8 +358,11 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       doc.text("Beneficiar:", M + W / 2, currentY)
       currentY += 5
       doc.setFont("helvetica", "normal")
-      doc.text(normalize(lucrareForPDF.tehnicieni?.join(", ") || ""), M, currentY)
-      doc.text(normalize(lucrareForPDF.persoanaContact || ""), M + W / 2, currentY)
+      // Folosim numele semnatarilor dacă sunt disponibile, altfel valorile implicite
+      const numeTehnician = normalize(lucrareForPDF.numeTehnician || lucrareForPDF.tehnicieni?.join(", ") || "")
+      const numeBeneficiar = normalize(lucrareForPDF.numeBeneficiar || lucrareForPDF.persoanaContact || "")
+      doc.text(numeTehnician, M, currentY)
+      doc.text(numeBeneficiar, M + W / 2, currentY)
       currentY += 5
 
       const signW = W / 2 - 10
