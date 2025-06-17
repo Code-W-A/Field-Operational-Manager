@@ -613,7 +613,7 @@ export default function Lucrari() {
       const filtered = applyFilters(filteredLucrari)
       setFilteredData(filtered)
     } else {
-      setFilteredData(filteredLucrari)
+    setFilteredData(filteredLucrari)
     }
   }, [filteredLucrari, activeFilters, applyFilters])
 
@@ -700,8 +700,8 @@ export default function Lucrari() {
 
     // Update all options except actions to not visible
     const newColumnOptions = columnOptions.map((option) => ({
-      ...option,
-      isVisible: option.id === "actions" ? true : false,
+        ...option,
+        isVisible: option.id === "actions" ? true : false,
     }))
     setColumnOptions(newColumnOptions)
     
@@ -1784,18 +1784,18 @@ export default function Lucrari() {
             </AlertDescription>
           </Alert>
         ) : activeTab === "tabel" ? (
-          <DataTable
-            columns={columns}
-            data={filteredData}
+            <DataTable
+              columns={columns}
+              data={filteredData}
             defaultSort={{ id: "updatedAt", desc: true }}
             sorting={tableSorting}
             onSortingChange={handleSortingChange}
-            onRowClick={(lucrare) => handleViewDetails(lucrare)}
-            table={tableInstance}
-            setTable={setTableInstance}
-            showFilters={false}
-            getRowClassName={getRowClassName}
-          />
+              onRowClick={(lucrare) => handleViewDetails(lucrare)}
+              table={tableInstance}
+              setTable={setTableInstance}
+              showFilters={false}
+              getRowClassName={getRowClassName}
+            />
         ) : (
           // Modificăm și partea din vizualizarea carduri pentru a adăuga verificări suplimentare
           <div className="grid gap-4 px-4 sm:px-0 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 w-full overflow-auto">

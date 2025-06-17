@@ -47,6 +47,7 @@ import type { Table } from "@tanstack/react-table"
 
 interface EnhancedFilterSystemProps<TData> {
   table: Table<TData>
+  persistenceKey?: string // Cheie pentru persistența automată
 }
 
 type FilterOperator =
@@ -80,7 +81,7 @@ interface SavedFilter {
 }
 
 // Modificăm funcția principală pentru a folosi Dialog în loc de Popover
-export function EnhancedFilterSystem<TData>({ table }: EnhancedFilterSystemProps<TData>) {
+export function EnhancedFilterSystem<TData>({ table, persistenceKey }: EnhancedFilterSystemProps<TData>) {
   const [mounted, setMounted] = useState(false)
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false) // Redenumim din isFilterPanelOpen
   const [activeTab, setActiveTab] = useState<string>("quick")
@@ -114,7 +115,68 @@ export function EnhancedFilterSystem<TData>({ table }: EnhancedFilterSystemProps
         console.error("Failed to parse saved filters", e)
       }
     }
-  }, [])
+
+    // Load active filters from persistence if key is provided
+    if (persistenceKey) {
+      const storageKey = `table-settings-${persistenceKey}`
+      try {
+        const saved = localStorage.getItem(storageKey)
+        if (saved) {
+          const settings = JSON.parse(saved)
+          if (settings.activeFilters) {
+            // Restore active filters
+            settings.activeFilters.forEach((filter: any) => {
+              if (filter.id === 'global') {
+                table.setGlobalFilter(filter.value)
+                setGlobalFilter(filter.value)
+              } else {
+                const column = table.getColumn(filter.id)
+                if (column) {
+                  column.setFilterValue(filter.value)
+                }
+              }
+            })
+          }
+        }
+      } catch (error) {
+        console.error("Error loading active filters:", error)
+      }
+    }
+  }, [persistenceKey, table])
+
+  // Save active filters to persistence when they change
+  useEffect(() => {
+    if (mounted && persistenceKey) {
+      const columnFilters = table.getState().columnFilters
+      const globalFilter = table.getState().globalFilter
+      
+      // Build filters array for persistence
+      const filtersToSave = columnFilters.map((filter: any) => ({
+        id: filter.id,
+        value: filter.value,
+        type: Array.isArray(filter.value) ? 'multiselect' : 'text'
+      }))
+      
+      if (globalFilter) {
+        filtersToSave.push({
+          id: 'global',
+          value: globalFilter,
+          type: 'text'
+        })
+      }
+
+      // Save to localStorage
+      const storageKey = `table-settings-${persistenceKey}`
+      try {
+        const current = localStorage.getItem(storageKey)
+        const currentSettings = current ? JSON.parse(current) : {}
+        const updated = { ...currentSettings, activeFilters: filtersToSave }
+        localStorage.setItem(storageKey, JSON.stringify(updated))
+      } catch (error) {
+        console.error("Error saving active filters:", error)
+      }
+    }
+  }, [table.getState().columnFilters, table.getState().globalFilter, mounted, persistenceKey, table])
 
   // Save filters to localStorage when they change
   useEffect(() => {

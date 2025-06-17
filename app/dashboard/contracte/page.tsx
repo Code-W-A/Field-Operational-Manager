@@ -1,13 +1,16 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataTable } from "@/components/data-table/data-table"
+import { EnhancedFilterSystem } from "@/components/data-table/enhanced-filter-system"
+import { Badge } from "@/components/ui/badge"
+import { ColumnDef } from "@tanstack/react-table"
 import {
   collection,
   query,
@@ -20,7 +23,7 @@ import {
   addDoc,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
-import { Plus, Pencil, Trash2, Loader2, AlertCircle } from "lucide-react"
+import { Plus, Pencil, Trash2, Loader2, AlertCircle, MoreHorizontal, FileText } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { toast } from "@/components/ui/use-toast"
 import { format } from "date-fns"
@@ -36,6 +39,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { useTablePersistence } from "@/hooks/use-table-persistence"
+import { UniversalSearch } from "@/components/universal-search"
 
 interface Contract {
   id: string
@@ -62,6 +73,221 @@ export default function ContractsPage() {
 
   const [showCloseAlert, setShowCloseAlert] = useState(false)
   const [activeDialog, setActiveDialog] = useState<"add" | "edit" | "delete" | null>(null)
+
+  // State pentru tabelul avansat
+  const [table, setTable] = useState<any>(null)
+  const [tableSorting, setTableSorting] = useState([{ id: "createdAt", desc: true }])
+  const [searchText, setSearchText] = useState("")
+  const [activeFilters, setActiveFilters] = useState<any[]>([])
+  const [columnOptions, setColumnOptions] = useState<any[]>([])
+
+  // Persistența tabelului
+  const { loadSettings, saveFilters, saveColumnVisibility, saveSorting } = useTablePersistence("contracte")
+
+  // Handler pentru schimbarea sortării
+  const handleSortingChange = (newSorting: { id: string; desc: boolean }[]) => {
+    setTableSorting(newSorting)
+    saveSorting(newSorting)
+  }
+
+  // Încărcăm setările salvate la inițializare
+  useEffect(() => {
+    const savedSettings = loadSettings()
+    if (savedSettings.activeFilters) {
+      setActiveFilters(savedSettings.activeFilters)
+    }
+    if (savedSettings.sorting) {
+      setTableSorting(savedSettings.sorting)
+    } else {
+      // Dacă nu avem sortare salvată, setăm implicit descrescător pe createdAt
+      setTableSorting([{ id: "createdAt", desc: true }])
+    }
+  }, [loadSettings])
+
+  // Populăm opțiunile pentru coloane când tabelul este disponibil
+  useEffect(() => {
+    if (table) {
+      const savedSettings = loadSettings()
+      const savedColumnVisibility = savedSettings.columnVisibility || {}
+      
+      const allColumns = table.getAllColumns()
+      
+      // Aplicăm vizibilitatea salvată
+      allColumns.forEach((column: any) => {
+        if (column.getCanHide() && savedColumnVisibility.hasOwnProperty(column.id)) {
+          column.toggleVisibility(savedColumnVisibility[column.id])
+        }
+      })
+      
+      const options = allColumns
+        .filter((column: any) => column.getCanHide())
+        .map((column: any) => ({
+          id: column.id,
+          label:
+            typeof column.columnDef.header === "string"
+              ? column.columnDef.header
+              : column.id.charAt(0).toUpperCase() + column.id.slice(1),
+          isVisible: column.getIsVisible(),
+        }))
+      setColumnOptions(options)
+    }
+  }, [table, loadSettings])
+
+  // Handler pentru comutarea vizibilității coloanelor
+  const handleToggleColumn = (columnId: string) => {
+    if (!table) return
+
+    const column = table.getColumn(columnId)
+    if (column) {
+      column.toggleVisibility(!column.getIsVisible())
+
+      // Actualizăm starea opțiunilor pentru a reflecta schimbările
+      const newColumnOptions = columnOptions.map((option) => 
+        option.id === columnId ? { ...option, isVisible: !option.isVisible } : option
+      )
+      setColumnOptions(newColumnOptions)
+      
+      // Salvăm vizibilitatea coloanelor
+      const columnVisibility = newColumnOptions.reduce((acc, option) => {
+        acc[option.id] = option.isVisible
+        return acc
+      }, {})
+      saveColumnVisibility(columnVisibility)
+    }
+  }
+
+  // Handler-ele pentru filtre au fost eliminate - EnhancedFilterSystem gestionează persistența automat
+
+  // Sortăm datele pe partea de client după încărcare
+  const sortedContracts = useMemo(() => {
+    if (!contracts.length || !tableSorting.length) return contracts
+
+    return [...contracts].sort((a, b) => {
+      const sortConfig = tableSorting[0] // Luăm prima sortare
+      const { id: sortKey, desc } = sortConfig
+
+      let aValue = a[sortKey as keyof Contract]
+      let bValue = b[sortKey as keyof Contract]
+
+      // Tratăm cazul special pentru date
+      if (sortKey === "createdAt") {
+        aValue = aValue?.toDate ? aValue.toDate() : new Date(aValue || 0)
+        bValue = bValue?.toDate ? bValue.toDate() : new Date(bValue || 0)
+      }
+
+      // Comparare
+      if (aValue < bValue) return desc ? 1 : -1
+      if (aValue > bValue) return desc ? -1 : 1
+      return 0
+    })
+  }, [contracts, tableSorting])
+
+  // Setăm search-ul global în tabel când se schimbă searchText
+  useEffect(() => {
+    if (table && searchText !== undefined) {
+      table.setGlobalFilter(searchText)
+    }
+  }, [table, searchText])
+
+  // Persistența filtrelor este acum gestionată automat de EnhancedFilterSystem
+
+  // Definim coloanele pentru tabelul de contracte
+  const columns: ColumnDef<Contract>[] = useMemo(() => [
+    {
+      accessorKey: "name",
+      header: "Nume Contract",
+      enableHiding: true,
+      enableSorting: true,
+      enableFiltering: true,
+      cell: ({ row }) => (
+        <div className="font-medium">
+          {row.original.name}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "number",
+      header: "Număr Contract",
+      enableHiding: true,
+      enableSorting: true,
+      enableFiltering: true,
+      cell: ({ row }) => (
+        <div className="font-mono text-sm">
+          {row.original.number}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "type",
+      header: "Tip Contract",
+      enableHiding: true,
+      enableSorting: true,
+      enableFiltering: true,
+      cell: ({ row }) => (
+        <Badge variant="outline" className={
+          row.original.type === "Abonament" 
+            ? "bg-blue-50 text-blue-700 border-blue-200" 
+            : "bg-green-50 text-green-700 border-green-200"
+        }>
+          {row.original.type || "Nespecificat"}
+        </Badge>
+      ),
+    },
+    {
+      accessorKey: "createdAt",
+      header: "Data Adăugării",
+      enableHiding: true,
+      enableSorting: true,
+      enableFiltering: true,
+      cell: ({ row }) => {
+        const date = row.original.createdAt
+        if (!date) return "N/A"
+        
+        try {
+          const dateObj = date.toDate ? date.toDate() : new Date(date)
+          return (
+            <div className="text-sm">
+              {format(dateObj, "dd MMMM yyyy", { locale: ro })}
+              <div className="text-xs text-muted-foreground">
+                {format(dateObj, "HH:mm", { locale: ro })}
+              </div>
+            </div>
+          )
+        } catch (error) {
+          return "Data invalidă"
+        }
+      },
+    },
+    {
+      id: "actions",
+      header: "Acțiuni",
+      enableHiding: false,
+      enableSorting: false,
+      enableFiltering: false,
+      cell: ({ row }) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="h-8 w-8 p-0">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => openEditDialog(row.original)}>
+              <Pencil className="mr-2 h-4 w-4" />
+              Editează
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={() => openDeleteDialog(row.original)}
+              className="text-red-600"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Șterge
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+  ], [])
 
   // Încărcăm contractele din Firestore
   useEffect(() => {
@@ -333,50 +559,31 @@ export default function ContractsPage() {
           </Button>
         </div>
       ) : (
-        <div className="rounded-md border data-table">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nume Contract</TableHead>
-                <TableHead>Număr Contract</TableHead>
-                <TableHead>Tip Contract</TableHead>
-                <TableHead>Data Adăugării</TableHead>
-                <TableHead className="text-right">Acțiuni</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {contracts.map((contract) => (
-                <TableRow key={contract.id} className="cursor-pointer">
-                  <TableCell className="font-medium">{contract.name}</TableCell>
-                  <TableCell>{contract.number}</TableCell>
-                  <TableCell>{contract.type || "Nespecificat"}</TableCell>
-                  <TableCell>{formatDate(contract.createdAt)}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 px-2 text-blue-600"
-                        onClick={() => openEditDialog(contract)}
-                      >
-                        <Pencil className="h-4 w-4 mr-1" />
-                        Editează
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 px-2 text-red-600"
-                        onClick={() => openDeleteDialog(contract)}
-                      >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        Șterge
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <div className="space-y-4">
+          {/* Layout pentru căutare și filtrare ca pe pagina de clienți */}
+          <div className="flex flex-col sm:flex-row gap-2">
+            <UniversalSearch 
+              onSearch={setSearchText} 
+              className="flex-1"
+              placeholder="Căutare contracte..."
+            />
+            <div className="flex gap-2">
+              {/* EnhancedFilterSystem se va randa cu propriul său buton de filtrare */}
+              {table && <EnhancedFilterSystem table={table} persistenceKey="contracte" />}
+            </div>
+          </div>
+          
+          {/* Tabelul de contracte */}
+          <DataTable
+            columns={columns}
+            data={sortedContracts}
+            defaultSort={{ id: "createdAt", desc: true }}
+            sorting={tableSorting}
+            onSortingChange={handleSortingChange}
+            table={table}
+            setTable={setTable}
+            showFilters={false}
+          />
         </div>
       )}
 
@@ -570,17 +777,3 @@ export default function ContractsPage() {
     </DashboardShell>
   )
 }
-;<style jsx global>{`
-  .data-table tbody tr {
-    cursor: pointer;
-  }
-  .data-table tbody tr:hover {
-    background-color: rgba(0, 0, 0, 0.04);
-  }
-  .data-table tbody tr:nth-child(even) {
-    background-color: #f2f2f2;
-  }
-  .data-table tbody tr:nth-child(odd) {
-    background-color: #ffffff;
-  }
-`}</style>
