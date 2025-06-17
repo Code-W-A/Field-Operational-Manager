@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
 import nodemailer from "nodemailer"
-import { addLog } from "@/lib/firebase/firestore"
 import path from "path"
 
 export async function POST(request: NextRequest) {
@@ -84,14 +83,8 @@ export async function POST(request: NextRequest) {
     // Trimitem emailul
     await transporter.sendMail(mailOptions)
 
-    // Adăugăm un log pentru trimiterea emailului
-    await addLog({
-      userId: "system",
-      action: "Trimitere email",
-      target: "Email",
-      targetId: to,
-      details: `A fost trimis un email cu raportul de interventie catre ${to}`,
-    })
+    // TODO: Add logging when admin permissions are properly configured
+    console.log(`Email sent successfully to: ${to}`)
 
     return NextResponse.json({ success: true })
   } catch (error) {

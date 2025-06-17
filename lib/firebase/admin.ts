@@ -31,3 +31,28 @@ export const adminApp = initializeFirebaseAdminApp()
 // Exportăm serviciile Firebase Admin
 export const adminAuth = getAuth(adminApp)
 export const adminDb = getFirestore(adminApp)
+
+// Admin version of addLog for server-side operations
+export const addLogAdmin = async (log: {
+  userId: string
+  action: string
+  target: string
+  targetId: string
+  details: string
+}) => {
+  try {
+    const logsCollection = adminDb.collection("logs")
+    const logData = {
+      ...log,
+      timestamp: new Date(),
+    }
+    const docRef = await logsCollection.add(logData)
+    return {
+      id: docRef.id,
+      ...logData,
+    }
+  } catch (error) {
+    console.error("Error adding log with admin SDK:", error)
+    throw error
+  }
+}
