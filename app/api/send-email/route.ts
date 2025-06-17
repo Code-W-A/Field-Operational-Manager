@@ -85,12 +85,13 @@ export async function POST(request: NextRequest) {
     await transporter.sendMail(mailOptions)
 
     // Adăugăm un log pentru trimiterea emailului
-    await addLog(
-      "Trimitere email",
-      `A fost trimis un email cu raportul de interventie catre ${to}`,
-      "Informatie",
-      "Email",
-    )
+    await addLog({
+      userId: "system",
+      action: "Trimitere email",
+      target: "Email",
+      targetId: to,
+      details: `A fost trimis un email cu raportul de interventie catre ${to}`,
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

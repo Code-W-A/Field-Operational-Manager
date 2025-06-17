@@ -1,5 +1,4 @@
 import type { Timestamp, DocumentData } from "firebase/firestore"
-import type { PersoanaContact } from "./persoanaContact"
 import {
   collection,
   getDocs,
@@ -15,6 +14,14 @@ import {
   getCountFromServer,
 } from "firebase/firestore"
 import { db } from "./firebase"
+
+export interface PersoanaContact {
+  id?: string
+  nume: string
+  telefon: string
+  email?: string
+  functie?: string
+}
 
 export interface Lucrare {
   id?: string
@@ -123,7 +130,7 @@ export interface Log {
   target: string
   targetId: string
   details: string
-  timestamp: any
+  timestamp?: any
 }
 
 export interface ProductItem {
