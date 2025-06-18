@@ -24,9 +24,10 @@ export type Product = ProductItem
 interface ProductTableFormProps {
   products: ProductItem[]
   onProductsChange: (products: ProductItem[]) => void
+  disabled?: boolean
 }
 
-export function ProductTableForm({ products, onProductsChange }: ProductTableFormProps) {
+export function ProductTableForm({ products, onProductsChange, disabled = false }: ProductTableFormProps) {
   // Funcție pentru a genera un ID unic
   const generateId = () => `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
@@ -96,6 +97,7 @@ const handleNumberChange = (
                     size="icon"
                     onClick={() => removeProduct(product.id)}
                     className="h-8 w-8 text-red-500 hover:text-red-700"
+                    disabled={disabled}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -112,6 +114,7 @@ const handleNumberChange = (
                       onChange={(e) => updateProduct(product.id, "name", e.target.value)}
                       placeholder="Descriere detaliată a produsului sau serviciului"
                       className="min-h-[80px] resize-y"
+                      disabled={disabled}
                     />
                   </div>
 
@@ -125,6 +128,7 @@ const handleNumberChange = (
                         value={product.um}
                         onChange={(e) => updateProduct(product.id, "um", e.target.value)}
                         placeholder="buc"
+                        disabled={disabled}
                       />
                     </div>
 
@@ -142,6 +146,7 @@ const handleNumberChange = (
                         step="1"
                         value={product.quantity}
                         onChange={(e) => updateProduct(product.id, "quantity", Number.parseFloat(e.target.value) || 0)}
+                        disabled={disabled}
                       />
                     </div>
 
@@ -154,8 +159,9 @@ const handleNumberChange = (
                         type="number"
                         min="0"
                         step="0.01"
-                     value={product.price === 0 ? "" : product.price}
-                      onChange={handleNumberChange(product.id, "price")}
+                        value={product.price === 0 ? "" : product.price}
+                        onChange={handleNumberChange(product.id, "price")}
+                        disabled={disabled}
                       />
                     </div>
 
@@ -179,7 +185,7 @@ const handleNumberChange = (
         </div>
       )}
 
-      <Button variant="outline" onClick={addProduct} className="gap-1">
+      <Button variant="outline" onClick={addProduct} className="gap-1" disabled={disabled}>
         <Plus className="h-4 w-4" /> Adaugă produs
       </Button>
 

@@ -91,27 +91,91 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
     setIsGen(true)
     setHasGenerated(true)
     try {
-      // Calculează plecarea și durata
-      const now = new Date()
-      const timpPlecare = now.toISOString()
-      const dataPlecare = formatDate(now)
-      const oraPlecare = formatTime(now)
-      let durataInterventie = "-"
-      if (lucrare.timpSosire) {
-        durataInterventie = calculateDuration(lucrare.timpSosire, timpPlecare)
-      }
+      // VERIFICĂM DACĂ ESTE PRIMA GENERARE SAU REGENERARE
+      const isFirstGeneration = !lucrare.raportGenerat || !lucrare.raportDataLocked
+      
+      let lucrareForPDF
+      
+      if (isFirstGeneration) {
+        // PRIMA GENERARE - calculează și înghețează datele
+        console.log("Prima generare - înghețează datele")
+        const now = new Date()
+        const timpPlecare = now.toISOString()
+        const dataPlecare = formatDate(now)
+        const oraPlecare = formatTime(now)
+        let durataInterventie = "-"
+        if (lucrare.timpSosire) {
+          durataInterventie = calculateDuration(lucrare.timpSosire, timpPlecare)
+        }
 
-      // Construiește un obiect local cu toate valorile
-      const lucrareForPDF = {
-        ...lucrare,
-        timpPlecare,
-        dataPlecare,
-        oraPlecare,
-        durataInterventie,
+        // Creează snapshot-ul cu datele înghețate
+        const raportSnapshot = {
+          timpPlecare,
+          dataPlecare,
+          oraPlecare,
+          durataInterventie,
+          products: [...products], // copie a produselor
+          constatareLaLocatie: lucrare.constatareLaLocatie,
+          descriereInterventie: lucrare.descriereInterventie,
+          semnaturaTehnician: lucrare.semnaturaTehnician,
+          semnaturaBeneficiar: lucrare.semnaturaBeneficiar,
+          numeTehnician: lucrare.numeTehnician,
+          numeBeneficiar: lucrare.numeBeneficiar,
+          dataGenerare: now.toISOString()
+        }
+
+        lucrareForPDF = {
+          ...lucrare,
+          timpPlecare,
+          dataPlecare,
+          oraPlecare,
+          durataInterventie,
+          products,
+          raportSnapshot,
+          raportDataLocked: true
+        }
+      } else {
+        // REGENERARE - folosește datele înghețate din snapshot
+        console.log("Regenerare - folosește datele înghețate")
+        if (lucrare.raportSnapshot) {
+          lucrareForPDF = {
+            ...lucrare,
+            timpPlecare: lucrare.raportSnapshot.timpPlecare,
+            dataPlecare: lucrare.raportSnapshot.dataPlecare,
+            oraPlecare: lucrare.raportSnapshot.oraPlecare,
+            durataInterventie: lucrare.raportSnapshot.durataInterventie,
+            products: lucrare.raportSnapshot.products,
+            constatareLaLocatie: lucrare.raportSnapshot.constatareLaLocatie,
+            descriereInterventie: lucrare.raportSnapshot.descriereInterventie,
+            semnaturaTehnician: lucrare.raportSnapshot.semnaturaTehnician,
+            semnaturaBeneficiar: lucrare.raportSnapshot.semnaturaBeneficiar,
+            numeTehnician: lucrare.raportSnapshot.numeTehnician,
+            numeBeneficiar: lucrare.raportSnapshot.numeBeneficiar
+          }
+        } else {
+          // FALLBACK pentru rapoarte vechi - funcționează ca înainte
+          console.log("Fallback pentru raport vechi")
+          const now = new Date()
+          const timpPlecare = now.toISOString()
+          const dataPlecare = formatDate(now)
+          const oraPlecare = formatTime(now)
+          let durataInterventie = "-"
+          if (lucrare.timpSosire) {
+            durataInterventie = calculateDuration(lucrare.timpSosire, timpPlecare)
+          }
+
+          lucrareForPDF = {
+            ...lucrare,
+            timpPlecare,
+            dataPlecare,
+            oraPlecare,
+            durataInterventie,
+          }
+        }
       }
 
       console.log("Generating PDF with lucrare:", lucrareForPDF)
-      console.log("Products:", products)
+      console.log("Products:", lucrareForPDF.products || products)
       console.log("Signatures:", {
         tech: lucrareForPDF.semnaturaTehnician ? "Present" : "Missing",
         client: lucrareForPDF.semnaturaBeneficiar ? "Present" : "Missing",
@@ -279,7 +343,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       addTextBlock("Constatare la locatie:", lucrareForPDF.constatareLaLocatie)
       addTextBlock("Descriere interventie:", lucrareForPDF.descriereInterventie)
 
-      // Use the products from the lucrare object directly
+      // Use the products from the snapshot if available, otherwise fallback to current products
       const productsToUse = lucrareForPDF.products || products
 
       // PRODUCT TABLE (shown only if there are products)
@@ -408,14 +472,26 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           const { doc, updateDoc } = require("firebase/firestore")
           const { db } = require("@/lib/firebase/firebase")
 
-          await updateDoc(doc(db, "lucrari", lucrare.id), {
-            raportGenerat: true,
-            updatedAt: serverTimestamp(),
-            timpPlecare: lucrareForPDF.timpPlecare,
-            dataPlecare: lucrareForPDF.dataPlecare,
-            oraPlecare: lucrareForPDF.oraPlecare,
-            durataInterventie: lucrareForPDF.durataInterventie,
-          })
+          // SALVĂM SNAPSHOT-UL DOAR LA PRIMA GENERARE
+          if (isFirstGeneration) {
+            console.log("Salvez snapshot-ul la prima generare")
+            await updateDoc(doc(db, "lucrari", lucrare.id), {
+              raportGenerat: true,
+              raportDataLocked: true,
+              raportSnapshot: lucrareForPDF.raportSnapshot,
+              updatedAt: serverTimestamp(),
+              timpPlecare: lucrareForPDF.timpPlecare,
+              dataPlecare: lucrareForPDF.dataPlecare,
+              oraPlecare: lucrareForPDF.oraPlecare,
+              durataInterventie: lucrareForPDF.durataInterventie,
+            })
+          } else {
+            console.log("Regenerare - nu salvez snapshot-ul din nou")
+            // Pentru regenerări, nu actualizăm datele, doar confirmăm că raportul a fost accesat
+            await updateDoc(doc(db, "lucrari", lucrare.id), {
+              updatedAt: serverTimestamp(),
+            })
+          }
         } catch (e) {
           console.error("Nu s-a putut actualiza starea în sistem:", e)
         }

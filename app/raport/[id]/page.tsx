@@ -568,6 +568,33 @@ FOM by NRG`,
             </div>
           </div>
         </CardHeader>
+        
+        {/* BANNER pentru raport blocat */}
+        {lucrare?.raportDataLocked && lucrare?.raportSnapshot && (
+          <div className="mx-6 mb-4">
+            <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-blue-800">
+                    Raport Finalizat și Blocat
+                  </h3>
+                  <div className="mt-1 text-sm text-blue-700">
+                    <p>
+                      Acest raport a fost generat pe <strong>{lucrare.raportSnapshot.dataGenerare ? new Date(lucrare.raportSnapshot.dataGenerare).toLocaleString('ro-RO') : 'data necunoscută'}</strong> și datele au fost înghețate permanent. 
+                      Orice regenerare va produce exact același PDF cu aceleași informații.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
         <CardContent className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2">
             <div>
@@ -610,7 +637,11 @@ FOM by NRG`,
           <Separator />
 
           {/* Adăugăm formularul pentru produse */}
-          <ProductTableForm products={products} onProductsChange={setProducts} />
+          <ProductTableForm 
+            products={products} 
+            onProductsChange={setProducts}
+            disabled={lucrare?.raportDataLocked} 
+          />
 
           <Separator />
 
@@ -626,7 +657,7 @@ FOM by NRG`,
                   placeholder="Numele complet al tehnicianului"
                   value={numeTehnician}
                   onChange={(e) => setNumeTehnician(e.target.value)}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || lucrare?.raportDataLocked}
                 />
               </div>
               <div className="rounded-md border border-gray-300 bg-white p-2">
@@ -642,7 +673,7 @@ FOM by NRG`,
                 />
               </div>
               <div className="flex justify-end">
-                <Button variant="outline" size="sm" onClick={clearTechSignature} disabled={isSubmitting}>
+                <Button variant="outline" size="sm" onClick={clearTechSignature} disabled={isSubmitting || lucrare?.raportDataLocked}>
                   Șterge
                 </Button>
               </div>
@@ -660,7 +691,7 @@ FOM by NRG`,
                   placeholder="Numele complet al beneficiarului"
                   value={numeBeneficiar}
                   onChange={(e) => setNumeBeneficiar(e.target.value)}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || lucrare?.raportDataLocked}
                 />
               </div>
               <div className="rounded-md border border-gray-300 bg-white p-2">
@@ -676,7 +707,7 @@ FOM by NRG`,
                 />
               </div>
               <div className="flex justify-end">
-                <Button variant="outline" size="sm" onClick={clearClientSignature} disabled={isSubmitting}>
+                <Button variant="outline" size="sm" onClick={clearClientSignature} disabled={isSubmitting || lucrare?.raportDataLocked}>
                   Șterge
                 </Button>
               </div>
@@ -769,6 +800,10 @@ FOM by NRG`,
             >
               {isSubmitting ? (
                 <>Se procesează...</>
+              ) : lucrare?.raportDataLocked ? (
+                <>
+                  <Send className="h-4 w-4" /> Regenerează și Trimite PDF
+                </>
               ) : (
                 <>
                   <Send className="h-4 w-4" /> Finalizează și Trimite Raport

@@ -82,6 +82,24 @@ export interface Lucrare {
   clientInfo?: any
   // Câmp pentru produse
   products?: ProductItem[]
+  // CÂMPURI NOI PENTRU BLOCAREA DATELOR RAPORT - BACKWARD COMPATIBLE
+  // Snapshot-ul datelor la prima generare a raportului
+  raportSnapshot?: {
+    timpPlecare: string
+    dataPlecare: string
+    oraPlecare: string
+    durataInterventie: string
+    products: ProductItem[]
+    constatareLaLocatie?: string
+    descriereInterventie?: string
+    semnaturaTehnician?: string
+    semnaturaBeneficiar?: string
+    numeTehnician?: string
+    numeBeneficiar?: string
+    dataGenerare: string // când a fost generat prima dată
+  }
+  // Flag pentru a indica că datele sunt blocate
+  raportDataLocked?: boolean
 }
 
 export interface Client {
