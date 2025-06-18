@@ -88,17 +88,35 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       return
     }
     
+    console.log("🚀 PORNIRE GENERARE RAPORT")
+    console.log("📋 Lucrare inițială:", {
+      id: lucrare.id,
+      raportGenerat: lucrare.raportGenerat,
+      raportDataLocked: lucrare.raportDataLocked,
+      raportSnapshot: lucrare.raportSnapshot ? "PREZENT" : "LIPSEȘTE",
+      timpSosire: lucrare.timpSosire,
+      hasProducts: lucrare.products ? lucrare.products.length : "N/A"
+    })
+    
     setIsGen(true)
     setHasGenerated(true)
     try {
       // VERIFICĂM DACĂ ESTE PRIMA GENERARE SAU REGENERARE
       const isFirstGeneration = !lucrare.raportGenerat || !lucrare.raportDataLocked
       
+      console.log("🔍 VERIFICARE TIP GENERARE:", {
+        isFirstGeneration: isFirstGeneration,
+        raportGenerat: lucrare.raportGenerat,
+        raportDataLocked: lucrare.raportDataLocked,
+        tipGenerare: isFirstGeneration ? "PRIMA GENERARE - VA ÎNGHEȚA DATELE" : "REGENERARE - VA FOLOSI DATELE ÎNGHEȚATE"
+      })
+      
       let lucrareForPDF
       
       if (isFirstGeneration) {
         // PRIMA GENERARE - calculează și înghețează datele
-        console.log("Prima generare - înghețează datele")
+        console.log("❄️ PRIMA GENERARE - ÎNGHEȚEAZĂ DATELE")
+        console.log("⏰ Creez date noi pentru plecare și durată")
         const now = new Date()
         const timpPlecare = now.toISOString()
         const dataPlecare = formatDate(now)
@@ -123,6 +141,20 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           numeBeneficiar: lucrare.numeBeneficiar,
           dataGenerare: now.toISOString()
         }
+        
+        console.log("📸 SNAPSHOT CREAT:", {
+          timpPlecare: timpPlecare,
+          dataPlecare: dataPlecare,
+          oraPlecare: oraPlecare,
+          durataInterventie: durataInterventie,
+          numarProduse: products.length,
+          constatareLength: lucrare.constatareLaLocatie?.length || 0,
+          descriereLength: lucrare.descriereInterventie?.length || 0,
+          semnaturaTehnician: lucrare.semnaturaTehnician ? "PREZENTĂ" : "LIPSEȘTE",
+          semnaturaBeneficiar: lucrare.semnaturaBeneficiar ? "PREZENTĂ" : "LIPSEȘTE",
+          numeTehnician: lucrare.numeTehnician || "LIPSEȘTE",
+          numeBeneficiar: lucrare.numeBeneficiar || "LIPSEȘTE"
+        })
 
         lucrareForPDF = {
           ...lucrare,
@@ -136,8 +168,15 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         }
       } else {
         // REGENERARE - folosește datele înghețate din snapshot
-        console.log("Regenerare - folosește datele înghețate")
+        console.log("🔄 REGENERARE - FOLOSEȘTE DATELE ÎNGHEȚATE")
         if (lucrare.raportSnapshot) {
+          console.log("✅ Snapshot găsit - folosesc datele înghețate:", {
+            timpPlecare: lucrare.raportSnapshot.timpPlecare,
+            dataPlecare: lucrare.raportSnapshot.dataPlecare,
+            oraPlecare: lucrare.raportSnapshot.oraPlecare,
+            durataInterventie: lucrare.raportSnapshot.durataInterventie,
+            numarProduse: lucrare.raportSnapshot.products?.length || 0
+          })
           lucrareForPDF = {
             ...lucrare,
             timpPlecare: lucrare.raportSnapshot.timpPlecare,
@@ -154,7 +193,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           }
         } else {
           // FALLBACK pentru rapoarte vechi - funcționează ca înainte
-          console.log("Fallback pentru raport vechi")
+          console.log("⚠️ FALLBACK - Snapshot lipsește, generez date noi")
           const now = new Date()
           const timpPlecare = now.toISOString()
           const dataPlecare = formatDate(now)
@@ -465,8 +504,11 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 
       const blob = doc.output("blob")
 
+      console.log("📄 PDF generat cu succes, acum salvez starea în Firestore")
+      
       // Mark document as generated and record departure time
       if (lucrare.id) {
+        console.log("🔐 SALVARE ÎN FIRESTORE pentru lucrarea:", lucrare.id)
         try {
           // Folosim updateDoc din firebase/firestore
           const { doc, updateDoc } = require("firebase/firestore")
@@ -474,8 +516,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 
           // SALVĂM SNAPSHOT-UL DOAR LA PRIMA GENERARE
           if (isFirstGeneration) {
-            console.log("Salvez snapshot-ul la prima generare")
-            await updateDoc(doc(db, "lucrari", lucrare.id), {
+            console.log("💾 PRIMA GENERARE - Salvez toate datele:")
+            const updateData = {
               raportGenerat: true,
               raportDataLocked: true,
               raportSnapshot: lucrareForPDF.raportSnapshot,
@@ -484,19 +526,43 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
               dataPlecare: lucrareForPDF.dataPlecare,
               oraPlecare: lucrareForPDF.oraPlecare,
               durataInterventie: lucrareForPDF.durataInterventie,
+            }
+            
+            console.log("📦 Date care se salvează:", {
+              raportGenerat: updateData.raportGenerat,
+              raportDataLocked: updateData.raportDataLocked,
+              hasSnapshot: !!updateData.raportSnapshot,
+              snapshotSize: updateData.raportSnapshot ? Object.keys(updateData.raportSnapshot).length : 0,
+              timpPlecare: updateData.timpPlecare,
+              dataPlecare: updateData.dataPlecare,
+              oraPlecare: updateData.oraPlecare,
+              durataInterventie: updateData.durataInterventie
             })
+            
+            await updateDoc(doc(db, "lucrari", lucrare.id), updateData)
+            console.log("✅ SUCCES - Prima generare salvată în Firestore")
           } else {
-            console.log("Regenerare - nu salvez snapshot-ul din nou")
-            // Pentru regenerări, nu actualizăm datele, doar confirmăm că raportul a fost accesat
+            console.log("🔄 REGENERARE - Actualizez doar timestamp-ul")
             await updateDoc(doc(db, "lucrari", lucrare.id), {
               updatedAt: serverTimestamp(),
             })
+            console.log("✅ SUCCES - Regenerare confirmată în Firestore")
           }
         } catch (e) {
-          console.error("Nu s-a putut actualiza starea în sistem:", e)
+          console.error("❌ EROARE la salvarea în Firestore:", e)
         }
+      } else {
+        console.log("⚠️ Nu pot salva - ID lucrare lipsește")
       }
 
+      console.log("🎉 PROCES COMPLET - PDF generat și stare salvată")
+      console.log("📊 Rezultat final:", {
+        pdfSize: blob.size,
+        lucrareId: lucrare.id,
+        raportGenerat: true,
+        raportDataLocked: isFirstGeneration
+      })
+      
       onGenerate?.(blob)
       return blob
     } catch (e) {
