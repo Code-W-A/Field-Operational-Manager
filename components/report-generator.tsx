@@ -511,8 +511,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         console.log("🔐 SALVARE ÎN FIRESTORE pentru lucrarea:", lucrare.id)
         try {
           // Folosim updateDoc din firebase/firestore
-          const { doc, updateDoc } = require("firebase/firestore")
-          const { db } = require("@/lib/firebase/firebase")
+          const { doc, updateDoc, serverTimestamp } = await import("firebase/firestore")
+          const { db } = await import("@/lib/firebase/config")
 
           // SALVĂM SNAPSHOT-UL DOAR LA PRIMA GENERARE
           if (isFirstGeneration) {
