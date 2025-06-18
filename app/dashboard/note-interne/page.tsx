@@ -134,9 +134,8 @@ export default function NoteInternePage() {
   // Load notes from Firestore
   useEffect(() => {
     const notesRef = collection(db, "note-interne")
-    const q = query(notesRef, orderBy("createdAt", "desc"))
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(notesRef, (snapshot) => {
       const notesData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -286,17 +285,23 @@ export default function NoteInternePage() {
     setIsDialogOpen(true)
   }
 
-  // Filter notes
-  const filteredNotes = notes.filter(note => {
-    const matchesSearch = note.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         note.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         note.authorName.toLowerCase().includes(searchTerm.toLowerCase())
-    
-    const matchesPriority = selectedPriority === "all" || note.priority === selectedPriority
-    const matchesCategory = selectedCategory === "all" || note.category === selectedCategory
+  // Filter and sort notes (newest first)
+  const filteredNotes = notes
+    .filter(note => {
+      const matchesSearch = note.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           note.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           note.authorName.toLowerCase().includes(searchTerm.toLowerCase())
+      
+      const matchesPriority = selectedPriority === "all" || note.priority === selectedPriority
+      const matchesCategory = selectedCategory === "all" || note.category === selectedCategory
 
-    return matchesSearch && matchesPriority && matchesCategory
-  })
+      return matchesSearch && matchesPriority && matchesCategory
+    })
+    .sort((a, b) => {
+      // Ensure newest notes appear first (descending order)
+      if (!a.createdAt || !b.createdAt) return 0
+      return b.createdAt.toMillis() - a.createdAt.toMillis()
+    })
 
   // Format date
   const formatDate = (timestamp: Timestamp) => {
