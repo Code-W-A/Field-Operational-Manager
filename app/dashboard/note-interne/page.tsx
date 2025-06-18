@@ -124,6 +124,8 @@ export default function NoteInternePage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedPriority, setSelectedPriority] = useState<string>("all")
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   // Form state
   const [title, setTitle] = useState("")
@@ -303,6 +305,17 @@ export default function NoteInternePage() {
       return b.createdAt.toMillis() - a.createdAt.toMillis()
     })
 
+  // Pagination
+  const totalPages = Math.ceil(filteredNotes.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const paginatedNotes = filteredNotes.slice(startIndex, endIndex)
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, selectedPriority, selectedCategory])
+
   // Format date
   const formatDate = (timestamp: Timestamp) => {
     if (!timestamp) return "Data necunoscută"
@@ -406,8 +419,9 @@ export default function NoteInternePage() {
           )}
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredNotes.map((note) => (
+        <>
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {paginatedNotes.map((note) => (
             <Card key={note.id} className="group hover:shadow-md transition-shadow">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
@@ -476,7 +490,50 @@ export default function NoteInternePage() {
               </CardContent>
             </Card>
           ))}
-        </div>
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-6">
+              <div className="text-sm text-gray-500">
+                Afișare {startIndex + 1}-{Math.min(endIndex, filteredNotes.length)} din {filteredNotes.length} note
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                >
+                  Anterior
+                </Button>
+                
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <Button
+                      key={page}
+                      variant={currentPage === page ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setCurrentPage(page)}
+                      className="w-8 h-8 p-0"
+                    >
+                      {page}
+                    </Button>
+                  ))}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                >
+                  Următor
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Create/Edit Dialog */}
