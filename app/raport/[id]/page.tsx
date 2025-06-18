@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { Send, ArrowLeft } from "lucide-react"
+import { Send, ArrowLeft, Download } from "lucide-react"
 import SignatureCanvas from "react-signature-canvas"
 import { getLucrareById, updateLucrare } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
@@ -26,6 +26,10 @@ export default function RaportPage({ params }: { params: { id: string } }) {
 
   const router = useRouter()
   const { userData } = useAuth()
+
+  // Check if user is dispatcher/admin accessing a finalized report
+  const isDispatcherOrAdmin = userData?.role === "dispecer" || userData?.role === "admin"
+  const [showDownloadInterface, setShowDownloadInterface] = useState(false)
 
   // Signature references and states
   const techSignatureRef = useRef<SignatureCanvas | null>(null)
@@ -56,6 +60,31 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   const reportGeneratorRef = useRef<React.ElementRef<typeof ReportGenerator>>(null)
   const submitButtonRef = useRef<HTMLButtonElement>(null)
 
+  // Function to download PDF for dispatcher/admin
+  const downloadPDF = useCallback(async () => {
+    if (!lucrare || !reportGeneratorRef.current) return
+    
+    setIsSubmitting(true)
+    try {
+      // Trigger PDF generation with locked data
+      reportGeneratorRef.current.click()
+      
+      toast({
+        title: "Descărcare în curs",
+        description: "PDF-ul se generează și va fi descărcat automat...",
+      })
+    } catch (error) {
+      console.error("Eroare la descărcarea PDF-ului:", error)
+      toast({
+        title: "Eroare",
+        description: "Nu s-a putut descărca PDF-ul.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }, [lucrare])
+
   useEffect(() => {
     const fetchLucrare = async () => {
       try {
@@ -82,6 +111,12 @@ export default function RaportPage({ params }: { params: { id: string } }) {
 
           setLucrare(processedData)
           setStatusLucrare(processedData.statusLucrare)
+
+          // Check if dispatcher/admin should see download interface
+          if (isDispatcherOrAdmin && processedData.raportGenerat && processedData.raportDataLocked) {
+            setShowDownloadInterface(true)
+            console.log("Dispecer/Admin accesează raport finalizat - afișez interfața de descărcare")
+          }
 
           // If the work has products, load them
           if (processedData.products && processedData.products.length > 0) {
@@ -552,6 +587,171 @@ FOM by NRG`,
     )
   }
 
+  // INTERFACE FOR DISPATCHER/ADMIN - DOWNLOAD ONLY
+  if (showDownloadInterface) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
+        <Card className="w-full max-w-3xl">
+          <CardHeader className="text-center">
+            <div className="flex items-center">
+              <Button variant="ghost" size="icon" className="absolute left-4" onClick={() => router.back()}>
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <div className="w-full">
+                <CardTitle className="text-xl sm:text-2xl font-bold text-blue-700">
+                  Raport Finalizat #{params.id}
+                </CardTitle>
+                <CardDescription>Raport generat de tehnician - doar descărcare</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          
+          {/* BANNER pentru raport blocat */}
+          <div className="mx-6 mb-4">
+            <div className="rounded-lg bg-green-50 border border-green-200 p-4">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-green-800">
+                    Raport Finalizat de Tehnician
+                  </h3>
+                  <div className="mt-1 text-sm text-green-700">
+                    <p>
+                      Acest raport a fost finalizat pe <strong>{lucrare?.raportSnapshot?.dataGenerare ? new Date(lucrare.raportSnapshot.dataGenerare).toLocaleString('ro-RO') : 'data necunoscută'}</strong> de către tehnician. 
+                      Puteți descărca PDF-ul cu datele finale înghețate.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <CardContent className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <h3 className="font-medium text-gray-500">Client</h3>
+                <p>{lucrare?.client || "N/A"}</p>
+              </div>
+              <div>
+                <h3 className="font-medium text-gray-500">Locație</h3>
+                <p>{lucrare?.locatie || "N/A"}</p>
+              </div>
+              <div>
+                <h3 className="font-medium text-gray-500">Data Intervenție</h3>
+                <p>{lucrare?.dataInterventie || "N/A"}</p>
+              </div>
+              <div>
+                <h3 className="font-medium text-gray-500">Tehnician</h3>
+                <p>{lucrare?.tehnicieni?.join(", ") || "N/A"}</p>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <h3 className="font-medium text-gray-500">Data Generare Raport</h3>
+                <p>{lucrare?.raportSnapshot?.dataGenerare ? new Date(lucrare.raportSnapshot.dataGenerare).toLocaleString('ro-RO') : "Necunoscută"}</p>
+              </div>
+              <div>
+                <h3 className="font-medium text-gray-500">Status</h3>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span className="text-green-700 font-medium">Finalizat și Blocat</span>
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Informații despre raport */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h3 className="font-medium text-gray-700 mb-3">Conținut Raport</h3>
+              <div className="grid gap-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Produse/Servicii:</span>
+                  <span className="font-medium">{lucrare?.raportSnapshot?.products?.length || 0} elemente</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Semnătură Tehnician:</span>
+                  <span className="font-medium">{lucrare?.raportSnapshot?.semnaturaTehnician ? "✓ Prezentă" : "✗ Lipsă"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Semnătură Beneficiar:</span>
+                  <span className="font-medium">{lucrare?.raportSnapshot?.semnaturaBeneficiar ? "✓ Prezentă" : "✗ Lipsă"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Durata Intervenție:</span>
+                  <span className="font-medium">{lucrare?.raportSnapshot?.durataInterventie || "N/A"}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Hidden ReportGenerator component for PDF generation */}
+            <div className="hidden">
+              <ReportGenerator
+                ref={reportGeneratorRef}
+                lucrare={lucrare}
+                onGenerate={(blob) => {
+                  // Automatically download the PDF
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = `Raport_${lucrare?.client || 'Interventie'}_${params.id}.pdf`
+                  document.body.appendChild(a)
+                  a.click()
+                  document.body.removeChild(a)
+                  URL.revokeObjectURL(url)
+                  
+                  toast({
+                    title: "PDF Descărcat",
+                    description: "Raportul a fost descărcat cu succes.",
+                    variant: "default",
+                  })
+                  setIsSubmitting(false)
+                }}
+              />
+            </div>
+          </CardContent>
+
+          <CardFooter className="flex flex-col sm:flex-row gap-4 justify-between pb-6 pt-4">
+            <div className="order-2 sm:order-1 w-full sm:w-auto">
+              <Button
+                variant="outline"
+                onClick={() => router.back()}
+                className="w-full sm:w-auto"
+                disabled={isSubmitting}
+              >
+                Înapoi
+              </Button>
+            </div>
+            <div className="order-1 sm:order-2 w-full sm:w-auto mb-2 sm:mb-0">
+              <Button
+                className="gap-2 bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
+                onClick={downloadPDF}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>Se descarcă...</>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4" />
+                    Descarcă PDF Raport
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardFooter>
+        </Card>
+      </div>
+    )
+  }
+
+  // INTERFACE FOR TECHNICIAN - GENERATION/EDITING
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
       <Card className="w-full max-w-3xl">
