@@ -121,6 +121,8 @@ export default function NoteInternePage() {
   const [isCreating, setIsCreating] = useState(false)
   const [editingNote, setEditingNote] = useState<Note | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [viewingNote, setViewingNote] = useState<Note | null>(null)
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedPriority, setSelectedPriority] = useState<string>("all")
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
@@ -287,6 +289,12 @@ export default function NoteInternePage() {
     setIsDialogOpen(true)
   }
 
+  // Open view dialog
+  const openViewDialog = (note: Note) => {
+    setViewingNote(note)
+    setIsViewDialogOpen(true)
+  }
+
   // Filter and sort notes (newest first)
   const filteredNotes = notes
     .filter(note => {
@@ -422,7 +430,7 @@ export default function NoteInternePage() {
         <>
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {paginatedNotes.map((note) => (
-            <Card key={note.id} className="group hover:shadow-md transition-shadow">
+            <Card key={note.id} className="group hover:shadow-md transition-shadow cursor-pointer" onClick={() => openViewDialog(note)}>
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
@@ -437,7 +445,12 @@ export default function NoteInternePage() {
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -628,6 +641,106 @@ export default function NoteInternePage() {
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Note Dialog */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          {viewingNote && (
+            <>
+              <DialogHeader className="space-y-3">
+                <div className="flex items-start justify-between">
+                  <DialogTitle className="text-xl leading-relaxed pr-4">
+                    {viewingNote.title}
+                  </DialogTitle>
+                  <div className="flex gap-2 shrink-0">
+                    <Badge className={`text-xs ${priorityColors[viewingNote.priority]}`}>
+                      {priorityLabels[viewingNote.priority]}
+                    </Badge>
+                    <Badge className={`text-xs ${categoryColors[viewingNote.category]}`}>
+                      {categoryLabels[viewingNote.category]}
+                    </Badge>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              <div className="space-y-6 py-4">
+                {/* Content */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">Conținut</Label>
+                  <div className="bg-gray-50 rounded-lg p-4 min-h-[100px] max-h-[300px] overflow-y-auto">
+                    <p className="text-sm text-gray-900 whitespace-pre-wrap leading-relaxed">
+                      {viewingNote.content}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Metadata */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">Autor</Label>
+                    <div className="flex items-center text-sm text-gray-600">
+                      <User className="mr-2 h-4 w-4" />
+                      {viewingNote.authorName}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">Data creării</Label>
+                    <div className="flex items-center text-sm text-gray-600">
+                      <Clock className="mr-2 h-4 w-4" />
+                      {formatDate(viewingNote.createdAt)}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">Prioritate</Label>
+                    <div className="flex items-center">
+                      <Badge className={`text-xs ${priorityColors[viewingNote.priority]}`}>
+                        {priorityLabels[viewingNote.priority]}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">Categorie</Label>
+                    <div className="flex items-center">
+                      <Badge className={`text-xs ${categoryColors[viewingNote.category]}`}>
+                        {categoryLabels[viewingNote.category]}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {viewingNote.updatedAt && viewingNote.updatedAt !== viewingNote.createdAt && (
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label className="text-sm font-medium text-gray-700">Ultima modificare</Label>
+                      <div className="flex items-center text-sm text-gray-600">
+                        <Clock className="mr-2 h-4 w-4" />
+                        {formatDate(viewingNote.updatedAt)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <DialogFooter className="flex flex-col sm:flex-row gap-2">
+                <Button variant="outline" onClick={() => setIsViewDialogOpen(false)} className="w-full sm:w-auto">
+                  Închide
+                </Button>
+                <Button 
+                  onClick={() => {
+                    setIsViewDialogOpen(false)
+                    openEditDialog(viewingNote)
+                  }}
+                  className="w-full sm:w-auto"
+                >
+                  <Edit3 className="mr-2 h-4 w-4" />
+                  Editează nota
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </DashboardShell>
