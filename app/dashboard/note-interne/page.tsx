@@ -238,6 +238,20 @@ export default function NoteInternePage() {
         description: "Nota a fost actualizată cu succes."
       })
 
+      // Update the viewing note with fresh data if we came from view dialog
+      if (viewingNote && editingNote.id === viewingNote.id) {
+        const updatedNote = {
+          ...editingNote,
+          title: title.trim(),
+          content: content.trim(),
+          priority,
+          category,
+          updatedAt: { toDate: () => new Date(), toMillis: () => Date.now() } as any // Temporary until Firestore updates
+        }
+        setViewingNote(updatedNote)
+        setIsViewDialogOpen(true) // Reopen view dialog
+      }
+
       resetForm()
       setIsDialogOpen(false)
     } catch (error) {
@@ -624,7 +638,18 @@ export default function NoteInternePage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                // If we came from viewing a note, return to view dialog
+                if (viewingNote && editingNote && editingNote.id === viewingNote.id) {
+                  setIsDialogOpen(false)
+                  setIsViewDialogOpen(true)
+                } else {
+                  setIsDialogOpen(false)
+                }
+              }}
+            >
               Anulează
             </Button>
             <Button 
