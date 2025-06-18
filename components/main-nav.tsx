@@ -120,16 +120,18 @@ export function MainNav({ className, ...props }: React.HTMLAttributes<HTMLElemen
             </Link>
           </>
         )}
-        <Link
-          href="/dashboard/note-interne"
-          className={cn(
-            "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
-            pathname === "/dashboard/note-interne" ? "text-primary" : "text-muted-foreground",
-          )}
-        >
-          <StickyNote className="h-4 w-4" />
-          <span>Note interne</span>
-        </Link>
+        {!isTechnician && (
+          <Link
+            href="/dashboard/note-interne"
+            className={cn(
+              "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
+              pathname === "/dashboard/note-interne" ? "text-primary" : "text-muted-foreground",
+            )}
+          >
+            <StickyNote className="h-4 w-4" />
+            <span>Note interne</span>
+          </Link>
+        )}
       </nav>
     </div>
   )

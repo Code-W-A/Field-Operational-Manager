@@ -96,6 +96,26 @@ const categoryLabels = {
 
 export default function NoteInternePage() {
   const { userData } = useAuth()
+  
+  // Restricționez accesul doar pentru dispeceri și administratori
+  if (userData?.role === "tehnician") {
+    return (
+      <DashboardShell>
+        <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+          <AlertCircle className="h-16 w-16 text-red-500 mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Acces restricționat</h2>
+          <p className="text-gray-600 mb-6 max-w-md">
+            Nu aveți permisiunea de a accesa secțiunea "Note interne". 
+            Această funcționalitate este disponibilă doar pentru dispeceri și administratori.
+          </p>
+          <Button onClick={() => window.history.back()} variant="outline">
+            Înapoi
+          </Button>
+        </div>
+      </DashboardShell>
+    )
+  }
+
   const [notes, setNotes] = useState<Note[]>([])
   const [loading, setLoading] = useState(true)
   const [isCreating, setIsCreating] = useState(false)

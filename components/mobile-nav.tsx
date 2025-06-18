@@ -58,17 +58,19 @@ export function MobileNav({ className, ...props }: React.HTMLAttributes<HTMLDivE
             <ClipboardList className="h-5 w-5" />
             <span>Lucrări</span>
           </Link>
-          <Link
-            href="/dashboard/note-interne"
-            onClick={() => setOpen(false)}
-            className={cn(
-              "flex items-center gap-2 rounded-md px-3 py-3 text-sm font-medium transition-colors",
-              pathname === "/dashboard/note-interne" ? "bg-blue-100 text-blue-900" : "hover:bg-muted",
-            )}
-          >
-            <StickyNote className="h-5 w-5" />
-            <span>Note interne</span>
-          </Link>
+          {!isTechnician && (
+            <Link
+              href="/dashboard/note-interne"
+              onClick={() => setOpen(false)}
+              className={cn(
+                "flex items-center gap-2 rounded-md px-3 py-3 text-sm font-medium transition-colors",
+                pathname === "/dashboard/note-interne" ? "bg-blue-100 text-blue-900" : "hover:bg-muted",
+              )}
+            >
+              <StickyNote className="h-5 w-5" />
+              <span>Note interne</span>
+            </Link>
+          )}
           {isAdmin && (
             <Link
               href="/dashboard/clienti"
