@@ -121,8 +121,6 @@ export default function NoteInternePage() {
   const [isCreating, setIsCreating] = useState(false)
   const [editingNote, setEditingNote] = useState<Note | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [viewingNote, setViewingNote] = useState<Note | null>(null)
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedPriority, setSelectedPriority] = useState<string>("all")
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
@@ -238,19 +236,7 @@ export default function NoteInternePage() {
         description: "Nota a fost actualizată cu succes."
       })
 
-      // Update the viewing note with fresh data if we came from view dialog
-      if (viewingNote && editingNote.id === viewingNote.id) {
-        const updatedNote = {
-          ...editingNote,
-          title: title.trim(),
-          content: content.trim(),
-          priority,
-          category,
-          updatedAt: { toDate: () => new Date(), toMillis: () => Date.now() } as any // Temporary until Firestore updates
-        }
-        setViewingNote(updatedNote)
-        setIsViewDialogOpen(true) // Reopen view dialog
-      }
+      // Keep dialog open after save to show updated content
 
       resetForm()
       setIsDialogOpen(false)
@@ -287,7 +273,7 @@ export default function NoteInternePage() {
     }
   }
 
-  // Open edit dialog
+  // Open edit dialog (for edit button in dropdown)
   const openEditDialog = (note: Note) => {
     setEditingNote(note)
     setTitle(note.title)
@@ -303,10 +289,36 @@ export default function NoteInternePage() {
     setIsDialogOpen(true)
   }
 
-  // Open view dialog
+  // Open unified dialog (now used when clicking on card)
   const openViewDialog = (note: Note) => {
-    setViewingNote(note)
-    setIsViewDialogOpen(true)
+    setEditingNote(note)
+    setTitle(note.title)
+    setContent(note.content)
+    setPriority(note.priority)
+    setCategory(note.category)
+    setIsDialogOpen(true)
+  }
+
+  // Calculate optimal width for a card based on content line lengths
+  const getCardWidth = (note: Note) => {
+    // Analyze title line length
+    const titleLines = note.title.split('\n').filter(line => line.trim().length > 0)
+    const maxTitleLineLength = titleLines.length > 0 ? Math.max(...titleLines.map(line => line.length)) : 0
+    
+    // Analyze content line lengths
+    const contentLines = note.content.split('\n').filter(line => line.trim().length > 0)
+    const maxContentLineLength = contentLines.length > 0 ? Math.max(...contentLines.map(line => line.length)) : 0
+    
+    // Take the longest line from either title or content
+    const maxLineLength = Math.max(maxTitleLineLength, maxContentLineLength)
+    
+    // Calculate width based on longest line (considering font size and padding)
+    if (maxLineLength <= 15) return "min-w-60 max-w-72"      // Very short lines
+    if (maxLineLength <= 25) return "min-w-72 max-w-80"      // Short lines  
+    if (maxLineLength <= 40) return "min-w-80 max-w-96"      // Medium lines
+    if (maxLineLength <= 60) return "min-w-96 max-w-lg"      // Long lines
+    if (maxLineLength <= 80) return "min-w-lg max-w-xl"      // Very long lines
+    return "min-w-xl max-w-2xl"                              // Extremely long lines
   }
 
   // Filter and sort notes (newest first)
@@ -442,18 +454,13 @@ export default function NoteInternePage() {
         </Card>
       ) : (
         <>
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="flex flex-wrap gap-4 items-start justify-start max-w-full overflow-hidden">
             {paginatedNotes.map((note) => (
-            <Card key={note.id} className="group hover:shadow-md transition-shadow cursor-pointer" onClick={() => openViewDialog(note)}>
+            <Card key={note.id} className={`group hover:shadow-md transition-shadow cursor-pointer h-auto flex-shrink-0 w-fit ${getCardWidth(note)}`} onClick={() => openViewDialog(note)}>
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-base group-hover:text-blue-600 transition-colors" style={{
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden'
-                    }}>
+                  <div className="flex-1 min-w-0 mr-2">
+                    <CardTitle className="text-base group-hover:text-blue-600 transition-colors leading-relaxed whitespace-pre-wrap break-words">
                       {note.title}
                     </CardTitle>
                   </div>
@@ -462,19 +469,27 @@ export default function NoteInternePage() {
                       <Button 
                         variant="ghost" 
                         size="sm" 
-                        className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => openEditDialog(note)}>
+                      <DropdownMenuItem 
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openEditDialog(note)
+                        }}
+                      >
                         <Edit3 className="mr-2 h-4 w-4" />
                         Editează
                       </DropdownMenuItem>
                       <DropdownMenuItem 
-                        onClick={() => handleDeleteNote(note.id)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeleteNote(note.id)
+                        }}
                         className="text-red-600"
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
@@ -495,23 +510,18 @@ export default function NoteInternePage() {
               </CardHeader>
 
               <CardContent className="pt-0">
-                <p className="text-sm text-gray-600 mb-4" style={{
-                  display: '-webkit-box',
-                  WebkitLineClamp: 3,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden'
-                }}>
+                <p className="text-sm text-gray-600 mb-4 whitespace-pre-wrap leading-relaxed break-words">
                   {note.content}
                 </p>
                 
-                <div className="flex items-center justify-between text-xs text-gray-500">
-                  <div className="flex items-center">
-                    <User className="mr-1 h-3 w-3" />
-                    {note.authorName}
+                <div className="flex items-center justify-between text-xs text-gray-500 gap-2">
+                  <div className="flex items-center min-w-0 flex-1">
+                    <User className="mr-1 h-3 w-3 flex-shrink-0" />
+                    <span className="truncate">{note.authorName}</span>
                   </div>
-                  <div className="flex items-center">
+                  <div className="flex items-center flex-shrink-0">
                     <Clock className="mr-1 h-3 w-3" />
-                    {formatDate(note.createdAt)}
+                    <span>{formatDate(note.createdAt)}</span>
                   </div>
                 </div>
               </CardContent>
@@ -563,211 +573,187 @@ export default function NoteInternePage() {
         </>
       )}
 
-      {/* Create/Edit Dialog */}
+      {/* Unified View/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="space-y-3">
+            <DialogTitle className="text-xl">
               {editingNote ? "Editează nota" : "Notă nouă"}
             </DialogTitle>
             <DialogDescription>
               {editingNote 
-                ? "Modificați detaliile notei și salvați modificările." 
+                ? "Modificați detaliile notei și vizualizați informațiile." 
                 : "Creați o notă nouă pentru echipa dumneavoastră."
               }
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="title">Titlu *</Label>
-              <Input
-                id="title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Introduceți titlul notei"
-                maxLength={100}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="content">Conținut *</Label>
-              <Textarea
-                id="content"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="Introduceți conținutul notei"
-                rows={4}
-                maxLength={1000}
-              />
-              <p className="text-xs text-gray-500">
-                {content.length}/1000 caractere
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-6 py-4">
+            {/* Edit Fields */}
+            <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="priority">Prioritate</Label>
-                <Select value={priority} onValueChange={(value: "low" | "medium" | "high") => setPriority(value)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Scăzută</SelectItem>
-                    <SelectItem value="medium">Medie</SelectItem>
-                    <SelectItem value="high">Înaltă</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="title">Titlu *</Label>
+                <Input
+                  id="title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Introduceți titlul notei"
+                  maxLength={100}
+                />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="category">Categorie</Label>
-                <Select value={category} onValueChange={(value: "general" | "urgent" | "info" | "task") => setCategory(value)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="general">General</SelectItem>
-                    <SelectItem value="urgent">Urgent</SelectItem>
-                    <SelectItem value="info">Informație</SelectItem>
-                    <SelectItem value="task">Sarcină</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="content">Conținut *</Label>
+                <Textarea
+                  id="content"
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder="Introduceți conținutul notei"
+                  rows={6}
+                  maxLength={1000}
+                />
+                <p className="text-xs text-gray-500">
+                  {content.length}/1000 caractere
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="priority">Prioritate</Label>
+                  <Select value={priority} onValueChange={(value: "low" | "medium" | "high") => setPriority(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Scăzută</SelectItem>
+                      <SelectItem value="medium">Medie</SelectItem>
+                      <SelectItem value="high">Înaltă</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="category">Categorie</Label>
+                  <Select value={category} onValueChange={(value: "general" | "urgent" | "info" | "task") => setCategory(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="general">General</SelectItem>
+                      <SelectItem value="urgent">Urgent</SelectItem>
+                      <SelectItem value="info">Informație</SelectItem>
+                      <SelectItem value="task">Sarcină</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
+
+            {/* Information Display (only for existing notes) */}
+            {editingNote && (
+              <>
+                <div className="border-t pt-4">
+                  <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
+                    <StickyNote className="h-5 w-5" />
+                    Informații nota
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-gray-700">Autor</Label>
+                      <div className="flex items-center text-sm text-gray-600">
+                        <User className="mr-2 h-4 w-4" />
+                        {editingNote.authorName}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-gray-700">Data creării</Label>
+                      <div className="flex items-center text-sm text-gray-600">
+                        <Clock className="mr-2 h-4 w-4" />
+                        {formatDate(editingNote.createdAt)}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-gray-700">Prioritate curentă</Label>
+                      <div className="flex items-center">
+                        <Badge className={`text-xs ${priorityColors[editingNote.priority]}`}>
+                          {priorityLabels[editingNote.priority]}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-gray-700">Categorie curentă</Label>
+                      <div className="flex items-center">
+                        <Badge className={`text-xs ${categoryColors[editingNote.category]}`}>
+                          {categoryLabels[editingNote.category]}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {editingNote.updatedAt && editingNote.updatedAt !== editingNote.createdAt && (
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label className="text-sm font-medium text-gray-700">Ultima modificare</Label>
+                        <div className="flex items-center text-sm text-gray-600">
+                          <Clock className="mr-2 h-4 w-4" />
+                          {formatDate(editingNote.updatedAt)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                // If we came from viewing a note, return to view dialog
-                if (viewingNote && editingNote && editingNote.id === viewingNote.id) {
-                  setIsDialogOpen(false)
-                  setIsViewDialogOpen(true)
-                } else {
-                  setIsDialogOpen(false)
-                }
-              }}
-            >
-              Anulează
-            </Button>
-            <Button 
-              onClick={editingNote ? handleEditNote : handleCreateNote}
-              disabled={isCreating || !title.trim() || !content.trim()}
-            >
-              {isCreating ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {editingNote ? "Se salvează..." : "Se creează..."}
-                </>
-              ) : (
-                editingNote ? "Salvează modificările" : "Creează nota"
+          <DialogFooter className="flex flex-col sm:flex-row gap-2">
+            <div className="flex flex-1 justify-start">
+              {editingNote && (
+                <Button 
+                  variant="destructive"
+                  onClick={() => {
+                    handleDeleteNote(editingNote.id)
+                    setIsDialogOpen(false)
+                  }}
+                  className="w-full sm:w-auto"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Șterge nota
+                </Button>
               )}
-            </Button>
+            </div>
+            
+            <div className="flex gap-2 flex-1 sm:flex-none justify-end">
+              <Button 
+                variant="outline" 
+                onClick={() => setIsDialogOpen(false)}
+                className="w-full sm:w-auto"
+              >
+                Anulează
+              </Button>
+              
+              <Button 
+                onClick={editingNote ? handleEditNote : handleCreateNote}
+                disabled={isCreating || !title.trim() || !content.trim()}
+                className="w-full sm:w-auto"
+              >
+                {isCreating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {editingNote ? "Se salvează..." : "Se creează..."}
+                  </>
+                ) : (
+                  editingNote ? "Salvează modificările" : "Creează nota"
+                )}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* View Note Dialog */}
-      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-          {viewingNote && (
-            <>
-              <DialogHeader className="space-y-3">
-                <div className="flex items-start justify-between">
-                  <DialogTitle className="text-xl leading-relaxed pr-4">
-                    {viewingNote.title}
-                  </DialogTitle>
-                  <div className="flex gap-2 shrink-0">
-                    <Badge className={`text-xs ${priorityColors[viewingNote.priority]}`}>
-                      {priorityLabels[viewingNote.priority]}
-                    </Badge>
-                    <Badge className={`text-xs ${categoryColors[viewingNote.category]}`}>
-                      {categoryLabels[viewingNote.category]}
-                    </Badge>
-                  </div>
-                </div>
-              </DialogHeader>
 
-              <div className="space-y-6 py-4">
-                {/* Content */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Conținut</Label>
-                  <div className="bg-gray-50 rounded-lg p-4 min-h-[100px] max-h-[300px] overflow-y-auto">
-                    <p className="text-sm text-gray-900 whitespace-pre-wrap leading-relaxed">
-                      {viewingNote.content}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Metadata */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Autor</Label>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <User className="mr-2 h-4 w-4" />
-                      {viewingNote.authorName}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Data creării</Label>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Clock className="mr-2 h-4 w-4" />
-                      {formatDate(viewingNote.createdAt)}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Prioritate</Label>
-                    <div className="flex items-center">
-                      <Badge className={`text-xs ${priorityColors[viewingNote.priority]}`}>
-                        {priorityLabels[viewingNote.priority]}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Categorie</Label>
-                    <div className="flex items-center">
-                      <Badge className={`text-xs ${categoryColors[viewingNote.category]}`}>
-                        {categoryLabels[viewingNote.category]}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  {viewingNote.updatedAt && viewingNote.updatedAt !== viewingNote.createdAt && (
-                    <div className="space-y-2 sm:col-span-2">
-                      <Label className="text-sm font-medium text-gray-700">Ultima modificare</Label>
-                      <div className="flex items-center text-sm text-gray-600">
-                        <Clock className="mr-2 h-4 w-4" />
-                        {formatDate(viewingNote.updatedAt)}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <DialogFooter className="flex flex-col sm:flex-row gap-2">
-                <Button variant="outline" onClick={() => setIsViewDialogOpen(false)} className="w-full sm:w-auto">
-                  Închide
-                </Button>
-                <Button 
-                  onClick={() => {
-                    setIsViewDialogOpen(false)
-                    openEditDialog(viewingNote)
-                  }}
-                  className="w-full sm:w-auto"
-                >
-                  <Edit3 className="mr-2 h-4 w-4" />
-                  Editează nota
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
     </DashboardShell>
   )
 } 
