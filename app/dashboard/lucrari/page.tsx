@@ -1312,26 +1312,19 @@ export default function Lucrari() {
       enableFiltering: true,
     },
     {
-      accessorKey: "echipament",
-      header: "Echipament",
+      accessorKey: "locatie",
+      header: "Locație / Echipament",
       enableHiding: true,
       enableFiltering: true,
       cell: ({ row }) => {
-        // Verificăm dacă există câmpul echipament
-        if (row.original.echipament) {
-          // Dacă există și codul echipamentului, îl afișăm între paranteze
-          if (row.original.echipamentCod) {
-            return (
-              <div>
-                {row.original.echipament} <span className="text-gray-500">({row.original.echipamentCod})</span>
-              </div>
-            )
-          }
-          // Altfel, afișăm doar numele echipamentului
-          return <div>{row.original.echipament}</div>
-        }
-        // Dacă nu există echipament, afișăm locația
-        return <div>{row.original.locatie}</div>
+        return (
+          <div>
+            <div className="font-medium">{row.original.locatie}</div>
+            {row.original.echipamentCod && (
+              <div className="text-sm text-gray-500">Cod: {row.original.echipamentCod}</div>
+            )}
+          </div>
+        )
       },
     },
     {
@@ -1820,15 +1813,9 @@ export default function Lucrari() {
                       <div>
                         <h3 className="font-medium">{lucrare.client}</h3>
                         <p className="text-sm text-muted-foreground">
-                          {lucrare.echipament ? (
-                            <>
-                              {lucrare.echipament}
-                              {lucrare.echipamentCod && (
-                                <span className="text-gray-500"> ({lucrare.echipamentCod})</span>
-                              )}
-                            </>
-                          ) : (
-                            lucrare.locatie
+                          {lucrare.locatie}
+                          {lucrare.echipamentCod && (
+                            <span className="text-gray-500"> • Cod: {lucrare.echipamentCod}</span>
                           )}
                         </p>
                       </div>
