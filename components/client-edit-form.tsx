@@ -27,6 +27,7 @@ import { EquipmentQRCode } from "@/components/equipment-qr-code"
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
 import { useAuth } from "@/contexts/AuthContext"
+import { toast } from "@/components/ui/use-toast"
 // Import AlertDialog components
 import {
   AlertDialog,
@@ -54,6 +55,8 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
     cif: client.cif || "",
     adresa: client.adresa || "",
     email: client.email || "",
+    telefon: client.telefon || "",
+    reprezentantFirma: client.reprezentantFirma || "",
   })
 
   // Add state for close alert dialog - IMPORTANT: default to true for testing
@@ -101,6 +104,8 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
   const [isCheckingCode, setIsCheckingCode] = useState(false)
   const [isCodeUnique, setIsCodeUnique] = useState(true)
 
+
+
   // Use the useUnsavedChanges hook
   const { showDialog, handleNavigation, confirmNavigation, cancelNavigation, pendingUrl } =
     useUnsavedChanges(formModified)
@@ -147,9 +152,14 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
     hasUnsavedChanges: () => formModified,
   }))
 
+
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target
     console.log(`Input changed: ${id} = ${value}`)
+
+
+
     setFormData((prev) => ({ ...prev, [id]: value }))
   }
 
@@ -200,6 +210,16 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
     field: keyof PersoanaContact,
     value: string,
   ) => {
+    // Verificăm dacă se încearcă să se introducă telefonul principal la o persoană de contact
+    if (field === "telefon" && value.trim() && formData.telefon.trim() && value.trim() === formData.telefon.trim()) {
+      toast({
+        title: "Telefon duplicat",
+        description: "Acest număr de telefon este deja folosit ca telefon principal al clientului.",
+        variant: "destructive",
+      })
+      return
+    }
+
     const updatedLocatii = [...locatii]
     updatedLocatii[locatieIndex].persoaneContact[contactIndex] = {
       ...updatedLocatii[locatieIndex].persoaneContact[contactIndex],
@@ -404,6 +424,10 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
 
       // Verificăm câmpurile obligatorii
       if (!formData.nume) errors.push("nume")
+      if (!formData.telefon) errors.push("telefon")
+      if (!formData.reprezentantFirma) errors.push("reprezentantFirma")
+
+
 
       // Verificăm dacă toate locațiile au nume și adresă
       locatii.forEach((locatie, index) => {
@@ -444,8 +468,8 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
 
       await updateClient(client.id, {
         ...formData,
+        cui: formData.cif, // Mapăm cif → cui pentru consistență cu interfața
         persoanaContact: primaryContact ? primaryContact.nume : "",
-        telefon: primaryContact ? primaryContact.telefon : "",
         locatii: filteredLocatii,
       })
 
@@ -560,6 +584,37 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
           value={formData.email}
           onChange={handleInputChange}
         />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <label htmlFor="telefon" className="text-sm font-medium">
+            Număr de telefon principal *
+          </label>
+          <Input
+            id="telefon"
+            type="tel"
+            placeholder="Număr de telefon principal al companiei"
+            value={formData.telefon}
+            onChange={handleInputChange}
+            className={hasError("telefon") ? errorStyle : ""}
+          />
+          <p className="text-xs text-muted-foreground">
+            Numărul de telefon principal al companiei (diferit de telefoanele persoanelor de contact din locații)
+          </p>
+        </div>
+        <div className="space-y-2">
+          <label htmlFor="reprezentantFirma" className="text-sm font-medium">
+            Reprezentant Firmă *
+          </label>
+          <Input
+            id="reprezentantFirma"
+            placeholder="Numele reprezentantului firmei"
+            value={formData.reprezentantFirma}
+            onChange={handleInputChange}
+            className={hasError("reprezentantFirma") ? errorStyle : ""}
+          />
+        </div>
       </div>
 
       {/* Secțiunea pentru locații */}

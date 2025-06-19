@@ -107,7 +107,8 @@ export interface Client {
   nume: string
   adresa: string
   email: string
-  telefon: string
+  telefon?: string  // OPȚIONAL pentru compatibilitate cu date existente
+  reprezentantFirma?: string  // OPȚIONAL pentru compatibilitate cu date existente
   cui: string
   regCom: string
   contBancar: string
@@ -115,6 +116,7 @@ export interface Client {
   persoaneContact?: PersoanaContact[]
   echipamente?: Echipament[]
   contracte?: Contract[]
+  locatii?: Locatie[]
   createdAt?: Timestamp
   updatedAt?: Timestamp
 }
@@ -139,6 +141,13 @@ export interface Contract {
   valoare: number
   moneda: string
   clientId?: string
+}
+
+export interface Locatie {
+  nume: string
+  adresa: string
+  persoaneContact: PersoanaContact[]
+  echipamente: Echipament[]
 }
 
 export interface Log {

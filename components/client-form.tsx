@@ -83,6 +83,8 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
     cif: "", // Adăugăm CIF
     adresa: "",
     email: "",
+    telefon: "", // Adăugăm telefon principal
+    reprezentantFirma: "", // Adăugăm reprezentant firmă
   })
 
   // Adăugăm state pentru verificarea CUI
@@ -90,6 +92,8 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
   const [cuiExists, setCuiExists] = useState(false)
   const [cuiTouched, setCuiTouched] = useState(false)
   const cuiTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+
 
   // Adăugăm state pentru locații
   const [locatii, setLocatii] = useState<Locatie[]>([
@@ -215,6 +219,8 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
     }
   }, [formData.cif, cuiTouched])
 
+
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target
     console.log(`Input changed: ${id} = ${value}`)
@@ -223,6 +229,8 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
     if (id === "cif") {
       setCuiTouched(true)
     }
+
+
 
     setFormData((prev) => ({ ...prev, [id]: value }))
   }
@@ -471,6 +479,10 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
 
       // Verificăm câmpurile obligatorii
       if (!formData.nume) errors.push("nume")
+      if (!formData.telefon) errors.push("telefon")
+      if (!formData.reprezentantFirma) errors.push("reprezentantFirma")
+
+
 
       // Verificăm dacă toate locațiile au nume și adresă
       locatii.forEach((locatie, index) => {
@@ -507,8 +519,11 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
 
       const newClient = {
         ...formData,
+        cui: formData.cif,
+        regCom: "",
+        contBancar: "",
+        banca: "",
         persoanaContact: primaryContact ? primaryContact.nume : "",
-        telefon: primaryContact ? primaryContact.telefon : "",
         numarLucrari: 0,
         locatii: filteredLocatii,
       }
@@ -641,6 +656,37 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
           value={formData.email}
           onChange={handleInputChange}
         />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <label htmlFor="telefon" className="text-sm font-medium">
+            Număr de telefon principal *
+          </label>
+          <Input
+            id="telefon"
+            type="tel"
+            placeholder="Număr de telefon principal al companiei"
+            value={formData.telefon}
+            onChange={handleInputChange}
+            className={hasError("telefon") ? errorStyle : ""}
+          />
+          <p className="text-xs text-muted-foreground">
+            Numărul de telefon principal al companiei (diferit de telefoanele persoanelor de contact din locații)
+          </p>
+        </div>
+        <div className="space-y-2">
+          <label htmlFor="reprezentantFirma" className="text-sm font-medium">
+            Reprezentant Firmă *
+          </label>
+          <Input
+            id="reprezentantFirma"
+            placeholder="Numele reprezentantului firmei"
+            value={formData.reprezentantFirma}
+            onChange={handleInputChange}
+            className={hasError("reprezentantFirma") ? errorStyle : ""}
+          />
+        </div>
       </div>
 
       {/* Secțiunea pentru locații */}

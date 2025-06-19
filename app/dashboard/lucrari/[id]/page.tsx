@@ -33,6 +33,11 @@ import { QRCodeScanner } from "@/components/qr-code-scanner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { formatDate, formatTime, calculateDuration } from "@/lib/utils/time-format"
 
+// Funcție utilitar pentru a extrage CUI-ul indiferent de cum este salvat
+const extractCUI = (client: any) => {
+  return client?.cif || "N/A"
+}
+
 export default function LucrarePage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const { userData } = useAuth()
@@ -44,6 +49,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
   const [equipmentVerified, setEquipmentVerified] = useState(false)
   const [locationAddress, setLocationAddress] = useState<string | null>(null)
   const [isUpdating, setIsUpdating] = useState(false)
+  const [clientData, setClientData] = useState<any>(null)
 
   // Încărcăm datele lucrării și adresa locației
   useEffect(() => {
@@ -73,6 +79,12 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
             if (client) {
               console.log("Client găsit:", client.nume, "ID:", client.id)
               console.log("Locații disponibile:", client.locatii ? client.locatii.length : 0)
+              console.log("DEBUG - Client data from lucrare page:", client)
+              console.log("DEBUG - client.cui:", client.cui)
+              console.log("DEBUG - client.cif:", (client as any).cif)
+              
+              // Salvăm datele clientului pentru afișare
+              setClientData(client)
 
               if (client.locatii && client.locatii.length > 0) {
                 // Căutăm locația în lista de locații a clientului
@@ -745,12 +757,40 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                   <p className="text-sm font-medium">Client:</p>
                   <p className="text-sm text-gray-500">{lucrare.client}</p>
                 </div>
+                {clientData && (
+                  <>
+                    <div>
+                      <p className="text-sm font-medium">Telefon Principal:</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm text-gray-500">{clientData.telefon || "N/A"}</p>
+                        {clientData.telefon && (
+                          <a
+                            href={`tel:${formatPhoneForCall(clientData.telefon)}`}
+                            className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                            aria-label={`Apelează ${clientData.telefon}`}
+                            title={`Apelează ${clientData.telefon}`}
+                          >
+                            <Phone className="h-4 w-4" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Reprezentant Firmă:</p>
+                      <p className="text-sm text-gray-500">{clientData.reprezentantFirma || "N/A"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">CUI/CIF:</p>
+                      <p className="text-sm text-gray-500">{(clientData as any)?.cif || "N/A"}</p>
+                    </div>
+                  </>
+                )}
                 <div>
-                  <p className="text-sm font-medium">Persoană contact:</p>
+                  <p className="text-sm font-medium">Persoană contact (locație):</p>
                   <p className="text-sm text-gray-500">{lucrare.persoanaContact}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium">Telefon:</p>
+                  <p className="text-sm font-medium">Telefon contact (locație):</p>
                   <div className="flex items-center gap-2">
                     <p className="text-sm text-gray-500">{lucrare.telefon}</p>
                     <a

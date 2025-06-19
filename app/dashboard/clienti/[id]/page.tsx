@@ -17,6 +17,11 @@ import { orderBy } from "firebase/firestore"
 // Importăm hook-ul useClientLucrari pentru a putea actualiza datele
 import { useClientLucrari } from "@/hooks/use-client-lucrari"
 
+// Funcție utilitar pentru a extrage CUI-ul indiferent de cum este salvat
+const extractCUI = (client: any) => {
+  return client?.cui || client?.cif || client?.CIF || client?.CUI || "N/A"
+}
+
 export default function ClientPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const { userData } = useAuth()
@@ -37,6 +42,9 @@ export default function ClientPage({ params }: { params: { id: string } }) {
         setLoading(true)
         const data = await getClientById(params.id)
         if (data) {
+          console.log("DEBUG - Client data from database:", data)
+          console.log("DEBUG - client.cui:", data.cui)
+          console.log("DEBUG - client.cif:", (data as any).cif)
           setClient(data)
         } else {
           setError("Clientul nu a fost găsit")
@@ -132,16 +140,20 @@ export default function ClientPage({ params }: { params: { id: string } }) {
 
           <div className="grid gap-4 md:grid-cols-2">
             <div>
-              <h3 className="font-medium text-gray-500">Persoană Contact</h3>
-              <p>{client?.persoanaContact}</p>
+              <h3 className="font-medium text-gray-500">Telefon Principal</h3>
+              <p>{client?.telefon || "N/A"}</p>
             </div>
             <div>
-              <h3 className="font-medium text-gray-500">Telefon</h3>
-              <p>{client?.telefon}</p>
+              <h3 className="font-medium text-gray-500">Reprezentant Firmă</h3>
+              <p>{client?.reprezentantFirma || "N/A"}</p>
             </div>
             <div>
               <h3 className="font-medium text-gray-500">Email</h3>
               <p>{client?.email || "N/A"}</p>
+            </div>
+            <div>
+              <h3 className="font-medium text-gray-500">CUI/CIF</h3>
+              <p>{(client as any)?.cif || "N/A"}</p>
             </div>
           </div>
 

@@ -543,6 +543,7 @@ export default function Clienti() {
       accessorKey: "telefon",
       header: "Telefon",
       enableFiltering: true,
+      cell: ({ row }: any) => <span>{row.original.telefon || "N/A"}</span>,
     },
     {
       accessorKey: "email",
@@ -769,7 +770,7 @@ export default function Clienti() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm font-medium text-muted-foreground">Telefon:</span>
-                        <span className="text-sm">{client.telefon}</span>
+                        <span className="text-sm">{client.telefon || "N/A"}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm font-medium text-muted-foreground">Email:</span>
