@@ -13,11 +13,14 @@ import { CalendarIcon, Loader2, Plus, Phone, Mail, Users, LightbulbIcon } from "
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { orderBy, where, query, collection, onSnapshot } from "firebase/firestore"
 import type { Client, PersoanaContact, Locatie, Echipament } from "@/lib/firebase/firestore"
+import { getClienti } from "@/lib/firebase/firestore"
 import { db } from "@/lib/firebase/config"
 // Importăm componenta ContractSelect
 import { ContractSelect } from "./contract-select"
 // Importăm componenta ClientForm
 import { ClientForm } from "./client-form"
+// Importăm componenta ClientEditForm pentru editarea locațiilor
+import { ClientEditForm } from "./client-edit-form"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { formatDateTime24, formatTime24 } from "@/lib/utils/time-format"
 // Import the TimeSelector component
@@ -137,6 +140,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     const isAdminOrDispatcher = userRole === "admin" || userRole === "dispecer"
 
     const [isAddClientDialogOpen, setIsAddClientDialogOpen] = useState(false)
+    const [isEditClientDialogOpen, setIsEditClientDialogOpen] = useState(false)
     const [tehnicieni, setTehnicieni] = useState<any[]>([])
     const [loadingTehnicieni, setLoadingTehnicieni] = useState(true)
     const [timeEmiterii, setTimeEmiterii] = useState<string>(
@@ -525,7 +529,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
               persoaneContact:
                 client.persoaneContact && client.persoaneContact.length > 0
                   ? client.persoaneContact
-                  : [{ nume: client.persoanaContact || "", telefon: client.telefon || "", email: "", functie: "" }],
+                  : [{ nume: (client as any).persoanaContact || "", telefon: (client as any).telefon || "", email: "", functie: "" }],
               echipamente: [],
             }
             setLocatii([defaultLocatie])
@@ -1000,6 +1004,52 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     const handleClientAdded = (clientName: string) => {
       handleSelectChange("client", clientName)
       setIsAddClientDialogOpen(false)
+    }
+
+    // Funcție pentru a deschide editarea clientului selectat pentru adăugarea de locații
+    const handleAddLocationToClient = () => {
+      if (!selectedClient) {
+        toast({
+          title: "Eroare",
+          description: "Nu există un client selectat",
+          variant: "destructive",
+        })
+        return
+      }
+      setIsEditClientDialogOpen(true)
+    }
+
+    // Funcție pentru a gestiona editarea cu succes a clientului
+    const handleClientEdited = async () => {
+      if (!selectedClient) return
+      
+      try {
+        // Reîncărcăm toate clienturile pentru a obține datele actualizate
+        const clientiActualizati = await getClienti()
+        const clientActualizat = clientiActualizati.find(c => c.id === selectedClient.id)
+        
+        if (clientActualizat) {
+          setSelectedClient(clientActualizat)
+          // Actualizăm locațiile disponibile
+          if (clientActualizat.locatii && clientActualizat.locatii.length > 0) {
+            setLocatii(clientActualizat.locatii)
+          }
+          
+          toast({
+            title: "Client actualizat",
+            description: "Locațiile clientului au fost actualizate cu succes",
+          })
+        }
+      } catch (error) {
+        console.error("Eroare la reîncărcarea clientului:", error)
+        toast({
+          title: "Eroare",
+          description: "Nu s-au putut reîncărca datele clientului",
+          variant: "destructive",
+        })
+      }
+      
+      setIsEditClientDialogOpen(false)
     }
 
     // Verificăm dacă un câmp are eroare
@@ -1535,7 +1585,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
               {selectedClient && (
                 <div className="text-xs text-muted-foreground">
                   Client selectat: <span className="font-medium">{selectedClient.nume}</span>
-                  {selectedClient.cif && <span> (CIF: {selectedClient.cif})</span>}
+                  {(selectedClient as any).cif && <span> (CIF: {(selectedClient as any).cif})</span>}
                 </div>
               )}
             </div>
@@ -1551,24 +1601,54 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             </DialogContent>
           </Dialog>
 
+          {/* Dialog pentru editarea clientului selectat */}
+          <Dialog open={isEditClientDialogOpen} onOpenChange={setIsEditClientDialogOpen}>
+            <DialogContent className="w-[calc(100%-2rem)] max-w-[800px] max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Editează {selectedClient?.nume} - Adaugă Locații</DialogTitle>
+              </DialogHeader>
+              {selectedClient && (
+                <ClientEditForm 
+                  client={selectedClient} 
+                  onSuccess={handleClientEdited} 
+                  onCancel={() => setIsEditClientDialogOpen(false)} 
+                />
+              )}
+            </DialogContent>
+          </Dialog>
+
           {/* Adăugăm secțiunea de locație */}
           {locatii.length > 0 && (
             <div className="space-y-2">
               <label htmlFor="locatie" className="text-sm font-medium">
                 Locație *
               </label>
-              <Select value={formData.locatie} onValueChange={handleLocatieSelect}>
-                <SelectTrigger id="locatie" className={hasError("locatie") ? errorStyle : ""}>
-                  <SelectValue placeholder="Selectați locația" />
-                </SelectTrigger>
-                <SelectContent>
-                  {locatii.map((loc, index) => (
-                    <SelectItem key={index} value={loc.nume}>
-                      {loc.nume}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <Select value={formData.locatie} onValueChange={handleLocatieSelect}>
+                  <SelectTrigger id="locatie" className={hasError("locatie") ? errorStyle : ""}>
+                    <SelectValue placeholder="Selectați locația" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {locatii.map((loc, index) => (
+                      <SelectItem key={index} value={loc.nume}>
+                        {loc.nume}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedClient && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={handleAddLocationToClient}
+                    title="Adaugă locație nouă la client"
+                    className="shrink-0"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground">
                 Selectați locația clientului pentru această lucrare. Toate persoanele de contact vor fi asociate
                 automat.
