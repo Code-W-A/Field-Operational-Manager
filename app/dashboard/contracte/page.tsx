@@ -47,17 +47,26 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useTablePersistence } from "@/hooks/use-table-persistence"
 import { UniversalSearch } from "@/components/universal-search"
+import { getClienti, isContractAvailableForClient, validateContractAssignment } from "@/lib/firebase/firestore"
+import { ClientSelectButton } from "@/components/client-select-button"
 
 interface Contract {
   id: string
   name: string
   number: string
   type?: string // Adăugăm câmpul pentru tipul contractului
+  clientId?: string // Adăugăm câmpul pentru clientul asignat
   createdAt: any
+}
+
+interface Client {
+  id: string
+  nume: string
 }
 
 export default function ContractsPage() {
   const [contracts, setContracts] = useState<Contract[]>([])
+  const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -68,6 +77,7 @@ export default function ContractsPage() {
   const [newContractName, setNewContractName] = useState("")
   const [newContractNumber, setNewContractNumber] = useState("")
   const [newContractType, setNewContractType] = useState("Abonament") // Adăugăm starea pentru tipul contractului
+  const [newContractClientId, setNewContractClientId] = useState("UNASSIGNED") // Adăugăm starea pentru clientul asignat
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -234,6 +244,31 @@ export default function ContractsPage() {
       ),
     },
     {
+      accessorKey: "clientId",
+      header: "Client Asignat",
+      enableHiding: true,
+      enableSorting: true,
+      enableFiltering: true,
+      cell: ({ row }) => {
+        const clientId = row.original.clientId
+        const client = clients.find(c => c.id === clientId)
+        
+        if (!clientId || !client) {
+          return (
+            <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200">
+              Neasignat
+            </Badge>
+          )
+        }
+        
+        return (
+          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+            {client.nume}
+          </Badge>
+        )
+      },
+    },
+    {
       accessorKey: "createdAt",
       header: "Data Adăugării",
       enableHiding: true,
@@ -287,14 +322,18 @@ export default function ContractsPage() {
         </DropdownMenu>
       ),
     },
-  ], [])
+  ], [clients])
 
-  // Încărcăm contractele din Firestore
+  // Încărcăm contractele și clienții din Firestore
   useEffect(() => {
-    const fetchContracts = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true)
         setError(null)
+
+        // Încărcăm clienții
+        const clientsList = await getClienti()
+        setClients(clientsList.map(client => ({ id: client.id!, nume: client.nume })))
 
         const contractsQuery = query(collection(db, "contracts"), orderBy("name", "asc"))
 
@@ -305,6 +344,8 @@ export default function ContractsPage() {
               id: doc.id,
               ...doc.data(),
             })) as Contract[]
+
+            // Contractele au fost încărcate cu succes
 
             setContracts(contractsData)
             setLoading(false)
@@ -324,7 +365,7 @@ export default function ContractsPage() {
       }
     }
 
-    fetchContracts()
+    fetchData()
   }, [])
 
   // Funcție pentru adăugarea unui contract nou
@@ -342,15 +383,16 @@ export default function ContractsPage() {
       setIsSubmitting(true)
       setError(null)
 
-      // Verificăm dacă există deja un contract cu același număr
-      const duplicateContract = contracts.find(
-        (contract) => contract.number.toLowerCase() === newContractNumber.toLowerCase(),
+      // Folosim sistemul robust de validare
+      const validation = await validateContractAssignment(
+        newContractNumber, 
+        newContractClientId && newContractClientId !== "UNASSIGNED" ? newContractClientId : ""
       )
 
-      if (duplicateContract) {
+      if (!validation.isValid) {
         toast({
           title: "Eroare",
-          description: "Există deja un contract cu acest număr",
+          description: validation.error,
           variant: "destructive",
         })
         setIsSubmitting(false)
@@ -358,17 +400,25 @@ export default function ContractsPage() {
       }
 
       // Adăugăm contractul în Firestore
-      await addDoc(collection(db, "contracts"), {
+      const contractData: any = {
         name: newContractName,
         number: newContractNumber,
-        type: newContractType, // Adăugăm tipul contractului
+        type: newContractType,
         createdAt: serverTimestamp(),
-      })
+      }
+
+      // Adăugăm clientId doar dacă este selectat și nu este "UNASSIGNED"
+      if (newContractClientId && newContractClientId !== "UNASSIGNED") {
+        contractData.clientId = newContractClientId
+      }
+
+      await addDoc(collection(db, "contracts"), contractData)
 
       // Resetăm formularul și închidem dialogul
       setNewContractName("")
       setNewContractNumber("")
       setNewContractType("Abonament")
+      setNewContractClientId("UNASSIGNED")
       setIsAddDialogOpen(false)
 
       toast({
@@ -398,16 +448,17 @@ export default function ContractsPage() {
       setIsSubmitting(true)
       setError(null)
 
-      // Verificăm dacă există deja un alt contract cu același număr
-      const duplicateContract = contracts.find(
-        (contract) =>
-          contract.number.toLowerCase() === newContractNumber.toLowerCase() && contract.id !== selectedContract.id,
+      // Folosim sistemul robust de validare pentru editare
+      const validation = await validateContractAssignment(
+        newContractNumber, 
+        newContractClientId && newContractClientId !== "UNASSIGNED" ? newContractClientId : "",
+        selectedContract.id // excludem contractul curent
       )
 
-      if (duplicateContract) {
+      if (!validation.isValid) {
         toast({
           title: "Eroare",
-          description: "Există deja un contract cu acest număr",
+          description: validation.error,
           variant: "destructive",
         })
         setIsSubmitting(false)
@@ -416,17 +467,27 @@ export default function ContractsPage() {
 
       // Actualizăm contractul în Firestore
       const contractRef = doc(db, "contracts", selectedContract.id)
-      await updateDoc(contractRef, {
+      const updateData: any = {
         name: newContractName,
         number: newContractNumber,
-        type: newContractType, // Actualizăm tipul contractului
+        type: newContractType,
         updatedAt: serverTimestamp(),
-      })
+      }
+
+      // Gestionăm clientId - poate fi null pentru neasignat
+      if (newContractClientId && newContractClientId !== "UNASSIGNED") {
+        updateData.clientId = newContractClientId
+      } else {
+        updateData.clientId = null
+      }
+
+      await updateDoc(contractRef, updateData)
 
       // Resetăm formularul și închidem dialogul
       setNewContractName("")
       setNewContractNumber("")
       setNewContractType("Abonament")
+      setNewContractClientId("UNASSIGNED")
       setSelectedContract(null)
       setIsEditDialogOpen(false)
 
@@ -476,6 +537,7 @@ export default function ContractsPage() {
     setNewContractName(contract.name)
     setNewContractNumber(contract.number)
     setNewContractType(contract.type || "Abonament") // Setăm tipul contractului sau valoarea implicită
+    setNewContractClientId(contract.clientId || "UNASSIGNED") // Setăm clientul asignat
     setIsEditDialogOpen(true)
   }
 
@@ -500,14 +562,15 @@ export default function ContractsPage() {
   // Function to check if we should show the close confirmation dialog
   const handleCloseDialog = (dialogType: "add" | "edit" | "delete") => {
     // For contracts, we'll check if the form fields have values
-    if (dialogType === "add" && (newContractName || newContractNumber)) {
+    if (dialogType === "add" && (newContractName || newContractNumber || (newContractClientId && newContractClientId !== "UNASSIGNED"))) {
       setActiveDialog(dialogType)
       setShowCloseAlert(true)
     } else if (
       dialogType === "edit" &&
       (newContractName !== selectedContract?.name ||
         newContractNumber !== selectedContract?.number ||
-        newContractType !== selectedContract?.type)
+        newContractType !== selectedContract?.type ||
+        newContractClientId !== (selectedContract?.clientId || "UNASSIGNED"))
     ) {
       setActiveDialog(dialogType)
       setShowCloseAlert(true)
@@ -522,6 +585,13 @@ export default function ContractsPage() {
   // Function to confirm dialog close
   const confirmCloseDialog = () => {
     setShowCloseAlert(false)
+
+    // Reset form fields
+    setNewContractName("")
+    setNewContractNumber("")
+    setNewContractType("Abonament")
+    setNewContractClientId("UNASSIGNED")
+    setSelectedContract(null)
 
     // Close the active dialog
     if (activeDialog === "add") setIsAddDialogOpen(false)
@@ -633,6 +703,15 @@ export default function ContractsPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="contractClient">Client Asignat (Opțional)</Label>
+              <ClientSelectButton
+                clients={clients}
+                value={newContractClientId}
+                onValueChange={setNewContractClientId}
+                placeholder="Selectați clientul sau lăsați neasignat"
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => handleCloseDialog("add")}>
@@ -699,6 +778,15 @@ export default function ContractsPage() {
                   <SelectItem value="Cu plată la intervenție">Cu plată la intervenție</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editContractClient">Client Asignat (Opțional)</Label>
+              <ClientSelectButton
+                clients={clients}
+                value={newContractClientId}
+                onValueChange={setNewContractClientId}
+                placeholder="Selectați clientul sau lăsați neasignat"
+              />
             </div>
           </div>
           <DialogFooter>

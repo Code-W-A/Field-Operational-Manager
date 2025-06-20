@@ -108,7 +108,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
   const [isEchipamentDialogOpen, setIsEchipamentDialogOpen] = useState(false)
   const [selectedLocatieIndex, setSelectedLocatieIndex] = useState<number | null>(null)
   const [selectedEchipamentIndex, setSelectedEchipamentIndex] = useState<number | null>(null)
-  const [echipamentFormData, setEchipamentFormData] = useState<Echipament>({
+  const [echipamentFormData, setEchipamentFormData] = useState<Echipament & { dataInstalare?: string; observatii?: string }>({
     nume: "",
     cod: "",
     model: "",
@@ -120,6 +120,19 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
   const [echipamentFormErrors, setEchipamentFormErrors] = useState<string[]>([])
   const [isCheckingCode, setIsCheckingCode] = useState(false)
   const [isCodeUnique, setIsCodeUnique] = useState(true)
+  
+  // State pentru confirmarea închiderii dialog-ului de echipament
+  const [showEchipamentCloseAlert, setShowEchipamentCloseAlert] = useState(false)
+  const [echipamentFormModified, setEchipamentFormModified] = useState(false)
+  const [initialEchipamentState, setInitialEchipamentState] = useState<Echipament & { dataInstalare?: string; observatii?: string }>({
+    nume: "",
+    cod: "",
+    model: "",
+    serie: "",
+    dataInstalare: "",
+    ultimaInterventie: "",
+    observatii: "",
+  })
 
   // Use the useUnsavedChanges hook
   const { showDialog, handleNavigation, confirmNavigation, cancelNavigation, pendingUrl } =
@@ -143,6 +156,8 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
       formData.cif ||
       formData.adresa ||
       formData.email ||
+      formData.telefon ||
+      formData.reprezentantFirma ||
       locatii.some(
         (loc) =>
           loc.nume ||
@@ -154,6 +169,14 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
     setFormModified(hasChanged && hasContent)
     console.log("Form modified:", hasChanged && hasContent)
   }, [formData, locatii, initialFormState])
+
+  // Check if equipment form has been modified
+  useEffect(() => {
+    const hasChanged = JSON.stringify(echipamentFormData) !== JSON.stringify(initialEchipamentState)
+    const hasContent = echipamentFormData.nume || echipamentFormData.cod || echipamentFormData.model || echipamentFormData.serie || echipamentFormData.dataInstalare || echipamentFormData.observatii
+
+    setEchipamentFormModified(hasChanged && hasContent)
+  }, [echipamentFormData, initialEchipamentState])
 
   // Reset form modified state after successful submission
   useEffect(() => {
@@ -412,6 +435,54 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
       updatedLocatii[locatieIndex].echipamente!.splice(echipamentIndex, 1)
       setLocatii(updatedLocatii)
     }
+  }
+
+  // Funcție pentru gestionarea închiderii dialog-ului de echipament
+  const handleCloseEchipamentDialog = () => {
+    if (echipamentFormModified) {
+      setShowEchipamentCloseAlert(true)
+    } else {
+      setIsEchipamentDialogOpen(false)
+      resetEchipamentForm()
+    }
+  }
+
+  // Funcție pentru confirmarea închiderii dialog-ului de echipament
+  const confirmCloseEchipamentDialog = () => {
+    setShowEchipamentCloseAlert(false)
+    setIsEchipamentDialogOpen(false)
+    resetEchipamentForm()
+  }
+
+  // Funcție pentru anularea închiderii dialog-ului de echipament
+  const cancelCloseEchipamentDialog = () => {
+    setShowEchipamentCloseAlert(false)
+  }
+
+  // Funcție pentru resetarea formularului de echipament
+  const resetEchipamentForm = () => {
+    setEchipamentFormData({
+      nume: "",
+      cod: "",
+      model: "",
+      serie: "",
+      dataInstalare: "",
+      ultimaInterventie: "",
+      observatii: "",
+    })
+    setInitialEchipamentState({
+      nume: "",
+      cod: "",
+      model: "",
+      serie: "",
+      dataInstalare: "",
+      ultimaInterventie: "",
+      observatii: "",
+    })
+    setEchipamentFormModified(false)
+    setEchipamentFormErrors([])
+    setSelectedLocatieIndex(null)
+    setSelectedEchipamentIndex(null)
   }
 
   // Update the checkCodeUniqueness function to use the new validation rule
@@ -931,8 +1002,17 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
       </div>
 
       {/* Dialog pentru adăugare/editare echipament */}
-      <Dialog open={isEchipamentDialogOpen} onOpenChange={setIsEchipamentDialogOpen}>
-        <DialogContent hideClose={true} className="sm:max-w-[500px] w-[95%] max-h-[90vh] overflow-y-auto">
+      <Dialog 
+        open={isEchipamentDialogOpen} 
+        onOpenChange={(open) => {
+          if (!open) {
+            handleCloseEchipamentDialog()
+          } else {
+            setIsEchipamentDialogOpen(open)
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[500px] w-[95%] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {selectedEchipamentIndex !== null ? "Editare Echipament" : "Adăugare Echipament Nou"}
@@ -1058,7 +1138,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
             <Button
               type="button"
               variant="outline"
-              onClick={() => setIsEchipamentDialogOpen(false)}
+              onClick={handleCloseEchipamentDialog}
               className="w-full sm:w-auto"
             >
               Anulează
@@ -1131,6 +1211,24 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
         onConfirm={pendingUrl === "#cancel" ? confirmClose : confirmNavigation}
         onCancel={cancelNavigation}
       />
+
+      {/* Alert Dialog for equipment form unsaved changes */}
+      <AlertDialog open={showEchipamentCloseAlert} onOpenChange={setShowEchipamentCloseAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmați închiderea</AlertDialogTitle>
+            <AlertDialogDescription>
+              Aveți modificări nesalvate în formularul de echipament. Sunteți sigur că doriți să închideți formularul? Toate modificările vor fi pierdute.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelCloseEchipamentDialog}>Anulează</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmCloseEchipamentDialog} className="bg-red-600 hover:bg-red-700">
+              Închide fără salvare
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </form>
   )
 })

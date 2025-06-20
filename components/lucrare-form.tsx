@@ -1100,9 +1100,24 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       setIsSubmitting(true)
 
       try {
+        // PĂSTRĂM EXACT ACEEAȘI STRUCTURĂ DE DATE CA ÎNAINTE
+        // Pentru lucrări noi: setăm ora la 00:00 pentru data intervenției
+        let dataInterventieFormatted = ""
+        if (dataInterventie) {
+          if (isEdit) {
+            // Pentru editare: păstrăm data+ora existentă
+            dataInterventieFormatted = formatDateTime24(dataInterventie)
+          } else {
+            // Pentru lucrări noi: setăm ora la 00:00 pentru a păstra structura
+            const dateOnly = new Date(dataInterventie)
+            dateOnly.setHours(0, 0, 0, 0)
+            dataInterventieFormatted = formatDateTime24(dateOnly)
+          }
+        }
+
         const updatedData: Partial<Lucrare> = {
           dataEmiterii: dataEmiterii ? formatDateTime24(dataEmiterii) : "",
-          dataInterventie: dataInterventie ? formatDateTime24(dataInterventie) : "",
+          dataInterventie: dataInterventieFormatted,
           tipLucrare: formData.tipLucrare,
           tehnicieni: formData.tehnicieni,
           client: formData.client,
@@ -1356,171 +1371,73 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       <div className="modal-calendar-container">
         {error && <div className="text-red-500 mb-4">{error}</div>}
         <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-1 gap-6">
-            {/* Data Emiterii - Setată automat și nemodificabilă */}
-            <div className="space-y-2">
-              <label htmlFor="dataEmiterii" className="text-sm font-medium flex items-center">
-                Data Emiterii
-                <span className="ml-2 text-xs text-muted-foreground bg-gray-100 px-2 py-0.5 rounded">Automată</span>
-              </label>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <div className="sm:w-2/3">
+          {/* Data Emiterii - Setată automat și nemodificabilă */}
+          <div className="space-y-2">
+            <label htmlFor="dataEmiterii" className="text-sm font-medium flex items-center">
+              Data Emiterii
+              <span className="ml-2 text-xs text-muted-foreground bg-gray-100 px-2 py-0.5 rounded">Automată</span>
+            </label>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="sm:w-2/3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-start text-left font-normal opacity-90 cursor-not-allowed"
+                  disabled
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dataEmiterii ? format(dataEmiterii, "dd.MM.yyyy", { locale: ro }) : "Data curentă"}
+                </Button>
+              </div>
+              <div className="relative sm:w-1/3">
+                <Input
+                  type="text"
+                  value={formatTime24(dataEmiterii || new Date())}
+                  className="cursor-not-allowed opacity-90"
+                  disabled
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">Data și ora emiterii sunt setate automat cu data curentă</p>
+          </div>
+
+          {/* 1. Data când se solicită intervenția (fără oră în UI, dar cu ora în baza de date) */}
+          <div className="space-y-2">
+            <label htmlFor="dataInterventie" className="text-sm font-medium">
+              Data când se solicită intervenția *
+            </label>
+            <div className="w-full">
+              <Popover open={dateInterventieOpen} onOpenChange={setDateInterventieOpen}>
+                <PopoverTrigger asChild>
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full justify-start text-left font-normal opacity-90 cursor-not-allowed"
-                    disabled
+                    className={`w-full justify-start text-left font-normal ${hasError("dataInterventie") ? errorStyle : ""}`}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dataEmiterii ? format(dataEmiterii, "dd.MM.yyyy", { locale: ro }) : "Data curentă"}
+                    {dataInterventie ? (
+                      format(dataInterventie, "dd.MM.yyyy", { locale: ro })
+                    ) : (
+                      <span>Selectați data</span>
+                    )}
                   </Button>
-                </div>
-                <div className="relative sm:w-1/3">
-                  <Input
-                    type="text"
-                    value={formatTime24(dataEmiterii || new Date())}
-                    className="cursor-not-allowed opacity-90"
-                    disabled
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">Data și ora emiterii sunt setate automat cu data curentă</p>
-            </div>
-
-            {/* Data Solicitată Intervenție - Updated with new date picker */}
-            <div className="space-y-2">
-              <label htmlFor="dataInterventie" className="text-sm font-medium">
-                Data solicitată intervenție *
-              </label>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <div className="sm:w-2/3">
-                  <Popover open={dateInterventieOpen} onOpenChange={setDateInterventieOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className={`w-full justify-start text-left font-normal ${hasError("dataInterventie") ? errorStyle : ""}`}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {dataInterventie ? (
-                          format(dataInterventie, "dd.MM.yyyy", { locale: ro })
-                        ) : (
-                          <span>Selectați data</span>
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start" sideOffset={4}>
-                      <CustomDatePicker
-                        selectedDate={dataInterventie}
-                        onDateChange={handleDateInterventieSelect}
-                        onClose={() => setDateInterventieOpen(false)}
-                        hasError={hasError("dataInterventie")}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div className="relative sm:w-1/3">
-                  <TimeSelector
-                    value={timeInterventie}
-                    onChange={handleTimeInterventieChange}
-                    label="Ora intervenției"
-                    id="timeInterventie"
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start" sideOffset={4}>
+                  <CustomDatePicker
+                    selectedDate={dataInterventie}
+                    onDateChange={handleDateInterventieSelect}
+                    onClose={() => setDateInterventieOpen(false)}
                     hasError={hasError("dataInterventie")}
                   />
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">Data și ora solicitată pentru intervenție</p>
+                </PopoverContent>
+              </Popover>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Data când se solicită intervenția
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <label htmlFor="tipLucrare" className="text-sm font-medium">
-                Tip Lucrare *
-              </label>
-              <Select value={formData.tipLucrare} onValueChange={(value) => handleSelectChange("tipLucrare", value)}>
-                <SelectTrigger id="tipLucrare" className={hasError("tipLucrare") ? errorStyle : ""}>
-                  <SelectValue placeholder="Selectați tipul" />
-                </SelectTrigger>
-                <SelectContent>
-                  {WORK_TYPE_OPTIONS.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {formData.tipLucrare === "Intervenție în garanție" && (
-                <p className="text-xs text-amber-600 mt-1">
-                  Notă: Garanția nu poate depăși 24 de luni de la instalare. Există cazuri cu 12 luni și cazuri cu 24
-                  luni de la predare.
-                </p>
-              )}
-            </div>
-            {(formData.tipLucrare === "Intervenție în contract" || formData.tipLucrare === "Contractare") && (
-              <div className="space-y-2">
-                <label htmlFor="contract" className="text-sm font-medium">
-                  Contract *
-                </label>
-                <ContractSelect
-                  value={formData.contract || ""}
-                  onChange={(value, contractNumber, contractType) => {
-                    handleSelectChange("contract", value)
-                    handleSelectChange("contractNumber", contractNumber || "")
-                    handleSelectChange("contractType", contractType || "") // Adăugăm tipul contractului
-                  }}
-                  hasError={hasError("contract")}
-                  errorStyle={errorStyle}
-                />
-                {formData.contractType && (
-                  <p className="text-xs text-blue-600">
-                    Tip contract: <span className="font-medium">{formData.contractType}</span>
-                  </p>
-                )}
-                <p className="text-xs text-muted-foreground">Selectați contractul asociat intervenției</p>
-              </div>
-            )}
-            <div className="space-y-2">
-              <label htmlFor="tehnicieni" className="text-sm font-medium">
-                Tehnicieni
-              </label>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {formData.tehnicieni.map((tech) => (
-                  <Badge key={tech} variant="secondary" className="bg-blue-100 text-blue-800">
-                    {tech}{" "}
-                    <span className="ml-1 cursor-pointer" onClick={() => handleTehnicieniChange(tech)}>
-                      ×
-                    </span>
-                  </Badge>
-                ))}
-              </div>
-              <Select onValueChange={handleTehnicieniChange}>
-                <SelectTrigger id="tehnicieni">
-                  <SelectValue placeholder="Selectați tehnicienii" />
-                </SelectTrigger>
-                <SelectContent>
-                  {loadingTehnicieni ? (
-                    <div className="flex items-center justify-center p-2">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      <span>Se încarcă...</span>
-                    </div>
-                  ) : tehnicieni.length > 0 ? (
-                    tehnicieni.map((tehnician) => (
-                      <SelectItem key={tehnician.id} value={tehnician.displayName || ""}>
-                        {tehnician.displayName}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <div className="p-2 text-center text-sm text-muted-foreground">
-                      Nu există tehnicieni disponibili
-                    </div>
-                  )}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">Puteți selecta mai mulți tehnicieni</p>
-            </div>
-          </div>
-
+          {/* 2. Client */}
           <div className="space-y-2">
             <label htmlFor="client" className="text-sm font-medium">
               Client *
@@ -1591,33 +1508,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             </div>
           </div>
 
-          {/* Dialog pentru adăugarea unui client nou */}
-          <Dialog open={isAddClientDialogOpen} onOpenChange={setIsAddClientDialogOpen}>
-            <DialogContent className="w-[calc(100%-2rem)] max-w-[600px] max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Adaugă Client Nou</DialogTitle>
-              </DialogHeader>
-              <ClientForm onSuccess={handleClientAdded} onCancel={() => setIsAddClientDialogOpen(false)} />
-            </DialogContent>
-          </Dialog>
-
-          {/* Dialog pentru editarea clientului selectat */}
-          <Dialog open={isEditClientDialogOpen} onOpenChange={setIsEditClientDialogOpen}>
-            <DialogContent className="w-[calc(100%-2rem)] max-w-[800px] max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Editează {selectedClient?.nume} - Adaugă Locații</DialogTitle>
-              </DialogHeader>
-              {selectedClient && (
-                <ClientEditForm 
-                  client={selectedClient} 
-                  onSuccess={handleClientEdited} 
-                  onCancel={() => setIsEditClientDialogOpen(false)} 
-                />
-              )}
-            </DialogContent>
-          </Dialog>
-
-          {/* Adăugăm secțiunea de locație */}
+          {/* 3. Locația */}
           {locatii.length > 0 && (
             <div className="space-y-2">
               <label htmlFor="locatie" className="text-sm font-medium">
@@ -1656,7 +1547,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             </div>
           )}
 
-          {/* Înlocuim componenta EquipmentSelect cu CustomEquipmentSelect */}
+          {/* 4. Echipamentul */}
           <div className="space-y-2">
             <label htmlFor="echipament" className="text-sm font-medium">
               Echipament
@@ -1687,6 +1578,137 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 {availableEquipments.length} echipamente disponibile pentru această locație
               </p>
             )}
+          </div>
+
+          {/* 5. Tipul de intervenție */}
+          <div className="space-y-2">
+            <label htmlFor="tipLucrare" className="text-sm font-medium">
+              Tip Intervenție *
+            </label>
+            <Select value={formData.tipLucrare} onValueChange={(value) => handleSelectChange("tipLucrare", value)}>
+              <SelectTrigger id="tipLucrare" className={hasError("tipLucrare") ? errorStyle : ""}>
+                <SelectValue placeholder="Selectați tipul intervenției" />
+              </SelectTrigger>
+              <SelectContent>
+                {WORK_TYPE_OPTIONS.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {formData.tipLucrare === "Intervenție în garanție" && (
+              <p className="text-xs text-amber-600 mt-1">
+                Notă: Garanția nu poate depăși 24 de luni de la instalare. Există cazuri cu 12 luni și cazuri cu 24
+                luni de la predare.
+              </p>
+            )}
+          </div>
+
+          {/* 6. Contractul */}
+          {(formData.tipLucrare === "Intervenție în contract" || formData.tipLucrare === "Contractare") && (
+            <div className="space-y-2">
+              <label htmlFor="contract" className="text-sm font-medium">
+                Contract *
+              </label>
+              <ContractSelect
+                value={formData.contract || ""}
+                onChange={(value, contractNumber, contractType) => {
+                  handleSelectChange("contract", value)
+                  handleSelectChange("contractNumber", contractNumber || "")
+                  handleSelectChange("contractType", contractType || "") // Adăugăm tipul contractului
+                }}
+                hasError={hasError("contract")}
+                errorStyle={errorStyle}
+              />
+              {formData.contractType && (
+                <p className="text-xs text-blue-600">
+                  Tip contract: <span className="font-medium">{formData.contractType}</span>
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">Selectați contractul asociat intervenției</p>
+            </div>
+          )}
+
+          {/* 7. Tehnicianul alocat */}
+          <div className="space-y-2">
+            <label htmlFor="tehnicieni" className="text-sm font-medium">
+              Tehnician alocat
+            </label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {formData.tehnicieni.map((tech) => (
+                <Badge key={tech} variant="secondary" className="bg-blue-100 text-blue-800">
+                  {tech}{" "}
+                  <span className="ml-1 cursor-pointer" onClick={() => handleTehnicieniChange(tech)}>
+                    ×
+                  </span>
+                </Badge>
+              ))}
+            </div>
+            <Select onValueChange={handleTehnicieniChange}>
+              <SelectTrigger id="tehnicieni">
+                <SelectValue placeholder="Selectați tehnicienii" />
+              </SelectTrigger>
+              <SelectContent>
+                {loadingTehnicieni ? (
+                  <div className="flex items-center justify-center p-2">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <span>Se încarcă...</span>
+                  </div>
+                ) : tehnicieni.length > 0 ? (
+                  tehnicieni.map((tehnician) => (
+                    <SelectItem key={tehnician.id} value={tehnician.displayName || ""}>
+                      {tehnician.displayName}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <div className="p-2 text-center text-sm text-muted-foreground">
+                    Nu există tehnicieni disponibili
+                  </div>
+                )}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Puteți selecta mai mulți tehnicieni</p>
+          </div>
+
+          {/* 8. Defect reclamat */}
+          <div className="space-y-2">
+            <label htmlFor="defectReclamat" className="text-sm font-medium">
+              Defect reclamat
+            </label>
+            <Textarea
+              id="defectReclamat"
+              placeholder="Introduceți defectul reclamat de client"
+              value={formData.defectReclamat || ""}
+              onChange={handleInputChange}
+              className="min-h-[80px] resize-y"
+            />
+          </div>
+
+          {/* 9. Notă internă */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <label htmlFor="descriere" className="text-sm font-medium">
+                Notă internă
+              </label>
+              {isAdminOrDispatcher && (
+                <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                  Doar uz intern
+                </Badge>
+              )}
+            </div>
+            <Textarea
+              id="descriere"
+              placeholder="Adăugați sfaturi sau instrucțiuni pentru tehnician (nu vor apărea în raportul final)"
+              value={formData.descriere}
+              onChange={handleInputChange}
+              className="min-h-[100px] resize-y"
+              disabled={!isAdminOrDispatcher}
+            />
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <LightbulbIcon className="h-3 w-3 text-amber-500" />
+              Acest câmp este vizibil doar pentru uz intern și nu va apărea în raportul generat pentru client
+            </p>
           </div>
 
           {/* Secțiunea de persoane de contact - afișată ca card informativ */}
@@ -1740,45 +1762,31 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             </Card>
           )}
 
-          {/* Add the defectReclamat field to the form, after the equipment field */}
-          <div className="space-y-2">
-            <label htmlFor="defectReclamat" className="text-sm font-medium">
-              Defect reclamat
-            </label>
-            <Textarea
-              id="defectReclamat"
-              placeholder="Introduceți defectul reclamat de client"
-              value={formData.defectReclamat || ""}
-              onChange={handleInputChange}
-              className="min-h-[80px] resize-y"
-            />
-          </div>
+          {/* Dialog pentru adăugarea unui client nou */}
+          <Dialog open={isAddClientDialogOpen} onOpenChange={setIsAddClientDialogOpen}>
+            <DialogContent className="w-[calc(100%-2rem)] max-w-[600px] max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Adaugă Client Nou</DialogTitle>
+              </DialogHeader>
+              <ClientForm onSuccess={handleClientAdded} onCancel={() => setIsAddClientDialogOpen(false)} />
+            </DialogContent>
+          </Dialog>
 
-          {/* Modificăm câmpul "Descriere Intervenție" în "Notă internă" */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <label htmlFor="descriere" className="text-sm font-medium">
-                Notă internă
-              </label>
-              {isAdminOrDispatcher && (
-                <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                  Doar uz intern
-                </Badge>
+          {/* Dialog pentru editarea clientului selectat */}
+          <Dialog open={isEditClientDialogOpen} onOpenChange={setIsEditClientDialogOpen}>
+            <DialogContent className="w-[calc(100%-2rem)] max-w-[800px] max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Editează {selectedClient?.nume} - Adaugă Locații</DialogTitle>
+              </DialogHeader>
+              {selectedClient && (
+                <ClientEditForm 
+                  client={selectedClient} 
+                  onSuccess={handleClientEdited} 
+                  onCancel={() => setIsEditClientDialogOpen(false)} 
+                />
               )}
-            </div>
-            <Textarea
-              id="descriere"
-              placeholder="Adăugați sfaturi sau instrucțiuni pentru tehnician (nu vor apărea în raportul final)"
-              value={formData.descriere}
-              onChange={handleInputChange}
-              className="min-h-[100px] resize-y"
-              disabled={!isAdminOrDispatcher}
-            />
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <LightbulbIcon className="h-3 w-3 text-amber-500" />
-              Acest câmp este vizibil doar pentru uz intern și nu va apărea în raportul generat pentru client
-            </p>
-          </div>
+            </DialogContent>
+          </Dialog>
 
           {isEdit && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

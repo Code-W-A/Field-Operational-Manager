@@ -321,3 +321,197 @@ export const getCollectionCount = async (collectionName: string) => {
   const snapshot = await getCountFromServer(coll)
   return snapshot.data().count as number
 }
+
+// Contract assignment functions - BACKWARD COMPATIBLE
+export const assignContractToClient = async (contractId: string, clientId: string): Promise<void> => {
+  // Verificăm dacă contractul există și nu este deja asignat
+  const contractRef = doc(db, "contracts", contractId)
+  const contractSnap = await getDoc(contractRef)
+  
+  if (!contractSnap.exists()) {
+    throw new Error("Contractul nu există")
+  }
+  
+  const contractData = contractSnap.data()
+  
+  // Verificăm dacă contractul este deja asignat altui client
+  if (contractData.clientId && contractData.clientId !== clientId) {
+    // Obținem numele clientului pentru mesaj mai clar
+    const existingClient = await getClientById(contractData.clientId)
+    const clientName = existingClient ? existingClient.nume : "client necunoscut"
+    throw new Error(`Contractul este deja asignat clientului: ${clientName}`)
+  }
+  
+  // Asignăm contractul la client
+  await updateDoc(contractRef, {
+    clientId: clientId,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export const unassignContractFromClient = async (contractId: string): Promise<void> => {
+  const contractRef = doc(db, "contracts", contractId)
+  await updateDoc(contractRef, {
+    clientId: null,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export const getContractsByClient = async (clientId: string) => {
+  const contractsRef = collection(db, "contracts")
+  const q = query(contractsRef, where("clientId", "==", clientId))
+  const snapshot = await getDocs(q)
+  
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  }))
+}
+
+export const getUnassignedContracts = async () => {
+  const contractsRef = collection(db, "contracts")
+  // Contractele fără clientId SUNT considerate neasignate (backward compatible)
+  const q1 = query(contractsRef, where("clientId", "==", null))
+  const q2 = query(contractsRef, where("clientId", "==", ""))
+  
+  const [snapshot1, snapshot2] = await Promise.all([
+    getDocs(q1),
+    getDocs(q2)
+  ])
+  
+  // Obținem și contractele care nu au deloc câmpul clientId (datele vechi)
+  const allContractsRef = collection(db, "contracts")
+  const allSnapshot = await getDocs(allContractsRef)
+  
+  const unassignedContracts: any[] = []
+  
+  // Adăugăm contractele cu clientId null sau ""
+  snapshot1.docs.forEach(doc => {
+    unassignedContracts.push({ id: doc.id, ...doc.data() })
+  })
+  snapshot2.docs.forEach(doc => {
+    unassignedContracts.push({ id: doc.id, ...doc.data() })
+  })
+  
+  // Adăugăm contractele care nu au deloc câmpul clientId (backward compatibility)
+  allSnapshot.docs.forEach(doc => {
+    const data = doc.data()
+    if (!data.hasOwnProperty('clientId')) {
+      unassignedContracts.push({ id: doc.id, ...data })
+    }
+  })
+  
+  // Eliminăm duplicatele
+  const uniqueContracts = unassignedContracts.filter((contract, index, self) => 
+    index === self.findIndex(c => c.id === contract.id)
+  )
+  
+  return uniqueContracts
+}
+
+export const isContractAvailableForClient = async (contractId: string, clientId: string): Promise<boolean> => {
+  const contractRef = doc(db, "contracts", contractId)
+  const contractSnap = await getDoc(contractRef)
+  
+  if (!contractSnap.exists()) {
+    return false
+  }
+  
+  const contractData = contractSnap.data()
+  
+  // Contractul este disponibil dacă:
+  // 1. Nu are clientId setat (backward compatible)
+  // 2. Are clientId null sau ""
+  // 3. Are clientId setat la clientul curent
+  return !contractData.clientId || 
+         contractData.clientId === "" || 
+         contractData.clientId === clientId
+}
+
+// Funcție pentru verificarea duplicatelor de contracte pe baza numărului
+export const checkContractNumberDuplicate = async (contractNumber: string, excludeContractId?: string): Promise<{ isDuplicate: boolean; existingContract?: any; assignedClient?: any }> => {
+  try {
+    const contractsRef = collection(db, "contracts")
+    const q = query(contractsRef, where("number", "==", contractNumber))
+    const snapshot = await getDocs(q)
+    
+    // Filtrăm contractul curent dacă este editare
+    const duplicateContracts = snapshot.docs.filter(doc => doc.id !== excludeContractId)
+    
+    if (duplicateContracts.length === 0) {
+      return { isDuplicate: false }
+    }
+    
+    const existingContract = duplicateContracts[0].data()
+    let assignedClient = null
+    
+    // Dacă contractul este asignat unui client, obținem datele clientului
+    if (existingContract.clientId) {
+      assignedClient = await getClientById(existingContract.clientId)
+    }
+    
+    return {
+      isDuplicate: true,
+      existingContract: { id: duplicateContracts[0].id, ...existingContract },
+      assignedClient
+    }
+  } catch (error) {
+    console.error("Eroare la verificarea duplicatelor de contracte:", error)
+    throw error
+  }
+}
+
+// Funcție pentru verificarea globală înainte de asignarea unui contract
+export const validateContractAssignment = async (contractNumber: string, clientId: string, excludeContractId?: string): Promise<{ isValid: boolean; error?: string }> => {
+  try {
+    // 1. Verificăm dacă există alt contract cu același număr
+    const duplicateCheck = await checkContractNumberDuplicate(contractNumber, excludeContractId)
+    
+    if (duplicateCheck.isDuplicate) {
+      const existingContract = duplicateCheck.existingContract
+      const assignedClient = duplicateCheck.assignedClient
+      
+      // Dacă contractul existent este asignat unui alt client
+      if (existingContract.clientId && existingContract.clientId !== clientId) {
+        const clientName = assignedClient ? assignedClient.nume : "client necunoscut"
+        return {
+          isValid: false,
+          error: `Contractul "${contractNumber}" este deja asignat clientului: ${clientName}`
+        }
+      }
+      
+      // Dacă contractul existent nu este asignat, dar încercăm să-l asignăm
+      if (!existingContract.clientId && clientId) {
+        return {
+          isValid: false,
+          error: `Există deja un contract cu numărul "${contractNumber}" care nu este asignat. Asignați acel contract în loc să creați unul nou.`
+        }
+      }
+    }
+    
+    // 2. Verificăm dacă clientul nu are deja un contract cu același număr
+    if (clientId) {
+      const clientContracts = await getContractsByClient(clientId)
+      const hasContractWithSameNumber = clientContracts.some((contract: any) => 
+        contract.number === contractNumber && contract.id !== excludeContractId
+      )
+      
+      if (hasContractWithSameNumber) {
+        const client = await getClientById(clientId)
+        const clientName = client ? client.nume : "client necunoscut"
+        return {
+          isValid: false,
+          error: `Clientul "${clientName}" are deja un contract cu numărul "${contractNumber}"`
+        }
+      }
+    }
+    
+    return { isValid: true }
+  } catch (error) {
+    console.error("Eroare la validarea asignării contractului:", error)
+    return {
+      isValid: false,
+      error: "A apărut o eroare la validarea contractului"
+    }
+  }
+}

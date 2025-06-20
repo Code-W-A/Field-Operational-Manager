@@ -13,6 +13,7 @@ import { AlertCircle } from "lucide-react"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { orderBy } from "firebase/firestore"
+import { ClientContractsManager } from "@/components/client-contracts-manager"
 
 // Importăm hook-ul useClientLucrari pentru a putea actualiza datele
 import { useClientLucrari } from "@/hooks/use-client-lucrari"
@@ -155,6 +156,20 @@ export default function ClientPage({ params }: { params: { id: string } }) {
               <h3 className="font-medium text-gray-500">CUI/CIF</h3>
               <p>{(client as any)?.cif || "N/A"}</p>
             </div>
+          </div>
+
+          <Separator />
+
+          {/* Secțiunea pentru contracte */}
+          <div>
+            <ClientContractsManager 
+              clientId={params.id}
+              clientName={client?.nume || ""}
+              onContractsChange={() => {
+                // Opțional: reîncărcăm datele clientului sau facem alte actualizări
+                console.log("Contractele au fost actualizate")
+              }}
+            />
           </div>
 
           <Separator />

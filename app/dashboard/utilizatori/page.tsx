@@ -232,6 +232,24 @@ export default function Utilizatori() {
     }
   }, [isMobile])
 
+  // State pentru paginația cards
+  const [cardsCurrentPage, setCardsCurrentPage] = useState(1)
+  const [cardsPageSize, setCardsPageSize] = useState(12)
+
+  // Calculăm datele pentru paginația cards
+  const paginatedCardsData = useMemo(() => {
+    const startIndex = (cardsCurrentPage - 1) * cardsPageSize
+    const endIndex = startIndex + cardsPageSize
+    return filteredData.slice(startIndex, endIndex)
+  }, [filteredData, cardsCurrentPage, cardsPageSize])
+
+  const totalCardsPages = Math.ceil(filteredData.length / cardsPageSize)
+
+  // Reset paginația când se schimbă filtrele
+  useEffect(() => {
+    setCardsCurrentPage(1)
+  }, [filteredData.length])
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target
     setFormData((prev) => ({ ...prev, [id]: value }))
@@ -822,8 +840,38 @@ export default function Utilizatori() {
             onRowClick={(row) => handleEdit(row)}
           />
         ) : (
-          <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3 w-full overflow-auto">
-            {filteredData.map((user) => (
+          <div className="space-y-4">
+            {/* Controale pentru paginația cards */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <p className="text-sm font-medium">Carduri per pagină</p>
+                <Select
+                  value={`${cardsPageSize}`}
+                  onValueChange={(value) => {
+                    setCardsPageSize(Number(value))
+                    setCardsCurrentPage(1)
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-[70px]">
+                    <SelectValue placeholder={cardsPageSize} />
+                  </SelectTrigger>
+                  <SelectContent side="top">
+                    {[6, 12, 24, 48].map((pageSize) => (
+                      <SelectItem key={pageSize} value={`${pageSize}`}>
+                        {pageSize}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex w-[100px] items-center justify-center text-sm font-medium">
+                Pagina {cardsCurrentPage} din {totalCardsPages || 1}
+              </div>
+            </div>
+
+            {/* Grid cu cards */}
+            <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3 w-full overflow-auto">
+              {paginatedCardsData.map((user) => (
               <Card key={user.uid} className="overflow-hidden">
                 <CardContent className="p-0">
                   <div className="flex items-center justify-between border-b p-4">
@@ -873,11 +921,59 @@ export default function Utilizatori() {
                 </CardContent>
               </Card>
             ))}
-            {filteredData.length === 0 && (
-              <div className="col-span-full text-center py-10">
-                <p className="text-muted-foreground">
-                  Nu există utilizatori care să corespundă criteriilor de căutare.
-                </p>
+              {paginatedCardsData.length === 0 && filteredData.length === 0 && (
+                <div className="col-span-full text-center py-10">
+                  <p className="text-muted-foreground">
+                    Nu există utilizatori care să corespundă criteriilor de căutare.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Paginația pentru cards */}
+            {totalCardsPages > 1 && (
+              <div className="flex items-center justify-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCardsCurrentPage(cardsCurrentPage - 1)}
+                  disabled={cardsCurrentPage === 1}
+                >
+                  Anterioară
+                </Button>
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: totalCardsPages }, (_, i) => i + 1)
+                    .filter((page) => {
+                      const distance = Math.abs(page - cardsCurrentPage)
+                      return distance <= 2 || page === 1 || page === totalCardsPages
+                    })
+                    .map((page, index, filteredPages) => {
+                      const prevPage = filteredPages[index - 1]
+                      const showEllipsis = prevPage && page - prevPage > 1
+                      
+                      return (
+                        <div key={page} className="flex items-center">
+                          {showEllipsis && <span className="px-2 text-muted-foreground">...</span>}
+                          <Button
+                            variant={page === cardsCurrentPage ? "default" : "outline"}
+                            size="sm"
+                            className="w-8 h-8 p-0"
+                            onClick={() => setCardsCurrentPage(page)}
+                          >
+                            {page}
+                          </Button>
+                        </div>
+                      )
+                    })}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCardsCurrentPage(cardsCurrentPage + 1)}
+                  disabled={cardsCurrentPage === totalCardsPages}
+                >
+                  Următoarea
+                </Button>
               </div>
             )}
           </div>

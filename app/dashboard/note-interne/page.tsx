@@ -55,6 +55,16 @@ import {
 } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog"
 
 interface Note {
   id: string
@@ -133,6 +143,15 @@ export default function NoteInternePage() {
   const [priority, setPriority] = useState<"low" | "medium" | "high">("medium")
   const [category, setCategory] = useState<"general" | "urgent" | "info" | "task">("general")
 
+  // Add close confirmation states
+  const [showCloseAlert, setShowCloseAlert] = useState(false)
+  const [initialFormState, setInitialFormState] = useState({
+    title: "",
+    content: "",
+    priority: "medium" as "low" | "medium" | "high",
+    category: "general" as "general" | "urgent" | "info" | "task"
+  })
+
   // Load notes from Firestore
   useEffect(() => {
     const notesRef = collection(db, "note-interne")
@@ -158,13 +177,66 @@ export default function NoteInternePage() {
     return () => unsubscribe()
   }, [])
 
-  // Reset form
+  // Reset form function with initial state tracking
   const resetForm = () => {
-    setTitle("")
-    setContent("")
-    setPriority("medium")
-    setCategory("general")
+    const defaultState = {
+      title: "",
+      content: "",
+      priority: "medium" as "low" | "medium" | "high",
+      category: "general" as "general" | "urgent" | "info" | "task"
+    }
+    
+    setTitle(defaultState.title)
+    setContent(defaultState.content)
+    setPriority(defaultState.priority)
+    setCategory(defaultState.category)
     setEditingNote(null)
+    
+    // Set initial state for comparison
+    setInitialFormState(defaultState)
+  }
+
+  // Function to check if form has unsaved changes
+  const hasUnsavedChanges = () => {
+    const currentState = { title, content, priority, category }
+    
+    // For new notes, check if any field has content
+    if (!editingNote) {
+      return title.trim() !== "" || content.trim() !== "" || 
+             priority !== "medium" || category !== "general"
+    }
+    
+    // For existing notes, compare with initial state
+    return currentState.title !== initialFormState.title ||
+           currentState.content !== initialFormState.content ||
+           currentState.priority !== initialFormState.priority ||
+           currentState.category !== initialFormState.category
+  }
+
+  // Handle dialog close attempt
+  const handleCloseAttempt = () => {
+    if (hasUnsavedChanges()) {
+      setShowCloseAlert(true)
+    } else {
+      handleDialogClose()
+    }
+  }
+
+  // Actually close the dialog
+  const handleDialogClose = () => {
+    setIsDialogOpen(false)
+    resetForm()
+  }
+
+  // Confirm close with unsaved changes
+  const confirmClose = () => {
+    setShowCloseAlert(false)
+    handleDialogClose()
+  }
+
+  // Cancel close
+  const cancelClose = () => {
+    setShowCloseAlert(false)
   }
 
   // Handle create note
@@ -280,6 +352,15 @@ export default function NoteInternePage() {
     setContent(note.content)
     setPriority(note.priority)
     setCategory(note.category)
+    
+    // Set initial state for comparison
+    setInitialFormState({
+      title: note.title,
+      content: note.content,
+      priority: note.priority,
+      category: note.category
+    })
+    
     setIsDialogOpen(true)
   }
 
@@ -574,7 +655,13 @@ export default function NoteInternePage() {
       )}
 
       {/* Unified View/Edit Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          handleCloseAttempt()
+        } else {
+          setIsDialogOpen(open)
+        }
+      }}>
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader className="space-y-3">
             <DialogTitle className="text-xl">
@@ -617,7 +704,7 @@ export default function NoteInternePage() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="priority">Prioritate</Label>
                   <Select value={priority} onValueChange={(value: "low" | "medium" | "high") => setPriority(value)}>
@@ -728,7 +815,7 @@ export default function NoteInternePage() {
             <div className="flex gap-2 flex-1 sm:flex-none justify-end">
               <Button 
                 variant="outline" 
-                onClick={() => setIsDialogOpen(false)}
+                onClick={handleCloseAttempt}
                 className="w-full sm:w-auto"
               >
                 Anulează
@@ -753,6 +840,28 @@ export default function NoteInternePage() {
         </DialogContent>
       </Dialog>
 
+      {/* Close confirmation alert */}
+      <AlertDialog open={showCloseAlert} onOpenChange={setShowCloseAlert}>
+        <AlertDialogContent className="w-[calc(100%-2rem)] max-w-[400px]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmați închiderea</AlertDialogTitle>
+            <AlertDialogDescription>
+              Aveți modificări nesalvate. Sunteți sigur că doriți să închideți formularul? Toate modificările vor fi pierdute.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
+            <AlertDialogCancel onClick={cancelClose} className="w-full sm:w-auto">
+              Nu, rămân în formular
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmClose} 
+              className="bg-red-600 hover:bg-red-700 w-full sm:w-auto"
+            >
+              Da, închide formularul
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </DashboardShell>
   )

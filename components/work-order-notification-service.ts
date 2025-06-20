@@ -196,6 +196,13 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
       technicians: technicians.map((t) => ({ name: t.name, email: t.email })),
     })
 
+    // Extract only the date part from dataInterventie (format: "DD.MM.YYYY HH:MM" -> "DD.MM.YYYY")
+    const getDateOnly = (dateTimeString: string) => {
+      if (!dateTimeString) return ""
+      // Split by space and take the first part (date)
+      return dateTimeString.split(" ")[0] || dateTimeString
+    }
+
     // Prepare notification data
     const notificationData = {
       client: {
@@ -207,7 +214,7 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
       details: {
         workType: workOrderData.tipLucrare || "",
         issueDate: workOrderData.dataEmiterii || new Date().toLocaleDateString("ro-RO"),
-        interventionDate: workOrderData.dataInterventie || "",
+        interventionDate: getDateOnly(workOrderData.dataInterventie || ""),
         location: workOrderData.locatie || "",
         description: workOrderData.descriere || "",
         reportedIssue: workOrderData.defectReclamat || "",

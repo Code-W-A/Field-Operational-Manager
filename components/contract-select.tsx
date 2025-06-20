@@ -9,6 +9,18 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
+import { validateContractAssignment } from "@/lib/firebase/firestore"
+import { toast } from "@/components/ui/use-toast"
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog"
 
 // Modificăm interfața pentru a include proprietatea type
 interface ContractSelectProps {
@@ -30,6 +42,14 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
   const [searchTerm, setSearchTerm] = useState("") // Adăugăm starea pentru căutare
   const searchInputRef = useRef<HTMLInputElement>(null) // Referință pentru input
 
+  // Add close confirmation states
+  const [showCloseAlert, setShowCloseAlert] = useState(false)
+  const [initialFormState, setInitialFormState] = useState({
+    name: "",
+    number: "",
+    type: "Abonament"
+  })
+
   // Încărcăm contractele din Firestore
   useEffect(() => {
     const fetchContracts = async () => {
@@ -45,6 +65,9 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
               id: doc.id,
               ...doc.data(),
             }))
+            
+            // Contractele au fost încărcate cu succes
+            
             setContracts(contractsData)
             setLoading(false)
           },
@@ -103,12 +126,35 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
     try {
       setIsSubmitting(true)
 
+      // Validăm contractul înainte de adăugare (fără client pentru că este neasignat)
+      const validation = await validateContractAssignment(newContractNumber, "")
+      
+      if (!validation.isValid) {
+        toast({
+          title: "Eroare",
+          description: validation.error,
+          variant: "destructive",
+        })
+        setIsSubmitting(false)
+        return
+      }
+
       // Adăugăm contractul în Firestore
-      await addDoc(collection(db, "contracts"), {
+      const contractData: any = {
         name: newContractName,
         number: newContractNumber,
         type: newContractType, // Adăugăm tipul contractului
         createdAt: serverTimestamp(),
+      }
+      
+      // Nu setăm clientId pentru contracte create din ContractSelect - rămân neasignate
+      // Acest lucru asigură consistența cu sistemul de asignare din pagina de contracte
+      
+      await addDoc(collection(db, "contracts"), contractData)
+
+      toast({
+        title: "Contract adăugat",
+        description: "Contractul a fost adăugat cu succes",
       })
 
       // Resetăm formularul și închidem dialogul
@@ -118,9 +164,49 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
       setIsAddDialogOpen(false)
     } catch (error) {
       console.error("Eroare la adăugarea contractului:", error)
+      toast({
+        title: "Eroare",
+        description: "Nu s-a putut adăuga contractul",
+        variant: "destructive",
+      })
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  // Function to check if form has unsaved changes
+  const hasUnsavedChanges = () => {
+    return newContractName.trim() !== "" || 
+           newContractNumber.trim() !== "" || 
+           newContractType !== "Abonament"
+  }
+
+  // Handle dialog close attempt
+  const handleCloseAttempt = () => {
+    if (hasUnsavedChanges()) {
+      setShowCloseAlert(true)
+    } else {
+      handleDialogClose()
+    }
+  }
+
+  // Actually close the dialog
+  const handleDialogClose = () => {
+    setIsAddDialogOpen(false)
+    setNewContractName("")
+    setNewContractNumber("")
+    setNewContractType("Abonament")
+  }
+
+  // Confirm close with unsaved changes
+  const confirmClose = () => {
+    setShowCloseAlert(false)
+    handleDialogClose()
+  }
+
+  // Cancel close
+  const cancelClose = () => {
+    setShowCloseAlert(false)
   }
 
   return (
@@ -253,7 +339,13 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
       </Dialog>
 
       {/* Dialog pentru adăugarea unui contract nou */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+      <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          handleCloseAttempt()
+        } else {
+          setIsAddDialogOpen(open)
+        }
+      }}>
         <DialogContent className="w-[calc(100%-2rem)] max-w-[400px]">
           <DialogHeader>
             <DialogTitle>Adaugă Contract Nou</DialogTitle>
@@ -290,7 +382,7 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
               </Select>
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+              <Button variant="outline" onClick={handleCloseAttempt}>
                 Anulează
               </Button>
               <Button
@@ -309,6 +401,29 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Close confirmation alert */}
+      <AlertDialog open={showCloseAlert} onOpenChange={setShowCloseAlert}>
+        <AlertDialogContent className="w-[calc(100%-2rem)] max-w-[400px]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmați închiderea</AlertDialogTitle>
+            <AlertDialogDescription>
+              Aveți modificări nesalvate. Sunteți sigur că doriți să închideți formularul? Toate modificările vor fi pierdute.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
+            <AlertDialogCancel onClick={cancelClose} className="w-full sm:w-auto">
+              Nu, rămân în formular
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmClose} 
+              className="bg-red-600 hover:bg-red-700 w-full sm:w-auto"
+            >
+              Da, închide formularul
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
