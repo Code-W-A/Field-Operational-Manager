@@ -237,7 +237,6 @@ export async function POST(request: NextRequest) {
         <li><strong>Tip lucrare:</strong> ${details?.workType || "N/A"}</li>
         <li><strong>Locație:</strong> ${details?.location || "N/A"}</li>
         <li><strong>Echipament:</strong> ${details?.equipment || "N/A"}</li>
-        <li><strong>Cod echipament:</strong> ${details?.equipmentCode || "N/A"}</li>
         <li><strong>Model echipament:</strong> ${details?.equipmentModel || "N/A"}</li>
         <li><strong>Sfaturi pt tehnician:</strong> ${details?.description || "N/A"}</li>
         <li><strong>Defect reclamat:</strong> ${details?.reportedIssue || "N/A"}</li>
@@ -253,8 +252,6 @@ export async function POST(request: NextRequest) {
         <li><strong>Tip lucrare:</strong> ${details?.workType || "N/A"}</li>
         <li><strong>Locație:</strong> ${details?.location || "N/A"}</li>
         <li><strong>Echipament:</strong> ${details?.equipment || "N/A"}</li>
-        <li><strong>Cod echipament:</strong> ${details?.equipmentCode || "N/A"}</li>
-        <li><strong>Model echipament:</strong> ${details?.equipmentModel || "N/A"}</li>
       </ul>
     `
 
