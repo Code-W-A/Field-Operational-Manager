@@ -1862,9 +1862,7 @@ export default function Lucrari() {
                         <h3 className="font-medium">{lucrare.client}</h3>
                         <p className="text-sm text-muted-foreground">
                           {lucrare.locatie}
-                              {lucrare.echipamentCod && (
-                            <span className="text-gray-500"> • Cod: {lucrare.echipamentCod}</span>
-                          )}
+                             
                         </p>
                       </div>
                       <Badge className={getWorkStatusClass(lucrare.statusLucrare)}>{lucrare.statusLucrare}</Badge>
