@@ -1861,7 +1861,7 @@ export default function Lucrari() {
                       <div>
                         <h3 className="font-medium">{lucrare.client}</h3>
                         <p className="text-sm text-muted-foreground">
-                        Locatie:{lucrare.locatie}
+                        Locatie: {lucrare.locatie}
                              
                         </p>
                       </div>
