@@ -630,7 +630,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                   <div className="space-y-1">
                     <p className="text-sm text-gray-500">
                       {lucrare.echipament
-                        ? `${lucrare.echipament} (Cod: ${lucrare.echipamentCod || "N/A"})`
+                        ? `${lucrare.echipament}`
                         : "Nespecificat"}
                     </p>
                     {lucrare.echipamentModel && (
