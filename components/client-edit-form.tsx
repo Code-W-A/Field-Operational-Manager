@@ -1076,6 +1076,23 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
                 rows={2}
               />
             </div>
+
+            <div className="space-y-1">
+              <label htmlFor="garantieLuni" className="text-sm font-medium">
+                Garanție (luni)
+              </label>
+              <Input
+                id="garantieLuni"
+                type="number"
+                min="1"
+                placeholder="12"
+                value={echipamentFormData.garantieLuni || ""}
+                onChange={handleEchipamentInputChange}
+              />
+              <p className="text-xs text-muted-foreground">
+                Perioada de garanție în luni (implicit 12 luni dacă nu se completează)
+              </p>
+            </div>
           </div>
 
           <DialogFooter className="pt-2 flex-col gap-2 sm:flex-row">

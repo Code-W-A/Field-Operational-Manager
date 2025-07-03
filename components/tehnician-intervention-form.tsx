@@ -15,6 +15,10 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Switch } from "@/components/ui/switch"
 import { logInfo } from "@/lib/utils/logging-service" // Import the logging service
+import { QRCodeScanner } from "@/components/qr-code-scanner"
+import { Badge } from "@/components/ui/badge"
+import { getWarrantyDisplayInfo } from "@/lib/utils/warranty-calculator"
+import type { Echipament } from "@/lib/firebase/firestore"
 
 // First, let's update the interface to include statusEchipament
 interface TehnicianInterventionFormProps {
@@ -27,6 +31,12 @@ interface TehnicianInterventionFormProps {
     necesitaOferta?: boolean
     comentariiOferta?: string
     statusEchipament?: string
+    // Adăugăm câmpurile pentru garanție
+    tipLucrare?: string
+    echipamentData?: Echipament
+    echipamentCod?: string
+    garantieVerificata?: boolean
+    esteInGarantie?: boolean
   }
   onUpdate: () => void
   isCompleted?: boolean
@@ -57,6 +67,14 @@ export function TehnicianInterventionForm({
   const [necesitaOferta, setNecesitaOferta] = useState(initialData.necesitaOferta || false)
   const [comentariiOferta, setComentariiOferta] = useState(initialData.comentariiOferta || "")
   const [formDisabled, setFormDisabled] = useState(isCompleted || initialData.raportGenerat)
+
+  // Adăugăm state pentru funcționalitatea de garanție
+  const [garantieVerificata, setGarantieVerificata] = useState(initialData.garantieVerificata || false)
+  const [esteInGarantie, setEsteInGarantie] = useState(initialData.esteInGarantie || false)
+  const [warrantyInfo, setWarrantyInfo] = useState<any>(null)
+  
+  // Verificăm dacă lucrarea este de tip "Intervenție în garanție"
+  const isWarrantyWork = initialData.tipLucrare === "Intervenție în garanție"
 
   useEffect(() => {
     const checkWorkOrderStatus = async () => {
@@ -90,6 +108,14 @@ export function TehnicianInterventionForm({
 
     console.log("Initial data loaded:", initialData)
   }, [initialData])
+
+  // Efect pentru calcularea informațiilor de garanție
+  useEffect(() => {
+    if (isWarrantyWork && initialData.echipamentData) {
+      const warranty = getWarrantyDisplayInfo(initialData.echipamentData)
+      setWarrantyInfo(warranty)
+    }
+  }, [isWarrantyWork, initialData.echipamentData])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const { id, value } = e.target
@@ -239,6 +265,30 @@ export function TehnicianInterventionForm({
     setStatusEchipament(value)
   }
 
+  // Funcții pentru gestionarea garanției
+  const handleQRCodeVerification = (success: boolean) => {
+    console.log("QR Code verification:", success)
+    if (success) {
+      setGarantieVerificata(true)
+    }
+  }
+
+  const handleWarrantyDeclaration = (isInWarranty: boolean) => {
+    console.log("Warranty declaration:", isInWarranty)
+    setEsteInGarantie(isInWarranty)
+    
+    // Salvăm automat declarația de garanție
+    updateLucrare(lucrareId, {
+      garantieVerificata: true,
+      esteInGarantie: isInWarranty
+    }).then(() => {
+      console.log("Warranty declaration saved")
+      onUpdate()
+    }).catch((error) => {
+      console.error("Error saving warranty declaration:", error)
+    })
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -284,6 +334,98 @@ export function TehnicianInterventionForm({
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Secțiunea pentru verificarea garanției */}
+            {isWarrantyWork && (
+              <div className="border p-4 rounded-md bg-gradient-to-r from-blue-50 to-indigo-50">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="h-5 w-5 rounded-full bg-blue-500 flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">G</span>
+                  </div>
+                  <Label className="font-medium text-blue-900">Verificare Garanție Echipament</Label>
+                </div>
+
+                {/* Informații despre garanție calculate automat */}
+                {warrantyInfo && (
+                  <div className="p-3 bg-white rounded-md border mb-3">
+                    <h4 className="font-medium text-sm mb-2">Calculul automat al garanției:</h4>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-gray-600">Status:</span>
+                        <Badge className={warrantyInfo.statusBadgeClass + " ml-1"}>
+                          {warrantyInfo.statusText}
+                        </Badge>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Zile rămase:</span>
+                        <span className={`ml-1 font-medium ${warrantyInfo.isInWarranty ? 'text-green-600' : 'text-red-600'}`}>
+                          {warrantyInfo.isInWarranty ? warrantyInfo.daysRemaining : 0} zile
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Data instalării:</span>
+                        <span className="ml-1">{warrantyInfo.installationDate || "Nedefinită"}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Expiră la:</span>
+                        <span className="ml-1">{warrantyInfo.warrantyExpires || "Nedefinită"}</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-2">{warrantyInfo.warrantyMessage}</p>
+                  </div>
+                )}
+
+                {/* Scanare QR Code și declarare garanție */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium">Verificare prin QR Code:</Label>
+                    {garantieVerificata ? (
+                      <Badge className="bg-green-100 text-green-800 border-green-200">
+                        ✓ Echipament verificat
+                      </Badge>
+                    ) : (
+                      <QRCodeScanner
+                        expectedEquipmentCode={initialData.echipamentCod}
+                        onVerificationComplete={handleQRCodeVerification}
+                        isWarrantyWork={true}
+                        onWarrantyVerification={handleWarrantyDeclaration}
+                        equipmentData={initialData.echipamentData}
+                      />
+                    )}
+                  </div>
+
+                  {/* Afișarea declarației tehnicianului */}
+                  {garantieVerificata && (
+                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                      <Label className="font-medium text-sm text-yellow-800">
+                        Declarația tehnicianului:
+                      </Label>
+                      <div className="mt-2 flex items-center space-x-2">
+                        <Badge 
+                          className={esteInGarantie 
+                            ? "bg-green-100 text-green-800 border-green-200" 
+                            : "bg-red-100 text-red-800 border-red-200"
+                          }
+                        >
+                          {esteInGarantie ? "✓ În garanție" : "✗ Nu este în garanție"}
+                        </Badge>
+                        <span className="text-xs text-gray-600">Verificat prin QR code</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Mesaj de avertisment dacă nu s-a făcut verificarea */}
+                  {!garantieVerificata && (
+                    <Alert className="border-amber-200 bg-amber-50">
+                      <Info className="h-4 w-4 text-amber-600" />
+                      <AlertDescription className="text-amber-700">
+                        Pentru lucrările în garanție este obligatorie verificarea echipamentului prin scanarea QR code-ului.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Adăugăm secțiunea pentru necesitatea ofertei */}
             <div className="border p-4 rounded-md bg-gray-50">

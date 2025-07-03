@@ -20,6 +20,12 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
+// Adăugăm importuri pentru funcționalitatea de garanție
+import { Checkbox } from "@/components/ui/checkbox"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { calculateWarranty, getWarrantyDisplayInfo } from "@/lib/utils/warranty-calculator"
+import type { Echipament } from "@/lib/firebase/firestore"
 
 interface QRCodeScannerProps {
   expectedEquipmentCode?: string
@@ -28,6 +34,10 @@ interface QRCodeScannerProps {
   onScanSuccess?: (data: any) => void
   onScanError?: (error: string) => void
   onVerificationComplete?: (success: boolean) => void
+  // Adăugăm props pentru funcționalitatea de garanție
+  isWarrantyWork?: boolean  // Dacă lucrarea este de tip "Intervenție în garanție"
+  onWarrantyVerification?: (isInWarranty: boolean) => void  // Callback pentru declararea garanției de către tehnician
+  equipmentData?: Echipament  // Datele echipamentului pentru calculul garanției
 }
 
 // Schema pentru validarea codului introdus manual
@@ -47,6 +57,9 @@ export function QRCodeScanner({
   onScanSuccess,
   onScanError,
   onVerificationComplete,
+  isWarrantyWork,
+  onWarrantyVerification,
+  equipmentData,
 }: QRCodeScannerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [scanResult, setScanResult] = useState<any>(null)
@@ -84,6 +97,11 @@ export function QRCodeScanner({
   const [globalTimeoutExpired, setGlobalTimeoutExpired] = useState(false)
   // Adăugăm un state pentru a afișa timpul rămas
   const [timeRemaining, setTimeRemaining] = useState(GLOBAL_SCAN_TIMEOUT / 1000)
+
+  // Adăugăm state pentru funcționalitatea de garanție
+  const [warrantyInfo, setWarrantyInfo] = useState<any>(null)
+  const [showWarrantyVerification, setShowWarrantyVerification] = useState(false)
+  const [technicianWarrantyDeclaration, setTechnicianWarrantyDeclaration] = useState<boolean | null>(null)
 
   // Inițializăm formularul pentru introducerea manuală a codului
   const form = useForm<ManualCodeFormValues>({
@@ -126,6 +144,10 @@ export function QRCodeScanner({
       setGlobalTimeoutProgress(0)
       setGlobalTimeoutExpired(false)
       setTimeRemaining(GLOBAL_SCAN_TIMEOUT / 1000)
+      // Resetăm state-ul pentru garanție
+      setWarrantyInfo(null)
+      setShowWarrantyVerification(false)
+      setTechnicianWarrantyDeclaration(null)
       form.reset()
 
       // Curățăm timeout-urile la închiderea dialogului
@@ -368,21 +390,32 @@ export function QRCodeScanner({
           message: "Verificare reușită!",
           details: ["Echipamentul scanat corespunde cu lucrarea."],
         })
-        if (onScanSuccess) onScanSuccess(parsedData)
-        if (onVerificationComplete) onVerificationComplete(true)
+        
+        // Verificăm garanția pentru lucrări de tip "Intervenție în garanție"
+        if (isWarrantyWork && equipmentData) {
+          const warranty = getWarrantyDisplayInfo(equipmentData)
+          setWarrantyInfo(warranty)
+          setShowWarrantyVerification(true)
+          
+          // Nu chemăm callback-urile încă - așteptăm declarația tehnicianului
+        } else {
+          // Pentru alte tipuri de lucrări, chemăm callback-urile direct
+          if (onScanSuccess) onScanSuccess(parsedData)
+          if (onVerificationComplete) onVerificationComplete(true)
 
-        // Resetăm contorul de încercări eșuate
-        setFailedScanAttempts(0)
-        setShowManualEntryButton(false)
+          // Resetăm contorul de încercări eșuate
+          setFailedScanAttempts(0)
+          setShowManualEntryButton(false)
 
-        // Închide dialogul automat după o verificare reușită
-        setTimeout(() => {
-          setIsOpen(false)
-          toast({
-            title: "Verificare reușită",
-            description: "Echipamentul scanat corespunde cu lucrarea. Puteți continua intervenția.",
-          })
-        }, 2000)
+          // Închide dialogul automat după o verificare reușită
+          setTimeout(() => {
+            setIsOpen(false)
+            toast({
+              title: "Verificare reușită",
+              description: "Echipamentul scanat corespunde cu lucrarea. Puteți continua intervenția.",
+            })
+          }, 2000)
+        }
       } else {
         setVerificationResult({
           success: false,
@@ -699,6 +732,37 @@ export function QRCodeScanner({
     }
   }, [])
 
+  // Funcție pentru gestionarea declarației tehnicianului despre garanție
+  const handleWarrantyDeclaration = (isInWarranty: boolean) => {
+    setTechnicianWarrantyDeclaration(isInWarranty)
+    
+    // Chemăm callback-ul pentru declararea garanției
+    if (onWarrantyVerification) {
+      onWarrantyVerification(isInWarranty)
+    }
+    
+    // Chemăm callback-urile pentru scanarea reușită
+    if (onScanSuccess && scanResult) {
+      onScanSuccess(scanResult)
+    }
+    if (onVerificationComplete) {
+      onVerificationComplete(true)
+    }
+
+    // Resetăm contorul de încercări eșuate
+    setFailedScanAttempts(0)
+    setShowManualEntryButton(false)
+
+    // Închide dialogul după declarația tehnicianului
+    setTimeout(() => {
+      setIsOpen(false)
+      toast({
+        title: "Verificare completă",
+        description: `Echipamentul a fost verificat. Garanție: ${isInWarranty ? 'DA' : 'NU'}`,
+      })
+    }, 1500)
+  }
+
   return (
     <>
       <Button onClick={() => setIsOpen(true)} variant="outline">
@@ -806,6 +870,106 @@ export function QRCodeScanner({
                   </ul>
                 </AlertDescription>
               </Alert>
+            )}
+
+            {/* Secțiunea pentru verificarea garanției de către tehnician */}
+            {showWarrantyVerification && verificationResult?.success && warrantyInfo && (
+              <Card className="border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-blue-900">
+                    <div className="h-5 w-5 rounded-full bg-blue-500 flex items-center justify-center">
+                      <span className="text-white text-xs font-bold">G</span>
+                    </div>
+                    Verificare Garanție Echipament
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Informații despre garanție calculate automat */}
+                  <div className="p-3 bg-white rounded-md border">
+                    <h4 className="font-medium text-sm mb-2">Calculul automat al garanției:</h4>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-gray-600">Status:</span>
+                        <Badge className={warrantyInfo.statusBadgeClass + " ml-1"}>
+                          {warrantyInfo.statusText}
+                        </Badge>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Zile rămase:</span>
+                        <span className={`ml-1 font-medium ${warrantyInfo.isInWarranty ? 'text-green-600' : 'text-red-600'}`}>
+                          {warrantyInfo.isInWarranty ? warrantyInfo.daysRemaining : 0} zile
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Data instalării:</span>
+                        <span className="ml-1">{warrantyInfo.installationDate || "Nedefinită"}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Expiră la:</span>
+                        <span className="ml-1">{warrantyInfo.warrantyExpires || "Nedefinită"}</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-2">{warrantyInfo.warrantyMessage}</p>
+                  </div>
+
+                  {/* Declarația tehnicianului */}
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                    <h4 className="font-medium text-sm mb-3 text-yellow-800">
+                      Declarație tehnician (după verificarea fizică):
+                    </h4>
+                    <p className="text-xs text-yellow-700 mb-3">
+                      Pe baza verificării fizice a echipamentului, confirmați dacă acesta este sau nu în garanție:
+                    </p>
+                    
+                    {technicianWarrantyDeclaration === null ? (
+                      <div className="flex flex-col space-y-2">
+                        <Button 
+                          onClick={() => handleWarrantyDeclaration(true)}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                          size="sm"
+                        >
+                          ✓ DA - Echipamentul este în garanție
+                        </Button>
+                        <Button 
+                          onClick={() => handleWarrantyDeclaration(false)}
+                          variant="destructive"
+                          size="sm"
+                        >
+                          ✗ NU - Echipamentul NU este în garanție
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2">
+                        <Badge 
+                          className={technicianWarrantyDeclaration 
+                            ? "bg-green-100 text-green-800 border-green-200" 
+                            : "bg-red-100 text-red-800 border-red-200"
+                          }
+                        >
+                          {technicianWarrantyDeclaration ? "✓ În garanție" : "✗ Nu este în garanție"}
+                        </Badge>
+                        <span className="text-xs text-gray-600">Declarție confirmată</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Avertisment pentru discrepanțe */}
+                  {technicianWarrantyDeclaration !== null && 
+                   technicianWarrantyDeclaration !== warrantyInfo.isInWarranty && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
+                      <div className="flex items-center space-x-2">
+                        <AlertCircle className="h-4 w-4 text-amber-600" />
+                        <span className="font-medium text-sm text-amber-800">Discrepanță detectată</span>
+                      </div>
+                      <p className="text-xs text-amber-700 mt-1">
+                        Declarația tehnicianului ({technicianWarrantyDeclaration ? "în garanție" : "nu este în garanție"}) 
+                        diferă de calculul automat ({warrantyInfo.isInWarranty ? "în garanție" : "nu este în garanție"}).
+                        Declarația tehnicianului va fi folosită în raport.
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             )}
 
             {debugMode && (

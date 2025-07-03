@@ -100,6 +100,12 @@ export interface Lucrare {
   }
   // Flag pentru a indica că datele sunt blocate
   raportDataLocked?: boolean
+  // CÂMPURI NOI PENTRU GARANȚIE - BACKWARD COMPATIBLE
+  // Aplicabile doar pentru "Intervenție în garanție"
+  garantieVerificata?: boolean     // Dacă tehnicianul a verificat garanția prin QR code
+  esteInGarantie?: boolean        // Declarația tehnicianului dacă echipamentul e în garanție
+  garantieExpira?: string         // Data când expiră garanția (calculată automat)
+  garantieZileRamase?: number     // Câte zile mai are garanție (calculat automat)
 }
 
 export interface Client {
@@ -130,6 +136,11 @@ export interface Echipament {
   status?: string
   clientId?: string
   ultimaInterventie?: string
+  // CÂMPURI NOI PENTRU GARANȚIE - BACKWARD COMPATIBLE
+  dataInstalarii?: string  // Data instalării echipamentului (format DD.MM.YYYY)
+  dataInstalare?: string   // Alias pentru backward compatibility
+  garantieLuni?: number    // Numărul de luni de garanție (implicit 12)
+  observatii?: string      // Observații despre echipament
 }
 
 export interface Contract {

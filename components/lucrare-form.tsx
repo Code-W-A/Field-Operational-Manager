@@ -13,7 +13,7 @@ import { CalendarIcon, Loader2, Plus, Phone, Mail, Users, LightbulbIcon } from "
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { orderBy, where, query, collection, onSnapshot } from "firebase/firestore"
 import type { Client, PersoanaContact, Locatie, Echipament } from "@/lib/firebase/firestore"
-import { getClienti } from "@/lib/firebase/firestore"
+import { getClienti, getClientById } from "@/lib/firebase/firestore"
 import { db } from "@/lib/firebase/config"
 // Importăm componenta ContractSelect
 import { ContractSelect } from "./contract-select"
@@ -50,6 +50,9 @@ import {
 } from "@/components/ui/alert-dialog"
 import { INVOICE_STATUS_OPTIONS, WORK_TYPE_OPTIONS } from "@/lib/utils/constants"
 import { getWorkStatusClass } from "@/lib/utils/status-classes"
+// Adăugăm importurile pentru calcularea garanției
+import { calculateWarranty, getWarrantyDisplayInfo, updateWorkOrderWarrantyInfo } from "@/lib/utils/warranty-calculator"
+
 // Define the Lucrare type
 interface Lucrare {
   dataEmiterii: string
@@ -197,6 +200,14 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
     // Adăugăm state pentru a urmări dacă am încercat să selectăm echipamentul
     const [triedSelectEquipment, setTriedSelectEquipment] = useState(false)
+
+    // Adăugăm state pentru informațiile de garanție
+    const [warrantyInfo, setWarrantyInfo] = useState<any>(null)
+    const [selectedEquipment, setSelectedEquipment] = useState<Echipament | null>(null)
+
+    // State pentru editarea echipamentului din cardul de garanție
+    const [isEditEquipmentDialogOpen, setIsEditEquipmentDialogOpen] = useState(false)
+    const [equipmentToEdit, setEquipmentToEdit] = useState<{ equipment: Echipament; locationIndex: number; equipmentIndex: number } | null>(null)
 
     // Expose methods to parent component via ref
     useImperativeHandle(ref, () => ({
@@ -347,6 +358,28 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         setTimeInterventie(currentTime)
       }
     }, [dataInterventie, timeInterventie])
+
+    // Adăugăm efect pentru calcularea garanției când se schimbă tipul de lucrare
+    useEffect(() => {
+      // Calculăm garanția doar pentru "Intervenție în garanție" și când avem echipament selectat
+      if (formData.tipLucrare === "Intervenție în garanție" && selectedEquipment) {
+        const warranty = getWarrantyDisplayInfo(selectedEquipment)
+        setWarrantyInfo(warranty)
+        
+        // Actualizăm informațiile de garanție în formData
+        if (handleCustomChange) {
+          handleCustomChange("garantieExpira", warranty.warrantyExpires)
+          handleCustomChange("garantieZileRamase", warranty.daysRemaining)
+        }
+      } else if (formData.tipLucrare !== "Intervenție în garanție") {
+        // Resetăm informațiile de garanție pentru alte tipuri de lucrări
+        setWarrantyInfo(null)
+        if (handleCustomChange) {
+          handleCustomChange("garantieExpira", null)
+          handleCustomChange("garantieZileRamase", null)
+        }
+      }
+    }, [formData.tipLucrare, selectedEquipment, handleCustomChange])
 
     // Obținem clienții din Firestore
     const {
@@ -500,6 +533,21 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         // Adăugăm și modelul echipamentului dacă există
         if (equipment.model) {
           handleCustomChange("echipamentModel", equipment.model)
+        }
+      }
+
+      // Setăm echipamentul selectat și calculăm garanția
+      setSelectedEquipment(equipment)
+      
+      // Calculăm informațiile de garanție pentru echipamentul selectat
+      if (formData.tipLucrare === "Intervenție în garanție") {
+        const warranty = getWarrantyDisplayInfo(equipment)
+        setWarrantyInfo(warranty)
+        
+        // Actualizăm informațiile de garanție în formData dacă există handleCustomChange
+        if (handleCustomChange) {
+          handleCustomChange("garantieExpira", warranty.warrantyExpires)
+          handleCustomChange("garantieZileRamase", warranty.daysRemaining)
         }
       }
 
@@ -1021,35 +1069,124 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
     // Funcție pentru a gestiona editarea cu succes a clientului
     const handleClientEdited = async () => {
-      if (!selectedClient) return
+      // Reîncărcăm lista de clienți pentru a reflecta modificările
+      console.log("Client editat, reîncărcând datele...")
       
-      try {
-        // Reîncărcăm toate clienturile pentru a obține datele actualizate
-        const clientiActualizati = await getClienti()
-        const clientActualizat = clientiActualizati.find(c => c.id === selectedClient.id)
-        
-        if (clientActualizat) {
-          setSelectedClient(clientActualizat)
-          // Actualizăm locațiile disponibile
-          if (clientActualizat.locatii && clientActualizat.locatii.length > 0) {
-            setLocatii(clientActualizat.locatii)
-          }
-          
-          toast({
-            title: "Client actualizat",
-            description: "Locațiile clientului au fost actualizate cu succes",
-          })
-        }
-      } catch (error) {
-        console.error("Eroare la reîncărcarea clientului:", error)
+      // Închide dialogul
+      setIsEditClientDialogOpen(false)
+      
+      // Opțional: afișăm un mesaj de succes
+      toast({
+        title: "Client actualizat",
+        description: "Locația nouă a fost adăugată cu succes la client.",
+      })
+    }
+
+    // Funcții pentru editarea echipamentului din cardul de garanție
+    const handleOpenEditEquipmentDialog = () => {
+      if (!selectedClient || !selectedLocatie || !selectedEquipment) {
         toast({
           title: "Eroare",
-          description: "Nu s-au putut reîncărca datele clientului",
+          description: "Nu se poate edita echipamentul. Informații lipsă.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Găsim indexul locației în lista de locații a clientului
+      const locationIndex = selectedClient.locatii?.findIndex(loc => loc.nume === selectedLocatie.nume) ?? -1
+      if (locationIndex === -1) {
+        toast({
+          title: "Eroare", 
+          description: "Nu s-a putut găsi locația în structura clientului.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Găsim indexul echipamentului în lista de echipamente a locației
+      const equipmentIndex = selectedLocatie.echipamente.findIndex(eq => eq.id === selectedEquipment.id || eq.cod === selectedEquipment.cod) ?? -1
+      if (equipmentIndex === -1) {
+        toast({
+          title: "Eroare",
+          description: "Nu s-a putut găsi echipamentul în structura locației.",
+          variant: "destructive", 
+        })
+        return
+      }
+
+      // Setăm datele pentru editare
+      setEquipmentToEdit({
+        equipment: selectedEquipment,
+        locationIndex,
+        equipmentIndex
+      })
+
+      // Deschidem dialogul de editare
+      setIsEditEquipmentDialogOpen(true)
+    }
+
+    const handleEquipmentEdited = async () => {
+      console.log("Echipament editat, reîncărcând datele...")
+      
+      try {
+        // Reîncărcăm clientul pentru a obține datele actualizate
+        if (selectedClient?.id) {
+          const updatedClient = await getClientById(selectedClient.id)
+          if (updatedClient) {
+            setSelectedClient(updatedClient)
+            
+            // Actualizăm locațiile
+            if (updatedClient.locatii && updatedClient.locatii.length > 0) {
+              setLocatii(updatedClient.locatii)
+              
+                             // Găsim locația actualizată
+               const updatedLocation = updatedClient.locatii.find((loc: Locatie) => loc.nume === selectedLocatie?.nume)
+              if (updatedLocation) {
+                setSelectedLocatie(updatedLocation)
+                setAvailableEquipments(updatedLocation.echipamente || [])
+                
+                                 // Găsim echipamentul actualizat
+                 const updatedEquipment = updatedLocation.echipamente.find((eq: Echipament) => 
+                   eq.id === selectedEquipment?.id || eq.cod === selectedEquipment?.cod
+                 )
+                if (updatedEquipment) {
+                  setSelectedEquipment(updatedEquipment)
+                  
+                  // Recalculăm garanția cu datele actualizate
+                  if (formData.tipLucrare === "Intervenție în garanție") {
+                    const warranty = getWarrantyDisplayInfo(updatedEquipment)
+                    setWarrantyInfo(warranty)
+                    
+                    if (handleCustomChange) {
+                      handleCustomChange("garantieExpira", warranty.warrantyExpires)
+                      handleCustomChange("garantieZileRamase", warranty.daysRemaining)
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        
+        // Închide dialogul
+        setIsEditEquipmentDialogOpen(false)
+        setEquipmentToEdit(null)
+        
+        // Afișăm mesaj de succes
+        toast({
+          title: "Echipament actualizat",
+          description: "Informațiile echipamentului au fost actualizate cu succes. Garanția a fost recalculată.",
+        })
+        
+      } catch (error) {
+        console.error("Eroare la reîncărcarea datelor după editarea echipamentului:", error)
+        toast({
+          title: "Avertisment",
+          description: "Echipamentul a fost salvat, dar datele ar putea să nu se reflecte imediat. Reîncărcați pagina dacă este necesar.",
           variant: "destructive",
         })
       }
-      
-      setIsEditClientDialogOpen(false)
     }
 
     // Verificăm dacă un câmp are eroare
@@ -1605,6 +1742,92 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             )}
           </div>
 
+          {/* Afișarea informațiilor de garanție pentru "Intervenție în garanție" */}
+          {formData.tipLucrare === "Intervenție în garanție" && selectedEquipment && (
+            <Card className="p-4 border rounded-md bg-gradient-to-r from-blue-50 to-indigo-50">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="h-5 w-5 rounded-full bg-blue-500 flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">G</span>
+                </div>
+                <h3 className="text-md font-medium text-blue-900">Informații Garanție Echipament</h3>
+              </div>
+
+              {warrantyInfo ? (
+                <div className="space-y-3">
+                  {/* Status garanție */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-700">Status garanție:</span>
+                    <Badge className={warrantyInfo.statusBadgeClass}>
+                      {warrantyInfo.statusText}
+                    </Badge>
+                  </div>
+
+                  {/* Informații detaliate despre garanție */}
+                  {warrantyInfo.hasWarrantyData && (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="font-medium text-gray-700">Data instalării:</span>
+                          <p className="text-gray-600">{warrantyInfo.installationDate || "Nedefinită"}</p>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">Perioada garanție:</span>
+                          <p className="text-gray-600">{warrantyInfo.warrantyMonths} luni</p>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">Garanția expiră:</span>
+                          <p className="text-gray-600">{warrantyInfo.warrantyExpires || "Nedefinită"}</p>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">Zile rămase:</span>
+                          <p className={`font-medium ${warrantyInfo.isInWarranty ? 'text-green-600' : 'text-red-600'}`}>
+                            {warrantyInfo.isInWarranty ? warrantyInfo.daysRemaining : 0} zile
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Mesaj despre status garanție */}
+                      <div className="mt-3 p-3 rounded-md bg-white border">
+                        <p className="text-sm text-gray-700">{warrantyInfo.warrantyMessage}</p>
+                      </div>
+
+                      {/* Avertisment pentru echipamente fără garanție explicit setată */}
+                      {!warrantyInfo.hasExplicitWarranty && (
+                        <div className="mt-2 p-3 rounded-md bg-yellow-50 border border-yellow-200">
+                          <div className="flex items-start justify-between">
+                            <p className="text-xs text-yellow-800 flex items-center flex-1">
+                              <span className="mr-1">⚠️</span>
+                              Acest echipament nu are perioada de garanție explicit setată. Se folosește valoarea implicită de 12 luni.
+                            </p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleOpenEditEquipmentDialog}
+                              className="ml-2 h-6 px-2 text-xs bg-white hover:bg-yellow-100 border-yellow-300"
+                            >
+                              Editează echipament
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* Mesaj de eroare dacă nu se poate calcula garanția */}
+                  {!warrantyInfo.hasWarrantyData && (
+                    <div className="p-3 rounded-md bg-red-50 border border-red-200">
+                      <p className="text-sm text-red-700">{warrantyInfo.warrantyMessage}</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-4 text-gray-500">
+                  <p className="text-sm">Selectați un echipament pentru a afișa informațiile de garanție</p>
+                </div>
+              )}
+            </Card>
+          )}
+
           {/* 6. Contractul */}
           {(formData.tipLucrare === "Intervenție în contract" || formData.tipLucrare === "Contractare") && (
             <div className="space-y-2">
@@ -1783,6 +2006,28 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                   client={selectedClient} 
                   onSuccess={handleClientEdited} 
                   onCancel={() => setIsEditClientDialogOpen(false)} 
+                />
+              )}
+            </DialogContent>
+          </Dialog>
+
+          {/* Dialog pentru editarea echipamentului din cardul de garanție */}
+          <Dialog open={isEditEquipmentDialogOpen} onOpenChange={setIsEditEquipmentDialogOpen}>
+            <DialogContent className="w-[calc(100%-2rem)] max-w-[800px] max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Editează Client - {selectedClient?.nume}</DialogTitle>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Găsiți echipamentul "{equipmentToEdit?.equipment.nume}" în lista de echipamente și editați perioada de garanție.
+                </p>
+              </DialogHeader>
+              {selectedClient && equipmentToEdit && (
+                <ClientEditForm 
+                  client={selectedClient} 
+                  onSuccess={handleEquipmentEdited} 
+                  onCancel={() => {
+                    setIsEditEquipmentDialogOpen(false)
+                    setEquipmentToEdit(null)
+                  }}
                 />
               )}
             </DialogContent>

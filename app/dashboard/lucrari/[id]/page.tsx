@@ -32,6 +32,9 @@ import { ContractDisplay } from "@/components/contract-display"
 import { QRCodeScanner } from "@/components/qr-code-scanner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { formatDate, formatTime, calculateDuration } from "@/lib/utils/time-format"
+// Adăugăm importurile pentru calculul garanției
+import { getWarrantyDisplayInfo } from "@/lib/utils/warranty-calculator"
+import type { Echipament } from "@/lib/firebase/firestore"
 
 // Funcție utilitar pentru a extrage CUI-ul indiferent de cum este salvat
 const extractCUI = (client: any) => {
@@ -50,6 +53,10 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
   const [locationAddress, setLocationAddress] = useState<string | null>(null)
   const [isUpdating, setIsUpdating] = useState(false)
   const [clientData, setClientData] = useState<any>(null)
+
+  // State pentru informațiile de garanție
+  const [equipmentData, setEquipmentData] = useState<Echipament | null>(null)
+  const [warrantyInfo, setWarrantyInfo] = useState<any>(null)
 
   // Încărcăm datele lucrării și adresa locației
   useEffect(() => {
@@ -115,6 +122,39 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
             }
           } catch (error) {
             console.error("Eroare la obținerea adresei locației:", error)
+          }
+        }
+
+        // Calculăm informațiile de garanție pentru lucrările de tip "Intervenție în garanție"
+        if (data && data.tipLucrare === "Intervenție în garanție" && data.client && data.locatie && data.echipament) {
+          try {
+            const clienti = await getClienti()
+            const client = clienti.find((c) => c.nume === data.client)
+            
+            if (client && client.locatii) {
+              const locatie = client.locatii.find((loc) => loc.nume === data.locatie)
+              
+              if (locatie && locatie.echipamente) {
+                // Căutăm echipamentul după numele sau codul echipamentului
+                const echipament = locatie.echipamente.find(
+                  (eq) => eq.nume === data.echipament || eq.cod === data.echipamentCod
+                )
+                
+                if (echipament) {
+                  console.log("Echipament găsit pentru calculul garanției:", echipament)
+                  setEquipmentData(echipament)
+                  
+                  // Calculăm informațiile de garanție
+                  const warranty = getWarrantyDisplayInfo(echipament)
+                  setWarrantyInfo(warranty)
+                  console.log("Informații garanție calculate:", warranty)
+                } else {
+                  console.log("Echipamentul nu a fost găsit pentru calculul garanției")
+                }
+              }
+            }
+          } catch (error) {
+            console.error("Eroare la calculul garanției:", error)
           }
         }
       } catch (error) {
@@ -744,6 +784,63 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                     )}
                   </div>
                 )}
+
+                {/* Informații despre garanție pentru lucrările de tip "Intervenție în garanție" */}
+                {lucrare.tipLucrare === "Intervenție în garanție" && warrantyInfo && (
+                  <div className="p-4 border rounded-md bg-gradient-to-r from-blue-50 to-indigo-50">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="h-5 w-5 rounded-full bg-blue-500 flex items-center justify-center">
+                        <span className="text-white text-xs font-bold">G</span>
+                      </div>
+                      <h4 className="text-sm font-medium text-blue-900">Informații Garanție Echipament</h4>
+                      <Badge className={warrantyInfo.statusBadgeClass}>
+                        {warrantyInfo.statusText}
+                      </Badge>
+                    </div>
+
+                    {warrantyInfo.hasWarrantyData ? (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <span className="font-medium text-gray-700">Data instalării:</span>
+                            <p className="text-gray-600">{warrantyInfo.installationDate || "Nedefinită"}</p>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">Perioada garanție:</span>
+                            <p className="text-gray-600">{warrantyInfo.warrantyMonths} luni</p>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">Garanția expiră:</span>
+                            <p className="text-gray-600">{warrantyInfo.warrantyExpires || "Nedefinită"}</p>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">Zile rămase:</span>
+                            <p className={`font-medium ${warrantyInfo.isInWarranty ? 'text-green-600' : 'text-red-600'}`}>
+                              {warrantyInfo.isInWarranty ? warrantyInfo.daysRemaining : 0} zile
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="p-3 rounded-md bg-white border">
+                          <p className="text-sm text-gray-700">{warrantyInfo.warrantyMessage}</p>
+                        </div>
+
+                        {!warrantyInfo.hasExplicitWarranty && (
+                          <div className="p-2 rounded-md bg-yellow-50 border border-yellow-200">
+                            <p className="text-xs text-yellow-800 flex items-center">
+                              <span className="mr-1">⚠️</span>
+                              Acest echipament nu are perioada de garanție explicit setată. Se folosește valoarea implicită de 12 luni.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="p-3 rounded-md bg-red-50 border border-red-200">
+                        <p className="text-sm text-red-700">{warrantyInfo.warrantyMessage}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -893,6 +990,16 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                   necesitaOferta: lucrare.necesitaOferta,
                   comentariiOferta: lucrare.comentariiOferta,
                   statusEchipament: lucrare.statusEchipament,
+                  // Adăugăm câmpurile pentru garanție
+                  tipLucrare: lucrare.tipLucrare,
+                  echipamentCod: lucrare.echipamentCod,
+                  garantieVerificata: lucrare.garantieVerificata,
+                  esteInGarantie: lucrare.esteInGarantie,
+                  // Pentru echipamentData, trebuie să găsim echipamentul în datele clientului
+                  echipamentData: clientData?.locatii
+                    ?.find(loc => loc.nume === lucrare.locatie)
+                    ?.echipamente
+                    ?.find(eq => eq.cod === lucrare.echipamentCod)
                 }}
                 onUpdate={refreshLucrare}
                 isCompleted={lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true}

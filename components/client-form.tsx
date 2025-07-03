@@ -1121,6 +1121,23 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
             </div>
 
             <div className="space-y-1">
+              <label htmlFor="garantieLuni" className="text-sm font-medium">
+                Garanție (luni)
+              </label>
+              <Input
+                id="garantieLuni"
+                type="number"
+                min="1"
+                placeholder="12"
+                value={echipamentFormData.garantieLuni || ""}
+                onChange={handleEchipamentInputChange}
+              />
+              <p className="text-xs text-muted-foreground">
+                Perioada de garanție în luni (implicit 12 luni dacă nu se completează)
+              </p>
+            </div>
+
+            <div className="space-y-1">
               <label htmlFor="observatii" className="text-sm font-medium">
                 Observații
               </label>
