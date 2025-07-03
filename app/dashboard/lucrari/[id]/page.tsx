@@ -762,19 +762,23 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                   </Badge>
                 </div>
                 <div>
-                  <p className="text-sm font-medium">Necesită ofertă:</p>
+                  <p className="text-sm font-medium">Status ofertă:</p>
                   <Badge
                     variant="outline"
                     className={
-                      lucrare.necesitaOferta
+                      (lucrare.statusOferta === "DA" || (lucrare.statusOferta === undefined && lucrare.necesitaOferta))
                         ? "bg-orange-100 text-orange-800 border-orange-200"
+                        : lucrare.statusOferta === "OFERTAT"
+                        ? "bg-blue-100 text-blue-800 border-blue-200"
                         : "bg-gray-100 text-gray-800 border-gray-200"
                     }
                   >
-                    {lucrare.necesitaOferta ? "Da" : "Nu"}
+                    {lucrare.statusOferta || (lucrare.necesitaOferta ? "DA" : "NU")}
                   </Badge>
                 </div>
-                {lucrare.necesitaOferta && lucrare.comentariiOferta && (
+                {((lucrare.statusOferta === "DA" || lucrare.statusOferta === "OFERTAT") || 
+                  (lucrare.statusOferta === undefined && lucrare.necesitaOferta)) && 
+                  lucrare.comentariiOferta && (
                   <div>
                     <p className="text-sm font-medium">Comentarii ofertă:</p>
                     <p className="text-sm text-gray-500">{lucrare.comentariiOferta}</p>
@@ -954,20 +958,28 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                         </select>
                       </div>
 
-                      {/* Necesită Ofertă */}
+                      {/* Status Ofertă */}
                       <div className="space-y-2">
-                        <label className="text-xs font-medium text-amber-800">Necesită ofertă:</label>
+                        <label className="text-xs font-medium text-amber-800">Status ofertă:</label>
                         <select
-                          value={lucrare.necesitaOferta ? "true" : "false"}
+                          value={lucrare.statusOferta || (lucrare.necesitaOferta ? "DA" : "NU")}
                           onChange={async (e) => {
                             try {
                               setIsUpdating(true)
-                              const newValue = e.target.value === "true"
-                              await updateLucrare(lucrare.id!, { necesitaOferta: newValue })
-                              setLucrare(prev => prev ? { ...prev, necesitaOferta: newValue } : null)
+                              const newStatus = e.target.value as "NU" | "DA" | "OFERTAT"
+                              await updateLucrare(lucrare.id!, { 
+                                statusOferta: newStatus,
+                                // Păstrăm sincronizarea cu câmpul vechi pentru compatibilitate
+                                necesitaOferta: newStatus === "DA"
+                              })
+                              setLucrare(prev => prev ? { 
+                                ...prev, 
+                                statusOferta: newStatus,
+                                necesitaOferta: newStatus === "DA"
+                              } : null)
                               toast({
                                 title: "Status actualizat",
-                                description: "Statusul pentru ofertă a fost actualizat."
+                                description: `Statusul ofertei a fost actualizat la "${newStatus}".`
                               })
                             } catch (error) {
                               toast({
@@ -982,15 +994,17 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                           className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
                           disabled={isUpdating}
                         >
-                          <option value="false">Nu</option>
-                          <option value="true">Da</option>
+                          <option value="NU">NU</option>
+                          <option value="DA">DA</option>
+                          <option value="OFERTAT">OFERTAT</option>
                         </select>
                       </div>
                     </div>
                     
                     <div className="mt-3 p-2 bg-amber-100 rounded text-xs text-amber-700">
                       <strong>Notă:</strong> Modificarea acestor statusuri va schimba culoarea rândului în lista de lucrări. 
-                      Lucrările cu status "NEFINALIZAT", echipament "Nefuncțional" sau care "Necesită ofertă" apar cu fundal roșu.
+                      Lucrările cu status "NEFINALIZAT", echipament "Nefuncțional" sau status ofertă "DA" apar cu fundal roșu. 
+                      Statusul "OFERTAT" NU mai apare cu fundal roșu.
                     </div>
                   </div>
                 )}

@@ -113,6 +113,7 @@ export interface Lucrare {
   mesajReatribuire?: string       // Mesajul de reatribuire (ex: "reintervenită în urma lucrării x")
   // CÂMP NOU PENTRU CONFIRMAREA GARANȚIEI DE CĂTRE TEHNICIAN - BACKWARD COMPATIBLE
   tehnicianConfirmaGarantie?: boolean  // Confirmarea tehnicianului la fața locului despre garanție (doar pentru "Intervenție în garanție")
+  statusOferta?: "NU" | "DA" | "OFERTAT" // Nou câmp pentru managementul statusului ofertei
 }
 
 export interface Client {

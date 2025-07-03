@@ -1104,6 +1104,8 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
                   type="date"
                   value={echipamentFormData.dataInstalare || ""}
                   onChange={handleEchipamentInputChange}
+                  lang="ro"
+                  placeholder="dd/mm/yyyy"
                 />
               </div>
 
@@ -1116,6 +1118,8 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
                   type="date"
                   value={echipamentFormData.ultimaInterventie || ""}
                   onChange={handleEchipamentInputChange}
+                  lang="ro"
+                  placeholder="dd/mm/yyyy"
                 />
               </div>
             </div>

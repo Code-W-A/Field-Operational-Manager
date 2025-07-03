@@ -1048,6 +1048,8 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
                   type="date"
                   value={echipamentFormData.dataInstalare || ""}
                   onChange={handleEchipamentInputChange}
+                  lang="ro"
+                  placeholder="dd/mm/yyyy"
                 />
               </div>
 
@@ -1060,6 +1062,8 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
                   type="date"
                   value={echipamentFormData.ultimaInterventie || ""}
                   onChange={handleEchipamentInputChange}
+                  lang="ro"
+                  placeholder="dd/mm/yyyy"
                 />
               </div>
             </div>

@@ -1559,12 +1559,16 @@ export default function Lucrari() {
     },
     {
       accessorKey: "necesitaOferta",
-      header: "Necesită ofertă",
+      header: "Status ofertă",
       enableHiding: true,
       enableFiltering: true,
       cell: ({ row }) => {
-        if (row.original.necesitaOferta) {
+        const statusOferta = row.original.statusOferta || (row.original.necesitaOferta ? "DA" : "NU")
+        
+        if (statusOferta === "DA") {
           return <Badge className="bg-orange-100 text-orange-800">Necesită ofertă</Badge>
+        } else if (statusOferta === "OFERTAT") {
+          return <Badge className="bg-blue-100 text-blue-800">Ofertat</Badge>
         }
         return null
       },
@@ -1856,7 +1860,7 @@ export default function Lucrari() {
         <div className="flex flex-wrap gap-2">
           <div className="flex items-center">
             <div className="w-4 h-4 mr-1 bg-red-100 border border-red-500 border-l-4 rounded"></div>
-            <span className="text-xs">Situații critice (NEFINALIZAT / Echipament nefuncțional / Necesită ofertă)</span>
+            <span className="text-xs">Situații critice (NEFINALIZAT / Echipament nefuncțional / Status ofertă: DA)</span>
           </div>
           <div className="flex items-center">
             <div className="w-4 h-4 mr-1 bg-gray-50 border border-gray-200 rounded"></div>
@@ -2079,10 +2083,16 @@ export default function Lucrari() {
                       </div>
                       {/* Adăugăm acest cod în secțiunea de carduri, după statusul lucrării
                       Acest cod trebuie adăugat în componenta Card, în secțiunea de detalii */}
-                      {lucrare.necesitaOferta && (
+                      {(lucrare.statusOferta === "DA" || (lucrare.statusOferta === undefined && lucrare.necesitaOferta)) && (
                         <div className="flex justify-between mt-2">
                           <span className="text-sm font-medium text-muted-foreground">Ofertă:</span>
                           <Badge className="bg-orange-100 text-orange-800">Necesită ofertă</Badge>
+                        </div>
+                      )}
+                      {lucrare.statusOferta === "OFERTAT" && (
+                        <div className="flex justify-between mt-2">
+                          <span className="text-sm font-medium text-muted-foreground">Ofertă:</span>
+                          <Badge className="bg-blue-100 text-blue-800">Ofertat</Badge>
                         </div>
                       )}
                       {lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true && (
