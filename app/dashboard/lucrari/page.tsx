@@ -838,7 +838,7 @@ export default function Lucrari() {
         // Adăugăm datele de re-intervenție dacă este cazul
         ...(isReassignment && originalWorkOrderId && {
           lucrareOriginala: originalWorkOrderId,
-          mesajReatribuire: `Re-intervenție de la lucrarea ${originalWorkOrderId}`,
+          mesajReatribuire: `Re-intervenție pentru: ${formData.originalWorkOrderInfo || `lucrarea ${originalWorkOrderId}`}`,
         }),
       }
 
@@ -883,7 +883,7 @@ export default function Lucrari() {
         variant: "destructive",
       })
     }
-  }, [addLucrare, toast, isReassignment, originalWorkOrderId])
+  }, [addLucrare, toast, isReassignment, originalWorkOrderId, formData])
 
   const handleSubmit = async () => {
     try {
@@ -908,7 +908,7 @@ export default function Lucrari() {
         ...(isReassignment && originalWorkOrderId
           ? {
               lucrareOriginala: originalWorkOrderId,
-              mesajReatribuire: `Re-intervenție de la lucrarea ${originalWorkOrderId}`,
+              mesajReatribuire: `Re-intervenție pentru: ${formData.originalWorkOrderInfo || `lucrarea ${originalWorkOrderId}`}`,
             }
           : {}),
       }
@@ -1266,6 +1266,9 @@ export default function Lucrari() {
   // Funcție pentru reatribuirea unei lucrări (pentru dispecer)
   const handleReassign = useCallback(async (originalLucrare: any) => {
     try {
+      // Creăm un mesaj informativ cu detaliile lucrării originale
+      const originalInfo = `${originalLucrare.client} - ${originalLucrare.locatie} (${originalLucrare.dataInterventie})`
+      
       // Precompletăm formularul cu datele din lucrarea originală
       const prefilledData = {
         tipLucrare: originalLucrare.tipLucrare || "",
@@ -1285,6 +1288,8 @@ export default function Lucrari() {
         persoaneContact: originalLucrare.persoaneContact || [],
         echipamentId: originalLucrare.echipamentId || "",
         echipamentCod: originalLucrare.echipamentCod || "",
+        // Stocăm informațiile originale pentru mesaj
+        originalWorkOrderInfo: originalInfo,
       }
 
       // Setăm datele în formularul de adăugare
@@ -1751,7 +1756,8 @@ export default function Lucrari() {
                 <div className="mb-4 p-3 bg-blue-100 border border-blue-300 rounded-md">
                   <div className="flex items-center">
                     <span className="text-blue-800 font-medium">
-                      Re-intervenție: Acest formular este precompletat cu datele din lucrarea originală {originalWorkOrderId}
+                      Re-intervenție: Acest formular este precompletat cu datele din lucrarea originală pentru{" "}
+                      <strong>{formData.originalWorkOrderInfo || originalWorkOrderId}</strong>
                     </span>
                   </div>
                 </div>

@@ -871,6 +871,129 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                     )}
                   </div>
                 )}
+
+                {/* Secțiune pentru managementul statusurilor critice - doar pentru admin/dispecer */}
+                {isAdminOrDispatcher && lucrare.statusLucrare === "Finalizat" && (
+                  <div className="p-4 border rounded-md bg-amber-50 border-amber-200">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="h-5 w-5 rounded-full bg-amber-500 flex items-center justify-center">
+                        <span className="text-white text-xs font-bold">⚠</span>
+                      </div>
+                      <h4 className="text-sm font-medium text-amber-900">Managementul statusurilor critice</h4>
+                      <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 text-xs">
+                        Doar Admin/Dispecer
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-amber-700 mb-3">
+                      Acestea controlează afișarea cu fundal roșu în lista de lucrări. Modificați doar când situația s-a rezolvat.
+                    </p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* Status Finalizare Intervenție */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-amber-800">Status finalizare intervenție:</label>
+                        <select
+                          value={lucrare.statusFinalizareInterventie || "FINALIZAT"}
+                          onChange={async (e) => {
+                            try {
+                              setIsUpdating(true)
+                              await updateLucrare(lucrare.id!, { statusFinalizareInterventie: e.target.value })
+                              setLucrare(prev => prev ? { ...prev, statusFinalizareInterventie: e.target.value } : null)
+                              toast({
+                                title: "Status actualizat",
+                                description: "Statusul finalizării intervenției a fost actualizat."
+                              })
+                            } catch (error) {
+                              toast({
+                                title: "Eroare",
+                                description: "Nu s-a putut actualiza statusul.",
+                                variant: "destructive"
+                              })
+                            } finally {
+                              setIsUpdating(false)
+                            }
+                          }}
+                          className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
+                          disabled={isUpdating}
+                        >
+                          <option value="FINALIZAT">FINALIZAT</option>
+                          <option value="NEFINALIZAT">NEFINALIZAT</option>
+                        </select>
+                      </div>
+
+                      {/* Status Echipament */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-amber-800">Status echipament:</label>
+                        <select
+                          value={lucrare.statusEchipament || "Funcțional"}
+                          onChange={async (e) => {
+                            try {
+                              setIsUpdating(true)
+                              await updateLucrare(lucrare.id!, { statusEchipament: e.target.value })
+                              setLucrare(prev => prev ? { ...prev, statusEchipament: e.target.value } : null)
+                              toast({
+                                title: "Status actualizat",
+                                description: "Statusul echipamentului a fost actualizat."
+                              })
+                            } catch (error) {
+                              toast({
+                                title: "Eroare",
+                                description: "Nu s-a putut actualiza statusul.",
+                                variant: "destructive"
+                              })
+                            } finally {
+                              setIsUpdating(false)
+                            }
+                          }}
+                          className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
+                          disabled={isUpdating}
+                        >
+                          <option value="Funcțional">Funcțional</option>
+                          <option value="Parțial funcțional">Parțial funcțional</option>
+                          <option value="Nefuncțional">Nefuncțional</option>
+                        </select>
+                      </div>
+
+                      {/* Necesită Ofertă */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-amber-800">Necesită ofertă:</label>
+                        <select
+                          value={lucrare.necesitaOferta ? "true" : "false"}
+                          onChange={async (e) => {
+                            try {
+                              setIsUpdating(true)
+                              const newValue = e.target.value === "true"
+                              await updateLucrare(lucrare.id!, { necesitaOferta: newValue })
+                              setLucrare(prev => prev ? { ...prev, necesitaOferta: newValue } : null)
+                              toast({
+                                title: "Status actualizat",
+                                description: "Statusul pentru ofertă a fost actualizat."
+                              })
+                            } catch (error) {
+                              toast({
+                                title: "Eroare",
+                                description: "Nu s-a putut actualiza statusul.",
+                                variant: "destructive"
+                              })
+                            } finally {
+                              setIsUpdating(false)
+                            }
+                          }}
+                          className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
+                          disabled={isUpdating}
+                        >
+                          <option value="false">Nu</option>
+                          <option value="true">Da</option>
+                        </select>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-3 p-2 bg-amber-100 rounded text-xs text-amber-700">
+                      <strong>Notă:</strong> Modificarea acestor statusuri va schimba culoarea rândului în lista de lucrări. 
+                      Lucrările cu status "NEFINALIZAT", echipament "Nefuncțional" sau care "Necesită ofertă" apar cu fundal roșu.
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
