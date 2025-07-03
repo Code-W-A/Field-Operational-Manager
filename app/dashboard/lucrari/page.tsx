@@ -904,10 +904,23 @@ export default function Lucrari() {
         dataInterventie: format(dataInterventie, "dd.MM.yyyy HH:mm"),
         ...formData,
         statusLucrare: statusLucrare, // Suprascriem statusul cu valoarea calculată
+        // Dacă este re-intervenție, adăugăm referința către lucrarea originală
+        ...(isReassignment && originalWorkOrderId
+          ? {
+              lucrareOriginala: originalWorkOrderId,
+              mesajReatribuire: `Re-intervenție de la lucrarea ${originalWorkOrderId}`,
+            }
+          : {}),
       }
 
       // Adăugăm lucrarea în Firestore
       const lucrareId = await addLucrare(newLucrare)
+
+      // Resetăm starea de re-intervenție
+      if (isReassignment) {
+        setIsReassignment(false)
+        setOriginalWorkOrderId(null)
+      }
 
       // Trimitem notificări prin email
       try {
@@ -1757,9 +1770,21 @@ export default function Lucrari() {
               handleCustomChange={handleCustomChange}
               fieldErrors={fieldErrors}
               setFieldErrors={setFieldErrors}
-              onSubmit={handleAddLucrare}
-              onCancel={handleCloseAddDialog}
             />
+            <DialogFooter className="flex-col gap-2 sm:flex-row">
+              <Button variant="outline" onClick={handleCloseAddDialog}>
+                Anulează
+              </Button>
+              <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSubmit} disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
+                  </>
+                ) : (
+                  "Salvează"
+                )}
+              </Button>
+            </DialogFooter>
             </DialogContent>
           </Dialog>
         )}
