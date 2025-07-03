@@ -106,8 +106,13 @@ export default function Lucrari() {
   const isTechnician = userData?.role === "tehnician"
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [dataEmiterii, setDataEmiterii] = useState(new Date())
-  const [dataInterventie, setDataInterventie] = useState(new Date())
+  const [editLucrareId, setEditLucrareId] = useState<string | null>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [lucrareToDelete, setLucrareToDelete] = useState<string | null>(null)
+  const [isReassignment, setIsReassignment] = useState(false)
+  const [originalWorkOrderId, setOriginalWorkOrderId] = useState(null)
+  const [dataEmiterii, setDataEmiterii] = useState<Date | undefined>(new Date())
+  const [dataInterventie, setDataInterventie] = useState<Date | undefined>(new Date())
   const [activeTab, setActiveTab] = useState("tabel")
   const [selectedLucrare, setSelectedLucrare] = useState(null)
   const [formData, setFormData] = useState({
@@ -128,7 +133,7 @@ export default function Lucrari() {
     persoaneContact: [],
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState([])
   const [tableInstance, setTableInstance] = useState(null)
   const [searchText, setSearchText] = useState("")
@@ -732,47 +737,54 @@ export default function Lucrari() {
     saveColumnVisibility(columnVisibility)
   }
 
-  const handleInputChange = (e) => {
-    const { id, value } = e.target
-    setFormData((prev) => ({ ...prev, [id]: value }))
-  }
+  // Funcții pentru manipularea formularului de adăugare
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
+  }, [])
 
-  const handleSelectChange = (id, value) => {
-    setFormData((prev) => ({ ...prev, [id]: value }))
-  }
+  const handleSelectChange = useCallback((id: string, value: string) => {
+    setFormData(prev => ({ ...prev, [id]: value }))
+  }, [])
 
-  const handleTehnicieniChange = (value) => {
-    // Verificăm dacă tehnicianul este deja selectat
-    if (formData.tehnicieni.includes(value)) {
-      // Dacă da, îl eliminăm
-      const newTehnicieni = formData.tehnicieni.filter((tech) => tech !== value)
+  const handleTehnicieniChange = useCallback((value: string) => {
+    setFormData(prev => {
+      const newTehnicieni = prev.tehnicieni.includes(value)
+        ? prev.tehnicieni.filter(t => t !== value)
+        : [...prev.tehnicieni, value]
+      return { ...prev, tehnicieni: newTehnicieni }
+    })
+  }, [])
 
-      // Actualizăm statusul doar dacă este "Listată" sau "Atribuită"
-      let newStatus = formData.statusLucrare
-      if (formData.statusLucrare === "Listată" || formData.statusLucrare === "Atribuită") {
-        newStatus = newTehnicieni.length > 0 ? "Atribuită" : "Listată"
-      }
+  const handleCustomChange = useCallback((field: string, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }, [])
 
-      setFormData((prev) => ({
-        ...prev,
-        tehnicieni: newTehnicieni,
-        statusLucrare: newStatus,
-      }))
-    } else {
-      // Dacă nu, îl adăugăm
-      // Actualizăm statusul doar dacă este "Listată" sau "Atribuită"
-      let newStatus = formData.statusLucrare
-      if (formData.statusLucrare === "Listată" || formData.statusLucrare === "Atribuită") {
-        newStatus = "Atribuită" // Dacă adăugăm un tehnician, statusul devine "Atribuită"
-      }
-
-      setFormData((prev) => ({
-        ...prev,
-        tehnicieni: [...prev.tehnicieni, value],
-        statusLucrare: newStatus,
-      }))
-    }
-  }
+  const handleCloseAddDialog = useCallback(() => {
+    setIsAddDialogOpen(false)
+    setIsReassignment(false)
+    setOriginalWorkOrderId(null)
+    setFormData({
+      tipLucrare: "",
+      tehnicieni: [],
+      client: "",
+      locatie: "",
+      echipament: "",
+      descriere: "",
+      persoanaContact: "",
+      telefon: "",
+      statusLucrare: "Programată",
+      statusFacturare: "Nefacturat",
+      contract: "",
+      contractNumber: "",
+      contractType: "",
+      defectReclamat: "",
+      persoaneContact: [],
+      echipamentId: "",
+      echipamentCod: "",
+    })
+    setFieldErrors([])
+  }, [])
 
   const resetForm = () => {
     setDataEmiterii(new Date())
@@ -815,6 +827,63 @@ export default function Lucrari() {
 
     return errors.length === 0
   }
+
+  // Funcție pentru adăugarea unei noi lucrări
+  const handleAddLucrare = useCallback(async (data: any) => {
+    try {
+      const dataToSubmit = {
+        ...data,
+        // Adăugăm timestamp-ul de creare
+        dataCreare: new Date(),
+        // Adăugăm datele de re-intervenție dacă este cazul
+        ...(isReassignment && originalWorkOrderId && {
+          lucrareOriginala: originalWorkOrderId,
+          mesajReatribuire: `Re-intervenție de la lucrarea ${originalWorkOrderId}`,
+        }),
+      }
+
+      await addLucrare(dataToSubmit)
+      
+      // Resetăm starea de re-intervenție
+      setIsReassignment(false)
+      setOriginalWorkOrderId(null)
+      
+      // Reset form și închidere dialog
+      setFormData({
+        tipLucrare: "",
+        tehnicieni: [],
+        client: "",
+        locatie: "",
+        echipament: "",
+        descriere: "",
+        persoanaContact: "",
+        telefon: "",
+        statusLucrare: "Programată",
+        statusFacturare: "Nefacturat",
+        contract: "",
+        contractNumber: "",
+        contractType: "",
+        defectReclamat: "",
+        persoaneContact: [],
+        echipamentId: "",
+        echipamentCod: "",
+      })
+      setFieldErrors([])
+      setIsAddDialogOpen(false)
+      
+      toast({
+        title: "Succes",
+        description: isReassignment ? "Re-intervenția a fost creată cu succes." : "Lucrarea a fost adăugată cu succes.",
+      })
+    } catch (error) {
+      console.error("Eroare la adăugarea lucrării:", error)
+      toast({
+        title: "Eroare",
+        description: "A apărut o eroare la adăugarea lucrării.",
+        variant: "destructive",
+      })
+    }
+  }, [addLucrare, toast, isReassignment, originalWorkOrderId])
 
   const handleSubmit = async () => {
     try {
@@ -1184,38 +1253,47 @@ export default function Lucrari() {
   // Funcție pentru reatribuirea unei lucrări (pentru dispecer)
   const handleReassign = useCallback(async (originalLucrare: any) => {
     try {
-      // În loc să creăm automat lucrarea, redirecționăm către formularul de adăugare cu datele precompletate
-      const queryParams = new URLSearchParams({
-        reassign: 'true',
-        originalId: originalLucrare.id,
-        tipLucrare: originalLucrare.tipLucrare || '',
-        client: originalLucrare.client || '',
-        locatie: originalLucrare.locatie || '',
-        echipament: originalLucrare.echipament || '',
-        echipamentCod: originalLucrare.echipamentCod || '',
-        echipamentModel: originalLucrare.echipamentModel || '',
-        descriere: originalLucrare.descriere || '',
-        persoanaContact: originalLucrare.persoanaContact || '',
-        telefon: originalLucrare.telefon || '',
-        defectReclamat: originalLucrare.defectReclamat || '',
-        contract: originalLucrare.contract || '',
-        contractNumber: originalLucrare.contractNumber || '',
-        contractType: originalLucrare.contractType || '',
-        tehnicieni: JSON.stringify(originalLucrare.tehnicieni || []),
-      })
+      // Precompletăm formularul cu datele din lucrarea originală
+      const prefilledData = {
+        tipLucrare: originalLucrare.tipLucrare || "",
+        tehnicieni: originalLucrare.tehnicieni || [],
+        client: originalLucrare.client || "",
+        locatie: originalLucrare.locatie || "",
+        echipament: originalLucrare.echipament || "",
+        descriere: originalLucrare.descriere || "",
+        persoanaContact: originalLucrare.persoanaContact || "",
+        telefon: originalLucrare.telefon || "",
+        statusLucrare: "Listată", // Resetăm statusul
+        statusFacturare: "Nefacturat", // Resetăm statusul facturării
+        contract: originalLucrare.contract || "",
+        contractNumber: originalLucrare.contractNumber || "",
+        contractType: originalLucrare.contractType || "",
+        defectReclamat: originalLucrare.defectReclamat || "",
+        persoaneContact: originalLucrare.persoaneContact || [],
+        echipamentId: originalLucrare.echipamentId || "",
+        echipamentCod: originalLucrare.echipamentCod || "",
+      }
 
-      // Redirecționăm către pagina de adăugare cu parametrii
-      router.push(`/dashboard/lucrari/new?${queryParams.toString()}`)
+      // Setăm datele în formularul de adăugare
+      setFormData(prefilledData)
+      
+      // Setăm un indicator că este re-intervenție
+      setIsReassignment(true)
+      setOriginalWorkOrderId(originalLucrare.id)
+      
+      // Resetăm erorile și deschidem dialogul
+      setFieldErrors([])
+      setIsAddDialogOpen(true)
       
     } catch (error) {
-      console.error("Eroare la redirecționarea către formularul de reatribuire:", error)
+      console.error("Eroare la precompletarea formularului de reatribuire:", error)
       toast({
         title: "Eroare",
-        description: "A apărut o eroare la redirecționarea către formularul de reatribuire.",
+        description: "A apărut o eroare la precompletarea formularului de reatribuire.",
         variant: "destructive",
       })
     }
-  }, [router, toast])
+  }, [toast])
 
   // Funcție pentru a verifica dacă o lucrare necesită reatribuire (are fundal roșu)
   const needsReassignment = useCallback((lucrare: any) => {
@@ -1600,22 +1678,8 @@ export default function Lucrari() {
       },
     },
   ]
-  const handleCustomChange = useCallback(
-    (field: string, value: any) => {
-      setFormData((prev) => ({ ...prev, [field]: value }))
-    },
-    [], //  ← dependenţe goale ⇒ funcţia NU-şi mai schimbă referinţa
-  )
-  // Function to check if we should show the close confirmation dialog
-  const handleCloseAddDialog = () => {
-    if (addFormRef.current?.hasUnsavedChanges()) {
-      setShowCloseAlert(true)
-    } else {
-      setIsAddDialogOpen(false)
-    }
-  }
 
-  // Function to check if we should show the close confirmation dialog for edit
+  // Function to check if we should show the close confirmation dialog
   const handleCloseEditDialog = () => {
     if (editFormRef.current?.hasUnsavedChanges()) {
       setShowCloseAlert(true)
@@ -1664,17 +1728,22 @@ export default function Lucrari() {
                 <Plus className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Adaugă</span> Lucrare
               </Button>
             </DialogTrigger>
-            <DialogContent className="w-[calc(100%-2rem)] max-w-[600px] max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Adaugă Lucrare Nouă</DialogTitle>
-                <DialogDescription>Completați detaliile pentru a crea o lucrare nouă</DialogDescription>
               </DialogHeader>
-              {error && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
+              
+              {/* Banner pentru re-intervenții */}
+              {isReassignment && originalWorkOrderId && (
+                <div className="mb-4 p-3 bg-blue-100 border border-blue-300 rounded-md">
+                  <div className="flex items-center">
+                    <span className="text-blue-800 font-medium">
+                      Re-intervenție: Acest formular este precompletat cu datele din lucrarea originală {originalWorkOrderId}
+                    </span>
+                  </div>
+                </div>
               )}
+              
               <LucrareForm
                 ref={addFormRef}
                 dataEmiterii={dataEmiterii}
@@ -1685,24 +1754,11 @@ export default function Lucrari() {
                 handleInputChange={handleInputChange}
                 handleSelectChange={handleSelectChange}
                 handleTehnicieniChange={handleTehnicieniChange}
-                fieldErrors={fieldErrors}
-                onCancel={() => handleCloseAddDialog()}
                 handleCustomChange={handleCustomChange}
+                fieldErrors={fieldErrors}
+                onSubmit={handleAddLucrare}
+                onCancel={handleCloseAddDialog}
               />
-              <DialogFooter className="flex-col gap-2 sm:flex-row">
-                <Button variant="outline" onClick={handleCloseAddDialog}>
-                  Anulează
-                </Button>
-                <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSubmit} disabled={isSubmitting}>
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
-                    </>
-                  ) : (
-                    "Salvează"
-                  )}
-                </Button>
-              </DialogFooter>
             </DialogContent>
           </Dialog>
         )}
