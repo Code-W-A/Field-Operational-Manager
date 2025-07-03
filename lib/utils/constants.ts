@@ -128,6 +128,23 @@ export function getWorkStatusRowClass(lucrare: any): string {
     return "" // Returnăm string gol pentru cazul în care lucrare sau statusLucrare nu există
   }
 
+  // PRIORITATE MAXIMĂ: Rânduri roșii pentru condițiile critice
+  // 1. Status finalizare intervenție = NEFINALIZAT
+  if (lucrare.statusFinalizareInterventie === "NEFINALIZAT") {
+    return "bg-red-100 border-l-4 border-red-500"
+  }
+
+  // 2. Echipament nefuncțional
+  if (lucrare.statusEchipament === "Nefuncțional") {
+    return "bg-red-100 border-l-4 border-red-500"
+  }
+
+  // 3. Necesită ofertă
+  if (lucrare.necesitaOferta === true) {
+    return "bg-red-100 border-l-4 border-red-500"
+  }
+
+  // PRIORITATE SECUNDARĂ: Colorarea normală pe baza statusului lucrării
   switch (lucrare.statusLucrare.toLowerCase()) {
     case WORK_STATUS.LISTED.toLowerCase():
       return "bg-gray-50"

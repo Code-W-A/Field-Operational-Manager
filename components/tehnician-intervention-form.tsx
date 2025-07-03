@@ -15,10 +15,11 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Switch } from "@/components/ui/switch"
 import { logInfo } from "@/lib/utils/logging-service" // Import the logging service
-import { QRCodeScanner } from "@/components/qr-code-scanner"
+
 import { Badge } from "@/components/ui/badge"
 import { getWarrantyDisplayInfo } from "@/lib/utils/warranty-calculator"
 import type { Echipament } from "@/lib/firebase/firestore"
+import { Checkbox } from "@/components/ui/checkbox"
 
 // First, let's update the interface to include statusEchipament
 interface TehnicianInterventionFormProps {
@@ -35,8 +36,10 @@ interface TehnicianInterventionFormProps {
     tipLucrare?: string
     echipamentData?: Echipament
     echipamentCod?: string
-    garantieVerificata?: boolean
-    esteInGarantie?: boolean
+    // Adăugăm câmpul pentru status finalizare intervenție
+    statusFinalizareInterventie?: "FINALIZAT" | "NEFINALIZAT"
+    // Adăugăm bifa pentru confirmarea garanției de către tehnician
+    tehnicianConfirmaGarantie?: boolean
   }
   onUpdate: () => void
   isCompleted?: boolean
@@ -68,13 +71,21 @@ export function TehnicianInterventionForm({
   const [comentariiOferta, setComentariiOferta] = useState(initialData.comentariiOferta || "")
   const [formDisabled, setFormDisabled] = useState(isCompleted || initialData.raportGenerat)
 
-  // Adăugăm state pentru funcționalitatea de garanție
-  const [garantieVerificata, setGarantieVerificata] = useState(initialData.garantieVerificata || false)
-  const [esteInGarantie, setEsteInGarantie] = useState(initialData.esteInGarantie || false)
+  // State pentru funcționalitatea de garanție
   const [warrantyInfo, setWarrantyInfo] = useState<any>(null)
   
   // Verificăm dacă lucrarea este de tip "Intervenție în garanție"
   const isWarrantyWork = initialData.tipLucrare === "Intervenție în garanție"
+
+  // State pentru status finalizare intervenție
+  const [statusFinalizareInterventie, setStatusFinalizareInterventie] = useState<"FINALIZAT" | "NEFINALIZAT">(
+    initialData.statusFinalizareInterventie || "NEFINALIZAT"
+  )
+
+  // State pentru confirmarea garanției de către tehnician  
+  const [tehnicianConfirmaGarantie, setTehnicianConfirmaGarantie] = useState<boolean>(
+    initialData.tehnicianConfirmaGarantie || false
+  )
 
   useEffect(() => {
     const checkWorkOrderStatus = async () => {
@@ -105,6 +116,8 @@ export function TehnicianInterventionForm({
     setStatusLucrare(initialData.statusLucrare)
     setNecesitaOferta(initialData.necesitaOferta || false)
     setComentariiOferta(initialData.comentariiOferta || "")
+    setStatusFinalizareInterventie(initialData.statusFinalizareInterventie || "NEFINALIZAT")
+    setTehnicianConfirmaGarantie(initialData.tehnicianConfirmaGarantie || false)
 
     console.log("Initial data loaded:", initialData)
   }, [initialData])
@@ -126,50 +139,38 @@ export function TehnicianInterventionForm({
     setFormData((prev) => ({ ...prev, statusLucrare: value }))
   }
 
-  const handleSave = useStableCallback(async () => {
+  const handleSave = async () => {
     try {
       setIsSaving(true)
 
-      // Actualizăm datele din formData cu valorile curente din state
-      const updatedData = {
-        descriereInterventie,
+      await updateLucrare(lucrareId, {
         constatareLaLocatie,
+        descriereInterventie,
         statusEchipament,
+        statusLucrare,
         necesitaOferta,
         comentariiOferta: necesitaOferta ? comentariiOferta : "", // Clear comments if necesitaOferta is false
-        statusLucrare, // Make sure we're also saving the status lucrare
-      }
-
-      console.log("Saving data:", updatedData)
-
-      await updateLucrare(lucrareId, updatedData)
-
-      const updatedLucrare = await getLucrareById(lucrareId)
-      console.log("Data after save:", {
-        descriereInterventie: updatedLucrare?.descriereInterventie,
-        constatareLaLocatie: updatedLucrare?.constatareLaLocatie,
-        statusEchipament: updatedLucrare?.statusEchipament,
-        necesitaOferta: updatedLucrare?.necesitaOferta,
-        comentariiOferta: updatedLucrare?.comentariiOferta,
+        statusFinalizareInterventie,
+        tehnicianConfirmaGarantie: isWarrantyWork ? tehnicianConfirmaGarantie : undefined,
       })
 
       toast({
-        title: "Intervenție salvată",
-        description: "Detaliile intervenției au fost salvate cu succes.",
+        title: "Date salvate",
+        description: "Datele au fost salvate cu succes.",
       })
 
       onUpdate()
     } catch (error) {
-      console.error("Eroare la salvarea intervenției:", error)
+      console.error("Eroare la salvarea datelor:", error)
       toast({
         title: "Eroare",
-        description: "A apărut o eroare la salvarea intervenției.",
+        description: "A apărut o eroare la salvarea datelor.",
         variant: "destructive",
       })
     } finally {
       setIsSaving(false)
     }
-  })
+  }
 
   const handleSubmit = useStableCallback(async () => {
     try {
@@ -216,14 +217,16 @@ export function TehnicianInterventionForm({
     try {
       setIsGeneratingReport(true)
 
-      // Salvăm datele formularului
+      // Salvăm datele formularului inclusiv statusul finalizării
       await updateLucrare(lucrareId, {
         constatareLaLocatie,
         descriereInterventie,
         statusEchipament,
+        statusLucrare,
         necesitaOferta,
         comentariiOferta: necesitaOferta ? comentariiOferta : "", // Clear comments if necesitaOferta is false
-        statusLucrare, // Keep the current status, don't automatically set to "Finalizat"
+        statusFinalizareInterventie,
+        tehnicianConfirmaGarantie: isWarrantyWork ? tehnicianConfirmaGarantie : undefined,
       })
 
       // Use the safe logging service instead of addLog to avoid database issues
@@ -265,29 +268,7 @@ export function TehnicianInterventionForm({
     setStatusEchipament(value)
   }
 
-  // Funcții pentru gestionarea garanției
-  const handleQRCodeVerification = (success: boolean) => {
-    console.log("QR Code verification:", success)
-    if (success) {
-      setGarantieVerificata(true)
-    }
-  }
 
-  const handleWarrantyDeclaration = (isInWarranty: boolean) => {
-    console.log("Warranty declaration:", isInWarranty)
-    setEsteInGarantie(isInWarranty)
-    
-    // Salvăm automat declarația de garanție
-    updateLucrare(lucrareId, {
-      garantieVerificata: true,
-      esteInGarantie: isInWarranty
-    }).then(() => {
-      console.log("Warranty declaration saved")
-      onUpdate()
-    }).catch((error) => {
-      console.error("Error saving warranty declaration:", error)
-    })
-  }
 
   return (
     <Card>
@@ -335,14 +316,46 @@ export function TehnicianInterventionForm({
               </Select>
             </div>
 
-            {/* Secțiunea pentru verificarea garanției */}
+            <div className="space-y-2">
+              <Label htmlFor="statusLucrare">Status lucrare</Label>
+              <Select value={statusLucrare} onValueChange={setStatusLucrare} disabled={formDisabled}>
+                <SelectTrigger id="statusLucrare" className={formDisabled ? "opacity-70 cursor-not-allowed" : ""}>
+                  <SelectValue placeholder="Selectați statusul lucrării" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Listată">Listată</SelectItem>
+                  <SelectItem value="Atribuită">Atribuită</SelectItem>
+                  <SelectItem value="În lucru">În lucru</SelectItem>
+                  <SelectItem value="În așteptare">În așteptare</SelectItem>
+                  <SelectItem value="Finalizat">Finalizat</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="statusFinalizareInterventie">Status finalizare intervenție</Label>
+              <Select value={statusFinalizareInterventie} onValueChange={(value) => setStatusFinalizareInterventie(value as "FINALIZAT" | "NEFINALIZAT")} disabled={formDisabled}>
+                <SelectTrigger id="statusFinalizareInterventie" className={formDisabled ? "opacity-70 cursor-not-allowed" : ""}>
+                  <SelectValue placeholder="Selectați statusul finalizării intervenției" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="FINALIZAT">FINALIZAT</SelectItem>
+                  <SelectItem value="NEFINALIZAT">NEFINALIZAT</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Acest status determină culoarea rândului în lista de lucrări și nu apare în raport.
+              </p>
+            </div>
+
+            {/* Secțiunea pentru informațiile de garanție */}
             {isWarrantyWork && (
               <div className="border p-4 rounded-md bg-gradient-to-r from-blue-50 to-indigo-50">
                 <div className="flex items-center gap-2 mb-3">
                   <div className="h-5 w-5 rounded-full bg-blue-500 flex items-center justify-center">
                     <span className="text-white text-xs font-bold">G</span>
                   </div>
-                  <Label className="font-medium text-blue-900">Verificare Garanție Echipament</Label>
+                  <Label className="font-medium text-blue-900">Informații Garanție Echipament</Label>
                 </div>
 
                 {/* Informații despre garanție calculate automat */}
@@ -375,54 +388,45 @@ export function TehnicianInterventionForm({
                   </div>
                 )}
 
-                {/* Scanare QR Code și declarare garanție */}
+                {/* Informații despre echipamentul verificat */}
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">Verificare prin QR Code:</Label>
-                    {garantieVerificata ? (
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                    <div className="flex items-center space-x-2 mb-2">
                       <Badge className="bg-green-100 text-green-800 border-green-200">
                         ✓ Echipament verificat
                       </Badge>
-                    ) : (
-                      <QRCodeScanner
-                        expectedEquipmentCode={initialData.echipamentCod}
-                        onVerificationComplete={handleQRCodeVerification}
-                        isWarrantyWork={true}
-                        onWarrantyVerification={handleWarrantyDeclaration}
-                        equipmentData={initialData.echipamentData}
-                      />
-                    )}
+                      <span className="text-xs text-gray-600">prin scanarea QR code</span>
+                    </div>
+                    <p className="text-xs text-green-700">
+                      Echipamentul a fost verificat în tabul "Verificare Echipament". 
+                      Informațiile de garanție de mai sus sunt calculate automat pe baza datelor echipamentului.
+                    </p>
                   </div>
 
-                  {/* Afișarea declarației tehnicianului */}
-                  {garantieVerificata && (
-                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                      <Label className="font-medium text-sm text-yellow-800">
-                        Declarația tehnicianului:
+                  {/* Confirmarea garanției de către tehnician */}
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                    <Label className="font-medium text-sm text-yellow-800 mb-3 block">
+                      Confirmarea tehnicianului la fața locului:
+                    </Label>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="tehnicianConfirmaGarantie"
+                        checked={tehnicianConfirmaGarantie}
+                        onCheckedChange={(checked) => setTehnicianConfirmaGarantie(checked === true)}
+                        disabled={formDisabled}
+                      />
+                      <Label
+                        htmlFor="tehnicianConfirmaGarantie"
+                        className="text-sm font-medium text-yellow-800 cursor-pointer"
+                      >
+                        Confirm că echipamentul este în garanție la fața locului
                       </Label>
-                      <div className="mt-2 flex items-center space-x-2">
-                        <Badge 
-                          className={esteInGarantie 
-                            ? "bg-green-100 text-green-800 border-green-200" 
-                            : "bg-red-100 text-red-800 border-red-200"
-                          }
-                        >
-                          {esteInGarantie ? "✓ În garanție" : "✗ Nu este în garanție"}
-                        </Badge>
-                        <span className="text-xs text-gray-600">Verificat prin QR code</span>
-                      </div>
                     </div>
-                  )}
-
-                  {/* Mesaj de avertisment dacă nu s-a făcut verificarea */}
-                  {!garantieVerificata && (
-                    <Alert className="border-amber-200 bg-amber-50">
-                      <Info className="h-4 w-4 text-amber-600" />
-                      <AlertDescription className="text-amber-700">
-                        Pentru lucrările în garanție este obligatorie verificarea echipamentului prin scanarea QR code-ului.
-                      </AlertDescription>
-                    </Alert>
-                  )}
+                    <p className="text-xs text-yellow-700 mt-2">
+                      Această bifă reprezintă confirmarea dvs. ca tehnician despre starea garanției echipamentului după verificarea fizică.
+                      Nu se suprapune peste calculul automat de mai sus.
+                    </p>
+                  </div>
                 </div>
               </div>
             )}

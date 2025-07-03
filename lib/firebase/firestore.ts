@@ -106,6 +106,13 @@ export interface Lucrare {
   esteInGarantie?: boolean        // Declarația tehnicianului dacă echipamentul e în garanție
   garantieExpira?: string         // Data când expiră garanția (calculată automat)
   garantieZileRamase?: number     // Câte zile mai are garanție (calculat automat)
+  // CÂMP NOU PENTRU STATUS FINALIZARE INTERVENȚIE - BACKWARD COMPATIBLE
+  statusFinalizareInterventie?: "FINALIZAT" | "NEFINALIZAT"  // Status-ul finalizării intervenției (independent de statusLucrare)
+  // CÂMP NOU PENTRU REFERINȚĂ LA LUCRAREA ORIGINALĂ - BACKWARD COMPATIBLE
+  lucrareOriginala?: string       // ID-ul lucrării originale în caz de reatribuire
+  mesajReatribuire?: string       // Mesajul de reatribuire (ex: "reintervenită în urma lucrării x")
+  // CÂMP NOU PENTRU CONFIRMAREA GARANȚIEI DE CĂTRE TEHNICIAN - BACKWARD COMPATIBLE
+  tehnicianConfirmaGarantie?: boolean  // Confirmarea tehnicianului la fața locului despre garanție (doar pentru "Intervenție în garanție")
 }
 
 export interface Client {

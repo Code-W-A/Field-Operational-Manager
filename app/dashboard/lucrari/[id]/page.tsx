@@ -22,6 +22,7 @@ import {
   Phone,
   Info,
   Check,
+  RefreshCw,
 } from "lucide-react"
 import { getLucrareById, deleteLucrare, updateLucrare, getClienti } from "@/lib/firebase/firestore"
 import { TehnicianInterventionForm } from "@/components/tehnician-intervention-form"
@@ -623,12 +624,33 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                     <ContractDisplay contractId={lucrare.contract} />
                   </div>
                 )}
-                {lucrare.defectReclamat && (
-                  <div>
-                    <p className="text-sm font-medium">Defect reclamat:</p>
-                    <p className="text-sm text-gray-500">{lucrare.defectReclamat}</p>
+                <div>
+                  <p className="text-sm font-medium">Defect reclamat:</p>
+                  <p className="text-sm text-gray-500">{lucrare.defectReclamat || "Nu a fost specificat"}</p>
+                </div>
+
+                {/* Afișăm mesajul de reatribuire dacă există */}
+                {lucrare.mesajReatribuire && (
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <RefreshCw className="h-4 w-4 text-blue-600" />
+                      <p className="text-sm font-medium text-blue-800">Lucrare reatribuită:</p>
+                    </div>
+                    <p className="text-sm text-blue-700">{lucrare.mesajReatribuire}</p>
+                    {lucrare.lucrareOriginala && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 h-7 px-2 text-blue-600 border-blue-200 hover:bg-blue-100"
+                        onClick={() => router.push(`/dashboard/lucrari/${lucrare.lucrareOriginala}`)}
+                      >
+                        Vizualizează lucrarea originală
+                      </Button>
+                    )}
                   </div>
                 )}
+
+                <Separator />
                 <div>
                   <p className="text-sm font-medium">Locație:</p>
                   <div className="flex items-start">
@@ -798,45 +820,53 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                       </Badge>
                     </div>
 
-                    {warrantyInfo.hasWarrantyData ? (
-                      <div className="space-y-3">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                          <div>
-                            <span className="font-medium text-gray-700">Data instalării:</span>
-                            <p className="text-gray-600">{warrantyInfo.installationDate || "Nedefinită"}</p>
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-700">Perioada garanție:</span>
-                            <p className="text-gray-600">{warrantyInfo.warrantyMonths} luni</p>
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-700">Garanția expiră:</span>
-                            <p className="text-gray-600">{warrantyInfo.warrantyExpires || "Nedefinită"}</p>
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-700">Zile rămase:</span>
-                            <p className={`font-medium ${warrantyInfo.isInWarranty ? 'text-green-600' : 'text-red-600'}`}>
-                              {warrantyInfo.isInWarranty ? warrantyInfo.daysRemaining : 0} zile
-                            </p>
-                          </div>
+                    {/* Calculul automat al garanției */}
+                    <div className="p-3 bg-white rounded-md border mb-3">
+                      <h5 className="font-medium text-sm mb-2">Calculul automat al garanției:</h5>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-gray-600">Status:</span>
+                          <Badge className={warrantyInfo.statusBadgeClass + " ml-1"}>
+                            {warrantyInfo.statusText}
+                          </Badge>
                         </div>
-
-                        <div className="p-3 rounded-md bg-white border">
-                          <p className="text-sm text-gray-700">{warrantyInfo.warrantyMessage}</p>
+                        <div>
+                          <span className="text-gray-600">Zile rămase:</span>
+                          <span className={`ml-1 font-medium ${warrantyInfo.isInWarranty ? 'text-green-600' : 'text-red-600'}`}>
+                            {warrantyInfo.isInWarranty ? warrantyInfo.daysRemaining : 0} zile
+                          </span>
                         </div>
-
-                        {!warrantyInfo.hasExplicitWarranty && (
-                          <div className="p-2 rounded-md bg-yellow-50 border border-yellow-200">
-                            <p className="text-xs text-yellow-800 flex items-center">
-                              <span className="mr-1">⚠️</span>
-                              Acest echipament nu are perioada de garanție explicit setată. Se folosește valoarea implicită de 12 luni.
-                            </p>
-                          </div>
-                        )}
+                        <div>
+                          <span className="text-gray-600">Data instalării:</span>
+                          <span className="ml-1">{warrantyInfo.installationDate || "Nedefinită"}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Expiră la:</span>
+                          <span className="ml-1">{warrantyInfo.warrantyExpires || "Nedefinită"}</span>
+                        </div>
                       </div>
-                    ) : (
-                      <div className="p-3 rounded-md bg-red-50 border border-red-200">
-                        <p className="text-sm text-red-700">{warrantyInfo.warrantyMessage}</p>
+                      <p className="text-xs text-gray-600 mt-2">{warrantyInfo.warrantyMessage}</p>
+                    </div>
+
+                    {/* Confirmarea tehnicianului la fața locului */}
+                    {lucrare.tehnicianConfirmaGarantie !== undefined && (
+                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-medium text-sm text-yellow-800">
+                            Confirmarea tehnicianului la fața locului:
+                          </span>
+                          <Badge 
+                            className={lucrare.tehnicianConfirmaGarantie 
+                              ? "bg-green-100 text-green-800 border-green-200" 
+                              : "bg-red-100 text-red-800 border-red-200"
+                            }
+                          >
+                            {lucrare.tehnicianConfirmaGarantie ? "✓ Confirmă garanția" : "✗ Nu confirmă garanția"}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-yellow-700 mt-1">
+                          Tehnicianul a verificat fizic echipamentul și a {lucrare.tehnicianConfirmaGarantie ? 'confirmat' : 'infirmat'} că este în garanție.
+                        </p>
                       </div>
                     )}
                   </div>
@@ -993,13 +1023,15 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                   // Adăugăm câmpurile pentru garanție
                   tipLucrare: lucrare.tipLucrare,
                   echipamentCod: lucrare.echipamentCod,
-                  garantieVerificata: lucrare.garantieVerificata,
-                  esteInGarantie: lucrare.esteInGarantie,
                   // Pentru echipamentData, trebuie să găsim echipamentul în datele clientului
                   echipamentData: clientData?.locatii
                     ?.find(loc => loc.nume === lucrare.locatie)
                     ?.echipamente
-                    ?.find(eq => eq.cod === lucrare.echipamentCod)
+                    ?.find(eq => eq.cod === lucrare.echipamentCod),
+                  // Adăugăm statusul finalizării intervenției
+                  statusFinalizareInterventie: lucrare.statusFinalizareInterventie,
+                  // Adăugăm confirmarea garanției de către tehnician
+                  tehnicianConfirmaGarantie: lucrare.tehnicianConfirmaGarantie
                 }}
                 onUpdate={refreshLucrare}
                 isCompleted={lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true}

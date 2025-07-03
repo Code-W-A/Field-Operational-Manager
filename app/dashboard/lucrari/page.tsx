@@ -17,7 +17,7 @@ import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { format, parse, isAfter, isBefore } from "date-fns"
 import { ro } from "date-fns/locale"
-import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check, Info } from "lucide-react"
+import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check, Info, RefreshCw } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { addLucrare, deleteLucrare, updateLucrare, getLucrareById } from "@/lib/firebase/firestore"
@@ -1181,6 +1181,90 @@ export default function Lucrari() {
     }
   }
 
+  // Funcție pentru reatribuirea unei lucrări (pentru dispecer)
+  const handleReassign = useCallback(async (originalLucrare: any) => {
+    try {
+      // Creăm o nouă lucrare bazată pe cea originală
+      const newWorkOrder = {
+        ...originalLucrare,
+        // Resetăm câmpurile care trebuie să fie noi
+        id: undefined, // Vor fi generate automat
+        dataEmiterii: new Date().toISOString(),
+        dataInterventie: new Date().toISOString(), // Data curentă pentru noua intervenție
+        statusLucrare: "Listată", // Resetăm statusul
+        statusFacturare: originalLucrare.statusFacturare || "Nefacturat",
+        // Resetăm câmpurile de intervenție
+        descriereInterventie: "",
+        constatareLaLocatie: "",
+        statusEchipament: "Funcțional", // Resetăm statusul echipamentului
+        statusFinalizareInterventie: "NEFINALIZAT", // Setăm la nefinalizat
+        necesitaOferta: false, // Resetăm
+        comentariiOferta: "",
+        raportGenerat: false,
+        raportDataLocked: false,
+        raportSnapshot: undefined,
+        equipmentVerified: false,
+        preluatDispecer: false,
+        // Câmpuri pentru identificarea reatribuirii
+        lucrareOriginala: originalLucrare.id,
+        mesajReatribuire: `Reintervenită în urma lucrării ${originalLucrare.id}`,
+        // Resetăm timpii
+        timpSosire: undefined,
+        timpPlecare: undefined,
+        dataSosire: undefined,
+        oraSosire: undefined,
+        dataPlecare: undefined,
+        oraPlecare: undefined,
+        durataInterventie: undefined,
+        // Resetăm semnăturile
+        semnaturaTehnician: undefined,
+        semnaturaBeneficiar: undefined,
+        numeTehnician: undefined,
+        numeBeneficiar: undefined,
+        // Resetăm produsele
+        products: [],
+        // Păstrăm tehnicienii pentru continuitate
+        tehnicieni: originalLucrare.tehnicieni || [],
+      }
+
+      // Adăugăm noua lucrare
+      const newLucrareId = await addLucrare(newWorkOrder)
+
+      // Adăugăm log pentru reatribuire
+      await addLog(
+        "Reatribuire",
+        `A fost creată o nouă lucrare (${newLucrareId}) prin reatribuirea lucrării ${originalLucrare.id} pentru clientul "${originalLucrare.client}"`,
+        "Informație",
+        "Lucrări",
+      )
+
+      toast({
+        title: "Lucrare reatribuită",
+        description: `A fost creată o nouă lucrare (${newLucrareId}) pentru client. Tehnicianul va fi notificat.`,
+      })
+
+      // Reîncărcăm lista de lucrări
+      // (lucrările se vor actualiza automat prin hook-ul useFirebaseCollection)
+      
+    } catch (error) {
+      console.error("Eroare la reatribuirea lucrării:", error)
+      toast({
+        title: "Eroare",
+        description: "A apărut o eroare la reatribuirea lucrării.",
+        variant: "destructive",
+      })
+    }
+  }, [toast])
+
+  // Funcție pentru a verifica dacă o lucrare necesită reatribuire (are fundal roșu)
+  const needsReassignment = useCallback((lucrare: any) => {
+    return (
+      lucrare.statusFinalizareInterventie === "NEFINALIZAT" ||
+      lucrare.statusEchipament === "Nefuncțional" ||
+      lucrare.necesitaOferta === true
+    )
+  }, [])
+
   const handleApplyFilters = (filters) => {
     // Filtrăm doar filtrele care au valori
     const filtersWithValues = filters.filter((filter) => {
@@ -1519,6 +1603,22 @@ export default function Lucrari() {
               <FileText className="h-4 w-4" />
               <span className="ml-1">Raport</span>
             </Button>
+            {/* Buton de reatribuire pentru dispeceri/admini când lucrarea are situații critice */}
+            {!isTechnician && needsReassignment(row.original) && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-2 text-orange-600 border-orange-200 hover:bg-orange-50"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleReassign(row.original)
+                }}
+                aria-label="Reatribuie lucrarea"
+              >
+                <RefreshCw className="h-4 w-4" />
+                <span className="ml-1">Reatribuie</span>
+              </Button>
+            )}
             {userData?.role === "admin" && (
               <Button
                 variant="outline"
@@ -1705,6 +1805,10 @@ export default function Lucrari() {
       <div className="mb-4 p-4 border rounded-md bg-white">
         <h3 className="text-sm font-medium mb-2">Legendă statusuri:</h3>
         <div className="flex flex-wrap gap-2">
+          <div className="flex items-center">
+            <div className="w-4 h-4 mr-1 bg-red-100 border border-red-500 border-l-4 rounded"></div>
+            <span className="text-xs">Situații critice (NEFINALIZAT / Echipament nefuncțional / Necesită ofertă)</span>
+          </div>
           <div className="flex items-center">
             <div className="w-4 h-4 mr-1 bg-gray-50 border border-gray-200 rounded"></div>
             <span className="text-xs">Listată</span>
@@ -2010,6 +2114,17 @@ export default function Lucrari() {
                                 >
                                   <FileText className="mr-2 h-4 w-4" /> Generează Raport
                                 </DropdownMenuItem>
+                                {/* Opțiune de reatribuire pentru dispeceri/admini când lucrarea are situații critice */}
+                                {!isTechnician && needsReassignment(lucrare) && (
+                                  <DropdownMenuItem
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleReassign(lucrare)
+                                    }}
+                                  >
+                                    <RefreshCw className="mr-2 h-4 w-4" /> Reatribuie lucrarea
+                                  </DropdownMenuItem>
+                                )}
                                 {userData?.role === "admin" && (
                                   <DropdownMenuItem
                                     className="text-red-600"
