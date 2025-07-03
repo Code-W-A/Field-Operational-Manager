@@ -1744,21 +1744,22 @@ export default function Lucrari() {
                 </div>
               )}
               
-              <LucrareForm
-                ref={addFormRef}
-                dataEmiterii={dataEmiterii}
-                setDataEmiterii={setDataEmiterii}
-                dataInterventie={dataInterventie}
-                setDataInterventie={setDataInterventie}
-                formData={formData}
-                handleInputChange={handleInputChange}
-                handleSelectChange={handleSelectChange}
-                handleTehnicieniChange={handleTehnicieniChange}
-                handleCustomChange={handleCustomChange}
-                fieldErrors={fieldErrors}
-                onSubmit={handleAddLucrare}
-                onCancel={handleCloseAddDialog}
-              />
+                          <LucrareForm
+              ref={addFormRef}
+              dataEmiterii={dataEmiterii}
+              setDataEmiterii={setDataEmiterii}
+              dataInterventie={dataInterventie}
+              setDataInterventie={setDataInterventie}
+              formData={formData}
+              handleInputChange={handleInputChange}
+              handleSelectChange={handleSelectChange}
+              handleTehnicieniChange={handleTehnicieniChange}
+              handleCustomChange={handleCustomChange}
+              fieldErrors={fieldErrors}
+              setFieldErrors={setFieldErrors}
+              onSubmit={handleAddLucrare}
+              onCancel={handleCloseAddDialog}
+            />
             </DialogContent>
           </Dialog>
         )}

@@ -106,6 +106,7 @@ interface LucrareFormProps {
   handleTehnicieniChange: (value: string) => void
   handleCustomChange?: (field: string, value: any) => void
   fieldErrors?: string[]
+  setFieldErrors?: (errors: string[]) => void
   onSubmit?: (data: Partial<Lucrare>) => Promise<void>
   onCancel?: () => void
   initialData?: Lucrare | null
@@ -132,6 +133,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       handleTehnicieniChange,
       handleCustomChange,
       fieldErrors = [],
+      setFieldErrors,
       onSubmit,
       onCancel,
       initialData,
@@ -1220,6 +1222,11 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       ) {
         errors.push("contract")
         isValid = false
+      }
+
+      // Setăm erorile pentru a fi afișate vizual
+      if (setFieldErrors) {
+        setFieldErrors(errors)
       }
 
       return isValid
