@@ -901,13 +901,26 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                           onChange={async (e) => {
                             try {
                               setIsUpdating(true)
-                              await updateLucrare(lucrare.id!, { statusFinalizareInterventie: e.target.value })
-                              setLucrare(prev => prev ? { ...prev, statusFinalizareInterventie: e.target.value } : null)
+                              const newStatus = e.target.value as "FINALIZAT" | "NEFINALIZAT"
+                              console.log("Actualizare status finalizare:", { lucrareId: lucrare.id, newStatus })
+                              await updateLucrare(lucrare.id!, { statusFinalizareInterventie: newStatus })
+                              setLucrare(prev => {
+                                const updated = prev ? { ...prev, statusFinalizareInterventie: newStatus } : null
+                                console.log("State finalizare actualizat:", { prev: prev?.statusFinalizareInterventie, new: updated?.statusFinalizareInterventie })
+                                return updated
+                              })
+                              // Refresh explicit pentru a asigura sincronizarea
+                              const updatedLucrare = await getLucrareById(lucrare.id!)
+                              if (updatedLucrare) {
+                                setLucrare(updatedLucrare)
+                                console.log("Lucrare reîncărcată din Firebase:", { statusFinalizareInterventie: updatedLucrare.statusFinalizareInterventie })
+                              }
                               toast({
                                 title: "Status actualizat",
                                 description: "Statusul finalizării intervenției a fost actualizat."
                               })
                             } catch (error) {
+                              console.error("Eroare la actualizarea statusului finalizare:", error)
                               toast({
                                 title: "Eroare",
                                 description: "Nu s-a putut actualiza statusul.",
@@ -933,13 +946,26 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                           onChange={async (e) => {
                             try {
                               setIsUpdating(true)
-                              await updateLucrare(lucrare.id!, { statusEchipament: e.target.value })
-                              setLucrare(prev => prev ? { ...prev, statusEchipament: e.target.value } : null)
+                              const newStatus = e.target.value
+                              console.log("Actualizare status echipament:", { lucrareId: lucrare.id, newStatus })
+                              await updateLucrare(lucrare.id!, { statusEchipament: newStatus })
+                              setLucrare(prev => {
+                                const updated = prev ? { ...prev, statusEchipament: newStatus } : null
+                                console.log("State local actualizat:", { prev: prev?.statusEchipament, new: updated?.statusEchipament })
+                                return updated
+                              })
+                              // Refresh explicit pentru a asigura sincronizarea
+                              const updatedLucrare = await getLucrareById(lucrare.id!)
+                              if (updatedLucrare) {
+                                setLucrare(updatedLucrare)
+                                console.log("Lucrare reîncărcată din Firebase:", { statusEchipament: updatedLucrare.statusEchipament })
+                              }
                               toast({
                                 title: "Status actualizat",
                                 description: "Statusul echipamentului a fost actualizat."
                               })
                             } catch (error) {
+                              console.error("Eroare la actualizarea statusului echipament:", error)
                               toast({
                                 title: "Eroare",
                                 description: "Nu s-a putut actualiza statusul.",
@@ -977,6 +1003,12 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                                 statusOferta: newStatus,
                                 necesitaOferta: newStatus === "DA"
                               } : null)
+                              // Refresh explicit pentru a asigura sincronizarea
+                              const updatedLucrare = await getLucrareById(lucrare.id!)
+                              if (updatedLucrare) {
+                                setLucrare(updatedLucrare)
+                                console.log("Lucrare reîncărcată din Firebase:", { statusOferta: updatedLucrare.statusOferta, necesitaOferta: updatedLucrare.necesitaOferta })
+                              }
                               toast({
                                 title: "Status actualizat",
                                 description: `Statusul ofertei a fost actualizat la "${newStatus}".`
