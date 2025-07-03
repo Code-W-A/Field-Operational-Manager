@@ -739,8 +739,8 @@ export default function Lucrari() {
 
   // Funcții pentru manipularea formularului de adăugare
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
+    const { id, value } = e.target
+    setFormData(prev => ({ ...prev, [id]: value }))
   }, [])
 
   const handleSelectChange = useCallback((id: string, value: string) => {
