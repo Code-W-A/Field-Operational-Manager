@@ -1184,77 +1184,38 @@ export default function Lucrari() {
   // Funcție pentru reatribuirea unei lucrări (pentru dispecer)
   const handleReassign = useCallback(async (originalLucrare: any) => {
     try {
-      // Creăm o nouă lucrare bazată pe cea originală
-      const newWorkOrder = {
-        ...originalLucrare,
-        // Resetăm câmpurile care trebuie să fie noi
-        id: undefined, // Vor fi generate automat
-        dataEmiterii: new Date().toISOString(),
-        dataInterventie: new Date().toISOString(), // Data curentă pentru noua intervenție
-        statusLucrare: "Listată", // Resetăm statusul
-        statusFacturare: originalLucrare.statusFacturare || "Nefacturat",
-        // Resetăm câmpurile de intervenție
-        descriereInterventie: "",
-        constatareLaLocatie: "",
-        statusEchipament: "Funcțional", // Resetăm statusul echipamentului
-        statusFinalizareInterventie: "NEFINALIZAT", // Setăm la nefinalizat
-        necesitaOferta: false, // Resetăm
-        comentariiOferta: "",
-        raportGenerat: false,
-        raportDataLocked: false,
-        raportSnapshot: undefined,
-        equipmentVerified: false,
-        preluatDispecer: false,
-        // Câmpuri pentru identificarea reatribuirii
-        lucrareOriginala: originalLucrare.id,
-        mesajReatribuire: `Reintervenită în urma lucrării ${originalLucrare.id}`,
-        // Resetăm timpii
-        timpSosire: undefined,
-        timpPlecare: undefined,
-        dataSosire: undefined,
-        oraSosire: undefined,
-        dataPlecare: undefined,
-        oraPlecare: undefined,
-        durataInterventie: undefined,
-        // Resetăm semnăturile
-        semnaturaTehnician: undefined,
-        semnaturaBeneficiar: undefined,
-        numeTehnician: undefined,
-        numeBeneficiar: undefined,
-        // Resetăm produsele
-        products: [],
-        // Păstrăm tehnicienii pentru continuitate
-        tehnicieni: originalLucrare.tehnicieni || [],
-      }
-
-      // Adăugăm noua lucrare
-      const newLucrareId = await addLucrare(newWorkOrder)
-
-      // Adăugăm log pentru reatribuire
-      await addLog(
-        "Reatribuire",
-        `A fost creată o nouă lucrare (${newLucrareId}) prin reatribuirea lucrării ${originalLucrare.id} pentru clientul "${originalLucrare.client}"`,
-        "Informație",
-        "Lucrări",
-      )
-
-      toast({
-        title: "Lucrare reatribuită",
-        description: `A fost creată o nouă lucrare (${newLucrareId}) pentru client. Tehnicianul va fi notificat.`,
+      // În loc să creăm automat lucrarea, redirecționăm către formularul de adăugare cu datele precompletate
+      const queryParams = new URLSearchParams({
+        reassign: 'true',
+        originalId: originalLucrare.id,
+        tipLucrare: originalLucrare.tipLucrare || '',
+        client: originalLucrare.client || '',
+        locatie: originalLucrare.locatie || '',
+        echipament: originalLucrare.echipament || '',
+        echipamentCod: originalLucrare.echipamentCod || '',
+        echipamentModel: originalLucrare.echipamentModel || '',
+        descriere: originalLucrare.descriere || '',
+        persoanaContact: originalLucrare.persoanaContact || '',
+        telefon: originalLucrare.telefon || '',
+        defectReclamat: originalLucrare.defectReclamat || '',
+        contract: originalLucrare.contract || '',
+        contractNumber: originalLucrare.contractNumber || '',
+        contractType: originalLucrare.contractType || '',
+        tehnicieni: JSON.stringify(originalLucrare.tehnicieni || []),
       })
 
-      // Reîncărcăm lista de lucrări
-      // (lucrările se vor actualiza automat prin hook-ul useFirebaseCollection)
+      // Redirecționăm către pagina de adăugare cu parametrii
+      router.push(`/dashboard/lucrari/new?${queryParams.toString()}`)
       
     } catch (error) {
-      console.error("Eroare la reatribuirea lucrării:", error)
+      console.error("Eroare la redirecționarea către formularul de reatribuire:", error)
       toast({
         title: "Eroare",
-        description: "A apărut o eroare la reatribuirea lucrării.",
+        description: "A apărut o eroare la redirecționarea către formularul de reatribuire.",
         variant: "destructive",
       })
     }
-  }, [toast])
+  }, [router, toast])
 
   // Funcție pentru a verifica dacă o lucrare necesită reatribuire (are fundal roșu)
   const needsReassignment = useCallback((lucrare: any) => {

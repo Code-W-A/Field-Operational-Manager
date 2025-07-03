@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { LucrareForm } from "@/components/lucrare-form"
 import { addLucrare } from "@/lib/firebase/firestore"
@@ -11,13 +11,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "@/components/ui/use-toast"
 import type { PersoanaContact } from "@/lib/firebase/firestore"
 import { sendWorkOrderNotifications } from "@/components/work-order-notification-service"
-import { Check, Mail, AlertCircle } from "lucide-react"
+import { Check, Mail, AlertCircle, RefreshCw } from "lucide-react"
 import { WORK_STATUS, INVOICE_STATUS } from "@/lib/utils/constants"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function NewLucrarePage() {
   const router = useRouter()
   const [dataEmiterii, setDataEmiterii] = useState<Date>(new Date())
   const [dataInterventie, setDataInterventie] = useState<Date | undefined>(new Date())
+  
+  // Verificăm dacă suntem în modul de reatribuire
+  const [isReassignment, setIsReassignment] = useState(false)
+  const [originalWorkOrderId, setOriginalWorkOrderId] = useState<string>("")
+  
   // Actualizăm starea formData pentru a include contractType
   const [formData, setFormData] = useState({
     tipLucrare: "",
@@ -38,6 +44,53 @@ export default function NewLucrarePage() {
     echipamentId: "",
     echipamentCod: "",
   })
+
+  // Efect pentru a citi parametrii din URL și precompletat formularul
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const isReassign = urlParams.get('reassign') === 'true'
+    
+    if (isReassign) {
+      setIsReassignment(true)
+      const originalId = urlParams.get('originalId') || ""
+      setOriginalWorkOrderId(originalId)
+      
+      // Precompletăm formularul cu datele din URL
+      const prefilledData = {
+        tipLucrare: urlParams.get('tipLucrare') || "",
+        tehnicieni: [] as string[],
+        client: urlParams.get('client') || "",
+        locatie: urlParams.get('locatie') || "",
+        echipament: urlParams.get('echipament') || "",
+        echipamentCod: urlParams.get('echipamentCod') || "",
+        descriere: urlParams.get('descriere') || "",
+        persoanaContact: urlParams.get('persoanaContact') || "",
+        telefon: urlParams.get('telefon') || "",
+        defectReclamat: urlParams.get('defectReclamat') || "",
+        contract: urlParams.get('contract') || "",
+        contractNumber: urlParams.get('contractNumber') || "",
+        contractType: urlParams.get('contractType') || "",
+        statusLucrare: WORK_STATUS.WAITING,
+        statusFacturare: INVOICE_STATUS.NOT_INVOICED,
+        persoaneContact: [] as PersoanaContact[],
+        echipamentId: "",
+      }
+      
+      // Parsăm tehnicienii din JSON
+      const tehnicieniString = urlParams.get('tehnicieni')
+      if (tehnicieniString) {
+        try {
+          prefilledData.tehnicieni = JSON.parse(tehnicieniString)
+        } catch (e) {
+          prefilledData.tehnicieni = []
+        }
+      } else {
+        prefilledData.tehnicieni = []
+      }
+      
+      setFormData(prefilledData)
+    }
+  }, [])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { id, value } = e.target
@@ -75,26 +128,37 @@ export default function NewLucrarePage() {
       // Asigurăm că folosim data și ora curentă pentru dataEmiterii
       const currentDateTime = new Date()
 
-      // Adăugăm lucrarea în Firestore
-      const lucrareId = await addLucrare({
+      // Pregătim datele pentru noua lucrare
+      const newWorkOrderData: any = {
         ...formData,
         dataEmiterii: currentDateTime.toISOString(),
         dataInterventie: dataInterventie ? dataInterventie.toISOString() : new Date().toISOString(),
-      })
+      }
+
+      // Dacă este re-intervenție, adăugăm câmpurile specifice
+      if (isReassignment && originalWorkOrderId) {
+        newWorkOrderData.lucrareOriginala = originalWorkOrderId
+        newWorkOrderData.mesajReatribuire = `Re-intervenție de la lucrarea ${originalWorkOrderId}`
+      }
+
+      // Adăugăm lucrarea în Firestore
+      const lucrareId = await addLucrare(newWorkOrderData)
 
       // Adăugăm un log pentru crearea lucrării
-      await addLog(
-        "Adăugare",
-        `A fost adăugată o nouă lucrare pentru clientul "${formData.client}" cu ID-ul ${lucrareId}`,
-        "Informație",
-        "Lucrări",
-      )
+      const logMessage = isReassignment 
+        ? `A fost adăugată o re-intervenție pentru clientul "${formData.client}" cu ID-ul ${lucrareId} (din lucrarea originală ${originalWorkOrderId})`
+        : `A fost adăugată o nouă lucrare pentru clientul "${formData.client}" cu ID-ul ${lucrareId}`
+      
+      await addLog("Adăugare", logMessage, "Informație", "Lucrări")
 
       // Afișăm un mesaj de succes
+      const successMessage = isReassignment 
+        ? "Re-intervenția a fost adăugată cu succes."
+        : "Lucrarea a fost adăugată cu succes."
+      
       toast({
-        title: "Lucrare adăugată",
-        description: "Lucrarea a fost adăugată cu succes.",
-        icon: <Check className="h-4 w-4" />,
+        title: isReassignment ? "Re-intervenție adăugată" : "Lucrare adăugată",
+        description: successMessage,
       })
 
       // Trimitem notificări către client și tehnicieni
@@ -193,28 +257,42 @@ export default function NewLucrarePage() {
   }
 
   return (
-          <div className="w-full mx-auto py-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Adaugă Lucrare Nouă</CardTitle>
-          <CardDescription>Completați detaliile pentru a crea o nouă lucrare</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <LucrareForm
-            dataEmiterii={dataEmiterii}
-            setDataEmiterii={setDataEmiterii}
-            dataInterventie={dataInterventie}
-            setDataInterventie={setDataInterventie}
-            formData={formData}
-            handleInputChange={handleInputChange}
-            handleSelectChange={handleSelectChange}
-            handleTehnicieniChange={handleTehnicieniChange}
-            handleCustomChange={handleCustomChange}
-            onSubmit={handleSubmit}
-            onCancel={() => router.push("/dashboard/lucrari")}
-          />
-        </CardContent>
-      </Card>
-    </div>
+    <Card className="w-full max-w-4xl mx-auto">
+      <CardHeader>
+        <CardTitle>{isReassignment ? "Re-intervenție" : "Adaugă lucrare nouă"}</CardTitle>
+        <CardDescription>
+          {isReassignment 
+            ? `Crearea unei re-intervenții bazate pe lucrarea ${originalWorkOrderId}` 
+            : "Completați informațiile pentru a adăuga o lucrare nouă în sistem"
+          }
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {/* Banner pentru re-intervenție */}
+        {isReassignment && (
+          <Alert className="mb-6 border-blue-200 bg-blue-50">
+            <RefreshCw className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-800">
+              <strong>Re-intervenție:</strong> Acest formular este precompletat cu datele din lucrarea originală <strong>{originalWorkOrderId}</strong>. 
+              Puteți modifica orice informație necesară înainte de a salva noua lucrare.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <LucrareForm
+          dataEmiterii={dataEmiterii}
+          setDataEmiterii={setDataEmiterii}
+          dataInterventie={dataInterventie}
+          setDataInterventie={setDataInterventie}
+          formData={formData}
+          handleInputChange={handleInputChange}
+          handleSelectChange={handleSelectChange}
+          handleTehnicieniChange={handleTehnicieniChange}
+          handleCustomChange={handleCustomChange}
+          onSubmit={handleSubmit}
+          onCancel={() => router.push("/dashboard/lucrari")}
+        />
+      </CardContent>
+    </Card>
   )
 }
