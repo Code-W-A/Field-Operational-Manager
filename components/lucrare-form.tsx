@@ -2071,16 +2071,27 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           )}
         </div>
 
-        {/*{(onSubmit || onCancel) && (
+        {(onSubmit || onCancel) && (
           <div className="flex justify-end space-x-2 mt-6">
             {onCancel && (
               <Button variant="outline" onClick={handleCloseAttempt}>
                 Anulează
               </Button>
             )}
-            {onSubmit && <Button onClick={handleSubmit}>Salvează</Button>}
+            {onSubmit && (
+              <Button onClick={handleSubmit} disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <span className="mr-2">⏳</span>
+                    Se salvează...
+                  </>
+                ) : (
+                  "Salvează"
+                )}
+              </Button>
+            )}
           </div>
-        )}*/}
+        )}
 
         {/* Unsaved changes dialog */}
         <UnsavedChangesDialog
