@@ -65,7 +65,7 @@ export function TehnicianInterventionForm({
   const [isGeneratingReport, setIsGeneratingReport] = useState(false)
   const [descriereInterventie, setDescriereInterventie] = useState(initialData.descriereInterventie || "")
   const [constatareLaLocatie, setConstatareLaLocatie] = useState(initialData.constatareLaLocatie || "")
-  const [statusLucrare, setStatusLucrare] = useState(initialData.statusLucrare)
+
   const [statusEchipament, setStatusEchipament] = useState(initialData.statusEchipament || "Funcțional")
   const [necesitaOferta, setNecesitaOferta] = useState(initialData.necesitaOferta || false)
   const [comentariiOferta, setComentariiOferta] = useState(initialData.comentariiOferta || "")
@@ -113,7 +113,6 @@ export function TehnicianInterventionForm({
     setDescriereInterventie(initialData.descriereInterventie || "")
     setConstatareLaLocatie(initialData.constatareLaLocatie || "")
     setStatusEchipament(initialData.statusEchipament || "Funcțional")
-    setStatusLucrare(initialData.statusLucrare)
     setNecesitaOferta(initialData.necesitaOferta || false)
     setComentariiOferta(initialData.comentariiOferta || "")
     setStatusFinalizareInterventie(initialData.statusFinalizareInterventie || "NEFINALIZAT")
@@ -143,16 +142,21 @@ export function TehnicianInterventionForm({
     try {
       setIsSaving(true)
 
-      await updateLucrare(lucrareId, {
+      const updateData: any = {
         constatareLaLocatie,
         descriereInterventie,
         statusEchipament,
-        statusLucrare,
         necesitaOferta,
         comentariiOferta: necesitaOferta ? comentariiOferta : "", // Clear comments if necesitaOferta is false
         statusFinalizareInterventie,
-        tehnicianConfirmaGarantie: isWarrantyWork ? tehnicianConfirmaGarantie : undefined,
-      })
+      }
+
+      // Adăugăm tehnicianConfirmaGarantie doar pentru lucrările în garanție
+      if (isWarrantyWork) {
+        updateData.tehnicianConfirmaGarantie = tehnicianConfirmaGarantie
+      }
+
+      await updateLucrare(lucrareId, updateData)
 
       toast({
         title: "Date salvate",
@@ -218,16 +222,21 @@ export function TehnicianInterventionForm({
       setIsGeneratingReport(true)
 
       // Salvăm datele formularului inclusiv statusul finalizării
-      await updateLucrare(lucrareId, {
+      const updateData: any = {
         constatareLaLocatie,
         descriereInterventie,
         statusEchipament,
-        statusLucrare,
         necesitaOferta,
         comentariiOferta: necesitaOferta ? comentariiOferta : "", // Clear comments if necesitaOferta is false
         statusFinalizareInterventie,
-        tehnicianConfirmaGarantie: isWarrantyWork ? tehnicianConfirmaGarantie : undefined,
-      })
+      }
+
+      // Adăugăm tehnicianConfirmaGarantie doar pentru lucrările în garanție
+      if (isWarrantyWork) {
+        updateData.tehnicianConfirmaGarantie = tehnicianConfirmaGarantie
+      }
+
+      await updateLucrare(lucrareId, updateData)
 
       // Use the safe logging service instead of addLog to avoid database issues
       logInfo(`Navigare către pagina de raport pentru lucrarea ${lucrareId}`, { lucrareId }, { category: "rapoarte" })
@@ -316,21 +325,7 @@ export function TehnicianInterventionForm({
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="statusLucrare">Status lucrare</Label>
-              <Select value={statusLucrare} onValueChange={setStatusLucrare} disabled={formDisabled}>
-                <SelectTrigger id="statusLucrare" className={formDisabled ? "opacity-70 cursor-not-allowed" : ""}>
-                  <SelectValue placeholder="Selectați statusul lucrării" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Listată">Listată</SelectItem>
-                  <SelectItem value="Atribuită">Atribuită</SelectItem>
-                  <SelectItem value="În lucru">În lucru</SelectItem>
-                  <SelectItem value="În așteptare">În așteptare</SelectItem>
-                  <SelectItem value="Finalizat">Finalizat</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+
 
             <div className="space-y-2">
               <Label htmlFor="statusFinalizareInterventie">Status finalizare intervenție</Label>

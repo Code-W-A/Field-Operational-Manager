@@ -236,7 +236,20 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // Helper: draw a labelled box (no fixed rows)
       const drawBox = (title: string, lines: string[], boxWidth: number, x: number, titleBold = true) => {
         const lineHeight = 5
-        const boxHeight = lines.length * lineHeight + 12
+        const textWidth = boxWidth - 6 // Leave 3px margin on each side
+        
+        // Set font before calculating text size
+        doc.setFontSize(8).setFont("helvetica", "normal")
+        
+        // Split each line into multiple lines if text is too long
+        const allTextLines: string[] = []
+        lines.forEach(line => {
+          const splitLines = doc.splitTextToSize(line, textWidth)
+          allTextLines.push(...splitLines)
+        })
+        
+        // Calculate dynamic height based on actual content
+        const boxHeight = Math.max(28, allTextLines.length * lineHeight + 12) // Minimum height 28
         checkPageBreak(boxHeight + 5)
 
         doc.setDrawColor(60, 60, 60).setFillColor(LIGHT_GRAY, LIGHT_GRAY, LIGHT_GRAY).setLineWidth(STROKE)
@@ -249,7 +262,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           .text(title, x + boxWidth / 2, currentY + 6, { align: "center" })
 
         doc.setFontSize(8).setFont("helvetica", "normal").setTextColor(20)
-        lines.forEach((txt, i) => {
+        allTextLines.forEach((txt, i) => {
           const yy = currentY + 10 + i * lineHeight
           doc.text(txt, x + 3, yy)
           doc
@@ -257,14 +270,15 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
             .setLineWidth(0.15)
             .line(x + 3, yy + 1.5, x + boxWidth - 3, yy + 1.5)
         })
+        
+        return boxHeight // Return the calculated height
       }
 
       // HEADER
-      const boxH = 36
       const logoArea = 40
       const boxW = (W - logoArea) / 2
 
-      drawBox(
+      const prestatorHeight = drawBox(
         "PRESTATOR",
         [
           "SC. NRG Access Systems S.R.L.",
@@ -279,7 +293,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       )
 
       const clientInfo = lucrareForPDF.clientInfo || {}
-      drawBox(
+      const beneficiarHeight = drawBox(
         "BENEFICIAR",
         [
           normalize(lucrareForPDF.client || "-"),
@@ -292,28 +306,31 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         M + boxW + logoArea,
       )
 
-      // LOGO placeholder
+      // Use the maximum height of both boxes
+      const maxBoxHeight = Math.max(prestatorHeight, beneficiarHeight)
+
+      // LOGO placeholder - centered vertically with the tallest box
       doc.setDrawColor(60, 60, 60).setLineWidth(STROKE)
-      ;(doc as any).roundedRect(M + boxW + 2, currentY + 3, logoArea - 4, boxH - 6, 1.5, 1.5, "S")
+      ;(doc as any).roundedRect(M + boxW + 2, currentY + 3, logoArea - 4, maxBoxHeight - 6, 1.5, 1.5, "S")
       if (logoLoaded && logoDataUrl) {
         try {
-          doc.addImage(logoDataUrl, "PNG", M + boxW + 4, currentY + 5, logoArea - 8, boxH - 10)
+          doc.addImage(logoDataUrl, "PNG", M + boxW + 4, currentY + 5, logoArea - 8, maxBoxHeight - 10)
         } catch {
           doc
             .setFontSize(14)
             .setFont("helvetica", "bold")
-            .text("NRG", M + boxW + logoArea / 2, currentY + boxH / 2, { align: "center" })
+            .text("NRG", M + boxW + logoArea / 2, currentY + maxBoxHeight / 2, { align: "center" })
         }
       }
 
-      currentY += boxH + 10
+      currentY += maxBoxHeight + 20
 
       // TITLE
       doc
         .setFontSize(16)
         .setFont("helvetica", "bold")
         .text("RAPORT DE INTERVENTIE", PW / 2, currentY, { align: "center" })
-      currentY += 10
+      currentY += 15
 
       // META
       doc.setFontSize(9).setFont("helvetica", "normal")
@@ -351,8 +368,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           `${normalize(lucrareForPDF.echipament || "Nespecificat")}${lucrareForPDF.echipamentCod ? ` (Cod: ${normalize(lucrareForPDF.echipamentCod)})` : ""}`,
         ]
 
-        drawBox("ECHIPAMENT", equipLines, W, M, true)
-        currentY += equipLines.length * 5 + 12 + 5
+        const equipHeight = drawBox("ECHIPAMENT", equipLines, W, M, true)
+        currentY += equipHeight + 5
       }
 
       // Dynamic text blocks helper (no fixed 5 lines)
