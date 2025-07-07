@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Pencil, Trash2 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { ArrowLeft, Pencil, Trash2, MapPin, Wrench, Calendar, Clock, FileText } from "lucide-react"
+import { getWarrantyDisplayInfo } from "@/lib/utils/warranty-calculator"
 import { getClientById, deleteClient, type Client } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -156,6 +159,241 @@ export default function ClientPage({ params }: { params: { id: string } }) {
               <h3 className="font-medium text-gray-500">CUI/CIF</h3>
               <p>{(client as any)?.cif || "N/A"}</p>
             </div>
+          </div>
+
+          <Separator />
+
+          {/* Secțiunea pentru locații și echipamente */}
+          <div>
+            <h3 className="font-medium text-gray-500 mb-4">Locații și Echipamente</h3>
+            {client?.locatii && client.locatii.length > 0 ? (
+              <Accordion type="multiple" className="w-full">
+                {client.locatii.map((locatie, index) => (
+                  <AccordionItem key={index} value={`locatie-${index}`}>
+                    <AccordionTrigger className="hover:no-underline">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4" />
+                        <span className="font-medium">{locatie.nume}</span>
+                        <Badge variant="secondary" className="ml-2">
+                          {locatie.echipamente?.length || 0} echipamente
+                        </Badge>
+                        {locatie.persoaneContact && locatie.persoaneContact.length > 0 && (
+                          <Badge variant="outline" className="ml-1">
+                            {locatie.persoaneContact.length} contacte
+                          </Badge>
+                        )}
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-4">
+                      <div className="space-y-6">
+                        {/* Informații despre locație */}
+                        <Card className="border-l-4 border-l-blue-500">
+                          <CardContent className="pt-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <MapPin className="h-4 w-4 text-blue-600" />
+                              <h4 className="font-medium">Informații Locație</h4>
+                            </div>
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <div>
+                                <p className="text-sm font-medium text-gray-600">Nume:</p>
+                                <p className="text-sm">{locatie.nume}</p>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-gray-600">Adresă:</p>
+                                <p className="text-sm">{locatie.adresa || "Nespecificat"}</p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Persoane de contact */}
+                        {locatie.persoaneContact && locatie.persoaneContact.length > 0 && (
+                          <Card className="border-l-4 border-l-green-500">
+                            <CardContent className="pt-4">
+                              <div className="flex items-center gap-2 mb-3">
+                                <FileText className="h-4 w-4 text-green-600" />
+                                <h4 className="font-medium">Persoane de Contact</h4>
+                                <Badge variant="secondary">{locatie.persoaneContact.length}</Badge>
+                              </div>
+                              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                                {locatie.persoaneContact.map((persoana, contactIndex) => (
+                                  <div key={contactIndex} className="p-3 border rounded-md bg-gray-50">
+                                    <div className="space-y-2">
+                                      <p className="font-medium text-sm">{persoana.nume}</p>
+                                      {persoana.telefon && (
+                                        <div className="flex items-center gap-1 text-xs text-gray-600">
+                                          <span>📞</span>
+                                          <span>{persoana.telefon}</span>
+                                        </div>
+                                      )}
+                                      {persoana.email && (
+                                        <div className="flex items-center gap-1 text-xs text-gray-600">
+                                          <span>✉️</span>
+                                          <span className="break-all">{persoana.email}</span>
+                                        </div>
+                                      )}
+                                      {persoana.functie && (
+                                        <Badge variant="outline" className="text-xs">
+                                          {persoana.functie}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* Echipamente */}
+                        <Card className="border-l-4 border-l-purple-500">
+                          <CardContent className="pt-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <Wrench className="h-4 w-4 text-purple-600" />
+                              <h4 className="font-medium">Echipamente</h4>
+                              <Badge variant="secondary">{locatie.echipamente?.length || 0}</Badge>
+                            </div>
+                            
+                            {locatie.echipamente && locatie.echipamente.length > 0 ? (
+                              <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
+                                {locatie.echipamente.map((echipament, echipamentIndex) => {
+                                  // Calculăm informațiile de garanție pentru fiecare echipament
+                                  const warrantyInfo = getWarrantyDisplayInfo(echipament);
+                                  
+                                  return (
+                                    <div key={echipamentIndex} className="p-4 border rounded-lg bg-white shadow-sm">
+                                      {/* Header echipament */}
+                                      <div className="flex items-start justify-between gap-2 mb-3">
+                                        <div className="min-w-0 flex-1">
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <Wrench className="h-4 w-4 text-purple-600" />
+                                            <h5 className="font-medium text-sm">{echipament.nume}</h5>
+                                          </div>
+                                          <div className="flex flex-wrap gap-1">
+                                            <Badge variant="outline" className="bg-purple-50 text-purple-800">
+                                              Cod: {echipament.cod}
+                                            </Badge>
+                                            {echipament.status && (
+                                              <Badge variant="secondary" className="text-xs">
+                                                {echipament.status}
+                                              </Badge>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Detalii echipament */}
+                                      <div className="space-y-3">
+                                        {/* Informații de bază */}
+                                        <div className="grid grid-cols-2 gap-3 text-xs">
+                                          {echipament.model && (
+                                            <div>
+                                              <span className="font-medium text-gray-600">Model:</span>
+                                              <p className="text-gray-900">{echipament.model}</p>
+                                            </div>
+                                          )}
+                                          {echipament.serie && (
+                                            <div>
+                                              <span className="font-medium text-gray-600">Serie:</span>
+                                              <p className="text-gray-900">{echipament.serie}</p>
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        {/* Date importante */}
+                                        {(echipament.dataInstalarii || echipament.dataInstalare || echipament.ultimaInterventie) && (
+                                          <div className="p-2 bg-gray-50 rounded text-xs space-y-1">
+                                            {(echipament.dataInstalarii || echipament.dataInstalare) && (
+                                              <div className="flex items-center gap-1">
+                                                <Calendar className="h-3 w-3 text-blue-600" />
+                                                <span className="font-medium">Instalat:</span>
+                                                <span>{echipament.dataInstalarii || echipament.dataInstalare}</span>
+                                              </div>
+                                            )}
+                                            {echipament.ultimaInterventie && (
+                                              <div className="flex items-center gap-1">
+                                                <Clock className="h-3 w-3 text-green-600" />
+                                                <span className="font-medium">Ultima intervenție:</span>
+                                                <span>{echipament.ultimaInterventie}</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+
+                                        {/* Informații garanție */}
+                                        {warrantyInfo.hasWarrantyData && (
+                                          <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded border">
+                                            <div className="flex items-center gap-2 mb-2">
+                                              <div className="h-4 w-4 rounded-full bg-blue-500 flex items-center justify-center">
+                                                <span className="text-white text-xs font-bold">G</span>
+                                              </div>
+                                              <span className="font-medium text-xs text-blue-900">Informații Garanție</span>
+                                              <Badge className={warrantyInfo.statusBadgeClass + " text-xs"}>
+                                                {warrantyInfo.statusText}
+                                              </Badge>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                              <div>
+                                                <span className="text-gray-600">Garanție:</span>
+                                                <span className="ml-1">{warrantyInfo.warrantyMonths} luni</span>
+                                              </div>
+                                              <div>
+                                                <span className="text-gray-600">Expiră:</span>
+                                                <span className="ml-1">{warrantyInfo.warrantyExpires}</span>
+                                              </div>
+                                              <div className="col-span-2">
+                                                <span className="text-gray-600">Zile rămase:</span>
+                                                <span className={`ml-1 font-medium ${warrantyInfo.isInWarranty ? 'text-green-600' : 'text-red-600'}`}>
+                                                  {warrantyInfo.isInWarranty ? warrantyInfo.daysRemaining : 0} zile
+                                                </span>
+                                              </div>
+                                            </div>
+                                            {!warrantyInfo.hasExplicitWarranty && (
+                                              <div className="mt-2 p-2 bg-yellow-100 border border-yellow-200 rounded">
+                                                <p className="text-xs text-yellow-800">
+                                                  ⚠️ Garanție implicită (12 luni) - nu a fost setată explicit
+                                                </p>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+
+                                        {/* Observații */}
+                                        {echipament.observatii && (
+                                          <div className="p-2 bg-yellow-50 border border-yellow-200 rounded">
+                                            <div className="flex items-start gap-1">
+                                              <FileText className="h-3 w-3 text-yellow-600 mt-0.5" />
+                                              <div>
+                                                <span className="font-medium text-xs text-yellow-800">Observații:</span>
+                                                <p className="text-xs text-yellow-700 mt-1">{echipament.observatii}</p>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="text-center py-8 text-gray-500">
+                                <Wrench className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                                <p className="text-sm">Nu există echipamente definite pentru această locație</p>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <MapPin className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">Nu există locații definite pentru acest client</p>
+              </div>
+            )}
           </div>
 
           <Separator />

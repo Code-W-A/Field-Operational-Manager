@@ -1767,34 +1767,34 @@ export default function Lucrari() {
                 </div>
               )}
               
-                          <LucrareForm
-              ref={addFormRef}
-              dataEmiterii={dataEmiterii}
-              setDataEmiterii={setDataEmiterii}
-              dataInterventie={dataInterventie}
-              setDataInterventie={setDataInterventie}
-              formData={formData}
-              handleInputChange={handleInputChange}
-              handleSelectChange={handleSelectChange}
-              handleTehnicieniChange={handleTehnicieniChange}
-              handleCustomChange={handleCustomChange}
+              <LucrareForm
+                ref={addFormRef}
+                dataEmiterii={dataEmiterii}
+                setDataEmiterii={setDataEmiterii}
+                dataInterventie={dataInterventie}
+                setDataInterventie={setDataInterventie}
+                formData={formData}
+                handleInputChange={handleInputChange}
+                handleSelectChange={handleSelectChange}
+                handleTehnicieniChange={handleTehnicieniChange}
+                handleCustomChange={handleCustomChange}
               fieldErrors={fieldErrors}
               setFieldErrors={setFieldErrors}
-            />
-            <DialogFooter className="flex-col gap-2 sm:flex-row">
-              <Button variant="outline" onClick={handleCloseAddDialog}>
-                Anulează
-              </Button>
-              <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSubmit} disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
-                  </>
-                ) : (
-                  "Salvează"
-                )}
-              </Button>
-            </DialogFooter>
+              />
+              <DialogFooter className="flex-col gap-2 sm:flex-row">
+                <Button variant="outline" onClick={handleCloseAddDialog}>
+                  Anulează
+                </Button>
+                <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSubmit} disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
+                    </>
+                  ) : (
+                    "Salvează"
+                  )}
+                </Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         )}

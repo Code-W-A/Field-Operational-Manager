@@ -258,7 +258,7 @@ export default function NewLucrarePage() {
 
   return (
     <Card className="w-full max-w-4xl mx-auto">
-      <CardHeader>
+        <CardHeader>
         <CardTitle>{isReassignment ? "Re-intervenție" : "Adaugă lucrare nouă"}</CardTitle>
         <CardDescription>
           {isReassignment 
@@ -266,8 +266,8 @@ export default function NewLucrarePage() {
             : "Completați informațiile pentru a adăuga o lucrare nouă în sistem"
           }
         </CardDescription>
-      </CardHeader>
-      <CardContent>
+        </CardHeader>
+        <CardContent>
         {/* Banner pentru re-intervenție */}
         {isReassignment && (
           <Alert className="mb-6 border-blue-200 bg-blue-50">
@@ -279,20 +279,20 @@ export default function NewLucrarePage() {
           </Alert>
         )}
 
-        <LucrareForm
-          dataEmiterii={dataEmiterii}
-          setDataEmiterii={setDataEmiterii}
-          dataInterventie={dataInterventie}
-          setDataInterventie={setDataInterventie}
-          formData={formData}
-          handleInputChange={handleInputChange}
-          handleSelectChange={handleSelectChange}
-          handleTehnicieniChange={handleTehnicieniChange}
-          handleCustomChange={handleCustomChange}
-          onSubmit={handleSubmit}
-          onCancel={() => router.push("/dashboard/lucrari")}
-        />
-      </CardContent>
-    </Card>
+          <LucrareForm
+            dataEmiterii={dataEmiterii}
+            setDataEmiterii={setDataEmiterii}
+            dataInterventie={dataInterventie}
+            setDataInterventie={setDataInterventie}
+            formData={formData}
+            handleInputChange={handleInputChange}
+            handleSelectChange={handleSelectChange}
+            handleTehnicieniChange={handleTehnicieniChange}
+            handleCustomChange={handleCustomChange}
+            onSubmit={handleSubmit}
+            onCancel={() => router.push("/dashboard/lucrari")}
+          />
+        </CardContent>
+      </Card>
   )
 }

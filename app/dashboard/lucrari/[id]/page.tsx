@@ -624,10 +624,10 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                     <ContractDisplay contractId={lucrare.contract} />
                   </div>
                 )}
-                <div>
-                  <p className="text-sm font-medium">Defect reclamat:</p>
+                  <div>
+                    <p className="text-sm font-medium">Defect reclamat:</p>
                   <p className="text-sm text-gray-500">{lucrare.defectReclamat || "Nu a fost specificat"}</p>
-                </div>
+                  </div>
 
                 {/* Afișăm mesajul de reatribuire dacă există */}
                 {lucrare.mesajReatribuire && (
@@ -695,6 +695,14 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                         ? `${lucrare.echipament}`
                         : "Nespecificat"}
                     </p>
+                    {role !== "tehnician" && lucrare.echipamentCod && (
+                      <p className="text-sm text-gray-500 flex items-center">
+                        <span className="font-medium text-xs mr-2 bg-purple-100 text-purple-800 px-2 py-0.5 rounded">
+                          Cod:
+                        </span>
+                        {lucrare.echipamentCod}
+                      </p>
+                    )}
                     {lucrare.echipamentModel && (
                       <p className="text-sm text-gray-500 flex items-center">
                         <span className="font-medium text-xs mr-2 bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
@@ -828,29 +836,29 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                     <div className="p-3 bg-white rounded-md border mb-3">
                       <h5 className="font-medium text-sm mb-2">Calculul automat al garanției:</h5>
                       <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div>
+                          <div>
                           <span className="text-gray-600">Status:</span>
                           <Badge className={warrantyInfo.statusBadgeClass + " ml-1"}>
                             {warrantyInfo.statusText}
                           </Badge>
-                        </div>
-                        <div>
+                          </div>
+                          <div>
                           <span className="text-gray-600">Zile rămase:</span>
                           <span className={`ml-1 font-medium ${warrantyInfo.isInWarranty ? 'text-green-600' : 'text-red-600'}`}>
                             {warrantyInfo.isInWarranty ? warrantyInfo.daysRemaining : 0} zile
                           </span>
-                        </div>
-                        <div>
+                          </div>
+                          <div>
                           <span className="text-gray-600">Data instalării:</span>
                           <span className="ml-1">{warrantyInfo.installationDate || "Nedefinită"}</span>
-                        </div>
-                        <div>
+                          </div>
+                          <div>
                           <span className="text-gray-600">Expiră la:</span>
                           <span className="ml-1">{warrantyInfo.warrantyExpires || "Nedefinită"}</span>
+                          </div>
                         </div>
-                      </div>
                       <p className="text-xs text-gray-600 mt-2">{warrantyInfo.warrantyMessage}</p>
-                    </div>
+                        </div>
 
                     {/* Confirmarea tehnicianului la fața locului */}
                     {lucrare.tehnicianConfirmaGarantie !== undefined && (
@@ -870,10 +878,10 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                         </div>
                         <p className="text-xs text-yellow-700 mt-1">
                           Tehnicianul a verificat fizic echipamentul și a {lucrare.tehnicianConfirmaGarantie ? 'confirmat' : 'infirmat'} că este în garanție.
-                        </p>
+                            </p>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
                 )}
 
                 {/* Secțiune pentru managementul statusurilor critice - doar pentru admin/dispecer */}

@@ -367,19 +367,19 @@ export function QRCodeScanner({
       let isMatch = true
 
       if (expectedEquipmentCode && parsedData.code !== expectedEquipmentCode) {
-        errors.push(`Cod echipament necorespunzător. Așteptat: ${expectedEquipmentCode}, Scanat: ${parsedData.code}`)
+        errors.push(`Cod echipament necorespunzător`)
         isMatch = false
       }
 
       // Verificăm numele locației
       if (expectedLocationName && parsedData.location !== expectedLocationName) {
-        errors.push(`Locație necorespunzătoare. Așteptat: ${expectedLocationName}, Scanat: ${parsedData.location}`)
+        errors.push(`Locație necorespunzătoare`)
         isMatch = false
       }
 
       // Verificăm numele clientului
       if (expectedClientName && parsedData.client !== expectedClientName) {
-        errors.push(`Client necorespunzător. Așteptat: ${expectedClientName}, Scanat: ${parsedData.client}`)
+        errors.push(`Client necorespunzător`)
         isMatch = false
       }
 
@@ -589,13 +589,13 @@ export function QRCodeScanner({
         success: false,
         message: "Verificare eșuată!",
         details: [
-          `Cod echipament necorespunzător. Așteptat: ${expectedEquipmentCode}, Introdus: ${values.equipmentCode}`,
+          `Cod echipament necorespunzător`,
         ],
       })
 
       if (onScanError)
         onScanError(
-          `Cod echipament necorespunzător. Așteptat: ${expectedEquipmentCode}, Introdus: ${values.equipmentCode}`,
+          `Cod echipament necorespunzător`,
         )
       if (onVerificationComplete) onVerificationComplete(false)
     }
@@ -682,7 +682,16 @@ export function QRCodeScanner({
                 <FormItem>
                   <FormLabel>Cod echipament</FormLabel>
                   <FormControl>
-                    <Input placeholder="Introduceți codul echipamentului" {...field} />
+                    <Input 
+                      placeholder="Introduceți codul echipamentului" 
+                      {...field}
+                      onChange={(e) => {
+                        // Capitalizăm automat literele
+                        const uppercaseValue = e.target.value.toUpperCase()
+                        field.onChange(uppercaseValue)
+                      }}
+                      style={{ textTransform: 'uppercase' }}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
