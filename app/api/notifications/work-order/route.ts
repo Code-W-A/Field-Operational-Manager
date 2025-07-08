@@ -244,15 +244,13 @@ export async function POST(request: NextRequest) {
       </ul>
     `
 
-    // Prepare elegant technician info for client email with call buttons
+    // Prepare elegant technician info for client email fără buton de sunat
     const technicianInfoForClient = Array.isArray(technicians) && technicians.length > 0 
       ? technicians.map((tech, index) => {
-          const phoneNumber = tech.telefon ? tech.telefon.replace(/\s+/g, '') : null;
           const displayPhone = tech.telefon || 'Număr indisponibil';
-          
           return `
             <div style="margin: 10px 0; padding: 10px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #f9f9f9;">
-              <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+              <div style="display: flex; align-items: center; flex-wrap: wrap;">
                 <div style="flex: 1; min-width: 200px;">
                   <div style="font-weight: bold; color: #0f56b3; margin-bottom: 4px;">
                     ${index + 1}. ${tech.name}
@@ -261,14 +259,6 @@ export async function POST(request: NextRequest) {
                     📞 ${displayPhone}
                   </div>
                 </div>
-                ${phoneNumber ? `
-                <div style="margin-left: 10px;">
-                  <a href="tel:${phoneNumber}" 
-                     style="display: inline-block; padding: 8px 16px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px; font-size: 14px; font-weight: bold;">
-                    📞 Sună acum
-                  </a>
-                </div>
-                ` : ''}
               </div>
             </div>
           `;
