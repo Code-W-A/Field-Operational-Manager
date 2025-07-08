@@ -244,6 +244,14 @@ export async function POST(request: NextRequest) {
       </ul>
     `
 
+    // Prepare technician info for client email
+    const technicianInfoForClient = Array.isArray(technicians) && technicians.length > 0 
+      ? technicians.map(tech => {
+          const phoneInfo = tech.telefon ? ` (${tech.telefon})` : '';
+          return `${tech.name}${phoneInfo}`;
+        }).join(', ')
+      : 'Nu sunt tehnicieni asignați';
+
     // Prepare email content for client - exclude technical details and description (which is actually "Sfaturi pt tehnician")
     const clientWorkOrderInfo = `
       <ul style="list-style-type: none; padding-left: 0;">
@@ -252,6 +260,7 @@ export async function POST(request: NextRequest) {
         <li><strong>Tip lucrare:</strong> ${details?.workType || "N/A"}</li>
         <li><strong>Locație:</strong> ${details?.location || "N/A"}</li>
         <li><strong>Echipament:</strong> ${details?.equipment || "N/A"}</li>
+        <li><strong>Tehnician(i) asignat(i):</strong> ${technicianInfoForClient}</li>
       </ul>
     `
 

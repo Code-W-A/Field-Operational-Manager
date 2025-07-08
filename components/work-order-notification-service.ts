@@ -46,7 +46,7 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
 
           if (clientData && clientData.email) {
             clientEmail = clientData.email
-            clientName = clientData.nume || clientData.name || clientName
+            clientName = clientData.nume || (clientData as any).name || clientName
             console.log("Found client email by ID:", clientEmail)
           }
         } catch (error) {
@@ -63,7 +63,7 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
 
           if (clientData && clientData.email) {
             clientEmail = clientData.email
-            clientName = clientData.nume || clientData.name || clientName
+            clientName = clientData.nume || (clientData as any).name || clientName
             console.log("Found client email by name:", clientEmail)
           }
         } catch (error) {
@@ -94,7 +94,7 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
 
                 if (clientData.email) {
                   clientEmail = clientData.email
-                  clientName = clientData.nume || clientData.name || clientName
+                  clientName = clientData.nume || (clientData as any).name || clientName
                   console.log("Found client email by direct ID lookup:", clientEmail)
                 }
               } else {
@@ -111,7 +111,7 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
 
             if (clientData.email) {
               clientEmail = clientData.email
-              clientName = clientData.nume || clientData.name || clientName
+              clientName = clientData.nume || (clientData as any).name || clientName
               console.log("Found client email in Firestore by name query:", clientEmail)
             }
           }
@@ -145,7 +145,7 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
 
             if (bestMatch && bestMatch.email) {
               clientEmail = bestMatch.email
-              const newClientName = bestMatch.nume || bestMatch.name || clientName
+              const newClientName = bestMatch.nume || (bestMatch as any).name || clientName
               clientName = newClientName
               console.log("Found client email through fuzzy matching:", clientEmail)
             }
@@ -166,13 +166,15 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
             fetchTechnicianEmail(tech)
               .then((email) => ({
                 name: tech,
-                email: email,
+                email: email.email,
+                telefon: email.telefon,
               }))
               .catch((error) => {
                 console.error(`Error fetching email for technician ${tech}:`, error)
                 return {
                   name: tech,
                   email: null,
+                  telefon: null,
                 }
               }),
           )
@@ -182,6 +184,7 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
             Promise.resolve({
               name: tech.displayName || tech.name || tech,
               email: tech.email || null,
+              telefon: tech.telefon || null,
             }),
           )
         }
@@ -253,18 +256,18 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
     return { success: true, result }
   } catch (error) {
     console.error("Error sending work order notifications:", error)
-    return { success: false, error: error.message || "Unknown error" }
+    return { success: false, error: (error as Error).message || "Unknown error" }
   }
 }
 
 /**
- * Fetches a technician's email from Firestore
+ * Fetches a technician's email and phone from Firestore
  * @param technicianName The technician's name
- * @returns Promise with the email address or null
+ * @returns Promise with the email address, phone number or null
  */
-async function fetchTechnicianEmail(technicianName: string): Promise<string | null> {
+async function fetchTechnicianEmail(technicianName: string): Promise<{ email: string | null; telefon: string | null }> {
   try {
-    console.log("Fetching email for technician:", technicianName)
+    console.log("Fetching email and phone for technician:", technicianName)
 
     // Query the users collection to find the technician by displayName
     const usersRef = collection(db, "users")
@@ -273,15 +276,18 @@ async function fetchTechnicianEmail(technicianName: string): Promise<string | nu
 
     if (!querySnapshot.empty) {
       const techData = querySnapshot.docs[0].data()
-      console.log("Found technician data:", techData.displayName, techData.email)
-      return techData.email || null
+      console.log("Found technician data:", techData.displayName, techData.email, techData.telefon)
+      return { 
+        email: techData.email || null,
+        telefon: techData.telefon || null
+      }
     }
 
     console.warn("Technician not found in database:", technicianName)
-    return null
+    return { email: null, telefon: null }
   } catch (error) {
-    console.error(`Error fetching technician email for ${technicianName}:`, error)
-    return null
+    console.error(`Error fetching technician data for ${technicianName}:`, error)
+    return { email: null, telefon: null }
   }
 }
 
