@@ -244,13 +244,36 @@ export async function POST(request: NextRequest) {
       </ul>
     `
 
-    // Prepare technician info for client email
+    // Prepare elegant technician info for client email with call buttons
     const technicianInfoForClient = Array.isArray(technicians) && technicians.length > 0 
-      ? technicians.map(tech => {
-          const phoneInfo = tech.telefon ? ` (${tech.telefon})` : '';
-          return `${tech.name}${phoneInfo}`;
-        }).join(', ')
-      : 'Nu sunt tehnicieni asignați';
+      ? technicians.map((tech, index) => {
+          const phoneNumber = tech.telefon ? tech.telefon.replace(/\s+/g, '') : null;
+          const displayPhone = tech.telefon || 'Număr indisponibil';
+          
+          return `
+            <div style="margin: 10px 0; padding: 10px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #f9f9f9;">
+              <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 200px;">
+                  <div style="font-weight: bold; color: #0f56b3; margin-bottom: 4px;">
+                    ${index + 1}. ${tech.name}
+                  </div>
+                  <div style="color: #666; font-size: 14px;">
+                    📞 ${displayPhone}
+                  </div>
+                </div>
+                ${phoneNumber ? `
+                <div style="margin-left: 10px;">
+                  <a href="tel:${phoneNumber}" 
+                     style="display: inline-block; padding: 8px 16px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px; font-size: 14px; font-weight: bold;">
+                    📞 Sună acum
+                  </a>
+                </div>
+                ` : ''}
+              </div>
+            </div>
+          `;
+        }).join('')
+      : '<div style="color: #666; font-style: italic;">Nu sunt tehnicieni asignați</div>';
 
     // Prepare email content for client - exclude technical details and description (which is actually "Sfaturi pt tehnician")
     const clientWorkOrderInfo = `
@@ -260,7 +283,6 @@ export async function POST(request: NextRequest) {
         <li><strong>Tip lucrare:</strong> ${details?.workType || "N/A"}</li>
         <li><strong>Locație:</strong> ${details?.location || "N/A"}</li>
         <li><strong>Echipament:</strong> ${details?.equipment || "N/A"}</li>
-        <li><strong>Tehnician(i) asignat(i):</strong> ${technicianInfoForClient}</li>
       </ul>
     `
 
@@ -458,8 +480,13 @@ export async function POST(request: NextRequest) {
               <h3 style="margin-top: 0;">Detalii lucrare</h3>
               ${clientWorkOrderInfo}
             </div>
+
+            <div style="background-color: #f0f8ff; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #0f56b3;">
+              <h3 style="margin-top: 0; color: #0f56b3;">Tehnician(i) asignat(i)</h3>
+              ${technicianInfoForClient}
+            </div>
             
-            <p>Vă mulțumim pentru înțelegere.</p>
+            <p>Vă mulțumim pentru înțelegere și vă stăm la dispoziție pentru orice întrebări.</p>
             <hr style="border: 1px solid #eee; margin: 20px 0;" />
             <p style="color: #666; font-size: 12px;">Acest email a fost generat automat. Vă rugăm să nu răspundeți la acest email.</p>
           </div>
