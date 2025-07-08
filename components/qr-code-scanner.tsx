@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle, CheckCircle2, XCircle, Camera, KeyRound } from "lucide-react"
+import { AlertCircle, CheckCircle2, XCircle, Camera, KeyRound, Flashlight, ZoomIn, ZoomOut, Settings } from "lucide-react"
 import { Spinner } from "@/components/ui/spinner"
 import { useToast } from "@/components/ui/use-toast"
 import { Input } from "@/components/ui/input"
@@ -26,6 +26,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { calculateWarranty, getWarrantyDisplayInfo } from "@/lib/utils/warranty-calculator"
 import type { Echipament } from "@/lib/firebase/firestore"
+import { Slider } from "@/components/ui/slider"
 
 interface QRCodeScannerProps {
   expectedEquipmentCode?: string
@@ -103,6 +104,25 @@ export function QRCodeScanner({
   const [showWarrantyVerification, setShowWarrantyVerification] = useState(false)
   const [technicianWarrantyDeclaration, setTechnicianWarrantyDeclaration] = useState<boolean | null>(null)
 
+  // State-uri pentru controale avansate camera
+  const [torchEnabled, setTorchEnabled] = useState(false)
+  const [zoomLevel, setZoomLevel] = useState(1)
+  const [showAdvancedControls, setShowAdvancedControls] = useState(false)
+  const [videoTrack, setVideoTrack] = useState<MediaStreamTrack | null>(null)
+  const [supportsTorch, setSupportsTorch] = useState(false)
+  const [supportsZoom, setSupportsZoom] = useState(false)
+  const [scanSensitivity, setScanSensitivity] = useState(300) // scanDelay în ms
+
+  // State-uri pentru automatizări inteligente
+  const [autoMode, setAutoMode] = useState(true)
+  const [lightLevel, setLightLevel] = useState<'dark' | 'normal' | 'bright'>('normal')
+  const [autoTorchTriggered, setAutoTorchTriggered] = useState(false)
+  const [autoZoomTriggered, setAutoZoomTriggered] = useState(false)
+  const [scanAttempts, setScanAttempts] = useState(0)
+  const [isAutoOptimizing, setIsAutoOptimizing] = useState(false)
+  const lightDetectionRef = useRef<NodeJS.Timeout | null>(null)
+  const optimizationRef = useRef<NodeJS.Timeout | null>(null)
+
   // Inițializăm formularul pentru introducerea manuală a codului
   const form = useForm<ManualCodeFormValues>({
     resolver: zodResolver(manualCodeSchema),
@@ -121,6 +141,17 @@ export function QRCodeScanner({
 
     checkMobile()
   }, [])
+
+  // Effect pentru a obține track-ul video din QrReader
+  useEffect(() => {
+    if (isScanning && !showManualCodeInput) {
+      const interval = setInterval(() => {
+        getVideoTrackFromQrReader()
+      }, 1000) // Verificăm la fiecare secundă
+      
+      return () => clearInterval(interval)
+    }
+  }, [isScanning, showManualCodeInput])
 
   // Efect pentru a afișa butonul de introducere manuală când timerul global expiră
   useEffect(() => {
@@ -148,6 +179,17 @@ export function QRCodeScanner({
       setWarrantyInfo(null)
       setShowWarrantyVerification(false)
       setTechnicianWarrantyDeclaration(null)
+      // Resetăm controalele avansate
+      setTorchEnabled(false)
+      setZoomLevel(1)
+      setShowAdvancedControls(false)
+      setVideoTrack(null)
+      setSupportsTorch(false)
+      setSupportsZoom(false)
+      setScanSensitivity(300)
+      // Resetăm automatizările
+      stopAutoOptimizations()
+      setLightLevel('normal')
       form.reset()
 
       // Curățăm timeout-urile la închiderea dialogului
@@ -274,7 +316,7 @@ export function QRCodeScanner({
     }, GLOBAL_SCAN_TIMEOUT)
   }
 
-  // Verificăm permisiunile camerei
+  // Verificăm permisiunile camerei și capabilitățile
   const checkCameraPermissions = async () => {
     try {
       // Verificăm dacă API-ul de permisiuni este disponibil
@@ -287,14 +329,41 @@ export function QRCodeScanner({
         }
       }
 
-      // Încercăm să accesăm camera
-      const stream = await navigator.mediaDevices.getUserMedia({
+      // Constraints optimizate pentru scanare QR în condiții variate
+      const constraints = {
         video: {
           facingMode: isMobile ? "environment" : "user",
-          width: isMobile ? { ideal: 1280, max: 1920 } : { min: 640, ideal: 1280 },
-          height: isMobile ? { ideal: 720, max: 1080 } : { min: 480, ideal: 720 },
+          width: isMobile ? { ideal: 1920, max: 2560 } : { min: 720, ideal: 1280 },
+          height: isMobile ? { ideal: 1080, max: 1440 } : { min: 540, ideal: 720 },
+          // Setări optimizate pentru scanare QR
+          frameRate: { ideal: 30, max: 60 },
         },
-      })
+      }
+
+      // Încercăm să accesăm camera cu setări optimizate
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
+      
+      // Verificăm capabilitățile track-ului video
+      const track = stream.getVideoTracks()[0]
+      if (track) {
+        setVideoTrack(track)
+        
+        // Verificăm suportul pentru torch
+        const capabilities = track.getCapabilities() as any
+        if (capabilities.torch) {
+          setSupportsTorch(true)
+          console.log("Camera suportă torch/flash")
+        }
+        
+        // Verificăm suportul pentru zoom
+        if (capabilities.zoom) {
+          setSupportsZoom(true)
+          const { min, max } = capabilities.zoom
+          console.log(`Camera suportă zoom: ${min}x - ${max}x`)
+        }
+        
+        console.log("Camera capabilities:", capabilities)
+      }
 
       // Eliberăm stream-ul după ce am verificat că avem acces
       stream.getTracks().forEach((track) => track.stop())
@@ -309,6 +378,252 @@ export function QRCodeScanner({
       // Considerăm și aceasta o încercare eșuată
       incrementFailedAttempts()
     }
+  }
+
+  // Funcție pentru controlul torch-ului
+  const toggleTorch = async () => {
+    if (!videoTrack || !supportsTorch) return
+    
+    try {
+      await videoTrack.applyConstraints({
+        advanced: [{ torch: !torchEnabled } as any]
+      })
+      setTorchEnabled(!torchEnabled)
+      console.log(`Torch ${!torchEnabled ? 'activated' : 'deactivated'}`)
+    } catch (err) {
+      console.error("Error toggling torch:", err)
+    }
+  }
+
+  // Funcție pentru controlul zoom-ului
+  const handleZoomChange = async (newZoom: number[]) => {
+    if (!videoTrack || !supportsZoom) return
+    
+    const zoomValue = newZoom[0]
+    try {
+      await videoTrack.applyConstraints({
+        advanced: [{ zoom: zoomValue } as any]
+      })
+      setZoomLevel(zoomValue)
+      console.log(`Zoom set to: ${zoomValue}x`)
+    } catch (err) {
+      console.error("Error applying zoom:", err)
+    }
+  }
+
+  // Funcție pentru a obține track-ul video activ din QrReader
+  const getVideoTrackFromQrReader = () => {
+    const videoElement = document.getElementById("qr-video-element") as HTMLVideoElement
+    if (videoElement && videoElement.srcObject) {
+      const stream = videoElement.srcObject as MediaStream
+      const track = stream.getVideoTracks()[0]
+      if (track && track !== videoTrack) {
+        setVideoTrack(track)
+        
+        // Verificăm din nou capabilitățile pentru track-ul nou
+        const capabilities = track.getCapabilities() as any
+        setSupportsTorch(!!capabilities.torch)
+        setSupportsZoom(!!capabilities.zoom)
+        
+        // Pornește automatizările când avem track-ul video
+        if (autoMode) {
+          startAutoOptimizations(videoElement, track)
+        }
+      }
+    }
+  }
+
+  // Funcție pentru detectarea automată a luminii ambientale
+  const detectAmbientLight = (videoElement: HTMLVideoElement) => {
+    if (!videoElement || !videoElement.videoWidth) return
+
+    try {
+      // Creăm un canvas pentru a analiza pixelii
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+
+      canvas.width = 100 // Reducem dimensiunea pentru performanță
+      canvas.height = 100
+      
+      // Desenăm frame-ul curent în canvas
+      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height)
+      
+      // Obținem datele pixelilor
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      const data = imageData.data
+      
+      // Calculăm luminozitatea medie
+      let totalBrightness = 0
+      for (let i = 0; i < data.length; i += 4) {
+        // Formula pentru luminozitate: 0.299*R + 0.587*G + 0.114*B
+        const brightness = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
+        totalBrightness += brightness
+      }
+      
+      const avgBrightness = totalBrightness / (data.length / 4)
+      
+      // Determinăm nivelul de lumină
+      let newLightLevel: 'dark' | 'normal' | 'bright'
+      if (avgBrightness < 50) {
+        newLightLevel = 'dark'
+      } else if (avgBrightness > 180) {
+        newLightLevel = 'bright'
+      } else {
+        newLightLevel = 'normal'
+      }
+      
+      if (newLightLevel !== lightLevel) {
+        setLightLevel(newLightLevel)
+        console.log(`🔍 Detectată schimbare lumină: ${newLightLevel} (${avgBrightness.toFixed(1)})`)
+      }
+      
+      return avgBrightness
+    } catch (error) {
+      console.error('Eroare la detectarea luminii:', error)
+      return null
+    }
+  }
+
+  // Funcție pentru auto-torch în condiții de întuneric
+  const autoToggleTorch = async (track: MediaStreamTrack, lightLevel: string) => {
+    if (!supportsTorch || !autoMode) return
+
+    try {
+      if (lightLevel === 'dark' && !torchEnabled && !autoTorchTriggered) {
+        console.log('🔦 AUTO: Activez torch-ul pentru condiții de întuneric')
+        await track.applyConstraints({
+          advanced: [{ torch: true } as any]
+        })
+        setTorchEnabled(true)
+        setAutoTorchTriggered(true)
+        
+        toast({
+          title: "Auto-optimizare",
+          description: "Am activat flash-ul pentru condiții de întuneric",
+          duration: 2000,
+        })
+      } else if (lightLevel !== 'dark' && torchEnabled && autoTorchTriggered) {
+        console.log('🔦 AUTO: Dezactivez torch-ul - lumină suficientă')
+        await track.applyConstraints({
+          advanced: [{ torch: false } as any]
+        })
+        setTorchEnabled(false)
+        setAutoTorchTriggered(false)
+      }
+    } catch (error) {
+      console.error('Eroare la auto-torch:', error)
+    }
+  }
+
+  // Funcție pentru auto-zoom progresiv
+  const autoProgressiveZoom = async (track: MediaStreamTrack, attempts: number) => {
+    if (!supportsZoom || !autoMode || autoZoomTriggered) return
+
+    try {
+      // După 5 încercări fără succes, încep zoom-ul progresiv
+      if (attempts >= 5 && attempts <= 15) {
+        const targetZoom = Math.min(2.0, 1 + (attempts - 5) * 0.1)
+        
+        if (Math.abs(targetZoom - zoomLevel) > 0.05) {
+          console.log(`🔍 AUTO: Zoom progresiv la ${targetZoom.toFixed(1)}x (încercarea ${attempts})`)
+          await track.applyConstraints({
+            advanced: [{ zoom: targetZoom } as any]
+          })
+          setZoomLevel(targetZoom)
+          
+          if (attempts === 6) { // Prima dată când activăm zoom-ul
+            setAutoZoomTriggered(true)
+            toast({
+              title: "Auto-optimizare",
+              description: "Încerc zoom pentru a detecta mai bine QR-ul",
+              duration: 2000,
+            })
+          }
+        }
+      }
+      
+      // După 15 încercări, revin la zoom normal și încerc din nou
+      if (attempts === 16 && autoZoomTriggered) {
+        console.log('🔍 AUTO: Revin la zoom normal')
+        await track.applyConstraints({
+          advanced: [{ zoom: 1 } as any]
+        })
+        setZoomLevel(1)
+        setAutoZoomTriggered(false)
+      }
+    } catch (error) {
+      console.error('Eroare la auto-zoom:', error)
+    }
+  }
+
+  // Funcție pentru auto-ajustare sensibilitate
+  const autoAdjustSensitivity = (attempts: number) => {
+    if (!autoMode) return
+
+    // În primele 10 secunde, folosim sensibilitate mai mare pentru detectare rapidă
+    if (attempts < 10 && scanSensitivity !== 200) {
+      console.log('⚡ AUTO: Sensibilitate ridicată pentru detectare rapidă')
+      setScanSensitivity(200)
+    }
+    // După 10 secunde, reducem sensibilitatea pentru a evita procesarea excesivă
+    else if (attempts >= 10 && attempts < 20 && scanSensitivity !== 400) {
+      console.log('⚡ AUTO: Sensibilitate medie pentru echilibru')
+      setScanSensitivity(400)
+    }
+    // După 20 de secunde, sensibilitate redusă pentru stabilitate
+    else if (attempts >= 20 && scanSensitivity !== 600) {
+      console.log('⚡ AUTO: Sensibilitate redusă pentru stabilitate')
+      setScanSensitivity(600)
+    }
+  }
+
+  // Funcție principală pentru pornirea automatizărilor
+  const startAutoOptimizations = (videoElement: HTMLVideoElement, track: MediaStreamTrack) => {
+    if (!autoMode) return
+
+    console.log('🤖 AUTO: Pornesc optimizările automate')
+    setIsAutoOptimizing(true)
+
+    // Detectare lumină la fiecare 2 secunde
+    lightDetectionRef.current = setInterval(() => {
+      const brightness = detectAmbientLight(videoElement)
+      if (brightness !== null) {
+        autoToggleTorch(track, lightLevel)
+      }
+    }, 2000)
+
+    // Optimizare progresivă la fiecare 3 secunde
+    optimizationRef.current = setInterval(() => {
+      setScanAttempts(prev => {
+        const newAttempts = prev + 1
+        
+        // Auto-zoom progresiv
+        autoProgressiveZoom(track, newAttempts)
+        
+        // Auto-ajustare sensibilitate
+        autoAdjustSensitivity(newAttempts)
+        
+        return newAttempts
+      })
+    }, 3000)
+  }
+
+  // Funcție pentru oprirea automatizărilor
+  const stopAutoOptimizations = () => {
+    if (lightDetectionRef.current) {
+      clearInterval(lightDetectionRef.current)
+      lightDetectionRef.current = null
+    }
+    if (optimizationRef.current) {
+      clearInterval(optimizationRef.current)
+      optimizationRef.current = null
+    }
+    setIsAutoOptimizing(false)
+    setScanAttempts(0)
+    setAutoTorchTriggered(false)
+    setAutoZoomTriggered(false)
+    console.log('🤖 AUTO: Opresc optimizările automate')
   }
 
   // Funcție pentru verificarea datelor scanate
@@ -522,6 +837,9 @@ export function QRCodeScanner({
       setGlobalTimeoutProgress(0) // Resetăm progresul
       setGlobalTimeoutExpired(false) // Resetăm starea de expirare a timerului global
       setTimeRemaining(GLOBAL_SCAN_TIMEOUT / 1000) // Resetăm timpul rămas
+
+      // Oprim automatizările când detectăm un QR code
+      stopAutoOptimizations()
 
       // Curățăm timeout-urile când detectăm un cod QR
       if (scanTimeoutRef.current) {
@@ -738,6 +1056,8 @@ export function QRCodeScanner({
         clearInterval(progressIntervalRef.current)
         progressIntervalRef.current = null
       }
+      // Curățăm și automatizările
+      stopAutoOptimizations()
     }
   }, [])
 
@@ -783,7 +1103,14 @@ export function QRCodeScanner({
           <div className="dialog-content-scrollable">
             <DialogHeader>
               <DialogTitle>Scanare QR Code Echipament</DialogTitle>
-              <DialogDescription>Îndreptați camera către QR code-ul echipamentului pentru a-l scana.</DialogDescription>
+              <DialogDescription>
+                Îndreptați camera către QR code-ul echipamentului pentru a-l scana.
+                {autoMode && (
+                  <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
+                    🤖 <strong>Modul AUTO activ:</strong> Scanner-ul se optimizează automat pentru lumină, zoom și sensibilitate.
+                  </div>
+                )}
+              </DialogDescription>
             </DialogHeader>
 
             {renderCameraPermissionMessage()}
@@ -794,11 +1121,13 @@ export function QRCodeScanner({
                   <QrReader
                     constraints={{
                       facingMode: isMobile ? "environment" : "user",
-                      width: isMobile ? { ideal: 1280, max: 1920 } : { min: 640, ideal: 1280 },
-                      height: isMobile ? { ideal: 720, max: 1080 } : { min: 480, ideal: 720 },
+                      width: isMobile ? { ideal: 1920, max: 2560 } : { min: 720, ideal: 1280 },
+                      height: isMobile ? { ideal: 1080, max: 1440 } : { min: 540, ideal: 720 },
+                      // Setări optimizate pentru scanare QR în condiții variate
+                      frameRate: { ideal: 30, max: 60 },
                     }}
                     onResult={handleScan}
-                    scanDelay={300}
+                    scanDelay={scanSensitivity}
                     videoId="qr-video-element"
                     className="w-full h-full"
                     videoStyle={{
@@ -843,6 +1172,147 @@ export function QRCodeScanner({
                     ? "Asigurați-vă că QR code-ul este în cadrul camerei și bine iluminat."
                     : "Dacă camera nu se afișează, verificați permisiunile browserului și reîncărcați pagina."}
                 </p>
+
+                {/* Controale avansate pentru cameră */}
+                <div className="mt-4 space-y-3">
+                  {/* Indicator auto-optimizare și level lumină */}
+                  {autoMode && (
+                    <div className="flex justify-center items-center gap-2 mb-2">
+                      <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 rounded-full text-xs">
+                        <div className={`w-2 h-2 rounded-full ${isAutoOptimizing ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
+                        <span className="text-blue-800">AUTO</span>
+                      </div>
+                      <div className="flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-full text-xs">
+                        <span className="text-gray-700">
+                          {lightLevel === 'dark' ? '🌙' : lightLevel === 'bright' ? '☀️' : '🌤️'} 
+                          {lightLevel}
+                        </span>
+                      </div>
+                      {scanAttempts > 0 && (
+                        <div className="flex items-center gap-1 px-2 py-1 bg-orange-100 rounded-full text-xs">
+                          <span className="text-orange-800">#{scanAttempts}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Butoane pentru torch și controale */}
+                  <div className="flex justify-center gap-2">
+                    <Button
+                      variant={autoMode ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => {
+                        setAutoMode(!autoMode)
+                        if (!autoMode) {
+                          toast({
+                            title: "Auto-optimizare activată",
+                            description: "Scanner-ul se va optimiza automat pentru condiții optime",
+                            duration: 2000,
+                          })
+                        } else {
+                          stopAutoOptimizations()
+                          toast({
+                            title: "Auto-optimizare dezactivată", 
+                            description: "Controlați manual setările scanner-ului",
+                            duration: 2000,
+                          })
+                        }
+                      }}
+                      className="flex items-center gap-1"
+                    >
+                      🤖 {autoMode ? "AUTO ON" : "AUTO OFF"}
+                    </Button>
+
+                    {supportsTorch && (
+                      <Button
+                        variant={torchEnabled ? "default" : "outline"}
+                        size="sm"
+                        onClick={toggleTorch}
+                        className="flex items-center gap-1"
+                        disabled={autoMode && autoTorchTriggered}
+                      >
+                        <Flashlight className="h-4 w-4" />
+                        {torchEnabled ? "Flash ON" : "Flash OFF"}
+                        {autoMode && autoTorchTriggered && <span className="text-xs">(AUTO)</span>}
+                      </Button>
+                    )}
+                    
+                    <Button
+                      variant={showAdvancedControls ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setShowAdvancedControls(!showAdvancedControls)}
+                      className="flex items-center gap-1"
+                    >
+                      <Settings className="h-4 w-4" />
+                      Setări
+                    </Button>
+                  </div>
+
+                  {/* Controale avansate */}
+                  {showAdvancedControls && (
+                    <div className="border rounded-lg p-3 space-y-3 bg-muted/30">
+                      {/* Control zoom */}
+                      {supportsZoom && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-sm font-medium">Zoom: {zoomLevel.toFixed(1)}x</label>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleZoomChange([Math.max(1, zoomLevel - 0.5)])}
+                                disabled={zoomLevel <= 1}
+                              >
+                                <ZoomOut className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleZoomChange([Math.min(3, zoomLevel + 0.5)])}
+                                disabled={zoomLevel >= 3}
+                              >
+                                <ZoomIn className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                                                     <Slider
+                             value={[zoomLevel]}
+                             onValueChange={handleZoomChange}
+                             min={1}
+                             max={3}
+                             step={0.1}
+                             className="w-full"
+                             disabled={autoMode && autoZoomTriggered}
+                           />
+                           {autoMode && autoZoomTriggered && (
+                             <p className="text-xs text-blue-600">🤖 Zoom controlat automat</p>
+                           )}
+                        </div>
+                      )}
+
+                      {/* Control sensibilitate scanare */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">
+                          Sensibilitate scanare: {scanSensitivity}ms
+                        </label>
+                        <Slider
+                          value={[scanSensitivity]}
+                          onValueChange={(value) => setScanSensitivity(value[0])}
+                          min={100}
+                          max={1000}
+                          step={50}
+                          className="w-full"
+                          disabled={autoMode}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          {autoMode 
+                            ? "🤖 Sensibilitate controlată automat" 
+                            : "Valori mai mici = scanare mai rapidă, mai multe procesări"}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </>
             )}
 
