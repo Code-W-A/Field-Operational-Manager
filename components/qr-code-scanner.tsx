@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle, CheckCircle2, XCircle, Camera, KeyRound, Flashlight, RotateCcw, Info } from "lucide-react"
+import { AlertCircle, CheckCircle2, XCircle, Camera, KeyRound, Info } from "lucide-react"
 import { Spinner } from "@/components/ui/spinner"
 import { useToast } from "@/components/ui/use-toast"
 import { Input } from "@/components/ui/input"
@@ -89,12 +89,6 @@ export function QRCodeScanner({
   const [showWarrantyVerification, setShowWarrantyVerification] = useState(false)
   const [technicianWarrantyDeclaration, setTechnicianWarrantyDeclaration] = useState<boolean | null>(null)
 
-  // State pentru controale simple cameră
-  const [torchEnabled, setTorchEnabled] = useState(false)
-  const [videoTrack, setVideoTrack] = useState<MediaStreamTrack | null>(null)
-  const [supportsTorch, setSupportsTorch] = useState(false)
-  const [facingMode, setFacingMode] = useState<"environment" | "user">("environment")
-
   // Refs pentru html5-qrcode
   const scannerRef = useRef<Html5QrcodeScanner | null>(null)
   const scannerElementId = "qr-scanner-container"
@@ -114,18 +108,13 @@ export function QRCodeScanner({
       const mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i
       const isMobileDevice = mobileRegex.test(userAgent.toLowerCase())
       setIsMobile(isMobileDevice)
-      // Pe desktop, începem cu camera frontală
-      setFacingMode(isMobileDevice ? "environment" : "user")
     }
     checkMobile()
   }, [])
 
   // Resetăm starea când se deschide/închide dialogul
   useEffect(() => {
-    console.log("🔄 useEffect [isOpen] declanșat - isOpen:", isOpen)
-    
     if (!isOpen) {
-      console.log("🔄 Dialog închis - resetez toate state-urile")
       // Reset toate state-urile
       setScanResult(null)
       setScanError(null)
@@ -140,23 +129,16 @@ export function QRCodeScanner({
       setWarrantyInfo(null)
       setShowWarrantyVerification(false)
       setTechnicianWarrantyDeclaration(null)
-      setTorchEnabled(false)
-      setVideoTrack(null)
-      setSupportsTorch(false)
       form.reset()
 
       // Curățăm timeout-urile
       clearAllTimeouts()
     } else {
-      console.log("🔄 Dialog deschis - inițializez scanarea")
       // Când se deschide dialogul
-      console.log("🔄 Apelez checkCameraPermissions()")
       checkCameraPermissions()
-      console.log("🔄 Setez isScanning = true")
       setIsScanning(true)
       setFailedScanAttempts(0)
       setIsTimeoutActive(true)
-      console.log("🔄 Pornesc scan timeout")
       startScanTimeout()
     }
   }, [isOpen])
@@ -181,7 +163,6 @@ export function QRCodeScanner({
     // Timeout pentru afișarea butonului de introducere manuală
     scanTimeoutRef.current = setTimeout(() => {
       if (isScanning && !showManualCodeInput) {
-        console.log("Timeout de scanare atins - afișez butonul de introducere manuală")
         setShowManualEntryButton(true)
         setIsTimeoutActive(false)
       }
@@ -201,51 +182,26 @@ export function QRCodeScanner({
     updateTimer()
   }
 
-  // Verificăm permisiunile camerei cu setări simple și optimizate
+  // Verificăm permisiunile camerei
   const checkCameraPermissions = async () => {
-    console.log("🎥 ÎNCEPE checkCameraPermissions - facingMode:", facingMode)
-    
     try {
-      // Constraints simple și compatibile
+      // Constraints simple și compatibile pentru camera spate (environment)
       const constraints = {
         video: {
-          facingMode: facingMode,
+          facingMode: "environment",
           width: { ideal: 1280, max: 1920 },
           height: { ideal: 720, max: 1080 },
           frameRate: { ideal: 30 },
         },
       }
 
-      console.log("🎥 Constraint-uri camere:", constraints)
-      console.log("🎥 Încerc să accesez camera...")
-
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
-      console.log("🎥 ✅ Stream obținut cu succes!", stream)
       
-      // Verificăm suportul pentru torch (doar pe mobile)
-      const track = stream.getVideoTracks()[0]
-      console.log("🎥 Video track obținut:", track)
-      
-      if (track && isMobile) {
-        setVideoTrack(track)
-        const capabilities = track.getCapabilities() as any
-        console.log("🎥 Capabilități track:", capabilities)
-        if (capabilities.torch) {
-          setSupportsTorch(true)
-          console.log("🎥 ✅ Camera suportă torch/flash")
-        } else {
-          console.log("🎥 ❌ Camera NU suportă torch/flash")
-        }
-      }
-
       // Eliberăm stream-ul după verificare
       stream.getTracks().forEach((track) => track.stop())
-      console.log("🎥 ✅ Permisiuni acordate - setez granted")
       setCameraPermissionStatus("granted")
       setScanError(null)
     } catch (err) {
-      console.error("🎥 ❌ Camera permission error:", err)
-      console.log("🎥 ❌ Setez cameraPermissionStatus = denied")
       setScanError("Nu s-a putut accesa camera. Verificați permisiunile browserului.")
       setCameraPermissionStatus("denied")
       setIsScanning(false)
@@ -253,34 +209,10 @@ export function QRCodeScanner({
     }
   }
 
-  // Funcție simplă pentru controlul torch-ului - DEPRECATED pentru html5-qrcode
-  // html5-qrcode gestionează automat torch-ul prin UI-ul său
-  const toggleTorch = async () => {
-    console.log("🎥 Toggle torch - html5-qrcode gestionează automat torch-ul")
-    // Nu mai este necesar - html5-qrcode are propriile controale
-  }
-
-  // Funcție pentru comutarea camerei (față/spate)
-  const switchCamera = () => {
-    const newFacingMode = facingMode === "environment" ? "user" : "environment"
-    console.log("🎥 Schimb camera din", facingMode, "în", newFacingMode)
-    setFacingMode(newFacingMode)
-    
-    // Pentru html5-qrcode, trebuie să reinițializez complet scanner-ul
-    if (scannerRef.current) {
-      console.log("🎥 Cleanup scanner pentru schimbarea camerei...")
-      scannerRef.current.clear().catch(console.error)
-      scannerRef.current = null
-    }
-    
-    // Scanner-ul se va reinițializa automat prin useEffect când se schimbă facingMode
-  }
-
   // Funcție pentru incrementarea contorului de încercări eșuate
   const incrementFailedAttempts = () => {
     setFailedScanAttempts((prev) => {
       const newCount = prev + 1
-      console.log(`Încercare eșuată ${newCount}`)
 
       // După 2 încercări eșuate consecutive, afișăm butonul de introducere manuală
       if (newCount >= 2) {
@@ -308,7 +240,6 @@ export function QRCodeScanner({
       // Încearcă să parseze ca JSON (format vechi)
       try {
         parsedData = typeof data === "string" ? JSON.parse(data) : data
-        console.log("QR Code - Format JSON detectat:", parsedData)
         
         // Verifică dacă este format JSON valid pentru echipament
         if (parsedData.type !== "equipment") {
@@ -316,7 +247,6 @@ export function QRCodeScanner({
         }
       } catch (parseError) {
         // Nu s-a putut parsa ca JSON sau nu e format equipment
-        console.log("QR Code - Format simplu detectat:", data)
         isSimpleFormat = true
         
         // Tratează ca string simplu (format nou)
@@ -410,7 +340,6 @@ export function QRCodeScanner({
         restartScanning()
       }
     } catch (error) {
-      console.error("Eroare la verificarea datelor scanate:", error)
       setVerificationResult({
         success: false,
         message: "Eroare la procesarea QR code-ului",
@@ -461,28 +390,17 @@ export function QRCodeScanner({
 
   // Handler pentru scanare
   const handleScan = (result: any) => {
-    console.log("🎯 handleScan apelat cu result:", result)
-    console.log("🎯 result?.text:", result?.text)
-    console.log("🎯 isScanning:", isScanning)
-    
     if (result?.text && isScanning) {
-      console.log("🎯 ✅ QR Code detectat și procesat:", result.text)
       setScanResult(result.text)
       setIsScanning(false)
       setIsTimeoutActive(false)
       clearAllTimeouts()
       verifyScannedData(result.text)
-    } else {
-      console.log("🎯 ❌ QR Code detectat dar condiții nerespectatate:", {
-        hasText: !!result?.text,
-        isScanning: isScanning
-      })
     }
   }
 
   // Handler pentru erori de scanare
   const handleError = (error: any) => {
-    console.error("🎯 ❌ handleError apelat cu eroare:", error)
     setScanError("A apărut o eroare la scanarea QR code-ului. Verificați permisiunile camerei.")
     setIsScanning(false)
     if (onScanError) onScanError("Eroare la scanare")
@@ -492,7 +410,6 @@ export function QRCodeScanner({
 
   // Funcție pentru verificarea codului introdus manual (păstrată identic)
   const onSubmitManualCode = (values: ManualCodeFormValues) => {
-    console.log("Verificare cod manual:", values.equipmentCode)
     setIsVerifying(true)
 
     const manualData = {
@@ -570,23 +487,20 @@ export function QRCodeScanner({
   // Inițializare Html5QrcodeScanner când începe scanarea
   useEffect(() => {
     if (isScanning && isOpen && !showManualCodeInput && cameraPermissionStatus === "granted") {
-      console.log("🎥 Inițializez Html5QrcodeScanner...")
-      
       const config = {
         fps: 10,
         qrbox: { width: 250, height: 250 },
         aspectRatio: 1.0,
         supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
-        // Setări cameră simplificate
+        // Setări cameră pentru camera spate (environment)
         videoConstraints: {
-          facingMode: facingMode
+          facingMode: "environment"
         }
       }
 
       try {
         // Cleanup scanner existent dacă există
         if (scannerRef.current) {
-          console.log("🎥 Cleanup scanner existent...")
           scannerRef.current.clear().catch(console.error)
           scannerRef.current = null
         }
@@ -595,23 +509,18 @@ export function QRCodeScanner({
         const scanner = new Html5QrcodeScanner(scannerElementId, config, false)
         scannerRef.current = scanner
 
-        console.log("🎥 Pornesc scanner-ul...")
         scanner.render(
           (decodedText: string, decodedResult: any) => {
-            console.log("🎯 QR Code scanat cu succes:", decodedText)
             handleScan({ text: decodedText, result: decodedResult })
           },
           (error: string) => {
             // Ignore frequent errors - html5-qrcode is very verbose
             if (!error.includes("NotFoundException") && !error.includes("No QR code found")) {
-              console.log("🎯 Scanner error (ignorat):", error)
+              // Only log actual errors
             }
           }
         )
-
-        console.log("🎥 ✅ Html5QrcodeScanner inițializat cu succes!")
       } catch (error) {
-        console.error("🎥 ❌ Eroare la inițializarea scanner-ului:", error)
         handleError(error)
       }
     }
@@ -619,12 +528,11 @@ export function QRCodeScanner({
     // Cleanup când se oprește scanarea
     return () => {
       if (scannerRef.current && (!isScanning || !isOpen || showManualCodeInput)) {
-        console.log("🎥 Cleanup Html5QrcodeScanner din useEffect...")
         scannerRef.current.clear().catch(console.error)
         scannerRef.current = null
       }
     }
-  }, [isScanning, isOpen, showManualCodeInput, cameraPermissionStatus, facingMode])
+  }, [isScanning, isOpen, showManualCodeInput, cameraPermissionStatus])
 
   return (
     <>
@@ -646,77 +554,6 @@ export function QRCodeScanner({
             </DialogDescription>
           </DialogHeader>
 
-          {/* DEBUG: Panel de debugging vizual */}
-          <div className="p-3 bg-gray-50 border rounded-lg text-xs">
-            <h4 className="font-bold mb-2 text-gray-700">🔍 DEBUG INFO:</h4>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div>
-                <strong>Camera Status:</strong>
-                <div className={`inline-block ml-1 px-2 py-1 rounded ${
-                  cameraPermissionStatus === 'granted' ? 'bg-green-100 text-green-800' :
-                  cameraPermissionStatus === 'denied' ? 'bg-red-100 text-red-800' :
-                  'bg-yellow-100 text-yellow-800'
-                }`}>
-                  {cameraPermissionStatus}
-                </div>
-              </div>
-              <div>
-                <strong>Scanning:</strong>
-                <div className={`inline-block ml-1 px-2 py-1 rounded ${
-                  isScanning ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {isScanning ? 'DA' : 'NU'}
-                </div>
-              </div>
-              <div>
-                <strong>Manual Input:</strong>
-                <div className={`inline-block ml-1 px-2 py-1 rounded ${
-                  showManualCodeInput ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {showManualCodeInput ? 'DA' : 'NU'}
-                </div>
-              </div>
-              <div>
-                <strong>Is Mobile:</strong>
-                <div className={`inline-block ml-1 px-2 py-1 rounded ${
-                  isMobile ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {isMobile ? 'DA' : 'NU'}
-                </div>
-              </div>
-              <div>
-                <strong>Facing Mode:</strong>
-                <span className="ml-1 font-mono">{facingMode}</span>
-              </div>
-              <div>
-                <strong>Failed Attempts:</strong>
-                <span className="ml-1 font-mono">{failedScanAttempts}</span>
-              </div>
-              <div>
-                <strong>Show Manual Button:</strong>
-                <div className={`inline-block ml-1 px-2 py-1 rounded ${
-                  showManualEntryButton ? 'bg-orange-100 text-orange-800' : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {showManualEntryButton ? 'DA' : 'NU'}
-                </div>
-              </div>
-              <div>
-                <strong>Timeout Active:</strong>
-                <div className={`inline-block ml-1 px-2 py-1 rounded ${
-                  isTimeoutActive ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {isTimeoutActive ? 'DA' : 'NU'}
-                </div>
-              </div>
-            </div>
-            {scanError && (
-              <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded">
-                <strong className="text-red-800">Error:</strong>
-                <div className="text-red-700 font-mono text-xs break-all">{scanError}</div>
-              </div>
-            )}
-          </div>
-
           {/* Mesaj pentru permisiuni cameră */}
           {cameraPermissionStatus === "denied" && (
             <Alert variant="destructive" className="mt-4">
@@ -733,36 +570,9 @@ export function QRCodeScanner({
           )}
 
           {/* Scanner QR simplu și optimizat */}
-          <div className="p-2 bg-purple-50 border border-purple-200 rounded text-xs mb-4">
-            <strong className="text-purple-800">🔍 CONDIȚIE AFIȘARE CAMERA:</strong>
-            <div className="mt-1">
-              Condiția: isScanning={isScanning ? 'TRUE' : 'FALSE'} 
-              && !showManualCodeInput={!showManualCodeInput ? 'TRUE' : 'FALSE'} 
-              && cameraPermissionStatus!="denied"={cameraPermissionStatus !== "denied" ? 'TRUE' : 'FALSE'}
-              <br/>
-              <strong>REZULTAT FINAL: {(isScanning && !showManualCodeInput && cameraPermissionStatus !== "denied") ? '✅ SE AFIȘEAZĂ' : '❌ NU SE AFIȘEAZĂ'}</strong>
-            </div>
-          </div>
-          
           {isScanning && !showManualCodeInput && cameraPermissionStatus !== "denied" && (
             <div className="space-y-4">
-              {/* DEBUG: Afișare condiții pentru camera */}
-              <div className="p-2 bg-blue-50 border border-blue-200 rounded text-xs">
-                <strong className="text-blue-800">📹 CAMERA DEBUG:</strong>
-                <div className="mt-1 grid grid-cols-1 gap-1">
-                  <div>✅ isScanning: <strong>{isScanning ? 'true' : 'false'}</strong></div>
-                  <div>✅ !showManualCodeInput: <strong>{!showManualCodeInput ? 'true' : 'false'}</strong></div>
-                  <div>✅ cameraPermissionStatus: <strong>{cameraPermissionStatus}</strong></div>
-                  <div>📱 Constraint facing mode: <strong>{facingMode}</strong></div>
-                </div>
-              </div>
-              
               <div className="relative aspect-square w-full max-w-sm mx-auto overflow-hidden rounded-lg border-2 border-dashed border-blue-300">
-                {/* DEBUG: Indicator înainte de QrReader */}
-                <div className="absolute top-0 left-0 right-0 bg-green-100 border-b border-green-200 p-1 text-xs text-green-800 z-10">
-                  🎥 Html5QrcodeScanner se încarcă... Constraints: {facingMode}
-                </div>
-                
                 {/* Container pentru html5-qrcode scanner */}
                 <div id={scannerElementId} className="w-full h-full"></div>
                 
@@ -772,21 +582,6 @@ export function QRCodeScanner({
                     <div className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></div>
                     <span>Scanare...</span>
                   </div>
-                </div>
-              </div>
-
-              {/* Controale simple pentru cameră */}
-              <div className="flex justify-center gap-2">
-                {isMobile && (
-                  <Button variant="outline" size="sm" onClick={switchCamera}>
-                    <RotateCcw className="h-4 w-4 mr-1" />
-                    {facingMode === "environment" ? "Cameră față" : "Cameră spate"}
-                  </Button>
-                )}
-                
-                <div className="text-xs text-gray-600 flex items-center">
-                  <Info className="h-3 w-3 mr-1" />
-                  Html5-qrcode include propriile controale torch/flash
                 </div>
               </div>
 
