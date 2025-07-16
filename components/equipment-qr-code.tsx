@@ -51,11 +51,12 @@ export function EquipmentQRCode({
     img.src = fullLogoUrl
   }, [])
 
+  // Generăm un QR code simplificat pentru scanare mai ușoară în exterior
+  // Păstrăm doar informațiile esențiale pentru a reduce complexitatea
   const qrData = JSON.stringify({
     type: "equipment",
     code: equipment.cod,
-    id: equipment.id,
-    name: equipment.nume,
+    // Opțional: client și location pentru validare extra (pot fi omise pentru QR mai simplu)
     client: clientName,
     location: locationName,
   })
@@ -75,10 +76,10 @@ export function EquipmentQRCode({
     const svgElem = qrElem.querySelector("svg")
     if (!svgElem) return
 
-    // Ajustăm dimensiunea QR code-ului
+    // Ajustăm dimensiunea QR code-ului pentru printare optimizată
     const svgClone = svgElem.cloneNode(true) as SVGElement
-    svgClone.setAttribute("width", "100")
-    svgClone.setAttribute("height", "100")
+    svgClone.setAttribute("width", "120") // Mai mare pentru scanare mai ușoară
+    svgClone.setAttribute("height", "120")
 
     // Generăm HTML-ul cu noul logo
     const logoHtml = logoUrl
@@ -212,6 +213,11 @@ export function EquipmentQRCode({
     printWindow.document.open()
     printWindow.document.write(html)
     printWindow.document.close()
+
+    // Închidem automat dialogul QR code după printare
+    setTimeout(() => {
+      setOpen(false)
+    }, 500)
   }
 
   // Add event handler to stop propagation
@@ -243,11 +249,20 @@ export function EquipmentQRCode({
 
           <div className="flex flex-col items-center p-4">
             <div id="equipment-qr-code" className="border p-4 rounded-lg bg-white">
-              <QRCodeSVG value={qrData} size={200} level="H" includeMargin />
+              <QRCodeSVG 
+                value={qrData} 
+                size={240} 
+                level="M" 
+                includeMargin 
+                marginSize={2}
+                bgColor="#FFFFFF"
+                fgColor="#000000"
+              />
             </div>
             <div className="mt-4 text-center">
               <p className="font-medium">{equipment.nume}</p>
               <p className="text-sm text-gray-500">Cod: {equipment.cod}</p>
+              <p className="text-xs text-blue-600 mt-2">✨ Optimizat pentru scanare în exterior</p>
             </div>
           </div>
 

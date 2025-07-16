@@ -27,6 +27,7 @@ interface DataTableProps<TData, TValue> {
   setTable?: (table: any) => void
   showFilters?: boolean
   getRowClassName?: (row: TData) => string // Adăugăm această proprietate pentru a permite colorarea rândurilor
+  persistenceKey?: string // Cheia pentru persistența page size-ului
 }
 
 export function DataTable<TData, TValue>({
@@ -40,6 +41,7 @@ export function DataTable<TData, TValue>({
   setTable: setExternalTable,
   showFilters = true,
   getRowClassName,
+  persistenceKey,
 }: DataTableProps<TData, TValue>) {
   const [internalSorting, setInternalSorting] = useState<SortingState>(defaultSort ? [defaultSort] : [])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
@@ -318,7 +320,7 @@ export function DataTable<TData, TValue>({
         </Table>
       </div>
 
-      <DataTablePagination table={table} />
+      <DataTablePagination table={table} persistenceKey={persistenceKey} />
     </div>
   )
 }

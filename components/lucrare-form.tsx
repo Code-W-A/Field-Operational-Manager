@@ -2080,11 +2080,11 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
         {(onSubmit || onCancel) && (
           <div className="flex justify-end space-x-2 mt-6">
-            {onCancel && (
+            {/* {onCancel && (
               <Button variant="outline" onClick={handleCloseAttempt}>
                 Anulează
               </Button>
-            )}
+            )} */}
             {onSubmit && (
               <Button onClick={handleSubmit} disabled={isSubmitting}>
                 {isSubmitting ? (

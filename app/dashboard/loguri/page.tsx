@@ -431,6 +431,7 @@ export default function Loguri() {
             table={table}
             setTable={setTable}
             showFilters={false}
+            persistenceKey="loguri"
           />
         ) : (
           <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3 w-full overflow-auto">

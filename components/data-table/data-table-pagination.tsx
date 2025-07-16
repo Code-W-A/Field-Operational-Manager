@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react"
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
 import type { Table } from "@tanstack/react-table"
 
@@ -8,9 +9,33 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>
+  persistenceKey?: string // Cheia pentru localStorage (ex: "lucrari", "clienti", etc.)
 }
 
-export function DataTablePagination<TData>({ table }: DataTablePaginationProps<TData>) {
+export function DataTablePagination<TData>({ table, persistenceKey }: DataTablePaginationProps<TData>) {
+  // Încărcăm page size-ul salvat la inițializare
+  useEffect(() => {
+    if (persistenceKey) {
+      const savedPageSize = localStorage.getItem(`pageSize_${persistenceKey}`)
+      if (savedPageSize) {
+        const pageSize = parseInt(savedPageSize, 10)
+        if ([10, 20, 30, 40, 50].includes(pageSize)) {
+          table.setPageSize(pageSize)
+        }
+      }
+    }
+  }, [table, persistenceKey])
+
+  // Funcție pentru salvarea page size-ului
+  const handlePageSizeChange = (value: string) => {
+    const pageSize = Number(value)
+    table.setPageSize(pageSize)
+    
+    // Salvăm în localStorage dacă avem persistenceKey
+    if (persistenceKey) {
+      localStorage.setItem(`pageSize_${persistenceKey}`, value)
+    }
+  }
   return (
     <div className="flex items-center justify-end px-2">
       <div className="flex items-center space-x-6 lg:space-x-8">
@@ -18,9 +43,7 @@ export function DataTablePagination<TData>({ table }: DataTablePaginationProps<T
           <p className="text-sm font-medium">Rânduri per pagină</p>
           <Select
             value={`${table.getState().pagination.pageSize}`}
-            onValueChange={(value) => {
-              table.setPageSize(Number(value))
-            }}
+            onValueChange={handlePageSizeChange}
           >
             <SelectTrigger className="h-8 w-[70px]">
               <SelectValue placeholder={table.getState().pagination.pageSize} />

@@ -653,6 +653,7 @@ export default function ContractsPage() {
             table={table}
             setTable={setTable}
             showFilters={false}
+            persistenceKey="contracte"
           />
         </div>
       )}

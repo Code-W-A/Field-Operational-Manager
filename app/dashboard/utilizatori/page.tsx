@@ -236,6 +236,25 @@ export default function Utilizatori() {
   const [cardsCurrentPage, setCardsCurrentPage] = useState(1)
   const [cardsPageSize, setCardsPageSize] = useState(12)
 
+  // Persistența pentru cardsPageSize
+  useEffect(() => {
+    const savedCardsPageSize = localStorage.getItem("cardsPageSize_utilizatori")
+    if (savedCardsPageSize) {
+      const pageSize = parseInt(savedCardsPageSize, 10)
+      if ([6, 12, 24, 48].includes(pageSize)) {
+        setCardsPageSize(pageSize)
+      }
+    }
+  }, [])
+
+  // Salvează cardsPageSize în localStorage când se schimbă
+  const handleCardsPageSizeChange = (value: string) => {
+    const pageSize = Number(value)
+    setCardsPageSize(pageSize)
+    setCardsCurrentPage(1)
+    localStorage.setItem("cardsPageSize_utilizatori", value)
+  }
+
   // Calculăm datele pentru paginația cards
   const paginatedCardsData = useMemo(() => {
     const startIndex = (cardsCurrentPage - 1) * cardsPageSize
@@ -838,6 +857,7 @@ export default function Utilizatori() {
             setTable={setTable}
             showFilters={false}
             onRowClick={(row) => handleEdit(row)}
+            persistenceKey="utilizatori"
           />
         ) : (
           <div className="space-y-4">
@@ -847,10 +867,7 @@ export default function Utilizatori() {
                 <p className="text-sm font-medium">Carduri per pagină</p>
                 <Select
                   value={`${cardsPageSize}`}
-                  onValueChange={(value) => {
-                    setCardsPageSize(Number(value))
-                    setCardsCurrentPage(1)
-                  }}
+                  onValueChange={handleCardsPageSizeChange}
                 >
                   <SelectTrigger className="h-8 w-[70px]">
                     <SelectValue placeholder={cardsPageSize} />
