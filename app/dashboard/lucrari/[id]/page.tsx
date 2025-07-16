@@ -271,6 +271,37 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
     }
   })
 
+  // Detectăm întoarcerea de la pagina de raport prin focus pe fereastră
+  useEffect(() => {
+    let hasFocus = true
+    
+    const handleFocus = () => {
+      // Doar dacă fereastra a fost într-adevăr blurred înainte (adică s-a navigat la altă pagină)
+      if (!hasFocus) {
+        console.log("Pagină refocusată - refreshing lucrare data...")
+        // Delay scurt pentru a permite actualizarea în Firebase
+        setTimeout(() => {
+          refreshLucrare()
+        }, 500)
+      }
+      hasFocus = true
+    }
+    
+    const handleBlur = () => {
+      hasFocus = false
+    }
+    
+    // Adăugăm listener-ii pentru focus/blur pe fereastră
+    window.addEventListener('focus', handleFocus)
+    window.addEventListener('blur', handleBlur)
+    
+    // Cleanup la unmount
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('blur', handleBlur)
+    }
+  }, [refreshLucrare])
+
   // Modificăm funcția handleVerificationComplete pentru a actualiza și statusul lucrării la "În lucru"
   // când tehnicianul scanează cu succes codul QR al echipamentului
 

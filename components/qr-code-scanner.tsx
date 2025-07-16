@@ -214,8 +214,8 @@ export function QRCodeScanner({
     setFailedScanAttempts((prev) => {
       const newCount = prev + 1
 
-      // După 2 încercări eșuate consecutive, afișăm butonul de introducere manuală
-      if (newCount >= 2) {
+      // După 3 încercări eșuate consecutive, afișăm butonul de introducere manuală
+      if (newCount >= 3) {
         setShowManualEntryButton(true)
         setIsTimeoutActive(false)
         clearAllTimeouts()
@@ -356,14 +356,18 @@ export function QRCodeScanner({
   // Funcție pentru restart scanare după eroare
   const restartScanning = () => {
     incrementFailedAttempts()
+    
+    // Delay de 5 secunde între încercări - fără cleanup pentru a păstra video-ul
     setTimeout(() => {
-      if (!showManualCodeInput && !showWarrantyVerification) {
-        setIsScanning(true)
-        if (failedScanAttempts < 2) {
+      // Verificăm iar starea actuală pentru a evita race conditions
+      setFailedScanAttempts((currentFailedAttempts) => {
+        if (!showManualCodeInput && !showWarrantyVerification && currentFailedAttempts < 3) {
+          setIsScanning(true)
           startScanTimeout()
         }
-      }
-    }, 1000)
+        return currentFailedAttempts
+      })
+    }, 5000)
   }
 
   // Funcție pentru activarea introducerii manuale
@@ -376,6 +380,12 @@ export function QRCodeScanner({
 
   // Funcție pentru întoarcerea la scanare
   const returnToScanning = () => {
+    // Cleanup scanner-ul curent
+    if (scannerRef.current) {
+      scannerRef.current.clear().catch(console.error)
+      scannerRef.current = null
+    }
+    
     setShowManualCodeInput(false)
     setShowManualEntryButton(false)
     setFailedScanAttempts(0)
@@ -385,6 +395,27 @@ export function QRCodeScanner({
     setIsScanning(true)
     setIsTimeoutActive(true)
     form.reset()
+    startScanTimeout()
+  }
+
+  // Funcție pentru repornirea completă a scanner-ului (după eroare)
+  const restartScannerCompletely = () => {
+    // Cleanup scanner-ul curent
+    if (scannerRef.current) {
+      scannerRef.current.clear().catch(console.error)
+      scannerRef.current = null
+    }
+    
+    // Reset toate state-urile legate de erori
+    setScanError(null)
+    setVerificationResult(null)
+    setScanResult(null)
+    setFailedScanAttempts(0)
+    setShowManualEntryButton(false)
+    
+    // Repornire scanare
+    setIsScanning(true)
+    setIsTimeoutActive(true)
     startScanTimeout()
   }
 
@@ -587,16 +618,24 @@ export function QRCodeScanner({
             </div>
           )}
 
-          {/* Buton pentru introducerea manuală */}
+
+
+          {/* Buton pentru introducerea manuală (după 3 încercări) */}
           {showManualEntryButton && !showManualCodeInput && (
-            <div className="mt-4 p-4 border rounded-lg bg-muted/30">
-              <p className="text-sm text-muted-foreground mb-3">
-                Nu s-a putut scana codul după {failedScanAttempts} încercări. Încercați introducerea manuală.
+            <div className="mt-4 p-4 border rounded-lg bg-red-50 border-red-200">
+              <p className="text-sm text-red-800 mb-3">
+                Nu s-a putut scana codul după {failedScanAttempts} încercări. Încercați introducerea manuală sau reîncercați scanarea.
               </p>
-              <Button onClick={activateManualCodeInput} className="w-full">
-                <KeyRound className="mr-2 h-4 w-4" />
-                Introdu codul manual
-              </Button>
+              <div className="flex flex-col gap-2">
+                <Button onClick={activateManualCodeInput} className="w-full">
+                  <KeyRound className="mr-2 h-4 w-4" />
+                  Introdu codul manual
+                </Button>
+                <Button onClick={restartScannerCompletely} variant="outline" className="w-full">
+                  <Camera className="mr-2 h-4 w-4" />
+                  Încearcă scanarea din nou
+                </Button>
+              </div>
             </div>
           )}
 
@@ -675,17 +714,29 @@ export function QRCodeScanner({
 
           {/* Rezultatul verificării */}
           {verificationResult && (
-            <Alert variant={verificationResult.success ? "default" : "destructive"}>
-              {verificationResult.success ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-              <AlertTitle>{verificationResult.message}</AlertTitle>
-              <AlertDescription>
-                <ul className="list-disc pl-5 mt-2">
-                  {verificationResult.details?.map((detail, index) => (
-                    <li key={index}>{detail}</li>
-                  ))}
-                </ul>
-              </AlertDescription>
-            </Alert>
+            <div className="space-y-3">
+              <Alert variant={verificationResult.success ? "default" : "destructive"}>
+                {verificationResult.success ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                <AlertTitle>{verificationResult.message}</AlertTitle>
+                <AlertDescription>
+                  <ul className="list-disc pl-5 mt-2">
+                    {verificationResult.details?.map((detail, index) => (
+                      <li key={index}>{detail}</li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+              
+              {/* Buton pentru reîncercarea scanării după eroare de verificare */}
+              {!verificationResult.success && (
+                <div className="flex justify-center">
+                  <Button onClick={restartScannerCompletely} variant="outline" size="sm">
+                    <Camera className="mr-2 h-4 w-4" />
+                    Scanează din nou
+                  </Button>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Secțiunea pentru verificarea garanției (păstrată identică) */}
