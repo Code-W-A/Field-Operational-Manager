@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { QrReader } from "react-qr-reader"
+import { Html5QrcodeScanner, Html5QrcodeScannerState, Html5QrcodeScanType } from "html5-qrcode"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle, CheckCircle2, XCircle, Camera, KeyRound, Flashlight, RotateCcw } from "lucide-react"
+import { AlertCircle, CheckCircle2, XCircle, Camera, KeyRound, Flashlight, RotateCcw, Info } from "lucide-react"
 import { Spinner } from "@/components/ui/spinner"
 import { useToast } from "@/components/ui/use-toast"
 import { Input } from "@/components/ui/input"
@@ -94,6 +94,10 @@ export function QRCodeScanner({
   const [videoTrack, setVideoTrack] = useState<MediaStreamTrack | null>(null)
   const [supportsTorch, setSupportsTorch] = useState(false)
   const [facingMode, setFacingMode] = useState<"environment" | "user">("environment")
+
+  // Refs pentru html5-qrcode
+  const scannerRef = useRef<Html5QrcodeScanner | null>(null)
+  const scannerElementId = "qr-scanner-container"
 
   // Inițializăm formularul pentru introducerea manuală
   const form = useForm<ManualCodeFormValues>({
@@ -249,32 +253,27 @@ export function QRCodeScanner({
     }
   }
 
-  // Funcție simplă pentru controlul torch-ului
+  // Funcție simplă pentru controlul torch-ului - DEPRECATED pentru html5-qrcode
+  // html5-qrcode gestionează automat torch-ul prin UI-ul său
   const toggleTorch = async () => {
-    if (!videoTrack || !supportsTorch) return
-    
-    try {
-      await videoTrack.applyConstraints({
-        advanced: [{ torch: !torchEnabled } as any]
-      })
-      setTorchEnabled(!torchEnabled)
-      console.log(`Torch ${!torchEnabled ? 'activat' : 'dezactivat'}`)
-    } catch (err) {
-      console.error("Eroare la controlul torch:", err)
-    }
+    console.log("🎥 Toggle torch - html5-qrcode gestionează automat torch-ul")
+    // Nu mai este necesar - html5-qrcode are propriile controale
   }
 
   // Funcție pentru comutarea camerei (față/spate)
   const switchCamera = () => {
     const newFacingMode = facingMode === "environment" ? "user" : "environment"
+    console.log("🎥 Schimb camera din", facingMode, "în", newFacingMode)
     setFacingMode(newFacingMode)
     
-    // Restart scanarea cu noua cameră
-    setIsScanning(false)
-    setTimeout(() => {
-      setIsScanning(true)
-      checkCameraPermissions()
-    }, 500)
+    // Pentru html5-qrcode, trebuie să reinițializez complet scanner-ul
+    if (scannerRef.current) {
+      console.log("🎥 Cleanup scanner pentru schimbarea camerei...")
+      scannerRef.current.clear().catch(console.error)
+      scannerRef.current = null
+    }
+    
+    // Scanner-ul se va reinițializa automat prin useEffect când se schimbă facingMode
   }
 
   // Funcție pentru incrementarea contorului de încercări eșuate
@@ -462,19 +461,28 @@ export function QRCodeScanner({
 
   // Handler pentru scanare
   const handleScan = (result: any) => {
+    console.log("🎯 handleScan apelat cu result:", result)
+    console.log("🎯 result?.text:", result?.text)
+    console.log("🎯 isScanning:", isScanning)
+    
     if (result?.text && isScanning) {
-      console.log("QR Code detectat:", result.text)
+      console.log("🎯 ✅ QR Code detectat și procesat:", result.text)
       setScanResult(result.text)
       setIsScanning(false)
       setIsTimeoutActive(false)
       clearAllTimeouts()
       verifyScannedData(result.text)
+    } else {
+      console.log("🎯 ❌ QR Code detectat dar condiții nerespectatate:", {
+        hasText: !!result?.text,
+        isScanning: isScanning
+      })
     }
   }
 
   // Handler pentru erori de scanare
   const handleError = (error: any) => {
-    console.error("Eroare la scanarea QR code-ului:", error)
+    console.error("🎯 ❌ handleError apelat cu eroare:", error)
     setScanError("A apărut o eroare la scanarea QR code-ului. Verificați permisiunile camerei.")
     setIsScanning(false)
     if (onScanError) onScanError("Eroare la scanare")
@@ -558,6 +566,65 @@ export function QRCodeScanner({
       clearAllTimeouts()
     }
   }, [])
+
+  // Inițializare Html5QrcodeScanner când începe scanarea
+  useEffect(() => {
+    if (isScanning && isOpen && !showManualCodeInput && cameraPermissionStatus === "granted") {
+      console.log("🎥 Inițializez Html5QrcodeScanner...")
+      
+      const config = {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0,
+        supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
+        // Setări cameră simplificate
+        videoConstraints: {
+          facingMode: facingMode
+        }
+      }
+
+      try {
+        // Cleanup scanner existent dacă există
+        if (scannerRef.current) {
+          console.log("🎥 Cleanup scanner existent...")
+          scannerRef.current.clear().catch(console.error)
+          scannerRef.current = null
+        }
+
+        // Creez noul scanner
+        const scanner = new Html5QrcodeScanner(scannerElementId, config, false)
+        scannerRef.current = scanner
+
+        console.log("🎥 Pornesc scanner-ul...")
+        scanner.render(
+          (decodedText: string, decodedResult: any) => {
+            console.log("🎯 QR Code scanat cu succes:", decodedText)
+            handleScan({ text: decodedText, result: decodedResult })
+          },
+          (error: string) => {
+            // Ignore frequent errors - html5-qrcode is very verbose
+            if (!error.includes("NotFoundException") && !error.includes("No QR code found")) {
+              console.log("🎯 Scanner error (ignorat):", error)
+            }
+          }
+        )
+
+        console.log("🎥 ✅ Html5QrcodeScanner inițializat cu succes!")
+      } catch (error) {
+        console.error("🎥 ❌ Eroare la inițializarea scanner-ului:", error)
+        handleError(error)
+      }
+    }
+
+    // Cleanup când se oprește scanarea
+    return () => {
+      if (scannerRef.current && (!isScanning || !isOpen || showManualCodeInput)) {
+        console.log("🎥 Cleanup Html5QrcodeScanner din useEffect...")
+        scannerRef.current.clear().catch(console.error)
+        scannerRef.current = null
+      }
+    }
+  }, [isScanning, isOpen, showManualCodeInput, cameraPermissionStatus, facingMode])
 
   return (
     <>
@@ -693,25 +760,11 @@ export function QRCodeScanner({
               <div className="relative aspect-square w-full max-w-sm mx-auto overflow-hidden rounded-lg border-2 border-dashed border-blue-300">
                 {/* DEBUG: Indicator înainte de QrReader */}
                 <div className="absolute top-0 left-0 right-0 bg-green-100 border-b border-green-200 p-1 text-xs text-green-800 z-10">
-                  🎥 QrReader se încarcă... Constraints: {facingMode}
+                  🎥 Html5QrcodeScanner se încarcă... Constraints: {facingMode}
                 </div>
                 
-                <QrReader
-                  constraints={{
-                    facingMode: facingMode,
-                    width: { ideal: 1280, max: 1920 },
-                    height: { ideal: 720, max: 1080 },
-                    frameRate: { ideal: 30 },
-                  }}
-                  onResult={handleScan}
-                  scanDelay={300}
-                  className="w-full h-full"
-                  videoStyle={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                  }}
-                />
+                {/* Container pentru html5-qrcode scanner */}
+                <div id={scannerElementId} className="w-full h-full"></div>
                 
                 {/* Indicator de scanare */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -731,16 +784,10 @@ export function QRCodeScanner({
                   </Button>
                 )}
                 
-                {supportsTorch && (
-                  <Button
-                    variant={torchEnabled ? "default" : "outline"}
-                    size="sm"
-                    onClick={toggleTorch}
-                  >
-                    <Flashlight className="h-4 w-4 mr-1" />
-                    {torchEnabled ? "Flash ON" : "Flash OFF"}
-                  </Button>
-                )}
+                <div className="text-xs text-gray-600 flex items-center">
+                  <Info className="h-3 w-3 mr-1" />
+                  Html5-qrcode include propriile controale torch/flash
+                </div>
               </div>
 
               <p className="text-xs text-muted-foreground text-center">

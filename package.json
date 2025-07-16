@@ -49,6 +49,7 @@
     "firebase-admin": "latest",
     "fs": "latest",
     "html2canvas": "latest",
+    "html5-qrcode": "^2.3.8",
     "input-otp": "1.4.1",
     "jspdf": "latest",
     "lucide-react": "^0.454.0",

@@ -263,9 +263,7 @@ export function EquipmentQRCode({
             <div className="mt-4 text-center">
               <p className="font-medium">{equipment.nume}</p>
               <p className="text-sm text-gray-500">Cod: {equipment.cod}</p>
-              {useSimpleFormat && (
-                <p className="text-xs text-green-600 mt-1">Format simplu - mai ușor de scanat</p>
-              )}
+            
             </div>
           </div>
 
