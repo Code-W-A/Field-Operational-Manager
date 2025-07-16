@@ -566,6 +566,16 @@ export function QRCodeScanner({
             </Alert>
           )}
 
+          {cameraPermissionStatus === "prompt" && (
+            <Alert className="mt-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Permisiune cameră necesară</AlertTitle>
+              <AlertDescription>
+                <p>Această pagină are nevoie de acces la cameră pentru a scana QR code-uri. Permiteți accesul în fereastra de dialog a browserului.</p>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Scanner QR simplu și optimizat */}
           {isScanning && !showManualCodeInput && cameraPermissionStatus !== "denied" && (
             <div className="space-y-4">
@@ -585,6 +595,7 @@ export function QRCodeScanner({
                     height: "100%",
                     objectFit: "cover",
                   }}
+                  containerStyle={{ width: "100%", height: "100%", position: "relative" }}
                 />
                 
                 {/* Indicator de scanare */}

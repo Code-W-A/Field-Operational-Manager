@@ -472,7 +472,7 @@ export async function POST(request: NextRequest) {
             </div>
 
             <div style="background-color: #f0f8ff; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #0f56b3;">
-              <h3 style="margin-top: 0; color: #0f56b3;">Tehnician(i) asignat(i)</h3>
+              <h3 style="margin-top: 0; color: #0f56b3;">Tehnicieni</h3>
               ${technicianInfoForClient}
             </div>
             
