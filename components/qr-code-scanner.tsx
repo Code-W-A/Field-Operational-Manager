@@ -45,8 +45,8 @@ const manualCodeSchema = z.object({
 
 type ManualCodeFormValues = z.infer<typeof manualCodeSchema>
 
-// Constantă pentru timeout-ul de scanare (30 secunde pentru exterior)
-const SCAN_TIMEOUT_MS = 30000
+// Constantă pentru timeout-ul de scanare (20 secunde)
+const SCAN_TIMEOUT_MS = 20000
 
 export function QRCodeScanner({
   expectedEquipmentCode,
@@ -193,45 +193,27 @@ export function QRCodeScanner({
   // Verificăm permisiunile camerei cu setări simple și optimizate
   const checkCameraPermissions = async () => {
     try {
-      // Constraints optimizate pentru exterior și lumină puternică
+      // Constraints compatibile cu majoritatea dispozitivelor
       const constraints = {
         video: {
           facingMode: facingMode,
-          width: { ideal: 1920, max: 2560 }, // Rezoluție mai mare pentru exterior
-          height: { ideal: 1080, max: 1440 },
-          frameRate: { ideal: 30, max: 60 },
-          // Setări optimizate pentru exterior
-          autoGainControl: true,
-          echoCancellation: false,
-          noiseSuppression: false,
+          width: { ideal: 1280, min: 640, max: 1920 },
+          height: { ideal: 720, min: 480, max: 1080 },
+          frameRate: { ideal: 30 },
         },
       }
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
       
-      // Verificăm suportul pentru torch și alte features
+      // Verificăm suportul pentru torch
       const track = stream.getVideoTracks()[0]
       if (track) {
         setVideoTrack(track)
         const capabilities = track.getCapabilities() as any
         
-        // Suport torch
         if (capabilities.torch) {
           setSupportsTorch(true)
           console.log("Camera suportă torch/flash")
-        }
-        
-        // Aplicăm setări optimizate pentru exterior dacă sunt disponibile
-        try {
-          await track.applyConstraints({
-            autoGainControl: true,
-            exposureMode: 'continuous',
-            whiteBalanceMode: 'continuous',
-            focusMode: 'continuous'
-          } as any)
-          console.log("Setări optimizate pentru exterior aplicate")
-        } catch (err) {
-          console.log("Setări avansate nu sunt suportate, folosim setările de bază")
         }
       }
 
@@ -566,11 +548,6 @@ export function QRCodeScanner({
             <DialogTitle>Scanare QR Code Echipament</DialogTitle>
             <DialogDescription>
               Îndreptați camera către QR code-ul echipamentului pentru a-l scana.
-              {isTimeoutActive && (
-                <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
-                  ⏱️ Timp rămas pentru scanare: <strong>{timeRemaining}s</strong>
-                </div>
-              )}
             </DialogDescription>
           </DialogHeader>
 
@@ -596,47 +573,34 @@ export function QRCodeScanner({
                 <QrReader
                   constraints={{
                     facingMode: facingMode,
-                    width: { ideal: 1920, max: 2560 }, // Rezoluție mare pentru exterior
-                    height: { ideal: 1080, max: 1440 },
-                    frameRate: { ideal: 30, max: 60 },
-                    // Optimizări pentru exterior
-                    autoGainControl: true,
-                    echoCancellation: false,
-                    noiseSuppression: false,
+                    width: { ideal: 1280, min: 640 },
+                    height: { ideal: 720, min: 480 },
+                    frameRate: { ideal: 30 },
                   }}
                   onResult={handleScan}
-                  scanDelay={200} // Scanare mai rapidă pentru exterior
+                  scanDelay={300}
                   className="w-full h-full"
                   videoStyle={{
                     width: "100%",
                     height: "100%",
                     objectFit: "cover",
                   }}
-                  ViewFinder={() => (
-                    // Finder optimizat pentru exterior cu contrast mare
-                    <div className="absolute inset-4 border-4 border-white border-dashed rounded-lg opacity-80 shadow-lg">
-                      <div className="absolute top-0 left-0 w-8 h-8 border-l-4 border-t-4 border-green-400 rounded-tl-lg"></div>
-                      <div className="absolute top-0 right-0 w-8 h-8 border-r-4 border-t-4 border-green-400 rounded-tr-lg"></div>
-                      <div className="absolute bottom-0 left-0 w-8 h-8 border-l-4 border-b-4 border-green-400 rounded-bl-lg"></div>
-                      <div className="absolute bottom-0 right-0 w-8 h-8 border-r-4 border-b-4 border-green-400 rounded-br-lg"></div>
-                    </div>
-                  )}
                 />
                 
-                {/* Indicator de scanare cu contrast mare pentru exterior */}
+                {/* Indicator de scanare */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="absolute top-2 right-2 flex items-center bg-black bg-opacity-80 text-white text-sm px-3 py-2 rounded-full shadow-lg border-2 border-white">
-                    <div className="w-3 h-3 bg-green-400 rounded-full mr-2 animate-pulse shadow-lg"></div>
-                    <span className="font-medium">Scanare...</span>
+                  <div className="absolute top-2 right-2 flex items-center bg-black bg-opacity-70 text-white text-sm px-2 py-1 rounded-full">
+                    <div className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></div>
+                    <span>Scanare...</span>
                   </div>
                 </div>
               </div>
 
-              {/* Controale optimizate pentru exterior */}
-              <div className="flex justify-center gap-3">
+              {/* Controale simple pentru cameră */}
+              <div className="flex justify-center gap-2">
                 {isMobile && (
-                  <Button variant="outline" size="default" onClick={switchCamera} className="border-2">
-                    <RotateCcw className="h-5 w-5 mr-2" />
+                  <Button variant="outline" size="sm" onClick={switchCamera}>
+                    <RotateCcw className="h-4 w-4 mr-1" />
                     {facingMode === "environment" ? "Cameră față" : "Cameră spate"}
                   </Button>
                 )}
@@ -644,47 +608,17 @@ export function QRCodeScanner({
                 {supportsTorch && (
                   <Button
                     variant={torchEnabled ? "default" : "outline"}
-                    size="default"
+                    size="sm"
                     onClick={toggleTorch}
-                    className={torchEnabled ? "bg-yellow-500 hover:bg-yellow-600 text-black border-2" : "border-2"}
                   >
-                    <Flashlight className="h-5 w-5 mr-2" />
+                    <Flashlight className="h-4 w-4 mr-1" />
                     {torchEnabled ? "Flash ON" : "Flash OFF"}
                   </Button>
                 )}
-                
-                {/* Buton pentru calibrare automată lumină */}
-                <Button 
-                  variant="outline" 
-                  size="default" 
-                  onClick={() => {
-                    if (supportsTorch && !torchEnabled) {
-                      toggleTorch()
-                      toast({
-                        title: "Flash activat",
-                        description: "Pentru îmbunătățirea scanării în exterior",
-                        duration: 2000,
-                      })
-                    }
-                  }}
-                  className="border-2"
-                >
-                  ☀️ Auto
-                </Button>
-              </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <h4 className="font-medium text-blue-900 mb-2">💡 Sfaturi pentru scanarea în exterior:</h4>
-                <ul className="text-sm text-blue-800 space-y-1">
-                  <li>• Faceți umbră peste QR code pentru a reduce reflexiile</li>
-                  <li>• Activați flash-ul dacă QR code-ul este în umbră</li>
-                  <li>• Țineți telefonul stabil și aproape de QR code</li>
-                  <li>• Încercați diferite unghiuri dacă nu se scanează</li>
-                </ul>
               </div>
 
               <p className="text-sm text-muted-foreground text-center">
-                📱 <strong>Pentru exterior:</strong> Poziționați QR code-ul în umbră și activați flash-ul dacă este necesar.
+                Asigurați-vă că QR code-ul este în cadrul camerei și bine iluminat.
               </p>
             </div>
           )}
@@ -693,7 +627,10 @@ export function QRCodeScanner({
           {showManualEntryButton && !showManualCodeInput && (
             <div className="mt-4 p-4 border rounded-lg bg-muted/30">
               <p className="text-sm text-muted-foreground mb-3">
-                Nu s-a putut scana codul după {failedScanAttempts} încercări. Încercați introducerea manuală.
+                {failedScanAttempts > 0 
+                  ? `Nu s-a putut scana codul după ${failedScanAttempts} încercări. Încercați introducerea manuală.`
+                  : "Timp expirat pentru scanare. Puteți introduce codul manual."
+                }
               </p>
               <Button onClick={activateManualCodeInput} className="w-full">
                 <KeyRound className="mr-2 h-4 w-4" />

@@ -262,7 +262,7 @@ export function EquipmentQRCode({
             <div className="mt-4 text-center">
               <p className="font-medium">{equipment.nume}</p>
               <p className="text-sm text-gray-500">Cod: {equipment.cod}</p>
-              <p className="text-xs text-blue-600 mt-2">✨ Optimizat pentru scanare în exterior</p>
+             
             </div>
           </div>
 
