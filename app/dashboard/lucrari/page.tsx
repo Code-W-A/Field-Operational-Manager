@@ -552,7 +552,7 @@ export default function Lucrari() {
     }
 
     setFilteredData(filtered)
-  }, [searchText, filteredLucrari, activeFilters, applyFilters])
+  }, [searchText, filteredLucrari, activeFilters]) // Eliminat applyFilters din dependencies pentru a evita re-render-uri infinite
 
   // Detectăm dacă suntem pe un dispozitiv mobil
   const isMobile = useMediaQuery("(max-width: 768px)")
@@ -658,7 +658,7 @@ export default function Lucrari() {
     } else {
     setFilteredData(filteredLucrari)
     }
-  }, [filteredLucrari, activeFilters, applyFilters])
+  }, [filteredLucrari, activeFilters]) // Eliminat applyFilters din dependencies pentru a evita re-render-uri infinite
 
   // Populate column options when table is available
   useEffect(() => {
