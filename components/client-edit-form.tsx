@@ -889,6 +889,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
                                 equipment={echipament}
                                 clientName={formData.nume}
                                 locationName={locatie.nume}
+                                useSimpleFormat={true} // Format simplu pentru scanare mai ușoară
                               />
 
                               {isAdmin ? (

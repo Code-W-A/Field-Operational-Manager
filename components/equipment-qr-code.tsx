@@ -21,6 +21,8 @@ export interface EquipmentQRCodeProps {
   showLabel?: boolean
   /** Clase Tailwind suplimentare pentru butonul declanşator. */
   className?: string
+  /** Dacă true, generează QR cu format simplu (doar codul) pentru scanare mai ușoară */
+  useSimpleFormat?: boolean
 }
 
 export function EquipmentQRCode({
@@ -29,6 +31,7 @@ export function EquipmentQRCode({
   locationName,
   showLabel = false,
   className,
+  useSimpleFormat = false, // Default la false pentru compatibilitate
 }: EquipmentQRCodeProps) {
   const [open, setOpen] = useState(false)
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
@@ -51,14 +54,19 @@ export function EquipmentQRCode({
     img.src = fullLogoUrl
   }, [])
 
-  const qrData = JSON.stringify({
-    type: "equipment",
-    code: equipment.cod,
-    id: equipment.id,
-    name: equipment.nume,
-    client: clientName,
-    location: locationName,
-  })
+  // Generează datele pentru QR code în funcție de format
+  const qrData = useSimpleFormat 
+    ? equipment.cod // Format simplu: doar codul echipamentului
+    : JSON.stringify({ // Format JSON (compatibilitate cu cele vechi)
+        type: "equipment",
+        code: equipment.cod,
+        id: equipment.id,
+        name: equipment.nume,
+        client: clientName,
+        location: locationName,
+      })
+
+  console.log(`Generare QR ${useSimpleFormat ? 'format simplu' : 'format JSON'} pentru echipament:`, equipment.cod)
 
   // Modificăm funcția handlePrint pentru a include noul logo
 
@@ -243,7 +251,9 @@ export function EquipmentQRCode({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>QR Code pentru echipament</DialogTitle>
+            <DialogTitle>
+              QR Code pentru echipament {useSimpleFormat && <span className="text-sm text-green-600">(format simplu)</span>}
+            </DialogTitle>
           </DialogHeader>
 
           <div className="flex flex-col items-center p-4">
@@ -253,6 +263,9 @@ export function EquipmentQRCode({
             <div className="mt-4 text-center">
               <p className="font-medium">{equipment.nume}</p>
               <p className="text-sm text-gray-500">Cod: {equipment.cod}</p>
+              {useSimpleFormat && (
+                <p className="text-xs text-green-600 mt-1">Format simplu - mai ușor de scanat</p>
+              )}
             </div>
           </div>
 

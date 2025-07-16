@@ -274,7 +274,7 @@ export function QRCodeScanner({
     })
   }
 
-  // Funcție pentru verificarea datelor scanate (păstrată identică cu logica originală)
+  // Funcție pentru verificarea datelor scanate - îmbunătățită pentru compatibilitate retroactivă
   const verifyScannedData = (data: any) => {
     setIsVerifying(true)
     setIsScanning(false)
@@ -284,64 +284,79 @@ export function QRCodeScanner({
 
     try {
       let parsedData
+      let isSimpleFormat = false // Flag pentru formatul simplu
+
+      // Încearcă să parseze ca JSON (format vechi)
       try {
         parsedData = typeof data === "string" ? JSON.parse(data) : data
-        console.log("Processing QR data:", parsedData)
+        console.log("QR Code - Format JSON detectat:", parsedData)
+        
+        // Verifică dacă este format JSON valid pentru echipament
+        if (parsedData.type !== "equipment") {
+          throw new Error("Nu este JSON pentru echipament")
+        }
       } catch (parseError) {
-        console.log("QR code is not valid JSON, using as raw text:", data)
-        parsedData = { raw: data, type: "unknown" }
+        // Nu s-a putut parsa ca JSON sau nu e format equipment
+        console.log("QR Code - Format simplu detectat:", data)
+        isSimpleFormat = true
+        
+        // Tratează ca string simplu (format nou)
+        const codeString = typeof data === "string" ? data.trim() : String(data).trim()
+        
+        // Validare minimă pentru codul echipamentului (max 10 caractere, conține litere și cifre)
+        if (!codeString || codeString.length > 10 || !(/[a-zA-Z]/.test(codeString) && /[0-9]/.test(codeString))) {
+          setVerificationResult({
+            success: false,
+            message: "QR code invalid",
+            details: ["Codul scanat nu pare să fie un cod valid de echipament. Format așteptat: maxim 10 caractere cu litere și cifre."],
+          })
+          if (onScanError) onScanError("Cod echipament invalid")
+          if (onVerificationComplete) onVerificationComplete(false)
+          setIsVerifying(false)
+          restartScanning()
+          return
+        }
+        
+        // Creează obiect standardizat pentru formatul simplu
+        parsedData = {
+          type: "equipment",
+          code: codeString,
+          // Pentru formatul simplu, nu avem informații despre client/locație din QR
+          client: expectedClientName || "",
+          location: expectedLocationName || "",
+          format: "simple" // Marcăm că este format simplu
+        }
       }
 
-      if (parsedData.type === "unknown") {
-        setVerificationResult({
-          success: false,
-          message: "QR code necunoscut",
-          details: ["Acest QR code nu conține informații despre un echipament. Conținut: " + parsedData.raw],
-        })
-        if (onScanError) onScanError("QR code necunoscut")
-        if (onVerificationComplete) onVerificationComplete(false)
-        setIsVerifying(false)
-        restartScanning()
-        return
-      }
-
-      if (parsedData.type !== "equipment") {
-        setVerificationResult({
-          success: false,
-          message: "QR code invalid",
-          details: ["Acest QR code nu este pentru un echipament."],
-        })
-        if (onScanError) onScanError("QR code invalid")
-        if (onVerificationComplete) onVerificationComplete(false)
-        setIsVerifying(false)
-        restartScanning()
-        return
-      }
-
-      // Verificăm codul echipamentului
+      // Validare comună pentru ambele formate
       const errors: string[] = []
       let isMatch = true
 
+      // Verificarea principală: codul echipamentului (obligatorie pentru ambele formate)
       if (expectedEquipmentCode && parsedData.code !== expectedEquipmentCode) {
-        errors.push(`Cod echipament necorespunzător`)
+        errors.push(`Cod echipament necorespunzător (așteptat: ${expectedEquipmentCode}, scanat: ${parsedData.code})`)
         isMatch = false
       }
 
-      if (expectedLocationName && parsedData.location !== expectedLocationName) {
-        errors.push(`Locație necorespunzătoare`)
-        isMatch = false
-      }
+      // Pentru formatul JSON (vechi), verificăm și locația/clientul dacă sunt disponibile
+      if (!isSimpleFormat) {
+        if (expectedLocationName && parsedData.location && parsedData.location !== expectedLocationName) {
+          errors.push(`Locație necorespunzătoare (așteptată: ${expectedLocationName}, scanată: ${parsedData.location})`)
+          isMatch = false
+        }
 
-      if (expectedClientName && parsedData.client !== expectedClientName) {
-        errors.push(`Client necorespunzător`)
-        isMatch = false
+        if (expectedClientName && parsedData.client && parsedData.client !== expectedClientName) {
+          errors.push(`Client necorespunzător (așteptat: ${expectedClientName}, scanat: ${parsedData.client})`)
+          isMatch = false
+        }
       }
 
       if (isMatch) {
+        const formatInfo = isSimpleFormat ? "format simplu" : "format JSON"
         setVerificationResult({
           success: true,
           message: "Verificare reușită!",
-          details: ["Echipamentul scanat corespunde cu lucrarea."],
+          details: [`Echipamentul scanat corespunde cu lucrarea (${formatInfo}).`],
         })
         
         // Verificăm garanția pentru lucrări de tip "Intervenție în garanție"
@@ -361,7 +376,7 @@ export function QRCodeScanner({
             setIsOpen(false)
             toast({
               title: "Verificare reușită",
-              description: "Echipamentul scanat corespunde cu lucrarea. Puteți continua intervenția.",
+              description: `Echipamentul scanat corespunde cu lucrarea (${formatInfo}). Puteți continua intervenția.`,
             })
           }, 2000)
         }
@@ -380,9 +395,9 @@ export function QRCodeScanner({
       setVerificationResult({
         success: false,
         message: "Eroare la procesarea QR code-ului",
-        details: ["Formatul QR code-ului nu este valid."],
+        details: ["A apărut o eroare neașteptată la procesarea QR code-ului."],
       })
-      if (onScanError) onScanError("Format QR code invalid")
+      if (onScanError) onScanError("Eroare la procesare")
       if (onVerificationComplete) onVerificationComplete(false)
       restartScanning()
     }

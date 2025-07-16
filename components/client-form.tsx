@@ -942,6 +942,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
                                   equipment={echipament}
                                   clientName={formData.nume}
                                   locationName={locatie.nume}
+                                  useSimpleFormat={true} // Format simplu pentru echipamente noi - mai ușor de scanat
                                 />
                                 <Button
                                   type="button"
