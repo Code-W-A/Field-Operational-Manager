@@ -193,24 +193,23 @@ export function QRCodeScanner({
   // Verificăm permisiunile camerei cu setări simple și optimizate
   const checkCameraPermissions = async () => {
     try {
-      // Constraints compatibile cu majoritatea dispozitivelor
+      // Constraints simple și compatibile
       const constraints = {
         video: {
           facingMode: facingMode,
-          width: { ideal: 1280, min: 640, max: 1920 },
-          height: { ideal: 720, min: 480, max: 1080 },
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 },
           frameRate: { ideal: 30 },
         },
       }
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
       
-      // Verificăm suportul pentru torch
+      // Verificăm suportul pentru torch (doar pe mobile)
       const track = stream.getVideoTracks()[0]
-      if (track) {
+      if (track && isMobile) {
         setVideoTrack(track)
         const capabilities = track.getCapabilities() as any
-        
         if (capabilities.torch) {
           setSupportsTorch(true)
           console.log("Camera suportă torch/flash")
@@ -319,35 +318,24 @@ export function QRCodeScanner({
         return
       }
 
-      // Verificăm codul echipamentului (compatibil cu ambele formate: vechi și nou)
+      // Verificăm codul echipamentului
       const errors: string[] = []
       let isMatch = true
 
-      // Verificare obligatorie: codul echipamentului
       if (expectedEquipmentCode && parsedData.code !== expectedEquipmentCode) {
         errors.push(`Cod echipament necorespunzător`)
         isMatch = false
       }
 
-      // Verificări opționale pentru compatibilitate cu QR-urile vechi și noi
-      if (expectedLocationName && parsedData.location && parsedData.location !== expectedLocationName) {
+      if (expectedLocationName && parsedData.location !== expectedLocationName) {
         errors.push(`Locație necorespunzătoare`)
         isMatch = false
       }
 
-      if (expectedClientName && parsedData.client && parsedData.client !== expectedClientName) {
+      if (expectedClientName && parsedData.client !== expectedClientName) {
         errors.push(`Client necorespunzător`)
         isMatch = false
       }
-
-      // Log pentru debugging - să vedem ce format de QR code scanăm
-      console.log("🔍 QR Code Format:", {
-        hasId: !!parsedData.id,
-        hasName: !!parsedData.name,
-        hasClient: !!parsedData.client,
-        hasLocation: !!parsedData.location,
-        format: parsedData.id && parsedData.name ? "VECHI (complet)" : "NOU (simplificat)"
-      })
 
       if (isMatch) {
         setVerificationResult({
@@ -548,6 +536,11 @@ export function QRCodeScanner({
             <DialogTitle>Scanare QR Code Echipament</DialogTitle>
             <DialogDescription>
               Îndreptați camera către QR code-ul echipamentului pentru a-l scana.
+              {isTimeoutActive && (
+                <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
+                  ⏱️ Timp rămas pentru scanare: <strong>{timeRemaining}s</strong>
+                </div>
+              )}
             </DialogDescription>
           </DialogHeader>
 
@@ -566,16 +559,6 @@ export function QRCodeScanner({
             </Alert>
           )}
 
-          {cameraPermissionStatus === "prompt" && (
-            <Alert className="mt-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Permisiune cameră necesară</AlertTitle>
-              <AlertDescription>
-                <p>Această pagină are nevoie de acces la cameră pentru a scana QR code-uri. Permiteți accesul în fereastra de dialog a browserului.</p>
-              </AlertDescription>
-            </Alert>
-          )}
-
           {/* Scanner QR simplu și optimizat */}
           {isScanning && !showManualCodeInput && cameraPermissionStatus !== "denied" && (
             <div className="space-y-4">
@@ -583,8 +566,8 @@ export function QRCodeScanner({
                 <QrReader
                   constraints={{
                     facingMode: facingMode,
-                    width: { ideal: 1280, min: 640 },
-                    height: { ideal: 720, min: 480 },
+                    width: { ideal: 1280, max: 1920 },
+                    height: { ideal: 720, max: 1080 },
                     frameRate: { ideal: 30 },
                   }}
                   onResult={handleScan}
@@ -595,12 +578,11 @@ export function QRCodeScanner({
                     height: "100%",
                     objectFit: "cover",
                   }}
-                  containerStyle={{ width: "100%", height: "100%", position: "relative" }}
                 />
                 
                 {/* Indicator de scanare */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="absolute top-2 right-2 flex items-center bg-black bg-opacity-70 text-white text-sm px-2 py-1 rounded-full">
+                  <div className="absolute top-2 right-2 flex items-center bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded-full">
                     <div className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></div>
                     <span>Scanare...</span>
                   </div>
@@ -628,7 +610,7 @@ export function QRCodeScanner({
                 )}
               </div>
 
-              <p className="text-sm text-muted-foreground text-center">
+              <p className="text-xs text-muted-foreground text-center">
                 Asigurați-vă că QR code-ul este în cadrul camerei și bine iluminat.
               </p>
             </div>
@@ -638,10 +620,7 @@ export function QRCodeScanner({
           {showManualEntryButton && !showManualCodeInput && (
             <div className="mt-4 p-4 border rounded-lg bg-muted/30">
               <p className="text-sm text-muted-foreground mb-3">
-                {failedScanAttempts > 0 
-                  ? `Nu s-a putut scana codul după ${failedScanAttempts} încercări. Încercați introducerea manuală.`
-                  : "Timp expirat pentru scanare. Puteți introduce codul manual."
-                }
+                Nu s-a putut scana codul după {failedScanAttempts} încercări. Încercați introducerea manuală.
               </p>
               <Button onClick={activateManualCodeInput} className="w-full">
                 <KeyRound className="mr-2 h-4 w-4" />

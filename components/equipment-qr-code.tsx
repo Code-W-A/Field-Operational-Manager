@@ -51,12 +51,11 @@ export function EquipmentQRCode({
     img.src = fullLogoUrl
   }, [])
 
-  // Generăm un QR code simplificat pentru scanare mai ușoară în exterior
-  // Păstrăm doar informațiile esențiale pentru a reduce complexitatea
   const qrData = JSON.stringify({
     type: "equipment",
     code: equipment.cod,
-    // Opțional: client și location pentru validare extra (pot fi omise pentru QR mai simplu)
+    id: equipment.id,
+    name: equipment.nume,
     client: clientName,
     location: locationName,
   })
@@ -76,10 +75,10 @@ export function EquipmentQRCode({
     const svgElem = qrElem.querySelector("svg")
     if (!svgElem) return
 
-    // Ajustăm dimensiunea QR code-ului pentru printare optimizată
+    // Ajustăm dimensiunea QR code-ului
     const svgClone = svgElem.cloneNode(true) as SVGElement
-    svgClone.setAttribute("width", "120") // Mai mare pentru scanare mai ușoară
-    svgClone.setAttribute("height", "120")
+    svgClone.setAttribute("width", "100")
+    svgClone.setAttribute("height", "100")
 
     // Generăm HTML-ul cu noul logo
     const logoHtml = logoUrl
@@ -249,20 +248,11 @@ export function EquipmentQRCode({
 
           <div className="flex flex-col items-center p-4">
             <div id="equipment-qr-code" className="border p-4 rounded-lg bg-white">
-              <QRCodeSVG 
-                value={qrData} 
-                size={240} 
-                level="M" 
-                includeMargin 
-                marginSize={2}
-                bgColor="#FFFFFF"
-                fgColor="#000000"
-              />
+              <QRCodeSVG value={qrData} size={200} level="H" includeMargin />
             </div>
             <div className="mt-4 text-center">
               <p className="font-medium">{equipment.nume}</p>
               <p className="text-sm text-gray-500">Cod: {equipment.cod}</p>
-             
             </div>
           </div>
 
