@@ -283,7 +283,7 @@ export function QRCodeScanner({
 
       // Verificarea principală: codul echipamentului (obligatorie pentru ambele formate)
       if (expectedEquipmentCode && parsedData.code !== expectedEquipmentCode) {
-        errors.push(`Cod echipament necorespunzător (așteptat: ${expectedEquipmentCode}, scanat: ${parsedData.code})`)
+        errors.push(`Cod echipament necorespunzător (scanat: ${parsedData.code})`)
         isMatch = false
       }
 
