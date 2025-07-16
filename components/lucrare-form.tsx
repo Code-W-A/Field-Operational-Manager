@@ -2041,38 +2041,21 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           </Dialog>
 
           {isEdit && (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <label htmlFor="statusLucrare" className="text-sm font-medium">
-                  Status Lucrare
-                </label>
-                <div className="flex items-center h-10 px-3 py-2 text-sm border rounded-md bg-muted/50">
-                  <Badge className={getWorkStatusClass(formData.statusLucrare)}>{formData.statusLucrare}</Badge>
-                  <span className="ml-2 text-xs text-muted-foreground">Status automatizat</span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Statusul lucrării este actualizat automat în funcție de atribuirea tehnicienilor și progresul lucrării
-                </p>
+            <div className="space-y-2">
+              <label htmlFor="statusLucrare" className="text-sm font-medium">
+                Status Lucrare
+              </label>
+              <div className="flex items-center h-10 px-3 py-2 text-sm border rounded-md bg-muted/50">
+                <Badge className={getWorkStatusClass(formData.statusLucrare)}>{formData.statusLucrare}</Badge>
+                <span className="ml-2 text-xs text-muted-foreground">Status automatizat</span>
               </div>
-              <div className="space-y-2">
-                <label htmlFor="statusFacturare" className="text-sm font-medium">
-                  Status Facturare
-                </label>
-                <Select
-                  value={formData.statusFacturare}
-                  onValueChange={(value) => handleSelectChange("statusFacturare", value)}
-                >
-                  <SelectTrigger id="statusFacturare">
-                    <SelectValue placeholder="Selectați statusul" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {INVOICE_STATUS_OPTIONS.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {status}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <p className="text-xs text-muted-foreground">
+                Statusul lucrării este actualizat automat în funcție de atribuirea tehnicienilor și progresul lucrării
+              </p>
+              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                <p className="text-xs text-blue-700">
+                  <strong>Notă:</strong> Statusul facturării se actualizează din pagina de detalii a lucrării după finalizarea și preluarea acesteia de către dispecer.
+                </p>
               </div>
             </div>
           )}

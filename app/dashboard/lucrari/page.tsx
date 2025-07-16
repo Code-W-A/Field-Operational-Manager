@@ -1332,13 +1332,10 @@ export default function Lucrari() {
     }
   }, [toast])
 
-  // Funcție pentru a verifica dacă o lucrare necesită reatribuire (are fundal roșu)
+  // Funcție pentru a verifica dacă o lucrare necesită reatribuire (bazat pe status finalizare intervenție)
   const needsReassignment = useCallback((lucrare: any) => {
-    return (
-      lucrare.statusFinalizareInterventie === "NEFINALIZAT" ||
-      lucrare.statusEchipament === "Nefuncțional" ||
-      lucrare.necesitaOferta === true
-    )
+    // Reatribuirea este disponibilă doar pentru lucrări cu status finalizare "NEFINALIZAT"
+    return lucrare.statusFinalizareInterventie === "NEFINALIZAT"
   }, [])
 
   const handleApplyFilters = (filters) => {

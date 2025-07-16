@@ -102,24 +102,7 @@ export function TehnicianInterventionForm({
     checkWorkOrderStatus()
   }, [lucrareId])
 
-  useEffect(() => {
-    setFormData({
-      descriereInterventie: initialData.descriereInterventie || "",
-      constatareLaLocatie: initialData.constatareLaLocatie || "",
-      statusEchipament: initialData.statusEchipament || "Funcțional",
-      necesitaOferta: initialData.necesitaOferta || false,
-      comentariiOferta: initialData.comentariiOferta || "",
-    })
-    setDescriereInterventie(initialData.descriereInterventie || "")
-    setConstatareLaLocatie(initialData.constatareLaLocatie || "")
-    setStatusEchipament(initialData.statusEchipament || "Funcțional")
-    setNecesitaOferta(initialData.necesitaOferta || false)
-    setComentariiOferta(initialData.comentariiOferta || "")
-    setStatusFinalizareInterventie(initialData.statusFinalizareInterventie || "NEFINALIZAT")
-    setTehnicianConfirmaGarantie(initialData.tehnicianConfirmaGarantie || false)
-
-    console.log("Initial data loaded:", initialData)
-  }, [initialData])
+  // Am eliminat useEffect-ul care resetează câmpurile pentru a preveni ștergerea textului introdus de utilizator
 
   // Efect pentru calcularea informațiilor de garanție
   useEffect(() => {
@@ -455,7 +438,7 @@ export function TehnicianInterventionForm({
               )}
 
               {necesitaOferta && (
-                <Alert variant="info" className="mt-3">
+                <Alert variant="default" className="mt-3">
                   <Info className="h-4 w-4" />
                   <AlertDescription>
                     Dispecerul va fi notificat că această lucrare necesită o ofertă pentru client.
@@ -465,7 +448,7 @@ export function TehnicianInterventionForm({
             </div>
 
             {formDisabled ? (
-              <Alert variant="info">
+              <Alert variant="default">
                 <Info className="h-4 w-4" />
                 <AlertTitle>Lucrare finalizată</AlertTitle>
                 <AlertDescription>

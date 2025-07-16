@@ -546,11 +546,7 @@ export function QRCodeScanner({
             <DialogTitle>Scanare QR Code Echipament</DialogTitle>
             <DialogDescription>
               Îndreptați camera către QR code-ul echipamentului pentru a-l scana.
-              {isTimeoutActive && (
-                <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
-                  ⏱️ Timp rămas pentru scanare: <strong>{timeRemaining}s</strong>
-                </div>
-              )}
+           
             </DialogDescription>
           </DialogHeader>
 

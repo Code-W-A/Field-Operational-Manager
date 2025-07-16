@@ -17,6 +17,8 @@ import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { orderBy } from "firebase/firestore"
 import { ClientContractsManager } from "@/components/client-contracts-manager"
+// Adăugăm importul pentru componenta EquipmentQRCode
+import { EquipmentQRCode } from "@/components/equipment-qr-code"
 
 // Importăm hook-ul useClientLucrari pentru a putea actualiza datele
 import { useClientLucrari } from "@/hooks/use-client-lucrari"
@@ -370,6 +372,16 @@ export default function ClientPage({ params }: { params: { id: string } }) {
                                             </div>
                                           </div>
                                         )}
+
+                                        {/* Butoane QR Code și Print */}
+                                        <div className="flex items-center justify-center pt-3 border-t">
+                                          <EquipmentQRCode
+                                            equipment={echipament}
+                                            clientName={client?.nume || ""}
+                                            locationName={locatie.nume}
+                                            useSimpleFormat={true} // Format simplu pentru scanare mai ușoară
+                                          />
+                                        </div>
                                       </div>
                                     </div>
                                   );
