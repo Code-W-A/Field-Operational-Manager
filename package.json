@@ -4,14 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "dev:https": "next dev --experimental-https",
     "build": "next build",
     "start": "next start",
-    "start:https": "npm run start & npx local-ssl-proxy --source 3001 --target 3000 --cert localhost+2.pem --key localhost+2-key.pem",
-    "start:secure": "npm run build && npm run start:https",
-    "cert:create": "mkcert localhost 127.0.0.1 ::1",
-    "lint": "next lint",
-    "type-check": "tsc --noEmit"
+    "lint": "next lint"
   },
   "dependencies": {
     "@hookform/resolvers": "latest",
@@ -54,7 +49,6 @@
     "firebase-admin": "latest",
     "fs": "latest",
     "html2canvas": "latest",
-    "html5-qrcode": "^2.3.8",
     "input-otp": "1.4.1",
     "jspdf": "latest",
     "lucide-react": "^0.454.0",
@@ -65,7 +59,7 @@
     "prop-types": "latest",
     "qrcode.react": "latest",
     "react": "^19",
-    "react-day-picker": "^9.4.5",
+    "react-day-picker": "8.10.1",
     "react-dom": "^19",
     "react-hook-form": "latest",
     "react-qr-reader": "latest",
@@ -83,7 +77,6 @@
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "local-ssl-proxy": "^2.0.5",
     "postcss": "^8",
     "tailwindcss": "^3.4.17",
     "typescript": "^5"
