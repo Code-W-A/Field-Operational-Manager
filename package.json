@@ -68,7 +68,7 @@
     "react-day-picker": "^9.4.5",
     "react-dom": "^19",
     "react-hook-form": "latest",
-    "react-qr-reader": "^3.0.0-beta-1",
+    "react-qr-reader": "latest",
     "react-resizable-panels": "^2.1.7",
     "react-signature-canvas": "latest",
     "recharts": "latest",
