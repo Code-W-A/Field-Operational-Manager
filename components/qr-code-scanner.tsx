@@ -845,14 +845,7 @@ export function QRCodeScanner({
                     : "Dacă camera nu se afișează, verificați permisiunile browserului și reîncărcați pagina."}
                 </p>
                 
-                {/* Afișăm timpul rămas */}
-                {isScanning && !globalTimeoutExpired && (
-                  <div className="text-center">
-                    <p className="text-sm text-muted-foreground">
-                      Timp rămas: {timeRemaining} secunde
-                    </p>
-                  </div>
-                )}
+            
               </>
             )}
 

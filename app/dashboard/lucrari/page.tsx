@@ -102,6 +102,7 @@ export default function Lucrari() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const editId = searchParams.get("edit")
+  const reinterventionId = searchParams.get("reintervention")
   const { userData } = useAuth()
   const isTechnician = userData?.role === "tehnician"
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
@@ -616,6 +617,8 @@ export default function Lucrari() {
 
     fetchLucrareForEdit()
   }, [editId, isTechnician, router])
+
+
 
   // Actualizăm data emiterii și data intervenției la momentul deschiderii dialogului
   useEffect(() => {
@@ -1317,6 +1320,35 @@ export default function Lucrari() {
     }
   }, [toast])
 
+  // Verificăm dacă avem un ID de lucrare pentru reintervenție din URL
+  useEffect(() => {
+    const fetchLucrareForReintervention = async () => {
+      if (reinterventionId) {
+        try {
+          // Dacă utilizatorul este tehnician, nu permitem reintervenția
+          if (isTechnician) {
+            toast({
+              title: "Acces restricționat",
+              description: "Nu aveți permisiunea de a crea reintervenții.",
+              variant: "destructive",
+            })
+            router.push("/dashboard/lucrari")
+            return
+          }
+
+          const lucrare = await getLucrareById(reinterventionId)
+          if (lucrare) {
+            handleReassign(lucrare)
+          }
+        } catch (err) {
+          console.error("Eroare la încărcarea lucrării pentru reintervenție:", err)
+        }
+      }
+    }
+
+    fetchLucrareForReintervention()
+  }, [reinterventionId, isTechnician, router, handleReassign, toast])
+
   // Funcție pentru a verifica dacă o lucrare necesită reatribuire (bazat pe status finalizare intervenție)
   const needsReassignment = useCallback((lucrare: any) => {
     // Reatribuirea este disponibilă doar pentru lucrări cu status finalizare "NEFINALIZAT"
@@ -1679,7 +1711,7 @@ export default function Lucrari() {
                 aria-label="Reatribuie lucrarea"
               >
                 <RefreshCw className="h-4 w-4" />
-                <span className="ml-1">Reatribuie</span>
+                <span className="ml-1">Reintervenție</span>
               </Button>
             )}
             {userData?.role === "admin" && (
@@ -2181,7 +2213,7 @@ export default function Lucrari() {
                                       handleReassign(lucrare)
                                     }}
                                   >
-                                    <RefreshCw className="mr-2 h-4 w-4" /> Reatribuie lucrarea
+                                    <RefreshCw className="mr-2 h-4 w-4" /> Reintervenție
                                   </DropdownMenuItem>
                                 )}
                                 {userData?.role === "admin" && (

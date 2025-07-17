@@ -18,10 +18,6 @@ const nextConfig = {
           {
             key: 'Permissions-Policy',
             value: 'camera=*, microphone=*, geolocation=*'
-          },
-          {
-            key: 'Feature-Policy',
-            value: 'camera *; microphone *; geolocation *'
           }
         ],
       },

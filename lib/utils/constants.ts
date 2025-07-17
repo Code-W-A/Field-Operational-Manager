@@ -129,8 +129,8 @@ export function getWorkStatusRowClass(lucrare: any): string {
   }
 
   // PRIORITATE MAXIMĂ: Rânduri roșii pentru condițiile critice
-  // 1. Status finalizare intervenție = NEFINALIZAT
-  if (lucrare.statusFinalizareInterventie === "NEFINALIZAT") {
+  // 1. Status finalizare intervenție = NEFINALIZAT (dar nu pentru lucrări cu statusLucrare = "Finalizat")
+  if (lucrare.statusFinalizareInterventie === "NEFINALIZAT" && lucrare.statusLucrare !== "Finalizat") {
     return "bg-red-100 border-l-4 border-red-500"
   }
 

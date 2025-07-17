@@ -453,6 +453,20 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
   }
 
   const isCompletedWithReport = lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true
+  
+  // Funcție pentru a verifica dacă lucrarea necesită reintervenție
+  const needsReintervention = (lucrare: any) => {
+    // Reintervenția este disponibilă doar pentru lucrări cu status finalizare "NEFINALIZAT"
+    return lucrare.statusFinalizareInterventie === "NEFINALIZAT"
+  }
+  
+  // Funcție pentru a gestiona reintervenția - redirecționează către pagina principală cu dialog deschis
+  const handleReintervention = () => {
+    if (!lucrare) return
+    
+    // Redirecționăm către pagina principală cu parametru pentru reintervenție
+    router.push(`/dashboard/lucrari?reintervention=${lucrare.id}`)
+  }
 
   return (
     <DashboardShell>
@@ -464,6 +478,18 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
           <Button onClick={handleGenerateReport}>
             <FileText className="mr-2 h-4 w-4" /> Generează raport
           </Button>
+
+          {/* Buton pentru reintervenție - doar pentru admin/dispecer și dacă îndeplinește condițiile */}
+          {isAdminOrDispatcher && needsReintervention(lucrare) && (
+            <Button
+              variant="outline"
+              className="text-orange-600 border-orange-200 hover:bg-orange-50"
+              onClick={handleReintervention}
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Reintervenție
+            </Button>
+          )}
 
           {/* Adăugăm butonul de preluare/anulare preluare pentru admin și dispecer */}
           {isAdminOrDispatcher && isCompletedWithReport && !lucrare.preluatDispecer && (
