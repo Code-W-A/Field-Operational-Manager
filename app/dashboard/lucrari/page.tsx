@@ -211,8 +211,6 @@ export default function Lucrari() {
   // Update the filteredLucrari function to include completed work orders that haven't been picked up
   const filteredLucrari = useMemo(() => {
     if (userData?.role === "tehnician" && userData?.displayName) {
-      // console.log("Filtrare lucrări pentru tehnician:", userData.displayName)
-
       const filteredList = lucrari.filter((lucrare) => {
         // Verificăm dacă lucrarea este atribuită tehnicianului
         const isAssignedToTechnician =
@@ -224,16 +222,9 @@ export default function Lucrari() {
         const isPickedUpByDispatcher = lucrare.preluatDispecer === true
         const isCompletedWithReportAndPickedUp = isFinalized && hasReportGenerated && isPickedUpByDispatcher
 
-        // (debug) dacă ai nevoie poți reactiva acest log
-        // if (process.env.NODE_ENV === "development" && isAssignedToTechnician && isFinalized) {
-        //   console.log("Lucrare finalizată pentru tehnician:", lucrare)
-        // }
-
         // Includem lucrarea doar dacă este atribuită tehnicianului și NU este finalizată cu raport și preluată de dispecer
         return isAssignedToTechnician && !isCompletedWithReportAndPickedUp
       })
-
-      // console.info(`Tehnician: lucrări filtrate ${filteredList.length}/${lucrari.length}`)
 
       return filteredList
     }

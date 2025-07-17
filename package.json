@@ -4,9 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:https": "next dev --experimental-https",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "start:https": "npm run start & npx local-ssl-proxy --source 3001 --target 3000 --cert localhost+2.pem --key localhost+2-key.pem",
+    "start:secure": "npm run build && npm run start:https",
+    "cert:create": "mkcert localhost 127.0.0.1 ::1",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@hookform/resolvers": "latest",
@@ -63,6 +68,7 @@
     "react-day-picker": "8.10.1",
     "react-dom": "^19",
     "react-hook-form": "latest",
+    "react-qr-reader": "^3.0.0-beta-1",
     "react-resizable-panels": "^2.1.7",
     "react-signature-canvas": "latest",
     "recharts": "latest",
@@ -77,6 +83,7 @@
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "local-ssl-proxy": "^2.0.5",
     "postcss": "^8",
     "tailwindcss": "^3.4.17",
     "typescript": "^5"

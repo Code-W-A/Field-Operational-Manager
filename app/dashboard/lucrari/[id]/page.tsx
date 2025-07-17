@@ -331,15 +331,15 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
         }
 
         // Actualizăm statusul lucrării la "În lucru" doar dacă statusul curent este "Listată" sau "Atribuită"
-        // Astfel nu vom modifica statusul dacă lucrarea este deja "Finalizat" sau are alt status special
-        if (lucrare.statusLucrare === "Listată" || lucrare.statusLucrare === "Atribuită") {
+        // ȘI raportul nu a fost încă generat (pentru a nu suprascrie statusul "Finalizat")
+        if ((lucrare.statusLucrare === "Listată" || lucrare.statusLucrare === "Atribuită") && !lucrare.raportGenerat) {
           updateData.statusLucrare = "În lucru"
         }
 
         await updateLucrare(lucrare.id, updateData)
 
         // Actualizăm și starea locală dacă am modificat statusul
-        if (lucrare.statusLucrare === "Listată" || lucrare.statusLucrare === "Atribuită") {
+        if ((lucrare.statusLucrare === "Listată" || lucrare.statusLucrare === "Atribuită") && !lucrare.raportGenerat) {
           setLucrare((prev) =>
             prev
               ? {

@@ -413,6 +413,8 @@ FOM by NRG`,
       }
 
       // Create updated lucrare object with all necessary data
+      console.log("🔍 ÎNAINTE de actualizare - statusul curent:", lucrare.statusLucrare)
+      
       const updatedLucrareData = {
         ...lucrare,
         semnaturaTehnician,
@@ -427,10 +429,12 @@ FOM by NRG`,
         preluatDispecer: false,
       }
 
+      console.log("🔍 DUPĂ creare updatedLucrareData - statusul nou:", updatedLucrareData.statusLucrare)
+
       // Save to Firestore
       await updateLucrare(params.id, updatedLucrareData)
       // LOG DEBUG – ce s-a trimis către Firestore la handleSubmit
-      console.log("🔍 updateLucrare (handleSubmit) – payload:", updatedLucrareData)
+      console.log("🔍 updateLucrare (handleSubmit) – payload statusLucrare:", updatedLucrareData.statusLucrare)
 
       // Update local state with the updated data
       setUpdatedLucrare(updatedLucrareData)
