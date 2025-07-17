@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { QrReader } from "react-qr-reader"
+import { Scanner } from "@yudiel/react-qr-scanner"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -513,10 +513,10 @@ export function QRCodeScanner({
     startGlobalScanTimeout()
   }
 
-  const handleScan = (result: any) => {
-    if (result?.text) {
-      console.log("QR Code detected:", result.text)
-      setScanResult(result.text)
+  const handleScan = (detectedCodes: any[]) => {
+    if (detectedCodes && detectedCodes.length > 0 && detectedCodes[0].rawValue) {
+      console.log("QR Code detected:", detectedCodes[0].rawValue)
+      setScanResult(detectedCodes[0].rawValue)
       setIsScanning(false) // Oprim starea de scanare când am detectat un QR code
       setGlobalTimeoutProgress(0) // Resetăm progresul
       setGlobalTimeoutExpired(false) // Resetăm starea de expirare a timerului global
@@ -536,7 +536,7 @@ export function QRCodeScanner({
         progressIntervalRef.current = null
       }
 
-      verifyScannedData(result.text)
+      verifyScannedData(detectedCodes[0].rawValue)
     }
   }
 
@@ -792,33 +792,28 @@ export function QRCodeScanner({
             {isScanning && !showManualCodeInput && cameraPermissionStatus !== "denied" && (
               <>
                 <div className="relative aspect-square w-full max-w-sm mx-auto overflow-hidden rounded-lg">
-                  <QrReader
+                  <Scanner
                     constraints={{
                       facingMode: isMobile ? "environment" : "user",
                       width: isMobile ? { ideal: 1280, max: 1920 } : { min: 640, ideal: 1280 },
                       height: isMobile ? { ideal: 720, max: 1080 } : { min: 480, ideal: 720 },
                     }}
-                    onResult={handleScan}
-                    scanDelay={300}
-                    videoId="qr-video-element"
-                    className="w-full h-full"
-                    videoStyle={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
-                      transform: isMobile ? "scaleX(1)" : "scaleX(-1)", // Flip camera for desktop
-                    }}
-                    videoContainerStyle={{
-                      width: "100%",
-                      height: "100%",
-                      position: "relative",
-                      overflow: "hidden",
-                    }}
-                    containerStyle={{
-                      width: "100%",
-                      height: "100%",
-                      position: "relative",
-                      overflow: "hidden",
+                    onScan={handleScan}
+                    onError={handleError}
+                    paused={!isScanning}
+                    styles={{
+                      container: {
+                        width: "100%",
+                        height: "100%",
+                        position: "relative",
+                        overflow: "hidden",
+                      },
+                      video: {
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        transform: isMobile ? "scaleX(1)" : "scaleX(-1)", // Flip camera for desktop
+                      },
                     }}
                   />
                   <div className="absolute inset-0 border-2 border-dashed border-white pointer-events-none"></div>

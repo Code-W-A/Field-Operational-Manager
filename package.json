@@ -59,10 +59,10 @@
     "prop-types": "latest",
     "qrcode.react": "latest",
     "react": "^19",
-    "react-day-picker": "8.10.1",
+    "react-day-picker": "latest",
     "react-dom": "^19",
     "react-hook-form": "latest",
-    "react-qr-reader": "latest",
+    "@yudiel/react-qr-scanner": "latest",
     "react-resizable-panels": "^2.1.7",
     "react-signature-canvas": "latest",
     "recharts": "latest",
@@ -70,7 +70,7 @@
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "uuid": "latest",
-    "vaul": "^0.9.6",
+    "vaul": "^1.0.0",
     "zod": "latest"
   },
   "devDependencies": {
