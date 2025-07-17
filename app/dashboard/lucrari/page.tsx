@@ -218,10 +218,11 @@ export default function Lucrari() {
         const isAssignedToTechnician =
           lucrare.tehnicieni && Array.isArray(lucrare.tehnicieni) && lucrare.tehnicieni.includes(userData.displayName)
 
-        // Verificăm dacă lucrarea este finalizată și are raport generat (tehnicianul nu mai trebuie să o vadă)
+        // Verificăm dacă lucrarea este finalizată și are raport generat și a fost preluată de dispecer
         const isFinalized = lucrare.statusLucrare === "Finalizat"
         const hasReportGenerated = lucrare.raportGenerat === true
-        const isCompletedWithReport = isFinalized && hasReportGenerated
+        const isPickedUpByDispatcher = lucrare.preluatDispecer === true
+        const isCompletedWithReportAndPickedUp = isFinalized && hasReportGenerated && isPickedUpByDispatcher
 
         // Pentru depanare
         if (isAssignedToTechnician && isFinalized) {
@@ -231,14 +232,12 @@ export default function Lucrari() {
             statusLucrare: lucrare.statusLucrare,
             raportGenerat: lucrare.raportGenerat,
             preluatDispecer: lucrare.preluatDispecer,
-            isCompletedWithReport,
-            willBeHidden: isCompletedWithReport
+            isCompletedWithReportAndPickedUp,
           })
         }
 
-        // Includem lucrarea doar dacă este atribuită tehnicianului și NU este finalizată cu raport generat
-        // Nu mai așteptăm ca dispecerul să o preia - tehnicianul nu o mai vede imediat după finalizare
-        return isAssignedToTechnician && !isCompletedWithReport
+        // Includem lucrarea doar dacă este atribuită tehnicianului și NU este finalizată cu raport și preluată de dispecer
+        return isAssignedToTechnician && !isCompletedWithReportAndPickedUp
       })
 
       console.log(`Filtrat ${lucrari.length} lucrări -> ${filteredList.length} lucrări pentru tehnician`)
@@ -247,9 +246,9 @@ export default function Lucrari() {
     return lucrari
   }, [lucrari, userData?.role, userData?.displayName])
 
-  // Helper function to check if a work order is completed with report (technician cannot perform actions)
+  // Helper function to check if a work order is completed with report but not picked up
   const isCompletedWithReportNotPickedUp = useCallback((lucrare) => {
-    return lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true
+    return lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true && lucrare.preluatDispecer === false
   }, [])
 
   // Modificăm funcția filterOptions pentru a include și echipamentele și statusul echipamentului
