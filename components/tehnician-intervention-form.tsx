@@ -397,13 +397,13 @@ export function TehnicianInterventionForm({
                         htmlFor="tehnicianConfirmaGarantie"
                         className="text-sm font-medium text-yellow-800 cursor-pointer"
                       >
-                        Confirm că echipamentul este în garanție la fața locului
+                        Confirm că intervenția face obiectul garanției
                       </Label>
                     </div>
-                    <p className="text-xs text-yellow-700 mt-2">
+                    {/* <p className="text-xs text-yellow-700 mt-2">
                       Această bifă reprezintă confirmarea dvs. ca tehnician despre starea garanției echipamentului după verificarea fizică.
                       Nu se suprapune peste calculul automat de mai sus.
-                    </p>
+                    </p> */}
                   </div>
                 </div>
               </div>
