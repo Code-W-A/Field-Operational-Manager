@@ -538,6 +538,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
               raportGenerat: true,
               raportDataLocked: true,
               raportSnapshot: lucrareForPDF.raportSnapshot,
+              statusLucrare: "Finalizat", // Actualizez automat statusul la "Finalizat"
               updatedAt: serverTimestamp(),
               timpPlecare: lucrareForPDF.timpPlecare,
               dataPlecare: lucrareForPDF.dataPlecare,
@@ -548,6 +549,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
             console.log("📦 Date care se salvează:", {
               raportGenerat: updateData.raportGenerat,
               raportDataLocked: updateData.raportDataLocked,
+              statusLucrare: updateData.statusLucrare,
               hasSnapshot: !!updateData.raportSnapshot,
               snapshotSize: updateData.raportSnapshot ? Object.keys(updateData.raportSnapshot).length : 0,
               timpPlecare: updateData.timpPlecare,
@@ -557,7 +559,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
             })
             
             await updateDoc(doc(db, "lucrari", lucrare.id), updateData)
-            console.log("✅ SUCCES - Prima generare salvată în Firestore")
+            console.log("✅ SUCCES - Prima generare salvată în Firestore cu statusLucrare: Finalizat")
           } else {
             console.log("🔄 REGENERARE - Actualizez doar timestamp-ul")
             await updateDoc(doc(db, "lucrari", lucrare.id), {

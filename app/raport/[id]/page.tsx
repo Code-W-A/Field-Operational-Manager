@@ -535,6 +535,7 @@ FOM by NRG`,
       // Folosim updateDoc direct, fără a mai importa din nou
       await updateDoc(lucrareRef, {
         raportGenerat: true,
+        statusLucrare: "Finalizat", // Actualizez și statusul pentru consistență
         preluatDispecer: false,
         updatedAt: serverTimestamp(),
       })

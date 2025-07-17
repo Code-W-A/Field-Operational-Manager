@@ -1545,7 +1545,8 @@ export default function Lucrari() {
         const hasReportGenerated = row.original.raportGenerat === true
         const isPickedUp = row.original.preluatDispecer === true
 
-        if (isFinalized && hasReportGenerated) {
+        if (hasReportGenerated) {
+          // if (isFinalized && hasReportGenerated) {
           if (userData?.role === "tehnician") {
             return isPickedUp ? (
               <Badge className="bg-green-100 text-green-800">Preluat</Badge>
