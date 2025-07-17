@@ -559,12 +559,16 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
             })
             
             await updateDoc(doc(db, "lucrari", lucrare.id), updateData)
+            // LOG DEBUG – confirmare că update-ul a fost trimis în Firestore
+            console.log("🔍 Firestore UPDATE (prima generare) – payload trimis:", updateData)
             console.log("✅ SUCCES - Prima generare salvată în Firestore cu statusLucrare: Finalizat")
           } else {
             console.log("🔄 REGENERARE - Actualizez doar timestamp-ul")
             await updateDoc(doc(db, "lucrari", lucrare.id), {
               updatedAt: serverTimestamp(),
             })
+            // LOG DEBUG – confirmare regenerare
+            console.log("🔍 Firestore UPDATE (regenerare) – doar updatedAt")
             console.log("✅ SUCCES - Regenerare confirmată în Firestore")
           }
         } catch (e) {

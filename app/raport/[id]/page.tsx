@@ -429,6 +429,8 @@ FOM by NRG`,
 
       // Save to Firestore
       await updateLucrare(params.id, updatedLucrareData)
+      // LOG DEBUG – ce s-a trimis către Firestore la handleSubmit
+      console.log("🔍 updateLucrare (handleSubmit) – payload:", updatedLucrareData)
 
       // Update local state with the updated data
       setUpdatedLucrare(updatedLucrareData)
@@ -540,7 +542,8 @@ FOM by NRG`,
         updatedAt: serverTimestamp(),
       })
 
-      console.log("Lucrare actualizată cu succes, raportGenerat = true, statusLucrare = Finalizat")
+      // LOG DEBUG – confirmare după updateWorkOrderStatus
+      console.log("🔍 updateWorkOrderStatus – raportGenerat:true, statusLucrare:Finalizat, preluatDispecer:false")
     } catch (error) {
       console.error("Eroare la actualizarea statusului lucrării:", error)
       toast({
