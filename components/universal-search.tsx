@@ -1,7 +1,7 @@
 "use client"
 
 import { Search, X } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 
 interface UniversalSearchProps {
   onSearch: (value: string) => void
@@ -23,10 +23,19 @@ export function UniversalSearch({
     setSearchText(initialValue)
   }, [initialValue])
 
-  // Trimitem valoarea de căutare către părinte
+  // Debounce search pentru performanță
   useEffect(() => {
-    onSearch(searchText)
+    const timeoutId = setTimeout(() => {
+      onSearch(searchText)
+    }, 300) // 300ms delay pentru debouncing
+
+    return () => clearTimeout(timeoutId)
   }, [searchText, onSearch])
+
+  // Handler pentru clear button
+  const handleClear = useCallback(() => {
+    setSearchText("")
+  }, [])
 
   return (
     <div className={`relative flex-1 ${className}`}>
@@ -41,7 +50,7 @@ export function UniversalSearch({
       {searchText && (
         <button
           type="button"
-          onClick={() => setSearchText("")}
+          onClick={handleClear}
           className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
         >
           <X className="h-4 w-4" />

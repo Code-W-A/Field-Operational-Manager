@@ -18,6 +18,7 @@ import { ColumnSelectionButton } from "@/components/column-selection-button"
 import { ColumnSelectionModal } from "@/components/column-selection-modal"
 import { FilterButton } from "@/components/filter-button"
 import { FilterModal, type FilterOption } from "@/components/filter-modal"
+import { useTablePersistence } from "@/hooks/use-table-persistence"
 
 export default function Loguri() {
   const [activeTab, setActiveTab] = useState("tabel")
@@ -31,6 +32,9 @@ export default function Loguri() {
   const [columnOptions, setColumnOptions] = useState<any[]>([])
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
   const [activeFilters, setActiveFilters] = useState<FilterOption[]>([])
+
+  // Persistența tabelului
+  const { loadSettings, saveFilters, saveColumnVisibility, saveSorting, saveSearchText } = useTablePersistence("loguri")
 
   // Detectăm dacă suntem pe un dispozitiv mobil
   const isMobile = useMediaQuery("(max-width: 768px)")
@@ -71,6 +75,23 @@ export default function Loguri() {
 
     fetchLogs()
   }, [])
+
+  // Încărcăm setările salvate la inițializare
+  useEffect(() => {
+    const savedSettings = loadSettings()
+    if (savedSettings.activeFilters) {
+      setActiveFilters(savedSettings.activeFilters)
+    }
+    if (savedSettings.searchText) {
+      setSearchText(savedSettings.searchText)
+    }
+  }, [loadSettings])
+
+  // Handler pentru schimbarea search text-ului
+  const handleSearchChange = (value: string) => {
+    setSearchText(value)
+    saveSearchText(value)
+  }
 
   // Define filter options based on log data
   const filterOptions = useMemo(() => {
@@ -181,6 +202,12 @@ export default function Loguri() {
 
   // Apply manual filtering based on search text and active filters
   useEffect(() => {
+    // Dacă nu avem date, nu facem nimic
+    if (!logs || logs.length === 0) {
+      setFilteredData([])
+      return
+    }
+
     let filtered = logs
 
     // Apply active filters
@@ -208,7 +235,42 @@ export default function Loguri() {
     }
 
     setFilteredData(filtered)
-  }, [searchText, logs, activeFilters, applyFilters])
+  }, [searchText, logs, activeFilters]) // Eliminat applyFilters din dependencies
+
+  // Forțăm refiltrarea când datele se încarcă și avem un searchText salvat
+  useEffect(() => {
+    if (!loading && logs && logs.length > 0 && searchText.trim()) {
+      // Trigger o refiltrare pentru a aplica searchText-ul încărcat din localStorage
+      const timeoutId = setTimeout(() => {
+        // Forțăm o actualizare a filteredData aplicând din nou filtrarea
+        let filtered = logs
+
+        if (activeFilters.length) {
+          filtered = applyFilters(filtered)
+        }
+
+        if (searchText.trim()) {
+          const lowercasedFilter = searchText.toLowerCase()
+          filtered = filtered.filter((item) => {
+            return Object.keys(item).some((key) => {
+              const value = item[key]
+              if (value === null || value === undefined) return false
+
+              if (Array.isArray(value)) {
+                return value.some((v) => String(v).toLowerCase().includes(lowercasedFilter))
+              }
+
+              return String(value).toLowerCase().includes(lowercasedFilter)
+            })
+          })
+        }
+
+        setFilteredData(filtered)
+      }, 100) // Mic delay pentru a se asigura că toate datele sunt încărcate
+
+      return () => clearTimeout(timeoutId)
+    }
+  }, [loading, logs, searchText, activeFilters]) // Trigger când loading se termină
 
   const handleApplyFilters = (filters: FilterOption[]) => {
     // Filter only filters that have values
@@ -223,10 +285,12 @@ export default function Loguri() {
     })
 
     setActiveFilters(filtersWithValues)
+    saveFilters(filtersWithValues) // Salvăm filtrele în localStorage
   }
 
   const handleResetFilters = () => {
     setActiveFilters([])
+    saveFilters([]) // Salvăm lista goală în localStorage
   }
 
   const getTipColor = (tip: string) => {
@@ -382,7 +446,7 @@ export default function Loguri() {
 
         {/* Adăugăm câmpul de căutare universal și butoanele de filtrare și selecție coloane */}
         <div className="flex flex-col sm:flex-row gap-2">
-          <UniversalSearch onSearch={setSearchText} className="flex-1" />
+          <UniversalSearch onSearch={handleSearchChange} initialValue={searchText} className="flex-1" />
           <div className="flex gap-2">
             <FilterButton onClick={() => setIsFilterModalOpen(true)} activeFilters={activeFilters.length} />
             <ColumnSelectionButton

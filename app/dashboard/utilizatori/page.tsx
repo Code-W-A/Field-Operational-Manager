@@ -35,6 +35,7 @@ import { ColumnSelectionButton } from "@/components/column-selection-button"
 import { ColumnSelectionModal } from "@/components/column-selection-modal"
 import { FilterButton } from "@/components/filter-button"
 import { FilterModal, type FilterOption } from "@/components/filter-modal"
+import { useTablePersistence } from "@/hooks/use-table-persistence"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -80,6 +81,9 @@ export default function Utilizatori() {
   // Add state for activeTab
   const [activeTab, setActiveTab] = useState("tabel")
 
+  // Persistența tabelului
+  const { loadSettings, saveFilters, saveColumnVisibility, saveSorting, saveSearchText } = useTablePersistence("utilizatori")
+
   // Detect if we're on a mobile device
   const isMobile = useMediaQuery("(max-width: 768px)")
 
@@ -109,6 +113,23 @@ export default function Utilizatori() {
   useEffect(() => {
     fetchUtilizatori()
   }, [])
+
+  // Încărcăm setările salvate la inițializare
+  useEffect(() => {
+    const savedSettings = loadSettings()
+    if (savedSettings.activeFilters) {
+      setActiveFilters(savedSettings.activeFilters)
+    }
+    if (savedSettings.searchText) {
+      setSearchText(savedSettings.searchText)
+    }
+  }, [loadSettings])
+
+  // Handler pentru schimbarea search text-ului
+  const handleSearchChange = (value: string) => {
+    setSearchText(value)
+    saveSearchText(value)
+  }
 
   // Define filter options based on user data
   const filterOptions = useMemo(() => {
@@ -194,6 +215,12 @@ export default function Utilizatori() {
 
   // Apply manual filtering based on search text and active filters
   useEffect(() => {
+    // Dacă nu avem date, nu facem nimic
+    if (!utilizatori || utilizatori.length === 0) {
+      setFilteredData([])
+      return
+    }
+
     let filtered = utilizatori
 
     // Apply active filters
@@ -221,7 +248,42 @@ export default function Utilizatori() {
     }
 
     setFilteredData(filtered)
-  }, [searchText, utilizatori, activeFilters, applyFilters])
+  }, [searchText, utilizatori, activeFilters]) // Eliminat applyFilters din dependencies
+
+  // Forțăm refiltrarea când datele se încarcă și avem un searchText salvat
+  useEffect(() => {
+    if (!loading && utilizatori && utilizatori.length > 0 && searchText.trim()) {
+      // Trigger o refiltrare pentru a aplica searchText-ul încărcat din localStorage
+      const timeoutId = setTimeout(() => {
+        // Forțăm o actualizare a filteredData aplicând din nou filtrarea
+        let filtered = utilizatori
+
+        if (activeFilters.length) {
+          filtered = applyFilters(filtered)
+        }
+
+        if (searchText.trim()) {
+          const lowercasedFilter = searchText.toLowerCase()
+          filtered = filtered.filter((item) => {
+            return Object.keys(item).some((key) => {
+              const value = item[key]
+              if (value === null || value === undefined) return false
+
+              if (Array.isArray(value)) {
+                return value.some((v) => String(v).toLowerCase().includes(lowercasedFilter))
+              }
+
+              return String(value).toLowerCase().includes(lowercasedFilter)
+            })
+          })
+        }
+
+        setFilteredData(filtered)
+      }, 100) // Mic delay pentru a se asigura că toate datele sunt încărcate
+
+      return () => clearTimeout(timeoutId)
+    }
+  }, [loading, utilizatori, searchText, activeFilters]) // Trigger când loading se termină
 
   // Automatically set card view on mobile
   useEffect(() => {
@@ -344,10 +406,12 @@ export default function Utilizatori() {
     })
 
     setActiveFilters(filtersWithValues)
+    saveFilters(filtersWithValues) // Salvăm filtrele în localStorage
   }
 
   const handleResetFilters = () => {
     setActiveFilters([])
+    saveFilters([]) // Salvăm lista goală în localStorage
   }
 
   const handleEdit = (user: UserData) => {
@@ -808,7 +872,7 @@ export default function Utilizatori() {
 
         {/* Adăugăm câmpul de căutare universal și butoanele de filtrare și selecție coloane */}
         <div className="flex flex-col sm:flex-row gap-2">
-          <UniversalSearch onSearch={setSearchText} className="flex-1" />
+          <UniversalSearch onSearch={handleSearchChange} initialValue={searchText} className="flex-1" />
           <div className="flex gap-2">
             <FilterButton onClick={() => setIsFilterModalOpen(true)} activeFilters={activeFilters.length} />
             <ColumnSelectionButton

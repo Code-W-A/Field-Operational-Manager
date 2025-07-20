@@ -148,7 +148,7 @@ export default function Lucrari() {
   const editFormRef = useRef<LucrareFormRef>(null)
 
   // Persistența tabelului
-  const { loadSettings, saveFilters, saveColumnVisibility, saveSorting } = useTablePersistence("lucrari")
+  const { loadSettings, saveFilters, saveColumnVisibility, saveSorting, saveSearchText } = useTablePersistence("lucrari")
 
   // State pentru sorting persistent
   const [tableSorting, setTableSorting] = useState([{ id: "updatedAt", desc: true }])
@@ -162,12 +162,23 @@ export default function Lucrari() {
     if (savedSettings.sorting) {
       setTableSorting(savedSettings.sorting)
     }
+    if (savedSettings.searchText) {
+      setSearchText(savedSettings.searchText)
+    }
   }, [loadSettings])
+
+
 
   // Handler pentru schimbarea sortării
   const handleSortingChange = (newSorting: { id: string; desc: boolean }[]) => {
     setTableSorting(newSorting)
     saveSorting(newSorting)
+  }
+
+  // Handler pentru schimbarea search text-ului
+  const handleSearchChange = (value: string) => {
+    setSearchText(value)
+    saveSearchText(value)
   }
 
   // Obținem lucrările din Firebase - sortate după momentul introducerii în sistem
@@ -506,6 +517,12 @@ export default function Lucrari() {
 
   // Aplicăm filtrarea manuală pe baza textului de căutare și a filtrelor active
   useEffect(() => {
+    // Dacă nu avem date, nu facem nimic
+    if (!filteredLucrari || filteredLucrari.length === 0) {
+      setFilteredData([])
+      return
+    }
+
     if (!searchText.trim() && !activeFilters.length) {
       setFilteredData(filteredLucrari)
       return
@@ -539,6 +556,41 @@ export default function Lucrari() {
 
     setFilteredData(filtered)
   }, [searchText, filteredLucrari, activeFilters]) // Eliminat applyFilters din dependencies pentru a evita re-render-uri infinite
+
+  // Forțăm refiltrarea când datele se încarcă și avem un searchText salvat
+  useEffect(() => {
+    if (!loading && filteredLucrari && filteredLucrari.length > 0 && searchText.trim()) {
+      // Trigger o refiltrare pentru a aplica searchText-ul încărcat din localStorage
+      const timeoutId = setTimeout(() => {
+        // Forțăm o actualizare a filteredData aplicând din nou filtrarea
+        let filtered = filteredLucrari
+
+        if (activeFilters.length) {
+          filtered = applyFilters(filtered)
+        }
+
+        if (searchText.trim()) {
+          const lowercasedFilter = searchText.toLowerCase()
+          filtered = filtered.filter((item) => {
+            return Object.keys(item).some((key) => {
+              const value = item[key]
+              if (value === null || value === undefined) return false
+
+              if (Array.isArray(value)) {
+                return value.some((v) => String(v).toLowerCase().includes(lowercasedFilter))
+              }
+
+              return String(value).toLowerCase().includes(lowercasedFilter)
+            })
+          })
+        }
+
+        setFilteredData(filtered)
+      }, 100) // Mic delay pentru a se asigura că toate datele sunt încărcate
+
+      return () => clearTimeout(timeoutId)
+    }
+  }, [loading, filteredLucrari, searchText, activeFilters]) // Trigger când loading se termină
 
   // Detectăm dacă suntem pe un dispozitiv mobil
   const isMobile = useMediaQuery("(max-width: 768px)")
@@ -1933,7 +1985,7 @@ export default function Lucrari() {
 
         {/* Adăugăm câmpul de căutare universal și butonul de filtrare */}
         <div className="flex flex-col sm:flex-row gap-2">
-          <UniversalSearch onSearch={setSearchText} className="flex-1" />
+          <UniversalSearch onSearch={handleSearchChange} initialValue={searchText} className="flex-1" />
           <div className="flex gap-2">
             <FilterButton onClick={() => setIsFilterModalOpen(true)} activeFilters={activeFilters.length} />
             <ColumnSelectionButton

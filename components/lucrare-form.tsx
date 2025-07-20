@@ -2054,7 +2054,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
               </p>
               <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
                 <p className="text-xs text-blue-700">
-                  <strong>Notă:</strong> Statusul facturării se actualizează din pagina de detalii a lucrării după finalizarea și preluarea acesteia de către dispecer.
+                  {/* <strong>Notă:</strong> Statusul facturării se actualizează din pagina de detalii a lucrării după finalizarea și preluarea acesteia de către dispecer. */}
                 </p>
               </div>
             </div>

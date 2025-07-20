@@ -6,6 +6,7 @@ interface TableSettings {
   activeFilters?: any[]
   columnVisibility?: Record<string, boolean>
   sorting?: { id: string; desc: boolean }[]
+  searchText?: string
 }
 
 export function useTablePersistence(pageKey: string) {
@@ -50,6 +51,10 @@ export function useTablePersistence(pageKey: string) {
     saveSettings({ sorting })
   }, [saveSettings])
 
+  const saveSearchText = useCallback((searchText: string) => {
+    saveSettings({ searchText })
+  }, [saveSettings])
+
   // Clear all settings
   const clearSettings = useCallback(() => {
     if (typeof window === "undefined") return
@@ -61,6 +66,7 @@ export function useTablePersistence(pageKey: string) {
     saveFilters,
     saveColumnVisibility,
     saveSorting,
+    saveSearchText,
     clearSettings,
   }
 } 

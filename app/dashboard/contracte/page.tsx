@@ -92,12 +92,18 @@ export default function ContractsPage() {
   const [columnOptions, setColumnOptions] = useState<any[]>([])
 
   // Persistența tabelului
-  const { loadSettings, saveFilters, saveColumnVisibility, saveSorting } = useTablePersistence("contracte")
+  const { loadSettings, saveFilters, saveColumnVisibility, saveSorting, saveSearchText } = useTablePersistence("contracte")
 
   // Handler pentru schimbarea sortării
   const handleSortingChange = (newSorting: { id: string; desc: boolean }[]) => {
     setTableSorting(newSorting)
     saveSorting(newSorting)
+  }
+
+  // Handler pentru schimbarea search text-ului
+  const handleSearchChange = (value: string) => {
+    setSearchText(value)
+    saveSearchText(value)
   }
 
   // Încărcăm setările salvate la inițializare
@@ -111,6 +117,9 @@ export default function ContractsPage() {
     } else {
       // Dacă nu avem sortare salvată, setăm implicit descrescător pe createdAt
       setTableSorting([{ id: "createdAt", desc: true }])
+    }
+    if (savedSettings.searchText) {
+      setSearchText(savedSettings.searchText)
     }
   }, [loadSettings])
 
@@ -198,6 +207,18 @@ export default function ContractsPage() {
       table.setGlobalFilter(searchText)
     }
   }, [table, searchText])
+
+  // Forțăm aplicarea search-ului când table-ul devine disponibil și avem searchText salvat
+  useEffect(() => {
+    if (table && searchText.trim() && !loading) {
+      // Mic delay pentru a se asigura că table-ul este complet inițializat
+      const timeoutId = setTimeout(() => {
+        table.setGlobalFilter(searchText)
+      }, 100)
+
+      return () => clearTimeout(timeoutId)
+    }
+  }, [table, searchText, loading])
 
   // Persistența filtrelor este acum gestionată automat de EnhancedFilterSystem
 
@@ -633,7 +654,8 @@ export default function ContractsPage() {
           {/* Layout pentru căutare și filtrare ca pe pagina de clienți */}
           <div className="flex flex-col sm:flex-row gap-2">
             <UniversalSearch 
-              onSearch={setSearchText} 
+              onSearch={handleSearchChange} 
+              initialValue={searchText}
               className="flex-1"
               placeholder="Căutare contracte..."
             />

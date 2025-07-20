@@ -65,7 +65,7 @@ export default function Clienti() {
   const editFormRef = useRef<any>(null)
 
   // Persistența tabelului
-  const { loadSettings, saveFilters, saveColumnVisibility, saveSorting } = useTablePersistence("clienti")
+  const { loadSettings, saveFilters, saveColumnVisibility, saveSorting, saveSearchText } = useTablePersistence("clienti")
 
   // State pentru sorting persistent
   const [tableSorting, setTableSorting] = useState([{ id: "updatedAt", desc: true }])
@@ -79,12 +79,21 @@ export default function Clienti() {
     if (savedSettings.sorting) {
       setTableSorting(savedSettings.sorting)
     }
+    if (savedSettings.searchText) {
+      setSearchText(savedSettings.searchText)
+    }
   }, [loadSettings])
 
   // Handler pentru schimbarea sortării
   const handleSortingChange = (newSorting: { id: string; desc: boolean }[]) => {
     setTableSorting(newSorting)
     saveSorting(newSorting)
+  }
+
+  // Handler pentru schimbarea search text-ului
+  const handleSearchChange = (value: string) => {
+    setSearchText(value)
+    saveSearchText(value)
   }
 
   const searchParams = useSearchParams()
@@ -210,6 +219,12 @@ export default function Clienti() {
 
   // Apply manual filtering based on search text and active filters
   useEffect(() => {
+    // Dacă nu avem date, nu facem nimic
+    if (!clienti || clienti.length === 0) {
+      setFilteredData([])
+      return
+    }
+
     if (!searchText.trim() && !activeFilters.length) {
       setFilteredData(clienti)
       return
@@ -242,7 +257,42 @@ export default function Clienti() {
     }
 
     setFilteredData(filtered)
-  }, [searchText, clienti, activeFilters, applyFilters])
+  }, [searchText, clienti, activeFilters]) // Eliminat applyFilters din dependencies
+
+  // Forțăm refiltrarea când datele se încarcă și avem un searchText salvat
+  useEffect(() => {
+    if (!loading && clienti && clienti.length > 0 && searchText.trim()) {
+      // Trigger o refiltrare pentru a aplica searchText-ul încărcat din localStorage
+      const timeoutId = setTimeout(() => {
+        // Forțăm o actualizare a filteredData aplicând din nou filtrarea
+        let filtered = clienti
+
+        if (activeFilters.length) {
+          filtered = applyFilters(filtered)
+        }
+
+        if (searchText.trim()) {
+          const lowercasedFilter = searchText.toLowerCase()
+          filtered = filtered.filter((item) => {
+            return Object.keys(item).some((key) => {
+              const value = item[key]
+              if (value === null || value === undefined) return false
+
+              if (Array.isArray(value)) {
+                return value.some((v) => String(v).toLowerCase().includes(lowercasedFilter))
+              }
+
+              return String(value).toLowerCase().includes(lowercasedFilter)
+            })
+          })
+        }
+
+        setFilteredData(filtered)
+      }, 100) // Mic delay pentru a se asigura că toate datele sunt încărcate
+
+      return () => clearTimeout(timeoutId)
+    }
+  }, [loading, clienti, searchText, activeFilters]) // Trigger când loading se termină
 
   // Automatically set card view on mobile
   useEffect(() => {
@@ -702,7 +752,7 @@ export default function Clienti() {
 
         {/* Adăugăm câmpul de căutare universal și butoanele de filtrare și selecție coloane */}
         <div className="flex flex-col sm:flex-row gap-2">
-          <UniversalSearch onSearch={setSearchText} className="flex-1" />
+          <UniversalSearch onSearch={handleSearchChange} initialValue={searchText} className="flex-1" />
           <div className="flex gap-2">
             <FilterButton onClick={() => setIsFilterModalOpen(true)} activeFilters={activeFilters.length} />
             <ColumnSelectionButton
