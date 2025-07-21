@@ -1003,98 +1003,92 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                         </select>
                       </div>
 
-                      {/* Status Facturare - înlocuiește Status Echipament pentru dispecer */}
-                      {role === "dispecer" ? (
-                        <div className="space-y-2">
-                          <label className="text-xs font-medium text-amber-800">Status facturare:</label>
-                          <select
-                            value={lucrare.statusFacturare || "Nefacturat"}
-                            onChange={async (e) => {
-                              try {
-                                setIsUpdating(true)
-                                const newStatus = e.target.value
-                                console.log("Actualizare status facturare:", { lucrareId: lucrare.id, newStatus })
-                                await updateLucrare(lucrare.id!, { statusFacturare: newStatus })
-                                setLucrare(prev => {
-                                  const updated = prev ? { ...prev, statusFacturare: newStatus } : null
-                                  console.log("State local actualizat:", { prev: prev?.statusFacturare, new: updated?.statusFacturare })
-                                  return updated
-                                })
-                                // Refresh explicit pentru a asigura sincronizarea
-                                const updatedLucrare = await getLucrareById(lucrare.id!)
-                                if (updatedLucrare) {
-                                  setLucrare(updatedLucrare)
-                                  console.log("Lucrare reîncărcată din Firebase:", { statusFacturare: updatedLucrare.statusFacturare })
-                                }
-                                toast({
-                                  title: "Status actualizat",
-                                  description: "Statusul facturării a fost actualizat."
-                                })
-                              } catch (error) {
-                                console.error("Eroare la actualizarea statusului facturare:", error)
-                                toast({
-                                  title: "Eroare",
-                                  description: "Nu s-a putut actualiza statusul.",
-                                  variant: "destructive"
-                                })
-                              } finally {
-                                setIsUpdating(false)
-                              }
-                            }}
-                            className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
-                            disabled={isUpdating}
-                          >
-                            <option value="Nefacturat">Nefacturat</option>
-                            <option value="Facturat">Facturat</option>
-                          </select>
-                        </div>
-                      ) : (
-                        /* Status Echipament - doar pentru admin */
-                        <div className="space-y-2">
-                          <label className="text-xs font-medium text-amber-800">Status echipament:</label>
-                          <select
-                            value={lucrare.statusEchipament || "Funcțional"}
-                            onChange={async (e) => {
-                              try {
-                                setIsUpdating(true)
-                                const newStatus = e.target.value
-                                console.log("Actualizare status echipament:", { lucrareId: lucrare.id, newStatus })
-                                await updateLucrare(lucrare.id!, { statusEchipament: newStatus })
-                                setLucrare(prev => {
-                                  const updated = prev ? { ...prev, statusEchipament: newStatus } : null
-                                  console.log("State local actualizat:", { prev: prev?.statusEchipament, new: updated?.statusEchipament })
-                                  return updated
-                                })
-                                // Refresh explicit pentru a asigura sincronizarea
-                                const updatedLucrare = await getLucrareById(lucrare.id!)
-                                if (updatedLucrare) {
-                                  setLucrare(updatedLucrare)
-                                  console.log("Lucrare reîncărcată din Firebase:", { statusEchipament: updatedLucrare.statusEchipament })
-                                }
-                                toast({
-                                  title: "Status actualizat",
-                                  description: "Statusul echipamentului a fost actualizat."
-                                })
-                              } catch (error) {
-                                console.error("Eroare la actualizarea statusului echipament:", error)
-                                toast({
-                                  title: "Eroare",
-                                  description: "Nu s-a putut actualiza statusul.",
-                                  variant: "destructive"
-                                })
-                              } finally {
-                                setIsUpdating(false)
-                              }
-                            }}
-                            className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
-                            disabled={isUpdating}
-                          >
-                            <option value="Funcțional">Funcțional</option>
-                            <option value="Parțial funcțional">Parțial funcțional</option>
-                            <option value="Nefuncțional">Nefuncțional</option>
-                          </select>
-                        </div>
-                      )}
+                   {/* Status Facturare — pentru admin și dispecer */}
+{(role === "admin" || role === "dispecer") && (
+  <div className="space-y-2">
+    <label className="text-xs font-medium text-amber-800">Status facturare:</label>
+    <select
+      value={lucrare.statusFacturare || "Nefacturat"}
+      onChange={async (e) => {
+        try {
+          setIsUpdating(true)
+          const newStatus = e.target.value
+          console.log("Actualizare status facturare:", { lucrareId: lucrare.id, newStatus })
+          await updateLucrare(lucrare.id!, { statusFacturare: newStatus })
+          setLucrare(prev => prev ? { ...prev, statusFacturare: newStatus } : null)
+          const updatedLucrare = await getLucrareById(lucrare.id!)
+          if (updatedLucrare) {
+            setLucrare(updatedLucrare)
+            console.log("Lucrare reîncărcată din Firebase:", { statusFacturare: updatedLucrare.statusFacturare })
+          }
+          toast({
+            title: "Status actualizat",
+            description: "Statusul facturării a fost actualizat."
+          })
+        } catch (error) {
+          console.error("Eroare la actualizarea statusului facturare:", error)
+          toast({
+            title: "Eroare",
+            description: "Nu s-a putut actualiza statusul.",
+            variant: "destructive"
+          })
+        } finally {
+          setIsUpdating(false)
+        }
+      }}
+      className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
+      disabled={isUpdating}
+    >
+      <option value="Nefacturat">Nefacturat</option>
+      <option value="Facturat">Facturat</option>
+      <option value="Nu se factureaza">Nu se factureaza</option>
+    </select>
+  </div>
+)}
+
+{/* Status Echipament — doar pentru admin */}
+{role === "admin" && (
+  <div className="space-y-2">
+    <label className="text-xs font-medium text-amber-800">Status echipament:</label>
+    <select
+      value={lucrare.statusEchipament || "Funcțional"}
+      onChange={async (e) => {
+        try {
+          setIsUpdating(true)
+          const newStatus = e.target.value
+          console.log("Actualizare status echipament:", { lucrareId: lucrare.id, newStatus })
+          await updateLucrare(lucrare.id!, { statusEchipament: newStatus })
+          setLucrare(prev => prev ? { ...prev, statusEchipament: newStatus } : null)
+          const updatedLucrare = await getLucrareById(lucrare.id!)
+          if (updatedLucrare) {
+            setLucrare(updatedLucrare)
+            console.log("Lucrare reîncărcată din Firebase:", { statusEchipament: updatedLucrare.statusEchipament })
+          }
+          toast({
+            title: "Status actualizat",
+            description: "Statusul echipamentului a fost actualizat."
+          })
+        } catch (error) {
+          console.error("Eroare la actualizarea statusului echipament:", error)
+          toast({
+            title: "Eroare",
+            description: "Nu s-a putut actualiza statusul.",
+            variant: "destructive"
+          })
+        } finally {
+          setIsUpdating(false)
+        }
+      }}
+      className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
+      disabled={isUpdating}
+    >
+      <option value="Funcțional">Funcțional</option>
+      <option value="Parțial funcțional">Parțial funcțional</option>
+      <option value="Nefuncțional">Nefuncțional</option>
+    </select>
+  </div>
+)}
+
 
                       {/* Status Ofertă */}
                       <div className="space-y-2">
