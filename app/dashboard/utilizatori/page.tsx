@@ -27,6 +27,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { UserEditForm } from "@/components/user-edit-form"
 import { DataTable } from "@/components/data-table/data-table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useMediaQuery } from "@/hooks/use-media-query"
@@ -597,31 +598,39 @@ export default function Utilizatori() {
         enableFiltering: false,
         cell: ({ row }: any) => (
           <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-2 text-blue-600"
-              onClick={(e) => {
-                e.stopPropagation()
-                handleEdit(row.original)
-              }}
-            >
-              <Pencil className="h-4 w-4 mr-1" />
-              Editează
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 text-blue-600"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleEdit(row.original)
+                  }}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Editează</TooltipContent>
+            </Tooltip>
             {row.original.uid !== currentUser?.uid && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 px-2 text-red-600"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleDeleteClick(row.original)
-                }}
-              >
-                <Trash2 className="h-4 w-4 mr-1" />
-                Șterge
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 text-red-600"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDeleteClick(row.original)
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Șterge</TooltipContent>
+              </Tooltip>
             )}
           </div>
         ),
@@ -670,7 +679,8 @@ export default function Utilizatori() {
   }
 
   return (
-    <DashboardShell>
+    <TooltipProvider>
+      <DashboardShell>
       <DashboardHeader heading="Management Utilizatori" text="Gestionați utilizatorii și drepturile de acces">
         <Dialog
           open={isAddDialogOpen}
@@ -1076,6 +1086,7 @@ export default function Utilizatori() {
         </AlertDialogContent>
       </AlertDialog>
     </DashboardShell>
+    </TooltipProvider>
   )
 }
 ;<style jsx global>{`

@@ -111,6 +111,36 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         tipGenerare: isFirstGeneration ? "PRIMA GENERARE - VA ÎNGHEȚA DATELE" : "REGENERARE - VA FOLOSI DATELE ÎNGHEȚATE"
       })
       
+      // Generăm numărul de raport ÎNAINTE de construirea PDF-ului (doar la prima generare)
+      let numarRaport = lucrare.numarRaport
+      if (isFirstGeneration && !numarRaport) {
+        console.log("🔢 Generez număr raport automat...")
+        
+        try {
+          // Importăm funcțiile necesare pentru count
+          const { collection, getCountFromServer } = await import("firebase/firestore")
+          const { db } = await import("@/lib/firebase/config")
+          
+          // Facem un count eficient al tuturor lucrărilor din colecție
+          const lucrariRef = collection(db, "lucrari")
+          const snapshot = await getCountFromServer(lucrariRef)
+          const totalLucrari = snapshot.data().count
+          
+          // Următorul număr de raport va fi totalul + 1
+          // Această abordare asigură unicitatea chiar și cu ștergeri
+          const nextNumber = totalLucrari + 1
+          numarRaport = `#${nextNumber.toString().padStart(5, '0')}`
+          
+          console.log("🔢 Număr raport generat:", numarRaport, "bazat pe", totalLucrari, "lucrări totale în colecție")
+        } catch (error) {
+          console.error("❌ Eroare la generarea numărului de raport:", error)
+          // Fallback: folosim timestamp-ul ca număr unic
+          const fallbackNumber = Date.now().toString().slice(-5)
+          numarRaport = `#${fallbackNumber}`
+          console.log("🔄 Folosesc fallback pentru numărul raportului:", numarRaport)
+        }
+      }
+      
       let lucrareForPDF
       
       if (isFirstGeneration) {
@@ -164,7 +194,9 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           durataInterventie,
           products,
           raportSnapshot,
-          raportDataLocked: true
+          raportDataLocked: true,
+          // Includem numărul de raport generat pentru prima generare
+          numarRaport: numarRaport
         }
       } else {
         // REGENERARE - folosește datele înghețate din snapshot
@@ -189,7 +221,9 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
             semnaturaTehnician: lucrare.raportSnapshot.semnaturaTehnician,
             semnaturaBeneficiar: lucrare.raportSnapshot.semnaturaBeneficiar,
             numeTehnician: lucrare.raportSnapshot.numeTehnician,
-            numeBeneficiar: lucrare.raportSnapshot.numeBeneficiar
+            numeBeneficiar: lucrare.raportSnapshot.numeBeneficiar,
+            // Păstrăm numărul raportului din obiectul principal (nu se stochează în snapshot)
+            numarRaport: lucrare.numarRaport
           }
         } else {
           // FALLBACK pentru rapoarte vechi - funcționează ca înainte
@@ -551,35 +585,6 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           // SALVĂM SNAPSHOT-UL DOAR LA PRIMA GENERARE
           if (isFirstGeneration) {
             console.log("💾 PRIMA GENERARE - Salvez toate datele:")
-            
-            // Generăm numărul de raport doar la prima generare
-            let numarRaport = lucrare.numarRaport
-            if (!numarRaport) {
-              console.log("🔢 Generez număr raport automat...")
-              
-              try {
-                // Importăm funcțiile necesare pentru count
-                const { collection, getCountFromServer } = await import("firebase/firestore")
-                
-                // Facem un count eficient al tuturor lucrărilor din colecție
-                const lucrariRef = collection(db, "lucrari")
-                const snapshot = await getCountFromServer(lucrariRef)
-                const totalLucrari = snapshot.data().count
-                
-                // Următorul număr de raport va fi totalul + 1
-                // Această abordare asigură unicitatea chiar și cu ștergeri
-                const nextNumber = totalLucrari + 1
-                numarRaport = `#${nextNumber.toString().padStart(5, '0')}`
-                
-                console.log("🔢 Număr raport generat:", numarRaport, "bazat pe", totalLucrari, "lucrări totale în colecție")
-              } catch (error) {
-                console.error("❌ Eroare la generarea numărului de raport:", error)
-                // Fallback: folosim timestamp-ul ca număr unic
-                const fallbackNumber = Date.now().toString().slice(-5)
-                numarRaport = `#${fallbackNumber}`
-                console.log("🔄 Folosesc fallback pentru numărul raportului:", numarRaport)
-              }
-            }
             
             const updateData = {
               raportGenerat: true,

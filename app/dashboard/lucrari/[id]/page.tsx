@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/components/ui/use-toast"
 import {
@@ -472,7 +473,8 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
   }
 
   return (
-    <DashboardShell>
+    <TooltipProvider>
+      <DashboardShell>
       <DashboardHeader heading={`Lucrare: ${lucrare.tipLucrare}`} text={`Client: ${lucrare.client}`}>
         <div className="flex flex-col sm:flex-row gap-2">
           <Button variant="outline" onClick={() => router.push("/dashboard/lucrari")}>
@@ -1353,21 +1355,32 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
               </CardContent>
               <CardFooter className="flex justify-between">
                 {(role === "admin" || role === "dispecer") && (
-                  <Button variant="outline" onClick={handleEdit}>
-                    <Pencil className="mr-2 h-4 w-4" /> Editează
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="outline" size="icon" onClick={handleEdit}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Editează</TooltipContent>
+                  </Tooltip>
                 )}
                 {role === "admin" && (
-                  <Button
-                    variant="destructive"
-                    onClick={() => {
-                      if (window.confirm("Sigur doriți să ștergeți această lucrare?")) {
-                        handleDeleteLucrare()
-                      }
-                    }}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" /> Șterge
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        onClick={() => {
+                          if (window.confirm("Sigur doriți să ștergeți această lucrare?")) {
+                            handleDeleteLucrare()
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Șterge</TooltipContent>
+                  </Tooltip>
                 )}
               </CardFooter>
             </Card>
@@ -1514,5 +1527,6 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
         )}
       </Tabs>
     </DashboardShell>
+    </TooltipProvider>
   )
 }

@@ -25,6 +25,7 @@ import { useSearchParams, useRouter } from "next/navigation"
 import { type Client, deleteClient } from "@/lib/firebase/firestore"
 import { DataTable } from "@/components/data-table/data-table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -641,41 +642,50 @@ export default function Clienti() {
     {
       id: "actions",
       enableFiltering: false,
-      cell: ({ row }: any) => (
-        <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 px-2 text-blue-600"
-            onClick={(e) => {
-              e.stopPropagation()
-              handleEdit(row.original, e)
-            }}
-          >
-            <Pencil className="h-4 w-4 mr-1" />
-            Editează
-          </Button>
-          {userData?.role === "admin" && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-2 text-red-600"
-              onClick={(e) => {
-                e.stopPropagation()
-                handleDelete(row.original.id!)
-              }}
-            >
-              <Trash2 className="h-4 w-4 mr-1" />
-              Șterge
-            </Button>
-          )}
-        </div>
-      ),
+              cell: ({ row }: any) => (
+          <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 text-blue-600"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleEdit(row.original, e)
+                  }}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Editează</TooltipContent>
+            </Tooltip>
+            {userData?.role === "admin" && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 text-red-600"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDelete(row.original.id!)
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Șterge</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        ),
     },
   ]
 
   return (
-    <DashboardShell>
+    <TooltipProvider>
+      <DashboardShell>
       <DashboardHeader heading="Clienți" text="Gestionați baza de date a clienților">
         <Dialog
           open={isAddDialogOpen}
@@ -999,6 +1009,7 @@ export default function Clienti() {
         </AlertDialogContent>
       </AlertDialog>
     </DashboardShell>
+    </TooltipProvider>
   )
 }
 ;<style jsx global>{`

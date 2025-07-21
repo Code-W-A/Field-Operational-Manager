@@ -45,6 +45,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useTablePersistence } from "@/hooks/use-table-persistence"
 import { UniversalSearch } from "@/components/universal-search"
 import { getClienti, isContractAvailableForClient, validateContractAssignment } from "@/lib/firebase/firestore"
@@ -321,26 +322,34 @@ export default function ContractsPage() {
       enableSorting: false,
       enableFiltering: false,
       cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => openEditDialog(row.original)}>
-              <Pencil className="mr-2 h-4 w-4" />
-              Editează
-            </DropdownMenuItem>
-            <DropdownMenuItem 
-              onClick={() => openDeleteDialog(row.original)}
-              className="text-red-600"
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Șterge
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center justify-end gap-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant="outline" 
+                size="icon" 
+                className="h-8 w-8 text-blue-600"
+                onClick={() => openEditDialog(row.original)}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Editează</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant="outline" 
+                size="icon" 
+                className="h-8 w-8 text-red-600"
+                onClick={() => openDeleteDialog(row.original)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Șterge</TooltipContent>
+          </Tooltip>
+        </div>
       ),
     },
   ], [clients])
@@ -623,7 +632,8 @@ export default function ContractsPage() {
   }
 
   return (
-    <DashboardShell>
+    <TooltipProvider>
+      <DashboardShell>
       <DashboardHeader heading="Contracte" text="Gestionați contractele din sistem">
         <Button onClick={() => setIsAddDialogOpen(true)}>
           <Plus className="mr-2 h-4 w-4" /> Adaugă Contract
@@ -886,5 +896,6 @@ export default function ContractsPage() {
         </AlertDialogContent>
       </AlertDialog>
     </DashboardShell>
+    </TooltipProvider>
   )
 }

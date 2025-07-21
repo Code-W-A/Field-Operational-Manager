@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { ArrowLeft, Pencil, Trash2, MapPin, Wrench, Calendar, Clock, FileText } from "lucide-react"
 import { getWarrantyDisplayInfo } from "@/lib/utils/warranty-calculator"
@@ -116,7 +117,8 @@ export default function ClientPage({ params }: { params: { id: string } }) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
+    <TooltipProvider>
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
       <Card className="w-full max-w-3xl">
         <CardHeader>
           <div className="flex items-center">
@@ -450,17 +452,28 @@ export default function ClientPage({ params }: { params: { id: string } }) {
             Înapoi
           </Button>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" className="gap-2" onClick={handleEdit}>
-              <Pencil className="h-4 w-4" /> Editează
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" onClick={handleEdit}>
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Editează</TooltipContent>
+            </Tooltip>
             {userData?.role === "admin" && (
-              <Button variant="destructive" className="gap-2" onClick={handleDelete}>
-                <Trash2 className="h-4 w-4" /> Șterge
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="destructive" size="icon" onClick={handleDelete}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Șterge</TooltipContent>
+              </Tooltip>
             )}
           </div>
         </CardFooter>
       </Card>
     </div>
+    </TooltipProvider>
   )
 }

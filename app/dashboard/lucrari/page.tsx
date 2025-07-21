@@ -1677,16 +1677,15 @@ export default function Lucrari() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 px-2 text-gray-400 border-gray-200 cursor-not-allowed opacity-60"
-                        disabled
-                        aria-label="Vizualizare dezactivată"
-                      >
-                        <Eye className="h-4 w-4" />
-                        <span className="ml-1">Vizualizează</span>
-                      </Button>
+                                              <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8 text-gray-400 border-gray-200 cursor-not-allowed opacity-60"
+                          disabled
+                          aria-label="Vizualizare dezactivată"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>
@@ -1699,16 +1698,15 @@ export default function Lucrari() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 px-2 text-gray-400 border-gray-200 cursor-not-allowed opacity-60"
-                        disabled
-                        aria-label="Raport dezactivat"
-                      >
-                        <FileText className="h-4 w-4" />
-                        <span className="ml-1">Raport</span>
-                      </Button>
+                                              <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8 text-gray-400 border-gray-200 cursor-not-allowed opacity-60"
+                          disabled
+                          aria-label="Raport dezactivat"
+                        >
+                          <FileText className="h-4 w-4" />
+                        </Button>
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>
@@ -1724,63 +1722,79 @@ export default function Lucrari() {
         return (
           <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
             {!isTechnician && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleEdit(row.original)
-                }}
-                aria-label="Editează lucrarea"
-              >
-                <Pencil className="h-4 w-4" />
-                <span className="ml-1">Editează</span>
-              </Button>
+                          <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 text-blue-600 border-blue-200 hover:bg-blue-50"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleEdit(row.original)
+                  }}
+                  aria-label="Editează lucrarea"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Editează</TooltipContent>
+            </Tooltip>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-2 text-green-600 border-green-200 hover:bg-green-50"
-              onClick={(e) => {
-                e.stopPropagation()
-                handleGenerateReport(row.original)
-              }}
-              aria-label="Generează raport"
-            >
-              <FileText className="h-4 w-4" />
-              <span className="ml-1">Raport</span>
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 text-green-600 border-green-200 hover:bg-green-50"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleGenerateReport(row.original)
+                  }}
+                  aria-label="Generează raport"
+                >
+                  <FileText className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Raport</TooltipContent>
+            </Tooltip>
             {/* Buton de reatribuire pentru dispeceri/admini când lucrarea are situații critice */}
             {!isTechnician && needsReassignment(row.original) && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 px-2 text-orange-600 border-orange-200 hover:bg-orange-50"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleReassign(row.original)
-                }}
-                aria-label="Reatribuie lucrarea"
-              >
-                <RefreshCw className="h-4 w-4" />
-                <span className="ml-1">Reintervenție</span>
-              </Button>
+                              <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 text-orange-600 border-orange-200 hover:bg-orange-50"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleReassign(row.original)
+                      }}
+                      aria-label="Reatribuie lucrarea"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Reintervenție</TooltipContent>
+                </Tooltip>
             )}
             {userData?.role === "admin" && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 px-2 text-red-600 border-red-200 hover:bg-red-50"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleDelete(row.original.id)
-                }}
-                aria-label="Șterge lucrarea"
-              >
-                <Trash2 className="h-4 w-4" />
-                <span className="ml-1">Șterge</span>
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 text-red-600 border-red-200 hover:bg-red-50"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDelete(row.original.id)
+                    }}
+                    aria-label="Șterge lucrarea"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Șterge</TooltipContent>
+              </Tooltip>
             )}
           </div>
         )
