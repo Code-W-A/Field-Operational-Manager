@@ -38,6 +38,7 @@ import { FilterModal, type FilterOption } from "@/components/filter-modal"
 import { ColumnSelectionButton } from "@/components/column-selection-button"
 import { ColumnSelectionModal } from "@/components/column-selection-modal"
 import { sendWorkOrderNotifications } from "@/components/work-order-notification-service"
+import { getCurrentReportNumber, updateReportNumber } from "@/lib/firebase/firestore"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -59,6 +60,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
 
 const ContractDisplay = ({ contractId }) => {
   const [contractNumber, setContractNumber] = useState(null)
@@ -147,6 +149,12 @@ export default function Lucrari() {
   const [showCloseAlert, setShowCloseAlert] = useState(false)
   const addFormRef = useRef<LucrareFormRef>(null)
   const editFormRef = useRef<LucrareFormRef>(null)
+  
+  // State pentru gestionarea numărului de raport centralizat
+  const [currentReportNumber, setCurrentReportNumber] = useState<number>(1)
+  const [reportNumberInput, setReportNumberInput] = useState<string>("1")
+  const [isLoadingReportNumber, setIsLoadingReportNumber] = useState(false)
+  const [isSavingReportNumber, setIsSavingReportNumber] = useState(false)
 
   // Persistența tabelului
   const { loadSettings, saveFilters, saveColumnVisibility, saveSorting, saveSearchText } = useTablePersistence("lucrari")
@@ -167,6 +175,31 @@ export default function Lucrari() {
       setSearchText(savedSettings.searchText)
     }
   }, [loadSettings])
+
+  // Încărcăm numărul curent de raport la inițializare (doar pentru admin)
+  useEffect(() => {
+    if (userData?.role === "admin") {
+      const loadCurrentReportNumber = async () => {
+        setIsLoadingReportNumber(true)
+        try {
+          const current = await getCurrentReportNumber()
+          setCurrentReportNumber(current)
+          setReportNumberInput(current.toString())
+        } catch (error) {
+          console.error("Eroare la încărcarea numărului de raport:", error)
+          toast({
+            title: "Eroare",
+            description: "Nu s-a putut încărca numărul curent de raport.",
+            variant: "destructive",
+          })
+        } finally {
+          setIsLoadingReportNumber(false)
+        }
+      }
+      
+      loadCurrentReportNumber()
+    }
+  }, [userData?.role])
 
 
 
@@ -1429,6 +1462,40 @@ export default function Lucrari() {
     saveFilters([]) // Salvăm lista goală în localStorage
   }
 
+  // Funcție pentru salvarea numărului de raport (doar pentru admin)
+  const handleSaveReportNumber = async () => {
+    const newNumber = parseInt(reportNumberInput, 10)
+    
+    if (isNaN(newNumber) || newNumber < 1) {
+      toast({
+        title: "Eroare validare",
+        description: "Vă rugăm să introduceți un număr valid mai mare decât 0.",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    setIsSavingReportNumber(true)
+    try {
+      await updateReportNumber(newNumber)
+      setCurrentReportNumber(newNumber)
+      
+      toast({
+        title: "Număr actualizat",
+        description: `Următorul raport va avea numărul #${newNumber.toString().padStart(6, '0')}.`,
+      })
+    } catch (error) {
+      console.error("Eroare la actualizarea numărului de raport:", error)
+      toast({
+        title: "Eroare",
+        description: "Nu s-a putut actualiza numărul de raport.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSavingReportNumber(false)
+    }
+  }
+
   // Definim coloanele pentru DataTable
   const columns = [
     {
@@ -1982,6 +2049,57 @@ export default function Lucrari() {
           </div>
         </div>
       </div>
+
+      {/* Management numerotare rapoarte - doar pentru admin */}
+      {userData?.role === "admin" && (
+        <div className="mb-4 p-4 border rounded-md bg-blue-50 border-blue-200">
+          <h3 className="text-sm font-medium mb-3 text-blue-900">Management numerotare rapoarte</h3>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-blue-800">Următorul număr de raport:</span>
+              {isLoadingReportNumber ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                  <span className="text-sm text-blue-600">Se încarcă...</span>
+                </div>
+              ) : (
+                <span className="text-sm font-bold text-blue-900 bg-blue-100 px-2 py-1 rounded border">
+                  #{currentReportNumber.toString().padStart(6, '0')}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min="1"
+                value={reportNumberInput}
+                onChange={(e) => setReportNumberInput(e.target.value)}
+                className="w-24 h-8 text-sm"
+                placeholder="Nr."
+                disabled={isLoadingReportNumber || isSavingReportNumber}
+              />
+              <Button
+                size="sm"
+                onClick={handleSaveReportNumber}
+                disabled={isLoadingReportNumber || isSavingReportNumber}
+                className="h-8 bg-blue-600 hover:bg-blue-700"
+              >
+                {isSavingReportNumber ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                    Se salvează...
+                  </>
+                ) : (
+                  "Actualizează"
+                )}
+              </Button>
+            </div>
+          </div>
+          <p className="text-xs text-blue-700 mt-2">
+            Modificarea acestui număr va afecta doar rapoartele generate după salvare. Rapoartele existente își păstrează numerele.
+          </p>
+        </div>
+      )}
 
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:justify-between gap-4">

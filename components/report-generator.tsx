@@ -114,28 +114,18 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // Generăm numărul de raport ÎNAINTE de construirea PDF-ului (doar la prima generare)
       let numarRaport = lucrare.numarRaport
       if (isFirstGeneration && !numarRaport) {
-        console.log("🔢 Generez număr raport automat...")
+        console.log("🔢 Generez număr raport din sistemul centralizat...")
         
         try {
-          // Importăm funcțiile necesare pentru count
-          const { collection, getCountFromServer } = await import("firebase/firestore")
-          const { db } = await import("@/lib/firebase/config")
+          // Folosim sistemul centralizat de numerotare
+          const { getNextReportNumber } = await import("@/lib/firebase/firestore")
+          numarRaport = await getNextReportNumber()
           
-          // Facem un count eficient al tuturor lucrărilor din colecție
-          const lucrariRef = collection(db, "lucrari")
-          const snapshot = await getCountFromServer(lucrariRef)
-          const totalLucrari = snapshot.data().count
-          
-          // Următorul număr de raport va fi totalul + 1
-          // Această abordare asigură unicitatea chiar și cu ștergeri
-          const nextNumber = totalLucrari + 1
-          numarRaport = `#${nextNumber.toString().padStart(5, '0')}`
-          
-          console.log("🔢 Număr raport generat:", numarRaport, "bazat pe", totalLucrari, "lucrări totale în colecție")
+          console.log("🔢 Număr raport generat din sistemul centralizat:", numarRaport)
         } catch (error) {
-          console.error("❌ Eroare la generarea numărului de raport:", error)
+          console.error("❌ Eroare la generarea numărului de raport din sistemul centralizat:", error)
           // Fallback: folosim timestamp-ul ca număr unic
-          const fallbackNumber = Date.now().toString().slice(-5)
+          const fallbackNumber = Date.now().toString().slice(-6)
           numarRaport = `#${fallbackNumber}`
           console.log("🔄 Folosesc fallback pentru numărul raportului:", numarRaport)
         }

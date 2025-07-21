@@ -538,3 +538,89 @@ export const validateContractAssignment = async (contractNumber: string, clientI
     }
   }
 }
+
+/**
+ * Funcții pentru gestionarea numerotării centralizate a rapoartelor
+ */
+
+/**
+ * Obține următorul număr de raport și îl incrementează automat
+ * @returns Promise<string> - Numărul raportului în format #000001
+ */
+export async function getNextReportNumber(): Promise<string> {
+  const { doc, getDoc, updateDoc, runTransaction } = await import("firebase/firestore")
+  
+  const reportNumberRef = doc(db, "numarRaport", "document-numar-raport")
+  
+  try {
+    // Folosim o tranzacție pentru a asigura atomicitatea operației
+    const result = await runTransaction(db, async (transaction) => {
+      const reportNumberDoc = await transaction.get(reportNumberRef)
+      
+      if (!reportNumberDoc.exists()) {
+        // Dacă documentul nu există, îl creăm cu valoarea 1
+        transaction.set(reportNumberRef, { numarRaport: 1 })
+        return 1
+      }
+      
+      const currentNumber = reportNumberDoc.data().numarRaport || 1
+      const nextNumber = currentNumber + 1
+      
+      // Incrementăm numărul în baza de date
+      transaction.update(reportNumberRef, { numarRaport: nextNumber })
+      
+      // Returnăm numărul curent (care va fi folosit pentru acest raport)
+      return currentNumber
+    })
+    
+    // Formatăm numărul cu 6 cifre
+    return `#${result.toString().padStart(6, '0')}`
+  } catch (error) {
+    console.error("Eroare la obținerea numărului de raport:", error)
+    // Fallback: folosim timestamp ca număr unic
+    const fallbackNumber = Date.now().toString().slice(-6)
+    return `#${fallbackNumber}`
+  }
+}
+
+/**
+ * Obține numărul curent de raport fără a-l incrementa
+ * @returns Promise<number> - Numărul curent din baza de date
+ */
+export async function getCurrentReportNumber(): Promise<number> {
+  const { doc, getDoc } = await import("firebase/firestore")
+  
+  const reportNumberRef = doc(db, "numarRaport", "document-numar-raport")
+  
+  try {
+    const reportNumberDoc = await getDoc(reportNumberRef)
+    
+    if (!reportNumberDoc.exists()) {
+      return 1 // Valoarea implicită
+    }
+    
+    return reportNumberDoc.data().numarRaport || 1
+  } catch (error) {
+    console.error("Eroare la citirea numărului de raport:", error)
+    return 1
+  }
+}
+
+/**
+ * Actualizează numărul curent de raport (pentru admin)
+ * @param newNumber - Noul număr de start
+ * @returns Promise<void>
+ */
+export async function updateReportNumber(newNumber: number): Promise<void> {
+  const { doc, setDoc } = await import("firebase/firestore")
+  
+  const reportNumberRef = doc(db, "numarRaport", "document-numar-raport")
+  
+  try {
+    await setDoc(reportNumberRef, { numarRaport: newNumber }, { merge: true })
+    console.log("Numărul de raport actualizat la:", newNumber)
+  } catch (error) {
+    console.error("Eroare la actualizarea numărului de raport:", error)
+    throw error
+  }
+}

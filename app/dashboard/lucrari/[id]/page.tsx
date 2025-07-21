@@ -1047,107 +1047,95 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
 {(role === "admin" || role === "dispecer") && (
   <div className="space-y-2">
     <label className="text-xs font-medium text-amber-800">Status facturare:</label>
-    {/* Verificăm dacă tehnicianul a bifat că necesită ofertă */}
-    {!lucrare.necesitaOferta && lucrare.statusOferta !== "DA" && lucrare.statusOferta !== "OFERTAT" ? (
-      <div className="w-full text-xs p-2 border border-amber-300 rounded bg-gray-100 text-gray-500">
-        <select disabled className="w-full bg-transparent">
-          <option>Nedisponibil</option>
-        </select>
-        <p className="text-xs text-amber-600 mt-1">
-          Tehnicianul trebuie să bifeze "Necesită ofertă" pentru a activa managementul facturării.
-        </p>
-      </div>
-    ) : (
-      <div className="space-y-2">
-        <select
-          value={lucrare.statusFacturare || "Nefacturat"}
-          onChange={async (e) => {
-            try {
-              setIsUpdating(true)
-              const newStatus = e.target.value
-              console.log("Actualizare status facturare:", { lucrareId: lucrare.id, newStatus })
-              
-              // Dacă nu se mai selectează "Facturat", resetăm numărul facturii
-              const updateData: any = { statusFacturare: newStatus }
-              if (newStatus !== "Facturat") {
-                updateData.numarFactura = ""
-              }
-              
-              await updateLucrare(lucrare.id!, updateData)
-              setLucrare(prev => prev ? { ...prev, ...updateData } : null)
-              const updatedLucrare = await getLucrareById(lucrare.id!)
-              if (updatedLucrare) {
-                setLucrare(updatedLucrare)
-                console.log("Lucrare reîncărcată din Firebase:", { statusFacturare: updatedLucrare.statusFacturare, numarFactura: updatedLucrare.numarFactura })
-              }
-              toast({
-                title: "Status actualizat",
-                description: "Statusul facturării a fost actualizat."
-              })
-            } catch (error) {
-              console.error("Eroare la actualizarea statusului facturare:", error)
-              toast({
-                title: "Eroare",
-                description: "Nu s-a putut actualiza statusul.",
-                variant: "destructive"
-              })
-            } finally {
-              setIsUpdating(false)
+    <div className="space-y-2">
+      <select
+        value={lucrare.statusFacturare || "Nefacturat"}
+        onChange={async (e) => {
+          try {
+            setIsUpdating(true)
+            const newStatus = e.target.value
+            console.log("Actualizare status facturare:", { lucrareId: lucrare.id, newStatus })
+            
+            // Dacă nu se mai selectează "Facturat", resetăm numărul facturii
+            const updateData: any = { statusFacturare: newStatus }
+            if (newStatus !== "Facturat") {
+              updateData.numarFactura = ""
             }
-          }}
-          className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
-          disabled={isUpdating}
-        >
-          <option value="Nefacturat">Nefacturat</option>
-          <option value="Facturat">Facturat</option>
-          <option value="Nu se factureaza">Nu se factureaza</option>
-        </select>
-        
-        {/* Câmp pentru numărul facturii - apare doar când statusul este "Facturat" */}
-        {lucrare.statusFacturare === "Facturat" && (
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-amber-800">Număr factură:</label>
-            <input
-              type="text"
-              value={lucrare.numarFactura || ""}
-              onChange={async (e) => {
-                const numarFactura = e.target.value
-                
-                // Actualizare în timp real în starea locală
-                setLucrare(prev => prev ? { ...prev, numarFactura } : null)
-                
-                                 // Debounce pentru a evita prea multe requesturi
-                 if (invoiceNumberTimeout) {
-                   clearTimeout(invoiceNumberTimeout)
+            
+            await updateLucrare(lucrare.id!, updateData)
+            setLucrare(prev => prev ? { ...prev, ...updateData } : null)
+            const updatedLucrare = await getLucrareById(lucrare.id!)
+            if (updatedLucrare) {
+              setLucrare(updatedLucrare)
+              console.log("Lucrare reîncărcată din Firebase:", { statusFacturare: updatedLucrare.statusFacturare, numarFactura: updatedLucrare.numarFactura })
+            }
+            toast({
+              title: "Status actualizat",
+              description: "Statusul facturării a fost actualizat."
+            })
+          } catch (error) {
+            console.error("Eroare la actualizarea statusului facturare:", error)
+            toast({
+              title: "Eroare",
+              description: "Nu s-a putut actualiza statusul.",
+              variant: "destructive"
+            })
+          } finally {
+            setIsUpdating(false)
+          }
+        }}
+        className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
+        disabled={isUpdating}
+      >
+        <option value="Nefacturat">Nefacturat</option>
+        <option value="Facturat">Facturat</option>
+        <option value="Nu se factureaza">Nu se factureaza</option>
+      </select>
+      
+      {/* Câmp pentru numărul facturii - apare doar când statusul este "Facturat" */}
+      {lucrare.statusFacturare === "Facturat" && (
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-amber-800">Număr factură:</label>
+          <input
+            type="text"
+            value={lucrare.numarFactura || ""}
+            onChange={async (e) => {
+              const numarFactura = e.target.value
+              
+              // Actualizare în timp real în starea locală
+              setLucrare(prev => prev ? { ...prev, numarFactura } : null)
+              
+                               // Debounce pentru a evita prea multe requesturi
+               if (invoiceNumberTimeout) {
+                 clearTimeout(invoiceNumberTimeout)
+               }
+               
+                                const timeoutId = setTimeout(async () => {
+                 try {
+                   await updateLucrare(lucrare.id!, { numarFactura })
+                   console.log("Număr factură salvat:", numarFactura)
+                 } catch (error) {
+                   console.error("Eroare la salvarea numărului facturii:", error)
+                   toast({
+                     title: "Eroare",
+                     description: "Nu s-a putut salva numărul facturii.",
+                     variant: "destructive"
+                   })
                  }
-                 
-                                  const timeoutId = setTimeout(async () => {
-                   try {
-                     await updateLucrare(lucrare.id!, { numarFactura })
-                     console.log("Număr factură salvat:", numarFactura)
-                   } catch (error) {
-                     console.error("Eroare la salvarea numărului facturii:", error)
-                     toast({
-                       title: "Eroare",
-                       description: "Nu s-a putut salva numărul facturii.",
-                       variant: "destructive"
-                     })
-                   }
-                 }, 1000) // Salvează după 1 secundă de la ultima modificare
-                 
-                 setInvoiceNumberTimeout(timeoutId)
-              }}
-              placeholder="Ex: FACT-2024-001"
-              className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
-              disabled={isUpdating}
-            />
-            <p className="text-xs text-amber-600">
-              Introduceți numărul facturii emise pentru această lucrare
-            </p>
-          </div>
-        )}
-      </div>
-    )}
+               }, 1000) // Salvează după 1 secundă de la ultima modificare
+               
+               setInvoiceNumberTimeout(timeoutId)
+            }}
+            placeholder="Ex: FACT-2024-001"
+            className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
+            disabled={isUpdating}
+          />
+          <p className="text-xs text-amber-600">
+            Introduceți numărul facturii emise pentru această lucrare
+          </p>
+        </div>
+      )}
+    </div>
   </div>
 )}
 
@@ -1198,62 +1186,15 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                       {/* Status Ofertă */}
                       <div className="space-y-2">
                         <label className="text-xs font-medium text-amber-800">Status ofertă:</label>
-                        {/* Verificăm dacă tehnicianul a completat intervenția */}
-                        {lucrare.statusLucrare !== "Finalizat" || 
-                         (lucrare.necesitaOferta === undefined && lucrare.statusOferta === undefined) ? (
-                          <div className="w-full text-xs p-2 border border-amber-300 rounded bg-gray-100 text-gray-500">
-                            <select disabled className="w-full bg-transparent">
-                              <option>Nedisponibil</option>
-                            </select>
-                            <p className="text-xs text-amber-600 mt-1">
-                              Tehnicianul trebuie să finalizeze intervenția și să specifice dacă necesită ofertă.
-                            </p>
-                          </div>
-                        ) : (
-                          <select
-                            value={lucrare.statusOferta || (lucrare.necesitaOferta ? "DA" : "NU")}
-                            onChange={async (e) => {
-                              try {
-                                setIsUpdating(true)
-                                const newStatus = e.target.value as "NU" | "DA" | "OFERTAT"
-                                await updateLucrare(lucrare.id!, { 
-                                  statusOferta: newStatus,
-                                  // Păstrăm sincronizarea cu câmpul vechi pentru compatibilitate
-                                  necesitaOferta: newStatus === "DA"
-                                })
-                                setLucrare(prev => prev ? { 
-                                  ...prev, 
-                                  statusOferta: newStatus,
-                                  necesitaOferta: newStatus === "DA"
-                                } : null)
-                                // Refresh explicit pentru a asigura sincronizarea
-                                const updatedLucrare = await getLucrareById(lucrare.id!)
-                                if (updatedLucrare) {
-                                  setLucrare(updatedLucrare)
-                                  console.log("Lucrare reîncărcată din Firebase:", { statusOferta: updatedLucrare.statusOferta, necesitaOferta: updatedLucrare.necesitaOferta })
-                                }
-                                toast({
-                                  title: "Status actualizat",
-                                  description: `Statusul ofertei a fost actualizat la "${newStatus}".`
-                                })
-                              } catch (error) {
-                                toast({
-                                  title: "Eroare",
-                                  description: "Nu s-a putut actualiza statusul.",
-                                  variant: "destructive"
-                                })
-                              } finally {
-                                setIsUpdating(false)
-                              }
-                            }}
-                            className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
-                            disabled={isUpdating}
-                          >
-                            <option value="NU">NU NECESITA OFERTA</option>
-                            <option value="DA">NECESITA OFERTA</option>
-                            <option value="OFERTAT">OFERTAT</option>
+                        {/* Status ofertă dezactivat în management situații critice */}
+                        <div className="w-full text-xs p-2 border border-amber-300 rounded bg-gray-100 text-gray-500">
+                          <select disabled className="w-full bg-transparent">
+                            <option>Dezactivat în management situații critice</option>
                           </select>
-                        )}
+                          <p className="text-xs text-amber-600 mt-1">
+                            Statusul ofertei nu poate fi modificat în management situații critice. Pentru modificări, accesați tab-ul de intervenție.
+                          </p>
+                        </div>
                       </div>
                     </div>
                     
