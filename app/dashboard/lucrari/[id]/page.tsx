@@ -1192,7 +1192,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                             <option>Dezactivat în management situații critice</option>
                           </select>
                           <p className="text-xs text-amber-600 mt-1">
-                            Statusul ofertei nu poate fi modificat în management situații critice. Pentru modificări, accesați tab-ul de intervenție.
+                            Statusul ofertei nu poate fi modificat în management situații critice. Nu a fost selectat de catre tehnician "Necesită Ofertă".
                           </p>
                         </div>
                       </div>
