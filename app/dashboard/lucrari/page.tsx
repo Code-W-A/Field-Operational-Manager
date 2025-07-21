@@ -28,6 +28,7 @@ import { LucrareForm, type LucrareFormRef } from "@/components/lucrare-form"
 import { DataTable } from "@/components/data-table/data-table"
 import { useTablePersistence } from "@/hooks/use-table-persistence"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { WORK_TYPES } from "@/lib/utils/constants"
 import { doc, getDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { toast } from "@/components/ui/use-toast"
@@ -1330,7 +1331,7 @@ export default function Lucrari() {
       
       // Precompletăm formularul cu datele din lucrarea originală
       const prefilledData = {
-        tipLucrare: originalLucrare.tipLucrare || "",
+        tipLucrare: WORK_TYPES.RE_INTERVENTION,
         tehnicieni: originalLucrare.tehnicieni || [],
         client: originalLucrare.client || "",
         locatie: originalLucrare.locatie || "",

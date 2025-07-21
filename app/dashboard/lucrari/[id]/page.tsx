@@ -58,6 +58,9 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
   // State pentru informațiile de garanție
   const [equipmentData, setEquipmentData] = useState<Echipament | null>(null)
   const [warrantyInfo, setWarrantyInfo] = useState<any>(null)
+  
+  // State pentru debounce-ul numărului facturii
+  const [invoiceNumberTimeout, setInvoiceNumberTimeout] = useState<NodeJS.Timeout | null>(null)
 
   // Încărcăm datele lucrării și adresa locației
   useEffect(() => {
@@ -534,7 +537,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
       </DashboardHeader>
 
       {role === "tehnician" && lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true && (
-        <Alert variant="info" className="mb-4 bg-blue-50 border-blue-200">
+        <Alert variant="default" className="mb-4 bg-blue-50 border-blue-200">
           <Info className="h-4 w-4 text-blue-500" />
           <AlertTitle>Lucrare finalizată</AlertTitle>
           <AlertDescription>
@@ -548,8 +551,8 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
 
       {/* Adăugăm un banner de notificare pentru tehnicieni dacă echipamentul nu a fost verificat */}
       {role === "tehnician" && !equipmentVerified && (
-        <Alert variant="warning" className="mb-4">
-          <AlertCircle className="h-4 w-4" />
+        <Alert variant="default" className="mb-4 bg-yellow-50 border-yellow-200">
+          <AlertCircle className="h-4 w-4 text-yellow-500" />
           <AlertTitle>Verificare echipament necesară</AlertTitle>
           <AlertDescription>
             Trebuie să verificați echipamentul înainte de a putea începe intervenția. Accesați tab-ul "Verificare
@@ -570,7 +573,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
       {/* Adăugăm un banner pentru admin/dispecer care arată starea de preluare */}
       {isAdminOrDispatcher && isCompletedWithReport && (
         <Alert
-          variant={lucrare.preluatDispecer ? "default" : "warning"}
+          variant="default"
           className={`mb-4 ${lucrare.preluatDispecer ? "bg-green-50 border-green-200" : "bg-yellow-50 border-yellow-200"}`}
         >
           {lucrare.preluatDispecer ? (
@@ -623,7 +626,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
               {role === "tehnician" &&
                 equipmentVerified &&
                 lucrare.statusLucrare === "Finalizat" &&
-                lucrare.raportGenerat === true && <CheckCircle className="h-3 w-3 absolute right-2" />}
+                lucrare.raportGenerat && <CheckCircle className="h-3 w-3 absolute right-2" />}
               Intervenție
             </TabsTrigger>
           )}
@@ -815,12 +818,19 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                   <Badge
                     variant={
                       lucrare.statusLucrare.toLowerCase() === "în așteptare"
-                        ? "warning"
+                        ? "outline"
                         : lucrare.statusLucrare.toLowerCase() === "în lucru"
                           ? "default"
                           : lucrare.statusLucrare.toLowerCase() === "finalizat"
-                            ? "success"
+                            ? "secondary"
                             : "secondary"
+                    }
+                    className={
+                      lucrare.statusLucrare.toLowerCase() === "în așteptare"
+                        ? "bg-yellow-100 text-yellow-800 border-yellow-300"
+                        : lucrare.statusLucrare.toLowerCase() === "finalizat"
+                          ? "bg-green-100 text-green-800"
+                          : ""
                     }
                   >
                     {lucrare.statusLucrare}
@@ -852,17 +862,35 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                 {role !== "tehnician" && (
                   <div>
                     <p className="text-sm font-medium">Status facturare:</p>
-                    <Badge
-                      variant={
-                        lucrare.statusFacturare.toLowerCase() === "nefacturat"
-                          ? "outline"
-                          : lucrare.statusFacturare.toLowerCase() === "facturat"
-                            ? "default"
-                            : "success"
-                      }
-                    >
-                      {lucrare.statusFacturare}
-                    </Badge>
+                    <div className="flex flex-col space-y-1">
+                      <Badge
+                        variant={
+                          lucrare.statusFacturare.toLowerCase() === "nefacturat"
+                            ? "outline"
+                            : lucrare.statusFacturare.toLowerCase() === "facturat"
+                              ? "default"
+                              : "secondary"
+                        }
+                        className={
+                          lucrare.statusFacturare.toLowerCase() === "nefacturat"
+                            ? ""
+                            : lucrare.statusFacturare.toLowerCase() === "facturat"
+                              ? ""
+                              : "bg-green-100 text-green-800"
+                        }
+                      >
+                        {lucrare.statusFacturare}
+                      </Badge>
+                      {/* Afișăm numărul facturii dacă lucrarea este facturată și are numărul completat */}
+                      {lucrare.statusFacturare === "Facturat" && lucrare.numarFactura && (
+                        <div className="mt-1">
+                          <p className="text-xs text-gray-600">Număr factură:</p>
+                          <p className="text-sm font-medium text-blue-800 bg-blue-50 px-2 py-1 rounded border border-blue-200 inline-block">
+                            {lucrare.numarFactura}
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
                 {isCompletedWithReport && (
@@ -873,6 +901,16 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                     ) : (
                       <Badge className="bg-yellow-100 text-yellow-800">În așteptare preluare</Badge>
                     )}
+                  </div>
+                )}
+                
+                {/* Afișăm numărul raportului dacă a fost generat */}
+                {lucrare.raportGenerat && lucrare.numarRaport && (
+                  <div>
+                    <p className="text-sm font-medium">Număr raport:</p>
+                    <p className="text-sm font-medium text-purple-800 bg-purple-50 px-2 py-1 rounded border border-purple-200 inline-block">
+                      {lucrare.numarRaport}
+                    </p>
                   </div>
                 )}
 
@@ -1007,42 +1045,107 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
 {(role === "admin" || role === "dispecer") && (
   <div className="space-y-2">
     <label className="text-xs font-medium text-amber-800">Status facturare:</label>
-    <select
-      value={lucrare.statusFacturare || "Nefacturat"}
-      onChange={async (e) => {
-        try {
-          setIsUpdating(true)
-          const newStatus = e.target.value
-          console.log("Actualizare status facturare:", { lucrareId: lucrare.id, newStatus })
-          await updateLucrare(lucrare.id!, { statusFacturare: newStatus })
-          setLucrare(prev => prev ? { ...prev, statusFacturare: newStatus } : null)
-          const updatedLucrare = await getLucrareById(lucrare.id!)
-          if (updatedLucrare) {
-            setLucrare(updatedLucrare)
-            console.log("Lucrare reîncărcată din Firebase:", { statusFacturare: updatedLucrare.statusFacturare })
-          }
-          toast({
-            title: "Status actualizat",
-            description: "Statusul facturării a fost actualizat."
-          })
-        } catch (error) {
-          console.error("Eroare la actualizarea statusului facturare:", error)
-          toast({
-            title: "Eroare",
-            description: "Nu s-a putut actualiza statusul.",
-            variant: "destructive"
-          })
-        } finally {
-          setIsUpdating(false)
-        }
-      }}
-      className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
-      disabled={isUpdating}
-    >
-      <option value="Nefacturat">Nefacturat</option>
-      <option value="Facturat">Facturat</option>
-      <option value="Nu se factureaza">Nu se factureaza</option>
-    </select>
+    {/* Verificăm dacă tehnicianul a bifat că necesită ofertă */}
+    {!lucrare.necesitaOferta && lucrare.statusOferta !== "DA" && lucrare.statusOferta !== "OFERTAT" ? (
+      <div className="w-full text-xs p-2 border border-amber-300 rounded bg-gray-100 text-gray-500">
+        <select disabled className="w-full bg-transparent">
+          <option>Nedisponibil</option>
+        </select>
+        <p className="text-xs text-amber-600 mt-1">
+          Tehnicianul trebuie să bifeze "Necesită ofertă" pentru a activa managementul facturării.
+        </p>
+      </div>
+    ) : (
+      <div className="space-y-2">
+        <select
+          value={lucrare.statusFacturare || "Nefacturat"}
+          onChange={async (e) => {
+            try {
+              setIsUpdating(true)
+              const newStatus = e.target.value
+              console.log("Actualizare status facturare:", { lucrareId: lucrare.id, newStatus })
+              
+              // Dacă nu se mai selectează "Facturat", resetăm numărul facturii
+              const updateData: any = { statusFacturare: newStatus }
+              if (newStatus !== "Facturat") {
+                updateData.numarFactura = ""
+              }
+              
+              await updateLucrare(lucrare.id!, updateData)
+              setLucrare(prev => prev ? { ...prev, ...updateData } : null)
+              const updatedLucrare = await getLucrareById(lucrare.id!)
+              if (updatedLucrare) {
+                setLucrare(updatedLucrare)
+                console.log("Lucrare reîncărcată din Firebase:", { statusFacturare: updatedLucrare.statusFacturare, numarFactura: updatedLucrare.numarFactura })
+              }
+              toast({
+                title: "Status actualizat",
+                description: "Statusul facturării a fost actualizat."
+              })
+            } catch (error) {
+              console.error("Eroare la actualizarea statusului facturare:", error)
+              toast({
+                title: "Eroare",
+                description: "Nu s-a putut actualiza statusul.",
+                variant: "destructive"
+              })
+            } finally {
+              setIsUpdating(false)
+            }
+          }}
+          className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
+          disabled={isUpdating}
+        >
+          <option value="Nefacturat">Nefacturat</option>
+          <option value="Facturat">Facturat</option>
+          <option value="Nu se factureaza">Nu se factureaza</option>
+        </select>
+        
+        {/* Câmp pentru numărul facturii - apare doar când statusul este "Facturat" */}
+        {lucrare.statusFacturare === "Facturat" && (
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-amber-800">Număr factură:</label>
+            <input
+              type="text"
+              value={lucrare.numarFactura || ""}
+              onChange={async (e) => {
+                const numarFactura = e.target.value
+                
+                // Actualizare în timp real în starea locală
+                setLucrare(prev => prev ? { ...prev, numarFactura } : null)
+                
+                                 // Debounce pentru a evita prea multe requesturi
+                 if (invoiceNumberTimeout) {
+                   clearTimeout(invoiceNumberTimeout)
+                 }
+                 
+                                  const timeoutId = setTimeout(async () => {
+                   try {
+                     await updateLucrare(lucrare.id!, { numarFactura })
+                     console.log("Număr factură salvat:", numarFactura)
+                   } catch (error) {
+                     console.error("Eroare la salvarea numărului facturii:", error)
+                     toast({
+                       title: "Eroare",
+                       description: "Nu s-a putut salva numărul facturii.",
+                       variant: "destructive"
+                     })
+                   }
+                 }, 1000) // Salvează după 1 secundă de la ultima modificare
+                 
+                 setInvoiceNumberTimeout(timeoutId)
+              }}
+              placeholder="Ex: FACT-2024-001"
+              className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
+              disabled={isUpdating}
+            />
+            <p className="text-xs text-amber-600">
+              Introduceți numărul facturii emise pentru această lucrare
+            </p>
+          </div>
+        )}
+      </div>
+    )}
   </div>
 )}
 
@@ -1093,49 +1196,62 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                       {/* Status Ofertă */}
                       <div className="space-y-2">
                         <label className="text-xs font-medium text-amber-800">Status ofertă:</label>
-                        <select
-                          value={lucrare.statusOferta || (lucrare.necesitaOferta ? "DA" : "NU")}
-                          onChange={async (e) => {
-                            try {
-                              setIsUpdating(true)
-                              const newStatus = e.target.value as "NU" | "DA" | "OFERTAT"
-                              await updateLucrare(lucrare.id!, { 
-                                statusOferta: newStatus,
-                                // Păstrăm sincronizarea cu câmpul vechi pentru compatibilitate
-                                necesitaOferta: newStatus === "DA"
-                              })
-                              setLucrare(prev => prev ? { 
-                                ...prev, 
-                                statusOferta: newStatus,
-                                necesitaOferta: newStatus === "DA"
-                              } : null)
-                              // Refresh explicit pentru a asigura sincronizarea
-                              const updatedLucrare = await getLucrareById(lucrare.id!)
-                              if (updatedLucrare) {
-                                setLucrare(updatedLucrare)
-                                console.log("Lucrare reîncărcată din Firebase:", { statusOferta: updatedLucrare.statusOferta, necesitaOferta: updatedLucrare.necesitaOferta })
+                        {/* Verificăm dacă tehnicianul a completat intervenția */}
+                        {lucrare.statusLucrare !== "Finalizat" || 
+                         (lucrare.necesitaOferta === undefined && lucrare.statusOferta === undefined) ? (
+                          <div className="w-full text-xs p-2 border border-amber-300 rounded bg-gray-100 text-gray-500">
+                            <select disabled className="w-full bg-transparent">
+                              <option>Nedisponibil</option>
+                            </select>
+                            <p className="text-xs text-amber-600 mt-1">
+                              Tehnicianul trebuie să finalizeze intervenția și să specifice dacă necesită ofertă.
+                            </p>
+                          </div>
+                        ) : (
+                          <select
+                            value={lucrare.statusOferta || (lucrare.necesitaOferta ? "DA" : "NU")}
+                            onChange={async (e) => {
+                              try {
+                                setIsUpdating(true)
+                                const newStatus = e.target.value as "NU" | "DA" | "OFERTAT"
+                                await updateLucrare(lucrare.id!, { 
+                                  statusOferta: newStatus,
+                                  // Păstrăm sincronizarea cu câmpul vechi pentru compatibilitate
+                                  necesitaOferta: newStatus === "DA"
+                                })
+                                setLucrare(prev => prev ? { 
+                                  ...prev, 
+                                  statusOferta: newStatus,
+                                  necesitaOferta: newStatus === "DA"
+                                } : null)
+                                // Refresh explicit pentru a asigura sincronizarea
+                                const updatedLucrare = await getLucrareById(lucrare.id!)
+                                if (updatedLucrare) {
+                                  setLucrare(updatedLucrare)
+                                  console.log("Lucrare reîncărcată din Firebase:", { statusOferta: updatedLucrare.statusOferta, necesitaOferta: updatedLucrare.necesitaOferta })
+                                }
+                                toast({
+                                  title: "Status actualizat",
+                                  description: `Statusul ofertei a fost actualizat la "${newStatus}".`
+                                })
+                              } catch (error) {
+                                toast({
+                                  title: "Eroare",
+                                  description: "Nu s-a putut actualiza statusul.",
+                                  variant: "destructive"
+                                })
+                              } finally {
+                                setIsUpdating(false)
                               }
-                              toast({
-                                title: "Status actualizat",
-                                description: `Statusul ofertei a fost actualizat la "${newStatus}".`
-                              })
-                            } catch (error) {
-                              toast({
-                                title: "Eroare",
-                                description: "Nu s-a putut actualiza statusul.",
-                                variant: "destructive"
-                              })
-                            } finally {
-                              setIsUpdating(false)
-                            }
-                          }}
-                          className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
-                          disabled={isUpdating}
-                        >
-                          <option value="NU">NU</option>
-                          <option value="DA">DA</option>
-                          <option value="OFERTAT">OFERTAT</option>
-                        </select>
+                            }}
+                            className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
+                            disabled={isUpdating}
+                          >
+                            <option value="NU">NU NECESITA OFERTA</option>
+                            <option value="DA">NECESITA OFERTA</option>
+                            <option value="OFERTAT">OFERTAT</option>
+                          </select>
+                        )}
                       </div>
                     </div>
                     
@@ -1289,8 +1405,8 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Alert variant="info">
-                    <CheckCircle className="h-4 w-4" />
+                  <Alert variant="default" className="bg-blue-50 border-blue-200">
+                    <CheckCircle className="h-4 w-4 text-blue-500" />
                     <AlertTitle>Lucrare încheiată</AlertTitle>
                     <AlertDescription>
                       Ați finalizat această lucrare și ați generat raportul. Lucrarea așteaptă să fie preluată de

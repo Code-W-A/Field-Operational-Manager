@@ -114,6 +114,10 @@ export interface Lucrare {
   // CÂMP NOU PENTRU CONFIRMAREA GARANȚIEI DE CĂTRE TEHNICIAN - BACKWARD COMPATIBLE
   tehnicianConfirmaGarantie?: boolean  // Confirmarea tehnicianului la fața locului despre garanție (doar pentru "Intervenție în garanție")
   statusOferta?: "NU" | "DA" | "OFERTAT" // Nou câmp pentru managementul statusului ofertei
+  // CÂMP NOU PENTRU NUMĂRUL FACTURII - BACKWARD COMPATIBLE
+  numarFactura?: string // Numărul facturii (opțional, pentru lucrările facturate)
+  // CÂMP NOU PENTRU NUMĂRUL RAPORTULUI - BACKWARD COMPATIBLE
+  numarRaport?: string // Numărul raportului (format: #00001, generat automat la prima generare raport)
 }
 
 export interface Client {

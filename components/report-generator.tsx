@@ -265,10 +265,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         allTextLines.forEach((txt, i) => {
           const yy = currentY + 10 + i * lineHeight
           doc.text(txt, x + 3, yy)
-          doc
-            .setDrawColor(200, 200, 200)
-            .setLineWidth(0.15)
-            .line(x + 3, yy + 1.5, x + boxWidth - 3, yy + 1.5)
+          // Removed line drawing for text fields
         })
         
         return boxHeight // Return the calculated height
@@ -277,6 +274,29 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // HEADER
       const logoArea = 40
       const boxW = (W - logoArea) / 2
+
+      // REPORT NUMBER - Top right corner
+      if (lucrareForPDF.numarRaport) {
+        const reportDate = lucrareForPDF.raportSnapshot?.dataGenerare 
+          ? new Date(lucrareForPDF.raportSnapshot.dataGenerare).toLocaleDateString('ro-RO')
+          : new Date().toLocaleDateString('ro-RO')
+        
+        const reportText = `Nr. raport ${lucrareForPDF.numarRaport} din data ${reportDate}`
+        
+        doc.setFontSize(8)
+          .setFont("helvetica", "bold")
+          .setTextColor(60, 60, 60)
+        
+        // Position in top-right corner with proper margins
+        const textWidth = doc.getTextWidth(reportText)
+        const rightMargin = M + W - textWidth - 5 // 5mm from right edge
+        const topPosition = currentY + 3 // 3mm from current Y position
+        
+        doc.text(reportText, rightMargin, topPosition)
+        
+        // Add some space after report number
+        currentY += 8
+      }
 
       const prestatorHeight = drawBox(
         "PRESTATOR",
@@ -386,10 +406,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         checkPageBreak(boxHeight + 5)
         doc.setDrawColor(150, 150, 150).rect(M, currentY, W, boxHeight, "S")
 
-        // Horizontal guide lines only for actual content
-        for (let i = 1; i <= textLines.length; i++) {
-          doc.line(M, currentY + i * lineHeight, M + W, currentY + i * lineHeight)
-        }
+        // Removed horizontal guide lines for text fields
 
         doc.setFont("helvetica", "normal").setFontSize(8)
         textLines.forEach((l: string, li: number) => doc.text(l, M + 2, currentY + lineHeight + li * lineHeight))
@@ -534,6 +551,36 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           // SALVĂM SNAPSHOT-UL DOAR LA PRIMA GENERARE
           if (isFirstGeneration) {
             console.log("💾 PRIMA GENERARE - Salvez toate datele:")
+            
+            // Generăm numărul de raport doar la prima generare
+            let numarRaport = lucrare.numarRaport
+            if (!numarRaport) {
+              console.log("🔢 Generez număr raport automat...")
+              
+              try {
+                // Importăm funcțiile necesare pentru count
+                const { collection, getCountFromServer } = await import("firebase/firestore")
+                
+                // Facem un count eficient al tuturor lucrărilor din colecție
+                const lucrariRef = collection(db, "lucrari")
+                const snapshot = await getCountFromServer(lucrariRef)
+                const totalLucrari = snapshot.data().count
+                
+                // Următorul număr de raport va fi totalul + 1
+                // Această abordare asigură unicitatea chiar și cu ștergeri
+                const nextNumber = totalLucrari + 1
+                numarRaport = `#${nextNumber.toString().padStart(5, '0')}`
+                
+                console.log("🔢 Număr raport generat:", numarRaport, "bazat pe", totalLucrari, "lucrări totale în colecție")
+              } catch (error) {
+                console.error("❌ Eroare la generarea numărului de raport:", error)
+                // Fallback: folosim timestamp-ul ca număr unic
+                const fallbackNumber = Date.now().toString().slice(-5)
+                numarRaport = `#${fallbackNumber}`
+                console.log("🔄 Folosesc fallback pentru numărul raportului:", numarRaport)
+              }
+            }
+            
             const updateData = {
               raportGenerat: true,
               raportDataLocked: true,
@@ -544,6 +591,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
               dataPlecare: lucrareForPDF.dataPlecare,
               oraPlecare: lucrareForPDF.oraPlecare,
               durataInterventie: lucrareForPDF.durataInterventie,
+              numarRaport: numarRaport, // Adăugăm numărul de raport
             }
             
             console.log("📦 Date care se salvează:", {
@@ -555,7 +603,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
               timpPlecare: updateData.timpPlecare,
               dataPlecare: updateData.dataPlecare,
               oraPlecare: updateData.oraPlecare,
-              durataInterventie: updateData.durataInterventie
+              durataInterventie: updateData.durataInterventie,
+              numarRaport: updateData.numarRaport
             })
             
             await updateDoc(doc(db, "lucrari", lucrare.id), updateData)

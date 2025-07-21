@@ -892,7 +892,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
                                 useSimpleFormat={true} // Format simplu pentru scanare mai ușoară
                               />
 
-                              {isAdmin ? (
+                             
                                 <Button
                                   type="button"
                                   variant="ghost"
@@ -902,7 +902,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
                                 >
                                   <Wrench className="h-4 w-4" />
                                 </Button>
-                              ) : null}
+                           
 
                               {isAdmin ? (
                                 <Button
@@ -959,10 +959,6 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
             {selectedEchipamentIndex !== null && !isAdmin && (
               <Alert variant="warning" className="mt-2">
                 <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  Notă: Doar administratorii pot șterge echipamente. Puteți edita detaliile, dar nu puteți șterge
-                  echipamentul.
-                </AlertDescription>
                 <AlertDescription>
                   Notă: Doar administratorii pot șterge echipamente. Puteți edita detaliile, dar nu puteți șterge
                   echipamentul.
