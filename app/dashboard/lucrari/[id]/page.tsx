@@ -106,16 +106,30 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                   console.log("Locație găsită:", locatie.nume, "Adresă:", locatie.adresa)
                   setLocationAddress(locatie.adresa)
 
-                  // Actualizăm lucrarea cu ID-ul clientului și adresa locației pentru a le folosi în raport
-                  await updateLucrare(params.id, {
-                    clientId: client.id,
-                    clientInfo: {
-                      ...data.clientInfo,
-                      cui: client.cif,
-                      adresa: client.adresa,
-                      locationAddress: locatie.adresa,
-                    },
-                  })
+                  // Verificăm dacă informațiile lipsesc înainte de a actualiza
+                  const needsLocationAddress = !data.clientInfo?.locationAddress
+                  const needsCif = !data.clientInfo?.cui
+                  const needsClientAddress = !data.clientInfo?.adresa
+
+                  // Actualizăm lucrarea DOAR dacă informațiile lipsesc (pentru a evita actualizări inutile)
+                  if (needsLocationAddress || needsCif || needsClientAddress) {
+                    console.log("Actualizare necesară - informații lipsă:", {
+                      needsLocationAddress,
+                      needsCif,
+                      needsClientAddress
+                    })
+                    
+                    await updateLucrare(params.id, {
+                      clientInfo: {
+                        ...data.clientInfo,
+                        cui: (client as any).cif,
+                        adresa: client.adresa,
+                        locationAddress: locatie.adresa,
+                      },
+                    })
+                  } else {
+                    console.log("Nu este necesară actualizarea - toate informațiile sunt deja prezente")
+                  }
                 } else {
                   console.log("Locația nu a fost găsită în lista de locații a clientului")
                 }
