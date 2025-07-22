@@ -304,7 +304,7 @@ export default function ContractsPage() {
           const dateObj = date.toDate ? date.toDate() : new Date(date)
           return (
             <div className="text-sm">
-              {format(dateObj, "dd MMMM yyyy", { locale: ro })}
+              {format(dateObj, "dd.MM.yyyy", { locale: ro })}
               <div className="text-xs text-muted-foreground">
                 {format(dateObj, "HH:mm", { locale: ro })}
               </div>
@@ -583,7 +583,7 @@ export default function ContractsPage() {
 
     try {
       const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp)
-      return format(date, "dd MMMM yyyy, HH:mm", { locale: ro })
+      return format(date, "dd.MM.yyyy, HH:mm", { locale: ro })
     } catch (error) {
       return "Data invalidă"
     }

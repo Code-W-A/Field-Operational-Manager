@@ -42,13 +42,13 @@ export function UserNav() {
 
     try {
       const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp)
-      return date.toLocaleDateString("ro-RO", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
+      const day = date.getDate().toString().padStart(2, "0")
+      const month = (date.getMonth() + 1).toString().padStart(2, "0")
+      const year = date.getFullYear()
+      const hour = date.getHours().toString().padStart(2, "0")
+      const minute = date.getMinutes().toString().padStart(2, "0")
+      
+      return `${day}.${month}.${year} ${hour}:${minute}`
     } catch (err) {
       console.error("Eroare la formatarea datei:", err)
       return "N/A"

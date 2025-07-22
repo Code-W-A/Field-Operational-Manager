@@ -216,7 +216,13 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
       technicians: technicians,
       details: {
         workType: workOrderData.tipLucrare || "",
-        issueDate: workOrderData.dataEmiterii || new Date().toLocaleDateString("ro-RO"),
+        issueDate: workOrderData.dataEmiterii || (() => {
+        const date = new Date()
+        const day = date.getDate().toString().padStart(2, "0")
+        const month = (date.getMonth() + 1).toString().padStart(2, "0")
+        const year = date.getFullYear()
+        return `${day}.${month}.${year}`
+      })(),
         interventionDate: getDateOnly(workOrderData.dataInterventie || ""),
         location: workOrderData.locatie || "",
         description: workOrderData.descriere || "",

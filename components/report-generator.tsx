@@ -313,8 +313,20 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // REPORT NUMBER - Top right corner
       if (lucrareForPDF.numarRaport) {
         const reportDate = lucrareForPDF.raportSnapshot?.dataGenerare 
-          ? new Date(lucrareForPDF.raportSnapshot.dataGenerare).toLocaleDateString('ro-RO')
-          : new Date().toLocaleDateString('ro-RO')
+                  ? (() => {
+            const date = new Date(lucrareForPDF.raportSnapshot.dataGenerare)
+            const day = date.getDate().toString().padStart(2, "0")
+            const month = (date.getMonth() + 1).toString().padStart(2, "0")
+            const year = date.getFullYear()
+            return `${day}.${month}.${year}`
+          })()
+        : (() => {
+            const date = new Date()
+            const day = date.getDate().toString().padStart(2, "0")
+            const month = (date.getMonth() + 1).toString().padStart(2, "0")
+            const year = date.getFullYear()
+            return `${day}.${month}.${year}`
+          })()
         
         const reportText = `Nr. raport ${lucrareForPDF.numarRaport} din data ${reportDate}`
         

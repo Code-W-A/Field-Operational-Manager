@@ -95,7 +95,10 @@ export function DataTable<TData, TValue>({
 
         // Verificăm dacă valoarea este un obiect Date
         if (value instanceof Date) {
-          return value.toLocaleDateString("ro-RO")
+                      const day = value.getDate().toString().padStart(2, "0")
+            const month = (value.getMonth() + 1).toString().padStart(2, "0")
+            const year = value.getFullYear()
+            return `${day}.${month}.${year}`
         }
 
         // Verificăm dacă valoarea este un array

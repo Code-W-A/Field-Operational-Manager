@@ -211,8 +211,18 @@ export default function Lucrari() {
 
   // Handler pentru schimbarea search text-ului
   const handleSearchChange = (value: string) => {
+    console.log("🏗️🔍 LUCRARI search changed:", {
+      newValue: value,
+      oldValue: searchText,
+      valueLength: value.length,
+      containsConferinta: value.toLowerCase().includes('conferin'),
+      timestamp: new Date().toISOString()
+    })
+    
     setSearchText(value)
     saveSearchText(value)
+    
+    console.log("🏗️💾 Lucrari search text saved to persistence")
   }
 
   // Obținem lucrările din Firebase - sortate după momentul introducerii în sistem
@@ -551,29 +561,47 @@ export default function Lucrari() {
 
   // Aplicăm filtrarea manuală pe baza textului de căutare și a filtrelor active
   useEffect(() => {
+    console.log("🏗️🔄 LUCRARI filtering effect triggered:", {
+      hasFilteredLucrari: filteredLucrari && filteredLucrari.length > 0,
+      filteredLucrariCount: filteredLucrari?.length || 0,
+      searchTextLength: searchText.trim().length,
+      searchText: searchText,
+      containsConferinta: searchText.toLowerCase().includes('conferin'),
+      activeFiltersCount: activeFilters.length,
+      timestamp: new Date().toISOString()
+    })
+
     // Dacă nu avem date, nu facem nimic
     if (!filteredLucrari || filteredLucrari.length === 0) {
+      console.log("🏗️⚠️ No lucrari data available for filtering")
       setFilteredData([])
       return
     }
 
     if (!searchText.trim() && !activeFilters.length) {
+      console.log("🏗️➡️ No search or filters, using all filtered lucrari")
       setFilteredData(filteredLucrari)
       return
     }
 
     let filtered = filteredLucrari
+    console.log("🏗️🎯 Starting lucrari filtering process with", filteredLucrari.length, "lucrari")
 
     // Aplicăm filtrele active
     if (activeFilters.length) {
+      console.log("🏗️🔧 Applying", activeFilters.length, "active filters to lucrari")
       filtered = applyFilters(filtered)
+      console.log("🏗️📊 After filters applied:", filtered.length, "lucrari remain")
     }
 
     // Aplicăm căutarea globală
     if (searchText.trim()) {
+      console.log("🏗️🔍 Applying search filter for:", searchText.trim())
       const lowercasedFilter = searchText.toLowerCase()
+      const beforeSearchCount = filtered.length
+      
       filtered = filtered.filter((item) => {
-        return Object.keys(item).some((key) => {
+        const searchResult = Object.keys(item).some((key) => {
           const value = item[key]
           if (value === null || value === undefined) return false
 
@@ -585,8 +613,34 @@ export default function Lucrari() {
           // Convertim la string pentru căutare
           return String(value).toLowerCase().includes(lowercasedFilter)
         })
+        
+        if (searchResult && searchText.toLowerCase().includes('conferin')) {
+          console.log("🏗️🎯 CONFERINTA search match found in item:", {
+            itemId: item.id,
+            client: item.client,
+            locatie: item.locatie,
+            searchTerm: searchText
+          })
+        }
+        
+        return searchResult
+      })
+      
+      console.log("🏗️🔍 Search filtering completed:", {
+        beforeCount: beforeSearchCount,
+        afterCount: filtered.length,
+        searchTerm: searchText.trim(),
+        isConferintaSearch: searchText.toLowerCase().includes('conferin')
       })
     }
+
+    console.log("🏗️✅ Final lucrari filtering result:", {
+      originalCount: filteredLucrari.length,
+      filteredCount: filtered.length,
+      hasActiveFilters: activeFilters.length > 0,
+      hasSearchText: searchText.trim().length > 0,
+      isConferintaSearch: searchText.toLowerCase().includes('conferin')
+    })
 
     setFilteredData(filtered)
   }, [searchText, filteredLucrari, activeFilters]) // Eliminat applyFilters din dependencies pentru a evita re-render-uri infinite

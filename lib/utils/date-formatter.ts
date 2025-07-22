@@ -1,7 +1,7 @@
 /**
- * Formats a date string from "dd.MM.yyyy HH:mm" to a more readable format
+ * Formats a date string from "dd.MM.yyyy HH:mm" to standard format "dd.MM.yyyy"
  * @param dateString Date string in format "dd.MM.yyyy HH:mm"
- * @returns Formatted date string
+ * @returns Formatted date string in dd.MM.yyyy format
  */
 export function formatDate(dateString: string): string {
   try {
@@ -23,29 +23,15 @@ export function formatDate(dateString: string): string {
 
     if (!day || !month || !year) return dateString
 
-    // Create a formatted date
-    const months = [
-      "ianuarie",
-      "februarie",
-      "martie",
-      "aprilie",
-      "mai",
-      "iunie",
-      "iulie",
-      "august",
-      "septembrie",
-      "octombrie",
-      "noiembrie",
-      "decembrie",
-    ]
-
-    const monthName = months[Number.parseInt(month) - 1] || month
-
-    // Format with or without time
+    // Return in standard dd.MM.yyyy format
+    const paddedDay = day.padStart(2, "0")
+    const paddedMonth = month.padStart(2, "0")
+    
+    // Format with or without time - but always return dd.MM.yyyy format for display
     if (timePart) {
-      return `${day} ${monthName} ${year}, ora ${timePart}`
+      return `${paddedDay}.${paddedMonth}.${year} ${timePart}`
     } else {
-      return `${day} ${monthName} ${year}`
+      return `${paddedDay}.${paddedMonth}.${year}`
     }
   } catch (error) {
     // If any error occurs, return the original string

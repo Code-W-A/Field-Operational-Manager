@@ -447,11 +447,10 @@ export default function NoteInternePage() {
       if (diffInHours < 24) return `acum ${diffInHours}h`
       if (diffInDays < 7) return `acum ${diffInDays} zile`
       
-      return date.toLocaleDateString('ro-RO', { 
-        day: '2-digit', 
-        month: '2-digit', 
-        year: 'numeric' 
-      })
+      const day = date.getDate().toString().padStart(2, "0")
+      const month = (date.getMonth() + 1).toString().padStart(2, "0")
+      const year = date.getFullYear()
+      return `${day}.${month}.${year}`
     } catch {
       return "Data necunoscută"
     }
