@@ -1564,12 +1564,46 @@ export default function Lucrari() {
       header: "Data Emiterii",
       enableHiding: true,
       enableFiltering: true,
+      sortingFn: (rowA: any, rowB: any, columnId: any) => {
+        const dateA = rowA.getValue(columnId) as string
+        const dateB = rowB.getValue(columnId) as string
+        
+        try {
+          // Parsăm datele din formatul "dd.MM.yyyy HH:mm"
+          const parsedDateA = parse(dateA, "dd.MM.yyyy HH:mm", new Date())
+          const parsedDateB = parse(dateB, "dd.MM.yyyy HH:mm", new Date())
+          
+          // Comparăm cronologic
+          return parsedDateA.getTime() - parsedDateB.getTime()
+        } catch (error) {
+          console.error("Eroare la parsarea datelor pentru sortare:", error)
+          // Fallback la sortarea alfabetică
+          return dateA.localeCompare(dateB)
+        }
+      },
     },
     {
       accessorKey: "dataInterventie",
       header: "Data solicitată intervenție",
       enableHiding: true,
       enableFiltering: true,
+      sortingFn: (rowA: any, rowB: any, columnId: any) => {
+        const dateA = rowA.getValue(columnId) as string
+        const dateB = rowB.getValue(columnId) as string
+        
+        try {
+          // Parsăm datele din formatul "dd.MM.yyyy HH:mm"
+          const parsedDateA = parse(dateA, "dd.MM.yyyy HH:mm", new Date())
+          const parsedDateB = parse(dateB, "dd.MM.yyyy HH:mm", new Date())
+          
+          // Comparăm cronologic
+          return parsedDateA.getTime() - parsedDateB.getTime()
+        } catch (error) {
+          console.error("Eroare la parsarea datelor pentru sortare:", error)
+          // Fallback la sortarea alfabetică
+          return dateA.localeCompare(dateB)
+        }
+      },
     },
     {
       accessorKey: "tipLucrare",

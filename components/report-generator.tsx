@@ -102,18 +102,29 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
     setHasGenerated(true)
     try {
       // VERIFICĂM DACĂ ESTE PRIMA GENERARE SAU REGENERARE
-      const isFirstGeneration = !lucrare.raportGenerat || !lucrare.raportDataLocked
+      const isOldFinalizedReport = lucrare.raportGenerat && !lucrare.raportDataLocked
+      const isFirstGeneration = !lucrare.raportGenerat || (!lucrare.raportDataLocked && !lucrare.raportGenerat)
       
       console.log("🔍 VERIFICARE TIP GENERARE:", {
         isFirstGeneration: isFirstGeneration,
+        isOldFinalizedReport: isOldFinalizedReport,
         raportGenerat: lucrare.raportGenerat,
         raportDataLocked: lucrare.raportDataLocked,
-        tipGenerare: isFirstGeneration ? "PRIMA GENERARE - VA ÎNGHEȚA DATELE" : "REGENERARE - VA FOLOSI DATELE ÎNGHEȚATE"
+        existaNumarRaport: !!lucrare.numarRaport,
+        tipGenerare: isFirstGeneration ? "PRIMA GENERARE - VA ÎNGHEȚA DATELE" : 
+                     isOldFinalizedReport ? "RAPORT VECHI FINALIZAT - FĂRĂ NUMĂR" : 
+                     "REGENERARE - VA FOLOSI DATELE ÎNGHEȚATE"
       })
       
-      // Generăm numărul de raport ÎNAINTE de construirea PDF-ului (doar la prima generare)
-      let numarRaport = lucrare.numarRaport
-      if (isFirstGeneration && !numarRaport) {
+      // Gestionăm numărul de raport
+      let numarRaport = lucrare.numarRaport // Folosim numărul existent din Firestore (dacă există)
+      
+      if (isOldFinalizedReport) {
+        // Pentru rapoartele vechi finalizate, NU generăm niciun număr
+        numarRaport = undefined // Forțăm să fie undefined pentru a nu afișa în PDF
+        console.log("🏛️ Raport vechi finalizat - NU se afișează număr de raport")
+      } else if (isFirstGeneration && !numarRaport) {
+        // Doar pentru lucrări noi la prima generare generăm număr
         console.log("🔢 Generez număr raport din sistemul centralizat...")
         
         try {
@@ -576,7 +587,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           if (isFirstGeneration) {
             console.log("💾 PRIMA GENERARE - Salvez toate datele:")
             
-            const updateData = {
+            const updateData: any = {
               raportGenerat: true,
               raportDataLocked: true,
               raportSnapshot: lucrareForPDF.raportSnapshot,
@@ -586,7 +597,11 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
               dataPlecare: lucrareForPDF.dataPlecare,
               oraPlecare: lucrareForPDF.oraPlecare,
               durataInterventie: lucrareForPDF.durataInterventie,
-              numarRaport: numarRaport, // Adăugăm numărul de raport
+            }
+            
+            // Adăugăm numărul de raport doar dacă există (pentru lucrări noi)
+            if (numarRaport) {
+              updateData.numarRaport = numarRaport
             }
             
             console.log("📦 Date care se salvează:", {
@@ -599,13 +614,16 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
               dataPlecare: updateData.dataPlecare,
               oraPlecare: updateData.oraPlecare,
               durataInterventie: updateData.durataInterventie,
-              numarRaport: updateData.numarRaport
+              numarRaport: updateData.numarRaport || "NU SE SALVEAZĂ"
             })
             
             await updateDoc(doc(db, "lucrari", lucrare.id), updateData)
             // LOG DEBUG – confirmare că update-ul a fost trimis în Firestore
             console.log("🔍 Firestore UPDATE (prima generare) – payload trimis:", updateData)
             console.log("✅ SUCCES - Prima generare salvată în Firestore cu statusLucrare: Finalizat")
+          } else if (isOldFinalizedReport) {
+            console.log("🏛️ RAPORT VECHI FINALIZAT - Nu salvez nimic în baza de date")
+            console.log("📋 Folosesc doar datele existente pentru PDF fără a modifica starea lucrării")
           } else {
             console.log("🔄 REGENERARE - Actualizez doar timestamp-ul")
             await updateDoc(doc(db, "lucrari", lucrare.id), {
