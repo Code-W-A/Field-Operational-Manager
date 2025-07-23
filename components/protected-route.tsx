@@ -20,34 +20,28 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   useEffect(() => {
     if (!loading) {
       // Adăugăm logging pentru debugging
-      console.log("🛡️ ProtectedRoute check:", {
+      console.log("ProtectedRoute check:", {
         user: !!user,
         userData: userData,
         allowedRoles,
         hasRole: userData && allowedRoles ? allowedRoles.includes(userData.role) : false,
         pathname,
-        loading,
       })
 
       if (!user) {
-        console.log("🚫 No user found, redirecting to login")
         router.push("/login")
       } else if (allowedRoles && userData && !allowedRoles.includes(userData.role)) {
-        console.log("🚫 User does not have required role, redirecting to dashboard")
+        console.log("User does not have required role, redirecting to dashboard")
         router.push("/dashboard")
       } else if (userData?.role === "tehnician" && pathname === "/dashboard") {
         // Redirect technicians from /dashboard to /dashboard/lucrari
-        console.log("👷 Technician accessing dashboard, redirecting to lucrari")
+        console.log("Technician accessing dashboard, redirecting to lucrari")
         router.push("/dashboard/lucrari")
       } else if (userData?.role === "tehnician" && pathname?.includes("/dashboard/clienti")) {
         // Prevent technicians from accessing the Clients page
-        console.log("👷 Technician attempting to access Clients page, redirecting to dashboard/lucrari")
+        console.log("Technician attempting to access Clients page, redirecting to dashboard/lucrari")
         router.push("/dashboard/lucrari")
-      } else {
-        console.log("✅ Protected route access granted")
       }
-    } else {
-      console.log("⏳ ProtectedRoute: Still loading...")
     }
   }, [user, userData, loading, router, allowedRoles, pathname])
 

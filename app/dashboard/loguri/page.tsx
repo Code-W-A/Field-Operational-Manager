@@ -50,57 +50,25 @@ export default function Loguri() {
 
   // Încărcăm logurile din Firebase
   useEffect(() => {
-    console.log("📋🚀 STARTING logs fetch process")
-    
     const fetchLogs = async () => {
       try {
-        console.log("📋📊 Setting loading to true for logs")
         setLoading(true)
 
-        console.log("📋🔥 Creating Firestore query for logs...")
         const logsQuery = query(collection(db, "logs"), orderBy("timestamp", "desc"))
-        console.log("📋📝 Logs query created, executing...")
-        
         const querySnapshot = await getDocs(logsQuery)
-        
-        console.log("📋📦 Logs query completed:", {
-          docsCount: querySnapshot.docs.length,
-          fromCache: querySnapshot.metadata.fromCache,
-          timestamp: new Date().toISOString()
-        })
 
         const logsData: Log[] = []
         querySnapshot.forEach((doc) => {
           logsData.push({ id: doc.id, ...doc.data() } as Log)
         })
 
-        console.log("📋✅ Logs data processed successfully:", {
-          totalLogs: logsData.length,
-          firstLogId: logsData[0]?.id,
-          lastLogId: logsData[logsData.length - 1]?.id
-        })
-
         setLogs(logsData)
         setFilteredData(logsData) // Inițializăm datele filtrate
         setError(null)
-        console.log("📋🎯 Logs state updated successfully")
       } catch (err) {
-        console.error("❌📋 CRITICAL ERROR loading logs:", {
-          error: err,
-          errorCode: (err as any).code,
-          errorMessage: (err as any).message,
-          stack: (err as any).stack,
-          timestamp: new Date().toISOString()
-        })
-        
-        if ((err as any).code === 'permission-denied' || (err as any).code === 'unauthenticated') {
-          console.warn("🔒📋 AUTH PROBLEM detected in logs loading!")
-          console.warn("🔒📋 This might cause automatic logout!")
-        }
-        
+        console.error("Eroare la încărcarea logurilor:", err)
         setError("A apărut o eroare la încărcarea logurilor.")
       } finally {
-        console.log("📋📊 Setting loading to false for logs")
         setLoading(false)
       }
     }
@@ -121,16 +89,8 @@ export default function Loguri() {
 
   // Handler pentru schimbarea search text-ului
   const handleSearchChange = (value: string) => {
-    console.log("📋🔍 Logs search changed:", {
-      newValue: value,
-      oldValue: searchText,
-      timestamp: new Date().toISOString()
-    })
-    
     setSearchText(value)
     saveSearchText(value)
-    
-    console.log("📋💾 Logs search text saved to persistence")
   }
 
   // Define filter options based on log data
@@ -242,37 +202,22 @@ export default function Loguri() {
 
   // Apply manual filtering based on search text and active filters
   useEffect(() => {
-    console.log("📋🔄 Logs filtering effect triggered:", {
-      hasLogs: logs && logs.length > 0,
-      logsCount: logs?.length || 0,
-      searchTextLength: searchText.trim().length,
-      activeFiltersCount: activeFilters.length,
-      timestamp: new Date().toISOString()
-    })
-
     // Dacă nu avem date, nu facem nimic
     if (!logs || logs.length === 0) {
-      console.log("📋⚠️ No logs data available for filtering")
       setFilteredData([])
       return
     }
 
     let filtered = logs
-    console.log("📋🎯 Starting logs filtering process with", logs.length, "logs")
 
     // Apply active filters
     if (activeFilters.length) {
-      console.log("📋🔧 Applying", activeFilters.length, "active filters to logs")
       filtered = applyFilters(filtered)
-      console.log("📋📊 After filters applied:", filtered.length, "logs remain")
     }
 
     // Apply global search
     if (searchText.trim()) {
-      console.log("📋🔍 Applying search filter for:", searchText.trim())
       const lowercasedFilter = searchText.toLowerCase()
-      const beforeSearchCount = filtered.length
-      
       filtered = filtered.filter((item) => {
         return Object.keys(item).some((key) => {
           const value = item[key]
@@ -287,20 +232,7 @@ export default function Loguri() {
           return String(value).toLowerCase().includes(lowercasedFilter)
         })
       })
-      
-      console.log("📋🔍 Search filtering completed:", {
-        beforeCount: beforeSearchCount,
-        afterCount: filtered.length,
-        searchTerm: searchText.trim()
-      })
     }
-
-    console.log("📋✅ Final logs filtering result:", {
-      originalCount: logs.length,
-      filteredCount: filtered.length,
-      hasActiveFilters: activeFilters.length > 0,
-      hasSearchText: searchText.trim().length > 0
-    })
 
     setFilteredData(filtered)
   }, [searchText, logs, activeFilters]) // Eliminat applyFilters din dependencies

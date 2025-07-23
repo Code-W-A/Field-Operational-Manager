@@ -128,18 +128,8 @@ export default function Utilizatori() {
 
   // Handler pentru schimbarea search text-ului
   const handleSearchChange = (value: string) => {
-    console.log("👤🔍 UTILIZATORI search changed:", {
-      newValue: value,
-      oldValue: searchText,
-      valueLength: value.length,
-      containsConferinta: value.toLowerCase().includes('conferin'),
-      timestamp: new Date().toISOString()
-    })
-    
     setSearchText(value)
     saveSearchText(value)
-    
-    console.log("👤💾 Utilizatori search text saved to persistence")
   }
 
   // Define filter options based on user data
@@ -226,41 +216,24 @@ export default function Utilizatori() {
 
   // Apply manual filtering based on search text and active filters
   useEffect(() => {
-    console.log("👤🔄 UTILIZATORI filtering effect triggered:", {
-      hasUtilizatori: utilizatori && utilizatori.length > 0,
-      utilizatoriCount: utilizatori?.length || 0,
-      searchTextLength: searchText.trim().length,
-      searchText: searchText,
-      containsConferinta: searchText.toLowerCase().includes('conferin'),
-      activeFiltersCount: activeFilters.length,
-      timestamp: new Date().toISOString()
-    })
-
     // Dacă nu avem date, nu facem nimic
     if (!utilizatori || utilizatori.length === 0) {
-      console.log("👤⚠️ No utilizatori data available for filtering")
       setFilteredData([])
       return
     }
 
     let filtered = utilizatori
-    console.log("👤🎯 Starting utilizatori filtering process with", utilizatori.length, "utilizatori")
 
     // Apply active filters
     if (activeFilters.length) {
-      console.log("👤🔧 Applying", activeFilters.length, "active filters to utilizatori")
       filtered = applyFilters(filtered)
-      console.log("👤📊 After filters applied:", filtered.length, "utilizatori remain")
     }
 
     // Apply global search
     if (searchText.trim()) {
-      console.log("👤🔍 Applying search filter for:", searchText.trim())
       const lowercasedFilter = searchText.toLowerCase()
-      const beforeSearchCount = filtered.length
-      
       filtered = filtered.filter((item) => {
-        const searchResult = Object.keys(item).some((key) => {
+        return Object.keys(item).some((key) => {
           const value = item[key]
           if (value === null || value === undefined) return false
 
@@ -272,35 +245,8 @@ export default function Utilizatori() {
           // Convert to string for search
           return String(value).toLowerCase().includes(lowercasedFilter)
         })
-        
-        if (searchResult && searchText.toLowerCase().includes('conferin')) {
-          console.log("👤🎯 CONFERINTA search match found in user:", {
-            userId: item.id,
-            displayName: item.displayName,
-            email: item.email,
-            role: item.role,
-            searchTerm: searchText
-          })
-        }
-        
-        return searchResult
-      })
-      
-      console.log("👤🔍 Search filtering completed:", {
-        beforeCount: beforeSearchCount,
-        afterCount: filtered.length,
-        searchTerm: searchText.trim(),
-        isConferintaSearch: searchText.toLowerCase().includes('conferin')
       })
     }
-
-    console.log("👤✅ Final utilizatori filtering result:", {
-      originalCount: utilizatori.length,
-      filteredCount: filtered.length,
-      hasActiveFilters: activeFilters.length > 0,
-      hasSearchText: searchText.trim().length > 0,
-      isConferintaSearch: searchText.toLowerCase().includes('conferin')
-    })
 
     setFilteredData(filtered)
   }, [searchText, utilizatori, activeFilters]) // Eliminat applyFilters din dependencies

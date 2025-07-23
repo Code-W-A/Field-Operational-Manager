@@ -16,9 +16,7 @@ const firebaseConfig = {
 
 // Verificăm dacă toate variabilele de mediu sunt definite
 if (!firebaseConfig.apiKey || !firebaseConfig.authDomain || !firebaseConfig.projectId) {
-  console.error("❌ Variabilele de mediu Firebase nu sunt configurate corect. Verificați .env.local")
-} else {
-  console.log("✅ Firebase config loaded successfully")
+  console.error("Variabilele de mediu Firebase nu sunt configurate corect. Verificați .env.local")
 }
 
 // Inițializăm Firebase doar dacă nu a fost deja inițializat

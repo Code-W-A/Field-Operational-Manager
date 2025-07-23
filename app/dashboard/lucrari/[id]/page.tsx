@@ -119,14 +119,14 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                       needsClientAddress
                     })
                     
-                    await updateLucrare(params.id, {
-                      clientInfo: {
-                        ...data.clientInfo,
+                  await updateLucrare(params.id, {
+                    clientInfo: {
+                      ...data.clientInfo,
                         cui: (client as any).cif,
-                        adresa: client.adresa,
-                        locationAddress: locatie.adresa,
-                      },
-                    })
+                      adresa: client.adresa,
+                      locationAddress: locatie.adresa,
+                    },
+                  })
                   } else {
                     console.log("Nu este necesară actualizarea - toate informațiile sunt deja prezente")
                   }
@@ -1103,7 +1103,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
       >
         <option value="Nefacturat">Nefacturat</option>
         <option value="Facturat">Facturat</option>
-        <option value="Nu se factureaza">Nu se factureaza</option>
+        <option value="Nu se facturează">Nu se facturează</option>
       </select>
       
       {/* Câmp pentru numărul facturii - apare doar când statusul este "Facturat" */}
