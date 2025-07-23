@@ -152,6 +152,21 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         const timpPlecare = now.toISOString()
         const dataPlecare = formatDate(now)
         const oraPlecare = formatTime(now)
+        
+        // DEBUGGING PENTRU TIMPI CORUPȚI - VERIFICARE LA SETARE timpPlecare
+        console.log("🕐 SETARE timpPlecare la generarea raportului (PRIMA GENERARE):")
+        console.log("📅 Data curentă (now):", now)
+        console.log("📅 Data curentă (toLocaleString):", now.toLocaleString('ro-RO'))
+        console.log("📅 Anul curent:", now.getFullYear())
+        console.log("🔢 timpPlecare (ISO):", timpPlecare)
+        console.log("🔢 dataPlecare (formatat):", dataPlecare)
+        console.log("🔢 oraPlecare (formatat):", oraPlecare)
+        
+        // Verificare dacă timpii generați sunt în viitor
+        if (now.getFullYear() > new Date().getFullYear()) {
+          console.log("🚨 ALERTĂ: Data generată pentru timpPlecare (PRIMA GENERARE) este în viitor!")
+          console.log("🚨 Aceasta este o problemă critică la generarea raportului!")
+        }
         let durataInterventie = "-"
         if (lucrare.timpSosire) {
           durataInterventie = calculateDuration(lucrare.timpSosire, timpPlecare)
@@ -233,6 +248,21 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           const timpPlecare = now.toISOString()
           const dataPlecare = formatDate(now)
           const oraPlecare = formatTime(now)
+          
+          // DEBUGGING PENTRU TIMPI CORUPȚI - VERIFICARE LA SETARE timpPlecare (FALLBACK)
+          console.log("🕐 SETARE timpPlecare la generarea raportului (FALLBACK):")
+          console.log("📅 Data curentă (now):", now)
+          console.log("📅 Data curentă (toLocaleString):", now.toLocaleString('ro-RO'))
+          console.log("📅 Anul curent:", now.getFullYear())
+          console.log("🔢 timpPlecare (ISO):", timpPlecare)
+          console.log("🔢 dataPlecare (formatat):", dataPlecare)
+          console.log("🔢 oraPlecare (formatat):", oraPlecare)
+          
+          // Verificare dacă timpii generați sunt în viitor
+          if (now.getFullYear() > new Date().getFullYear()) {
+            console.log("🚨 ALERTĂ: Data generată pentru timpPlecare (FALLBACK) este în viitor!")
+            console.log("🚨 Aceasta este o problemă critică la fallback-ul raportului!")
+          }
           let durataInterventie = "-"
           if (lucrare.timpSosire) {
             durataInterventie = calculateDuration(lucrare.timpSosire, timpPlecare)
@@ -405,11 +435,49 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       doc.text(`Data: ${normalize(d)}`, M, currentY)
 
       // Folosim datele de sosire și plecare dacă există
+      // DEBUGGING PENTRU TIMPI CORUPȚI ÎN PDF
+      console.log("🖨️ DEBUGGING PDF - Verificare timpi:", {
+        timpSosire: lucrareForPDF.timpSosire,
+        timpPlecare: lucrareForPDF.timpPlecare,
+        dataSosire: lucrareForPDF.dataSosire,
+        dataPlecare: lucrareForPDF.dataPlecare,
+        oraSosire: lucrareForPDF.oraSosire,
+        oraPlecare: lucrareForPDF.oraPlecare
+      })
+      
+      // Verificare pentru timpi în viitor
+      if (lucrareForPDF.timpSosire) {
+        const sosireDate = new Date(lucrareForPDF.timpSosire)
+        console.log("🖨️ PDF - Data sosire interpretată:", sosireDate.toLocaleString('ro-RO'))
+        console.log("🖨️ PDF - Anul sosire:", sosireDate.getFullYear())
+        
+        if (sosireDate.getFullYear() > new Date().getFullYear()) {
+          console.log("🚨 PDF - ALERTĂ: Data sosire în viitor!")
+        }
+      }
+      
+      if (lucrareForPDF.timpPlecare) {
+        const plecareDate = new Date(lucrareForPDF.timpPlecare)
+        console.log("🖨️ PDF - Data plecare interpretată:", plecareDate.toLocaleString('ro-RO'))
+        console.log("🖨️ PDF - Anul plecare:", plecareDate.getFullYear())
+        
+        if (plecareDate.getFullYear() > new Date().getFullYear()) {
+          console.log("🚨 PDF - ALERTĂ: Data plecare în viitor!")
+        }
+      }
+      
       // Extragem datele și orele pentru afișare formatată
       const sosireData = lucrareForPDF.dataSosire || (lucrareForPDF.timpSosire ? formatDate(new Date(lucrareForPDF.timpSosire)) : "-")
       const sosireOra = lucrareForPDF.oraSosire || (lucrareForPDF.timpSosire ? formatTime(new Date(lucrareForPDF.timpSosire)) : "-")
       const plecareData = lucrareForPDF.dataPlecare || (lucrareForPDF.timpPlecare ? formatDate(new Date(lucrareForPDF.timpPlecare)) : "-")
       const plecareOra = lucrareForPDF.oraPlecare || (lucrareForPDF.timpPlecare ? formatTime(new Date(lucrareForPDF.timpPlecare)) : "-")
+      
+      console.log("🖨️ PDF - Date formatate pentru afișare:", {
+        sosireData,
+        sosireOra,
+        plecareData,
+        plecareOra
+      })
 
       doc.text(`Sosire: ${sosireData}, ${sosireOra}`, M + 70, currentY)
       doc.text(`Plecare: ${plecareData}, ${plecareOra}`, M + 120, currentY)
@@ -418,14 +486,38 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // Calculăm și afișăm durata intervenției în ore și minute
       let durataText = "-"
       if (lucrareForPDF.timpSosire && lucrareForPDF.timpPlecare) {
-        const ms = new Date(lucrareForPDF.timpPlecare).getTime() - new Date(lucrareForPDF.timpSosire).getTime()
+        const sosireTime = new Date(lucrareForPDF.timpSosire)
+        const plecareTime = new Date(lucrareForPDF.timpPlecare)
+        const ms = plecareTime.getTime() - sosireTime.getTime()
+        
+        console.log("🖨️ PDF - Calcul durată:", {
+          timpSosire: lucrareForPDF.timpSosire,
+          timpPlecare: lucrareForPDF.timpPlecare,
+          sosireTime: sosireTime.toLocaleString('ro-RO'),
+          plecareTime: plecareTime.toLocaleString('ro-RO'),
+          differenceMs: ms,
+          differenceHours: ms / (1000 * 60 * 60)
+        })
+        
         if (ms > 0) {
           const totalMinutes = Math.floor(ms / 60000)
           const ore = Math.floor(totalMinutes / 60)
           const minute = totalMinutes % 60
           durataText = `${ore}h ${minute}m`
+          
+          // Verificare pentru durată nerealista
+          if (ore > 24) {
+            console.log("🚨 PDF - ALERTĂ: Durată nerealista detectată!", {
+              ore,
+              minute,
+              durataText,
+              timpSosire: sosireTime.toLocaleString('ro-RO'),
+              timpPlecare: plecareTime.toLocaleString('ro-RO')
+            })
+          }
         }
       }
+      console.log("🖨️ PDF - Durata finală pentru afișare:", durataText)
       doc.text(`Durata: ${durataText}`, M, currentY)
       currentY += 6
 
@@ -628,6 +720,28 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
               durataInterventie: updateData.durataInterventie,
               numarRaport: updateData.numarRaport || "NU SE SALVEAZĂ"
             })
+            
+            // DEBUGGING SUPLIMENTAR PENTRU TIMPI CORUPȚI - VERIFICARE ÎNAINTE DE SALVARE
+            console.log("🔍 VERIFICARE FINALĂ ÎNAINTE DE SALVARE în Firestore:")
+            console.log("📅 timpPlecare care se va salva:", updateData.timpPlecare)
+            console.log("📅 Interpretare timpPlecare:", new Date(updateData.timpPlecare).toLocaleString('ro-RO'))
+            console.log("📅 Anul din timpPlecare:", new Date(updateData.timpPlecare).getFullYear())
+            
+            if (updateData.raportSnapshot?.timpPlecare) {
+              console.log("📅 timpPlecare din snapshot:", updateData.raportSnapshot.timpPlecare)
+              console.log("📅 Interpretare timpPlecare snapshot:", new Date(updateData.raportSnapshot.timpPlecare).toLocaleString('ro-RO'))
+              console.log("📅 Anul din timpPlecare snapshot:", new Date(updateData.raportSnapshot.timpPlecare).getFullYear())
+            }
+            
+            // Verificare finală pentru date în viitor
+            const currentYear = new Date().getFullYear()
+            const plecareYear = new Date(updateData.timpPlecare).getFullYear()
+            if (plecareYear > currentYear) {
+              console.log("🚨🚨🚨 ALERTĂ FINALĂ: timpPlecare în viitor detectat înainte de salvare!")
+              console.log("🚨 Anul curent:", currentYear)
+              console.log("🚨 Anul timpPlecare:", plecareYear)
+              console.log("🚨 Această problemă va corupe datele în Firestore!")
+            }
             
             await updateDoc(doc(db, "lucrari", lucrare.id), updateData)
             // LOG DEBUG – confirmare că update-ul a fost trimis în Firestore

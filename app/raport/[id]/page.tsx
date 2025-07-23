@@ -123,15 +123,90 @@ export default function RaportPage({ params }: { params: { id: string } }) {
             raportDataLocked: processedData.raportDataLocked,
             hasRaportSnapshot: !!processedData.raportSnapshot,
             snapshotKeys: processedData.raportSnapshot ? Object.keys(processedData.raportSnapshot) : [],
+            snapshotData: processedData.raportSnapshot,
             userRole: userData?.role,
             isDispatcherOrAdmin: isDispatcherOrAdmin,
-            willShowDownloadInterface: isDispatcherOrAdmin && processedData.raportGenerat
+            willShowDownloadInterface: isDispatcherOrAdmin && processedData.raportGenerat,
+            // DEBUG: Verificăm datele principale
+            products: processedData.products,
+            semnaturaTehnician: !!processedData.semnaturaTehnician,
+            semnaturaBeneficiar: !!processedData.semnaturaBeneficiar,
+            durataInterventie: processedData.durataInterventie,
+            timpPlecare: processedData.timpPlecare,
+            dataGenerare: processedData.raportSnapshot?.dataGenerare
           })
+          
+          // DEBUGGING SUPLIMENTAR pentru această problemă specifică
+          if (isDispatcherOrAdmin && processedData.raportGenerat) {
+            console.log("🔍 DEBUGGING PENTRU ADMIN/DISPECER:")
+            console.log("📊 Produse în lucrare principală:", processedData.products?.length || 0)
+            console.log("📊 Produse în snapshot:", processedData.raportSnapshot?.products?.length || 0)
+            console.log("🖊️ Semnătura tehnician în lucrare:", !!processedData.semnaturaTehnician)
+            console.log("🖊️ Semnătura tehnician în snapshot:", !!processedData.raportSnapshot?.semnaturaTehnician)
+            console.log("🖊️ Semnătura beneficiar în lucrare:", !!processedData.semnaturaBeneficiar)
+            console.log("🖊️ Semnătura beneficiar în snapshot:", !!processedData.raportSnapshot?.semnaturaBeneficiar)
+            console.log("⏱️ Durata în lucrare:", processedData.durataInterventie || "N/A")
+            console.log("⏱️ Durata în snapshot:", processedData.raportSnapshot?.durataInterventie || "N/A")
+            console.log("📅 Data generare snapshot:", processedData.raportSnapshot?.dataGenerare || "LIPSEȘTE")
+            
+            // DEBUGGING SPECIFIC PENTRU TIMPUL DE SOSIRE ȘI PLECARE
+            console.log("🕐 DEBUGGING TIMPI INTERVENȚIE:")
+            console.log("⏰ timpSosire în lucrare:", processedData.timpSosire || "LIPSEȘTE")
+            console.log("⏰ timpPlecare în lucrare:", processedData.timpPlecare || "LIPSEȘTE")
+            console.log("⏰ timpPlecare în snapshot:", processedData.raportSnapshot?.timpPlecare || "LIPSEȘTE")
+            console.log("📅 dataSosire în lucrare:", processedData.dataSosire || "LIPSEȘTE")
+            console.log("📅 dataPlecare în lucrare:", processedData.dataPlecare || "LIPSEȘTE") 
+            console.log("🕒 oraSosire în lucrare:", processedData.oraSosire || "LIPSEȘTE")
+            console.log("🕒 oraPlecare în lucrare:", processedData.oraPlecare || "LIPSEȘTE")
+            
+            // Încercăm să calculăm durata în timp real dacă timpii există
+            if (processedData.timpSosire && processedData.timpPlecare) {
+              try {
+                const { calculateDuration } = await import("@/lib/utils/time-format")
+                const calculatedDuration = calculateDuration(processedData.timpSosire, processedData.timpPlecare)
+                console.log("🧮 Durata CALCULATĂ în timp real:", calculatedDuration)
+                
+                // VERIFICARE PENTRU TIMPI CORUPTI
+                const sosireDate = new Date(processedData.timpSosire)
+                const plecareDate = new Date(processedData.timpPlecare)
+                const currentYear = new Date().getFullYear()
+                
+                console.log("📅 VERIFICARE TIMPI:")
+                console.log("⏰ Data sosire interpretată:", sosireDate.toLocaleString('ro-RO'))
+                console.log("⏰ Data plecare interpretată:", plecareDate.toLocaleString('ro-RO'))
+                console.log("📊 Anul curent:", currentYear)
+                console.log("📊 Anul sosire:", sosireDate.getFullYear())
+                console.log("📊 Anul plecare:", plecareDate.getFullYear())
+                
+                if (sosireDate.getFullYear() > currentYear || plecareDate.getFullYear() > currentYear) {
+                  console.log("🚨 ALERTĂ: TIMPI ÎN VIITOR DETECTAȚI!")
+                  console.log("🚨 Aceasta este o problemă gravă de date corupte!")
+                }
+                
+                const diffMs = plecareDate.getTime() - sosireDate.getTime()
+                const diffHours = diffMs / (1000 * 60 * 60)
+                console.log("⏱️ Diferența în ore:", diffHours)
+                
+                if (diffHours > 24) {
+                  console.log("🚨 ALERTĂ: DURATA NEREALISTA DETECTATĂ!")
+                  console.log("🚨 Durata de", Math.round(diffHours), "ore pare incorectă!")
+                }
+                
+              } catch (e) {
+                console.log("❌ Eroare la calculul duratei:", e)
+              }
+            } else {
+              console.log("⚠️ Nu se poate calcula durata - lipsesc timpSosire sau timpPlecare")
+              console.log("📊 timpSosire disponibil:", !!processedData.timpSosire)
+              console.log("📊 timpPlecare disponibil:", !!processedData.timpPlecare)
+            }
+          }
 
-          // If the work has products, load them
-          if (processedData.products && processedData.products.length > 0) {
+          // If the work has products, load them from snapshot first, then from main data
+          const productsSource = processedData.raportSnapshot?.products || processedData.products || []
+          if (productsSource && productsSource.length > 0) {
             // Convert products to the expected format for the form
-            const convertedProducts = processedData.products.map((product: any, index: number) => ({
+            const convertedProducts = productsSource.map((product: any, index: number) => ({
               id: product.id || index.toString(),
               name: product.name || product.denumire || "",
               um: product.um || "buc",
@@ -140,6 +215,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
               total: (product.quantity || product.cantitate || 0) * (product.price || product.pretUnitar || 0),
             }))
             setProducts(convertedProducts)
+            console.log("📦 Produse încărcate din", processedData.raportSnapshot?.products ? "snapshot" : "date principale", ":", convertedProducts.length, "elemente")
           }
 
           // If the work has an email address, load it
@@ -147,10 +223,10 @@ export default function RaportPage({ params }: { params: { id: string } }) {
             setEmail(processedData.emailDestinatar)
           }
           
-          // Initialize signer names with default values
-          // Pentru tehnician, folosim numele utilizatorului autentificat dacă este disponibil
-          // și dacă utilizatorul este în lista de tehnicieni pentru această lucrare
-          let defaultNumeTehnician = processedData.numeTehnician || ""
+          // Initialize signer names with default values, cu fallback la snapshot
+          // Pentru tehnician, folosim numele din snapshot, apoi cel salvat, apoi utilizatorul autentificat
+          let defaultNumeTehnician = processedData.raportSnapshot?.numeTehnician || 
+                                    processedData.numeTehnician || ""
           
           if (!defaultNumeTehnician) {
             // Verificăm dacă utilizatorul autentificat este tehnician și este alocat la această lucrare
@@ -165,8 +241,19 @@ export default function RaportPage({ params }: { params: { id: string } }) {
             }
           }
           
+          const defaultNumeBeneficiar = processedData.raportSnapshot?.numeBeneficiar || 
+                                       processedData.numeBeneficiar || 
+                                       processedData.persoanaContact || ""
+          
           setNumeTehnician(defaultNumeTehnician)
-          setNumeBeneficiar(processedData.numeBeneficiar || processedData.persoanaContact || "")
+          setNumeBeneficiar(defaultNumeBeneficiar)
+          
+          console.log("👤 Nume inițializate:", {
+            tehnician: defaultNumeTehnician,
+            beneficiar: defaultNumeBeneficiar,
+            sourceTehnician: processedData.raportSnapshot?.numeTehnician ? "snapshot" : "date principale",
+            sourceBeneficiar: processedData.raportSnapshot?.numeBeneficiar ? "snapshot" : "date principale"
+          })
         } else {
           setError("Lucrarea nu a fost găsită")
         }
@@ -639,7 +726,22 @@ FOM by NRG`,
                   </h3>
                   <div className="mt-1 text-sm text-green-700">
                     <p>
-                      Acest raport a fost finalizat pe <strong>{lucrare?.raportSnapshot?.dataGenerare ? new Date(lucrare.raportSnapshot.dataGenerare).toLocaleString('ro-RO') : 'data necunoscută'}</strong> de către tehnician. 
+                      Acest raport a fost finalizat pe <strong>{(() => {
+                        // Încercăm să găsim data din snapshot, apoi din updatedAt, apoi fallback
+                        const dataGenerare = lucrare?.raportSnapshot?.dataGenerare || 
+                                            lucrare?.updatedAt?.toDate?.() || 
+                                            lucrare?.updatedAt;
+                        
+                        if (dataGenerare) {
+                          try {
+                            const date = dataGenerare instanceof Date ? dataGenerare : new Date(dataGenerare);
+                            return date.toLocaleString('ro-RO');
+                          } catch (e) {
+                            return 'data necunoscută';
+                          }
+                        }
+                        return 'data necunoscută';
+                      })()}</strong> de către tehnician. 
                       Puteți descărca PDF-ul cu datele finale înghețate.
                     </p>
                   </div>
@@ -673,15 +775,27 @@ FOM by NRG`,
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <h3 className="font-medium text-gray-500">Data Generare Raport</h3>
-                <p>{lucrare?.raportSnapshot?.dataGenerare ? (() => {
-                  const date = new Date(lucrare.raportSnapshot.dataGenerare)
-                  const day = date.getDate().toString().padStart(2, "0")
-                  const month = (date.getMonth() + 1).toString().padStart(2, "0")
-                  const year = date.getFullYear()
-                  const hour = date.getHours().toString().padStart(2, "0")
-                  const minute = date.getMinutes().toString().padStart(2, "0")
-                  return `${day}.${month}.${year} ${hour}:${minute}`
-                })() : "Necunoscută"}</p>
+                <p>{(() => {
+                  // Încercăm să găsim data din snapshot, apoi din updatedAt
+                  const dataGenerare = lucrare?.raportSnapshot?.dataGenerare || 
+                                      lucrare?.updatedAt?.toDate?.() || 
+                                      lucrare?.updatedAt;
+                  
+                  if (dataGenerare) {
+                    try {
+                      const date = dataGenerare instanceof Date ? dataGenerare : new Date(dataGenerare);
+                      const day = date.getDate().toString().padStart(2, "0")
+                      const month = (date.getMonth() + 1).toString().padStart(2, "0")
+                      const year = date.getFullYear()
+                      const hour = date.getHours().toString().padStart(2, "0")
+                      const minute = date.getMinutes().toString().padStart(2, "0")
+                      return `${day}.${month}.${year} ${hour}:${minute}`
+                    } catch (e) {
+                      return "Necunoscută"
+                    }
+                  }
+                  return "Necunoscută"
+                })()}</p>
               </div>
               <div>
                 <h3 className="font-medium text-gray-500">Status</h3>
@@ -697,22 +811,141 @@ FOM by NRG`,
             {/* Informații despre raport */}
             <div className="bg-gray-50 rounded-lg p-4">
               <h3 className="font-medium text-gray-700 mb-3">Conținut Raport</h3>
+              
+              {/* Debugging info pentru timpul lipsă (doar pentru admin/dispecer) */}
+              {!lucrare?.raportSnapshot?.durataInterventie && !lucrare?.durataInterventie && !lucrare?.timpSosire && (
+                <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+                  <p className="text-yellow-800 font-medium">⚠️ Info Debug - Durata N/A</p>
+                  <p className="text-yellow-700">
+                    Durata nu poate fi calculată pentru că lipsește timpul de sosire. 
+                    Tehnicianul probabil nu a scanat QR-ul echipamentului.
+                  </p>
+                </div>
+              )}
+              
+              {!lucrare?.raportSnapshot?.durataInterventie && !lucrare?.durataInterventie && lucrare?.timpSosire && !lucrare?.timpPlecare && !lucrare?.raportSnapshot?.timpPlecare && (
+                <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+                  <p className="text-yellow-800 font-medium">⚠️ Info Debug - Durata N/A</p>
+                  <p className="text-yellow-700">
+                    Durata nu poate fi calculată pentru că lipsește timpul de plecare din raport.
+                    Problemă la generarea raportului.
+                  </p>
+                </div>
+              )}
+              
+              {/* Verificare pentru timpi corupți */}
+              {lucrare?.timpSosire && lucrare?.timpPlecare && (() => {
+                try {
+                  const sosireDate = new Date(lucrare.timpSosire);
+                  const plecareDate = new Date(lucrare.timpPlecare);
+                  const currentYear = new Date().getFullYear();
+                  const isCorrupted = sosireDate.getFullYear() > currentYear || plecareDate.getFullYear() > currentYear;
+                  
+                  const diffMs = plecareDate.getTime() - sosireDate.getTime();
+                  const diffHours = diffMs / (1000 * 60 * 60);
+                  const isUnrealistic = diffHours > 24;
+                  
+                  return isCorrupted || isUnrealistic;
+                } catch (e) {
+                  return false;
+                }
+              })() && (
+                <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-xs">
+                  <p className="text-red-800 font-medium">🚨 EROARE CRITICĂ - Date Corupte</p>
+                  <p className="text-red-700">
+                    Timpii de sosire/plecare conțin date corupte (în viitor sau durată nerealista).
+                    <br />
+                    Sosire: {lucrare?.timpSosire ? new Date(lucrare.timpSosire).toLocaleString('ro-RO') : 'N/A'}
+                    <br />
+                    Plecare: {lucrare?.timpPlecare ? new Date(lucrare.timpPlecare).toLocaleString('ro-RO') : 'N/A'}
+                    <br />
+                    <strong>Această problemă necesită intervenție tehnică pentru corectare!</strong>
+                  </p>
+                </div>
+              )}
               <div className="grid gap-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Produse/Servicii:</span>
-                  <span className="font-medium">{lucrare?.raportSnapshot?.products?.length || 0} elemente</span>
+                  <span className="font-medium">
+                    {(lucrare?.raportSnapshot?.products?.length || lucrare?.products?.length || 0)} elemente
+                  </span>
                 </div>
-                <div className="flex justify-between">
+                {/* <div className="flex justify-between">
                   <span className="text-gray-600">Semnătură Tehnician:</span>
-                  <span className="font-medium">{lucrare?.raportSnapshot?.semnaturaTehnician ? "✓ Prezentă" : "✗ Lipsă"}</span>
+                  <span className="font-medium">
+                    {(lucrare?.raportSnapshot?.semnaturaTehnician || lucrare?.semnaturaTehnician) ? "✓ Prezentă" : "✗ Lipsă"}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Semnătură Beneficiar:</span>
-                  <span className="font-medium">{lucrare?.raportSnapshot?.semnaturaBeneficiar ? "✓ Prezentă" : "✗ Lipsă"}</span>
-                </div>
+                  <span className="font-medium">
+                    {(lucrare?.raportSnapshot?.semnaturaBeneficiar || lucrare?.semnaturaBeneficiar) ? "✓ Prezentă" : "✗ Lipsă"}
+                  </span>
+                </div> */}
                 <div className="flex justify-between">
                   <span className="text-gray-600">Durata Intervenție:</span>
-                  <span className="font-medium">{lucrare?.raportSnapshot?.durataInterventie || "N/A"}</span>
+                  <span className="font-medium">
+                    {(() => {
+                      // Încercăm să găsim durata din snapshot, apoi din datele principale
+                      const savedDuration = lucrare?.raportSnapshot?.durataInterventie || lucrare?.durataInterventie;
+                      
+                      if (savedDuration) {
+                        return savedDuration;
+                      }
+                      
+                      // Dacă nu avem durata salvată, încercăm să o calculăm din timpii existenți
+                      const timpSosire = lucrare?.timpSosire;
+                      const timpPlecare = lucrare?.raportSnapshot?.timpPlecare || lucrare?.timpPlecare;
+                      
+                      if (timpSosire && timpPlecare) {
+                        try {
+                          // Calculăm durata în timp real
+                          const startTime = new Date(timpSosire);
+                          const endTime = new Date(timpPlecare);
+                          
+                          // VERIFICARE PENTRU TIMPI CORUPȚI
+                          const currentYear = new Date().getFullYear();
+                          const isStartInFuture = startTime.getFullYear() > currentYear;
+                          const isEndInFuture = endTime.getFullYear() > currentYear;
+                          
+                          if (isStartInFuture || isEndInFuture) {
+                            console.error("🚨 TIMPI CORUPȚI DETECTAȚI:", {
+                              timpSosire: startTime.toLocaleString('ro-RO'),
+                              timpPlecare: endTime.toLocaleString('ro-RO'),
+                              isStartInFuture,
+                              isEndInFuture
+                            });
+                            return "EROARE - Timpi corupți";
+                          }
+                          
+                          const diffMs = endTime.getTime() - startTime.getTime();
+                          
+                          if (diffMs > 0) {
+                            const diffHours = diffMs / (1000 * 60 * 60);
+                            
+                            // Verificare pentru durate nerealiste (mai mult de 24 ore)
+                            if (diffHours > 24) {
+                              console.error("🚨 DURATĂ NEREALISTA DETECTATĂ:", {
+                                timpSosire: startTime.toLocaleString('ro-RO'),
+                                timpPlecare: endTime.toLocaleString('ro-RO'),
+                                durataOre: Math.round(diffHours)
+                              });
+                              return "EROARE - Durată nerealista";
+                            }
+                            
+                            const diffMinutes = Math.floor(diffMs / 60000);
+                            const hours = Math.floor(diffMinutes / 60);
+                            const minutes = diffMinutes % 60;
+                            return `${hours}h ${minutes}m`;
+                          }
+                        } catch (e) {
+                          console.error("Eroare la calculul duratei:", e);
+                        }
+                      }
+                      
+                      return "N/A";
+                    })()}
+                  </span>
                 </div>
               </div>
             </div>

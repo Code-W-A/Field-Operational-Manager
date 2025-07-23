@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge"
 import { getWarrantyDisplayInfo } from "@/lib/utils/warranty-calculator"
 import type { Echipament } from "@/lib/firebase/firestore"
 import { Checkbox } from "@/components/ui/checkbox"
+import { ImageDefectUpload } from "@/components/image-defect-upload"
 
 // First, let's update the interface to include statusEchipament
 interface TehnicianInterventionFormProps {
@@ -40,6 +41,14 @@ interface TehnicianInterventionFormProps {
     statusFinalizareInterventie?: "FINALIZAT" | "NEFINALIZAT"
     // Adăugăm bifa pentru confirmarea garanției de către tehnician
     tehnicianConfirmaGarantie?: boolean
+    // Adăugăm imaginile defectelor
+    imaginiDefecte?: Array<{
+      url: string
+      fileName: string
+      uploadedAt: string
+      uploadedBy: string
+      compressed: boolean
+    }>
   }
   onUpdate: () => void
   isCompleted?: boolean
@@ -446,6 +455,14 @@ export function TehnicianInterventionForm({
                 </Alert>
               )}
             </div>
+
+            {/* Secțiunea pentru încărcarea imaginilor defectelor - doar dacă necesită ofertă */}
+            <ImageDefectUpload
+              lucrareId={lucrareId}
+              lucrare={{ imaginiDefecte: initialData.imaginiDefecte || [] }}
+              onLucrareUpdate={onUpdate} // Refresh datele când se actualizează imaginile
+              necesitaOferta={necesitaOferta}
+            />
 
             {formDisabled ? (
               <Alert variant="default">

@@ -27,6 +27,8 @@ import {
 } from "lucide-react"
 import { getLucrareById, deleteLucrare, updateLucrare, getClienti } from "@/lib/firebase/firestore"
 import { TehnicianInterventionForm } from "@/components/tehnician-intervention-form"
+import { DocumentUpload } from "@/components/document-upload"
+import { ImageDefectViewer } from "@/components/image-defect-viewer"
 import { useAuth } from "@/contexts/AuthContext"
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { useStableCallback } from "@/lib/utils/hooks"
@@ -336,6 +338,21 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
         const timpSosire = now.toISOString()
         const dataSosire = formatDate(now)
         const oraSosire = formatTime(now)
+        
+        // DEBUGGING PENTRU TIMPI CORUPȚI - VERIFICARE LA SETARE timpSosire
+        console.log("🕐 SETARE timpSosire la scanarea QR:")
+        console.log("📅 Data curentă (now):", now)
+        console.log("📅 Data curentă (toLocaleString):", now.toLocaleString('ro-RO'))
+        console.log("📅 Anul curent:", now.getFullYear())
+        console.log("🔢 timpSosire (ISO):", timpSosire)
+        console.log("🔢 dataSosire (formatat):", dataSosire)
+        console.log("🔢 oraSosire (formatat):", oraSosire)
+        
+        // Verificare dacă timpii generați sunt în viitor
+        if (now.getFullYear() > new Date().getFullYear()) {
+          console.log("🚨 ALERTĂ: Data generată pentru timpSosire este în viitor!")
+          console.log("🚨 Aceasta este o problemă critică!")
+        }
 
         // Pregătim datele pentru actualizare
         const updateData = {
@@ -354,7 +371,28 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
           updateData.statusLucrare = "În lucru"
         }
 
+        // DEBUGGING ÎNAINTE DE SALVAREA timpSosire în Firestore
+        console.log("🔍 SALVARE timpSosire în Firestore prin updateLucrare:")
+        console.log("📦 updateData pentru Firestore:", {
+          timpSosire: updateData.timpSosire,
+          dataSosire: updateData.dataSosire,
+          oraSosire: updateData.oraSosire,
+          equipmentVerified: updateData.equipmentVerified,
+          statusLucrare: updateData.statusLucrare
+        })
+        
+        // Verificare finală pentru timpSosire înainte de salvare
+        const currentYear = new Date().getFullYear()
+        const sosireYear = new Date(updateData.timpSosire).getFullYear()
+        if (sosireYear > currentYear) {
+          console.log("🚨🚨🚨 ALERTĂ FINALĂ: timpSosire în viitor detectat înainte de salvare!")
+          console.log("🚨 Anul curent:", currentYear)
+          console.log("🚨 Anul timpSosire:", sosireYear)
+          console.log("🚨 Această problemă va corupe datele în Firestore!")
+        }
+        
         await updateLucrare(lucrare.id, updateData)
+        console.log("✅ timpSosire salvat cu succes în Firestore")
 
         // Actualizăm și starea locală dacă am modificat statusul
         if ((lucrare.statusLucrare === "Listată" || lucrare.statusLucrare === "Atribuită") && !lucrare.raportGenerat) {
@@ -1070,11 +1108,8 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
             const newStatus = e.target.value
             console.log("Actualizare status facturare:", { lucrareId: lucrare.id, newStatus })
             
-            // Dacă nu se mai selectează "Facturat", resetăm numărul facturii
+            // Actualizăm doar statusul de facturare
             const updateData: any = { statusFacturare: newStatus }
-            if (newStatus !== "Facturat") {
-              updateData.numarFactura = ""
-            }
             
             await updateLucrare(lucrare.id!, updateData)
             setLucrare(prev => prev ? { ...prev, ...updateData } : null)
@@ -1106,49 +1141,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
         <option value="Nu se facturează">Nu se facturează</option>
       </select>
       
-      {/* Câmp pentru numărul facturii - apare doar când statusul este "Facturat" */}
-      {lucrare.statusFacturare === "Facturat" && (
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-amber-800">Număr factură:</label>
-          <input
-            type="text"
-            value={lucrare.numarFactura || ""}
-            onChange={async (e) => {
-              const numarFactura = e.target.value
-              
-              // Actualizare în timp real în starea locală
-              setLucrare(prev => prev ? { ...prev, numarFactura } : null)
-              
-                               // Debounce pentru a evita prea multe requesturi
-               if (invoiceNumberTimeout) {
-                 clearTimeout(invoiceNumberTimeout)
-               }
-               
-                                const timeoutId = setTimeout(async () => {
-                 try {
-                   await updateLucrare(lucrare.id!, { numarFactura })
-                   console.log("Număr factură salvat:", numarFactura)
-                 } catch (error) {
-                   console.error("Eroare la salvarea numărului facturii:", error)
-                   toast({
-                     title: "Eroare",
-                     description: "Nu s-a putut salva numărul facturii.",
-                     variant: "destructive"
-                   })
-                 }
-               }, 1000) // Salvează după 1 secundă de la ultima modificare
-               
-               setInvoiceNumberTimeout(timeoutId)
-            }}
-            placeholder="Ex: FACT-2024-001"
-            className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
-            disabled={isUpdating}
-          />
-          <p className="text-xs text-amber-600">
-            Introduceți numărul facturii emise pentru această lucrare
-          </p>
-        </div>
-      )}
+      {/* ELIMINAT: Numărul facturii se gestionează prin upload PDF în secțiunea de documente */}
     </div>
   </div>
 )}
@@ -1408,7 +1401,9 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                   // Adăugăm statusul finalizării intervenției
                   statusFinalizareInterventie: lucrare.statusFinalizareInterventie,
                   // Adăugăm confirmarea garanției de către tehnician
-                  tehnicianConfirmaGarantie: lucrare.tehnicianConfirmaGarantie
+                  tehnicianConfirmaGarantie: lucrare.tehnicianConfirmaGarantie,
+                  // Adăugăm imaginile defectelor
+                  imaginiDefecte: lucrare.imaginiDefecte
                 }}
                 onUpdate={refreshLucrare}
                 isCompleted={lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true}
@@ -1481,6 +1476,23 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
           </TabsContent>
         )}
       </Tabs>
+
+      {/* Secțiunea pentru vizualizarea imaginilor defectelor - doar pentru admin și dispecer */}
+      <div className="mt-6">
+        <ImageDefectViewer
+          imaginiDefecte={lucrare.imaginiDefecte}
+          userRole={role}
+        />
+      </div>
+
+      {/* Secțiunea pentru upload documente PDF - doar pentru admin și dispecer */}
+      <div className="mt-6">
+        <DocumentUpload
+          lucrareId={lucrare.id!}
+          lucrare={lucrare}
+          onLucrareUpdate={setLucrare}
+        />
+      </div>
     </DashboardShell>
     </TooltipProvider>
   )

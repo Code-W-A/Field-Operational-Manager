@@ -118,6 +118,30 @@ export interface Lucrare {
   numarFactura?: string // Numărul facturii (opțional, pentru lucrările facturate)
   // CÂMP NOU PENTRU NUMĂRUL RAPORTULUI - BACKWARD COMPATIBLE
   numarRaport?: string // Numărul raportului (format: #00001, generat automat la prima generare raport)
+  // CÂMPURI NOI PENTRU DOCUMENTE PDF - BACKWARD COMPATIBLE
+  facturaDocument?: {
+    url: string         // URL-ul documentului în Firebase Storage
+    fileName: string    // Numele original al fișierului
+    uploadedAt: string  // Data încărcării
+    uploadedBy: string  // Cine a încărcat
+    numarFactura: string // Numărul facturii (editabil)
+    dataFactura: string  // Data facturii (editabil)
+  }
+  ofertaDocument?: {
+    url: string         // URL-ul documentului în Firebase Storage  
+    fileName: string    // Numele original al fișierului
+    uploadedAt: string  // Data încărcării
+    uploadedBy: string  // Cine a încărcat
+    numarOferta: string  // Numărul ofertei (editabil)
+  }
+  // CÂMPURI NOI PENTRU IMAGINI DEFECTE - BACKWARD COMPATIBLE
+  imaginiDefecte?: Array<{
+    url: string         // URL-ul imaginii în Firebase Storage
+    fileName: string    // Numele original al fișierului
+    uploadedAt: string  // Data încărcării
+    uploadedBy: string  // Cine a încărcat (tehnicianul)
+    compressed: boolean // Dacă imaginea a fost comprimată
+  }>
 }
 
 export interface Client {

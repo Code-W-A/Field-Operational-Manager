@@ -399,6 +399,16 @@ export default function Lucrari() {
         options: statusuriEchipament,
         value: [],
       },
+      {
+        id: "numarRaport",
+        label: "Cu număr raport",
+        type: "multiselect", 
+        options: [
+          { value: "cu_numar", label: "Cu număr raport" },
+          { value: "fara_numar", label: "Fără număr raport" },
+        ],
+        value: [],
+      },
       // Adăugăm această opțiune în array-ul filterOptions
       // Acest cod trebuie adăugat în array-ul filterOptions
       {
@@ -533,6 +543,14 @@ export default function Lucrari() {
               return filter.value.some((val) => {
                 if (val === "da") return item[filter.id] === true
                 if (val === "nu") return item[filter.id] !== true
+                return false
+              })
+
+            case "numarRaport":
+              if (!filter.value || filter.value.length === 0) return true
+              return filter.value.some((val) => {
+                if (val === "cu_numar") return item.raportGenerat && item.numarRaport
+                if (val === "fara_numar") return !item.raportGenerat || !item.numarRaport
                 return false
               })
 
@@ -759,6 +777,8 @@ export default function Lucrari() {
               : column.id.charAt(0).toUpperCase() + column.id.slice(1),
           isVisible: column.getIsVisible(),
         }))
+      
+
       setColumnOptions(options)
     }
   }, [tableInstance, isColumnModalOpen, loadSettings])
@@ -1707,6 +1727,25 @@ export default function Lucrari() {
       ),
     },
     {
+      accessorKey: "numarRaport",
+      header: "Nr. Raport",
+      enableHiding: true,
+      enableFiltering: true,
+      cell: ({ row }) => {
+        const numarRaport = row.original.numarRaport
+        const raportGenerat = row.original.raportGenerat
+        
+        if (raportGenerat && numarRaport) {
+          return (
+            <Badge className="bg-purple-100 text-purple-800 font-mono text-xs">
+              {numarRaport}
+            </Badge>
+          )
+        }
+        return <span className="text-gray-400 text-xs">-</span>
+      },
+    },
+    {
       accessorKey: "preluatDispecer",
       header: "Preluat Dispecer",
       enableHiding: true,
@@ -2367,6 +2406,15 @@ export default function Lucrari() {
                               )}
                             </>
                           )}
+                        </div>
+                      )}
+                      {/* Afișează numărul raportului dacă există */}
+                      {lucrare.raportGenerat && lucrare.numarRaport && (
+                        <div className="flex justify-between items-center mt-2 mb-2">
+                          <span className="text-sm font-medium text-muted-foreground">Nr. raport:</span>
+                          <Badge className="bg-purple-100 text-purple-800 font-mono text-xs">
+                            {lucrare.numarRaport}
+                          </Badge>
                         </div>
                       )}
                       <div className="mb-4">
