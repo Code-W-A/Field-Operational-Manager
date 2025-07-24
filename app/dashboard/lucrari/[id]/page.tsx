@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, use } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
@@ -45,14 +45,20 @@ const extractCUI = (client: any) => {
   return client?.cif || "N/A"
 }
 
-export default function LucrarePage({ params }: { params: { id: string } }) {
+export default function LucrarePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
   const { userData } = useAuth()
   const role = userData?.role || "tehnician"
   const isAdminOrDispatcher = role === "admin" || role === "dispecer"
+  
+  // Unwrap params using React.use() for Next.js 15
+  const { id: paramsId } = use(params)
+  
   const [lucrare, setLucrare] = useState<Lucrare | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("detalii")
+
+
   const [equipmentVerified, setEquipmentVerified] = useState(false)
   const [locationAddress, setLocationAddress] = useState<string | null>(null)
   const [isUpdating, setIsUpdating] = useState(false)
@@ -70,7 +76,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
     const fetchLucrareAndLocationAddress = async () => {
       try {
         // Obținem datele lucrării
-        const data = await getLucrareById(params.id)
+        const data = await getLucrareById(paramsId)
         setLucrare(data)
 
         // Verificăm dacă echipamentul a fost deja verificat
@@ -121,7 +127,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                       needsClientAddress
                     })
                     
-                  await updateLucrare(params.id, {
+                  await updateLucrare(paramsId, {
                     clientInfo: {
                       ...data.clientInfo,
                         cui: (client as any).cif,
@@ -191,7 +197,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
     }
 
     fetchLucrareAndLocationAddress()
-  }, [params.id])
+  }, [paramsId])
 
   // Verificăm dacă tehnicianul are acces la această lucrare
   useEffect(() => {
@@ -260,27 +266,32 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
   }, [router, lucrare])
 
   // Funcție pentru a reîncărca datele lucrării
-  const refreshLucrare = useStableCallback(async () => {
+  const refreshLucrare = useStableCallback(async (preserveActiveTab = false) => {
     try {
-      const data = await getLucrareById(params.id)
+      const data = await getLucrareById(paramsId)
       setLucrare(data)
 
-      // Actualizăm starea de verificare a echipamentului
-      if (data.equipmentVerified) {
-        setEquipmentVerified(true)
-      }
+      if (data) {
+        // Actualizăm starea de verificare a echipamentului
+        if (data.equipmentVerified) {
+          setEquipmentVerified(true)
+        }
 
-      // Actualizăm și tab-ul activ dacă este cazul
-      if (data.statusLucrare === "Finalizat" && activeTab !== "detalii") {
-        setActiveTab("detalii")
+        // Actualizăm tab-ul activ doar dacă nu dorim să-l păstrăm și dacă este cazul
+        if (!preserveActiveTab && data.statusLucrare === "Finalizat" && activeTab !== "detalii") {
+          setActiveTab("detalii")
+        }
       }
 
       console.log("Refreshed lucrare data:", data)
 
-      toast({
-        title: "Actualizat",
-        description: "Datele lucrării au fost actualizate.",
-      })
+      // Toast doar dacă nu păstrăm tab-ul (pentru a evita notificări inutile)
+      if (!preserveActiveTab) {
+        toast({
+          title: "Actualizat",
+          description: "Datele lucrării au fost actualizate.",
+        })
+      }
     } catch (error) {
       console.error("Eroare la reîncărcarea lucrării:", error)
       toast({
@@ -298,7 +309,6 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
     const handleFocus = () => {
       // Doar dacă fereastra a fost într-adevăr blurred înainte (adică s-a navigat la altă pagină)
       if (!hasFocus) {
-        console.log("Pagină refocusată - refreshing lucrare data...")
         // Delay scurt pentru a permite actualizarea în Firebase
         setTimeout(() => {
           refreshLucrare()
@@ -1405,7 +1415,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                   // Adăugăm imaginile defectelor
                   imaginiDefecte: lucrare.imaginiDefecte
                 }}
-                onUpdate={refreshLucrare}
+                onUpdate={(preserveActiveTab) => refreshLucrare(preserveActiveTab)}
                 isCompleted={lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true}
               />
             )}

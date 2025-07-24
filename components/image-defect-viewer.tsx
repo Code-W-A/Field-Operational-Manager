@@ -70,11 +70,7 @@ export function ImageDefectViewer({ imaginiDefecte, userRole }: ImageDefectViewe
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium truncate">{image.fileName}</p>
-                    {image.compressed && (
-                      <Badge variant="secondary" className="text-xs">
-                        Comprimată
-                      </Badge>
-                    )}
+                  
                   </div>
                   
                   <div className="text-xs text-gray-500 space-y-1">
@@ -102,25 +98,16 @@ export function ImageDefectViewer({ imaginiDefecte, userRole }: ImageDefectViewe
             ))}
           </div>
 
-          {/* Informații despre comprimare */}
-          <div className="mt-6 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
-            <p><strong>Informații tehnice:</strong></p>
-            <ul className="list-disc list-inside mt-1 space-y-1 text-xs">
-              <li>Imaginile au fost comprimate automat pentru optimizarea stocării</li>
-              <li>Calitatea a fost păstrată pentru identificarea clară a defectelor</li>
-              <li>Maxim 3 imagini pot fi încărcate per lucrare</li>
-              <li>Click pe imagine pentru mărire, buton pentru deschidere în tab nou</li>
-            </ul>
-          </div>
+        
         </CardContent>
       </Card>
 
       {/* Dialog pentru vizualizarea imaginii mărite */}
       <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
-          <DialogHeader>
+          {/* <DialogHeader>
             <DialogTitle>Imagine defect - Vizualizare mărită</DialogTitle>
-          </DialogHeader>
+          </DialogHeader> */}
           {selectedImage && (
             <div className="flex justify-center">
               <img

@@ -26,7 +26,7 @@ export function formatDate(dateString: string): string {
     // Return in standard dd.MM.yyyy format
     const paddedDay = day.padStart(2, "0")
     const paddedMonth = month.padStart(2, "0")
-    
+
     // Format with or without time - but always return dd.MM.yyyy format for display
     if (timePart) {
       return `${paddedDay}.${paddedMonth}.${year} ${timePart}`

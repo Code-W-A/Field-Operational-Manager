@@ -21,6 +21,8 @@ import { getWarrantyDisplayInfo } from "@/lib/utils/warranty-calculator"
 import type { Echipament } from "@/lib/firebase/firestore"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ImageDefectUpload } from "@/components/image-defect-upload"
+import { uploadFile } from "@/lib/firebase/storage"
+import { useAuth } from "@/contexts/AuthContext"
 
 // First, let's update the interface to include statusEchipament
 interface TehnicianInterventionFormProps {
@@ -50,7 +52,7 @@ interface TehnicianInterventionFormProps {
       compressed: boolean
     }>
   }
-  onUpdate: () => void
+  onUpdate: (preserveActiveTab?: boolean) => void
   isCompleted?: boolean
 }
 
@@ -62,6 +64,7 @@ export function TehnicianInterventionForm({
   isCompleted = false,
 }: TehnicianInterventionFormProps) {
   const router = useRouter()
+  const { userData } = useAuth()
   const [formData, setFormData] = useState({
     descriereInterventie: initialData.descriereInterventie || "",
     constatareLaLocatie: initialData.constatareLaLocatie || "",
@@ -79,6 +82,19 @@ export function TehnicianInterventionForm({
   const [necesitaOferta, setNecesitaOferta] = useState(initialData.necesitaOferta || false)
   const [comentariiOferta, setComentariiOferta] = useState(initialData.comentariiOferta || "")
   const [formDisabled, setFormDisabled] = useState(isCompleted || initialData.raportGenerat)
+
+  // State pentru imaginile selectate local
+  const [selectedImages, setSelectedImages] = useState<File[]>([])
+  const [imagePreviews, setImagePreviews] = useState<string[]>([])
+
+
+
+  // Cleanup pentru URL-urile de preview la unmount
+  useEffect(() => {
+    return () => {
+      imagePreviews.forEach(url => URL.revokeObjectURL(url))
+    }
+  }, [imagePreviews])
 
   // State pentru funcționalitatea de garanție
   const [warrantyInfo, setWarrantyInfo] = useState<any>(null)
@@ -172,13 +188,25 @@ export function TehnicianInterventionForm({
     try {
       setIsSubmitting(true)
 
+      // Upload imaginile selectate (dacă există)
+      const newUploadedImages = await uploadSelectedImages()
+      
+      // Combinăm imaginile existente cu cele nou uplodate
+      const allImages = [...(initialData.imaginiDefecte || []), ...newUploadedImages]
+
       await updateLucrare(lucrareId, {
         descriereInterventie: formData.descriereInterventie,
         constatareLaLocatie: formData.constatareLaLocatie,
         statusEchipament: formData.statusEchipament,
         necesitaOferta: formData.necesitaOferta,
         comentariiOferta: formData.necesitaOferta ? formData.comentariiOferta : "", // Clear comments if necesitaOferta is false
+        imaginiDefecte: allImages, // Includem toate imaginile (existente + noi)
       })
+
+      // Log upload imaginilor dacă au fost uplodate
+      if (newUploadedImages.length > 0) {
+        console.log(`📷 Uplodate ${newUploadedImages.length} imagini la salvarea datelor`)
+      }
 
       toast({
         title: "Intervenție actualizată",
@@ -213,6 +241,12 @@ export function TehnicianInterventionForm({
     try {
       setIsGeneratingReport(true)
 
+      // Upload imaginile selectate (dacă există)
+      const newUploadedImages = await uploadSelectedImages()
+      
+      // Combinăm imaginile existente cu cele nou uplodate
+      const allImages = [...(initialData.imaginiDefecte || []), ...newUploadedImages]
+
       // Salvăm datele formularului inclusiv statusul finalizării
       const updateData: any = {
         constatareLaLocatie,
@@ -221,6 +255,7 @@ export function TehnicianInterventionForm({
         necesitaOferta,
         comentariiOferta: necesitaOferta ? comentariiOferta : "", // Clear comments if necesitaOferta is false
         statusFinalizareInterventie,
+        imaginiDefecte: allImages, // Includem toate imaginile (existente + noi)
       }
 
       // Adăugăm tehnicianConfirmaGarantie doar pentru lucrările în garanție
@@ -229,6 +264,11 @@ export function TehnicianInterventionForm({
       }
 
       await updateLucrare(lucrareId, updateData)
+
+      // Log upload imaginilor dacă au fost uplodate
+      if (newUploadedImages.length > 0) {
+        console.log(`📷 Uplodate ${newUploadedImages.length} imagini la generarea raportului`)
+      }
 
       // Use the safe logging service instead of addLog to avoid database issues
       logInfo(`Navigare către pagina de raport pentru lucrarea ${lucrareId}`, { lucrareId }, { category: "rapoarte" })
@@ -265,6 +305,31 @@ export function TehnicianInterventionForm({
     }))
   }
 
+  // Funcție pentru upload-ul imaginilor în Firebase Storage
+  const uploadSelectedImages = async (): Promise<Array<any>> => {
+    if (selectedImages.length === 0) {
+      return []
+    }
+
+    const uploadPromises = selectedImages.map(async (file) => {
+      const timestamp = Date.now()
+      const fileExtension = 'jpg' // Imaginile sunt deja comprimată în format JPG
+      const storagePath = `lucrari/${lucrareId}/imagini_defecte/img_${timestamp}_${Math.random().toString(36).substr(2, 9)}.${fileExtension}`
+      
+      const { url, fileName } = await uploadFile(file, storagePath)
+
+      return {
+        url,
+        fileName: file.name, // Păstrăm numele original pentru display
+        uploadedAt: new Date().toISOString(),
+        uploadedBy: userData?.displayName || userData?.email || "Unknown",
+        compressed: true,
+      }
+    })
+
+    return await Promise.all(uploadPromises)
+  }
+
   const handleStatusEchipamentChange = (value: string) => {
     setStatusEchipament(value)
   }
@@ -277,7 +342,10 @@ export function TehnicianInterventionForm({
         <CardTitle>Formular intervenție tehnician</CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={(e) => {
+          e.preventDefault()
+          handleSubmit()
+        }}>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="constatareLaLocatie">Constatare la locație</Label>
@@ -460,8 +528,14 @@ export function TehnicianInterventionForm({
             <ImageDefectUpload
               lucrareId={lucrareId}
               lucrare={{ imaginiDefecte: initialData.imaginiDefecte || [] }}
-              onLucrareUpdate={onUpdate} // Refresh datele când se actualizează imaginile
+              selectedImages={selectedImages}
+              imagePreviews={imagePreviews}
+              onImagesChange={(images, previews) => {
+                setSelectedImages(images)
+                setImagePreviews(previews)
+              }}
               necesitaOferta={necesitaOferta}
+              isUploading={isGeneratingReport || isSaving} // Loading state din componenta părinte
             />
 
             {formDisabled ? (

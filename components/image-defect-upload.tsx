@@ -8,23 +8,25 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { uploadFile, deleteFile } from "@/lib/firebase/storage"
 import { updateLucrare } from "@/lib/firebase/firestore"
 import { toast } from "@/components/ui/use-toast"
-import { Upload, Camera, X, AlertCircle, Image as ImageIcon } from "lucide-react"
+import { Upload, Camera, X, AlertCircle, Image as ImageIcon, Trash2 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 
 interface ImageDefectUploadProps {
   lucrareId: string
   lucrare: any
-  onLucrareUpdate: (updatedLucrare: any) => void
+  selectedImages: File[] // Imaginile selectate, gestionate de părinte
+  imagePreviews: string[] // URL-urile pentru preview, gestionate de părinte
+  onImagesChange: (images: File[], previews: string[]) => void // Callback pentru imaginile selectate local
   necesitaOferta: boolean // Condiția pentru afișare
+  isUploading?: boolean // Loading state controlat de component părinte
 }
 
-export function ImageDefectUpload({ lucrareId, lucrare, onLucrareUpdate, necesitaOferta }: ImageDefectUploadProps) {
+export function ImageDefectUpload({ lucrareId, lucrare, selectedImages, imagePreviews, onImagesChange, necesitaOferta, isUploading = false }: ImageDefectUploadProps) {
   const { userData } = useAuth()
-  const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const maxImages = 3
-  const currentImages = lucrare.imaginiDefecte || []
+  const currentImages = lucrare.imaginiDefecte || [] // Imaginile deja uplodate
 
   // Funcție pentru compresia imaginilor
   const compressImage = (file: File, maxWidth = 1200, quality = 0.8): Promise<File> => {
@@ -80,29 +82,36 @@ export function ImageDefectUpload({ lucrareId, lucrare, onLucrareUpdate, necesit
     return null
   }
 
-  // Funcție pentru upload imagini
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Funcție pentru selectarea imaginilor (fără upload imediat)
+  const handleImageSelection = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || [])
     if (files.length === 0) return
 
-    // Verificăm limita de imagini
-    if (currentImages.length + files.length > maxImages) {
+    // Verificăm limita de imagini (incluzând cele deja selectate și cele uplodate)
+    const totalImages = currentImages.length + selectedImages.length + files.length
+    if (totalImages > maxImages) {
       toast({
         title: "Prea multe imagini",
-        description: `Puteți încărca maxim ${maxImages} imagini. Aveți deja ${currentImages.length} imaginea(ea) încărcată(e).`,
+        description: `Puteți încărca maxim ${maxImages} imagini total. Aveți deja ${currentImages.length + selectedImages.length} imaginea(ea) selectată(e).`,
         variant: "destructive",
       })
       return
     }
 
-    setIsUploading(true)
-
     try {
-      const uploadPromises = files.map(async (file) => {
+      const processedFiles: File[] = []
+      const newPreviews: string[] = []
+
+      for (const file of files) {
         // Validăm fișierul
         const validationError = validateImageFile(file)
         if (validationError) {
-          throw new Error(validationError)
+          toast({
+            title: "Fișier invalid",
+            description: `${file.name}: ${validationError}`,
+            variant: "destructive",
+          })
+          continue
         }
 
         // Comprimăm imaginea
@@ -112,88 +121,62 @@ export function ImageDefectUpload({ lucrareId, lucrare, onLucrareUpdate, necesit
         console.log(`📊 Dimensiune originală: ${(file.size / 1024 / 1024).toFixed(2)}MB`)
         console.log(`📊 Dimensiune comprimată: ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`)
 
-        // Încărcăm în Firebase Storage
-        const timestamp = Date.now()
-        const fileExtension = 'jpg' // Toate imaginile devin JPG după comprimare
-        const storagePath = `lucrari/${lucrareId}/imagini_defecte/img_${timestamp}_${Math.random().toString(36).substr(2, 9)}.${fileExtension}`
+        // Creăm preview URL
+        const previewUrl = URL.createObjectURL(compressedFile)
         
-        const { url, fileName } = await uploadFile(compressedFile, storagePath)
+        processedFiles.push(compressedFile)
+        newPreviews.push(previewUrl)
+      }
 
-        return {
-          url,
-          fileName: file.name, // Păstrăm numele original pentru display
-          uploadedAt: new Date().toISOString(),
-          uploadedBy: userData?.displayName || userData?.email || "Unknown",
-          compressed: true,
-        }
-      })
+      // Actualizăm starea locală prin componenta părinte
+      const updatedSelectedImages = [...selectedImages, ...processedFiles]
+      const updatedPreviews = [...imagePreviews, ...newPreviews]
+      
+      // Informăm componenta părinte despre imaginile selectate
+      onImagesChange(updatedSelectedImages, updatedPreviews)
 
-      const uploadedImages = await Promise.all(uploadPromises)
-
-      // Actualizăm array-ul de imagini
-      const updatedImages = [...currentImages, ...uploadedImages]
-      await updateLucrare(lucrareId, { imaginiDefecte: updatedImages })
-
-      // Actualizăm starea locală
-      const updatedLucrare = { ...lucrare, imaginiDefecte: updatedImages }
-      onLucrareUpdate(updatedLucrare)
-
-      toast({
-        title: "Imagini încărcate",
-        description: `${uploadedImages.length} imaginea(ea) a(au) fost încărcată(e) și comprimată(e) cu succes.`,
-      })
+      if (processedFiles.length > 0) {
+        toast({
+          title: "Imagini selectate",
+          description: `${processedFiles.length} imaginea(ea) a(au) fost selectată(e) și comprimată(e). Vor fi uplodate la salvarea formularului.`,
+        })
+      }
     } catch (error) {
-      console.error("Eroare la încărcarea imaginilor:", error)
+      console.error("Eroare la procesarea imaginilor:", error)
       toast({
         title: "Eroare",
-        description: error instanceof Error ? error.message : "Nu s-a putut încărca imaginea.",
+        description: error instanceof Error ? error.message : "Nu s-a putut procesa imaginea.",
         variant: "destructive",
       })
     } finally {
-      setIsUploading(false)
       if (fileInputRef.current) {
         fileInputRef.current.value = ""
       }
     }
   }
 
-  // Funcție pentru ștergerea imaginilor
-  const handleDeleteImage = async (index: number) => {
-    const imageToDelete = currentImages[index]
-    if (!imageToDelete) return
-
+  // Funcție pentru ștergerea imaginilor selectate local
+  const handleDeleteSelectedImage = (index: number) => {
     if (!window.confirm("Sigur doriți să ștergeți această imagine?")) {
       return
     }
 
-    try {
-      // Extragem path-ul din URL pentru ștergere din Storage
-      const pathMatch = imageToDelete.url.match(/lucrari%2F[^?]+/)
-      if (pathMatch) {
-        const storagePath = decodeURIComponent(pathMatch[0].replace(/%2F/g, '/'))
-        await deleteFile(storagePath)
-      }
-
-      // Actualizăm array-ul de imagini
-      const updatedImages = currentImages.filter((_: any, i: number) => i !== index)
-      await updateLucrare(lucrareId, { imaginiDefecte: updatedImages })
-
-      // Actualizăm starea locală
-      const updatedLucrare = { ...lucrare, imaginiDefecte: updatedImages }
-      onLucrareUpdate(updatedLucrare)
-
-      toast({
-        title: "Imagine ștearsă",
-        description: "Imaginea a fost ștearsă cu succes.",
-      })
-    } catch (error) {
-      console.error("Eroare la ștergerea imaginii:", error)
-      toast({
-        title: "Eroare",
-        description: "Nu s-a putut șterge imaginea.",
-        variant: "destructive",
-      })
+    // Revocăm URL-ul pentru preview pentru a elibera memoria
+    if (imagePreviews[index]) {
+      URL.revokeObjectURL(imagePreviews[index])
     }
+
+    // Actualizăm array-urile locale prin componenta părinte
+    const updatedSelectedImages = selectedImages.filter((_, i) => i !== index)
+    const updatedPreviews = imagePreviews.filter((_, i) => i !== index)
+    
+    // Informăm componenta părinte
+    onImagesChange(updatedSelectedImages, updatedPreviews)
+
+    toast({
+      title: "Imagine ștearsă",
+      description: "Imaginea a fost ștearsă din selecție.",
+    })
   }
 
   // Nu afișăm componenta dacă nu este necesară ofertă
@@ -214,39 +197,67 @@ export function ImageDefectUpload({ lucrareId, lucrare, onLucrareUpdate, necesit
       </CardHeader>
       <CardContent className="space-y-4">
       
-        {/* Afișarea imaginilor existente */}
+        {/* Afișarea imaginilor existente (deja uplodate) */}
         {currentImages.length > 0 && (
           <div className="space-y-3">
-            <h4 className="text-sm font-medium">Imagini încărcate ({currentImages.length}/{maxImages})</h4>
+            <h4 className="text-sm font-medium">Imagini uplodate ({currentImages.length})</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {currentImages.map((image: any, index: number) => (
-                <div key={index} className="relative group">
+                <div key={`uploaded-${index}`} className="relative group">
                   <div className="aspect-video relative rounded-lg overflow-hidden border bg-gray-100">
                     <img
                       src={image.url}
-                      alt={`Defect ${index + 1}`}
+                      alt={`Defect uploadat ${index + 1}`}
                       className="w-full h-full object-cover"
                       loading="lazy"
                     />
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => handleDeleteImage(index)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <Badge variant="secondary" className="absolute top-2 left-2 text-xs">
+                      Uploadat
+                    </Badge>
                   </div>
                   <div className="mt-2 text-xs text-gray-500">
                     <p className="truncate">{image.fileName}</p>
                     <p>Încărcată pe {new Date(image.uploadedAt).toLocaleDateString('ro-RO')}</p>
-                    {image.compressed && (
-                      <Badge variant="secondary" className="text-xs mt-1">
-                        Comprimată
-                      </Badge>
-                    )}
+                   
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Afișarea imaginilor selectate local */}
+        {selectedImages.length > 0 && (
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium">Imagini selectate ({selectedImages.length})</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {selectedImages.map((image: File, index: number) => (
+                <div key={`selected-${index}`} className="relative">
+                  <div className="aspect-video relative rounded-lg overflow-hidden border bg-gray-100">
+                    <img
+                      src={imagePreviews[index]}
+                      alt={`Defect selectat ${index + 1}`}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      className="absolute top-2 right-2 h-8 w-8 p-0 rounded-full shadow-md"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleDeleteSelectedImage(index)
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  
+                  </div>
+                  <div className="mt-2 text-xs text-gray-500">
+                    <p className="truncate">{image.name}</p>
+                    
                   </div>
                 </div>
               ))}
@@ -255,10 +266,10 @@ export function ImageDefectUpload({ lucrareId, lucrare, onLucrareUpdate, necesit
         )}
 
         {/* Upload nou (doar dacă nu am atins limita) */}
-        {currentImages.length < maxImages && (
+        {(currentImages.length + selectedImages.length) < maxImages && (
           <div className="space-y-3">
             <h4 className="text-sm font-medium">
-              Adăugați imagini noi (maxim {maxImages - currentImages.length} imagini)
+              Adăugați imagini noi (mai puteți selecta {maxImages - currentImages.length - selectedImages.length} imagini)
             </h4>
             <div className="space-y-2">
               <input
@@ -266,30 +277,38 @@ export function ImageDefectUpload({ lucrareId, lucrare, onLucrareUpdate, necesit
                 type="file"
                 accept="image/*"
                 multiple
-                onChange={handleImageUpload}
+                onChange={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  handleImageSelection(e)
+                }}
                 className="hidden"
                 disabled={isUploading}
               />
               <Button
+                type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploading}
                 variant="outline"
                 className="w-full"
               >
                 <Upload className="h-4 w-4 mr-2" />
-                {isUploading ? "Se încarcă și se comprimă..." : "Selectează imagini defecte"}
+                {isUploading ? "Se încarcă și se comprimă..." : "Selectează imagini"}
               </Button>
             </div>
           </div>
         )}
 
-        {/* Informații tehnice */}
+        {/* Informații tehnice și status */}
         <div className="text-xs text-gray-500 p-3 bg-gray-50 rounded-lg">
           <p><strong>Specificații tehnice:</strong></p>
           <ul className="list-disc list-inside mt-1 space-y-1">
             <li>Maxim {maxImages} imagini per lucrare</li>
             <li>Doar fișiere imagine sunt acceptate</li>
+        
+         
           </ul>
+         
         </div>
       </CardContent>
     </Card>

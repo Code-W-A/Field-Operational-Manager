@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/components/ui/use-toast"
 import { ReportGenerator } from "@/components/report-generator"
+import { MultiEmailInput } from "@/components/ui/multi-email-input"
 import { doc, updateDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 
@@ -47,8 +48,8 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   const [statusLucrare, setStatusLucrare] = useState<string>("")
   const [products, setProducts] = useState<Product[]>([])
 
-  // Add email state
-  const [email, setEmail] = useState("")
+  // Add email state - schimbat la array pentru emailuri multiple
+  const [manualEmails, setManualEmails] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isEmailSending, setIsEmailSending] = useState(false)
   const [updatedLucrare, setUpdatedLucrare] = useState<any>(null)
@@ -135,7 +136,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
             timpPlecare: processedData.timpPlecare,
             dataGenerare: processedData.raportSnapshot?.dataGenerare
           })
-          
+
           // DEBUGGING SUPLIMENTAR pentru această problemă specifică
           if (isDispatcherOrAdmin && processedData.raportGenerat) {
             console.log("🔍 DEBUGGING PENTRU ADMIN/DISPECER:")
@@ -220,7 +221,13 @@ export default function RaportPage({ params }: { params: { id: string } }) {
 
           // If the work has an email address, load it
           if (processedData.emailDestinatar) {
-            setEmail(processedData.emailDestinatar)
+            // Dacă emailul din BD este un string, îl convertim la array
+            const emailsFromDB = typeof processedData.emailDestinatar === 'string' 
+              ? [processedData.emailDestinatar] 
+              : Array.isArray(processedData.emailDestinatar) 
+                ? processedData.emailDestinatar 
+                : []
+            setManualEmails(emailsFromDB)
           }
           
           // Initialize signer names with default values, cu fallback la snapshot
@@ -354,20 +361,27 @@ export default function RaportPage({ params }: { params: { id: string } }) {
         const emailsToSend = []
         const sentToEmails = []
 
-        // Adăugăm emailul introdus manual (prioritar)
-        if (email && email.trim()) {
-          emailsToSend.push({ 
-            email: email.trim(), 
-            label: "E-mail semnatar (introdus manual)" 
-          })
-        }
+        // Adăugăm emailurile introduse manual (prioritare)
+        manualEmails.forEach(email => {
+          if (email && email.trim()) {
+            emailsToSend.push({ 
+              email: email.trim(), 
+              label: "E-mail manual" 
+            })
+          }
+        })
 
-        // Adăugăm emailul clientului din Firestore dacă este diferit
-        if (clientEmail && clientEmail.trim() && clientEmail.trim().toLowerCase() !== email.trim().toLowerCase()) {
-          emailsToSend.push({ 
-            email: clientEmail.trim(), 
-            label: "Email client (din Firestore)" 
-          })
+        // Adăugăm emailul clientului din Firestore dacă nu există deja în lista manuală
+        if (clientEmail && clientEmail.trim()) {
+          const existsInManual = manualEmails.some(email => 
+            email.trim().toLowerCase() === clientEmail.trim().toLowerCase()
+          )
+          if (!existsInManual) {
+            emailsToSend.push({ 
+              email: clientEmail.trim(), 
+              label: "Email client (din Firestore)" 
+            })
+          }
         }
 
         if (emailsToSend.length === 0) {
@@ -451,7 +465,7 @@ FOM by NRG`,
         return false
       }
     },
-    [email, updatedLucrare, params.id, isEmailSending],
+    [manualEmails, updatedLucrare, params.id, isEmailSending],
   )
 
   // Use useStableCallback to ensure we have access to the latest state values
@@ -473,10 +487,10 @@ FOM by NRG`,
       })
     }
 
-    if (!email) {
+    if (manualEmails.length === 0) {
       toast({
         title: "Atenție",
-        description: "Vă rugăm să introduceți adresa de email pentru trimiterea raportului.",
+        description: "Vă rugăm să introduceți cel puțin o adresă de email pentru trimiterea raportului.",
         variant: "destructive",
       })
       return
@@ -509,7 +523,7 @@ FOM by NRG`,
         numeTehnician,
         numeBeneficiar,
         products,
-        emailDestinatar: email,
+        emailDestinatar: manualEmails,
         raportGenerat: true,
         statusLucrare: "Finalizat",
         updatedAt: serverTimestamp(),
@@ -1229,18 +1243,15 @@ FOM by NRG`,
 
                 {/* Adăugăm câmpul pentru email */}
                 <div className="space-y-2">
-                  <Label htmlFor="email">E-mail semnatar</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="email@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
+                  <Label htmlFor="emails">E-mailuri destinatari</Label>
+                  <MultiEmailInput
+                    emails={manualEmails}
+                    onEmailsChange={setManualEmails}
+                    placeholder="Introduceți adresele de email pentru raport..."
                     disabled={isSubmitting}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Raportul va fi trimis automat la această adresă după finalizare
+                    Raportul va fi trimis automat la toate adresele introduse + emailul clientului din baza de date
                   </p>
                 </div>
 

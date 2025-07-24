@@ -1,6 +1,6 @@
 import { ref, uploadBytes, getDownloadURL, deleteObject, type UploadResult } from "firebase/storage"
 import { storage } from "./config"
-import { addLog } from "./firestore"
+import { logInfo, logWarning } from "@/lib/utils/logging-service"
 
 // Încărcare fișier
 export const uploadFile = async (file: File, path: string): Promise<{ url: string; fileName: string }> => {
@@ -10,7 +10,7 @@ export const uploadFile = async (file: File, path: string): Promise<{ url: strin
     const url = await getDownloadURL(result.ref)
 
     // Adăugăm un log pentru încărcarea fișierului
-    await addLog("Încărcare fișier", `A fost încărcat fișierul ${file.name} la calea ${path}`, "Informație", "Fișiere")
+    logInfo(`A fost încărcat fișierul ${file.name} la calea ${path}`, { fileName: file.name, path }, { category: "fișiere" })
 
     return {
       url,
@@ -29,7 +29,7 @@ export const deleteFile = async (path: string): Promise<void> => {
     await deleteObject(storageRef)
 
     // Adăugăm un log pentru ștergerea fișierului
-    await addLog("Ștergere fișier", `A fost șters fișierul de la calea ${path}`, "Avertisment", "Fișiere")
+    logWarning(`A fost șters fișierul de la calea ${path}`, { path }, { category: "fișiere" })
   } catch (error) {
     console.error("Eroare la ștergerea fișierului:", error)
     throw error
