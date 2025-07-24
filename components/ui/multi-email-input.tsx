@@ -33,12 +33,30 @@ export function MultiEmailInput({
 
   const addEmail = useCallback((email: string) => {
     const trimmedEmail = email.trim()
-    if (trimmedEmail && isValidEmail(trimmedEmail) && !emails.includes(trimmedEmail)) {
-      onEmailsChange([...emails, trimmedEmail])
-      setInputValue("")
-      return true
+    console.log(`📧 MultiEmailInput: Încercare adăugare email: "${trimmedEmail}"`)
+    
+    if (!trimmedEmail) {
+      console.log(`❌ Email gol, se ignoră`)
+      return false
     }
-    return false
+    
+    if (!isValidEmail(trimmedEmail)) {
+      console.log(`❌ Email invalid: "${trimmedEmail}"`)
+      return false
+    }
+    
+    if (emails.includes(trimmedEmail)) {
+      console.log(`❌ Email duplicat: "${trimmedEmail}"`)
+      return false
+    }
+    
+    const newEmails = [...emails, trimmedEmail]
+    console.log(`✅ Email adăugat cu succes: "${trimmedEmail}"`)
+    console.log(`📊 Lista actualizată de emailuri: ${JSON.stringify(newEmails)}`)
+    
+    onEmailsChange(newEmails)
+    setInputValue("")
+    return true
   }, [emails, onEmailsChange])
 
   const removeEmail = useCallback((indexToRemove: number) => {

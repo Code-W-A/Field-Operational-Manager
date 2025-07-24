@@ -388,10 +388,12 @@ export default function RaportPage({ params }: { params: { id: string } }) {
           throw new Error("Nu există adrese de email pentru trimitere")
         }
 
-        console.log("Se vor trimite emailuri către:", emailsToSend)
+        console.log("📧 LISTA FINALĂ DE EMAILURI PENTRU TRIMITERE:", emailsToSend)
+        console.log(`📊 Total emailuri de trimis: ${emailsToSend.length}`)
 
         // Trimitem emailul către fiecare adresă
         for (const emailInfo of emailsToSend) {
+          console.log(`📮 Încep trimiterea către: ${emailInfo.email} (${emailInfo.label})`)
           try {
             // Create FormData for email sending
             const formData = new FormData()
@@ -432,12 +434,17 @@ FOM by NRG`,
             }
 
             sentToEmails.push(emailInfo.label + ": " + emailInfo.email)
-            console.log(`Email trimis cu succes către ${emailInfo.email} (${emailInfo.label})`)
-          } catch (emailError) {
-            console.error(`Eroare la trimiterea emailului către ${emailInfo.email}:`, emailError)
+            console.log(`✅ EMAIL TRIMIS CU SUCCES către ${emailInfo.email} (${emailInfo.label})`)
+          } catch (emailError: any) {
+            console.error(`❌ EROARE LA TRIMITEREA EMAILULUI către ${emailInfo.email}:`, emailError)
+            console.error(`📝 Detalii eroare:`, emailError.message || emailError)
             // Nu aruncăm eroarea aici, continuăm cu următorul email
           }
         }
+
+        console.log(`📊 REZULTAT FINAL TRIMITERE EMAILURI:`)
+        console.log(`✅ Trimise cu succes: ${sentToEmails.length}`)
+        console.log(`📧 Emailuri trimise: ${sentToEmails.join(", ")}`)
 
         setIsEmailSending(false)
 
@@ -487,13 +494,12 @@ FOM by NRG`,
       })
     }
 
+    // Validarea se va face în funcția sendEmail - aici doar avertizăm
     if (manualEmails.length === 0) {
       toast({
-        title: "Atenție",
-        description: "Vă rugăm să introduceți cel puțin o adresă de email pentru trimiterea raportului.",
-        variant: "destructive",
+        title: "Informație",
+        description: "Nu ați introdus emailuri manuale. Se va încerca trimiterea către emailul clientului din baza de date.",
       })
-      return
     }
 
     setIsSubmitting(true)
