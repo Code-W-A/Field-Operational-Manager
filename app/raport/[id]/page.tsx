@@ -521,6 +521,8 @@ FOM by NRG`,
 
       // Create updated lucrare object with all necessary data
       console.log("🔍 ÎNAINTE de actualizare - statusul curent:", lucrare.statusLucrare)
+      console.log("🔍 ÎNAINTE de actualizare - raportGenerat curent:", lucrare.raportGenerat)
+      console.log("🔍 ÎNAINTE de actualizare - numarRaport curent:", lucrare.numarRaport)
       
       const updatedLucrareData = {
         ...lucrare,
@@ -530,18 +532,20 @@ FOM by NRG`,
         numeBeneficiar,
         products,
         emailDestinatar: manualEmails,
-        raportGenerat: true,
+        // NU setăm raportGenerat: true aici - va fi setat de ReportGenerator
         statusLucrare: "Finalizat",
         updatedAt: serverTimestamp(),
         preluatDispecer: false,
       }
 
       console.log("🔍 DUPĂ creare updatedLucrareData - statusul nou:", updatedLucrareData.statusLucrare)
+      console.log("🔍 DUPĂ creare updatedLucrareData - raportGenerat:", updatedLucrareData.raportGenerat)
+      console.log("🔍 DUPĂ creare updatedLucrareData - numarRaport:", updatedLucrareData.numarRaport)
 
       // Save to Firestore
       await updateLucrare(params.id, updatedLucrareData)
-      // LOG DEBUG – ce s-a trimis către Firestore la handleSubmit
-      console.log("🔍 updateLucrare (handleSubmit) – payload statusLucrare:", updatedLucrareData.statusLucrare)
+      console.log("✅ SALVAT în Firestore (handleSubmit) - raportGenerat:", updatedLucrareData.raportGenerat || "UNDEFINED")
+      console.log("✅ SALVAT în Firestore (handleSubmit) - numarRaport:", updatedLucrareData.numarRaport || "UNDEFINED")
 
       // Update local state with the updated data
       setUpdatedLucrare(updatedLucrareData)

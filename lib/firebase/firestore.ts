@@ -572,17 +572,21 @@ export const validateContractAssignment = async (contractNumber: string, clientI
  * @returns Promise<string> - Numărul raportului în format #000001
  */
 export async function getNextReportNumber(): Promise<string> {
+  console.log("🔢 getNextReportNumber: PORNIRE funcție de numerotare centralizată")
+  
   const { doc, getDoc, updateDoc, runTransaction } = await import("firebase/firestore")
   
   const reportNumberRef = doc(db, "numarRaport", "document-numar-raport")
   
   try {
+    console.log("🔢 getNextReportNumber: Încep tranzacția Firestore")
     // Folosim o tranzacție pentru a asigura atomicitatea operației
     const result = await runTransaction(db, async (transaction) => {
       const reportNumberDoc = await transaction.get(reportNumberRef)
       
       if (!reportNumberDoc.exists()) {
         // Dacă documentul nu există, îl creăm cu valoarea 1
+        console.log("🔢 getNextReportNumber: Document nu există, creez cu valoarea 1")
         transaction.set(reportNumberRef, { numarRaport: 1 })
         return 1
       }
@@ -590,15 +594,21 @@ export async function getNextReportNumber(): Promise<string> {
       const currentNumber = reportNumberDoc.data().numarRaport || 1
       const nextNumber = currentNumber + 1
       
+      console.log("🔢 getNextReportNumber: Document există, numărul curent:", currentNumber)
+      console.log("🔢 getNextReportNumber: Incrementez la:", nextNumber)
+      
       // Incrementăm numărul în baza de date
       transaction.update(reportNumberRef, { numarRaport: nextNumber })
       
       // Returnăm numărul curent (care va fi folosit pentru acest raport)
+      console.log("🔢 getNextReportNumber: Returnez numărul pentru acest raport:", currentNumber)
       return currentNumber
     })
     
     // Formatăm numărul cu 6 cifre
-    return `#${result.toString().padStart(6, '0')}`
+    const formattedNumber = `#${result.toString().padStart(6, '0')}`
+    console.log("🔢 getNextReportNumber: SUCCESS - număr formatat:", formattedNumber)
+    return formattedNumber
   } catch (error) {
     console.error("Eroare la obținerea numărului de raport:", error)
     // Fallback: folosim timestamp ca număr unic

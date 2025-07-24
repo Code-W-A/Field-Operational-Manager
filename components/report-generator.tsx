@@ -111,6 +111,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         raportGenerat: lucrare.raportGenerat,
         raportDataLocked: lucrare.raportDataLocked,
         existaNumarRaport: !!lucrare.numarRaport,
+        numarRaportValue: lucrare.numarRaport || "LIPSEȘTE",
         tipGenerare: isFirstGeneration ? "PRIMA GENERARE - VA ÎNGHEȚA DATELE" : 
                      isOldFinalizedReport ? "RAPORT VECHI FINALIZAT - FĂRĂ NUMĂR" : 
                      "REGENERARE - VA FOLOSI DATELE ÎNGHEȚATE"
@@ -118,6 +119,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       
       // Gestionăm numărul de raport
       let numarRaport = lucrare.numarRaport // Folosim numărul existent din Firestore (dacă există)
+      console.log("🔢 ÎNCEPUT gestionare numarRaport - valoarea inițială:", numarRaport || "LIPSEȘTE")
       
       if (isOldFinalizedReport) {
         // Pentru rapoartele vechi finalizate, NU generăm niciun număr
@@ -125,6 +127,9 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         console.log("🏛️ Raport vechi finalizat - NU se afișează număr de raport")
       } else if (isFirstGeneration && !numarRaport) {
         // Doar pentru lucrări noi la prima generare generăm număr
+        console.log("🔢 CONDIȚII ÎNDEPLINITE pentru generarea numărului:")
+        console.log("   - isFirstGeneration:", isFirstGeneration)
+        console.log("   - !numarRaport:", !numarRaport)
         console.log("🔢 Generez număr raport din sistemul centralizat...")
         
         try {
@@ -140,7 +145,15 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           numarRaport = `#${fallbackNumber}`
           console.log("🔄 Folosesc fallback pentru numărul raportului:", numarRaport)
         }
+      } else {
+        console.log("❌ CONDIȚII NU SUNT ÎNDEPLINITE pentru generarea numărului:")
+        console.log("   - isFirstGeneration:", isFirstGeneration)
+        console.log("   - !numarRaport:", !numarRaport)
+        console.log("   - isOldFinalizedReport:", isOldFinalizedReport)
+        console.log("🔢 Voi folosi numărul existent sau nimic:", numarRaport || "NIMIC")
       }
+      
+      console.log("🔢 FINAL gestionare numarRaport - valoarea finală:", numarRaport || "LIPSEȘTE")
       
       let lucrareForPDF
       
@@ -726,6 +739,9 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
             // Adăugăm numărul de raport doar dacă există (pentru lucrări noi)
             if (numarRaport) {
               updateData.numarRaport = numarRaport
+              console.log("✅ SALVEZ numarRaport în Firestore:", numarRaport)
+            } else {
+              console.log("❌ NU salvez numarRaport (nu există)")
             }
             
             console.log("📦 Date care se salvează:", {
