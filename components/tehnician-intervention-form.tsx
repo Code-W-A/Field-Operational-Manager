@@ -21,7 +21,7 @@ import { getWarrantyDisplayInfo } from "@/lib/utils/warranty-calculator"
 import type { Echipament } from "@/lib/firebase/firestore"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ImageDefectUpload } from "@/components/image-defect-upload"
-import { uploadFile } from "@/lib/firebase/storage"
+import { uploadFile, deleteFile } from "@/lib/firebase/storage"
 import { useAuth } from "@/contexts/AuthContext"
 
 // First, let's update the interface to include statusEchipament
@@ -72,7 +72,7 @@ export function TehnicianInterventionForm({
     necesitaOferta: initialData.necesitaOferta || false,
     comentariiOferta: initialData.comentariiOferta || "",
   })
-  const [isSubmitting, setIsSubmitting] = useState(false)
+
   const [isSaving, setIsSaving] = useState(false)
   const [isGeneratingReport, setIsGeneratingReport] = useState(false)
   const [descriereInterventie, setDescriereInterventie] = useState(initialData.descriereInterventie || "")
@@ -86,6 +86,9 @@ export function TehnicianInterventionForm({
   // State pentru imaginile selectate local
   const [selectedImages, setSelectedImages] = useState<File[]>([])
   const [imagePreviews, setImagePreviews] = useState<string[]>([])
+  
+  // State pentru imaginile marcate pentru ștergere (pending delete)
+  const [imagesToDelete, setImagesToDelete] = useState<number[]>([])
 
 
 
@@ -95,6 +98,11 @@ export function TehnicianInterventionForm({
       imagePreviews.forEach(url => URL.revokeObjectURL(url))
     }
   }, [imagePreviews])
+
+  // Reset imagesToDelete când se schimbă lucrarea
+  useEffect(() => {
+    setImagesToDelete([])
+  }, [lucrareId])
 
   // State pentru funcționalitatea de garanție
   const [warrantyInfo, setWarrantyInfo] = useState<any>(null)
@@ -150,6 +158,15 @@ export function TehnicianInterventionForm({
     try {
       setIsSaving(true)
 
+      // Aplicăm mai întâi ștergerile imaginilor marcate
+      const remainingImages = await applyImageDeletions()
+
+      // Upload imaginile selectate (dacă există)
+      const newUploadedImages = await uploadSelectedImages()
+      
+      // Combinăm imaginile rămase cu cele nou uplodate
+      const allImages = [...remainingImages, ...newUploadedImages]
+
       const updateData: any = {
         constatareLaLocatie,
         descriereInterventie,
@@ -157,6 +174,7 @@ export function TehnicianInterventionForm({
         necesitaOferta,
         comentariiOferta: necesitaOferta ? comentariiOferta : "", // Clear comments if necesitaOferta is false
         statusFinalizareInterventie,
+        imaginiDefecte: allImages, // Includem toate imaginile (existente + noi)
       }
 
       // Adăugăm tehnicianConfirmaGarantie doar pentru lucrările în garanție
@@ -166,9 +184,28 @@ export function TehnicianInterventionForm({
 
       await updateLucrare(lucrareId, updateData)
 
+      // Log upload imaginilor dacă au fost uplodate
+      if (newUploadedImages.length > 0) {
+        console.log(`📷 Uplodate ${newUploadedImages.length} imagini la salvarea datelor`)
+      }
+
+      // Construim mesajul pentru toast
+      let description = "Datele au fost salvate cu succes"
+      const actions = []
+      if (imagesToDelete.length > 0) {
+        actions.push(`${imagesToDelete.length} imagine(i) ștearsă(e)`)
+      }
+      if (newUploadedImages.length > 0) {
+        actions.push(`${newUploadedImages.length} imagine(i) încărcată(e)`)
+      }
+      if (actions.length > 0) {
+        description += ` și ${actions.join(', ')}`
+      }
+      description += "."
+
       toast({
         title: "Date salvate",
-        description: "Datele au fost salvate cu succes.",
+        description: description,
       })
 
       onUpdate()
@@ -184,49 +221,7 @@ export function TehnicianInterventionForm({
     }
   }
 
-  const handleSubmit = useStableCallback(async () => {
-    try {
-      setIsSubmitting(true)
 
-      // Upload imaginile selectate (dacă există)
-      const newUploadedImages = await uploadSelectedImages()
-      
-      // Combinăm imaginile existente cu cele nou uplodate
-      const allImages = [...(initialData.imaginiDefecte || []), ...newUploadedImages]
-
-      await updateLucrare(lucrareId, {
-        descriereInterventie: formData.descriereInterventie,
-        constatareLaLocatie: formData.constatareLaLocatie,
-        statusEchipament: formData.statusEchipament,
-        necesitaOferta: formData.necesitaOferta,
-        comentariiOferta: formData.necesitaOferta ? formData.comentariiOferta : "", // Clear comments if necesitaOferta is false
-        imaginiDefecte: allImages, // Includem toate imaginile (existente + noi)
-      })
-
-      // Log upload imaginilor dacă au fost uplodate
-      if (newUploadedImages.length > 0) {
-        console.log(`📷 Uplodate ${newUploadedImages.length} imagini la salvarea datelor`)
-      }
-
-      toast({
-        title: "Intervenție actualizată",
-        description: "Detaliile intervenției au fost actualizate cu succes.",
-      })
-
-      onUpdate()
-
-      router.push(`/raport/${lucrareId}`)
-    } catch (error) {
-      console.error("Eroare la actualizarea intervenției:", error)
-      toast({
-        title: "Eroare",
-        description: "A apărut o eroare la actualizarea intervenției.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsSubmitting(false)
-    }
-  })
 
   const handleGenerateReport = async () => {
     if (!descriereInterventie) {
@@ -241,11 +236,14 @@ export function TehnicianInterventionForm({
     try {
       setIsGeneratingReport(true)
 
+      // Aplicăm mai întâi ștergerile imaginilor marcate
+      const remainingImages = await applyImageDeletions()
+
       // Upload imaginile selectate (dacă există)
       const newUploadedImages = await uploadSelectedImages()
       
-      // Combinăm imaginile existente cu cele nou uplodate
-      const allImages = [...(initialData.imaginiDefecte || []), ...newUploadedImages]
+      // Combinăm imaginile rămase cu cele nou uplodate
+      const allImages = [...remainingImages, ...newUploadedImages]
 
       // Salvăm datele formularului inclusiv statusul finalizării
       const updateData: any = {
@@ -269,13 +267,30 @@ export function TehnicianInterventionForm({
       if (newUploadedImages.length > 0) {
         console.log(`📷 Uplodate ${newUploadedImages.length} imagini la generarea raportului`)
       }
+      if (imagesToDelete.length > 0) {
+        console.log(`🗑️ Șterse ${imagesToDelete.length} imagini la generarea raportului`)
+      }
 
       // Use the safe logging service instead of addLog to avoid database issues
       logInfo(`Navigare către pagina de raport pentru lucrarea ${lucrareId}`, { lucrareId }, { category: "rapoarte" })
 
+      // Construim mesajul pentru toast
+      let description = "Datele au fost salvate"
+      const actions = []
+      if (imagesToDelete.length > 0) {
+        actions.push(`${imagesToDelete.length} imagine(i) ștearsă(e)`)
+      }
+      if (newUploadedImages.length > 0) {
+        actions.push(`${newUploadedImages.length} imagine(i) încărcată(e)`)
+      }
+      if (actions.length > 0) {
+        description += ` și ${actions.join(', ')}`
+      }
+      description += ". Veți fi redirecționat către pagina de semnare și generare raport."
+
       toast({
         title: "Date salvate",
-        description: "Datele au fost salvate. Veți fi redirecționat către pagina de semnare și generare raport.",
+        description: description,
       })
 
       // Navigate to the report page
@@ -334,6 +349,65 @@ export function TehnicianInterventionForm({
     setStatusEchipament(value)
   }
 
+  // Funcție pentru marcarea imaginilor pentru ștergere (NU ștergere imediată)
+  const handleImageMarkedForDeletion = (imageIndex: number) => {
+    if (imagesToDelete.includes(imageIndex)) {
+      // Dacă e deja marcată, o demarcăm (undo)
+      setImagesToDelete(prev => prev.filter(index => index !== imageIndex))
+      toast({
+        title: "Demarcată",
+        description: "Imaginea nu va mai fi ștearsă.",
+      })
+    } else {
+      // O marcăm pentru ștergere
+      setImagesToDelete(prev => [...prev, imageIndex])
+      toast({
+        title: "Marcată pentru ștergere", 
+        description: "Imaginea va fi ștearsă la salvarea datelor.",
+      })
+    }
+  }
+
+  // Funcție pentru aplicarea efectivă a ștergerilor în Firebase
+  const applyImageDeletions = async (): Promise<any[]> => {
+    if (imagesToDelete.length === 0) {
+      return initialData.imaginiDefecte || []
+    }
+
+    try {
+      const currentImages = initialData.imaginiDefecte || []
+      
+      // Ștergem din Firebase Storage imaginile marcate pentru ștergere
+      for (const imageIndex of imagesToDelete) {
+        const imageToDelete = currentImages[imageIndex]
+        if (imageToDelete?.url) {
+          try {
+            // Extragem path-ul din URL pentru ștergere din Storage
+            const pathMatch = imageToDelete.url.match(/lucrari%2F[^?]+/)
+            if (pathMatch) {
+              const storagePath = decodeURIComponent(pathMatch[0].replace(/%2F/g, '/'))
+              await deleteFile(storagePath)
+              console.log(`🗑️ Șters din Storage: ${imageToDelete.fileName}`)
+            }
+          } catch (error) {
+            console.error(`Eroare la ștergerea imaginii ${imageToDelete.fileName}:`, error)
+          }
+        }
+      }
+
+      // Returnăm lista filtrată (fără imaginile șterse)
+      const remainingImages = currentImages.filter((_, index) => !imagesToDelete.includes(index))
+      
+      // Resetăm lista de imagini pentru ștergere
+      setImagesToDelete([])
+      
+      return remainingImages
+    } catch (error) {
+      console.error("Eroare la aplicarea ștergerilor:", error)
+      throw error
+    }
+  }
+
 
 
   return (
@@ -344,7 +418,6 @@ export function TehnicianInterventionForm({
       <CardContent>
         <form onSubmit={(e) => {
           e.preventDefault()
-          handleSubmit()
         }}>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -530,10 +603,12 @@ export function TehnicianInterventionForm({
               lucrare={{ imaginiDefecte: initialData.imaginiDefecte || [] }}
               selectedImages={selectedImages}
               imagePreviews={imagePreviews}
+              imagesToDelete={imagesToDelete}
               onImagesChange={(images, previews) => {
                 setSelectedImages(images)
                 setImagePreviews(previews)
               }}
+              onImageDeleted={handleImageMarkedForDeletion}
               necesitaOferta={necesitaOferta}
               isUploading={isGeneratingReport || isSaving} // Loading state din componenta părinte
             />

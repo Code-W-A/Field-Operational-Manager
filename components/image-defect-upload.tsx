@@ -16,12 +16,14 @@ interface ImageDefectUploadProps {
   lucrare: any
   selectedImages: File[] // Imaginile selectate, gestionate de părinte
   imagePreviews: string[] // URL-urile pentru preview, gestionate de părinte
+  imagesToDelete: number[] // Indicii imaginilor marcate pentru ștergere
   onImagesChange: (images: File[], previews: string[]) => void // Callback pentru imaginile selectate local
+  onImageDeleted?: (deletedImageIndex: number) => void // Callback pentru imaginile uplodate șterse
   necesitaOferta: boolean // Condiția pentru afișare
   isUploading?: boolean // Loading state controlat de component părinte
 }
 
-export function ImageDefectUpload({ lucrareId, lucrare, selectedImages, imagePreviews, onImagesChange, necesitaOferta, isUploading = false }: ImageDefectUploadProps) {
+export function ImageDefectUpload({ lucrareId, lucrare, selectedImages, imagePreviews, imagesToDelete, onImagesChange, onImageDeleted, necesitaOferta, isUploading = false }: ImageDefectUploadProps) {
   const { userData } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -155,9 +157,30 @@ export function ImageDefectUpload({ lucrareId, lucrare, selectedImages, imagePre
     }
   }
 
+  // Funcție pentru marcarea/demarcarea imaginilor pentru ștergere
+  const handleMarkImageForDeletion = (index: number) => {
+    const isAlreadyMarked = imagesToDelete.includes(index)
+    
+    if (isAlreadyMarked) {
+      // Dacă e deja marcată, confirmăm demarcarea
+      if (window.confirm("Imaginea este marcată pentru ștergere. Doriți să o păstrați?")) {
+        if (onImageDeleted) {
+          onImageDeleted(index) // Demarcarea se face prin același callback
+        }
+      }
+    } else {
+      // Marcăm pentru ștergere
+      if (window.confirm("Marcați imaginea pentru ștergere? Aceasta va fi eliminată când salvați datele.")) {
+        if (onImageDeleted) {
+          onImageDeleted(index)
+        }
+      }
+    }
+  }
+
   // Funcție pentru ștergerea imaginilor selectate local
   const handleDeleteSelectedImage = (index: number) => {
-    if (!window.confirm("Sigur doriți să ștergeți această imagine?")) {
+    if (!window.confirm("Sigur doriți să ștergeți această imagine din selecție?")) {
       return
     }
 
@@ -202,26 +225,62 @@ export function ImageDefectUpload({ lucrareId, lucrare, selectedImages, imagePre
           <div className="space-y-3">
             <h4 className="text-sm font-medium">Imagini uplodate ({currentImages.length})</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {currentImages.map((image: any, index: number) => (
-                <div key={`uploaded-${index}`} className="relative group">
-                  <div className="aspect-video relative rounded-lg overflow-hidden border bg-gray-100">
-                    <img
-                      src={image.url}
-                      alt={`Defect uploadat ${index + 1}`}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                    <Badge variant="secondary" className="absolute top-2 left-2 text-xs">
-                      Uploadat
-                    </Badge>
-                  </div>
+              {currentImages.map((image: any, index: number) => {
+                const isMarkedForDeletion = imagesToDelete.includes(index)
+                
+                return (
+                  <div key={`uploaded-${index}`} className="relative group">
+                    <div className={`aspect-video relative rounded-lg overflow-hidden border bg-gray-100 ${
+                      isMarkedForDeletion ? 'opacity-50 border-red-300' : ''
+                    }`}>
+                      <img
+                        src={image.url}
+                        alt={`Defect uploadat ${index + 1}`}
+                        className={`w-full h-full object-cover ${
+                          isMarkedForDeletion ? 'grayscale' : ''
+                        }`}
+                        loading="lazy"
+                      />
+                      <Badge 
+                        variant={isMarkedForDeletion ? "destructive" : "secondary"} 
+                        className="absolute top-2 left-2 text-xs"
+                      >
+                        {isMarkedForDeletion ? "Va fi ștearsă" : "Uploadat"}
+                      </Badge>
+                      <Button
+                        type="button"
+                        variant={isMarkedForDeletion ? "outline" : "destructive"}
+                        size="sm"
+                        className="absolute top-2 right-2 h-8 w-8 p-0 rounded-full shadow-md"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          handleMarkImageForDeletion(index)
+                        }}
+                        disabled={isUploading}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                      {isMarkedForDeletion && (
+                        <div className="absolute inset-0 bg-red-500 bg-opacity-20 flex items-center justify-center">
+                          <div className="bg-red-600 text-white px-2 py-1 rounded text-xs font-medium">
+                            Va fi ștearsă la salvare sau la generarea raportului
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   <div className="mt-2 text-xs text-gray-500">
                     <p className="truncate">{image.fileName}</p>
                     <p>Încărcată pe {new Date(image.uploadedAt).toLocaleDateString('ro-RO')}</p>
-                   
+                    {image.compressed && (
+                      <Badge variant="secondary" className="text-xs mt-1">
+                        Comprimată
+                      </Badge>
+                    )}
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}
