@@ -213,14 +213,7 @@ export function ImageDefectUpload({ lucrareId, lucrare, onLucrareUpdate, necesit
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Informații despre comprimare */}
-        <Alert>
-          <ImageIcon className="h-4 w-4" />
-          <AlertDescription>
-            Imaginile sunt comprimate automat pentru optimizarea stocării, păstrând o calitate bună pentru identificarea defectelor.
-          </AlertDescription>
-        </Alert>
-
+      
         {/* Afișarea imaginilor existente */}
         {currentImages.length > 0 && (
           <div className="space-y-3">
@@ -265,7 +258,7 @@ export function ImageDefectUpload({ lucrareId, lucrare, onLucrareUpdate, necesit
         {currentImages.length < maxImages && (
           <div className="space-y-3">
             <h4 className="text-sm font-medium">
-              Adăugați imagini noi ({maxImages - currentImages.length} locuri disponibile)
+              Adăugați imagini noi (maxim {maxImages - currentImages.length} imagini)
             </h4>
             <div className="space-y-2">
               <input
@@ -295,9 +288,6 @@ export function ImageDefectUpload({ lucrareId, lucrare, onLucrareUpdate, necesit
           <p><strong>Specificații tehnice:</strong></p>
           <ul className="list-disc list-inside mt-1 space-y-1">
             <li>Maxim {maxImages} imagini per lucrare</li>
-            <li>Comprimare automată la maxim 1200px lățime</li>
-            <li>Conversie automată în format JPEG pentru eficiență</li>
-            <li>Calitate optimizată pentru identificarea defectelor</li>
             <li>Doar fișiere imagine sunt acceptate</li>
           </ul>
         </div>
