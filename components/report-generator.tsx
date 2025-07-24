@@ -521,14 +521,34 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       doc.text(`Durata: ${durataText}`, M, currentY)
       currentY += 6
 
-      // EQUIPMENT
+      // EQUIPMENT - chenar dinamic fără titlu
       if (lucrareForPDF.echipament || lucrareForPDF.echipamentCod) {
-        const equipLines = [
-          `${normalize(lucrareForPDF.echipament || "Nespecificat")}${lucrareForPDF.echipamentCod ? ` (Cod: ${normalize(lucrareForPDF.echipamentCod)})` : ""}`,
-        ]
-
-        const equipHeight = drawBox("ECHIPAMENT", equipLines, W, M, true)
-        currentY += equipHeight + 5
+        const equipmentText = `ECHIPAMENT: ${normalize(lucrareForPDF.echipament || "Nespecificat")}${lucrareForPDF.echipamentCod ? ` (Cod: ${normalize(lucrareForPDF.echipamentCod)})` : ""}`
+        
+        // Configurăm fontul pentru calculul înălțimii
+        doc.setFontSize(8).setFont("helvetica", "normal")
+        
+        // Calculăm înălțimea necesară pentru text
+        const textWidth = W - 6 // Lăsăm 3px margine pe fiecare parte
+        const textLines = doc.splitTextToSize(equipmentText, textWidth)
+        const lineHeight = 5
+        const boxHeight = textLines.length * lineHeight + 6 // 3px padding sus și 3px jos
+        
+        // Verificăm dacă avem nevoie de o pagină nouă
+        checkPageBreak(boxHeight + 5)
+        
+        // Desenăm chenarul
+        doc.setDrawColor(60, 60, 60).setFillColor(LIGHT_GRAY, LIGHT_GRAY, LIGHT_GRAY).setLineWidth(STROKE)
+        ;(doc as any).roundedRect(M, currentY, W, boxHeight, BOX_RADIUS, BOX_RADIUS, "FD")
+        
+        // Adăugăm textul în chenar
+        doc.setFontSize(8).setFont("helvetica", "normal").setTextColor(20)
+        textLines.forEach((line: string, i: number) => {
+          const yPosition = currentY + 4.5 + i * lineHeight // 4.5px padding de sus pentru distanță optimă de border
+          doc.text(line, M + 3, yPosition)
+        })
+        
+        currentY += boxHeight + 5
       }
 
       // Dynamic text blocks helper (no fixed 5 lines)
