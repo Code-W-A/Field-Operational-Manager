@@ -71,19 +71,20 @@ export function EquipmentQRCode({
   // Modificăm funcția handlePrint pentru a include noul logo
 
   /**
-   * Calculează font-size-uri individuale pentru fiecare linie de text în funcție de lungimea specifică.
-   * Doar textele care sunt efectiv lungi vor avea font-size mic, restul rămân normale.
+   * Calculează font-size-uri pentru valorile de după ":" în funcție de lungimea specifică.
+   * Prefixele "Client:", "Locație:", "Cod:" rămân cu font normal (8pt).
+   * Doar valorile efective (numele clientului, locația, codul) vor avea font adaptat.
    * 
    * ⚠️ IMPORTANT: Această modificare afectează DOAR printarea QR code-ului, 
    * NU afectează afișarea în dialog sau în alte părți ale aplicației!
    * 
    * QR code-ul rămâne la aceeași dimensiune (100x100px).
    */
-  const calculateIndividualFontSizes = (clientName: string, locationName: string, equipmentCode: string) => {
-    // Calculăm lungimea textului pentru fiecare linie (inclusiv prefixe)
-    const clientText = `Client: ${clientName}`
-    const locationText = `Locație: ${locationName}`
-    const codeText = `Cod: ${equipmentCode}`
+  const calculateValueFontSizes = (clientName: string, locationName: string, equipmentCode: string) => {
+    // Calculăm lungimea DOAR pentru valorile efective (fără prefixe)
+    const clientValueLength = clientName.length
+    const locationValueLength = locationName.length
+    const codeValueLength = equipmentCode.length
     
     // Funcție helper pentru calcularea font-size-ului bazat pe lungime
     const getFontSizeForLength = (length: number): number => {
@@ -95,33 +96,33 @@ export function EquipmentQRCode({
       return 4                        // Minimum absolut pentru texte extreme
     }
     
-    // Calculăm font-size individual pentru fiecare linie
-    const clientFontSize = getFontSizeForLength(clientText.length)
-    const locationFontSize = getFontSizeForLength(locationText.length)
-    const codeFontSize = getFontSizeForLength(codeText.length)
+    // Calculăm font-size DOAR pentru valorile de după ":"
+    const clientValueFontSize = getFontSizeForLength(clientValueLength)
+    const locationValueFontSize = getFontSizeForLength(locationValueLength)
+    const codeValueFontSize = getFontSizeForLength(codeValueLength)
     
-    console.log("📏 Analiză INDIVIDUALĂ lungime text pentru QR print:", {
-      clientText: `"${clientText}" (${clientText.length} chars) → ${clientFontSize}pt`,
-      locationText: `"${locationText}" (${locationText.length} chars) → ${locationFontSize}pt`,
-      codeText: `"${codeText}" (${codeText.length} chars) → ${codeFontSize}pt`
+    console.log("📏 Analiză font-size pentru VALORILE de după ':' (prefixele rămân 8pt):", {
+      clientValue: `"${clientName}" (${clientValueLength} chars) → ${clientValueFontSize}pt`,
+      locationValue: `"${locationName}" (${locationValueLength} chars) → ${locationValueFontSize}pt`,
+      codeValue: `"${equipmentCode}" (${codeValueLength} chars) → ${codeValueFontSize}pt`
     })
     
-    // Debugging pentru textele problematice
+    // Debugging pentru valorile problematice
     const debugItems = [
-      { name: "Client", text: clientText, fontSize: clientFontSize },
-      { name: "Locație", text: locationText, fontSize: locationFontSize },
-      { name: "Cod", text: codeText, fontSize: codeFontSize }
+      { name: "Client value", text: clientName, length: clientValueLength, fontSize: clientValueFontSize },
+      { name: "Locație value", text: locationName, length: locationValueLength, fontSize: locationValueFontSize },
+      { name: "Cod value", text: equipmentCode, length: codeValueLength, fontSize: codeValueFontSize }
     ]
-    debugItems.forEach((item: { name: string; text: string; fontSize: number }) => {
-      if (item.text.length > 45) {
-        console.log(`🚨 ${item.name.toUpperCase()} FOARTE LUNG: ${item.text.length} chars → Font: ${item.fontSize}pt`)
+    debugItems.forEach((item: { name: string; text: string; length: number; fontSize: number }) => {
+      if (item.length > 40) {
+        console.log(`🚨 ${item.name.toUpperCase()} FOARTE LUNG: "${item.text}" (${item.length} chars) → Font: ${item.fontSize}pt`)
       }
     })
     
     return {
-      clientFontSize,
-      locationFontSize,
-      codeFontSize
+      clientValueFontSize,
+      locationValueFontSize,
+      codeValueFontSize
     }
   }
 
@@ -143,13 +144,13 @@ export function EquipmentQRCode({
     svgClone.setAttribute("width", "100")
     svgClone.setAttribute("height", "100")
 
-    // Calculăm font-size-uri individuale pentru textele echipamentului
-    const fontSizes = calculateIndividualFontSizes(clientName, locationName, equipment.cod)
+    // Calculăm font-size-uri pentru valorile de după ":"
+    const fontSizes = calculateValueFontSizes(clientName, locationName, equipment.cod)
 
-    console.log("🖨️ Generez QR print cu font-size-uri individuale:", {
-      client: fontSizes.clientFontSize + "pt",
-      location: fontSizes.locationFontSize + "pt", 
-      code: fontSizes.codeFontSize + "pt"
+    console.log("🖨️ Generez QR print cu font-size-uri pentru valorile de după ':':", {
+      clientValue: fontSizes.clientValueFontSize + "pt",
+      locationValue: fontSizes.locationValueFontSize + "pt", 
+      codeValue: fontSizes.codeValueFontSize + "pt"
     })
 
     // Generăm HTML-ul cu noul logo
@@ -262,9 +263,15 @@ export function EquipmentQRCode({
     <div class="content">
       <div class="qr-code">${svgClone.outerHTML}</div>
       <div class="equipment-info">
-        <p style="font-size: ${fontSizes.clientFontSize}pt; margin: ${fontSizes.clientFontSize <= 5 ? '0.5mm' : '1mm'} 0; line-height: ${fontSizes.clientFontSize <= 5 ? '1.1' : '1.2'};">Client: ${clientName}</p>
-        <p style="font-size: ${fontSizes.locationFontSize}pt; margin: ${fontSizes.locationFontSize <= 5 ? '0.5mm' : '1mm'} 0; line-height: ${fontSizes.locationFontSize <= 5 ? '1.1' : '1.2'};">Locație: ${locationName}</p>
-        <p style="font-size: ${fontSizes.codeFontSize}pt; margin: ${fontSizes.codeFontSize <= 5 ? '0.5mm' : '1mm'} 0; line-height: ${fontSizes.codeFontSize <= 5 ? '1.1' : '1.2'};">Cod: ${equipment.cod}</p>
+        <p style="margin: ${fontSizes.clientValueFontSize <= 5 ? '0.5mm' : '1mm'} 0; line-height: ${fontSizes.clientValueFontSize <= 5 ? '1.1' : '1.2'};">
+          <span style="font-size: 8pt;">Client: </span><span style="font-size: ${fontSizes.clientValueFontSize}pt;">${clientName}</span>
+        </p>
+        <p style="margin: ${fontSizes.locationValueFontSize <= 5 ? '0.5mm' : '1mm'} 0; line-height: ${fontSizes.locationValueFontSize <= 5 ? '1.1' : '1.2'};">
+          <span style="font-size: 8pt;">Locație: </span><span style="font-size: ${fontSizes.locationValueFontSize}pt;">${locationName}</span>
+        </p>
+        <p style="margin: ${fontSizes.codeValueFontSize <= 5 ? '0.5mm' : '1mm'} 0; line-height: ${fontSizes.codeValueFontSize <= 5 ? '1.1' : '1.2'};">
+          <span style="font-size: 8pt;">Cod: </span><span style="font-size: ${fontSizes.codeValueFontSize}pt;">${equipment.cod}</span>
+        </p>
       </div>
     </div>
     <button class="no-print" onclick="window.print()" style="margin-top:1mm;padding:1mm 2mm;font-size:7pt;">Printează</button>
