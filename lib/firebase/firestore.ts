@@ -133,6 +133,7 @@ export interface Lucrare {
     uploadedAt: string  // Data încărcării
     uploadedBy: string  // Cine a încărcat
     numarOferta: string  // Numărul ofertei (editabil)
+    dataOferta: string   // Data ofertei (editabil)
   }
   // CÂMPURI NOI PENTRU IMAGINI DEFECTE - BACKWARD COMPATIBLE
   imaginiDefecte?: Array<{

@@ -766,7 +766,7 @@ FOM by NRG`,
                         }
                         return 'data necunoscută';
                       })()}</strong> de către tehnician. 
-                      Puteți descărca PDF-ul cu datele finale înghețate.
+                      Puteți descărca PDF-ul.
                     </p>
                   </div>
                 </div>
