@@ -71,55 +71,58 @@ export function EquipmentQRCode({
   // Modificăm funcția handlePrint pentru a include noul logo
 
   /**
-   * Calculează font-size-ul optim pentru textele echipamentului în funcție de lungimea conținutului
-   * pentru a preveni împingerea QR code-ului pe a doua pagină la printare.
+   * Calculează font-size-uri individuale pentru fiecare linie de text în funcție de lungimea specifică.
+   * Doar textele care sunt efectiv lungi vor avea font-size mic, restul rămân normale.
    * 
    * ⚠️ IMPORTANT: Această modificare afectează DOAR printarea QR code-ului, 
    * NU afectează afișarea în dialog sau în alte părți ale aplicației!
    * 
    * QR code-ul rămâne la aceeași dimensiune (100x100px).
    */
-  const calculateOptimalFontSize = (clientName: string, locationName: string, equipmentCode: string): number => {
+  const calculateIndividualFontSizes = (clientName: string, locationName: string, equipmentCode: string) => {
     // Calculăm lungimea textului pentru fiecare linie (inclusiv prefixe)
     const clientText = `Client: ${clientName}`
     const locationText = `Locație: ${locationName}`
     const codeText = `Cod: ${equipmentCode}`
     
-    // Lungimea maximă dintre cele 3 linii (factorul limitant pentru încadrarea în pagină)
-    const maxLineLength = Math.max(clientText.length, locationText.length, codeText.length)
+    // Funcție helper pentru calcularea font-size-ului bazat pe lungime
+    const getFontSizeForLength = (length: number): number => {
+      if (length <= 15) return 8      // Font-size normal pentru texte scurte
+      if (length <= 22) return 7      // Redus pentru texte medii
+      if (length <= 30) return 6      // Redus semnificativ pentru texte lungi
+      if (length <= 40) return 5      // Foarte redus pentru texte foarte lungi
+      if (length <= 50) return 4.5    // Extrem de redus pentru texte exceptionale
+      return 4                        // Minimum absolut pentru texte extreme
+    }
     
-    console.log("📏 Analiză lungime text pentru QR print:", {
-      clientText: `"${clientText}" (${clientText.length} chars)`,
-      locationText: `"${locationText}" (${locationText.length} chars)`,
-      codeText: `"${codeText}" (${codeText.length} chars)`,
-      maxLineLength: maxLineLength
+    // Calculăm font-size individual pentru fiecare linie
+    const clientFontSize = getFontSizeForLength(clientText.length)
+    const locationFontSize = getFontSizeForLength(locationText.length)
+    const codeFontSize = getFontSizeForLength(codeText.length)
+    
+    console.log("📏 Analiză INDIVIDUALĂ lungime text pentru QR print:", {
+      clientText: `"${clientText}" (${clientText.length} chars) → ${clientFontSize}pt`,
+      locationText: `"${locationText}" (${locationText.length} chars) → ${locationFontSize}pt`,
+      codeText: `"${codeText}" (${codeText.length} chars) → ${codeFontSize}pt`
     })
     
-    // Algoritmul de dimensionare AGRESIVĂ (în puncte tipografice):
-    // Scădem font-size-ul mai devreme pentru a forța încadrarea în maxim 2 rânduri
-    let fontSize: number
-    if (maxLineLength <= 15) {
-      fontSize = 8    // Font-size normal pentru texte foarte scurte
-    } else if (maxLineLength <= 22) {
-      fontSize = 7    // Redus pentru texte medii
-    } else if (maxLineLength <= 30) {
-      fontSize = 6    // Redus semnificativ pentru texte lungi
-    } else if (maxLineLength <= 40) {
-      fontSize = 5    // Foarte redus pentru texte foarte lungi
-    } else if (maxLineLength <= 50) {
-      fontSize = 4.5  // Extrem de redus pentru texte exceptionale
-    } else {
-      fontSize = 4    // Minimum absolut pentru texte extreme (ex: "CHROM CONSTRUCTII...")
-    }
+    // Debugging pentru textele problematice
+    const debugItems = [
+      { name: "Client", text: clientText, fontSize: clientFontSize },
+      { name: "Locație", text: locationText, fontSize: locationFontSize },
+      { name: "Cod", text: codeText, fontSize: codeFontSize }
+    ]
+    debugItems.forEach((item: { name: string; text: string; fontSize: number }) => {
+      if (item.text.length > 45) {
+        console.log(`🚨 ${item.name.toUpperCase()} FOARTE LUNG: ${item.text.length} chars → Font: ${item.fontSize}pt`)
+      }
+    })
     
-    console.log(`📏 Font-size calculat: ${fontSize}pt pentru linia cea mai lungă: ${maxLineLength} caractere`)
-    
-    // Debugging specific pentru textele problematice
-    if (maxLineLength > 45) {
-      console.log(`🚨 TEXT FOARTE LUNG DETECTAT: ${maxLineLength} caractere → Font-size extrem de redus: ${fontSize}pt`)
-      console.log(`🚨 Ar trebui să se încadreze în maxim 2 rânduri la printare`)
+    return {
+      clientFontSize,
+      locationFontSize,
+      codeFontSize
     }
-    return fontSize
   }
 
   const handlePrint = () => {
@@ -140,10 +143,14 @@ export function EquipmentQRCode({
     svgClone.setAttribute("width", "100")
     svgClone.setAttribute("height", "100")
 
-    // Calculăm font-size-ul optim pentru textele echipamentului
-    const optimalFontSize = calculateOptimalFontSize(clientName, locationName, equipment.cod)
+    // Calculăm font-size-uri individuale pentru textele echipamentului
+    const fontSizes = calculateIndividualFontSizes(clientName, locationName, equipment.cod)
 
-    console.log("🖨️ Generez QR print cu font-size dinamic:", optimalFontSize + "pt")
+    console.log("🖨️ Generez QR print cu font-size-uri individuale:", {
+      client: fontSizes.clientFontSize + "pt",
+      location: fontSizes.locationFontSize + "pt", 
+      code: fontSizes.codeFontSize + "pt"
+    })
 
     // Generăm HTML-ul cu noul logo
     const logoHtml = logoUrl
@@ -231,12 +238,9 @@ export function EquipmentQRCode({
         display: flex;
         flex-direction: column;
         justify-content: center;
-        font-size: ${optimalFontSize}pt;
         font-weight: bold;
       }
       .equipment-info p {
-        margin: ${optimalFontSize <= 5 ? '0.5mm' : '1mm'} 0;
-        line-height: ${optimalFontSize <= 5 ? '1.1' : '1.2'};
         word-wrap: break-word;
         overflow-wrap: break-word;
       }
@@ -258,9 +262,9 @@ export function EquipmentQRCode({
     <div class="content">
       <div class="qr-code">${svgClone.outerHTML}</div>
       <div class="equipment-info">
-        <p>Client: ${clientName}</p>
-        <p>Locație: ${locationName}</p>
-        <p>Cod: ${equipment.cod}</p>
+        <p style="font-size: ${fontSizes.clientFontSize}pt; margin: ${fontSizes.clientFontSize <= 5 ? '0.5mm' : '1mm'} 0; line-height: ${fontSizes.clientFontSize <= 5 ? '1.1' : '1.2'};">Client: ${clientName}</p>
+        <p style="font-size: ${fontSizes.locationFontSize}pt; margin: ${fontSizes.locationFontSize <= 5 ? '0.5mm' : '1mm'} 0; line-height: ${fontSizes.locationFontSize <= 5 ? '1.1' : '1.2'};">Locație: ${locationName}</p>
+        <p style="font-size: ${fontSizes.codeFontSize}pt; margin: ${fontSizes.codeFontSize <= 5 ? '0.5mm' : '1mm'} 0; line-height: ${fontSizes.codeFontSize <= 5 ? '1.1' : '1.2'};">Cod: ${equipment.cod}</p>
       </div>
     </div>
     <button class="no-print" onclick="window.print()" style="margin-top:1mm;padding:1mm 2mm;font-size:7pt;">Printează</button>
