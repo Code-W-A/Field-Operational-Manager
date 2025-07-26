@@ -28,21 +28,25 @@ export function WorkNotificationsBell({ className }: WorkNotificationsBellProps)
           variant="ghost" 
           size="sm" 
           className={cn(
-            "relative",
+            "relative p-2",
             hasUnreadNotifications && "text-red-600 hover:text-red-700"
           )}
           onClick={() => setIsDialogOpen(true)}
           disabled={loading && !isDialogOpen} // Disable doar dacă se încarcă pentru prima dată
         >
           <Bell className={cn(
-            "h-5 w-5 transition-colors",
-            hasUnreadNotifications ? "text-red-600" : "text-gray-600",
+            "h-6 w-6 transition-all duration-300",
+            hasUnreadNotifications ? "text-red-600 animate-[pulse_2s_ease-in-out_infinite]" : "text-gray-600",
             loading && !isDialogOpen && "animate-pulse" // Animație când se încarcă
           )} />
           {hasUnreadNotifications && (
             <Badge
               variant="destructive"
-              className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs font-bold min-w-[20px] animate-pulse"
+              className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0 flex items-center justify-center text-xs font-bold animate-pulse border-2 border-white shadow-lg"
+              style={{
+                minWidth: unreadCount > 9 ? '24px' : '24px',
+                fontSize: unreadCount > 99 ? '10px' : '12px'
+              }}
             >
               {unreadCount > 99 ? '99+' : unreadCount}
             </Badge>

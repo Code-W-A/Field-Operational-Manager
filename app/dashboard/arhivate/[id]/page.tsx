@@ -40,6 +40,7 @@ import { getLucrareById, updateLucrare, getClientById, type Lucrare, type Client
 import { toast } from "@/components/ui/use-toast"
 import { WORK_STATUS } from "@/lib/utils/constants"
 import { formatDate } from "@/lib/utils/date-formatter"
+import { formatDate as formatISODate, formatTime, formatDateTime } from "@/lib/utils/time-format"
 import { getWorkStatusClass } from "@/lib/utils/status-classes"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { DocumentUpload } from "@/components/document-upload"
@@ -333,7 +334,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                       <label className="text-sm font-medium text-gray-500">Echipament Verificat</label>
                       <p className="text-sm flex items-center gap-1">
                         <CheckCircle className="h-4 w-4 text-green-500" />
-                        {lucrare.equipmentVerifiedAt ? formatDate(lucrare.equipmentVerifiedAt) : "DA"}
+                        {lucrare.equipmentVerifiedAt ? formatDateTime(lucrare.equipmentVerifiedAt) : "DA"}
                       </p>
                       {lucrare.equipmentVerifiedBy && (
                         <p className="text-xs text-gray-500">de către {lucrare.equipmentVerifiedBy}</p>
@@ -541,7 +542,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                   </div>
 
                   <div className="space-y-3">
-                    {/* Informații garanție */}
+                    {/* Informații garanție cu calculul detaliat */}
                     {warrantyInfo && (
                       <>
                         <div>
@@ -551,25 +552,71 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                             {warrantyInfo.statusText}
                           </Badge>
                         </div>
-                        {warrantyInfo.warrantyExpires && (
-                          <div>
-                            <label className="text-sm font-medium text-gray-500">Garanție Expiră</label>
-                            <p className="text-sm">{warrantyInfo.warrantyExpires}</p>
+
+                        {/* Calculul automat detaliat al garanției */}
+                        <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-md border">
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className="h-4 w-4 rounded-full bg-blue-500 flex items-center justify-center">
+                              <span className="text-white text-xs font-bold">G</span>
+                            </div>
+                            <h5 className="text-sm font-medium text-blue-900">Calculul automat al garanției</h5>
                           </div>
-                        )}
-                        {warrantyInfo.warrantyMessage && (
-                          <div>
-                            <label className="text-sm font-medium text-gray-500">Detalii Garanție</label>
-                            <p className="text-sm">{warrantyInfo.warrantyMessage}</p>
+
+                          <div className="p-3 bg-white rounded-md border mb-2">
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <span className="text-gray-600">Status:</span>
+                                <Badge className={warrantyInfo.statusBadgeClass + " ml-1"}>
+                                  {warrantyInfo.statusText}
+                                </Badge>
+                              </div>
+                              <div>
+                                <span className="text-gray-600">Zile rămase:</span>
+                                <span className={`ml-1 font-medium ${warrantyInfo.isInWarranty ? 'text-green-600' : 'text-red-600'}`}>
+                                  {warrantyInfo.isInWarranty ? warrantyInfo.daysRemaining : 0} zile
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-gray-600">Data instalării:</span>
+                                <span className="ml-1">{warrantyInfo.installationDate || "Nedefinită"}</span>
+                              </div>
+                              <div>
+                                <span className="text-gray-600">Expiră la:</span>
+                                <span className="ml-1">{warrantyInfo.warrantyExpires || "Nedefinită"}</span>
+                              </div>
+                            </div>
+                            <p className="text-xs text-gray-600 mt-2">{warrantyInfo.warrantyMessage}</p>
                           </div>
-                        )}
+                        </div>
                       </>
                     )}
 
-                    {/* Verificări garanție de către tehnician */}
+                    {/* Confirmarea tehnicianului la fața locului */}
+                    {lucrare.tehnicianConfirmaGarantie !== undefined && (
+                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-medium text-sm text-yellow-800">
+                            Confirmarea tehnicianului la fața locului:
+                          </span>
+                          <Badge 
+                            className={lucrare.tehnicianConfirmaGarantie 
+                              ? "bg-green-100 text-green-800 border-green-200" 
+                              : "bg-red-100 text-red-800 border-red-200"
+                            }
+                          >
+                            {lucrare.tehnicianConfirmaGarantie ? "✓ Confirmă garanția" : "✗ Nu confirmă garanția"}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-yellow-700 mt-1">
+                          Tehnicianul a verificat fizic echipamentul și a {lucrare.tehnicianConfirmaGarantie ? 'confirmat' : 'infirmat'} că este în garanție.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Verificări garanție de către tehnician (câmpuri vechi pentru compatibilitate) */}
                     {lucrare.garantieVerificata !== undefined && (
                       <div>
-                        <label className="text-sm font-medium text-gray-500">Garanție Verificată</label>
+                        <label className="text-sm font-medium text-gray-500">Garanție Verificată (vechi)</label>
                         <Badge variant={lucrare.garantieVerificata ? "default" : "secondary"}>
                           {lucrare.garantieVerificata ? "DA" : "NU"}
                         </Badge>
@@ -577,7 +624,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                     )}
                     {lucrare.esteInGarantie !== undefined && (
                       <div>
-                        <label className="text-sm font-medium text-gray-500">Tehnician Confirmă Garanție</label>
+                        <label className="text-sm font-medium text-gray-500">Tehnician Confirmă Garanție (vechi)</label>
                         <Badge variant={lucrare.esteInGarantie ? "default" : "destructive"}>
                           {lucrare.esteInGarantie ? "ÎN GARANȚIE" : "GARANȚIE EXPIRATĂ"}
                         </Badge>
@@ -677,7 +724,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Timer className="h-5 w-5" />
-                  Timpi și Durate
+                  Timpi de Sosire și Plecare
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -701,12 +748,12 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                         </p>
                       </div>
                     )}
-                    {lucrare.timpSosire && (
+                    {/* {lucrare.timpSosire && (
                       <div>
                         <label className="text-sm font-medium text-gray-500">Timp Sosire</label>
                         <p className="text-sm">{lucrare.timpSosire}</p>
                       </div>
-                    )}
+                    )} */}
                   </div>
 
                   <div className="space-y-3">
@@ -728,12 +775,12 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                         </p>
                       </div>
                     )}
-                    {lucrare.timpPlecare && (
+                    {/* {lucrare.timpPlecare && (
                       <div>
                         <label className="text-sm font-medium text-gray-500">Timp Plecare</label>
                         <p className="text-sm">{lucrare.timpPlecare}</p>
                       </div>
-                    )}
+                    )} */}
                     {lucrare.durataInterventie && (
                       <div>
                         <label className="text-sm font-medium text-gray-500">Durata Intervenție</label>
@@ -904,31 +951,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
             </Card>
           )}
 
-          {/* Facturi și numere */}
-          {(lucrare.numarFactura || lucrare.numarRaport) && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5" />
-                  Facturi și Numere
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {lucrare.numarFactura && (
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Număr Factură</label>
-                    <p className="text-sm font-mono">{lucrare.numarFactura}</p>
-                  </div>
-                )}
-                {lucrare.numarRaport && (
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Număr Raport</label>
-                    <p className="text-sm font-mono">{lucrare.numarRaport}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+    
 
           {/* Reatribuire și istoric */}
           {(lucrare.lucrareOriginala || lucrare.mesajReatribuire) && (
@@ -995,56 +1018,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
             </Card>
           )}
 
-          {/* Snapshot raport (dacă există) */}
-          {lucrare.raportSnapshot && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Info className="h-5 w-5" />
-                  Snapshot Raport (Prima Generare)
-                </CardTitle>
-                <CardDescription>
-                  Datele blocate la prima generare a raportului pe {formatDate(lucrare.raportSnapshot.dataGenerare)}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <div className="text-sm">
-                      <span className="text-gray-500">Data plecare:</span> {lucrare.raportSnapshot.dataPlecare}
-                    </div>
-                    <div className="text-sm">
-                      <span className="text-gray-500">Ora plecare:</span> {lucrare.raportSnapshot.oraPlecare}
-                    </div>
-                    <div className="text-sm">
-                      <span className="text-gray-500">Durata:</span> {lucrare.raportSnapshot.durataInterventie}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="text-sm">
-                      <span className="text-gray-500">Tehnician:</span> {lucrare.raportSnapshot.numeTehnician}
-                    </div>
-                    <div className="text-sm">
-                      <span className="text-gray-500">Beneficiar:</span> {lucrare.raportSnapshot.numeBeneficiar}
-                    </div>
-                  </div>
-                </div>
-                {lucrare.raportSnapshot.products && lucrare.raportSnapshot.products.length > 0 && (
-                  <div>
-                    <p className="text-sm font-medium text-gray-500 mb-2">Produse la momentul generării:</p>
-                    <div className="text-sm space-y-1">
-                      {lucrare.raportSnapshot.products.map((product, idx) => (
-                        <div key={idx} className="bg-gray-50 p-2 rounded">
-                          {product.name} - {product.quantity} {product.um} × {product.price} lei
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
+   
           {/* Informații raport */}
           {lucrare.raportGenerat && (
             <Card>
@@ -1100,7 +1074,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                 <div className="space-y-2">
                   {lucrare.createdAt && (
                     <div className="text-sm">
-                      <span className="text-gray-500">Creată la:</span> {formatDate(lucrare.createdAt.toDate().toISOString())}
+                      <span className="text-gray-500">Creată la:</span> {formatDateTime(lucrare.createdAt.toDate().toISOString())}
                     </div>
                   )}
                   {lucrare.createdBy && (
@@ -1112,7 +1086,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                 <div className="space-y-2">
                   {lucrare.updatedAt && (
                     <div className="text-sm">
-                      <span className="text-gray-500">Actualizată la:</span> {formatDate(lucrare.updatedAt.toDate().toISOString())}
+                      <span className="text-gray-500">Actualizată la:</span> {formatDateTime(lucrare.updatedAt.toDate().toISOString())}
                     </div>
                   )}
                   {lucrare.updatedBy && (

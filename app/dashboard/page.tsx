@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
+import { WorkNotificationsBell } from "@/components/work-notifications-bell"
 import { ClipboardList, Users, Settings, FileText, BarChart, Loader2 } from "lucide-react"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { where, Timestamp } from "firebase/firestore"
@@ -210,7 +211,11 @@ export default function Dashboard() {
 
   return (
     <DashboardShell>
-      <DashboardHeader heading="Dashboard" text="Bine ați venit în sistemul de management al lucrărilor" />
+      <DashboardHeader 
+        heading="Dashboard" 
+        text="Bine ați venit în sistemul de management al lucrărilor"
+        headerAction={<WorkNotificationsBell />}
+      />
 
       {isLoading ? (
         <div className="flex justify-center items-center py-12">

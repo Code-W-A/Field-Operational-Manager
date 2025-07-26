@@ -2040,7 +2040,7 @@ export default function Lucrari() {
         <DashboardHeader 
           heading="Lucrări" 
           text="Gestionați toate lucrările și intervențiile"
-          headerAction={<LucrariNotificationsBell lucrari={rawLucrari || []} />}
+          headerAction={!isTechnician ? <LucrariNotificationsBell lucrari={rawLucrari || []} /> : undefined}
         >
         {!isTechnician && (
           <Dialog
