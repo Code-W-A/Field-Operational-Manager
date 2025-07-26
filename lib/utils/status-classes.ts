@@ -23,6 +23,8 @@ export function getWorkStatusClass(status: string): string {
       return "bg-teal-100 text-teal-800 border-teal-200"
     case "Ofertă respinsă":
       return "bg-rose-100 text-rose-800 border-rose-200"
+    case "Amânată":
+      return "bg-violet-100 text-violet-800 border-violet-200"
     default:
       return "bg-gray-100 text-gray-800 border-gray-200"
   }

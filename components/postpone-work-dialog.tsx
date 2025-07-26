@@ -108,7 +108,6 @@ export function PostponeWorkDialog({ lucrareId, onSuccess, className }: Postpone
           </DialogTitle>
           <DialogDescription>
             Lucrarea va fi amânată și va dispărea din lista ta de lucrări. 
-            Dispecerul sau administratorul vor vedea motivul amânării.
           </DialogDescription>
         </DialogHeader>
 
@@ -127,7 +126,7 @@ export function PostponeWorkDialog({ lucrareId, onSuccess, className }: Postpone
             </Label>
             <Textarea
               id="motiv-amanare"
-              placeholder="Descrie motivul pentru care amâni această lucrare (ex: echipamente necesare indisponibile, acces restricționat, probleme tehnice, etc.)"
+              placeholder="Descrie motivul pentru care amâni această lucrare"
               value={motiv}
               onChange={(e) => setMotiv(e.target.value)}
               className="min-h-[100px] resize-none"

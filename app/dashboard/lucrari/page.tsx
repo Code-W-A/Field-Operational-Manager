@@ -1179,10 +1179,10 @@ export default function Lucrari() {
         return
       }
 
-      // Verificăm dacă statusul curent este "Listată" sau "Atribuită"
-      // Doar în acest caz actualizăm automat statusul
+      // Verificăm dacă statusul curent permite actualizarea automată
+      // Pentru statusurile "Listată", "Atribuită" sau "Amânată", actualizăm automat statusul
       let statusLucrare = formData.statusLucrare
-      if (statusLucrare === "Listată" || statusLucrare === "Atribuită") {
+      if (statusLucrare === "Listată" || statusLucrare === "Atribuită" || statusLucrare === "Amânată") {
         statusLucrare = formData.tehnicieni && formData.tehnicieni.length > 0 ? "Atribuită" : "Listată"
       }
 
@@ -2167,6 +2167,10 @@ export default function Lucrari() {
           <div className="flex items-center">
             <div className="w-4 h-4 mr-1 bg-orange-50 border border-orange-200 rounded"></div>
             <span className="text-xs">În așteptare</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-4 h-4 mr-1 bg-violet-50 border border-violet-200 rounded"></div>
+            <span className="text-xs">Amânată</span>
           </div>
         </div>
       </div>

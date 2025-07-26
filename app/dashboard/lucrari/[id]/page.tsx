@@ -581,7 +581,10 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           <Button variant="outline" onClick={() => router.push("/dashboard/lucrari")}>
             <ChevronLeft className="mr-2 h-4 w-4" /> Înapoi
           </Button>
-          <Button onClick={handleGenerateReport}>
+          <Button 
+            onClick={handleGenerateReport}
+            disabled={role === "tehnician" && !equipmentVerified}
+          >
             <FileText className="mr-2 h-4 w-4" /> Generează raport
           </Button>
 
@@ -1632,14 +1635,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       </AlertDescription>
                     </Alert>
                     
-                    {/* Secțiune informativă despre amânare */}
-                    <Alert className="bg-blue-50 border-blue-200">
-                      <Clock className="h-4 w-4 text-blue-500" />
-                      <AlertDescription className="text-blue-700">
-                        <strong>Nu puteți continua cu lucrarea?</strong> Dacă întâmpinați probleme cu echipamentul, 
-                        accesul la locație, sau alte impedimente, puteți amâna lucrarea folosind butonul din colțul din dreapta sus.
-                      </AlertDescription>
-                    </Alert>
+                   
                   </>
                 )}
 

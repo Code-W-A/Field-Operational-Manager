@@ -187,9 +187,17 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
       // Păstrăm dataEmiterii originală, nu permitem modificarea ei
       const originalEmiterii = initialData?.dataEmiterii || new Date().toISOString()
 
+      // Verificăm dacă statusul curent permite actualizarea automată
+      // Pentru statusurile "Listată", "Atribuită" sau "Amânată", actualizăm automat statusul
+      let statusLucrare = data.statusLucrare
+      if (statusLucrare === "Listată" || statusLucrare === "Atribuită" || statusLucrare === "Amânată") {
+        statusLucrare = data.tehnicieni && data.tehnicieni.length > 0 ? "Atribuită" : "Listată"
+      }
+
       // Actualizăm lucrarea în Firestore
       await updateLucrare(id, {
         ...data,
+        statusLucrare: statusLucrare, // Folosim statusul calculat
         // Forțăm păstrarea datei emiterii originale
         dataEmiterii: originalEmiterii,
         updatedAt: serverTimestamp(),
