@@ -26,6 +26,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { collection, query, where, orderBy, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase/firebase"
 import { formatDate } from "@/lib/utils/date-formatter"
+import { formatDateTime } from "@/lib/utils/time-format"
 import { getWorkStatusClass } from "@/lib/utils/status-classes"
 import { WORK_STATUS } from "@/lib/utils/constants"
 import { updateLucrare, type Lucrare } from "@/lib/firebase/firestore"
@@ -53,7 +54,7 @@ export default function LucrariArhivate() {
   // State pentru filtre și sortări
   const [activeFilters, setActiveFilters] = useState<any[]>([])
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
-  const [tableSorting, setTableSorting] = useState([{ id: "updatedAt", desc: true }])
+  const [tableSorting, setTableSorting] = useState([{ id: "archivedAt", desc: true }])
   const [table, setTable] = useState<any>(null)
 
   // State pentru date filtrate
@@ -73,6 +74,9 @@ export default function LucrariArhivate() {
     }
     if (savedSettings.sorting) {
       setTableSorting(savedSettings.sorting)
+    } else {
+      // Dacă nu există sortare salvată, setăm default pe data arhivării
+      setTableSorting([{ id: "archivedAt", desc: true }])
     }
     if (savedSettings.searchText) {
       setSearchTerm(savedSettings.searchText)
@@ -90,10 +94,11 @@ export default function LucrariArhivate() {
     setError(null)
 
     try {
+      // Pentru compatibility cu lucrările arhivate înainte de implementarea câmpului archivedAt,
+      // încărcăm toate lucrările arhivate și le sortăm în memorie
       const lucrarireQuery = query(
         collection(db, "lucrari"),
-        where("statusLucrare", "==", WORK_STATUS.ARCHIVED),
-        orderBy("updatedAt", "desc")
+        where("statusLucrare", "==", WORK_STATUS.ARCHIVED)
       )
 
       const querySnapshot = await getDocs(lucrarireQuery)
@@ -101,6 +106,15 @@ export default function LucrariArhivate() {
         id: doc.id,
         ...doc.data()
       })) as Lucrare[]
+
+      // Sortăm lucrările după data arhivării (archivedAt), cu fallback pe updatedAt pentru compatibilitate
+      lucrari.sort((a, b) => {
+        const dateA = a.archivedAt ? (a.archivedAt.toDate?.() || new Date(a.archivedAt as any)) : 
+                      (a.updatedAt ? (a.updatedAt.toDate?.() || new Date(a.updatedAt as any)) : new Date(0))
+        const dateB = b.archivedAt ? (b.archivedAt.toDate?.() || new Date(b.archivedAt as any)) : 
+                      (b.updatedAt ? (b.updatedAt.toDate?.() || new Date(b.updatedAt as any)) : new Date(0))
+        return dateB.getTime() - dateA.getTime() // DESC: cele mai recente primul
+      })
 
       setLucrariArhivate(lucrari)
     } catch (error) {
@@ -179,6 +193,12 @@ export default function LucrariArhivate() {
        {
          id: "dataInterventie",
          label: "Data intervenție",
+         type: "dateRange" as const,
+         value: null,
+       },
+       {
+         id: "archivedAt",
+         label: "Data arhivării",
          type: "dateRange" as const,
          value: null,
        },
@@ -261,6 +281,15 @@ export default function LucrariArhivate() {
             case "dataInterventie":
               if (filter.value?.start && filter.value?.end) {
                 const itemDate = new Date((item as any)[filter.id])
+                const startDate = new Date(filter.value.start)
+                const endDate = new Date(filter.value.end)
+                return itemDate >= startDate && itemDate <= endDate
+              }
+              return true
+
+            case "archivedAt":
+              if (filter.value?.start && filter.value?.end) {
+                const itemDate = item.archivedAt ? (item.archivedAt.toDate?.() || new Date(item.archivedAt as any)) : new Date(0)
                 const startDate = new Date(filter.value.start)
                 const endDate = new Date(filter.value.end)
                 return itemDate >= startDate && itemDate <= endDate
@@ -359,7 +388,12 @@ export default function LucrariArhivate() {
   // Funcție pentru dezarhivare
   const handleDezarhivare = async (lucrareId: string) => {
     try {
-      await updateLucrare(lucrareId, { statusLucrare: WORK_STATUS.COMPLETED })
+      // Eliminăm statusul de arhivare și câmpurile asociate
+      await updateLucrare(lucrareId, { 
+        statusLucrare: WORK_STATUS.COMPLETED,
+        archivedAt: null as any, // Eliminăm data arhivării
+        archivedBy: null as any  // Eliminăm utilizatorul care a arhivat
+      })
       toast({
         title: "Succes",
         description: "Lucrarea a fost dezarhivată cu succes.",
@@ -460,6 +494,48 @@ export default function LucrariArhivate() {
       cell: ({ row }: { row: any }) => (
         <Badge variant="outline">{row.original.statusFacturare}</Badge>
       ),
+    },
+    {
+      accessorKey: "archivedAt",
+      header: "Data Arhivării",
+      enableSorting: true,
+      enableHiding: true,
+      cell: ({ row }: { row: any }) => (
+        <div className="text-sm">
+          {row.original.archivedAt ? (
+            <div>
+              <div className="font-medium">
+                {formatDateTime(row.original.archivedAt.toDate?.() || row.original.archivedAt)}
+              </div>
+              {row.original.archivedBy && (
+                <div className="text-xs text-gray-500">
+                  de către {row.original.archivedBy}
+                </div>
+              )}
+            </div>
+          ) : row.original.updatedAt ? (
+            <div>
+              <div className="font-medium text-gray-600">
+                {formatDateTime(row.original.updatedAt.toDate?.() || row.original.updatedAt)}
+              </div>
+              <div className="text-xs text-gray-400">
+                (data arhivării indisponibilă)
+              </div>
+            </div>
+          ) : (
+            <span className="text-gray-400">N/A</span>
+          )}
+        </div>
+      ),
+      sortingFn: (rowA: any, rowB: any) => {
+        const dateA = rowA.original.archivedAt ? 
+          (rowA.original.archivedAt.toDate?.() || new Date(rowA.original.archivedAt as any)) :
+          (rowA.original.updatedAt ? (rowA.original.updatedAt.toDate?.() || new Date(rowA.original.updatedAt as any)) : new Date(0))
+        const dateB = rowB.original.archivedAt ? 
+          (rowB.original.archivedAt.toDate?.() || new Date(rowB.original.archivedAt as any)) :
+          (rowB.original.updatedAt ? (rowB.original.updatedAt.toDate?.() || new Date(rowB.original.updatedAt as any)) : new Date(0))
+        return dateA.getTime() - dateB.getTime()
+      },
     },
     {
       id: "actions",

@@ -148,6 +148,9 @@ export interface Lucrare {
   motivAmanare?: string    // Motivul pentru care lucrarea a fost amânată
   dataAmanare?: string     // Data când lucrarea a fost amânată
   amanataDe?: string       // Cine a amânat lucrarea (tehnicianul)
+  // CÂMPURI NOI PENTRU ARHIVAREA LUCRĂRII - BACKWARD COMPATIBLE
+  archivedAt?: Timestamp   // Data și ora când lucrarea a fost arhivată
+  archivedBy?: string      // Cine a arhivat lucrarea (admin/dispecer)
   // CÂMPURI NOI PENTRU MOTIVELE REINTERVENȚIEI - BACKWARD COMPATIBLE
   reinterventieMotiv?: {
     remediereNeconforma?: boolean     // Remediere neconformă

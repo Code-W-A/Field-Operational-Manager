@@ -6,6 +6,8 @@ import { Archive } from "lucide-react"
 import { updateLucrare } from "@/lib/firebase/firestore"
 import { toast } from "@/components/ui/use-toast"
 import { WORK_STATUS } from "@/lib/utils/constants"
+import { useAuth } from "@/contexts/AuthContext"
+import { serverTimestamp } from "firebase/firestore"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface ArchiveButtonProps {
@@ -27,6 +29,7 @@ export function ArchiveButton({
   onSuccess,
   className = ""
 }: ArchiveButtonProps) {
+  const { userData } = useAuth()
   const [isArchiving, setIsArchiving] = useState(false)
 
   // Doar lucrările finalizate pot fi arhivate
@@ -46,7 +49,12 @@ export function ArchiveButton({
 
     setIsArchiving(true)
     try {
-      await updateLucrare(lucrareId, { statusLucrare: WORK_STATUS.ARCHIVED })
+      // Setăm statusul de arhivare împreună cu data și utilizatorul care a arhivat
+      await updateLucrare(lucrareId, { 
+        statusLucrare: WORK_STATUS.ARCHIVED,
+        archivedAt: serverTimestamp() as any, // Firestore va converti automat la Timestamp
+        archivedBy: userData?.displayName || userData?.email || "Utilizator necunoscut"
+      })
       
       toast({
         title: "Succes",

@@ -144,9 +144,7 @@ export function ReinterventionReasonDialog({
                   <Wrench className="h-4 w-4 text-red-600" />
                   Remediere neconformă
                 </Label>
-                <p className="text-xs text-gray-600 mt-1">
-                  Lucrarea anterioară nu a fost executată conform standardelor sau cerințelor
-                </p>
+            
               </div>
             </div>
 
@@ -166,9 +164,7 @@ export function ReinterventionReasonDialog({
                   <Clock className="h-4 w-4 text-orange-600" />
                   Necesită timp suplimentar
                 </Label>
-                <p className="text-xs text-gray-600 mt-1">
-                  Lucrarea necesită mai mult timp decât a fost alocat inițial
-                </p>
+             
               </div>
             </div>
 
@@ -188,9 +184,7 @@ export function ReinterventionReasonDialog({
                   <Package className="h-4 w-4 text-blue-600" />
                   Necesită piese suplimentare
                 </Label>
-                <p className="text-xs text-gray-600 mt-1">
-                  Sunt necesare componente sau materiale care nu au fost prevăzute inițial
-                </p>
+                
               </div>
             </div>
           </div>

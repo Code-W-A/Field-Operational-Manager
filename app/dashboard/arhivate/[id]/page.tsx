@@ -121,7 +121,12 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
 
     setIsUpdating(true)
     try {
-      await updateLucrare(params.id, { statusLucrare: WORK_STATUS.COMPLETED })
+      // Eliminăm statusul de arhivare și câmpurile asociate
+      await updateLucrare(params.id, { 
+        statusLucrare: WORK_STATUS.COMPLETED,
+        archivedAt: null as any, // Eliminăm data arhivării
+        archivedBy: null as any  // Eliminăm utilizatorul care a arhivat
+      })
       toast({
         title: "Succes",
         description: "Lucrarea a fost dezarhivată cu succes și a fost mutată în lucrările active.",
@@ -1069,7 +1074,33 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                 Metadata și Audit Trail
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-4">
+              {/* Informații arhivare */}
+              {(lucrare.archivedAt || lucrare.archivedBy) && (
+                <>
+                  <div className="p-3 bg-orange-50 border border-orange-200 rounded-md">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Archive className="h-4 w-4 text-orange-600" />
+                      <span className="font-medium text-sm text-orange-800">Informații Arhivare</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {lucrare.archivedAt && (
+                        <div className="text-sm">
+                          <span className="text-orange-700">Arhivată la:</span> {formatDateTime(lucrare.archivedAt.toDate?.() || lucrare.archivedAt)}
+                        </div>
+                      )}
+                      {lucrare.archivedBy && (
+                        <div className="text-sm">
+                          <span className="text-orange-700">Arhivată de:</span> {lucrare.archivedBy}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <Separator />
+                </>
+              )}
+
+              {/* Metadata generale */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   {lucrare.createdAt && (
