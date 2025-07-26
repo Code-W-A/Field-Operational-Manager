@@ -43,6 +43,7 @@ import { formatDate, formatTime, calculateDuration } from "@/lib/utils/time-form
 import { getWarrantyDisplayInfo } from "@/lib/utils/warranty-calculator"
 import type { Echipament } from "@/lib/firebase/firestore"
 import { ReinterventionReasonDialog } from "@/components/reintervention-reason-dialog"
+import { PostponeWorkDialog } from "@/components/postpone-work-dialog"
 
 // Funcție utilitar pentru a extrage CUI-ul indiferent de cum este salvat
 const extractCUI = (client: any) => {
@@ -1563,10 +1564,30 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           <TabsContent value="verificare" className="mt-4">
             <Card>
               <CardHeader>
-                <CardTitle>Verificare Echipament</CardTitle>
-                <CardDescription>
-                  Scanați QR code-ul echipamentului pentru a verifica dacă corespunde cu lucrarea.
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Verificare Echipament</CardTitle>
+                    <CardDescription>
+                      Scanați QR code-ul echipamentului pentru a verifica dacă corespunde cu lucrarea.
+                    </CardDescription>
+                  </div>
+                  {/* Buton de amânare - disponibil doar pentru lucrări neamânate și nefinalizate */}
+                  {lucrare.statusLucrare !== "Amânată" && lucrare.statusLucrare !== "Finalizat" && (
+                    <PostponeWorkDialog
+                      lucrareId={lucrare.id!}
+                      onSuccess={() => {
+                        toast({
+                          title: "Lucrare amânată",
+                          description: "Vei fi redirecționat către lista de lucrări.",
+                        })
+                        setTimeout(() => {
+                          router.push("/dashboard/lucrari")
+                        }, 2000)
+                      }}
+                      className="ml-auto"
+                    />
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 {equipmentVerified ? (
@@ -1603,11 +1624,20 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         onVerificationComplete={handleVerificationComplete}
                       />
                     </div>
-                    <Alert variant="warning">
+                    <Alert variant="destructive">
                       <AlertCircle className="h-4 w-4" />
                       <AlertDescription>
                         Verificarea echipamentului este obligatorie înainte de începerea intervenției. Nu veți putea
                         continua dacă echipamentul scanat nu corespunde cu cel din lucrare.
+                      </AlertDescription>
+                    </Alert>
+                    
+                    {/* Secțiune informativă despre amânare */}
+                    <Alert className="bg-blue-50 border-blue-200">
+                      <Clock className="h-4 w-4 text-blue-500" />
+                      <AlertDescription className="text-blue-700">
+                        <strong>Nu puteți continua cu lucrarea?</strong> Dacă întâmpinați probleme cu echipamentul, 
+                        accesul la locație, sau alte impedimente, puteți amâna lucrarea folosind butonul din colțul din dreapta sus.
                       </AlertDescription>
                     </Alert>
                   </>
