@@ -1030,6 +1030,8 @@ export default function Lucrari() {
           ? {
               lucrareOriginala: originalWorkOrderId,
               mesajReatribuire: `Re-intervenție pentru: ${formData.originalWorkOrderInfo || `lucrarea ${originalWorkOrderId}`}`,
+              // Copiază motivele reintervenției din datele prepopulate
+              reinterventieMotiv: formData.reinterventieMotiv || null,
             }
           : {}),
       }
@@ -1411,6 +1413,8 @@ export default function Lucrari() {
         echipamentCod: originalLucrare.echipamentCod || "",
         // Stocăm informațiile originale pentru mesaj
         originalWorkOrderInfo: originalInfo,
+        // Copiază motivele reintervenției dacă există
+        reinterventieMotiv: originalLucrare.reinterventieMotiv || null,
       }
 
       // Setăm datele în formularul de adăugare
