@@ -41,6 +41,7 @@ import { ColumnSelectionModal } from "@/components/column-selection-modal"
 import { sendWorkOrderNotifications } from "@/components/work-order-notification-service"
 import { getCurrentReportNumber, updateReportNumber } from "@/lib/firebase/firestore"
 import { LucrariNotificationsBell } from "@/components/lucrari-notifications-bell"
+import { ReinterventionReasonDialog } from "@/components/reintervention-reason-dialog"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -118,6 +119,10 @@ export default function Lucrari() {
   const [isReassignment, setIsReassignment] = useState(false)
   const [originalWorkOrderId, setOriginalWorkOrderId] = useState(null)
   const [dataEmiterii, setDataEmiterii] = useState<Date | undefined>(new Date())
+  
+  // State pentru dialogul de motive reintervenție
+  const [isReinterventionReasonDialogOpen, setIsReinterventionReasonDialogOpen] = useState(false)
+  const [selectedLucrareForReintervention, setSelectedLucrareForReintervention] = useState<any>(null)
   const [dataInterventie, setDataInterventie] = useState<Date | undefined>(new Date())
   const [activeTab, setActiveTab] = useState("tabel")
   const [selectedLucrare, setSelectedLucrare] = useState(null)
@@ -1437,6 +1442,18 @@ export default function Lucrari() {
       })
     }
   }, [toast])
+  
+  // Funcție pentru gestionarea reintervenției după selectarea motivelor
+  const handleReinterventionAfterReasons = useCallback(async () => {
+    if (!selectedLucrareForReintervention) return
+    
+    // Apelăm handleReassign cu lucrarea selectată
+    await handleReassign(selectedLucrareForReintervention)
+    
+    // Resetăm starea
+    setSelectedLucrareForReintervention(null)
+    setIsReinterventionReasonDialogOpen(false)
+  }, [selectedLucrareForReintervention, handleReassign])
 
   // Verificăm dacă avem un ID de lucrare pentru reintervenție din URL
   useEffect(() => {
@@ -1915,7 +1932,8 @@ export default function Lucrari() {
                     className="h-8 w-8 text-orange-600 border-orange-200 hover:bg-orange-50"
                     onClick={(e) => {
                       e.stopPropagation()
-                      handleReassign(row.original)
+                      setSelectedLucrareForReintervention(row.original)
+                      setIsReinterventionReasonDialogOpen(true)
                     }}
                     aria-label="Reatribuie lucrarea"
                   >
@@ -2530,7 +2548,8 @@ export default function Lucrari() {
                                   <DropdownMenuItem
                                     onClick={(e) => {
                                       e.stopPropagation()
-                                      handleReassign(lucrare)
+                                      setSelectedLucrareForReintervention(lucrare)
+                                      setIsReinterventionReasonDialogOpen(true)
                                     }}
                                   >
                                     <RefreshCw className="mr-2 h-4 w-4" /> Reintervenție
@@ -2677,6 +2696,17 @@ export default function Lucrari() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      
+      {/* Dialog pentru selectarea motivelor reintervenției */}
+      <ReinterventionReasonDialog
+        isOpen={isReinterventionReasonDialogOpen}
+        onClose={() => {
+          setIsReinterventionReasonDialogOpen(false)
+          setSelectedLucrareForReintervention(null)
+        }}
+        lucrareId={selectedLucrareForReintervention?.id || ""}
+        onSuccess={handleReinterventionAfterReasons}
+      />
     </DashboardShell>
     </TooltipProvider>
   )
