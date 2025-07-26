@@ -13,6 +13,11 @@ export interface WorkModificationData {
   description: string
   priority: WorkModification['priority']
   targetUsers?: string[] // Lista utilizatorilor care trebuie notificați (opțional)
+  // Detalii suplimentare pentru afișarea îmbunătățită
+  tipLucrare?: string
+  statusLucrare?: string
+  tehnicieni?: string[]
+  dataInterventie?: string
 }
 
 /**
@@ -151,7 +156,12 @@ export async function trackLucrareUpdate(
       oldValue: oldLucrare.statusLucrare,
       newValue: newLucrare.statusLucrare,
       description: generateModificationDescription('status', oldLucrare.statusLucrare, newLucrare.statusLucrare),
-      priority: getModificationPriority('status', oldLucrare.statusLucrare, newLucrare.statusLucrare)
+      priority: getModificationPriority('status', oldLucrare.statusLucrare, newLucrare.statusLucrare),
+      // Detalii suplimentare pentru card-uri îmbunătățite
+      tipLucrare: newLucrare.tipLucrare,
+      statusLucrare: newLucrare.statusLucrare,
+      tehnicieni: Array.isArray(newLucrare.tehnicieni) ? newLucrare.tehnicieni : [],
+      dataInterventie: newLucrare.dataInterventie
     })
   }
 
@@ -169,7 +179,12 @@ export async function trackLucrareUpdate(
       oldValue: oldTehnicieni,
       newValue: newTehnicieni,
       description: generateModificationDescription('assignment', oldTehnicieni, newTehnicieni),
-      priority: getModificationPriority('assignment', oldTehnicieni, newTehnicieni)
+      priority: getModificationPriority('assignment', oldTehnicieni, newTehnicieni),
+      // Detalii suplimentare pentru card-uri îmbunătățite
+      tipLucrare: newLucrare.tipLucrare,
+      statusLucrare: newLucrare.statusLucrare,
+      tehnicieni: Array.isArray(newLucrare.tehnicieni) ? newLucrare.tehnicieni : [],
+      dataInterventie: newLucrare.dataInterventie
     })
   }
 
@@ -184,7 +199,12 @@ export async function trackLucrareUpdate(
       oldValue: oldLucrare.dataInterventie,
       newValue: newLucrare.dataInterventie,
       description: generateModificationDescription('schedule', oldLucrare.dataInterventie, newLucrare.dataInterventie),
-      priority: getModificationPriority('schedule')
+      priority: getModificationPriority('schedule'),
+      // Detalii suplimentare pentru card-uri îmbunătățite
+      tipLucrare: newLucrare.tipLucrare,
+      statusLucrare: newLucrare.statusLucrare,
+      tehnicieni: Array.isArray(newLucrare.tehnicieni) ? newLucrare.tehnicieni : [],
+      dataInterventie: newLucrare.dataInterventie
     })
   }
 

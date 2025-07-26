@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { Bell, Edit, User, Clock, Eye, CheckCircle2, X, AlertTriangle } from "lucide-react"
+import { Bell, Edit, User, Clock, Eye, CheckCircle2, X, AlertTriangle, ExternalLink, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -28,6 +28,11 @@ export interface WorkModification {
   description: string
   read: boolean
   priority: 'high' | 'medium' | 'low'
+  // Detalii suplimentare pentru card-uri îmbunătățite
+  tipLucrare?: string
+  statusLucrare?: string
+  tehnicieni?: string[]
+  dataInterventie?: string
 }
 
 interface WorkModificationsDialogProps {
@@ -77,15 +82,19 @@ export function WorkModificationsDialog({ isOpen, onClose }: WorkModificationsDi
   // Lazy loading - hook-ul citește doar când dialogul este deschis
   const { modifications, loading, unreadCount, markAsRead, markAllAsRead } = useWorkModifications(isOpen)
 
-  const handleModificationClick = (modification: WorkModification) => {
-    // Marchează ca citită automat când navighează la lucrare
+  const handleViewLucrare = (modification: WorkModification) => {
+    // Navighează la lucrarea respectivă fără a marca ca citită
+    onClose()
+    router.push(`/dashboard/lucrari/${modification.lucrareId}`)
+  }
+
+  const handleMarkAsRead = (modification: WorkModification, event: React.MouseEvent) => {
+    // Prevenim propagarea evenimentului pentru a nu declansa alte acțiuni
+    event.stopPropagation()
+    
     if (!modification.read) {
       markAsRead(modification.id)
     }
-    
-    // Navighează la lucrarea respectivă
-    onClose()
-    router.push(`/dashboard/lucrari/${modification.lucrareId}`)
   }
 
   const handleMarkAllAsRead = () => {
@@ -141,13 +150,12 @@ export function WorkModificationsDialog({ isOpen, onClose }: WorkModificationsDi
                 <Card
                   key={modification.id}
                   className={cn(
-                    "cursor-pointer transition-all hover:shadow-md border-l-4",
+                    "transition-all hover:shadow-md border-l-4",
                     !modification.read 
                       ? "bg-blue-50 border-l-blue-500 hover:bg-blue-100" 
                       : "border-l-gray-200 hover:bg-gray-50",
                     modification.priority === 'high' && !modification.read && "bg-red-50 border-l-red-500"
                   )}
-                  onClick={() => handleModificationClick(modification)}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-start gap-3">
@@ -163,13 +171,52 @@ export function WorkModificationsDialog({ isOpen, onClose }: WorkModificationsDi
                       </div>
                       
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                          <h4 className={cn(
-                            "text-sm font-medium truncate",
-                            !modification.read ? "text-gray-900" : "text-gray-700"
-                          )}>
-                            {modification.lucrareTitle}
-                          </h4>
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="flex-1">
+                            <h4 className={cn(
+                              "text-sm font-medium mb-1",
+                              !modification.read ? "text-gray-900" : "text-gray-700"
+                            )}>
+                              {modification.lucrareTitle}
+                            </h4>
+                            {/* Detalii suplimentare relevante */}
+                            <div className="flex flex-wrap gap-2 mb-2">
+                              {modification.tipLucrare && (
+                                <Badge variant="outline" className="text-xs">
+                                  {modification.tipLucrare}
+                                </Badge>
+                              )}
+                              {modification.statusLucrare && (
+                                <Badge 
+                                  variant="secondary" 
+                                  className={cn(
+                                    "text-xs",
+                                    modification.statusLucrare === "În lucru" ? "bg-blue-100 text-blue-800" :
+                                    modification.statusLucrare === "Finalizat" ? "bg-green-100 text-green-800" :
+                                    modification.statusLucrare === "Atribuită" ? "bg-orange-100 text-orange-800" :
+                                    "bg-gray-100 text-gray-800"
+                                  )}
+                                >
+                                  {modification.statusLucrare}
+                                </Badge>
+                              )}
+                              {modification.priority === 'high' && (
+                                <Badge variant="destructive" className="text-xs">
+                                  Prioritate înaltă
+                                </Badge>
+                              )}
+                            </div>
+                            {modification.dataInterventie && (
+                              <p className="text-xs text-gray-600 mb-1">
+                                📅 Data intervenție: {modification.dataInterventie}
+                              </p>
+                            )}
+                            {modification.tehnicieni && modification.tehnicieni.length > 0 && (
+                              <p className="text-xs text-gray-600 mb-1">
+                                👥 Tehnicieni: {modification.tehnicieni.join(", ")}
+                              </p>
+                            )}
+                          </div>
                           <Badge
                             variant={!modification.read ? "default" : "secondary"}
                             className="text-xs flex-shrink-0"
@@ -179,13 +226,26 @@ export function WorkModificationsDialog({ isOpen, onClose }: WorkModificationsDi
                         </div>
                         
                         <p className={cn(
-                          "text-sm mb-2",
+                          "text-sm mb-3",
                           getModificationColor(modification.modificationType, modification.priority)
                         )}>
                           {modification.description}
                         </p>
                         
-                        <div className="flex items-center justify-between text-xs text-gray-500">
+                        {modification.oldValue && modification.newValue && (
+                          <div className="mb-3 p-2 bg-gray-50 rounded text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className="text-red-600 font-medium">Din:</span>
+                              <span className="text-gray-700">{modification.oldValue}</span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-green-600 font-medium">În:</span>
+                              <span className="text-gray-700">{modification.newValue}</span>
+                            </div>
+                          </div>
+                        )}
+                        
+                        <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
                           <span className="flex items-center gap-1">
                             <User className="h-3 w-3" />
                             {modification.modifiedByName}
@@ -198,19 +258,30 @@ export function WorkModificationsDialog({ isOpen, onClose }: WorkModificationsDi
                             })}
                           </span>
                         </div>
-                        
-                        {modification.oldValue && modification.newValue && (
-                          <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
-                            <div className="flex items-center gap-2">
-                              <span className="text-red-600">Din:</span>
-                              <span className="text-gray-700">{modification.oldValue}</span>
-                            </div>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-green-600">În:</span>
-                              <span className="text-gray-700">{modification.newValue}</span>
-                            </div>
-                          </div>
-                        )}
+
+                        {/* Butoane separate pentru acțiuni */}
+                        <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                          {!modification.read && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => handleMarkAsRead(modification, e)}
+                              className="text-xs h-7 px-2"
+                            >
+                              <Check className="h-3 w-3 mr-1" />
+                              Marchează ca citit
+                            </Button>
+                          )}
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => handleViewLucrare(modification)}
+                            className="text-xs h-7 px-2 ml-auto"
+                          >
+                            <ExternalLink className="h-3 w-3 mr-1" />
+                            Vezi lucrarea
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </CardContent>

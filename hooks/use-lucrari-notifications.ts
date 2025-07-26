@@ -135,10 +135,11 @@ export function useLucrariNotifications(lucrari: Lucrare[]) {
           const currentReadBy = Array.isArray(lucrare.notificationReadBy) ? lucrare.notificationReadBy : []
           const updatedReadBy = [...new Set([...currentReadBy, userData.uid])]
           
+          // Folosim parametrul silent pentru a nu modifica data ultimei modificări
           await updateLucrare(lucrare.id, {
             notificationReadBy: updatedReadBy,
             notificationRead: true // Pentru compatibilitate
-          })
+          }, undefined, undefined, true) // silent = true
         }
       }
       
@@ -162,10 +163,11 @@ export function useLucrariNotifications(lucrari: Lucrare[]) {
       const currentReadBy = Array.isArray(lucrare.notificationReadBy) ? lucrare.notificationReadBy : []
       const updatedReadBy = [...new Set([...currentReadBy, userData.uid])]
       
+      // Folosim parametrul silent pentru a nu modifica data ultimei modificări
       await updateLucrare(lucrareId, {
         notificationReadBy: updatedReadBy,
         notificationRead: true // Pentru compatibilitate
-      })
+      }, undefined, undefined, true) // silent = true
       
       console.log(`✅ Notificare marcată ca citită pentru lucrarea: ${lucrareId}`)
     } catch (error) {

@@ -54,7 +54,12 @@ export function useWorkModifications(shouldLoad: boolean = false) {
         newValue: mod.newValue,
         description: mod.description,
         read: readModificationIds.has(mod.id), // Verificăm dacă a fost citită
-        priority: mod.priority || 'medium'
+        priority: mod.priority || 'medium',
+        // Detalii suplimentare pentru card-uri îmbunătățite
+        tipLucrare: mod.tipLucrare,
+        statusLucrare: mod.statusLucrare,
+        tehnicieni: mod.tehnicieni,
+        dataInterventie: mod.dataInterventie
       } as WorkModification))
   }, [rawModifications, readStatuses, userData?.uid])
 

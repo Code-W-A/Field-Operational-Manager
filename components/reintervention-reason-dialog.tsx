@@ -122,8 +122,8 @@ export function ReinterventionReasonDialog({
           <Alert>
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              <strong>Important:</strong> Aceste informații vor fi salvate în lucrarea originală 
-              pentru analiză și îmbunătățirea proceselor.
+              <strong>Important:</strong> Aceste informații vor fi salvate în detaliile lucrarii originale
+              precum si in lucrarea noua care va fi creata.
             </AlertDescription>
           </Alert>
 
