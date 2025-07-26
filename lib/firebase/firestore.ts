@@ -324,13 +324,14 @@ export const updateLucrare = async (
   id: string, 
   lucrare: Partial<Lucrare>, 
   modifiedBy?: string, 
-  modifiedByName?: string
+  modifiedByName?: string,
+  silent?: boolean // Nou parametru pentru actualizări silentioase (ex: marcare ca citită)
 ) => {
   const lucrareDoc = doc(db, "lucrari", id)
   
   // Obținem datele vechi pentru tracking modificări
   let oldLucrareData = null
-  if (modifiedBy && modifiedByName) {
+  if (modifiedBy && modifiedByName && !silent) {
     try {
       const oldDoc = await getDoc(lucrareDoc)
       if (oldDoc.exists()) {
@@ -341,18 +342,21 @@ export const updateLucrare = async (
     }
   }
   
-  // Actualizăm lucrarea și resetăm notification status pentru a crea notificare nouă
-  lucrare.updatedAt = serverTimestamp() as Timestamp
-  
-  // IMPORTANT: Resetăm notification status la fiecare modificare
-  // Astfel lucrarea va apărea ca notificare nouă pentru toți utilizatorii
-  lucrare.notificationRead = false
-  lucrare.notificationReadBy = [] // Resetăm lista utilizatorilor care au citit
+  // Pentru actualizări silentioase (ex: marcare ca citită), nu actualizăm updatedAt și nu resetăm notificările
+  if (!silent) {
+    // Actualizăm lucrarea și resetăm notification status pentru a crea notificare nouă
+    lucrare.updatedAt = serverTimestamp() as Timestamp
+    
+    // IMPORTANT: Resetăm notification status la fiecare modificare
+    // Astfel lucrarea va apărea ca notificare nouă pentru toți utilizatorii
+    lucrare.notificationRead = false
+    lucrare.notificationReadBy = [] // Resetăm lista utilizatorilor care au citit
+  }
   
   await updateDoc(lucrareDoc, lucrare as DocumentData)
   
-  // Trackingul modificărilor (dacă avem informații despre utilizator)
-  if (oldLucrareData && modifiedBy && modifiedByName) {
+  // Trackingul modificărilor (dacă avem informații despre utilizator și nu e actualizare silentioasă)
+  if (oldLucrareData && modifiedBy && modifiedByName && !silent) {
     const newLucrareData = { ...oldLucrareData, ...lucrare }
     try {
       await trackLucrareUpdate(id, oldLucrareData, newLucrareData, modifiedBy, modifiedByName)

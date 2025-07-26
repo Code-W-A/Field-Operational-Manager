@@ -97,10 +97,11 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               const updatedReadBy = [...new Set([...currentReadBy, userData.uid])]
               
               // Marcăm lucrarea ca citită fără a afișa notificări utilizatorului
+              // Folosim parametrul silent pentru a nu modifica data ultimei modificări
               await updateLucrare(paramsId, {
                 notificationReadBy: updatedReadBy,
                 notificationRead: true
-              })
+              }, undefined, undefined, true) // silent = true
               
               console.log(`✅ Lucrare ${paramsId} marcată ca citită automat pentru ${userData.uid}`)
             } catch (error) {
@@ -158,6 +159,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       needsClientAddress
                     })
                     
+                  // Folosim parametrul silent pentru completarea automată a informațiilor clientului
+                  // (nu este o modificare reală făcută de utilizator)
                   await updateLucrare(paramsId, {
                     clientInfo: {
                       ...data.clientInfo,
@@ -165,7 +168,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       adresa: client.adresa,
                       locationAddress: locatie.adresa,
                     },
-                  })
+                  }, undefined, undefined, true) // silent = true
                   } else {
                     console.log("Nu este necesară actualizarea - toate informațiile sunt deja prezente")
                   }
