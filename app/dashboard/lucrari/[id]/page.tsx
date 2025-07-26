@@ -25,6 +25,7 @@ import {
   Check,
   RefreshCw,
   Archive,
+  Clock,
 } from "lucide-react"
 import { getLucrareById, deleteLucrare, updateLucrare, getClienti } from "@/lib/firebase/firestore"
 import { WORK_STATUS } from "@/lib/utils/constants"
@@ -41,6 +42,7 @@ import { formatDate, formatTime, calculateDuration } from "@/lib/utils/time-form
 // Adăugăm importurile pentru calculul garanției
 import { getWarrantyDisplayInfo } from "@/lib/utils/warranty-calculator"
 import type { Echipament } from "@/lib/firebase/firestore"
+import { ReinterventionReasonDialog } from "@/components/reintervention-reason-dialog"
 
 // Funcție utilitar pentru a extrage CUI-ul indiferent de cum este salvat
 const extractCUI = (client: any) => {
@@ -59,7 +61,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const [lucrare, setLucrare] = useState<Lucrare | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("detalii")
-
+  const [isReinterventionReasonDialogOpen, setIsReinterventionReasonDialogOpen] = useState(false)
 
   const [equipmentVerified, setEquipmentVerified] = useState(false)
   const [locationAddress, setLocationAddress] = useState<string | null>(null)
@@ -80,6 +82,32 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         // Obținem datele lucrării
         const data = await getLucrareById(paramsId)
         setLucrare(data)
+
+        // AUTO-MARK AS READ: Marcăm lucrarea ca citită când utilizatorul o vizualizează
+        if (data && userData?.uid) {
+          const isNotificationRead = data.notificationRead === true || 
+                                     (Array.isArray(data.notificationReadBy) && 
+                                      data.notificationReadBy.includes(userData.uid))
+          
+          // Dacă lucrarea nu a fost citită de utilizatorul curent, o marcăm ca citită
+          if (!isNotificationRead) {
+            try {
+              const currentReadBy = Array.isArray(data.notificationReadBy) ? data.notificationReadBy : []
+              const updatedReadBy = [...new Set([...currentReadBy, userData.uid])]
+              
+              // Marcăm lucrarea ca citită fără a afișa notificări utilizatorului
+              await updateLucrare(paramsId, {
+                notificationReadBy: updatedReadBy,
+                notificationRead: true
+              })
+              
+              console.log(`✅ Lucrare ${paramsId} marcată ca citită automat pentru ${userData.uid}`)
+            } catch (error) {
+              // Nu afișăm eroarea utilizatorului - e o operațiune de background
+              console.warn("Nu s-a putut marca lucrarea ca citită:", error)
+            }
+          }
+        }
 
         // Verificăm dacă echipamentul a fost deja verificat
         if (data?.equipmentVerified) {
@@ -528,8 +556,16 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     return lucrare.statusFinalizareInterventie === "NEFINALIZAT"
   }
   
-  // Funcție pentru a gestiona reintervenția - redirecționează către pagina principală cu dialog deschis
+  // Funcție pentru a gestiona reintervenția - deschide dialogul de motive
   const handleReintervention = () => {
+    if (!lucrare) return
+    
+    // Deschidem dialogul pentru selectarea motivelor reintervenției
+    setIsReinterventionReasonDialogOpen(true)
+  }
+
+  // Funcție pentru a continua cu reintervenția după selectarea motivelor
+  const handleReinterventionAfterReasons = () => {
     if (!lucrare) return
     
     // Redirecționăm către pagina principală cu parametru pentru reintervenție
@@ -810,6 +846,68 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         Vizualizează lucrarea originală
                       </Button>
                     )}
+                  </div>
+                )}
+
+                {/* Afișăm informațiile de amânare dacă există */}
+                {lucrare.statusLucrare === WORK_STATUS.POSTPONED && lucrare.motivAmanare && (
+                  <div className="p-3 bg-purple-50 border border-purple-200 rounded-md">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Clock className="h-4 w-4 text-purple-600" />
+                      <p className="text-sm font-medium text-purple-800">Lucrare amânată</p>
+                    </div>
+                    <div className="space-y-2">
+                      <div>
+                        <p className="text-xs font-medium text-purple-700 mb-1">Motiv amânare:</p>
+                        <p className="text-sm text-purple-700 bg-white/50 p-2 rounded border">
+                          {lucrare.motivAmanare}
+                        </p>
+                      </div>
+                      {lucrare.dataAmanare && (
+                        <div className="flex flex-col sm:flex-row sm:justify-between text-xs text-purple-600">
+                          <span>Amânată pe: {lucrare.dataAmanare}</span>
+                          {lucrare.amanataDe && <span>de către: {lucrare.amanataDe}</span>}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Afișăm motivele reintervenției dacă există */}
+                {lucrare.reinterventieMotiv && (
+                  <div className="p-3 bg-orange-50 border border-orange-200 rounded-md">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <RefreshCw className="h-4 w-4 text-orange-600" />
+                      <p className="text-sm font-medium text-orange-800">Motive reintervenție</p>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-1 gap-2">
+                        {lucrare.reinterventieMotiv.remediereNeconforma && (
+                          <div className="flex items-center space-x-2 text-sm">
+                            <div className="w-2 h-2 bg-red-600 rounded-full flex-shrink-0"></div>
+                            <span className="text-red-700 font-medium">Remediere neconformă</span>
+                          </div>
+                        )}
+                        {lucrare.reinterventieMotiv.necesitaTimpSuplimentar && (
+                          <div className="flex items-center space-x-2 text-sm">
+                            <div className="w-2 h-2 bg-orange-600 rounded-full flex-shrink-0"></div>
+                            <span className="text-orange-700 font-medium">Necesită timp suplimentar</span>
+                          </div>
+                        )}
+                        {lucrare.reinterventieMotiv.necesitaPieseSuplimentare && (
+                          <div className="flex items-center space-x-2 text-sm">
+                            <div className="w-2 h-2 bg-blue-600 rounded-full flex-shrink-0"></div>
+                            <span className="text-blue-700 font-medium">Necesită piese suplimentare</span>
+                          </div>
+                        )}
+                      </div>
+                      {lucrare.reinterventieMotiv.dataReinterventie && (
+                        <div className="flex flex-col sm:flex-row sm:justify-between text-xs text-orange-600 mt-3 pt-2 border-t border-orange-200">
+                          <span>Reintervenție decisă pe: {lucrare.reinterventieMotiv.dataReinterventie}</span>
+                          {lucrare.reinterventieMotiv.decisaDe && <span>de către: {lucrare.reinterventieMotiv.decisaDe}</span>}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -1543,6 +1641,14 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         />
       </div>
     </DashboardShell>
+
+    {/* Dialog pentru selectarea motivelor reintervenției */}
+    <ReinterventionReasonDialog
+      isOpen={isReinterventionReasonDialogOpen}
+      onClose={() => setIsReinterventionReasonDialogOpen(false)}
+      lucrareId={paramsId}
+      onSuccess={handleReinterventionAfterReasons}
+    />
     </TooltipProvider>
   )
 }

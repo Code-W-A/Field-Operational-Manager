@@ -14,6 +14,7 @@ import {
   getCountFromServer,
 } from "firebase/firestore"
 import { db } from "./firebase"
+import { trackLucrareUpdate } from "@/lib/utils/work-modifications-tracker"
 
 export interface PersoanaContact {
   id?: string
@@ -143,6 +144,21 @@ export interface Lucrare {
     uploadedBy: string  // Cine a încărcat (tehnicianul)
     compressed: boolean // Dacă imaginea a fost comprimată
   }>
+  // CÂMPURI NOI PENTRU AMÂNAREA LUCRĂRII - BACKWARD COMPATIBLE
+  motivAmanare?: string    // Motivul pentru care lucrarea a fost amânată
+  dataAmanare?: string     // Data când lucrarea a fost amânată
+  amanataDe?: string       // Cine a amânat lucrarea (tehnicianul)
+  // CÂMPURI NOI PENTRU MOTIVELE REINTERVENȚIEI - BACKWARD COMPATIBLE
+  reinterventieMotiv?: {
+    remediereNeconforma?: boolean     // Remediere neconformă
+    necesitaTimpSuplimentar?: boolean // Necesită timp suplimentar
+    necesitaPieseSuplimentare?: boolean // Necesită piese suplimentare
+    dataReinterventie?: string        // Data când s-a decis reintervenția
+    decisaDe?: string                 // Cine a decis reintervenția (admin/dispecer)
+  }
+  // CÂMPURI NOI PENTRU NOTIFICATION TRACKING - BACKWARD COMPATIBLE
+  notificationRead?: boolean          // Backward compatibility: dacă notificarea a fost citită (general)
+  notificationReadBy?: string[]       // Array cu ID-urile utilizatorilor care au citit notificarea
 }
 
 export interface Client {
@@ -304,10 +320,48 @@ export const addLucrare = async (lucrare: Lucrare) => {
 }
 
 // Update a work order
-export const updateLucrare = async (id: string, lucrare: Partial<Lucrare>) => {
+export const updateLucrare = async (
+  id: string, 
+  lucrare: Partial<Lucrare>, 
+  modifiedBy?: string, 
+  modifiedByName?: string
+) => {
   const lucrareDoc = doc(db, "lucrari", id)
+  
+  // Obținem datele vechi pentru tracking modificări
+  let oldLucrareData = null
+  if (modifiedBy && modifiedByName) {
+    try {
+      const oldDoc = await getDoc(lucrareDoc)
+      if (oldDoc.exists()) {
+        oldLucrareData = { id: oldDoc.id, ...oldDoc.data() }
+      }
+    } catch (error) {
+      console.warn("Nu s-au putut obține datele vechi pentru tracking:", error)
+    }
+  }
+  
+  // Actualizăm lucrarea și resetăm notification status pentru a crea notificare nouă
   lucrare.updatedAt = serverTimestamp() as Timestamp
+  
+  // IMPORTANT: Resetăm notification status la fiecare modificare
+  // Astfel lucrarea va apărea ca notificare nouă pentru toți utilizatorii
+  lucrare.notificationRead = false
+  lucrare.notificationReadBy = [] // Resetăm lista utilizatorilor care au citit
+  
   await updateDoc(lucrareDoc, lucrare as DocumentData)
+  
+  // Trackingul modificărilor (dacă avem informații despre utilizator)
+  if (oldLucrareData && modifiedBy && modifiedByName) {
+    const newLucrareData = { ...oldLucrareData, ...lucrare }
+    try {
+      await trackLucrareUpdate(id, oldLucrareData, newLucrareData, modifiedBy, modifiedByName)
+    } catch (error) {
+      console.warn("Eroare la tracking modificări:", error)
+      // Nu aruncăm eroarea pentru a nu bloca update-ul principal
+    }
+  }
+  
   return {
     id,
     ...lucrare,

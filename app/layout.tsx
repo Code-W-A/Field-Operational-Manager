@@ -6,6 +6,8 @@ import { AuthProvider } from "@/contexts/AuthContext"
 import { FirebaseProvider } from "@/components/firebase-provider"
 import { FirebaseCheck } from "@/components/firebase-check"
 import { MockDataProvider } from "@/contexts/MockDataContext"
+import { NotificationsProvider } from "@/components/notifications-provider"
+import { Toaster } from "@/components/ui/toaster"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -28,7 +30,12 @@ export default function RootLayout({
         <MockDataProvider>
           <FirebaseProvider>
             <FirebaseCheck />
-            <AuthProvider>{children}</AuthProvider>
+            <AuthProvider>
+              <NotificationsProvider>
+                {children}
+                <Toaster />
+              </NotificationsProvider>
+            </AuthProvider>
           </FirebaseProvider>
         </MockDataProvider>
       </body>

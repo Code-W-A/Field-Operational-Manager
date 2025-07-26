@@ -23,6 +23,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ImageDefectUpload } from "@/components/image-defect-upload"
 import { uploadFile, deleteFile } from "@/lib/firebase/storage"
 import { useAuth } from "@/contexts/AuthContext"
+import { PostponeWorkDialog } from "@/components/postpone-work-dialog"
 
 // First, let's update the interface to include statusEchipament
 interface TehnicianInterventionFormProps {
@@ -413,7 +414,24 @@ export function TehnicianInterventionForm({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Formular intervenție tehnician</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle>Formular intervenție tehnician</CardTitle>
+          {!formDisabled && (
+            <PostponeWorkDialog
+              lucrareId={lucrareId}
+              onSuccess={() => {
+                toast({
+                  title: "Lucrare amânată",
+                  description: "Vei fi redirecționat către lista de lucrări.",
+                })
+                setTimeout(() => {
+                  router.push("/dashboard/lucrari")
+                }, 2000)
+              }}
+              className="ml-auto"
+            />
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <form onSubmit={(e) => {

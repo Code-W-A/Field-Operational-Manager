@@ -20,8 +20,6 @@ import {
   FileText,
   Search,
   Filter,
-  SortAsc,
-  SortDesc,
   X
 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
@@ -37,14 +35,7 @@ import { DataTable } from "@/components/data-table/data-table"
 import { useTablePersistence } from "@/hooks/use-table-persistence"
 import { FilterModal } from "@/components/filter-modal"
 import { Separator } from "@/components/ui/separator"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+
 
 export default function LucrariArhivate() {
   const { userData } = useAuth()
@@ -62,10 +53,8 @@ export default function LucrariArhivate() {
   // State pentru filtre și sortări
   const [activeFilters, setActiveFilters] = useState<any[]>([])
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
-  const [sortOption, setSortOption] = useState<{ field: string; direction: "asc" | "desc" }>({
-    field: "updatedAt",
-    direction: "desc"
-  })
+  const [tableSorting, setTableSorting] = useState([{ id: "updatedAt", desc: true }])
+  const [table, setTable] = useState<any>(null)
 
   // State pentru date filtrate
   const [filteredLucrari, setFilteredLucrari] = useState<Lucrare[]>([])
@@ -83,13 +72,7 @@ export default function LucrariArhivate() {
       setActiveFilters(savedSettings.activeFilters)
     }
     if (savedSettings.sorting) {
-      const sorting = savedSettings.sorting[0]
-      if (sorting) {
-        setSortOption({
-          field: sorting.id,
-          direction: sorting.desc ? "desc" : "asc"
-        })
-      }
+      setTableSorting(savedSettings.sorting)
     }
     if (savedSettings.searchText) {
       setSearchTerm(savedSettings.searchText)
@@ -277,7 +260,7 @@ export default function LucrariArhivate() {
             case "dataEmiterii":
             case "dataInterventie":
               if (filter.value?.start && filter.value?.end) {
-                const itemDate = new Date(item[filter.id])
+                const itemDate = new Date((item as any)[filter.id])
                 const startDate = new Date(filter.value.start)
                 const endDate = new Date(filter.value.end)
                 return itemDate >= startDate && itemDate <= endDate
@@ -323,37 +306,13 @@ export default function LucrariArhivate() {
     [activeFilters]
   )
 
-  // Funcție pentru sortare
-  const applySorting = useCallback(
-    (data: Lucrare[]) => {
-             return [...data].sort((a, b) => {
-         let aValue = (a as any)[sortOption.field]
-         let bValue = (b as any)[sortOption.field]
+  // Handler pentru schimbarea sortării
+  const handleSortingChange = (newSorting: { id: string; desc: boolean }[]) => {
+    setTableSorting(newSorting)
+    saveSorting(newSorting)
+  }
 
-                 // Tratare specială pentru date
-         if (sortOption.field === "dataEmiterii" || sortOption.field === "dataInterventie" || sortOption.field === "updatedAt") {
-           aValue = new Date((aValue as any)).getTime()
-           bValue = new Date((bValue as any)).getTime()
-         }
-
-        // Tratare pentru string-uri
-        if (typeof aValue === "string" && typeof bValue === "string") {
-          const comparison = aValue.localeCompare(bValue)
-          return sortOption.direction === "asc" ? comparison : -comparison
-        }
-
-        // Tratare pentru numere
-        if (typeof aValue === "number" && typeof bValue === "number") {
-          return sortOption.direction === "asc" ? aValue - bValue : bValue - aValue
-        }
-
-        return 0
-      })
-    },
-    [sortOption]
-  )
-
-  // Aplicăm filtrarea, sortarea și căutarea
+  // Aplicăm doar filtrarea și căutarea (sortarea o gestionează DataTable)
   useEffect(() => {
     let result = lucrariArhivate
 
@@ -361,9 +320,6 @@ export default function LucrariArhivate() {
     if (activeFilters.length) {
       result = applyFilters(result)
     }
-
-    // Aplicăm sortarea
-    result = applySorting(result)
 
     // Aplicăm căutarea fuzzy
     if (searchTerm.trim()) {
@@ -385,7 +341,7 @@ export default function LucrariArhivate() {
     }
 
     setFilteredLucrari(result)
-  }, [lucrariArhivate, activeFilters, sortOption, searchTerm, applyFilters, applySorting])
+  }, [lucrariArhivate, activeFilters, searchTerm, applyFilters])
 
   // Handlers pentru persistență
   const handleFiltersChange = (newFilters: any[]) => {
@@ -393,11 +349,7 @@ export default function LucrariArhivate() {
     saveFilters(newFilters)
   }
 
-  const handleSortChange = (field: string, direction: "asc" | "desc") => {
-    const newSort = { field, direction }
-    setSortOption(newSort)
-    saveSorting([{ id: field, desc: direction === "desc" }])
-  }
+
 
   const handleSearchChange = (value: string) => {
     setSearchTerm(value)
@@ -425,80 +377,88 @@ export default function LucrariArhivate() {
     }
   }
 
-  // Opțiuni pentru sortare
-  const sortOptions = [
-    { field: "updatedAt", label: "Data actualizării", defaultDirection: "desc" as const },
-    { field: "dataEmiterii", label: "Data emiterii", defaultDirection: "desc" as const },
-    { field: "dataInterventie", label: "Data intervenție", defaultDirection: "desc" as const },
-    { field: "client", label: "Client", defaultDirection: "asc" as const },
-    { field: "tipLucrare", label: "Tip lucrare", defaultDirection: "asc" as const },
-    { field: "statusFacturare", label: "Status facturare", defaultDirection: "asc" as const },
-    { field: "numarRaport", label: "Număr raport", defaultDirection: "asc" as const },
-  ]
+
 
   // Coloane pentru tabel
   const columns = [
     {
-      id: "client",
+      accessorKey: "client",
       header: "Client",
+      enableSorting: true,
+      enableHiding: true,
       cell: ({ row }: { row: any }) => (
         <div className="max-w-[200px] truncate font-medium">
-          {row.client}
+          {row.original.client}
         </div>
       ),
     },
     {
-      id: "locatie",
+      accessorKey: "locatie",
       header: "Locație",
+      enableSorting: true,
+      enableHiding: true,
       cell: ({ row }: { row: any }) => (
         <div className="max-w-[150px] truncate">
-          {row.locatie}
+          {row.original.locatie}
         </div>
       ),
     },
     {
-      id: "tipLucrare",
+      accessorKey: "tipLucrare",
       header: "Tip Lucrare",
+      enableSorting: true,
+      enableHiding: true,
       cell: ({ row }: { row: any }) => (
         <div className="max-w-[120px] truncate">
-          {row.tipLucrare}
+          {row.original.tipLucrare}
         </div>
       ),
     },
-         {
-       id: "tehnicieni",
-       header: "Tehnicieni",
-       cell: ({ row }: { row: any }) => {
-         const tehnicieni = row.tehnicieni || []
-         return (
-           <div className="flex flex-wrap gap-1">
-             {tehnicieni.slice(0, 2).map((tehnician: string, index: number) => (
-               <Badge key={index} variant="secondary" className="text-xs">
-                 {tehnician}
-               </Badge>
-             ))}
-             {tehnicieni.length > 2 && (
-               <Badge variant="outline" className="text-xs">
-                 +{tehnicieni.length - 2}
-               </Badge>
-             )}
-             {tehnicieni.length === 0 && (
-               <span className="text-xs text-gray-400">Neatribuit</span>
-             )}
-           </div>
-         )
-       },
-     },
     {
-      id: "dataInterventie",
-      header: "Data Intervenție",
-      cell: ({ row }: { row: any }) => formatDate(row.dataInterventie),
+      accessorKey: "tehnicieni",
+      header: "Tehnicieni",
+      enableSorting: false,
+      enableHiding: true,
+      cell: ({ row }: { row: any }) => {
+        const tehnicieni = row.original.tehnicieni || []
+        return (
+          <div className="flex flex-wrap gap-1">
+            {tehnicieni.slice(0, 2).map((tehnician: string, index: number) => (
+              <Badge key={index} variant="secondary" className="text-xs">
+                {tehnician}
+              </Badge>
+            ))}
+            {tehnicieni.length > 2 && (
+              <Badge variant="outline" className="text-xs">
+                +{tehnicieni.length - 2}
+              </Badge>
+            )}
+            {tehnicieni.length === 0 && (
+              <span className="text-xs text-gray-400">Neatribuit</span>
+            )}
+          </div>
+        )
+      },
     },
     {
-      id: "statusFacturare",
+      accessorKey: "dataInterventie",
+      header: "Data Intervenție",
+      enableSorting: true,
+      enableHiding: true,
+      cell: ({ row }: { row: any }) => formatDate(row.original.dataInterventie),
+      sortingFn: (rowA: any, rowB: any) => {
+        const dateA = new Date(rowA.original.dataInterventie).getTime()
+        const dateB = new Date(rowB.original.dataInterventie).getTime()
+        return dateA - dateB
+      },
+    },
+    {
+      accessorKey: "statusFacturare",
       header: "Status Facturare",
+      enableSorting: true,
+      enableHiding: true,
       cell: ({ row }: { row: any }) => (
-        <Badge variant="outline">{row.statusFacturare}</Badge>
+        <Badge variant="outline">{row.original.statusFacturare}</Badge>
       ),
     },
     {
@@ -603,18 +563,7 @@ export default function LucrariArhivate() {
           text={`${filteredLucrari.length} ${searchTerm || activeFilters.length ? 'rezultate filtrate' : 'lucrări arhivate'} din ${lucrariArhivate.length} total`}
         />
 
-        {/* Info despre search optimal */}
-        {lucrariArhivate.length > 0 && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-6">
-            <div className="flex items-center gap-2 text-green-700 text-sm">
-              <Search className="h-4 w-4" />
-              <span>
-                <strong>Search optimizat:</strong> Caută instant în toate câmpurile (client, locație, tip lucrare, tehnicieni, ID) 
-                din {lucrariArhivate.length} lucrări arhivate.
-              </span>
-            </div>
-          </div>
-        )}
+
 
         {/* Controls: Search, Filtre, Sortare, View Mode */}
         <div className="flex flex-col space-y-4 mb-6">
@@ -675,40 +624,7 @@ export default function LucrariArhivate() {
                 </Button>
 
                 {/* Dropdown sortare */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      {sortOption.direction === "asc" ? (
-                        <SortAsc className="h-4 w-4 mr-2" />
-                      ) : (
-                        <SortDesc className="h-4 w-4 mr-2" />
-                      )}
-                      Sortare
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-56">
-                    <DropdownMenuLabel>Sortează după</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {sortOptions.map((option) => (
-                      <div key={option.field}>
-                        <DropdownMenuItem
-                          onClick={() => handleSortChange(option.field, "asc")}
-                          className="flex items-center justify-between"
-                        >
-                          <span>{option.label} (A-Z)</span>
-                          <SortAsc className="h-4 w-4" />
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleSortChange(option.field, "desc")}
-                          className="flex items-center justify-between"
-                        >
-                          <span>{option.label} (Z-A)</span>
-                          <SortDesc className="h-4 w-4" />
-                        </DropdownMenuItem>
-                      </div>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+
 
                 {/* Clear button */}
                 {(searchTerm || activeFilters.length > 0) && (
@@ -939,6 +855,13 @@ export default function LucrariArhivate() {
               <DataTable
                 columns={columns}
                 data={filteredLucrari}
+                defaultSort={{ id: "updatedAt", desc: true }}
+                sorting={tableSorting}
+                onSortingChange={handleSortingChange}
+                table={table}
+                setTable={setTable}
+                showFilters={false}
+                persistenceKey="arhivate"
               />
             )}
           </TabsContent>

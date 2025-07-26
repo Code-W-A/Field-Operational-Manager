@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { AlertTriangle, CheckCircle, Database, Play, RotateCcw } from "lucide-react"
 import { migrateClientData, checkClientDataIntegrity } from "@/lib/utils/client-migration"
-import { useAuth } from "@/lib/firebase/auth"
+import { useAuth } from "@/contexts/AuthContext"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 interface MigrationStats {
@@ -121,14 +121,14 @@ export default function MigrationPage() {
 
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium">Cu telefon:</span>
-                <Badge variant={integrityStats.withTelefon === integrityStats.total ? "success" : "destructive"}>
+                <Badge variant={integrityStats.withTelefon === integrityStats.total ? "default" : "destructive"}>
                   {integrityStats.withTelefon}/{integrityStats.total}
                 </Badge>
               </div>
 
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium">Cu reprezentant:</span>
-                <Badge variant={integrityStats.withReprezentant === integrityStats.total ? "success" : "destructive"}>
+                <Badge variant={integrityStats.withReprezentant === integrityStats.total ? "default" : "destructive"}>
                   {integrityStats.withReprezentant}/{integrityStats.total}
                 </Badge>
               </div>

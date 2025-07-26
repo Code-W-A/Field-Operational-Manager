@@ -20,7 +20,7 @@ import { ro } from "date-fns/locale"
 import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check, Info, RefreshCw, Archive } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
-import { addLucrare, deleteLucrare, updateLucrare, getLucrareById } from "@/lib/firebase/firestore"
+import { addLucrare, deleteLucrare, updateLucrare, getLucrareById, type Lucrare } from "@/lib/firebase/firestore"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { orderBy, where } from "firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
@@ -40,6 +40,7 @@ import { ColumnSelectionButton } from "@/components/column-selection-button"
 import { ColumnSelectionModal } from "@/components/column-selection-modal"
 import { sendWorkOrderNotifications } from "@/components/work-order-notification-service"
 import { getCurrentReportNumber, updateReportNumber } from "@/lib/firebase/firestore"
+import { LucrariNotificationsBell } from "@/components/lucrari-notifications-bell"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -216,20 +217,20 @@ export default function Lucrari() {
     saveSearchText(value)
   }
 
-  // Obținem lucrările din Firebase - sortate după momentul introducerii în sistem, excluzând lucrările arhivate
+  // Obținem lucrările din Firebase - excludem arhivate direct din query pentru optimizare
   const {
     data: rawLucrari,
     loading,
     error: fetchError,
   } = useFirebaseCollection("lucrari", [
-    where("statusLucrare", "!=", WORK_STATUS.ARCHIVED),
-    orderBy("createdAt", "desc")
+    where("statusLucrare", "!=", WORK_STATUS.ARCHIVED) // Excludem direct lucrările arhivate
   ])
 
-  // Sortare hibridă: prioritizăm lucrările cu updatedAt (modificate recent), apoi cele cu createdAt
+  // Sortăm lucrările (deja filtrate fără arhivate): prioritizăm lucrările cu updatedAt (modificate recent), apoi cele cu createdAt
   const lucrari = useMemo(() => {
     if (!rawLucrari || rawLucrari.length === 0) return []
     
+    // Nu mai filtrăm aici - sunt deja filtrate în query
     return [...rawLucrari].sort((a, b) => {
       // Ambele au updatedAt - sortăm după updatedAt
       if (a.updatedAt && b.updatedAt) {
@@ -272,8 +273,11 @@ export default function Lucrari() {
         const isPickedUpByDispatcher = lucrare.preluatDispecer === true
         const isCompletedWithReportAndPickedUp = isFinalized && hasReportGenerated && isPickedUpByDispatcher
 
-        // Includem lucrarea doar dacă este atribuită tehnicianului și NU este finalizată cu raport și preluată de dispecer
-        return isAssignedToTechnician && !isCompletedWithReportAndPickedUp
+        // Verificăm dacă lucrarea este amânată (nu o afișăm tehnicianului)
+        const isPostponed = lucrare.statusLucrare === WORK_STATUS.POSTPONED
+
+        // Includem lucrarea doar dacă este atribuită tehnicianului și NU este finalizată cu raport și preluată de dispecer și NU este amânată
+        return isAssignedToTechnician && !isCompletedWithReportAndPickedUp && !isPostponed
       })
 
       return filteredList
@@ -2011,7 +2015,11 @@ export default function Lucrari() {
   return (
     <TooltipProvider>
       <DashboardShell>
-        <DashboardHeader heading="Lucrări" text="Gestionați toate lucrările și intervențiile">
+        <DashboardHeader 
+          heading="Lucrări" 
+          text="Gestionați toate lucrările și intervențiile"
+          headerAction={<LucrariNotificationsBell lucrari={rawLucrari || []} />}
+        >
         {!isTechnician && (
           <Dialog
             open={isAddDialogOpen}
