@@ -263,13 +263,13 @@ export function EquipmentQRCode({
     <div class="content">
       <div class="qr-code">${svgClone.outerHTML}</div>
       <div class="equipment-info">
-        <p style="margin: 0.2mm 0; line-height: ${fontSizes.clientValueFontSize <= 5 ? '1.0' : '1.1'};">
+        <p style="margin: 0; line-height: 1.0; padding: 0;">
           <span style="font-size: 8pt;">Client: </span><span style="font-size: ${fontSizes.clientValueFontSize}pt;">${clientName}</span>
         </p>
-        <p style="margin: 0.2mm 0; line-height: ${fontSizes.locationValueFontSize <= 5 ? '1.0' : '1.1'};">
+        <p style="margin: 0; line-height: 1.0; padding: 0;">
           <span style="font-size: 8pt;">Locație: </span><span style="font-size: ${fontSizes.locationValueFontSize}pt;">${locationName}</span>
         </p>
-        <p style="margin: 0.2mm 0; line-height: ${fontSizes.codeValueFontSize <= 5 ? '1.0' : '1.1'};">
+        <p style="margin: 0; line-height: 1.0; padding: 0;">
           <span style="font-size: 8pt;">Cod: </span><span style="font-size: ${fontSizes.codeValueFontSize}pt;">${equipment.cod}</span>
         </p>
       </div>

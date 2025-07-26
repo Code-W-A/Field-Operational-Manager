@@ -17,6 +17,7 @@ import {
   BarChart3,
   FileCodeIcon as FileContract,
   StickyNote,
+  Archive,
 } from "lucide-react"
 
 // Actualizăm componenta MainNav pentru a include iconițele și logo-ul FOM
@@ -27,6 +28,7 @@ export function MainNav({ className, ...props }: React.HTMLAttributes<HTMLElemen
   // Verificăm dacă utilizatorul este admin pentru a afișa meniurile restricționate
   const isAdmin = userData?.role === "admin"
   const isTechnician = userData?.role === "tehnician"
+  const isAdminOrDispatcher = userData?.role === "admin" || userData?.role === "dispecer"
 
   return (
     <div className={cn("flex items-center space-x-4 lg:space-x-6", className)} {...props}>
@@ -56,6 +58,20 @@ export function MainNav({ className, ...props }: React.HTMLAttributes<HTMLElemen
           <ClipboardList className="h-4 w-4" />
           <span>Lucrări</span>
         </Link>
+        {isAdminOrDispatcher && (
+          <Link
+            href="/dashboard/arhivate"
+            className={cn(
+              "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
+              pathname === "/dashboard/arhivate" || pathname.startsWith("/dashboard/arhivate/")
+                ? "text-primary"
+                : "text-muted-foreground",
+            )}
+          >
+            <Archive className="h-4 w-4" />
+            <span>Arhivate</span>
+          </Link>
+        )}
         {!isTechnician && (
           <Link
             href="/dashboard/clienti"

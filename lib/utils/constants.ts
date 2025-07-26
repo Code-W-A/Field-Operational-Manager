@@ -7,6 +7,7 @@ export const WORK_STATUS = {
   IN_PROGRESS: "În lucru",
   WAITING: "În așteptare",
   COMPLETED: "Finalizat",
+  ARCHIVED: "Arhivată",
 }
 
 /**
@@ -18,6 +19,7 @@ export const WORK_STATUS_OPTIONS = [
   WORK_STATUS.IN_PROGRESS,
   WORK_STATUS.WAITING,
   WORK_STATUS.COMPLETED,
+  WORK_STATUS.ARCHIVED,
 ]
 
 /**

@@ -94,7 +94,7 @@ export function ImageDefectUpload({ lucrareId, lucrare, selectedImages, imagePre
     if (totalImages > maxImages) {
       toast({
         title: "Prea multe imagini",
-        description: `Puteți încărca maxim ${maxImages} imagini total. Aveți deja ${currentImages.length + selectedImages.length} imaginea(ea) selectată(e).`,
+        description: `Puteți încărca maxim ${maxImages} imagini total. Aveți deja ${currentImages.length + selectedImages.length} imaginile selectate.`,
         variant: "destructive",
       })
       return
@@ -140,7 +140,7 @@ export function ImageDefectUpload({ lucrareId, lucrare, selectedImages, imagePre
       if (processedFiles.length > 0) {
         toast({
           title: "Imagini selectate",
-          description: `${processedFiles.length} imaginea(ea) a(au) fost selectată(e) și comprimată(e). Vor fi uplodate la salvarea formularului.`,
+          description: `${processedFiles.length} imaginile au fost selectate și comprimate. Vor fi uplodate la salvarea formularului.`,
         })
       }
     } catch (error) {

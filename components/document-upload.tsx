@@ -25,6 +25,9 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
     factura: false,
     oferta: false,
   })
+  
+  // Verificăm dacă lucrarea este arhivată
+  const isArchived = lucrare?.statusLucrare === "Arhivată"
   const facturaInputRef = useRef<HTMLInputElement>(null)
   const ofertaInputRef = useRef<HTMLInputElement>(null)
 
@@ -262,7 +265,10 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
           Documente PDF
         </CardTitle>
         <CardDescription>
-          Încărcare documente pentru factură și ofertă (orice tip de fișier)
+          {isArchived 
+            ? "Documentele pot fi doar vizualizate și descărcate pentru lucrările arhivate"
+            : "Încărcare documente pentru factură și ofertă (orice tip de fișier)"
+          }
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -330,7 +336,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
                     onChange={(e) => setFormData(prev => ({ ...prev, numarFactura: e.target.value }))}
                     placeholder="Ex: FACT-2024-001"
                     className="mt-1"
-                    disabled={!isWorkPickedUp || isUploading.factura}
+                    disabled={!isWorkPickedUp || isUploading.factura || isArchived}
                   />
                 </div>
                 <div>
@@ -340,7 +346,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
                     value={formData.dataFactura}
                     onChange={(e) => setFormData(prev => ({ ...prev, dataFactura: e.target.value }))}
                     className="mt-1"
-                    disabled={!isWorkPickedUp || isUploading.factura}
+                    disabled={!isWorkPickedUp || isUploading.factura || isArchived}
                   />
                 </div>
               </div>
@@ -352,16 +358,16 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
                   type="file"
                   onChange={handleFacturaUpload}
                   className="hidden"
-                  disabled={!isWorkPickedUp || isUploading.factura}
+                  disabled={!isWorkPickedUp || isUploading.factura || isArchived}
                 />
                 <Button
                   onClick={() => facturaInputRef.current?.click()}
-                  disabled={!isWorkPickedUp || isUploading.factura || !formData.numarFactura.trim() || !formData.dataFactura.trim()}
+                  disabled={!isWorkPickedUp || isUploading.factura || !formData.numarFactura.trim() || !formData.dataFactura.trim() || isArchived}
                   variant="outline"
                   className="w-full"
                 >
                   <Upload className="h-4 w-4 mr-2" />
-                  {isUploading.factura ? "Se încarcă..." : "Selectează și încarcă fișier factură"}
+                  {isArchived ? "Indisponibil pentru lucrări arhivate" : (isUploading.factura ? "Se încarcă..." : "Selectează și încarcă fișier factură")}
                 </Button>
               </div>
             </div>
@@ -433,7 +439,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
                     onChange={(e) => setFormData(prev => ({ ...prev, numarOferta: e.target.value }))}
                     placeholder="Ex: OF-2024-001"
                     className="mt-1"
-                    disabled={!isWorkPickedUp || !needsOffer || isUploading.oferta}
+                    disabled={!isWorkPickedUp || !needsOffer || isUploading.oferta || isArchived}
                   />
                 </div>
                 <div>
@@ -443,7 +449,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
                     value={formData.dataOferta}
                     onChange={(e) => setFormData(prev => ({ ...prev, dataOferta: e.target.value }))}
                     className="mt-1"
-                    disabled={!isWorkPickedUp || !needsOffer || isUploading.oferta}
+                    disabled={!isWorkPickedUp || !needsOffer || isUploading.oferta || isArchived}
                   />
                 </div>
               </div>
@@ -455,16 +461,16 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
                   type="file"
                   onChange={handleOfertaUpload}
                   className="hidden"
-                  disabled={!isWorkPickedUp || !needsOffer || isUploading.oferta}
+                  disabled={!isWorkPickedUp || !needsOffer || isUploading.oferta || isArchived}
                 />
                 <Button
                   onClick={() => ofertaInputRef.current?.click()}
-                  disabled={!isWorkPickedUp || !needsOffer || isUploading.oferta || !formData.numarOferta.trim() || !formData.dataOferta.trim()}
+                  disabled={!isWorkPickedUp || !needsOffer || isUploading.oferta || !formData.numarOferta.trim() || !formData.dataOferta.trim() || isArchived}
                   variant="outline"
                   className="w-full"
                 >
                   <Upload className="h-4 w-4 mr-2" />
-                  {isUploading.oferta ? "Se încarcă..." : "Selectează și încarcă fișier ofertă"}
+                  {isArchived ? "Indisponibil pentru lucrări arhivate" : (isUploading.oferta ? "Se încarcă..." : "Selectează și încarcă fișier ofertă")}
                 </Button>
               </div>
             </div>

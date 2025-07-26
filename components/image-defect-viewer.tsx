@@ -35,7 +35,7 @@ export function ImageDefectViewer({ imaginiDefecte, userRole }: ImageDefectViewe
             Imagini defecte constatate de tehnician
           </CardTitle>
           <CardDescription>
-            Imagini încărcate de tehnician cu defectele identificate ({imaginiDefecte.length} imaginea(ea))
+            Imagini încărcate de tehnician cu defectele identificate ({imaginiDefecte.length} imagini)
           </CardDescription>
         </CardHeader>
         <CardContent>

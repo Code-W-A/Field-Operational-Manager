@@ -24,8 +24,10 @@ import {
   Info,
   Check,
   RefreshCw,
+  Archive,
 } from "lucide-react"
 import { getLucrareById, deleteLucrare, updateLucrare, getClienti } from "@/lib/firebase/firestore"
+import { WORK_STATUS } from "@/lib/utils/constants"
 import { TehnicianInterventionForm } from "@/components/tehnician-intervention-form"
 import { DocumentUpload } from "@/components/document-upload"
 import { ImageDefectViewer } from "@/components/image-defect-viewer"
@@ -556,6 +558,43 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               <RefreshCw className="mr-2 h-4 w-4" />
               Reintervenție
             </Button>
+          )}
+
+          {/* Buton pentru arhivare - doar pentru admin/dispecer și lucrări finalizate */}
+          {isAdminOrDispatcher && lucrare.statusLucrare === "Finalizat" && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="text-gray-600 border-gray-200 hover:bg-gray-50"
+                    onClick={async () => {
+                      if (window.confirm("Sigur doriți să arhivați această lucrare? Lucrarea va fi mutată în secțiunea Arhivate.")) {
+                        try {
+                          await updateLucrare(paramsId, { statusLucrare: WORK_STATUS.ARCHIVED })
+                          toast({
+                            title: "Succes",
+                            description: "Lucrarea a fost arhivată cu succes.",
+                          })
+                          router.push("/dashboard/lucrari")
+                        } catch (error) {
+                          console.error("Eroare la arhivare:", error)
+                          toast({
+                            title: "Eroare",
+                            description: "Nu s-a putut arhiva lucrarea.",
+                            variant: "destructive",
+                          })
+                        }
+                      }
+                    }}
+                  >
+                    <Archive className="mr-2 h-4 w-4" />
+                    Arhivează
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Arhivează lucrarea finalizată</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
 
           {/* Adăugăm butonul de preluare/anulare preluare pentru admin și dispecer */}

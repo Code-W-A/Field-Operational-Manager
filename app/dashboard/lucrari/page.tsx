@@ -17,18 +17,19 @@ import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { format, parse, isAfter, isBefore } from "date-fns"
 import { ro } from "date-fns/locale"
-import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check, Info, RefreshCw } from "lucide-react"
+import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check, Info, RefreshCw, Archive } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { addLucrare, deleteLucrare, updateLucrare, getLucrareById } from "@/lib/firebase/firestore"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { orderBy } from "firebase/firestore"
+import { orderBy, where } from "firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import { LucrareForm, type LucrareFormRef } from "@/components/lucrare-form"
+import { ArchiveButton } from "@/components/archive-button"
 import { DataTable } from "@/components/data-table/data-table"
 import { useTablePersistence } from "@/hooks/use-table-persistence"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { WORK_TYPES } from "@/lib/utils/constants"
+import { WORK_TYPES, WORK_STATUS } from "@/lib/utils/constants"
 import { doc, getDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { toast } from "@/components/ui/use-toast"
@@ -215,12 +216,15 @@ export default function Lucrari() {
     saveSearchText(value)
   }
 
-  // Obținem lucrările din Firebase - sortate după momentul introducerii în sistem
+  // Obținem lucrările din Firebase - sortate după momentul introducerii în sistem, excluzând lucrările arhivate
   const {
     data: rawLucrari,
     loading,
     error: fetchError,
-  } = useFirebaseCollection("lucrari", [orderBy("createdAt", "desc")])
+  } = useFirebaseCollection("lucrari", [
+    where("statusLucrare", "!=", WORK_STATUS.ARCHIVED),
+    orderBy("createdAt", "desc")
+  ])
 
   // Sortare hibridă: prioritizăm lucrările cu updatedAt (modificate recent), apoi cele cu createdAt
   const lucrari = useMemo(() => {
@@ -1913,6 +1917,42 @@ export default function Lucrari() {
                 <TooltipContent>Reintervenție</TooltipContent>
               </Tooltip>
             )}
+            {/* Buton de arhivare pentru admin și dispecer - doar pentru lucrări finalizate */}
+            {(userData?.role === "admin" || userData?.role === "dispecer") && row.original.statusLucrare === "Finalizat" && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 text-gray-600 border-gray-200 hover:bg-gray-50"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (window.confirm("Sigur doriți să arhivați această lucrare? Lucrarea va fi mutată în secțiunea Arhivate.")) {
+                        updateLucrare(row.original.id, { statusLucrare: "Arhivată" })
+                          .then(() => {
+                            toast({
+                              title: "Succes",
+                              description: "Lucrarea a fost arhivată cu succes.",
+                            })
+                          })
+                          .catch((error) => {
+                            console.error("Eroare la arhivare:", error)
+                            toast({
+                              title: "Eroare",
+                              description: "Nu s-a putut arhiva lucrarea.",
+                              variant: "destructive",
+                            })
+                          })
+                      }
+                    }}
+                    aria-label="Arhivează lucrarea"
+                  >
+                    <Archive className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Arhivează</TooltipContent>
+              </Tooltip>
+            )}
             {userData?.role === "admin" && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -2478,6 +2518,33 @@ export default function Lucrari() {
                                     }}
                                   >
                                     <RefreshCw className="mr-2 h-4 w-4" /> Reintervenție
+                                  </DropdownMenuItem>
+                                )}
+                                {/* Opțiune de arhivare pentru admin și dispecer - doar pentru lucrări finalizate */}
+                                {(userData?.role === "admin" || userData?.role === "dispecer") && lucrare.statusLucrare === "Finalizat" && (
+                                  <DropdownMenuItem
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      if (window.confirm("Sigur doriți să arhivați această lucrare? Lucrarea va fi mutată în secțiunea Arhivate.")) {
+                                        updateLucrare(lucrare.id, { statusLucrare: "Arhivată" })
+                                          .then(() => {
+                                            toast({
+                                              title: "Succes",
+                                              description: "Lucrarea a fost arhivată cu succes.",
+                                            })
+                                          })
+                                          .catch((error) => {
+                                            console.error("Eroare la arhivare:", error)
+                                            toast({
+                                              title: "Eroare",
+                                              description: "Nu s-a putut arhiva lucrarea.",
+                                              variant: "destructive",
+                                            })
+                                          })
+                                      }
+                                    }}
+                                  >
+                                    <Archive className="mr-2 h-4 w-4" /> Arhivează
                                   </DropdownMenuItem>
                                 )}
                                 {userData?.role === "admin" && (
