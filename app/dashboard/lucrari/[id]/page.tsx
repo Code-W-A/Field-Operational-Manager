@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, use } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Button } from "@/components/ui/button"
@@ -44,6 +44,8 @@ import { getWarrantyDisplayInfo } from "@/lib/utils/warranty-calculator"
 import type { Echipament } from "@/lib/firebase/firestore"
 import { ReinterventionReasonDialog } from "@/components/reintervention-reason-dialog"
 import { PostponeWorkDialog } from "@/components/postpone-work-dialog"
+import { ModificationBanner } from "@/components/modification-banner"
+import { useModificationDetails } from "@/hooks/use-modification-details"
 
 // Funcție utilitar pentru a extrage CUI-ul indiferent de cum este salvat
 const extractCUI = (client: any) => {
@@ -52,12 +54,17 @@ const extractCUI = (client: any) => {
 
 export default function LucrarePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { userData } = useAuth()
   const role = userData?.role || "tehnician"
   const isAdminOrDispatcher = role === "admin" || role === "dispecer"
   
   // Unwrap params using React.use() for Next.js 15
   const { id: paramsId } = use(params)
+  
+  // Detectăm parametrul modificationId din URL
+  const modificationId = searchParams.get('modificationId')
+  const { modification, loading: modificationLoading } = useModificationDetails(modificationId)
   
   const [lucrare, setLucrare] = useState<Lucrare | null>(null)
   const [loading, setLoading] = useState(true)
@@ -75,6 +82,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   
   // State pentru debounce-ul numărului facturii
   const [invoiceNumberTimeout, setInvoiceNumberTimeout] = useState<NodeJS.Timeout | null>(null)
+  
+  // State pentru afișarea banner-ului de modificare
+  const [showModificationBanner, setShowModificationBanner] = useState(true)
 
   // Încărcăm datele lucrării și adresa locației
   useEffect(() => {
@@ -681,6 +691,14 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           )}
         </div>
       </DashboardHeader>
+
+      {/* Banner pentru modificarea recentă din notificări */}
+      {modification && showModificationBanner && (
+        <ModificationBanner
+          modification={modification}
+          onDismiss={() => setShowModificationBanner(false)}
+        />
+      )}
 
       {role === "tehnician" && lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true && (
         <Alert variant="default" className="mb-4 bg-blue-50 border-blue-200">

@@ -83,9 +83,16 @@ export function WorkModificationsDialog({ isOpen, onClose }: WorkModificationsDi
   const { modifications, loading, unreadCount, markAsRead, markAllAsRead } = useWorkModifications(isOpen)
 
   const handleViewLucrare = (modification: WorkModification) => {
-    // Navighează la lucrarea respectivă fără a marca ca citită
+    // Navighează la lucrarea respectivă cu parametrul de modificare pentru a afișa detaliile
     onClose()
-    router.push(`/dashboard/lucrari/${modification.lucrareId}`)
+    
+    // Marchează automat modificarea ca citită când se navighează către lucrare
+    if (!modification.read) {
+      markAsRead(modification.id)
+    }
+    
+    // Include parametrul modificationId pentru a afișa detaliile modificării
+    router.push(`/dashboard/lucrari/${modification.lucrareId}?modificationId=${modification.id}`)
   }
 
   const handleMarkAsRead = (modification: WorkModification, event: React.MouseEvent) => {
