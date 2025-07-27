@@ -1401,7 +1401,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                               disabled={isUpdating}
                             >
                               <option value="DA">DA - Necesită ofertă</option>
-                              <option value="OFERTAT">OFERTAT - Oferta trimisă</option>
+                              <option value="OFERTAT">OFERTAT</option>
                             </select>
                             <p className="text-xs text-green-600 mt-1">
                               Tehnicianul a selectat că lucrarea necesită ofertă. Puteți actualiza statusul.

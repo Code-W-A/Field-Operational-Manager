@@ -198,7 +198,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
       <DashboardShell>
         <DashboardHeader
           heading="Detalii Lucrare Arhivată"
-          text={`ID: ${params.id} • Status: ${lucrare.statusLucrare}`}
+          text={`ID Baza de Date: ${params.id} • Status: ${lucrare.statusLucrare}`}
         >
           <div className="flex items-center space-x-2">
             {lucrare.raportGenerat && (
@@ -520,7 +520,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Wrench className="h-5 w-5" />
-                  Informații Echipament & Garanție
+                  Informații Echipament
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
