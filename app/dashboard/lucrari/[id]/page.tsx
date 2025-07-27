@@ -1365,15 +1365,60 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       {/* Status Ofertă */}
                       <div className="space-y-2">
                         <label className="text-xs font-medium text-amber-800">Status ofertă:</label>
-                        {/* Status ofertă dezactivat în management situații critice */}
-                        <div className="w-full text-xs p-2 border border-amber-300 rounded bg-gray-100 text-gray-500">
-                          <select disabled className="w-full bg-transparent">
-                            <option>Dezactivat în management situații critice</option>
-                          </select>
-                          <p className="text-xs text-amber-600 mt-1">
-                            Statusul ofertei nu poate fi modificat în management situații critice. Nu a fost selectat de catre tehnician "Necesită Ofertă".
-                          </p>
-                        </div>
+                        {lucrare.necesitaOferta ? (
+                          /* Status ofertă activ când tehnicianul a selectat "Necesită Ofertă" */
+                          <div>
+                            <select
+                              value={lucrare.statusOferta || "DA"}
+                              onChange={async (e) => {
+                                try {
+                                  setIsUpdating(true)
+                                  const newStatus = e.target.value as "DA" | "OFERTAT"
+                                  console.log("Actualizare status ofertă:", { lucrareId: lucrare.id, newStatus })
+                                  await updateLucrare(lucrare.id!, { statusOferta: newStatus })
+                                  setLucrare(prev => prev ? { ...prev, statusOferta: newStatus } : null)
+                                  const updatedLucrare = await getLucrareById(lucrare.id!)
+                                  if (updatedLucrare) {
+                                    setLucrare(updatedLucrare)
+                                    console.log("Lucrare reîncărcată din Firebase:", { statusOferta: updatedLucrare.statusOferta })
+                                  }
+                                  toast({
+                                    title: "Status actualizat",
+                                    description: "Statusul ofertei a fost actualizat."
+                                  })
+                                } catch (error) {
+                                  console.error("Eroare la actualizarea statusului ofertei:", error)
+                                  toast({
+                                    title: "Eroare",
+                                    description: "Nu s-a putut actualiza statusul.",
+                                    variant: "destructive"
+                                  })
+                                } finally {
+                                  setIsUpdating(false)
+                                }
+                              }}
+                              className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
+                              disabled={isUpdating}
+                            >
+                              <option value="DA">DA - Necesită ofertă</option>
+                              <option value="OFERTAT">OFERTAT - Oferta trimisă</option>
+                            </select>
+                            <p className="text-xs text-green-600 mt-1">
+                              Tehnicianul a selectat că lucrarea necesită ofertă. Puteți actualiza statusul.
+                            </p>
+                          </div>
+                        ) : (
+                          /* Status ofertă dezactivat când nu necesită ofertă */
+                          <div className="w-full text-xs p-2 border border-amber-300 rounded bg-gray-100 text-gray-500">
+                            <select disabled className="w-full bg-transparent">
+                              <option>Dezactivat în management situații critice</option>
+                            </select>
+                            <p className="text-xs text-amber-600 mt-1">
+                              Statusul ofertei nu poate fi modificat în management situații critice. 
+                              Nu a fost selectat de către tehnician "Necesită Ofertă".
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
                     

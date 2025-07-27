@@ -214,7 +214,6 @@ export default function Dashboard() {
       <DashboardHeader 
         heading="Dashboard" 
         text="Bine ați venit în sistemul de management al lucrărilor"
-        headerAction={<WorkNotificationsBell />}
       />
 
       {isLoading ? (
