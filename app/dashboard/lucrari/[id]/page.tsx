@@ -1633,7 +1633,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           <TabsContent value="verificare" className="mt-4">
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
+                {/* Layout responsive: pe mobil butonul apare sub text, pe desktop alături */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div>
                     <CardTitle>Verificare Echipament</CardTitle>
                     <CardDescription>
@@ -1642,19 +1643,21 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   </div>
                   {/* Buton de amânare - disponibil doar pentru lucrări neamânate și nefinalizate */}
                   {lucrare.statusLucrare !== "Amânată" && lucrare.statusLucrare !== "Finalizat" && (
-                    <PostponeWorkDialog
-                      lucrareId={lucrare.id!}
-                      onSuccess={() => {
-                        toast({
-                          title: "Lucrare amânată",
-                          description: "Vei fi redirecționat către lista de lucrări.",
-                        })
-                        setTimeout(() => {
-                          router.push("/dashboard/lucrari")
-                        }, 2000)
-                      }}
-                      className="ml-auto"
-                    />
+                    <div className="flex justify-start sm:justify-end">
+                      <PostponeWorkDialog
+                        lucrareId={lucrare.id!}
+                        onSuccess={() => {
+                          toast({
+                            title: "Lucrare amânată",
+                            description: "Vei fi redirecționat către lista de lucrări.",
+                          })
+                          setTimeout(() => {
+                            router.push("/dashboard/lucrari")
+                          }, 2000)
+                        }}
+                        className="w-full sm:w-auto"
+                      />
+                    </div>
                   )}
                 </div>
               </CardHeader>

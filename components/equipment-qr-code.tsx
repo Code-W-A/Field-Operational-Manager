@@ -143,6 +143,9 @@ export function EquipmentQRCode({
     const svgClone = svgElem.cloneNode(true) as SVGElement
     svgClone.setAttribute("width", "100")
     svgClone.setAttribute("height", "100")
+    svgClone.style.display = "block"
+    svgClone.style.margin = "0"
+    svgClone.style.padding = "0"
 
     // Calculăm font-size-uri pentru valorile de după ":"
     const fontSizes = calculateValueFontSizes(clientName, locationName, equipment.cod)
@@ -176,81 +179,36 @@ export function EquipmentQRCode({
     `
       : ""
 
-    const html = `<!DOCTYPE html>
-<html lang="ro">
+        const html = `<!DOCTYPE html>
+<html>
   <head>
     <meta charset="utf-8" />
-    <title>QR Code Echipament – ${equipment.nume}</title>
+    <title>QR Code</title>
     <style>
-      @page {
-        size: 60mm 45mm;
-        margin: 0;
+      @page { size: 60mm 45mm; margin: 0; }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { 
+        width: 60mm; height: 45mm; overflow: hidden; 
+        font-family: Arial, sans-serif; 
       }
-      body {
-        font-family: Arial, sans-serif;
-        margin: 0;
-        padding: 2mm;
-        width: 56mm;
-        height: 41mm;
-        box-sizing: border-box;
-        overflow: hidden;
+      body { padding: 2mm; }
+      .header { 
+        display: flex; align-items: center; justify-content: center; 
+        margin-bottom: 2mm; height: 6mm; 
       }
-      .header {
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        justify-content: center;
-        margin-bottom: 2mm;
+      .logo { height: 6mm; max-width: 15mm; margin-right: 2mm; }
+      .logo-placeholder { 
+        display: none; width: 15mm; height: 6mm; background: #f0f0f0; 
+        align-items: center; justify-content: center; font-size: 8pt; font-weight: bold; 
       }
-      .logo, .logo-placeholder {
-        height: 6mm;
-        max-width: 15mm;
-        object-fit: contain;
-        margin-right: 2mm;
-      }
-      .logo-placeholder {
-        display: none;
-        align-items: center;
-        justify-content: center;
-        font-weight: bold;
-        font-size: 8pt;
-        width: 15mm;
-        background-color: #f0f0f0;
-        border-radius: 2px;
-      }
-      .company-name {
-        font-size: 9pt;
-        font-weight: bold;
-      }
-      .content {
-        display: flex;
-        width: 100%;
-        height: calc(100% - 10mm);
-      }
-      .qr-code {
-        flex: 0 0 auto;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-right: 2mm;
-      }
-      .equipment-info {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        font-weight: bold;
-      }
-      .equipment-info p {
-        word-wrap: break-word;
-        overflow-wrap: break-word;
-      }
-      @media print {
-        .no-print { display: none }
-        html, body {
-          width: 60mm;
-          height: 45mm;
-        }
+      .company-name { font-size: 9pt; font-weight: bold; }
+      .content { display: flex; height: 31mm; }
+      .qr-code { margin-right: 2mm; }
+      .equipment-info { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+      .equipment-info p { margin: 0; line-height: 1.0; font-weight: bold; }
+      @media print { 
+        .no-print { display: none !important; }
+        @page { size: 60mm 45mm; margin: 0; }
       }
     </style>
   </head>
@@ -263,27 +221,18 @@ export function EquipmentQRCode({
     <div class="content">
       <div class="qr-code">${svgClone.outerHTML}</div>
       <div class="equipment-info">
-        <p style="margin: 0; line-height: 1.0; padding: 0;">
-          <span style="font-size: 8pt;">Client: </span><span style="font-size: ${fontSizes.clientValueFontSize}pt;">${clientName}</span>
-        </p>
-        <p style="margin: 0; line-height: 1.0; padding: 0;">
-          <span style="font-size: 8pt;">Locație: </span><span style="font-size: ${fontSizes.locationValueFontSize}pt;">${locationName}</span>
-        </p>
-        <p style="margin: 0; line-height: 1.0; padding: 0;">
-          <span style="font-size: 8pt;">Cod: </span><span style="font-size: ${fontSizes.codeValueFontSize}pt;">${equipment.cod}</span>
-        </p>
+        <p><span style="font-size: 8pt;">Client: </span><span style="font-size: ${fontSizes.clientValueFontSize}pt;">${clientName}</span></p>
+        <p><span style="font-size: 8pt;">Locație: </span><span style="font-size: ${fontSizes.locationValueFontSize}pt;">${locationName}</span></p>
+        <p><span style="font-size: 8pt;">Cod: </span><span style="font-size: ${fontSizes.codeValueFontSize}pt;">${equipment.cod}</span></p>
       </div>
     </div>
-    <button class="no-print" onclick="window.print()" style="margin-top:1mm;padding:1mm 2mm;font-size:7pt;">Printează</button>
+
     <script>
-      // Auto-print după încărcare
       window.onload = function() {
         ${reloadLogoScript}
-        // Delay scurt pentru a permite încărcarea completă
-        setTimeout(function() {
-          window.print();
-        }, 1000);
+        setTimeout(() => window.print(), 500);
       };
+      window.onafterprint = () => window.close();
     </script>
   </body>
 </html>`
