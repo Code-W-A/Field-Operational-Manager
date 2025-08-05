@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { Send, ArrowLeft, Download, Lock, FileDown, Loader2 } from "lucide-react"
+import { Send, ArrowLeft, Download, Lock, FileDown, Loader2, Save, Calendar, Clock, AlertTriangle, Edit } from "lucide-react"
 import SignatureCanvas from "react-signature-canvas"
 import { getLucrareById, updateLucrare } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
@@ -20,10 +20,12 @@ import { ReportGenerator } from "@/components/report-generator"
 import { MultiEmailInput } from "@/components/ui/multi-email-input"
 import { doc, updateDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
+import { calculateDuration } from "@/lib/utils/time-format"
+import { Textarea } from "@/components/ui/textarea"
 
 export default function RaportPage({ params }: { params: { id: string } }) {
   const SIG_HEIGHT = 160 // px – lasă-l fix
-  const SIG_MIN_WIDTH = 320 // px – cât încape pe telefonul cel mai îngust
+  const SIG_MIN_WIDTH = 360 // px - lățimea minimă pentru semnături
 
   const router = useRouter()
   const { userData } = useAuth()
@@ -57,6 +59,26 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   // Add name states for signers
   const [numeTehnician, setNumeTehnician] = useState("")
   const [numeBeneficiar, setNumeBeneficiar] = useState("")
+
+  // State-uri pentru editarea manuală a timpului de plecare
+  const [isEditingDepartureTime, setIsEditingDepartureTime] = useState(false)
+  const [editingDepartureDate, setEditingDepartureDate] = useState("")
+  const [editingDepartureTime, setEditingDepartureTime] = useState("")
+  const [isSavingDepartureTime, setIsSavingDepartureTime] = useState(false)
+
+  // State-uri pentru editarea manuală a timpului de sosire
+  const [isEditingArrivalTime, setIsEditingArrivalTime] = useState(false)
+  const [editingArrivalDate, setEditingArrivalDate] = useState("")
+  const [editingArrivalTime, setEditingArrivalTime] = useState("")
+  const [isSavingArrivalTime, setIsSavingArrivalTime] = useState(false)
+
+  // State-uri pentru editarea datelor lipsă din raport
+  const [isEditingMissingData, setIsEditingMissingData] = useState(false)
+  const [editingTechnicianName, setEditingTechnicianName] = useState("")
+  const [editingBeneficiaryName, setEditingBeneficiaryName] = useState("")
+  const [editingFindingsOnSite, setEditingFindingsOnSite] = useState("")
+  const [editingInterventionDescription, setEditingInterventionDescription] = useState("")
+  const [isSavingMissingData, setIsSavingMissingData] = useState(false)
 
   const reportGeneratorRef = useRef<React.ElementRef<typeof ReportGenerator>>(null)
   const submitButtonRef = useRef<HTMLButtonElement>(null)
@@ -188,9 +210,9 @@ export default function RaportPage({ params }: { params: { id: string } }) {
                 const diffHours = diffMs / (1000 * 60 * 60)
                 console.log("⏱️ Diferența în ore:", diffHours)
                 
-                if (diffHours > 24) {
-                  console.log("🚨 ALERTĂ: DURATA NEREALISTA DETECTATĂ!")
-                  console.log("🚨 Durata de", Math.round(diffHours), "ore pare incorectă!")
+                if (diffHours > 72) {
+                  console.log("ℹ️ INFO: Durata lungă detectată!")
+                  console.log("ℹ️ Durata de", Math.round(diffHours), "ore (", Math.round(diffHours / 24), "zile)")
                 }
                 
               } catch (e) {
@@ -669,6 +691,300 @@ FOM by NRG`,
     }
   }
 
+  // Funcție pentru salvarea timpului de plecare manual
+  const handleSaveDepartureTime = async () => {
+    if (!lucrare?.id || !editingDepartureDate || !editingDepartureTime) {
+      toast({
+        title: "Eroare",
+        description: "Vă rugăm să completați atât data cât și ora de plecare.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSavingDepartureTime(true)
+
+    try {
+      // Construim timestamp-ul complet pentru plecare
+      const [day, month, year] = editingDepartureDate.split('.')
+      const [hour, minute] = editingDepartureTime.split(':')
+      const departureDateTime = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute))
+      
+      // Verificăm dacă data este validă
+      if (isNaN(departureDateTime.getTime())) {
+        throw new Error("Data sau ora introdusă nu este validă")
+      }
+
+      // Verificăm dacă plecare este după sosire
+      if (lucrare.timpSosire) {
+        const arrivalTime = new Date(lucrare.timpSosire)
+        if (departureDateTime <= arrivalTime) {
+          toast({
+            title: "Eroare",
+            description: "Timpul de plecare trebuie să fie după timpul de sosire.",
+            variant: "destructive",
+          })
+          setIsSavingDepartureTime(false)
+          return
+        }
+      }
+
+      const timpPlecare = departureDateTime.toISOString()
+      const dataPlecare = editingDepartureDate
+      const oraPlecare = editingDepartureTime
+      
+      // Calculăm durata dacă avem și timpul de sosire
+      let durataInterventie = "-"
+      if (lucrare.timpSosire) {
+        durataInterventie = calculateDuration(lucrare.timpSosire, timpPlecare)
+      }
+
+      // Salvăm în Firestore
+      const updateData = {
+        timpPlecare,
+        dataPlecare,
+        oraPlecare,
+        durataInterventie
+      }
+
+      await updateLucrare(lucrare.id, updateData)
+
+      // Actualizăm starea locală
+      const updatedLucrareData = {
+        ...lucrare,
+        ...updateData
+      }
+      setLucrare(updatedLucrareData)
+      setUpdatedLucrare(updatedLucrareData)
+
+      // Resetăm formularul
+      setIsEditingDepartureTime(false)
+      setEditingDepartureDate("")
+      setEditingDepartureTime("")
+
+      toast({
+        title: "Succes",
+        description: `Timpul de plecare a fost salvat. Durata calculată: ${durataInterventie}`,
+        variant: "default",
+      })
+
+    } catch (error) {
+      console.error("Eroare la salvarea timpului de plecare:", error)
+      toast({
+        title: "Eroare",
+        description: "Nu s-a putut salva timpul de plecare. Verificați datele introduse.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSavingDepartureTime(false)
+    }
+  }
+
+  // Funcție pentru inițierea editării timpului de plecare
+  const handleStartEditingDepartureTime = () => {
+    // Setăm valorile implicite la data și ora curentă
+    const now = new Date()
+    const currentDate = now.toLocaleDateString('ro-RO').split('.').map(part => part.padStart(2, '0')).join('.')
+    const currentTime = now.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })
+    
+    setEditingDepartureDate(currentDate)
+    setEditingDepartureTime(currentTime)
+    setIsEditingDepartureTime(true)
+  }
+
+  // Funcție pentru salvarea timpului de sosire manual
+  const handleSaveArrivalTime = async () => {
+    if (!lucrare?.id || !editingArrivalDate || !editingArrivalTime) {
+      toast({
+        title: "Eroare",
+        description: "Vă rugăm să completați atât data cât și ora de sosire.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSavingArrivalTime(true)
+
+    try {
+      // Construim timestamp-ul complet pentru sosire
+      const [day, month, year] = editingArrivalDate.split('.')
+      const [hour, minute] = editingArrivalTime.split(':')
+      const arrivalDateTime = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute))
+      
+      // Verificăm dacă data este validă
+      if (isNaN(arrivalDateTime.getTime())) {
+        throw new Error("Data sau ora introdusă nu este validă")
+      }
+
+      const timpSosire = arrivalDateTime.toISOString()
+      const dataSosire = editingArrivalDate
+      const oraSosire = editingArrivalTime
+
+      // Salvăm în Firestore
+      const updateData = {
+        timpSosire,
+        dataSosire,
+        oraSosire
+      }
+
+      await updateLucrare(lucrare.id, updateData)
+
+      // Actualizăm starea locală
+      const updatedLucrareData = {
+        ...lucrare,
+        ...updateData
+      }
+      setLucrare(updatedLucrareData)
+      setUpdatedLucrare(updatedLucrareData)
+
+      // Resetăm formularul
+      setIsEditingArrivalTime(false)
+      setEditingArrivalDate("")
+      setEditingArrivalTime("")
+
+      toast({
+        title: "Succes",
+        description: "Timpul de sosire a fost salvat cu succes.",
+        variant: "default",
+      })
+
+    } catch (error) {
+      console.error("Eroare la salvarea timpului de sosire:", error)
+      toast({
+        title: "Eroare",
+        description: "Nu s-a putut salva timpul de sosire. Verificați datele introduse.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSavingArrivalTime(false)
+    }
+  }
+
+  // Funcție pentru inițierea editării timpului de sosire
+  const handleStartEditingArrivalTime = () => {
+    // Setăm valorile implicite la data intervenției sau data curentă
+    const interventionDate = lucrare?.dataInterventie?.split(' ')[0] || new Date().toLocaleDateString('ro-RO').split('.').map(part => part.padStart(2, '0')).join('.')
+    const currentTime = "09:00" // Ora implicită de sosire
+    
+    setEditingArrivalDate(interventionDate)
+    setEditingArrivalTime(currentTime)
+    setIsEditingArrivalTime(true)
+  }
+
+  // Funcție pentru salvarea datelor lipsă din raport
+  const handleSaveMissingData = async () => {
+    if (!lucrare?.id) {
+      toast({
+        title: "Eroare",
+        description: "Nu s-a putut identifica lucrarea.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSavingMissingData(true)
+
+    try {
+      // Construim obiectul cu datele de actualizat (doar cele completate)
+      const updateData: any = {}
+
+      if (editingTechnicianName.trim()) {
+        updateData.numeTehnician = editingTechnicianName.trim()
+      }
+
+      if (editingBeneficiaryName.trim()) {
+        updateData.numeBeneficiar = editingBeneficiaryName.trim()
+      }
+
+      if (editingFindingsOnSite.trim()) {
+        updateData.constatareLaLocatie = editingFindingsOnSite.trim()
+      }
+
+      if (editingInterventionDescription.trim()) {
+        updateData.descriereInterventie = editingInterventionDescription.trim()
+      }
+
+      // Verificăm dacă avem ceva de salvat
+      if (Object.keys(updateData).length === 0) {
+        toast({
+          title: "Eroare",
+          description: "Nu ați completat niciun câmp pentru salvare.",
+          variant: "destructive",
+        })
+        setIsSavingMissingData(false)
+        return
+      }
+
+      // Salvăm în Firestore
+      await updateLucrare(lucrare.id, updateData)
+
+      // Actualizăm starea locală
+      const updatedLucrareData = {
+        ...lucrare,
+        ...updateData
+      }
+      setLucrare(updatedLucrareData)
+      setUpdatedLucrare(updatedLucrareData)
+
+      // Resetăm formularul
+      setIsEditingMissingData(false)
+      setEditingTechnicianName("")
+      setEditingBeneficiaryName("")
+      setEditingFindingsOnSite("")
+      setEditingInterventionDescription("")
+
+      const fieldsUpdated = Object.keys(updateData).map(key => {
+        const fieldNames: {[key: string]: string} = {
+          numeTehnician: 'Numele tehnicianului',
+          numeBeneficiar: 'Numele beneficiarului', 
+          constatareLaLocatie: 'Constatarea la locație',
+          descriereInterventie: 'Descrierea intervenției'
+        }
+        return fieldNames[key]
+      }).join(', ')
+
+      toast({
+        title: "Succes",
+        description: `Au fost salvate: ${fieldsUpdated}`,
+        variant: "default",
+      })
+
+    } catch (error) {
+      console.error("Eroare la salvarea datelor lipsă:", error)
+      toast({
+        title: "Eroare",
+        description: "Nu s-au putut salva datele. Încercați din nou.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSavingMissingData(false)
+    }
+  }
+
+  // Funcție pentru inițierea editării datelor lipsă
+  const handleStartEditingMissingData = () => {
+    // Pre-completăm cu valorile existente (dacă sunt)
+    setEditingTechnicianName(lucrare?.numeTehnician || "")
+    setEditingBeneficiaryName(lucrare?.numeBeneficiar || "")
+    setEditingFindingsOnSite(lucrare?.constatareLaLocatie || "")
+    setEditingInterventionDescription(lucrare?.descriereInterventie || "")
+    setIsEditingMissingData(true)
+  }
+
+  // Funcție pentru verificarea datelor lipsă
+  const getMissingDataInfo = () => {
+    const missing = []
+    
+    if (!lucrare?.timpSosire) missing.push("Timpul de sosire")
+    if (!lucrare?.timpPlecare && !lucrare?.raportSnapshot?.timpPlecare) missing.push("Timpul de plecare")
+    if (!lucrare?.numeTehnician) missing.push("Numele tehnicianului")
+    if (!lucrare?.numeBeneficiar) missing.push("Numele beneficiarului")
+    if (!lucrare?.constatareLaLocatie) missing.push("Constatarea la locație")
+    if (!lucrare?.descriereInterventie) missing.push("Descrierea intervenției")
+    
+    return missing
+  }
+
   // Show loading state
   if (loading) {
     return (
@@ -836,57 +1152,431 @@ FOM by NRG`,
             <div className="bg-gray-50 rounded-lg p-4">
               <h3 className="font-medium text-gray-700 mb-3">Conținut Raport</h3>
               
-              {/* Debugging info pentru timpul lipsă (doar pentru admin/dispecer) */}
-              {!lucrare?.raportSnapshot?.durataInterventie && !lucrare?.durataInterventie && !lucrare?.timpSosire && (
-                <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
-                  <p className="text-yellow-800 font-medium">⚠️ Info Debug - Durata N/A</p>
-                  <p className="text-yellow-700">
-                    Durata nu poate fi calculată pentru că lipsește timpul de sosire. 
-                    Tehnicianul probabil nu a scanat QR-ul echipamentului.
-                  </p>
-                </div>
-              )}
-              
-              {!lucrare?.raportSnapshot?.durataInterventie && !lucrare?.durataInterventie && lucrare?.timpSosire && !lucrare?.timpPlecare && !lucrare?.raportSnapshot?.timpPlecare && (
-                <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
-                  <p className="text-yellow-800 font-medium">⚠️ Info Debug - Durata N/A</p>
-                  <p className="text-yellow-700">
-                    Durata nu poate fi calculată pentru că lipsește timpul de plecare din raport.
-                    Problemă la generarea raportului.
-                  </p>
-                </div>
-              )}
-              
-              {/* Verificare pentru timpi corupți */}
-              {lucrare?.timpSosire && lucrare?.timpPlecare && (() => {
-                try {
-                  const sosireDate = new Date(lucrare.timpSosire);
-                  const plecareDate = new Date(lucrare.timpPlecare);
-                  const currentYear = new Date().getFullYear();
-                  const isCorrupted = sosireDate.getFullYear() > currentYear || plecareDate.getFullYear() > currentYear;
-                  
-                  const diffMs = plecareDate.getTime() - sosireDate.getTime();
-                  const diffHours = diffMs / (1000 * 60 * 60);
-                  const isUnrealistic = diffHours > 24;
-                  
-                  return isCorrupted || isUnrealistic;
-                } catch (e) {
-                  return false;
+              {/* VERIFICARE ȘI FORMULARE PENTRU DATELE LIPSĂ */}
+              {(() => {
+                const missingData = getMissingDataInfo()
+                
+                // Afișează un overview cu toate datele lipsă
+                if (missingData.length > 0) {
+                  return (
+                    <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                      <div className="flex items-center gap-2 mb-3">
+                        <AlertTriangle className="h-5 w-5 text-amber-600" />
+                        <p className="text-amber-800 font-medium">Date incomplete pentru raport</p>
+                      </div>
+                      <p className="text-amber-700 text-sm mb-3">
+                        Următoarele date lipsesc și ar trebui completate pentru un raport complet:
+                      </p>
+                      <ul className="text-amber-700 text-sm mb-4 space-y-1">
+                        {missingData.map((item, index) => (
+                          <li key={index} className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 bg-amber-600 rounded-full"></span>
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="text-sm text-amber-600">
+                        💡 Puteți completa datele lipsă folosind formularele de mai jos înainte de a descărca raportul.
+                      </div>
+                    </div>
+                  )
                 }
-              })() && (
-                <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-xs">
-                  <p className="text-red-800 font-medium">🚨 EROARE CRITICĂ - Date Corupte</p>
-                  <p className="text-red-700">
-                    Timpii de sosire/plecare conțin date corupte (în viitor sau durată nerealista).
-                    <br />
-                    Sosire: {lucrare?.timpSosire ? new Date(lucrare.timpSosire).toLocaleString('ro-RO') : 'N/A'}
-                    <br />
-                    Plecare: {lucrare?.timpPlecare ? new Date(lucrare.timpPlecare).toLocaleString('ro-RO') : 'N/A'}
-                    <br />
-                    <strong>Această problemă necesită intervenție tehnică pentru corectare!</strong>
-                  </p>
+                return null
+              })()}
+
+              {/* FORMULAR PENTRU INTRODUCEREA MANUALĂ A TIMPULUI DE SOSIRE */}
+              {!lucrare?.timpSosire && (
+                <div className="mb-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+                  {!isEditingArrivalTime ? (
+                    <>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Clock className="h-4 w-4 text-red-600" />
+                        <p className="text-red-800 font-medium">⚠️ Lipsește timpul de sosire</p>
+                      </div>
+                      <p className="text-red-700 text-sm mb-3">
+                        Nu există înregistrare pentru sosirea tehnicianului la locație.
+                        Durata intervenției nu poate fi calculată fără acest timp.
+                      </p>
+                      <Button 
+                        onClick={handleStartEditingArrivalTime}
+                        size="sm" 
+                        className="bg-red-600 hover:bg-red-700"
+                      >
+                        <Calendar className="h-4 w-4 mr-2" />
+                        Introduceți timpul de sosire
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Clock className="h-4 w-4 text-red-600" />
+                        <p className="text-red-800 font-medium">Introduceți timpul de sosire</p>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="arrivalDate" className="text-sm font-medium">
+                            Data sosire
+                          </Label>
+                          <Input
+                            id="arrivalDate"
+                            type="text"
+                            placeholder="dd.mm.yyyy"
+                            value={editingArrivalDate}
+                            onChange={(e) => setEditingArrivalDate(e.target.value)}
+                            disabled={isSavingArrivalTime}
+                            className="text-sm"
+                          />
+                          <p className="text-xs text-gray-500">Format: zz.ll.aaaa (ex: 27.01.2025)</p>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="arrivalTime" className="text-sm font-medium">
+                            Ora sosire
+                          </Label>
+                          <Input
+                            id="arrivalTime"
+                            type="text"
+                            placeholder="hh:mm"
+                            value={editingArrivalTime}
+                            onChange={(e) => setEditingArrivalTime(e.target.value)}
+                            disabled={isSavingArrivalTime}
+                            className="text-sm"
+                          />
+                          <p className="text-xs text-gray-500">Format: oo:mm (ex: 09:00)</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        <Button 
+                          onClick={handleSaveArrivalTime}
+                          disabled={isSavingArrivalTime || !editingArrivalDate || !editingArrivalTime}
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          {isSavingArrivalTime ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Se salvează...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="h-4 w-4 mr-2" />
+                              Salvează
+                            </>
+                          )}
+                        </Button>
+                        
+                        <Button 
+                          onClick={() => {
+                            setIsEditingArrivalTime(false)
+                            setEditingArrivalDate("")
+                            setEditingArrivalTime("")
+                          }}
+                          variant="outline"
+                          size="sm"
+                          disabled={isSavingArrivalTime}
+                        >
+                          Anulează
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
+              
+              {/* FORMULAR PENTRU INTRODUCEREA MANUALĂ A TIMPULUI DE PLECARE */}
+              {!lucrare?.raportSnapshot?.durataInterventie && !lucrare?.durataInterventie && lucrare?.timpSosire && !lucrare?.timpPlecare && !lucrare?.raportSnapshot?.timpPlecare && (
+                <div className="mb-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  {!isEditingDepartureTime ? (
+                    <>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Clock className="h-4 w-4 text-blue-600" />
+                        <p className="text-blue-800 font-medium">⚠️ Lipsește timpul de plecare</p>
+                      </div>
+                      <p className="text-blue-700 text-sm mb-3">
+                        Durata nu poate fi calculată pentru că lipsește timpul de plecare din raport.
+                        Puteți introduce manual datele de plecare.
+                      </p>
+                      <Button 
+                        onClick={handleStartEditingDepartureTime}
+                        size="sm" 
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        <Calendar className="h-4 w-4 mr-2" />
+                        Introduceți timpul de plecare
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Clock className="h-4 w-4 text-blue-600" />
+                        <p className="text-blue-800 font-medium">Introduceți timpul de plecare</p>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="departureDate" className="text-sm font-medium">
+                            Data plecare
+                          </Label>
+                          <Input
+                            id="departureDate"
+                            type="text"
+                            placeholder="dd.mm.yyyy"
+                            value={editingDepartureDate}
+                            onChange={(e) => setEditingDepartureDate(e.target.value)}
+                            disabled={isSavingDepartureTime}
+                            className="text-sm"
+                          />
+                          <p className="text-xs text-gray-500">Format: zz.ll.aaaa (ex: 27.01.2025)</p>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="departureTime" className="text-sm font-medium">
+                            Ora plecare
+                          </Label>
+                          <Input
+                            id="departureTime"
+                            type="text"
+                            placeholder="hh:mm"
+                            value={editingDepartureTime}
+                            onChange={(e) => setEditingDepartureTime(e.target.value)}
+                            disabled={isSavingDepartureTime}
+                            className="text-sm"
+                          />
+                          <p className="text-xs text-gray-500">Format: oo:mm (ex: 14:30)</p>
+                        </div>
+                      </div>
+                      
+                      {lucrare?.timpSosire && (
+                        <div className="mb-4 p-3 bg-white rounded border text-sm">
+                          <p className="text-gray-600 mb-1">
+                            <strong>Timpul de sosire:</strong> {new Date(lucrare.timpSosire).toLocaleString('ro-RO')}
+                          </p>
+                          {editingDepartureDate && editingDepartureTime && (
+                            <p className="text-gray-600">
+                              <strong>Durata estimată:</strong> {(() => {
+                                try {
+                                  const [day, month, year] = editingDepartureDate.split('.')
+                                  const [hour, minute] = editingDepartureTime.split(':')
+                                  const departureDateTime = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute))
+                                  
+                                  if (!isNaN(departureDateTime.getTime())) {
+                                    return calculateDuration(lucrare.timpSosire, departureDateTime.toISOString())
+                                  }
+                                  return "Format invalid"
+                                } catch (e) {
+                                  return "Format invalid"
+                                }
+                              })()}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      
+                      <div className="flex gap-2">
+                        <Button 
+                          onClick={handleSaveDepartureTime}
+                          disabled={isSavingDepartureTime || !editingDepartureDate || !editingDepartureTime}
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          {isSavingDepartureTime ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Se salvează...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="h-4 w-4 mr-2" />
+                              Salvează
+                            </>
+                          )}
+                        </Button>
+                        
+                        <Button 
+                          onClick={() => {
+                            setIsEditingDepartureTime(false)
+                            setEditingDepartureDate("")
+                            setEditingDepartureTime("")
+                          }}
+                          variant="outline"
+                          size="sm"
+                          disabled={isSavingDepartureTime}
+                        >
+                          Anulează
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* FORMULAR PENTRU COMPLETAREA DATELOR LIPSĂ DIN RAPORT */}
+              {(!lucrare?.numeTehnician || !lucrare?.numeBeneficiar || !lucrare?.constatareLaLocatie || !lucrare?.descriereInterventie) && (
+                <div className="mb-3 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                  {!isEditingMissingData ? (
+                    <>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Edit className="h-4 w-4 text-purple-600" />
+                        <p className="text-purple-800 font-medium">⚠️ Date incomplete în raport</p>
+                      </div>
+                      <p className="text-purple-700 text-sm mb-3">
+                        Unele informații importante lipsesc din raport și ar trebui completate:
+                      </p>
+                      <ul className="text-purple-700 text-sm mb-4 space-y-1">
+                        {!lucrare?.numeTehnician && (
+                          <li className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 bg-purple-600 rounded-full"></span>
+                            Numele tehnicianului
+                          </li>
+                        )}
+                        {!lucrare?.numeBeneficiar && (
+                          <li className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 bg-purple-600 rounded-full"></span>
+                            Numele beneficiarului
+                          </li>
+                        )}
+                        {!lucrare?.constatareLaLocatie && (
+                          <li className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 bg-purple-600 rounded-full"></span>
+                            Constatarea la locație
+                          </li>
+                        )}
+                        {!lucrare?.descriereInterventie && (
+                          <li className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 bg-purple-600 rounded-full"></span>
+                            Descrierea intervenției
+                          </li>
+                        )}
+                      </ul>
+                      <Button 
+                        onClick={handleStartEditingMissingData}
+                        size="sm" 
+                        className="bg-purple-600 hover:bg-purple-700"
+                      >
+                        <Edit className="h-4 w-4 mr-2" />
+                        Completați datele lipsă
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Edit className="h-4 w-4 text-purple-600" />
+                        <p className="text-purple-800 font-medium">Completați datele lipsă</p>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        {!lucrare?.numeTehnician && (
+                          <div className="space-y-2">
+                            <Label htmlFor="technicianName" className="text-sm font-medium">
+                              Numele complet al tehnicianului
+                            </Label>
+                            <Input
+                              id="technicianName"
+                              type="text"
+                              placeholder="ex: Ion Popescu"
+                              value={editingTechnicianName}
+                              onChange={(e) => setEditingTechnicianName(e.target.value)}
+                              disabled={isSavingMissingData}
+                              className="text-sm"
+                            />
+                          </div>
+                        )}
+
+                        {!lucrare?.numeBeneficiar && (
+                          <div className="space-y-2">
+                            <Label htmlFor="beneficiaryName" className="text-sm font-medium">
+                              Numele complet al beneficiarului
+                            </Label>
+                            <Input
+                              id="beneficiaryName"
+                              type="text"
+                              placeholder="ex: Maria Ionescu"
+                              value={editingBeneficiaryName}
+                              onChange={(e) => setEditingBeneficiaryName(e.target.value)}
+                              disabled={isSavingMissingData}
+                              className="text-sm"
+                            />
+                          </div>
+                        )}
+
+                        {!lucrare?.constatareLaLocatie && (
+                          <div className="space-y-2">
+                            <Label htmlFor="findingsOnSite" className="text-sm font-medium">
+                              Constatarea la locație
+                            </Label>
+                            <Textarea
+                              id="findingsOnSite"
+                              placeholder="Descrieți ce ați constatat la fața locului..."
+                              value={editingFindingsOnSite}
+                              onChange={(e) => setEditingFindingsOnSite(e.target.value)}
+                              disabled={isSavingMissingData}
+                              className="text-sm"
+                              rows={3}
+                            />
+                          </div>
+                        )}
+
+                        {!lucrare?.descriereInterventie && (
+                          <div className="space-y-2">
+                            <Label htmlFor="interventionDescription" className="text-sm font-medium">
+                              Descrierea intervenției
+                            </Label>
+                            <Textarea
+                              id="interventionDescription"
+                              placeholder="Descrieți ce lucrări ați efectuat..."
+                              value={editingInterventionDescription}
+                              onChange={(e) => setEditingInterventionDescription(e.target.value)}
+                              disabled={isSavingMissingData}
+                              className="text-sm"
+                              rows={4}
+                            />
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="flex gap-2 mt-4">
+                        <Button 
+                          onClick={handleSaveMissingData}
+                          disabled={isSavingMissingData}
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          {isSavingMissingData ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Se salvează...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="h-4 w-4 mr-2" />
+                              Salvează datele
+                            </>
+                          )}
+                        </Button>
+                        
+                        <Button 
+                          onClick={() => {
+                            setIsEditingMissingData(false)
+                            setEditingTechnicianName("")
+                            setEditingBeneficiaryName("")
+                            setEditingFindingsOnSite("")
+                            setEditingInterventionDescription("")
+                          }}
+                          variant="outline"
+                          size="sm"
+                          disabled={isSavingMissingData}
+                        >
+                          Anulează
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Informații generale despre raport */}
               <div className="grid gap-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Produse/Servicii:</span>
@@ -894,18 +1584,6 @@ FOM by NRG`,
                     {(lucrare?.raportSnapshot?.products?.length || lucrare?.products?.length || 0)} elemente
                   </span>
                 </div>
-                {/* <div className="flex justify-between">
-                  <span className="text-gray-600">Semnătură Tehnician:</span>
-                  <span className="font-medium">
-                    {(lucrare?.raportSnapshot?.semnaturaTehnician || lucrare?.semnaturaTehnician) ? "✓ Prezentă" : "✗ Lipsă"}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Semnătură Beneficiar:</span>
-                  <span className="font-medium">
-                    {(lucrare?.raportSnapshot?.semnaturaBeneficiar || lucrare?.semnaturaBeneficiar) ? "✓ Prezentă" : "✗ Lipsă"}
-                  </span>
-                </div> */}
                 <div className="flex justify-between">
                   <span className="text-gray-600">Durata Intervenție:</span>
                   <span className="font-medium">
@@ -947,14 +1625,15 @@ FOM by NRG`,
                           if (diffMs > 0) {
                             const diffHours = diffMs / (1000 * 60 * 60);
                             
-                            // Verificare pentru durate nerealiste (mai mult de 24 ore)
-                            if (diffHours > 24) {
-                              console.error("🚨 DURATĂ NEREALISTA DETECTATĂ:", {
+                            // Logare pentru durate foarte lungi (doar informativ)
+                            if (diffHours > 72) {
+                              console.log("ℹ️ DURATĂ LUNGĂ DETECTATĂ:", {
                                 timpSosire: startTime.toLocaleString('ro-RO'),
                                 timpPlecare: endTime.toLocaleString('ro-RO'),
-                                durataOre: Math.round(diffHours)
+                                durataOre: Math.round(diffHours),
+                                durataZile: Math.round(diffHours / 24)
                               });
-                              return "EROARE - Durată nerealista";
+                              // Doar informativ - nu restricționăm nimic
                             }
                             
                             const diffMinutes = Math.floor(diffMs / 60000);

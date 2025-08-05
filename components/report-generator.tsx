@@ -518,12 +518,13 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           const minute = totalMinutes % 60
           durataText = `${ore}h ${minute}m`
           
-          // Verificare pentru durată nerealista
-          if (ore > 24) {
-            console.log("🚨 PDF - ALERTĂ: Durată nerealista detectată!", {
+          // Logare informativă pentru durate lungi
+          if (ore > 72) {
+            console.log("ℹ️ PDF - INFO: Durată lungă - intervenție pe mai multe zile!", {
               ore,
               minute,
               durataText,
+              zile: Math.round(ore / 24),
               timpSosire: sosireTime.toLocaleString('ro-RO'),
               timpPlecare: plecareTime.toLocaleString('ro-RO')
             })

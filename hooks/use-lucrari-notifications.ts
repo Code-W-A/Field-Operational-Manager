@@ -2,6 +2,8 @@
 
 import { useMemo, useCallback } from "react"
 import { useAuth } from "@/contexts/AuthContext"
+import { useFirebaseCollection } from "./use-firebase-collection"
+import { where, orderBy, limit } from "firebase/firestore"
 import type { Lucrare } from "@/lib/firebase/firestore"
 
 interface LucrareNotification {
@@ -13,33 +15,121 @@ interface LucrareNotification {
   description: string
   read: boolean
   priority: 'low' | 'medium' | 'high'
+  // Informații despre cine a făcut modificarea
+  modifiedBy?: string
+  modifiedByName?: string
+  oldValue?: string
+  newValue?: string
+  // Pentru lucrări întârziate
+  isOverdue?: boolean
+  // Pentru a distinge sursele
+  source: 'work_modifications' | 'legacy_system'
 }
 
 export function useLucrariNotifications(lucrari: Lucrare[]) {
   const { userData } = useAuth()
 
-  // Cheia pentru localStorage
-  const lastSeenKey = `lucrari_last_seen_${userData?.uid || 'guest'}`
-  
-  // Obține timestamp-ul ultimei vizualizări
-  const getLastSeenTimestamp = useCallback(() => {
-    if (typeof window === 'undefined') return Date.now()
-    const saved = localStorage.getItem(lastSeenKey)
-    return saved ? parseInt(saved) : Date.now() - (24 * 60 * 60 * 1000) // Default: acum 24h
-  }, [lastSeenKey])
+  // Citim modificările din work_modifications pentru a avea detalii exacte
+  const { data: workModifications } = useFirebaseCollection(
+    "work_modifications",
+    userData?.uid ? [
+      where("modifiedBy", "!=", userData.uid), // Excludem modificările proprii
+      orderBy("modifiedAt", "desc"),
+      limit(50) // Limită pentru optimizare
+    ] : []
+  )
 
-  // Calculează notificările pe baza lucrărilor care nu au fost citite
-  // NOTA: lucrari param conține deja doar lucrările non-arhivate (filtrate în query)
+  // Citim statusurile de citit pentru work_modifications
+  const { data: readStatuses } = useFirebaseCollection(
+    "work_modifications_read",
+    userData?.uid ? [
+      where("userId", "==", userData.uid),
+      limit(100)
+    ] : []
+  )
+
+  // Calculează notificările pe baza modificărilor reale + sistem vechi + lucrări întârziate
   const notifications = useMemo(() => {
-    if (!lucrari || !userData?.uid) return []
-    
-    // DATA DE START pentru sistemul de notificări - 26 iulie 2025, ora 16:20
-    const notificationSystemStartDate = new Date('2025-07-26T16:20:00.000Z').getTime()
+    if (!userData?.uid) return []
     
     const notifications: LucrareNotification[] = []
+    const notificationSystemStartDate = new Date('2025-07-26T16:20:00.000Z').getTime()
+    
+    // Creăm un Set cu ID-urile modificărilor citite din work_modifications
+    const readModificationIds = new Set(
+      readStatuses?.map(status => status.modificationId) || []
+    )
 
-    // Iterăm prin lucrările non-arhivate (deja filtrate în pagina lucrări)
+    // Creăm un Set cu ID-urile lucrărilor care au work_modifications pentru a evita duplicatele
+    const lucrariWithWorkModifications = new Set<string>()
+
+    // 1. NOTIFICĂRI DIN WORK_MODIFICATIONS (modificări exact + cine le-a făcut)
+    if (workModifications) {
+      workModifications.forEach(modification => {
+        const modifiedAtTimestamp = modification.modifiedAt?.toMillis ? 
+          modification.modifiedAt.toMillis() : 
+          new Date(modification.modifiedAt).getTime()
+        
+        // Doar modificările după data de start
+        if (modifiedAtTimestamp >= notificationSystemStartDate) {
+          // Verificăm dacă lucrarea modificată este în lista curentă (non-arhivată)
+          const lucrareExists = lucrari.some(l => l.id === modification.lucrareId)
+          
+          if (lucrareExists) {
+            lucrariWithWorkModifications.add(modification.lucrareId)
+            
+            // Generăm descrierea detaliată bazată pe modificarea reală
+            let description = modification.description || "Modificare necunoscută"
+            
+            // Îmbunătățim descrierea cu detalii about oldValue și newValue
+            if (modification.oldValue && modification.newValue) {
+              switch (modification.modificationType) {
+                case 'status':
+                  description = `Status schimbat din "${modification.oldValue}" în "${modification.newValue}" de către ${modification.modifiedByName}`
+                  break
+                case 'assignment':
+                  description = `Atribuire schimbată din "${modification.oldValue}" în "${modification.newValue}" de către ${modification.modifiedByName}`
+                  break
+                case 'schedule':
+                  description = `Data intervenție schimbată din "${modification.oldValue}" în "${modification.newValue}" de către ${modification.modifiedByName}`
+                  break
+                default:
+                  description = `${modification.description} de către ${modification.modifiedByName}`
+              }
+            } else {
+              description = `${modification.description} de către ${modification.modifiedByName}`
+            }
+
+            notifications.push({
+              id: modification.id,
+              lucrareId: modification.lucrareId,
+              lucrareTitle: modification.lucrareTitle,
+              modificationType: modification.modificationType === 'assignment' ? 'tehnician' : 
+                               modification.modificationType === 'schedule' ? 'data_interventie' :
+                               modification.modificationType,
+              modifiedAt: modification.modifiedAt?.toDate ? modification.modifiedAt.toDate() : new Date(modification.modifiedAt),
+              description,
+              read: readModificationIds.has(modification.id),
+              priority: modification.priority || 'medium',
+              modifiedBy: modification.modifiedBy,
+              modifiedByName: modification.modifiedByName,
+              oldValue: modification.oldValue,
+              newValue: modification.newValue,
+              isOverdue: false,
+              source: 'work_modifications'
+            })
+          }
+        }
+      })
+    }
+
+    // 2. SISTEM VECHI - Pentru modificările care nu au work_modifications (COMPATIBILITATE)
     lucrari.forEach(lucrare => {
+      // Skip dacă lucrarea deja are work_modifications (evităm duplicatele)
+      if (lucrariWithWorkModifications.has(lucrare.id || '')) {
+        return
+      }
+
       // Verifică dacă lucrarea nu a fost citită de utilizatorul curent
       const isNotificationRead = lucrare.notificationRead === true || 
                                   (Array.isArray(lucrare.notificationReadBy) && 
@@ -48,23 +138,12 @@ export function useLucrariNotifications(lucrari: Lucrare[]) {
       // Doar lucrările necitite și create/modificate după 26 iulie sunt notificări
       if (!isNotificationRead) {
         const updatedAtTimestamp = lucrare.updatedAt?.toMillis ? lucrare.updatedAt.toMillis() : 0
-        const createdAtTimestamp = lucrare.createdAt?.toMillis ? lucrare.createdAt.toMillis() : 0
         
         // LOGICĂ STRICTĂ: Doar lucrările modificate după 26 iulie 2025, ora 16:20
-        // Verificăm DOAR updatedAt (data modificării), nu createdAt
         const isModifiedAfterStart = updatedAtTimestamp >= notificationSystemStartDate
         
-        // DEBUG: Log pentru a înțelege ce lucrări sunt incluse/excluse
-        console.log('🔍 Verificare notificare:', {
-          title: `${lucrare.client} - ${lucrare.locatie}`,
-          updatedAt: new Date(updatedAtTimestamp).toLocaleString('ro-RO'),
-          startDate: new Date(notificationSystemStartDate).toLocaleString('ro-RO'),
-          isModifiedAfterStart,
-          shouldInclude: isModifiedAfterStart
-        })
-        
-        if (isModifiedAfterStart) { // Doar lucrările modificate după 26 iulie 2025, 16:20
-          // Determină tipul modificării pe baza statusului și datelor
+        if (isModifiedAfterStart) {
+          // Determină tipul modificării pe baza statusului și datelor (sistem vechi)
           let modificationType: LucrareNotification['modificationType'] = 'other'
           let description = ''
           let priority: LucrareNotification['priority'] = 'medium'
@@ -98,88 +177,185 @@ export function useLucrariNotifications(lucrari: Lucrare[]) {
             modifiedAt: lucrare.updatedAt?.toDate ? lucrare.updatedAt.toDate() : new Date(),
             description,
             read: false, // Toate notificările aici sunt necitite
-            priority
+            priority,
+            modifiedBy: undefined, // Nu avem aceste informații în sistemul vechi
+            modifiedByName: undefined,
+            oldValue: undefined,
+            newValue: undefined,
+            isOverdue: false,
+            source: 'legacy_system'
           })
+        }
+      }
+    })
+
+    // 3. NOTIFICĂRI PENTRU LUCRĂRI ÎNTÂRZIATE (cerința clientului)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0) // Start of today
+
+    lucrari.forEach(lucrare => {
+      // Verificăm dacă lucrarea are data de intervenție trecută și nu este finalizată
+      if (lucrare.dataInterventie && 
+          (lucrare.statusLucrare === 'Atribuită' || lucrare.statusLucrare === 'În lucru') &&
+          !lucrare.archivedAt) {
+        
+        let dataInterventie: Date
+        
+        // Parsăm data intervenției din diferite formate
+        if (typeof lucrare.dataInterventie === 'string') {
+          // Format: "dd.MM.yyyy HH:mm"
+          const [datePart, timePart] = lucrare.dataInterventie.split(' ')
+          const [day, month, year] = datePart.split('.')
+          const [hour, minute] = (timePart || '00:00').split(':')
+          dataInterventie = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute))
+        } else {
+          dataInterventie = new Date(lucrare.dataInterventie)
+        }
+
+        // Verificăm dacă data de intervenție a trecut
+        if (dataInterventie < today) {
+          const daysOverdue = Math.floor((today.getTime() - dataInterventie.getTime()) / (1000 * 60 * 60 * 24))
+          
+          // Creăm o notificare pentru lucrarea întârziată
+          const overdueId = `overdue_${lucrare.id}_${dataInterventie.getTime()}`
+          
+          // Verificăm dacă această notificare de întârziere nu a fost deja citită
+          const isOverdueRead = lucrare.notificationRead === true || 
+                                (Array.isArray(lucrare.notificationReadBy) && 
+                                 lucrare.notificationReadBy.includes(userData.uid))
+          
+          if (!isOverdueRead) {
+            notifications.push({
+              id: overdueId,
+              lucrareId: lucrare.id || '',
+              lucrareTitle: `${lucrare.client || ''} - ${lucrare.locatie || ''}`.trim(),
+              modificationType: 'other',
+              modifiedAt: dataInterventie, // Folosim data intervenției pentru sortare
+              description: `Lucrare întârziată cu ${daysOverdue} ${daysOverdue === 1 ? 'zi' : 'zile'} - data planificată: ${lucrare.dataInterventie}`,
+              read: false,
+              priority: daysOverdue >= 3 ? 'high' : daysOverdue >= 1 ? 'medium' : 'low',
+              modifiedBy: 'system',
+              modifiedByName: 'Sistem automat',
+              isOverdue: true,
+              source: 'legacy_system'
+            })
+          }
         }
       }
     })
 
     // Sortează după dată (cele mai recente primul)
     return notifications.sort((a, b) => b.modifiedAt.getTime() - a.modifiedAt.getTime())
-  }, [lucrari, userData?.uid])
+  }, [lucrari, userData?.uid, workModifications, readStatuses])
 
   // Numărul de notificări necitite
   const unreadCount = useMemo(() => {
     return notifications.filter(n => !n.read).length
   }, [notifications])
 
-  // Marchează toate notificările (lucrările) ca citite în Firestore
+  // Marchează o modificare de work_modifications ca citită
+  const markWorkModificationAsRead = useCallback(async (modificationId: string) => {
+    if (!userData?.uid) return
+    
+    try {
+      const { doc, setDoc, serverTimestamp } = await import('firebase/firestore')
+      const { db } = await import('@/lib/firebase/firebase')
+      
+      const readStatusDoc = doc(db, "work_modifications_read", `${userData.uid}_${modificationId}`)
+      await setDoc(readStatusDoc, {
+        userId: userData.uid,
+        modificationId,
+        readAt: serverTimestamp()
+      })
+      console.log("✅ Work modification marcată ca citită:", modificationId)
+    } catch (error) {
+      console.error("❌ Eroare la marcarea work modification ca citită:", error)
+    }
+  }, [userData?.uid])
+
+  // Marchează toate notificările ca citite
   const markAllAsRead = useCallback(async () => {
     if (!userData?.uid) return
     
     try {
-      // Obținem toate lucrările necitite din lista curentă
-      const unreadLucrari = lucrari.filter(lucrare => {
-        const isNotificationRead = lucrare.notificationRead === true || 
-                                    (Array.isArray(lucrare.notificationReadBy) && 
-                                     lucrare.notificationReadBy.includes(userData.uid))
-        return !isNotificationRead
-      })
-
-      // Actualizăm fiecare lucrare necitită
+      const { writeBatch, doc, serverTimestamp } = await import('firebase/firestore')
+      const { db } = await import('@/lib/firebase/firebase')
       const { updateLucrare } = await import('@/lib/firebase/firestore')
       
-      for (const lucrare of unreadLucrari) {
-        if (lucrare.id) {
-          // Adăugăm user-ul la lista celor care au citit notificarea
+      const batch = writeBatch(db)
+      
+      // Marchează work_modifications ca citite
+      const unreadWorkModifications = notifications.filter(n => !n.read && n.source === 'work_modifications')
+      unreadWorkModifications.forEach(notification => {
+        const readStatusDoc = doc(db, "work_modifications_read", `${userData.uid}_${notification.id}`)
+        batch.set(readStatusDoc, {
+          userId: userData.uid,
+          modificationId: notification.id,
+          readAt: serverTimestamp()
+        })
+      })
+      
+      await batch.commit()
+      
+      // Marchează notificările din sistemul vechi (legacy + overdue) ca citite în lucrari collection
+      const legacyNotifications = notifications.filter(n => !n.read && n.source === 'legacy_system')
+      for (const notification of legacyNotifications) {
+        const lucrare = lucrari.find(l => l.id === notification.lucrareId)
+        if (lucrare) {
           const currentReadBy = Array.isArray(lucrare.notificationReadBy) ? lucrare.notificationReadBy : []
           const updatedReadBy = [...new Set([...currentReadBy, userData.uid])]
           
-          // Folosim parametrul silent pentru a nu modifica data ultimei modificări
-          await updateLucrare(lucrare.id, {
+          await updateLucrare(notification.lucrareId, {
             notificationReadBy: updatedReadBy,
-            notificationRead: true // Pentru compatibilitate
+            notificationRead: true
           }, undefined, undefined, true) // silent = true
         }
       }
       
-      console.log(`✅ ${unreadLucrari.length} notificări marcate ca citite`)
+      console.log(`✅ ${notifications.filter(n => !n.read).length} notificări marcate ca citite`)
     } catch (error) {
       console.error("❌ Eroare la marcarea în masă ca citite:", error)
     }
-  }, [lucrari, userData?.uid])
+  }, [notifications, lucrari, userData?.uid])
 
-  // Marchează o notificare specifică (lucrare) ca citită
-  const markAsRead = useCallback(async (lucrareId: string) => {
+  // Marchează o notificare specifică ca citită
+  const markAsRead = useCallback(async (notificationId: string) => {
     if (!userData?.uid) return
     
-    try {
-      const lucrare = lucrari.find(l => l.id === lucrareId)
-      if (!lucrare) return
+    const notification = notifications.find(n => n.id === notificationId)
+    if (!notification) return
 
+    try {
+      if (notification.source === 'work_modifications') {
+        // Pentru work_modifications, marchează în work_modifications_read
+        await markWorkModificationAsRead(notificationId)
+      } else {
+        // Pentru sistemul vechi (legacy + overdue), marchează în lucrari collection
+        const lucrare = lucrari.find(l => l.id === notification.lucrareId)
       const { updateLucrare } = await import('@/lib/firebase/firestore')
       
-      // Adăugăm user-ul la lista celor care au citit notificarea
+        if (lucrare) {
       const currentReadBy = Array.isArray(lucrare.notificationReadBy) ? lucrare.notificationReadBy : []
       const updatedReadBy = [...new Set([...currentReadBy, userData.uid])]
       
-      // Folosim parametrul silent pentru a nu modifica data ultimei modificări
-      await updateLucrare(lucrareId, {
+          await updateLucrare(notification.lucrareId, {
         notificationReadBy: updatedReadBy,
-        notificationRead: true // Pentru compatibilitate
+            notificationRead: true
       }, undefined, undefined, true) // silent = true
+        }
+      }
       
-      console.log(`✅ Notificare marcată ca citită pentru lucrarea: ${lucrareId}`)
+      console.log(`✅ Notificare marcată ca citită: ${notificationId} (${notification.source})`)
     } catch (error) {
       console.error("❌ Eroare la marcarea ca citită:", error)
     }
-  }, [lucrari, userData?.uid])
+  }, [notifications, lucrari, userData?.uid, markWorkModificationAsRead])
 
   return {
     notifications,
     unreadCount,
     markAsRead,
     markAllAsRead,
-    loading: false // Folosim datele deja încărcate
+    loading: false
   }
 } 

@@ -2,7 +2,7 @@
 
 import React from "react"
 import { useRouter } from "next/navigation"
-import { Bell, Edit, User, Clock, Eye, CheckCircle2, AlertTriangle } from "lucide-react"
+import { Bell, Edit, User, Clock, Eye, CheckCircle2, AlertTriangle, History, ArrowRight } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -22,17 +22,28 @@ interface LucrareNotification {
   description: string
   read: boolean
   priority: 'low' | 'medium' | 'high'
+  // Informații despre cine a făcut modificarea
+  modifiedBy?: string
+  modifiedByName?: string
+  oldValue?: string
+  newValue?: string
+  // Pentru lucrări întârziate
+  isOverdue?: boolean
 }
 
 interface LucrariNotificationsDialogProps {
   isOpen: boolean
   onClose: () => void
   notifications: LucrareNotification[]
-  onMarkAsRead: (lucrareId: string) => void // Schimbat pentru claritate
+  onMarkAsRead: (notificationId: string) => void // Modificat pentru a folosi notification ID
   onMarkAllAsRead: () => void
 }
 
-function getModificationIcon(type: LucrareNotification['modificationType']) {
+function getModificationIcon(type: LucrareNotification['modificationType'], isOverdue?: boolean) {
+  if (isOverdue) {
+    return <AlertTriangle className="h-4 w-4" />
+  }
+  
   switch (type) {
     case 'status':
       return <AlertTriangle className="h-4 w-4" />
@@ -45,7 +56,20 @@ function getModificationIcon(type: LucrareNotification['modificationType']) {
   }
 }
 
-function getModificationColor(priority: LucrareNotification['priority']) {
+function getModificationColor(priority: LucrareNotification['priority'], isOverdue?: boolean) {
+  if (isOverdue) {
+    switch (priority) {
+      case 'high':
+        return 'text-red-600 bg-red-50 border-red-200'
+      case 'medium':
+        return 'text-orange-600 bg-orange-50 border-orange-200'
+      case 'low':
+        return 'text-yellow-600 bg-yellow-50 border-yellow-200'
+      default:
+        return 'text-red-600 bg-red-50 border-red-200'
+    }
+  }
+  
   switch (priority) {
     case 'high':
       return 'text-red-600 bg-red-50 border-red-200'
@@ -70,7 +94,7 @@ export function LucrariNotificationsDialog({
   const handleNotificationClick = (notification: LucrareNotification) => {
     // Marchează ca citită automat când navighează la lucrare
     if (!notification.read) {
-      onMarkAsRead(notification.lucrareId) // Folosim lucrareId în loc de notification.id
+      onMarkAsRead(notification.id) // Folosim notification.id acum
     }
     
     // Navighează la lucrarea respectivă
@@ -123,20 +147,25 @@ export function LucrariNotificationsDialog({
                 <Card 
                   key={notification.id} 
                   className={`cursor-pointer transition-all hover:shadow-lg border-2 aspect-square ${
-                    notification.read ? 'opacity-60' : getModificationColor(notification.priority)
+                    notification.read ? 'opacity-60' : getModificationColor(notification.priority, notification.isOverdue)
                   }`}
                   onClick={() => handleNotificationClick(notification)}
                 >
                   <CardContent className="p-3 sm:p-4 h-full flex flex-col justify-between">
                     {/* Header cu icon și badge */}
                     <div className="flex items-start justify-between mb-2">
-                      <div className={`p-2 rounded-full ${getModificationColor(notification.priority)}`}>
-                        {getModificationIcon(notification.modificationType)}
+                      <div className={`p-2 rounded-full ${getModificationColor(notification.priority, notification.isOverdue)}`}>
+                        {getModificationIcon(notification.modificationType, notification.isOverdue)}
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         {!notification.read && (
                           <Badge variant="destructive" className="text-[10px] px-1 py-0">
                             Nou
+                          </Badge>
+                        )}
+                        {notification.isOverdue && (
+                          <Badge variant="outline" className="text-[9px] px-1 py-0 bg-yellow-100 text-yellow-800 border-yellow-300">
+                            Întârziată
                           </Badge>
                         )}
                         <span className="text-[10px] text-muted-foreground text-right">
@@ -154,7 +183,31 @@ export function LucrariNotificationsDialog({
                         {notification.lucrareTitle}
                       </p>
                       
-                      <p className="text-[11px] sm:text-xs text-muted-foreground line-clamp-2 text-center">
+                      {/* Afișează cine a făcut modificarea */}
+                      {notification.modifiedByName && (
+                        <div className="flex items-center justify-center gap-1 text-[9px] sm:text-[10px] text-muted-foreground">
+                          <User className="h-3 w-3" />
+                          <span className="line-clamp-1">{notification.modifiedByName}</span>
+                        </div>
+                      )}
+                      
+                      {/* Afișează modificarea oldValue -> newValue dacă există */}
+                      {notification.oldValue && notification.newValue && !notification.isOverdue && (
+                        <div className="bg-white/50 rounded p-2 space-y-1">
+                          <div className="flex items-center justify-center gap-1 text-[9px] sm:text-[10px]">
+                            <span className="text-red-600 font-medium truncate" title={notification.oldValue}>
+                              {notification.oldValue.length > 15 ? `${notification.oldValue.substring(0, 15)}...` : notification.oldValue}
+                            </span>
+                            <ArrowRight className="h-3 w-3 text-gray-400 flex-shrink-0" />
+                            <span className="text-green-600 font-medium truncate" title={notification.newValue}>
+                              {notification.newValue.length > 15 ? `${notification.newValue.substring(0, 15)}...` : notification.newValue}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Descrierea modificării */}
+                      <p className="text-[10px] sm:text-xs text-muted-foreground line-clamp-2 text-center">
                         {notification.description}
                       </p>
                     </div>
@@ -185,6 +238,12 @@ export function LucrariNotificationsDialog({
       
       {/* CSS pentru line-clamp și styling custom */}
       <style jsx global>{`
+        .line-clamp-1 {
+          display: -webkit-box;
+          -webkit-line-clamp: 1;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
         .line-clamp-2 {
           display: -webkit-box;
           -webkit-line-clamp: 2;
