@@ -1519,11 +1519,11 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   </div>
                 </div>
                 <Separator className="my-4" />
-                <div className="text-sm flex flex-wrap gap-y-2 items-center">
-                  <span className="font-medium mr-2">Tehnicieni asignați:</span>
-                  <div className="flex flex-wrap gap-2">
+                <div className="text-base flex flex-wrap gap-y-3 items-center">
+                  <span className="font-semibold mr-3">Tehnicieni asignați:</span>
+                  <div className="flex flex-wrap gap-3">
                     {lucrare.tehnicieni.map((tehnician, index) => (
-                      <Badge key={index} variant="secondary">
+                      <Badge key={index} variant="secondary" className="text-base px-4 py-2 font-semibold">
                         {tehnician}
                       </Badge>
                     ))}
