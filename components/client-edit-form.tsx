@@ -23,6 +23,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Badge } from "@/components/ui/badge"
 // Adăugăm importul pentru componenta EquipmentQRCode
 import { EquipmentQRCode } from "@/components/equipment-qr-code"
+import { formatDate } from "@/lib/utils/time-format"
 // Import the unsaved changes hook and dialog
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
@@ -873,11 +874,11 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
                               {echipament.model && <p>Model: {echipament.model}</p>}
                               {echipament.serie && <p>Serie: {echipament.serie}</p>}
                               {echipament.dataInstalare && (
-                                <p className="text-xs text-gray-500">Instalat: {echipament.dataInstalare}</p>
+                                <p className="text-xs text-gray-500">Instalat: {formatDate(echipament.dataInstalare)}</p>
                               )}
                               {echipament.ultimaInterventie && (
                                 <p className="text-xs text-gray-500">
-                                  Ultima intervenție: {echipament.ultimaInterventie}
+                                  Ultima intervenție: {formatDate(echipament.ultimaInterventie)}
                                 </p>
                               )}
                               {echipament.observatii && <p className="text-gray-600">{echipament.observatii}</p>}

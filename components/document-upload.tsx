@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { uploadFile, deleteFile } from "@/lib/firebase/storage"
 import { updateLucrare } from "@/lib/firebase/firestore"
+import { deleteField } from "firebase/firestore"
 import { toast } from "@/components/ui/use-toast"
 import { Upload, FileText, Download, Trash2, AlertCircle, Check } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
@@ -39,6 +40,10 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
   
   // Verificăm dacă oferta este necesară (condiție pentru upload ofertă)
   const needsOffer = lucrare.necesitaOferta === true
+  
+  // Noi condiții pentru afișarea upload-urilor
+  const shouldShowFacturaUpload = lucrare.statusFacturare === "Facturat"
+  const shouldShowOfertaUpload = lucrare.statusOferta === "OFERTAT"
 
   // Funcție pentru a obține data curentă în format YYYY-MM-DD pentru UX mai bun
   const getCurrentDate = () => {
@@ -215,19 +220,24 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
     }
 
     try {
-      // Extragem path-ul din URL pentru ștergere din Storage
+      // Actualizăm Firestore mai întâi (înainte de ștergerea din Storage)
+      const updateData = type === 'factura' 
+        ? { facturaDocument: deleteField() as any }
+        : { ofertaDocument: deleteField() as any }
+      
+      await updateLucrare(lucrareId, updateData)
+
+      // Apoi ștergem din Storage (cu verificare că fișierul există)
       const pathMatch = document.url.match(/lucrari%2F[^?]+/)
       if (pathMatch) {
         const storagePath = decodeURIComponent(pathMatch[0].replace(/%2F/g, '/'))
-        await deleteFile(storagePath)
+        try {
+          await deleteFile(storagePath)
+        } catch (storageError) {
+          // Log warning dar nu oprește procesul - fișierul poate fi deja șters
+          console.warn(`Fișierul nu a putut fi șters din Storage (poate fi deja șters):`, storageError)
+        }
       }
-
-      // Actualizăm Firestore
-      const updateData = type === 'factura' 
-        ? { facturaDocument: undefined }
-        : { ofertaDocument: undefined }
-      
-      await updateLucrare(lucrareId, updateData)
 
       // Actualizăm starea locală
       const updatedLucrare = { ...lucrare }
@@ -291,7 +301,8 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
             </Badge>
           </div>
 
-          {lucrare.facturaDocument ? (
+          {/* Vizualizarea documentului existent - mereu vizibilă */}
+          {lucrare.facturaDocument && (
             <div className="p-3 border rounded-lg bg-green-50 border-green-200">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -324,7 +335,10 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
                 <p>Încărcată pe {new Date(lucrare.facturaDocument.uploadedAt).toLocaleDateString('ro-RO')} de {lucrare.facturaDocument.uploadedBy}</p>
               </div>
             </div>
-          ) : (
+          )}
+
+          {/* Secțiunea de upload - condiționată de statusFacturare */}
+          {!lucrare.facturaDocument && shouldShowFacturaUpload && (
             <div className="space-y-3">
               {/* Câmpuri pentru datele facturii */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -372,6 +386,16 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
               </div>
             </div>
           )}
+
+          {/* Mesaj când upload-ul nu este disponibil */}
+          {!lucrare.facturaDocument && !shouldShowFacturaUpload && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Încărcarea facturii este disponibilă doar când statusul facturării este setat pe "Facturat".
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
 
         {/* Secțiunea pentru ofertă */}
@@ -383,14 +407,8 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
             </Badge>
           </div>
 
-          {!needsOffer ? (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Încărcarea ofertei este dezactivată. Tehnicianul nu a marcat că această lucrare necesită ofertă.
-              </AlertDescription>
-            </Alert>
-          ) : lucrare.ofertaDocument ? (
+          {/* Vizualizarea documentului existent - mereu vizibilă */}
+          {lucrare.ofertaDocument && (
             <div className="p-3 border rounded-lg bg-green-50 border-green-200">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -427,7 +445,10 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
                 <p>Încărcată pe {new Date(lucrare.ofertaDocument.uploadedAt).toLocaleDateString('ro-RO')} de {lucrare.ofertaDocument.uploadedBy}</p>
               </div>
             </div>
-          ) : (
+          )}
+
+          {/* Secțiunea de upload - condiționată de statusOferta */}
+          {!lucrare.ofertaDocument && shouldShowOfertaUpload && (
             <div className="space-y-3">
               {/* Câmpuri pentru datele ofertei */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -439,7 +460,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
                     onChange={(e) => setFormData(prev => ({ ...prev, numarOferta: e.target.value }))}
                     placeholder="Ex: OF-2024-001"
                     className="mt-1"
-                    disabled={!isWorkPickedUp || !needsOffer || isUploading.oferta || isArchived}
+                    disabled={!isWorkPickedUp || isUploading.oferta || isArchived}
                   />
                 </div>
                 <div>
@@ -449,7 +470,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
                     value={formData.dataOferta}
                     onChange={(e) => setFormData(prev => ({ ...prev, dataOferta: e.target.value }))}
                     className="mt-1"
-                    disabled={!isWorkPickedUp || !needsOffer || isUploading.oferta || isArchived}
+                    disabled={!isWorkPickedUp || isUploading.oferta || isArchived}
                   />
                 </div>
               </div>
@@ -461,11 +482,11 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
                   type="file"
                   onChange={handleOfertaUpload}
                   className="hidden"
-                  disabled={!isWorkPickedUp || !needsOffer || isUploading.oferta || isArchived}
+                  disabled={!isWorkPickedUp || isUploading.oferta || isArchived}
                 />
                 <Button
                   onClick={() => ofertaInputRef.current?.click()}
-                  disabled={!isWorkPickedUp || !needsOffer || isUploading.oferta || !formData.numarOferta.trim() || !formData.dataOferta.trim() || isArchived}
+                  disabled={!isWorkPickedUp || isUploading.oferta || !formData.numarOferta.trim() || !formData.dataOferta.trim() || isArchived}
                   variant="outline"
                   className="w-full"
                 >
@@ -474,6 +495,19 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
                 </Button>
               </div>
             </div>
+          )}
+
+          {/* Mesaje când upload-ul nu este disponibil */}
+          {!lucrare.ofertaDocument && !shouldShowOfertaUpload && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {!needsOffer 
+                  ? "Încărcarea ofertei este dezactivată. Tehnicianul nu a marcat că această lucrare necesită ofertă."
+                  : "Încărcarea ofertei este disponibilă doar când statusul ofertei este setat pe \"OFERTAT\"."
+                }
+              </AlertDescription>
+            </Alert>
           )}
         </div>
 

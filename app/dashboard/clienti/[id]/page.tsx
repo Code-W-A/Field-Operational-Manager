@@ -20,6 +20,7 @@ import { orderBy } from "firebase/firestore"
 import { ClientContractsManager } from "@/components/client-contracts-manager"
 // Adăugăm importul pentru componenta EquipmentQRCode
 import { EquipmentQRCode } from "@/components/equipment-qr-code"
+import { formatDate } from "@/lib/utils/time-format"
 
 // Importăm hook-ul useClientLucrari pentru a putea actualiza datele
 import { useClientLucrari } from "@/hooks/use-client-lucrari"
@@ -311,14 +312,14 @@ export default function ClientPage({ params }: { params: { id: string } }) {
                                               <div className="flex items-center gap-1">
                                                 <Calendar className="h-3 w-3 text-blue-600" />
                                                 <span className="font-medium">Instalat:</span>
-                                                <span>{echipament.dataInstalarii || echipament.dataInstalare}</span>
+                                                <span>{formatDate(echipament.dataInstalarii || echipament.dataInstalare!)}</span>
                                               </div>
                                             )}
                                             {echipament.ultimaInterventie && (
                                               <div className="flex items-center gap-1">
                                                 <Clock className="h-3 w-3 text-green-600" />
                                                 <span className="font-medium">Ultima intervenție:</span>
-                                                <span>{echipament.ultimaInterventie}</span>
+                                                <span>{formatDate(echipament.ultimaInterventie)}</span>
                                               </div>
                                             )}
                                           </div>

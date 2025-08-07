@@ -21,6 +21,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 // Adăugăm importul pentru componenta EquipmentQRCode
 import { EquipmentQRCode } from "@/components/equipment-qr-code"
+import { formatDate } from "@/lib/utils/time-format"
 // Import the useUnsavedChanges hook and UnsavedChangesDialog component
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
@@ -974,9 +975,9 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
 
                             {(echipament.dataInstalare || echipament.ultimaInterventie) && (
                               <div className="text-xs text-gray-500 mt-2">
-                                {echipament.dataInstalare && <p>Instalat: {echipament.dataInstalare}</p>}
+                                {echipament.dataInstalare && <p>Instalat: {formatDate(echipament.dataInstalare)}</p>}
                                 {echipament.ultimaInterventie && (
-                                  <p>Ultima intervenție: {echipament.ultimaInterventie}</p>
+                                  <p>Ultima intervenție: {formatDate(echipament.ultimaInterventie)}</p>
                                 )}
                               </div>
                             )}

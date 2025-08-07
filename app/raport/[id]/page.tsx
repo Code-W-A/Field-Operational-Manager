@@ -1177,7 +1177,7 @@ FOM by NRG`,
                       </ul>
                       <div className="text-sm text-amber-600">
                         💡 Puteți completa datele lipsă folosind formularele de mai jos înainte de a descărca raportul.
-                      </div>
+                </div>
                     </div>
                   )
                 }
@@ -1295,7 +1295,7 @@ FOM by NRG`,
                         <p className="text-blue-800 font-medium">⚠️ Lipsește timpul de plecare</p>
                       </div>
                       <p className="text-blue-700 text-sm mb-3">
-                        Durata nu poate fi calculată pentru că lipsește timpul de plecare din raport.
+                    Durata nu poate fi calculată pentru că lipsește timpul de plecare din raport.
                         Puteți introduce manual datele de plecare.
                       </p>
                       <Button 
@@ -1312,7 +1312,7 @@ FOM by NRG`,
                       <div className="flex items-center gap-2 mb-3">
                         <Clock className="h-4 w-4 text-blue-600" />
                         <p className="text-blue-800 font-medium">Introduceți timpul de plecare</p>
-                      </div>
+                </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div className="space-y-2">
@@ -1365,14 +1365,14 @@ FOM by NRG`,
                                     return calculateDuration(lucrare.timpSosire, departureDateTime.toISOString())
                                   }
                                   return "Format invalid"
-                                } catch (e) {
+                } catch (e) {
                                   return "Format invalid"
                                 }
                               })()}
                             </p>
                           )}
-                        </div>
-                      )}
+                </div>
+              )}
                       
                       <div className="flex gap-2">
                         <Button 

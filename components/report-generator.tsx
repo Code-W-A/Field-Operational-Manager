@@ -661,7 +661,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         doc.setFontSize(9).setFont("helvetica", "bold").text("Total fara TVA:", labelX, currentY, { align: "right" })
         doc.setFont("helvetica", "normal").text(`${subtotal.toFixed(2)} RON`, valX, currentY, { align: "right" })
         currentY += 6
-        doc.setFont("helvetica", "bold").text("TVA (19%):", labelX, currentY, { align: "right" })
+        doc.setFont("helvetica", "bold").text("TVA (21%):", labelX, currentY, { align: "right" })
         doc.setFont("helvetica", "normal").text(`${vat.toFixed(2)} RON`, valX, currentY, { align: "right" })
         currentY += 6
         doc.setFont("helvetica", "bold").text("Total cu TVA:", labelX, currentY, { align: "right" })

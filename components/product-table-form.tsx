@@ -70,7 +70,7 @@ export function ProductTableForm({ products, onProductsChange, disabled = false 
 
   // Calculăm totalul general
   const totalWithoutVAT = products.reduce((sum, product) => sum + product.total, 0)
-  const totalWithVAT = totalWithoutVAT * 1.19 // Presupunem TVA 19%
+  const totalWithVAT = totalWithoutVAT * 1.21 // Presupunem TVA 21%
 const handleNumberChange = (
   id: string,
   field: "price" | "quantity",
@@ -196,7 +196,7 @@ const handleNumberChange = (
             <span>{totalWithoutVAT.toFixed(2)} lei</span>
           </div>
           <div className="flex justify-between w-full max-w-[300px]">
-            <span className="font-medium">Total cu TVA (19%):</span>
+            <span className="font-medium">Total cu TVA (21%):</span>
             <span className="font-bold">{totalWithVAT.toFixed(2)} lei</span>
           </div>
         </div>
