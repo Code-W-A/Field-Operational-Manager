@@ -428,7 +428,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                     {client.reprezentantFirma && (
                       <div>
                         <label className="text-sm font-medium text-gray-500">Reprezentant Firmă</label>
-                        <p className="text-sm">{client.reprezentantFirma}</p>
+                        <p className="text-sm">{client.reprezentantFirma}{client.functieReprezentant ? `, ${client.functieReprezentant}` : ''}</p>
                       </div>
                     )}
                   </div>

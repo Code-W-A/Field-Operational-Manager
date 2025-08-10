@@ -154,7 +154,10 @@ export default function ClientPage({ params }: { params: { id: string } }) {
             </div>
             <div>
               <h3 className="font-medium text-gray-500">Reprezentant Firmă</h3>
-              <p>{client?.reprezentantFirma || "N/A"}</p>
+              <p>
+                {client?.reprezentantFirma || "N/A"}
+                {client?.functieReprezentant ? `, ${client.functieReprezentant}` : ""}
+              </p>
             </div>
             <div>
               <h3 className="font-medium text-gray-500">Email</h3>

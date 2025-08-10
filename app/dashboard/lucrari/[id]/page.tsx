@@ -27,6 +27,7 @@ import {
   Archive,
   Clock,
   Download,
+  Mail,
 } from "lucide-react"
 import { getLucrareById, deleteLucrare, updateLucrare, getClienti } from "@/lib/firebase/firestore"
 import { collection, query, where, getDocs } from "firebase/firestore"
@@ -1134,6 +1135,26 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   <div className="mb-2">
                     <div className="text-sm font-medium mb-1">Persoană contact (locație):</div>
                     <div className="text-sm text-gray-500">{lucrare.persoanaContact}</div>
+                    {/* Email persoană de contact dacă există în clientData pentru locația curentă */}
+                    {clientData?.locatii && (
+                      () => {
+                        const loc = clientData.locatii.find((l: any) => l.nume === lucrare.locatie)
+                        const contact = loc?.persoaneContact?.find((c: any) => c.nume === lucrare.persoanaContact)
+                        return contact?.email ? (
+                          <div className="text-xs text-gray-500 flex items-center gap-2 mt-1">
+                            <span>{contact.email}</span>
+                            <a
+                              href={`mailto:${contact.email}`}
+                              className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-gray-600 text-white hover:bg-gray-700 transition-colors"
+                              aria-label={`Scrie email către ${contact.email}`}
+                              title={`Scrie email către ${contact.email}`}
+                            >
+                              <Mail className="h-3 w-3" />
+                            </a>
+                          </div>
+                        ) : null
+                      }
+                    )()}
                   </div>
                   <div className="mb-2">
                     <div className="text-sm font-medium mb-1">Telefon contact (locație):</div>
@@ -1341,8 +1362,24 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         </div>
                       </div>
                       <div className="mb-2">
-                        <div className="font-medium mb-1">Reprezentant Firmă:</div>
-                        <div className="text-gray-500">{clientData.reprezentantFirma || "N/A"}</div>
+                        <div className="font-medium mb-1">Email (client):</div>
+                        <div className="text-gray-500 flex items-center gap-2">
+                          {clientData.email || "N/A"}
+                          {clientData.email && (
+                            <a
+                              href={`mailto:${clientData.email}`}
+                              className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-gray-600 text-white hover:bg-gray-700 transition-colors"
+                              aria-label={`Scrie email către ${clientData.email}`}
+                              title={`Scrie email către ${clientData.email}`}
+                            >
+                              <Mail className="h-3 w-3" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                      <div className="mb-2">
+                      <div className="font-medium mb-1">Reprezentant Firmă:</div>
+                      <div className="text-gray-500">{clientData.reprezentantFirma || "N/A"}{clientData.functieReprezentant ? `, ${clientData.functieReprezentant}` : ""}</div>
                       </div>
                       <div className="mb-2">
                         <div className="font-medium mb-1">CUI/CIF:</div>

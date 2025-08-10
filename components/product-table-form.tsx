@@ -37,7 +37,7 @@ export function ProductTableForm({ products, onProductsChange, disabled = false 
       id: generateId(),
       name: "",
       um: "buc",
-      quantity: 1,
+      quantity: 0,
       price: 0,
       total: 0,
     }
@@ -144,8 +144,8 @@ const handleNumberChange = (
                         type="number"
                         min="0"
                         step="1"
-                        value={product.quantity}
-                        onChange={(e) => updateProduct(product.id, "quantity", Number.parseFloat(e.target.value) || 0)}
+                        value={product.quantity === 0 ? "" : product.quantity}
+                        onChange={handleNumberChange(product.id, "quantity")}
                         disabled={disabled}
                       />
                     </div>

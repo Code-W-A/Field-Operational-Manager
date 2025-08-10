@@ -86,6 +86,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
     email: "",
     telefon: "", // Adăugăm telefon principal
     reprezentantFirma: "", // Adăugăm reprezentant firmă
+    functieReprezentant: "", // Nou: funcția reprezentantului
   })
 
   // Adăugăm state pentru verificarea CUI
@@ -167,7 +168,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
           (loc.echipamente && loc.echipamente.length > 0),
       )
 
-    setFormModified(hasChanged && hasContent)
+    setFormModified(Boolean(hasChanged && hasContent))
     console.log("Form modified:", hasChanged && hasContent)
   }, [formData, locatii, initialFormState])
 
@@ -176,7 +177,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
     const hasChanged = JSON.stringify(echipamentFormData) !== JSON.stringify(initialEchipamentState)
     const hasContent = echipamentFormData.nume || echipamentFormData.cod || echipamentFormData.model || echipamentFormData.serie || echipamentFormData.dataInstalare || echipamentFormData.observatii
 
-    setEchipamentFormModified(hasChanged && hasContent)
+    setEchipamentFormModified(Boolean(hasChanged && hasContent))
   }, [echipamentFormData, initialEchipamentState])
 
   // Reset form modified state after successful submission
@@ -717,20 +718,20 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
         />
       </div>
 
-      <div className="space-y-2">
-        <label htmlFor="email" className="text-sm font-medium">
-          Email
-        </label>
-        <Input
-          id="email"
-          type="email"
-          placeholder="Adresă de email"
-          value={formData.email}
-          onChange={handleInputChange}
-        />
-      </div>
-
+      {/* Rand 1: Reprezentant firmă — Telefon */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <label htmlFor="reprezentantFirma" className="text-sm font-medium">
+            Nume Reprezentant Firmă *
+          </label>
+          <Input
+            id="reprezentantFirma"
+            placeholder="Numele reprezentantului firmei"
+            value={formData.reprezentantFirma}
+            onChange={handleInputChange}
+            className={hasError("reprezentantFirma") ? errorStyle : ""}
+          />
+        </div>
         <div className="space-y-2">
           <label htmlFor="telefon" className="text-sm font-medium">
             Număr de telefon principal *
@@ -747,20 +748,36 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
             Numărul de telefon principal al companiei (diferit de telefoanele persoanelor de contact din locații)
           </p>
         </div>
+      </div>
+
+      {/* Rand 2: Email — Funcție reprezentant */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <label htmlFor="reprezentantFirma" className="text-sm font-medium">
-            Reprezentant Firmă *
+          <label htmlFor="email" className="text-sm font-medium">
+            Email
           </label>
           <Input
-            id="reprezentantFirma"
-            placeholder="Numele reprezentantului firmei"
-            value={formData.reprezentantFirma}
+            id="email"
+            type="email"
+            placeholder="Adresă de email"
+            value={formData.email}
             onChange={handleInputChange}
-            className={hasError("reprezentantFirma") ? errorStyle : ""}
+          />
+        </div>
+        <div className="space-y-2">
+          <label htmlFor="functieReprezentant" className="text-sm font-medium">
+            Funcție Reprezentant
+          </label>
+          <Input
+            id="functieReprezentant"
+            placeholder="Ex: Administrator, Director, Manager"
+            value={formData.functieReprezentant}
+            onChange={handleInputChange}
           />
         </div>
       </div>
 
+   
       {/* Secțiunea pentru locații */}
       <div className="space-y-4 mt-6 border-t pt-4">
         <div className="flex justify-between items-center">

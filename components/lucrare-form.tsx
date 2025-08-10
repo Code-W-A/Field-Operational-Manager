@@ -462,6 +462,10 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         handleSelectChange("echipament", "")
         handleSelectChange("persoanaContact", "")
         handleSelectChange("telefon", "")
+        // Resetăm contractul selectat (pentru Intervenție în contract/Contractare)
+        handleSelectChange("contract", "")
+        handleSelectChange("contractNumber", "")
+        handleSelectChange("contractType", "")
 
         // Resetăm echipamentul selectat
         if (handleCustomChange) {
@@ -1846,10 +1850,11 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 onChange={(value, contractNumber, contractType) => {
                   handleSelectChange("contract", value)
                   handleSelectChange("contractNumber", contractNumber || "")
-                  handleSelectChange("contractType", contractType || "") // Adăugăm tipul contractului
+                  handleSelectChange("contractType", contractType || "")
                 }}
                 hasError={hasError("contract")}
                 errorStyle={errorStyle}
+                clientIdFilter={selectedClient?.id}
               />
               {formData.contractType && (
                 <p className="text-xs text-blue-600">

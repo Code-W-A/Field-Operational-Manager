@@ -175,6 +175,7 @@ export interface Client {
   email: string
   telefon?: string  // OPȚIONAL pentru compatibilitate cu date existente
   reprezentantFirma?: string  // OPȚIONAL pentru compatibilitate cu date existente
+  functieReprezentant?: string  // OPȚIONAL: funcția reprezentantului firmei
   cui: string
   regCom: string
   contBancar: string
@@ -474,6 +475,7 @@ export const updateClient = async (id: string, client: Partial<Client>) => {
         "email",
         "telefon" as any,
         "reprezentantFirma" as any,
+        "functieReprezentant" as any,
         "cui" as any,
         "regCom" as any,
         "contBancar" as any,

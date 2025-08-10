@@ -145,17 +145,25 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
 
   const handleTehnicieniChange = (value: string) => {
     setFormData((prev) => {
-      // Dacă tehnicianul este deja în listă, îl eliminăm
-      if (prev.tehnicieni.includes(value)) {
-        return {
-          ...prev,
-          tehnicieni: prev.tehnicieni.filter((tech) => tech !== value),
-        }
+      // Calculăm noua listă de tehnicieni (toggle)
+      const isAlreadyAssigned = prev.tehnicieni.includes(value)
+      const newTehnicieni = isAlreadyAssigned
+        ? prev.tehnicieni.filter((tech) => tech !== value)
+        : [...prev.tehnicieni, value]
+
+      // Recalculăm statusul automat în funcție de lista de tehnicieni
+      // Regula: dacă există tehnicieni -> "Atribuită"; dacă lista e goală -> "Listată"
+      // Nu suprascriem statusuri terminale (ex: Finalizat, Arhivată)
+      const hasTechnicians = newTehnicieni.length > 0
+      let recalculatedStatus = prev.statusLucrare
+      if (recalculatedStatus !== "Finalizat" && recalculatedStatus !== "Arhivată") {
+        recalculatedStatus = hasTechnicians ? "Atribuită" : "Listată"
       }
-      // Altfel, îl adăugăm
+
       return {
         ...prev,
-        tehnicieni: [...prev.tehnicieni, value],
+        tehnicieni: newTehnicieni,
+        statusLucrare: recalculatedStatus,
       }
     })
   }
@@ -187,11 +195,11 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
       // Păstrăm dataEmiterii originală, nu permitem modificarea ei
       const originalEmiterii = initialData?.dataEmiterii || new Date().toISOString()
 
-      // Verificăm dacă statusul curent permite actualizarea automată
-      // Pentru statusurile "Listată", "Atribuită" sau "Amânată", actualizăm automat statusul
+      // Recalculăm statusul automat în funcție de lista de tehnicieni, cu protecție pentru statusuri terminale
       let statusLucrare = data.statusLucrare
-      if (statusLucrare === "Listată" || statusLucrare === "Atribuită" || statusLucrare === "Amânată") {
-        statusLucrare = data.tehnicieni && data.tehnicieni.length > 0 ? "Atribuită" : "Listată"
+      const hasTechnicians = Array.isArray(data.tehnicieni) && data.tehnicieni.length > 0
+      if (statusLucrare !== "Finalizat" && statusLucrare !== "Arhivată") {
+        statusLucrare = hasTechnicians ? "Atribuită" : "Listată"
       }
 
       // Actualizăm lucrarea în Firestore

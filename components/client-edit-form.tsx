@@ -53,11 +53,12 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
 
   const [formData, setFormData] = useState({
     nume: client.nume || "",
-    cif: client.cif || "",
+    cif: (client as any).cif || client.cui || "",
     adresa: client.adresa || "",
     email: client.email || "",
     telefon: client.telefon || "",
     reprezentantFirma: client.reprezentantFirma || "",
+    functieReprezentant: (client as any).functieReprezentant || "",
   })
 
   // Add state for close alert dialog - IMPORTANT: default to true for testing
@@ -77,7 +78,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
             persoaneContact:
               client.persoaneContact && client.persoaneContact.length > 0
                 ? client.persoaneContact
-                : [{ nume: client.persoanaContact || "", telefon: client.telefon || "", email: "", functie: "" }],
+                : [{ nume: (client as any).persoanaContact || "", telefon: client.telefon || "", email: "", functie: "" }],
             echipamente: [],
           },
         ],
@@ -467,7 +468,8 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
               selectedLocatieIndex !== null &&
               locatii[selectedLocatieIndex].echipamente?.[selectedEchipamentIndex]?.id
 
-            isUnique = await isEchipamentCodeUnique(client.id, echipamentFormData.cod, excludeEchipamentId)
+            // În prezent API-ul suportă doar (code, clientId). Excluderea by ID nu este suportată aici.
+            isUnique = await isEchipamentCodeUnique(echipamentFormData.cod, client.id)
           } catch (error) {
             console.error("Eroare la verificarea unicității codului:", error)
           }
@@ -537,7 +539,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
       await updateClient(client.id, {
         ...formData,
         cui: formData.cif, // Mapăm cif → cui pentru consistență cu interfața
-        persoanaContact: primaryContact ? primaryContact.nume : "",
+        // Nu setăm persoanaContact la nivel de client (schema folosește persoaneContact/locatii)
         locatii: filteredLocatii,
       })
 
@@ -654,7 +656,20 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
         />
       </div>
 
+      {/* Rand 1: Reprezentant firmă — Telefon */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <label htmlFor="reprezentantFirma" className="text-sm font-medium">
+            Reprezentant Firmă *
+          </label>
+          <Input
+            id="reprezentantFirma"
+            placeholder="Numele reprezentantului firmei"
+            value={formData.reprezentantFirma}
+            onChange={handleInputChange}
+            className={hasError("reprezentantFirma") ? errorStyle : ""}
+          />
+        </div>
         <div className="space-y-2">
           <label htmlFor="telefon" className="text-sm font-medium">
             Număr de telefon principal *
@@ -671,16 +686,31 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
             Numărul de telefon principal al companiei (diferit de telefoanele persoanelor de contact din locații)
           </p>
         </div>
+      </div>
+
+      {/* Rand 2: Email — Funcție reprezentant */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <label htmlFor="reprezentantFirma" className="text-sm font-medium">
-            Reprezentant Firmă *
+          <label htmlFor="email" className="text-sm font-medium">
+            Email
           </label>
           <Input
-            id="reprezentantFirma"
-            placeholder="Numele reprezentantului firmei"
-            value={formData.reprezentantFirma}
+            id="email"
+            type="email"
+            placeholder="Adresă de email"
+            value={formData.email}
             onChange={handleInputChange}
-            className={hasError("reprezentantFirma") ? errorStyle : ""}
+          />
+        </div>
+        <div className="space-y-2">
+          <label htmlFor="functieReprezentant" className="text-sm font-medium">
+            Funcție Reprezentant
+          </label>
+          <Input
+            id="functieReprezentant"
+            placeholder="Ex: Administrator, Director, Manager"
+            value={formData.functieReprezentant}
+            onChange={handleInputChange}
           />
         </div>
       </div>
@@ -958,7 +988,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
 
           <div className="grid gap-3 py-3 overflow-y-auto">
             {selectedEchipamentIndex !== null && !isAdmin && (
-              <Alert variant="warning" className="mt-2">
+              <Alert variant="default" className="mt-2 bg-yellow-50 border-yellow-200 text-yellow-800">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
                   Notă: Doar administratorii pot șterge echipamente. Puteți edita detaliile, dar nu puteți șterge

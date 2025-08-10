@@ -11,7 +11,7 @@ import { uploadFile, deleteFile } from "@/lib/firebase/storage"
 import { updateLucrare } from "@/lib/firebase/firestore"
 import { deleteField } from "firebase/firestore"
 import { toast } from "@/components/ui/use-toast"
-import { Upload, FileText, Download, Trash2, AlertCircle, Check } from "lucide-react"
+import { Upload, FileText, Download, Trash2, AlertCircle, Check, Eye } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 
 interface DocumentUploadProps {
@@ -61,6 +61,21 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
     numarOferta: "",
     dataOferta: getCurrentDate()    // Pre-populat cu data curentă
   })
+
+  // Helper: forțează descărcarea unui fișier
+  const triggerDownload = (url: string, suggestedName?: string) => {
+    try {
+      const a = document.createElement('a')
+      a.href = url
+      if (suggestedName) a.download = suggestedName
+      a.target = '_blank'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    } catch (e) {
+      window.open(url, '_blank')
+    }
+  }
 
   // Funcție pentru validarea fișierului (fără restricții)
   const validateFile = (file: File): string | null => {
@@ -315,6 +330,14 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
                     variant="outline"
                     onClick={() => window.open(lucrare.facturaDocument.url, '_blank')}
                   >
+                    <Eye className="h-4 w-4 mr-1" />
+                    Vizualizează
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => triggerDownload(lucrare.facturaDocument.url, lucrare.facturaDocument.fileName || 'factura.pdf')}
+                  >
                     <Download className="h-4 w-4 mr-1" />
                     Descarcă
                   </Button>
@@ -420,6 +443,14 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
                     size="sm"
                     variant="outline"
                     onClick={() => window.open(lucrare.ofertaDocument.url, '_blank')}
+                  >
+                    <Eye className="h-4 w-4 mr-1" />
+                    Vizualizează
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => triggerDownload(lucrare.ofertaDocument.url, lucrare.ofertaDocument.fileName || 'oferta.pdf')}
                   >
                     <Download className="h-4 w-4 mr-1" />
                     Descarcă

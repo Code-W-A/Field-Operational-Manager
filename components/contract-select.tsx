@@ -7,7 +7,7 @@ import { Plus, Loader2, Search, X } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from "firebase/firestore"
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, where } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { validateContractAssignment } from "@/lib/firebase/firestore"
 import { toast } from "@/components/ui/use-toast"
@@ -28,9 +28,11 @@ interface ContractSelectProps {
   onChange: (value: string, number?: string, type?: string) => void
   hasError?: boolean
   errorStyle?: string
+  // Dacă este setat, listează doar contractele asignate acestui client
+  clientIdFilter?: string
 }
 
-export function ContractSelect({ value, onChange, hasError = false, errorStyle = "" }: ContractSelectProps) {
+export function ContractSelect({ value, onChange, hasError = false, errorStyle = "", clientIdFilter }: ContractSelectProps) {
   const [contracts, setContracts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
@@ -50,49 +52,49 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
     type: "Abonament"
   })
 
-  // Încărcăm contractele din Firestore
+  // Încărcăm contractele din Firestore (reactiv la clientIdFilter)
   useEffect(() => {
-    const fetchContracts = async () => {
-      try {
-        setLoading(true)
-        // Verificăm dacă colecția există, dacă nu, o vom crea când adăugăm primul contract
-        const contractsQuery = query(collection(db, "contracts"), orderBy("name", "asc"))
-
-        const unsubscribe = onSnapshot(
-          contractsQuery,
-          (snapshot) => {
-            const contractsData = snapshot.docs.map((doc) => ({
-              id: doc.id,
-              ...doc.data(),
-            }))
-            
-            // Contractele au fost încărcate cu succes
-            
-            setContracts(contractsData)
-            setLoading(false)
-          },
-          (error) => {
-            console.error("Eroare la încărcarea contractelor:", error)
-            // Dacă colecția nu există încă, nu afișăm eroare
-            if (error.code !== "permission-denied") {
-              console.error("Eroare la încărcarea contractelor:", error)
-            }
-            setLoading(false)
-          },
-        )
-
-        return () => unsubscribe()
-      } catch (error) {
-        console.error("Eroare la încărcarea contractelor:", error)
-        setLoading(false)
+    try {
+      setLoading(true)
+      let contractsQuery
+      if (clientIdFilter) {
+        // Când avem un client selectat, aducem DOAR contractele asignate acelui client
+        contractsQuery = query(collection(db, "contracts"), where("clientId", "==", clientIdFilter))
+      } else {
+        // Altfel aducem toate contractele (folosit când nu e selectat clientul)
+        contractsQuery = query(collection(db, "contracts"), orderBy("name", "asc"))
       }
+
+      const unsubscribe = onSnapshot(
+        contractsQuery,
+        (snapshot) => {
+          const contractsData = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }))
+          setContracts(contractsData)
+          setLoading(false)
+        },
+        (error) => {
+          console.error("Eroare la încărcarea contractelor:", error)
+          setLoading(false)
+        },
+      )
+
+      return () => unsubscribe()
+    } catch (error) {
+      console.error("Eroare la încărcarea contractelor:", error)
+      setLoading(false)
     }
+  }, [clientIdFilter])
 
-    fetchContracts()
-  }, [])
+  // Dacă avem clientIdFilter, limităm lista doar la contractele asignate acelui client
+  const contractsForClient = clientIdFilter
+    ? contracts.filter((c) => c.clientId === clientIdFilter)
+    : contracts
 
-  // Filtrăm contractele pe baza termenului de căutare
-  const filteredContracts = contracts.filter((contract) => {
+  // Filtrăm contractele pe baza termenului de căutare peste lista deja filtrată după client
+  const filteredContracts = contractsForClient.filter((contract) => {
     if (!searchTerm.trim()) return true
     const searchLower = searchTerm.toLowerCase()
     return (
@@ -228,9 +230,13 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
         </span>
         <Search className="h-4 w-4 opacity-50 flex-shrink-0 ml-2" />
       </Button>
-      <Button variant="outline" size="icon" onClick={() => setIsAddDialogOpen(true)}>
-        <Plus className="h-4 w-4" />
-      </Button>
+      {/* Butonul de adăugare rămâne disponibil doar când nu filtrăm după client,
+          pentru a evita confuzia (contractele noi sunt neasignate și nu vor apărea în listă) */}
+      {!clientIdFilter && (
+        <Button variant="outline" size="icon" onClick={() => setIsAddDialogOpen(true)}>
+          <Plus className="h-4 w-4" />
+        </Button>
+      )}
 
       {/* Dialog pentru selecția contractelor */}
       <Dialog open={isSelectDialogOpen} onOpenChange={setIsSelectDialogOpen}>
@@ -301,7 +307,7 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
                     </div>
                   ))}
                 </div>
-              ) : contracts.length > 0 ? (
+              ) : contractsForClient.length > 0 ? (
                 <div className="p-8 text-center text-muted-foreground">
                   <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
                   <p>Nu s-au găsit contracte pentru "{searchTerm}"</p>
@@ -316,19 +322,25 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
                 </div>
               ) : (
                 <div className="p-8 text-center text-muted-foreground">
-                  <p>Nu există contracte disponibile</p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-2"
-                    onClick={() => {
-                      setIsSelectDialogOpen(false)
-                      setIsAddDialogOpen(true)
-                    }}
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Adaugă primul contract
-                  </Button>
+                  {clientIdFilter ? (
+                    <p>Nu există contracte asignate acestui client</p>
+                  ) : (
+                    <>
+                      <p>Nu există contracte disponibile</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2"
+                        onClick={() => {
+                          setIsSelectDialogOpen(false)
+                          setIsAddDialogOpen(true)
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Adaugă primul contract
+                      </Button>
+                    </>
+                  )}
                 </div>
               )}
             </div>

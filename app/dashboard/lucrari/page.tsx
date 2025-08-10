@@ -875,10 +875,12 @@ export default function Lucrari() {
 
   const handleTehnicieniChange = useCallback((value: string) => {
     setFormData(prev => {
-      const newTehnicieni = prev.tehnicieni.includes(value)
+      const isAlready = prev.tehnicieni.includes(value)
+      const newTehnicieni = isAlready
         ? prev.tehnicieni.filter(t => t !== value)
         : [...prev.tehnicieni, value]
-      return { ...prev, tehnicieni: newTehnicieni }
+      const newStatus = newTehnicieni.length > 0 ? "Atribuită" : "Listată"
+      return { ...prev, tehnicieni: newTehnicieni, statusLucrare: newStatus }
     })
   }, [])
 
@@ -1027,7 +1029,7 @@ export default function Lucrari() {
       }
 
       // Setăm automat statusul lucrării în funcție de prezența tehnicienilor
-      const statusLucrare = formData.tehnicieni && formData.tehnicieni.length > 0 ? "Atribuită" : "Listată"
+      const statusLucrare = (formData.tehnicieni && formData.tehnicieni.length > 0) ? "Atribuită" : "Listată"
 
       const newLucrare = {
         dataEmiterii: format(dataEmiterii, "dd.MM.yyyy HH:mm"),
@@ -1194,11 +1196,11 @@ export default function Lucrari() {
         return
       }
 
-      // Verificăm dacă statusul curent permite actualizarea automată
-      // Pentru statusurile "Listată", "Atribuită" sau "Amânată", actualizăm automat statusul
+      // Recalculăm statusul automat, protejând statusurile terminale
       let statusLucrare = formData.statusLucrare
-      if (statusLucrare === "Listată" || statusLucrare === "Atribuită" || statusLucrare === "Amânată") {
-        statusLucrare = formData.tehnicieni && formData.tehnicieni.length > 0 ? "Atribuită" : "Listată"
+      const hasTechnicians = Array.isArray(formData.tehnicieni) && formData.tehnicieni.length > 0
+      if (statusLucrare !== "Finalizat" && statusLucrare !== "Arhivată") {
+        statusLucrare = hasTechnicians ? "Atribuită" : "Listată"
       }
 
       const updatedLucrare = {
