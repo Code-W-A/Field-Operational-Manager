@@ -23,6 +23,7 @@ import {
   addDoc,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
+import { addUserLogEntry } from "@/lib/firebase/firestore"
 import { Plus, Pencil, Trash2, Loader2, AlertCircle, MoreHorizontal, FileText } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { toast } from "@/components/ui/use-toast"
@@ -442,7 +443,14 @@ export default function ContractsPage() {
         contractData.clientId = newContractClientId
       }
 
-      await addDoc(collection(db, "contracts"), contractData)
+      const docRef = await addDoc(collection(db, "contracts"), contractData)
+
+      // Log non-blocking
+      void addUserLogEntry({
+        actiune: "Creare contract",
+        detalii: `ID: ${docRef.id}; nume: ${contractData.name}; număr: ${contractData.number}; tip: ${contractData.type}${contractData.clientId ? `; clientId: ${contractData.clientId}` : ""}`,
+        categorie: "Contracte",
+      })
 
       // Resetăm formularul și închidem dialogul
       setNewContractName("")
@@ -513,6 +521,21 @@ export default function ContractsPage() {
 
       await updateDoc(contractRef, updateData)
 
+      // Log dif non-blocking
+      const changes: string[] = []
+      if (selectedContract.name !== newContractName) changes.push(`name: "${selectedContract.name}" → "${newContractName}"`)
+      if (selectedContract.number !== newContractNumber) changes.push(`number: "${selectedContract.number}" → "${newContractNumber}"`)
+      if ((selectedContract.type || "Abonament") !== newContractType) changes.push(`type: "${selectedContract.type || "Abonament"}" → "${newContractType}"`)
+      const oldClient = selectedContract.clientId || "UNASSIGNED"
+      const newClient = newContractClientId && newContractClientId !== "UNASSIGNED" ? newContractClientId : "UNASSIGNED"
+      if (oldClient !== newClient) changes.push(`clientId: "${oldClient}" → "${newClient}"`)
+      const detalii = changes.length ? changes.join("; ") : "Actualizare fără câmpuri esențiale modificate"
+      void addUserLogEntry({
+        actiune: "Actualizare contract",
+        detalii: `ID: ${selectedContract.id}; ${detalii}`,
+        categorie: "Contracte",
+      })
+
       // Resetăm formularul și închidem dialogul
       setNewContractName("")
       setNewContractNumber("")
@@ -544,6 +567,13 @@ export default function ContractsPage() {
       // Ștergem contractul din Firestore
       const contractRef = doc(db, "contracts", selectedContract.id)
       await deleteDoc(contractRef)
+
+      // Log non-blocking
+      void addUserLogEntry({
+        actiune: "Ștergere contract",
+        detalii: `ID: ${selectedContract.id}; nume: ${selectedContract.name}; număr: ${selectedContract.number}`,
+        categorie: "Contracte",
+      })
 
       // Resetăm starea și închidem dialogul
       setSelectedContract(null)

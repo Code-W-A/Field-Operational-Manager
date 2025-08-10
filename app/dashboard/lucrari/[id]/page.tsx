@@ -545,16 +545,15 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
     try {
       setIsUpdating(true)
-      await updateLucrare(lucrare.id, { preluatDispecer: true })
+      await updateLucrare(lucrare.id, { preluatDispecer: true, preluatDe: userData?.displayName || userData?.email || "Dispecer" })
 
       // Actualizăm lucrarea local
-      setLucrare((prev) => (prev ? { ...prev, preluatDispecer: true } : null))
+      setLucrare((prev) => (prev ? { ...prev, preluatDispecer: true, preluatDe: userData?.displayName || userData?.email || "Dispecer" } : null))
 
       toast({
         title: "Lucrare preluată",
         description: "Lucrarea a fost marcată ca preluată de dispecer.",
         variant: "default",
-        icon: <Check className="h-4 w-4" />,
       })
     } catch (error) {
       console.error("Eroare la actualizarea stării de preluare:", error)
@@ -783,7 +782,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           <AlertTitle>{lucrare.preluatDispecer ? "Lucrare preluată" : "Lucrare în așteptare"}</AlertTitle>
           <AlertDescription>
             {lucrare.preluatDispecer
-              ? "Această lucrare a fost preluată de dispecer și nu mai este vizibilă pentru tehnician."
+              ? `Această lucrare a fost preluată de dispecer${lucrare.preluatDe ? ` (${lucrare.preluatDe})` : ""} și nu mai este vizibilă pentru tehnician.`
               : "Această lucrare nu a fost încă preluată de dispecer și este încă vizibilă pentru tehnician."}
           </AlertDescription>
         </Alert>
@@ -812,11 +811,11 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               value="interventie"
               disabled={
                 role === "tehnician" &&
-                (!equipmentVerified || (lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true))
+                 (!equipmentVerified || (lucrare.statusLucrare === "Finalizat" && Boolean(lucrare.raportGenerat)))
               }
               className={`flex-1 basis-1/2 text-center whitespace-normal ${
                 role === "tehnician" &&
-                (!equipmentVerified || (lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true))
+                (!equipmentVerified || (lucrare.statusLucrare === "Finalizat" && Boolean(lucrare.raportGenerat)))
                   ? "relative"
                   : ""
               }`}
@@ -835,11 +834,45 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           <div className="grid gap-4 md:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>Detalii lucrare</CardTitle>
-                <CardDescription>Informații despre lucrare</CardDescription>
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <CardTitle>Detalii lucrare</CardTitle>
+                    <CardDescription>Informații despre lucrare</CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {(role === "admin" || role === "dispecer") && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button variant="outline" size="icon" onClick={handleEdit}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Editează</TooltipContent>
+                      </Tooltip>
+                    )}
+                    {role === "admin" && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="destructive"
+                            size="icon"
+                            onClick={() => {
+                              if (window.confirm("Sigur doriți să ștergeți această lucrare?")) {
+                                handleDeleteLucrare()
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Șterge</TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="text-sm grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-4 gap-y-3">
+                <div className="text-sm grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-4 gap-y-3 mt-4">
                   <div className="mb-2">
                     <div className="font-medium mb-1">Data emiterii:</div>
                     <div className="text-gray-500">{lucrare.dataEmiterii}</div>
@@ -883,6 +916,18 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   <div className={`mb-2 ${lucrare.tipLucrare === "Intervenție în contract" ? '' : 'col-span-2'}`}>
                     <div className="font-medium mb-1">Defect reclamat:</div>
                     <div className="text-gray-500">{lucrare.defectReclamat || "Nu a fost specificat"}</div>
+                  </div>
+                </div>
+
+                {/* Tehnicieni asignați – mutat aici din cardul "Informații client" pentru a păstra layout-ul dorit */}
+                <div className="mt-4 text-base flex flex-wrap gap-y-3 items-center mb-4">
+                  <span className="font-semibold mr-3">Tehnicieni asignați:</span>
+                  <div className="flex flex-wrap gap-3">
+                    {lucrare.tehnicieni.map((tehnician, index) => (
+                      <Badge key={index} variant="secondary" className="text-base px-4 py-2 font-semibold">
+                        {tehnician}
+                      </Badge>
+                    ))}
                   </div>
                 </div>
 
@@ -1048,64 +1093,81 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
                 <Separator />
                 <div className="space-y-4">
-                <div>
-                  <p className="text-sm font-medium">Locație:</p>
-                  <div className="flex items-start">
-                    <div className="flex-grow">
-                      <p className="text-sm text-gray-500">{lucrare.locatie}</p>
-                      {locationAddress && (
-                        <div className="mt-1">
-                          <p className="text-xs italic text-gray-500 flex items-center mb-2">
-                            <MapPin className="h-3 w-3 mr-1 inline-block" />
-                            {locationAddress}
-                          </p>
-                          <div className="flex space-x-2 mt-2">
-                            <a
-                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lucrare.locatie}, ${locationAddress}`)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center justify-center px-3 py-1 text-xs bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
-                            >
+                {/* Rând cu: Locație | Persoană contact (locație) | Telefon contact (locație) */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                  <div>
+                    <p className="text-sm font-medium">Locație:</p>
+                    <div className="flex items-start">
+                      <div className="flex-grow">
+                        <p className="text-sm text-gray-500">{lucrare.locatie}</p>
+                        {locationAddress && (
+                          <div className="mt-1">
+                            <p className="text-xs italic text-gray-500 flex items-center mb-2">
                               <MapPin className="h-3 w-3 mr-1 inline-block" />
-                              Google Maps
-                            </a>
-                            <a
-                              href={`https://waze.com/ul?q=${encodeURIComponent(`${lucrare.locatie}, ${locationAddress}`)}&navigate=yes`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center justify-center px-3 py-1 text-xs bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
-                            >
-                              <MapPin className="h-3 w-3 mr-1 inline-block" />
-                              Waze
-                            </a>
+                              {locationAddress}
+                            </p>
+                            <div className="flex space-x-2 mt-2">
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lucrare.locatie}, ${locationAddress}`)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center justify-center px-3 py-1 text-xs bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+                              >
+                                <MapPin className="h-3 w-3 mr-1 inline-block" />
+                                Google Maps
+                              </a>
+                              <a
+                                href={`https://waze.com/ul?q=${encodeURIComponent(`${lucrare.locatie}, ${locationAddress}`)}&navigate=yes`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center justify-center px-3 py-1 text-xs bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
+                              >
+                                <MapPin className="h-3 w-3 mr-1 inline-block" />
+                                Waze
+                              </a>
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   </div>
+                  <div className="mb-2">
+                    <div className="text-sm font-medium mb-1">Persoană contact (locație):</div>
+                    <div className="text-sm text-gray-500">{lucrare.persoanaContact}</div>
+                  </div>
+                  <div className="mb-2">
+                    <div className="text-sm font-medium mb-1">Telefon contact (locație):</div>
+                    <div className="text-sm text-gray-500 flex items-center gap-2">
+                      {lucrare.telefon}
+                      <a
+                        href={`tel:${formatPhoneForCall(lucrare.telefon)}`}
+                        className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-green-500 text-white hover:bg-green-600 transition-colors"
+                        aria-label={`Apelează ${lucrare.persoanaContact}`}
+                        title={`Apelează ${lucrare.persoanaContact}`}
+                      >
+                        <Phone className="h-3 w-3" />
+                      </a>
+                    </div>
+                  </div>
+                
                 </div>
-                  
+
+                {/* Echipament sub rândul cu locația */}
                 <div>
                   <p className="text-sm font-medium">Echipament:</p>
                   <div className="space-y-1">
                     <p className="text-sm text-gray-500">
-                      {lucrare.echipament
-                        ? `${lucrare.echipament}`
-                        : "Nespecificat"}
+                      {lucrare.echipament ? `${lucrare.echipament}` : "Nespecificat"}
                     </p>
                     {role !== "tehnician" && lucrare.echipamentCod && (
                       <p className="text-sm text-gray-500 flex items-center">
-                        <span className="font-medium text-xs mr-2 bg-purple-100 text-purple-800 px-2 py-0.5 rounded">
-                          Cod:
-                        </span>
+                        <span className="font-medium text-xs mr-2 bg-purple-100 text-purple-800 px-2 py-0.5 rounded">Cod:</span>
                         {lucrare.echipamentCod}
                       </p>
                     )}
                     {lucrare.echipamentModel && (
                       <p className="text-sm text-gray-500 flex items-center">
-                        <span className="font-medium text-xs mr-2 bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
-                          Model:
-                        </span>
+                        <span className="font-medium text-xs mr-2 bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Model:</span>
                         {lucrare.echipamentModel}
                       </p>
                     )}
@@ -1128,8 +1190,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                     )}
                   </div>
                 </div>
+                </div>
                   
-                <div>
+                <div className="mt-2">
                   {lucrare.descriere ? (
                     <>
                       <p className="text-sm font-medium">Notă internă:</p>
@@ -1141,58 +1204,20 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 </div>
 
                 {lucrare.constatareLaLocatie && (
-                  <div>
+                  <div className="mt-2">
                     <p className="text-sm font-medium">Constatare la locație:</p>
                     <p className="text-sm text-gray-500">{lucrare.constatareLaLocatie}</p>
                   </div>
                 )}
                   
                 {lucrare.descriereInterventie && (
-                  <div>
+                  <div className="mt-2">
                     <p className="text-sm font-medium">Descriere intervenție:</p>
                     <p className="text-sm text-gray-500">{lucrare.descriereInterventie}</p>
                   </div>
                 )}
                   
-                <div>
-                  <p className="text-sm font-medium">Status lucrare:</p>
-                  <Badge
-                    variant={
-                      lucrare.statusLucrare.toLowerCase() === "în așteptare"
-                        ? "outline"
-                        : lucrare.statusLucrare.toLowerCase() === "în lucru"
-                          ? "default"
-                          : lucrare.statusLucrare.toLowerCase() === "finalizat"
-                            ? "secondary"
-                            : "secondary"
-                    }
-                    className={
-                      lucrare.statusLucrare.toLowerCase() === "în așteptare"
-                        ? "bg-yellow-100 text-yellow-800 border-yellow-300"
-                        : lucrare.statusLucrare.toLowerCase() === "finalizat"
-                          ? "bg-green-100 text-green-800"
-                          : ""
-                    }
-                  >
-                    {lucrare.statusLucrare}
-                  </Badge>
-                </div>
-                  
-                <div>
-                  <p className="text-sm font-medium">Status ofertă:</p>
-                  <Badge
-                    variant="outline"
-                    className={
-                      (lucrare.statusOferta === "DA" || (lucrare.statusOferta === undefined && lucrare.necesitaOferta))
-                        ? "bg-orange-100 text-orange-800 border-orange-200"
-                        : lucrare.statusOferta === "OFERTAT"
-                        ? "bg-blue-100 text-blue-800 border-blue-200"
-                        : "bg-gray-100 text-gray-800 border-gray-200"
-                    }
-                  >
-                    {lucrare.statusOferta || (lucrare.necesitaOferta ? "DA" : "NU")}
-                  </Badge>
-                </div>
+            
                   
                 {((lucrare.statusOferta === "DA" || lucrare.statusOferta === "OFERTAT") || 
                   (lucrare.statusOferta === undefined && lucrare.necesitaOferta)) && 
@@ -1203,63 +1228,17 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   </div>
                 )}
                   
-                {role !== "tehnician" && (
-                  <div>
-                    <p className="text-sm font-medium">Status facturare:</p>
-                    <div className="flex flex-col space-y-1">
-                      <Badge
-                        variant={
-                          lucrare.statusFacturare.toLowerCase() === "nefacturat"
-                            ? "outline"
-                            : lucrare.statusFacturare.toLowerCase() === "facturat"
-                              ? "default"
-                              : "secondary"
-                        }
-                        className={
-                          lucrare.statusFacturare.toLowerCase() === "nefacturat"
-                            ? ""
-                            : lucrare.statusFacturare.toLowerCase() === "facturat"
-                              ? ""
-                              : "bg-green-100 text-green-800"
-                        }
-                      >
-                        {lucrare.statusFacturare}
-                      </Badge>
-                      {/* Afișăm numărul facturii dacă lucrarea este facturată și are numărul completat */}
-                      {lucrare.statusFacturare === "Facturat" && lucrare.numarFactura && (
-                        <div className="mt-1">
-                          <p className="text-xs text-gray-600">Număr factură:</p>
-                          <p className="text-sm font-medium text-blue-800 bg-blue-50 px-2 py-1 rounded border border-blue-200 inline-block">
-                            {lucrare.numarFactura}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-                  
-                {isCompletedWithReport && (
-                  <div>
-                    <p className="text-sm font-medium">Status preluare:</p>
-                    {lucrare.preluatDispecer ? (
-                      <Badge className="bg-green-100 text-green-800">Preluat de dispecer</Badge>
-                    ) : (
-                      <Badge className="bg-yellow-100 text-yellow-800">În așteptare preluare</Badge>
-                    )}
-                  </div>
-                )}
+            
                 
                 {/* Afișăm numărul raportului dacă a fost generat */}
                 {lucrare.raportGenerat && lucrare.numarRaport && (
-                  <div>
+                  <div className="mt-2">
                     <p className="text-sm font-medium">Număr raport:</p>
                     <p className="text-sm font-medium text-purple-800 bg-purple-50 px-2 py-1 rounded border border-purple-200 inline-block">
                       {lucrare.numarRaport}
                     </p>
                   </div>
                 )}
-                </div>
-
                 {/* Informații despre garanție pentru lucrările de tip "Intervenție în garanție" */}
                 {lucrare.tipLucrare === "Intervenție în garanție" && warrantyInfo && (
                   <div className="mt-4 p-4 border rounded-md bg-gradient-to-r from-blue-50 to-indigo-50">
@@ -1325,9 +1304,87 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       </div>
                 )}
 
-                {/* Secțiune pentru managementul statusurilor critice - doar pentru admin/dispecer după preluarea lucrării */}
+                {/* Secțiunea de management a statusurilor a fost mutată în cardul "Informații client" pentru un layout mai clar */}
+
+                {/* Eliminat: Documente PDF integrate în acest card. Mutat într-un card separat, mai jos. */}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Informații client</CardTitle>
+                <CardDescription>Detalii despre client și persoana de contact</CardDescription>
+              </CardHeader>
+              <CardContent>
+             
+                <div className="text-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-3">
+                  <div className="mb-2">
+                    <div className="font-medium mb-1">Client:</div>
+                    <div className="text-gray-500">{lucrare.client}</div>
+                  </div>
+                  {clientData && (
+                    <>
+                      <div className="mb-2">
+                        <div className="font-medium mb-1">Telefon Principal:</div>
+                        <div className="text-gray-500 flex items-center gap-2">
+                          {clientData.telefon || "N/A"}
+                          {clientData.telefon && (
+                            <a
+                              href={`tel:${formatPhoneForCall(clientData.telefon)}`}
+                              className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                              aria-label={`Apelează ${clientData.telefon}`}
+                              title={`Apelează ${clientData.telefon}`}
+                            >
+                              <Phone className="h-3 w-3" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                      <div className="mb-2">
+                        <div className="font-medium mb-1">Reprezentant Firmă:</div>
+                        <div className="text-gray-500">{clientData.reprezentantFirma || "N/A"}</div>
+                      </div>
+                      <div className="mb-2">
+                        <div className="font-medium mb-1">CUI/CIF:</div>
+                        <div className="text-gray-500">{(clientData as any)?.cif || "N/A"}</div>
+                      </div>
+                    </>
+                  )}
+              
+                </div>
+                <Separator className="my-4" />
+   {/* Rezumat statusuri – un singur rând, 4 coloane: titlu sus, valoare sub titlu */}
+   <div className="mb-4 grid grid-cols-4 gap-4">
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-muted-foreground">Status lucrare</div>
+                    <div className="mt-1"><Badge>{lucrare.statusLucrare}</Badge></div>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-muted-foreground">Status ofertă</div>
+                    <div className="mt-1">
+                      <Badge variant="outline">
+                        {lucrare.statusOferta || (lucrare.necesitaOferta ? "DA" : "NU")}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-muted-foreground">Status facturare</div>
+                    <div className="mt-1"><Badge variant="outline">{lucrare.statusFacturare}</Badge></div>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-muted-foreground">Status preluare</div>
+                    <div className="mt-1">
+                      <Badge variant="outline">
+                        {isCompletedWithReport
+                          ? (lucrare.preluatDispecer ? `Preluat${lucrare.preluatDe ? ` de ${lucrare.preluatDe}` : ''}` : "Ne-preluat")
+                          : "N/A"}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+                {/* Managementul statusurilor critice – mutat din cardul stâng în cardul drept */}
                 {isAdminOrDispatcher && lucrare.statusLucrare === "Finalizat" && lucrare.preluatDispecer && (
-                  <div className="mt-4 p-4 border rounded-md bg-amber-50 border-amber-200">
+                  <div className="p-4 border rounded-md bg-amber-50 border-amber-200">
                     <div className="flex items-center gap-2 mb-3">
                       <div className="h-6 w-6 rounded-full bg-amber-500 flex items-center justify-center">
                         <span className="text-white text-sm font-bold">⚠</span>
@@ -1340,7 +1397,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                     <p className="text-sm text-amber-700 mb-3">
                       Acestea controlează afișarea cu fundal roșu în lista de lucrări. Modificați doar când situația s-a rezolvat.
                     </p>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       {/* Status Finalizare Intervenție */}
                       <div className="space-y-2">
@@ -1358,7 +1415,6 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                 console.log("State finalizare actualizat:", { prev: prev?.statusFinalizareInterventie, new: updated?.statusFinalizareInterventie })
                                 return updated
                               })
-                              // Refresh explicit pentru a asigura sincronizarea
                               const updatedLucrare = await getLucrareById(lucrare.id!)
                               if (updatedLucrare) {
                                 setLucrare(updatedLucrare)
@@ -1387,106 +1443,99 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         </select>
                       </div>
 
-                   {/* Status Facturare — pentru admin și dispecer */}
-{(role === "admin" || role === "dispecer") && (
-  <div className="space-y-2">
-    <label className="text-sm font-semibold text-amber-800">Status facturare:</label>
-    <div className="space-y-2">
-      <select
-        value={lucrare.statusFacturare || "Nefacturat"}
-        onChange={async (e) => {
-          try {
-            setIsUpdating(true)
-            const newStatus = e.target.value
-            console.log("Actualizare status facturare:", { lucrareId: lucrare.id, newStatus })
-            
-            // Actualizăm doar statusul de facturare
-            const updateData: any = { statusFacturare: newStatus }
-            
-            await updateLucrare(lucrare.id!, updateData)
-            setLucrare(prev => prev ? { ...prev, ...updateData } : null)
-            const updatedLucrare = await getLucrareById(lucrare.id!)
-            if (updatedLucrare) {
-              setLucrare(updatedLucrare)
-              console.log("Lucrare reîncărcată din Firebase:", { statusFacturare: updatedLucrare.statusFacturare, numarFactura: updatedLucrare.numarFactura })
-            }
-            toast({
-              title: "Status actualizat",
-              description: "Statusul facturării a fost actualizat."
-            })
-          } catch (error) {
-            console.error("Eroare la actualizarea statusului facturare:", error)
-            toast({
-              title: "Eroare",
-              description: "Nu s-a putut actualiza statusul.",
-              variant: "destructive"
-            })
-          } finally {
-            setIsUpdating(false)
-          }
-        }}
-        className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
-        disabled={isUpdating}
-      >
-        <option value="Nefacturat">Nefacturat</option>
-        <option value="Facturat">Facturat</option>
-        <option value="Nu se facturează">Nu se facturează</option>
-      </select>
-      
-      {/* ELIMINAT: Numărul facturii se gestionează prin upload PDF în secțiunea de documente */}
-    </div>
-  </div>
-)}
+                      {/* Status Facturare */}
+                      {(role === "admin" || role === "dispecer") && (
+                        <div className="space-y-2">
+                          <label className="text-sm font-semibold text-amber-800">Status facturare:</label>
+                          <div className="space-y-2">
+                            <select
+                              value={lucrare.statusFacturare || "Nefacturat"}
+                              onChange={async (e) => {
+                                try {
+                                  setIsUpdating(true)
+                                  const newStatus = e.target.value
+                                  console.log("Actualizare status facturare:", { lucrareId: lucrare.id, newStatus })
+                                  const updateData: any = { statusFacturare: newStatus }
+                                  await updateLucrare(lucrare.id!, updateData)
+                                  setLucrare(prev => prev ? { ...prev, ...updateData } : null)
+                                  const updatedLucrare = await getLucrareById(lucrare.id!)
+                                  if (updatedLucrare) {
+                                    setLucrare(updatedLucrare)
+                                    console.log("Lucrare reîncărcată din Firebase:", { statusFacturare: updatedLucrare.statusFacturare, numarFactura: updatedLucrare.numarFactura })
+                                  }
+                                  toast({
+                                    title: "Status actualizat",
+                                    description: "Statusul facturării a fost actualizat."
+                                  })
+                                } catch (error) {
+                                  console.error("Eroare la actualizarea statusului facturare:", error)
+                                  toast({
+                                    title: "Eroare",
+                                    description: "Nu s-a putut actualiza statusul.",
+                                    variant: "destructive"
+                                  })
+                                } finally {
+                                  setIsUpdating(false)
+                                }
+                              }}
+                              className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
+                              disabled={isUpdating}
+                            >
+                              <option value="Nefacturat">Nefacturat</option>
+                              <option value="Facturat">Facturat</option>
+                              <option value="Nu se facturează">Nu se facturează</option>
+                            </select>
+                          </div>
+                        </div>
+                      )}
 
-{/* Status Echipament — doar pentru admin */}
-{role === "admin" && (
-  <div className="space-y-2">
-    <label className="text-xs font-medium text-amber-800">Status echipament:</label>
-    <select
-      value={lucrare.statusEchipament || "Funcțional"}
-      onChange={async (e) => {
-        try {
-          setIsUpdating(true)
-          const newStatus = e.target.value
-          console.log("Actualizare status echipament:", { lucrareId: lucrare.id, newStatus })
-          await updateLucrare(lucrare.id!, { statusEchipament: newStatus })
-          setLucrare(prev => prev ? { ...prev, statusEchipament: newStatus } : null)
-          const updatedLucrare = await getLucrareById(lucrare.id!)
-          if (updatedLucrare) {
-            setLucrare(updatedLucrare)
-            console.log("Lucrare reîncărcată din Firebase:", { statusEchipament: updatedLucrare.statusEchipament })
-          }
-          toast({
-            title: "Status actualizat",
-            description: "Statusul echipamentului a fost actualizat."
-          })
-        } catch (error) {
-          console.error("Eroare la actualizarea statusului echipament:", error)
-          toast({
-            title: "Eroare",
-            description: "Nu s-a putut actualiza statusul.",
-            variant: "destructive"
-          })
-        } finally {
-          setIsUpdating(false)
-        }
-      }}
-      className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
-      disabled={isUpdating}
-    >
-      <option value="Funcțional">Funcțional</option>
-      <option value="Parțial funcțional">Parțial funcțional</option>
-      <option value="Nefuncțional">Nefuncțional</option>
-    </select>
-  </div>
-)}
-
+                      {/* Status Echipament */}
+                      {role === "admin" && (
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-amber-800">Status echipament:</label>
+                          <select
+                            value={lucrare.statusEchipament || "Funcțional"}
+                            onChange={async (e) => {
+                              try {
+                                setIsUpdating(true)
+                                const newStatus = e.target.value
+                                console.log("Actualizare status echipament:", { lucrareId: lucrare.id, newStatus })
+                                await updateLucrare(lucrare.id!, { statusEchipament: newStatus })
+                                setLucrare(prev => prev ? { ...prev, statusEchipament: newStatus } : null)
+                                const updatedLucrare = await getLucrareById(lucrare.id!)
+                                if (updatedLucrare) {
+                                  setLucrare(updatedLucrare)
+                                  console.log("Lucrare reîncărcată din Firebase:", { statusEchipament: updatedLucrare.statusEchipament })
+                                }
+                                toast({
+                                  title: "Status actualizat",
+                                  description: "Statusul echipamentului a fost actualizat."
+                                })
+                              } catch (error) {
+                                console.error("Eroare la actualizarea statusului echipament:", error)
+                                toast({
+                                  title: "Eroare",
+                                  description: "Nu s-a putut actualiza statusul.",
+                                  variant: "destructive"
+                                })
+                              } finally {
+                                setIsUpdating(false)
+                              }
+                            }}
+                            className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
+                            disabled={isUpdating}
+                          >
+                            <option value="Funcțional">Funcțional</option>
+                            <option value="Parțial funcțional">Parțial funcțional</option>
+                            <option value="Nefuncțional">Nefuncțional</option>
+                          </select>
+                        </div>
+                      )}
 
                       {/* Status Ofertă */}
                       <div className="space-y-2">
                         <label className="text-xs font-medium text-amber-800">Status ofertă:</label>
                         {lucrare.necesitaOferta ? (
-                          /* Status ofertă activ când tehnicianul a selectat "Necesită Ofertă" */
                           <div>
                             <select
                               value={lucrare.statusOferta || "DA"}
@@ -1528,7 +1577,6 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                             </p>
                           </div>
                         ) : (
-                          /* Status ofertă dezactivat când nu necesită ofertă */
                           <div className="w-full text-xs p-2 border border-amber-300 rounded bg-gray-100 text-gray-500">
                             <select disabled className="w-full bg-transparent">
                               <option>Dezactivat în management situații critice</option>
@@ -1540,8 +1588,16 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                           </div>
                         )}
                       </div>
+
+                      {((lucrare.statusOferta === "DA" || lucrare.statusOferta === "OFERTAT") || 
+                  (lucrare.statusOferta === undefined && lucrare.necesitaOferta)) && 
+                  lucrare.comentariiOferta && (
+                  <div>
+                    <p className="text-sm font-medium">Comentarii ofertă:</p>
+                    <p className="text-sm text-gray-500">{lucrare.comentariiOferta}</p>
+                  </div>
+                )}
                     </div>
-                    
 
                     <div className="mt-3 p-3 bg-amber-100 rounded text-sm text-amber-700">
                       <strong>Notă:</strong> Modificarea acestor statusuri va schimba culoarea rândului în lista de lucrări. 
@@ -1553,7 +1609,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
                 {/* Mesaj informativ când lucrarea nu este încă preluată */}
                 {isAdminOrDispatcher && lucrare.statusLucrare === "Finalizat" && !lucrare.preluatDispecer && (
-                  <div className="mt-4 p-4 border rounded-md bg-gray-50 border-gray-200">
+                  <div className="p-4 border rounded-md bg-gray-50 border-gray-200">
                     <div className="flex items-center gap-2 mb-2">
                       <div className="h-5 w-5 rounded-full bg-gray-400 flex items-center justify-center">
                         <span className="text-white text-xs font-bold">!</span>
@@ -1569,13 +1625,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   </div>
                 )}
 
-                {/* Secțiunea pentru documente PDF integrată în cardul de detalii */}
-                <div className="mt-6">
-                  <div className="border-t pt-4">
-                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                      <FileText className="h-5 w-5" />
-                      Documente PDF
-                    </h3>
+                {/* Documente PDF – mutat aici, sub Managementul statusurilor critice, în același container */}
+                <div className="mt-4">
+                  <div className="mt-2 p-3">
                     <DocumentUpload
                       lucrareId={lucrare.id!}
                       lucrare={lucrare}
@@ -1584,109 +1636,11 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   </div>
                 </div>
               </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Informații client</CardTitle>
-                <CardDescription>Detalii despre client și persoana de contact</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-3">
-                  <div className="mb-2">
-                    <div className="font-medium mb-1">Client:</div>
-                    <div className="text-gray-500">{lucrare.client}</div>
-                  </div>
-                  {clientData && (
-                    <>
-                      <div className="mb-2">
-                        <div className="font-medium mb-1">Telefon Principal:</div>
-                        <div className="text-gray-500 flex items-center gap-2">
-                          {clientData.telefon || "N/A"}
-                          {clientData.telefon && (
-                            <a
-                              href={`tel:${formatPhoneForCall(clientData.telefon)}`}
-                              className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-colors"
-                              aria-label={`Apelează ${clientData.telefon}`}
-                              title={`Apelează ${clientData.telefon}`}
-                            >
-                              <Phone className="h-3 w-3" />
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                      <div className="mb-2">
-                        <div className="font-medium mb-1">Reprezentant Firmă:</div>
-                        <div className="text-gray-500">{clientData.reprezentantFirma || "N/A"}</div>
-                      </div>
-                      <div className="mb-2">
-                        <div className="font-medium mb-1">CUI/CIF:</div>
-                        <div className="text-gray-500">{(clientData as any)?.cif || "N/A"}</div>
-                      </div>
-                    </>
-                  )}
-                  <div className="mb-2">
-                    <div className="font-medium mb-1">Persoană contact (locație):</div>
-                    <div className="text-gray-500">{lucrare.persoanaContact}</div>
-                  </div>
-                  <div className="mb-2">
-                    <div className="font-medium mb-1">Telefon contact (locație):</div>
-                    <div className="text-gray-500 flex items-center gap-2">
-                      {lucrare.telefon}
-                      <a
-                        href={`tel:${formatPhoneForCall(lucrare.telefon)}`}
-                        className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-green-500 text-white hover:bg-green-600 transition-colors"
-                        aria-label={`Apelează ${lucrare.persoanaContact}`}
-                        title={`Apelează ${lucrare.persoanaContact}`}
-                      >
-                        <Phone className="h-3 w-3" />
-                      </a>
-                    </div>
-                  </div>
-                </div>
-                <Separator className="my-4" />
-                <div className="text-base flex flex-wrap gap-y-3 items-center">
-                  <span className="font-semibold mr-3">Tehnicieni asignați:</span>
-                  <div className="flex flex-wrap gap-3">
-                    {lucrare.tehnicieni.map((tehnician, index) => (
-                      <Badge key={index} variant="secondary" className="text-base px-4 py-2 font-semibold">
-                        {tehnician}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              </CardContent>
               <CardFooter className="flex justify-between">
-                {(role === "admin" || role === "dispecer") && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="outline" size="icon" onClick={handleEdit}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Editează</TooltipContent>
-                  </Tooltip>
-                )}
-                {role === "admin" && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="destructive"
-                        size="icon"
-                        onClick={() => {
-                          if (window.confirm("Sigur doriți să ștergeți această lucrare?")) {
-                            handleDeleteLucrare()
-                          }
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Șterge</TooltipContent>
-                  </Tooltip>
-                )}
+             
               </CardFooter>
             </Card>
+
           </div>
         </TabsContent>
 
@@ -1750,9 +1704,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   echipamentCod: lucrare.echipamentCod,
                   // Pentru echipamentData, trebuie să găsim echipamentul în datele clientului
                   echipamentData: clientData?.locatii
-                    ?.find(loc => loc.nume === lucrare.locatie)
+                    ?.find((loc: any) => loc.nume === lucrare.locatie)
                     ?.echipamente
-                    ?.find(eq => eq.cod === lucrare.echipamentCod),
+                    ?.find((eq: any) => eq.cod === lucrare.echipamentCod),
                   // Adăugăm statusul finalizării intervenției
                   statusFinalizareInterventie: lucrare.statusFinalizareInterventie,
                   // Adăugăm confirmarea garanției de către tehnician

@@ -54,10 +54,14 @@ export interface Lucrare {
   updatedAt?: Timestamp
   createdBy?: string
   updatedBy?: string
+  createdByName?: string
+  updatedByName?: string
   // Add new field for all contact persons
   persoaneContact?: PersoanaContact[]
   // Add new field for dispatcher pickup status
   preluatDispecer?: boolean
+  // Cine a preluat lucrarea (numele dispecerului/adminului)
+  preluatDe?: string
   raportGenerat?: boolean
   // Adăugăm câmpul pentru statusul echipamentului
   statusEchipament?: string
@@ -227,6 +231,175 @@ export interface Log {
   timestamp?: any
 }
 
+/**
+ * Scrie în colecția `logs` folosind schema folosită de pagina Loguri (câmpuri în limba română).
+ * Operă non‑blocantă: orice eroare este prinsă și ignorată.
+ */
+export async function addUserLogEntry(params: {
+  utilizator?: string
+  utilizatorId?: string
+  actiune: string
+  detalii: string
+  tip?: "Informație" | "Avertisment" | "Eroare"
+  categorie?: string
+}) {
+  try {
+    const { serverTimestamp, addDoc, collection } = await import("firebase/firestore")
+
+    // Best-effort: dacă ni se pasează "Sistem"/"system" sau lipsesc userii, încercăm să luăm userul curent din Auth (doar în browser)
+    let finalUtilizator = params.utilizator
+    let finalUtilizatorId = params.utilizatorId
+    if (typeof window !== "undefined" && (!finalUtilizatorId || finalUtilizatorId === "system")) {
+      try {
+        const { auth } = await import("@/lib/firebase/config")
+        const currentUser = auth.currentUser
+        if (currentUser) {
+          finalUtilizatorId = currentUser.uid
+          finalUtilizator = currentUser.displayName || currentUser.email || finalUtilizator || "Utilizator"
+        }
+      } catch {
+        // ignorăm, rămâne fallback‑ul
+      }
+    }
+    await addDoc(collection(db, "logs"), {
+      timestamp: serverTimestamp(),
+      utilizator: finalUtilizator || "Sistem",
+      utilizatorId: finalUtilizatorId || "system",
+      actiune: params.actiune,
+      detalii: params.detalii,
+      tip: params.tip || "Informație",
+      categorie: params.categorie || "Sistem",
+    })
+  } catch (e) {
+    // nu blocăm acțiunea principală
+    console.warn("Log writing failed (non-blocking):", e)
+  }
+}
+
+function valueToComparableString(value: any): string {
+  if (value === null || value === undefined) return "-"
+  // Firestore Timestamp compat
+  if (value && typeof value === "object" && typeof (value as any).toDate === "function") {
+    return (value as any).toDate().toISOString()
+  }
+  if (Array.isArray(value)) {
+    return value.join(", ")
+  }
+  try {
+    return String(value)
+  } catch {
+    return "-"
+  }
+}
+
+function diffArrays(oldArr: any[] = [], newArr: any[] = []): string | null {
+  const oldSet = new Set(oldArr)
+  const newSet = new Set(newArr)
+  const added: string[] = []
+  const removed: string[] = []
+  newArr.forEach((v) => {
+    if (!oldSet.has(v)) added.push(String(v))
+  })
+  oldArr.forEach((v) => {
+    if (!newSet.has(v)) removed.push(String(v))
+  })
+  const parts: string[] = []
+  if (added.length) parts.push(`+${added.join(", ")}`)
+  if (removed.length) parts.push(`-${removed.join(", ")}`)
+  return parts.length ? parts.join("; ") : null
+}
+
+// Helpers pentru dif-uri compuse la Client.locatii (inclusiv persoane de contact și echipamente)
+function keyOfLocatie(loc: any): string {
+  const name = (loc?.nume || "").toString().trim()
+  const addr = (loc?.adresa || "").toString().trim()
+  return name || addr || JSON.stringify({ n: name, a: addr })
+}
+
+function keyOfContact(c: any): string {
+  const name = (c?.nume || "").toString().trim()
+  const tel = (c?.telefon || "").toString().trim()
+  return `${name}|${tel}`
+}
+
+function keyOfEquip(e: any): string {
+  const id = (e?.id || "").toString().trim()
+  const cod = (e?.cod || "").toString().trim()
+  const name = (e?.nume || "").toString().trim()
+  return id || cod || name || JSON.stringify({ n: name, c: cod })
+}
+
+function diffContacts(oldContacts: any[] = [], newContacts: any[] = []): string[] {
+  const oldMap = new Map<string, any>(oldContacts.map((c) => [keyOfContact(c), c]))
+  const newMap = new Map<string, any>(newContacts.map((c) => [keyOfContact(c), c]))
+  const changes: string[] = []
+  // adăugate
+  for (const [k, v] of newMap) if (!oldMap.has(k)) changes.push(`persoaneContact +${v.nume || "(fără nume)"}`)
+  // eliminate
+  for (const [k, v] of oldMap) if (!newMap.has(k)) changes.push(`persoaneContact -${v.nume || "(fără nume)"}`)
+  return changes
+}
+
+function diffEquipments(oldEq: any[] = [], newEq: any[] = []): string[] {
+  const oldMap = new Map<string, any>(oldEq.map((e) => [keyOfEquip(e), e]))
+  const newMap = new Map<string, any>(newEq.map((e) => [keyOfEquip(e), e]))
+  const changes: string[] = []
+  // adăugate
+  for (const [k, v] of newMap) if (!oldMap.has(k)) changes.push(`echipamente +${v.nume || v.cod || "(nou)"}`)
+  // eliminate
+  for (const [k, v] of oldMap) if (!newMap.has(k)) changes.push(`echipamente -${v.nume || v.cod || "(șters)"}`)
+  // modificări la cele existente
+  for (const [k, newVal] of newMap) {
+    const oldVal = oldMap.get(k)
+    if (oldVal) {
+      const fields = ["nume", "cod", "model", "serie", "dataInstalare", "ultimaInterventie", "observatii", "garantieLuni"]
+      const fieldChanges: string[] = []
+      fields.forEach((f) => {
+        const oldStr = valueToComparableString((oldVal as any)[f])
+        const newStr = valueToComparableString((newVal as any)[f])
+        if (oldStr !== newStr) fieldChanges.push(`${f}: "${oldStr}" → "${newStr}"`)
+      })
+      if (fieldChanges.length) {
+        const label = newVal.nume || newVal.cod || k
+        changes.push(`echipament(${label}) { ${fieldChanges.join("; ")} }`)
+      }
+    }
+  }
+  return changes
+}
+
+function diffLocatii(oldLocs: any[] = [], newLocs: any[] = []): string[] {
+  const oldMap = new Map<string, any>(oldLocs.map((l) => [keyOfLocatie(l), l]))
+  const newMap = new Map<string, any>(newLocs.map((l) => [keyOfLocatie(l), l]))
+  const changes: string[] = []
+  // adăugate
+  for (const [k, v] of newMap) if (!oldMap.has(k)) changes.push(`locații +${v.nume || v.adresa || "(nouă)"}`)
+  // eliminate
+  for (const [k, v] of oldMap) if (!newMap.has(k)) changes.push(`locații -${v.nume || v.adresa || "(ștearsă)"}`)
+  // modificări la comune
+  for (const [k, newLoc] of newMap) {
+    const oldLoc = oldMap.get(k)
+    if (oldLoc) {
+      const fieldChanges: string[] = []
+      ;["nume", "adresa"].forEach((f) => {
+        const oldStr = valueToComparableString((oldLoc as any)[f])
+        const newStr = valueToComparableString((newLoc as any)[f])
+        if (oldStr !== newStr) fieldChanges.push(`${f}: "${oldStr}" → "${newStr}"`)
+      })
+      // persoane de contact
+      const contactChanges = diffContacts(oldLoc.persoaneContact || [], newLoc.persoaneContact || [])
+      // echipamente
+      const equipChanges = diffEquipments(oldLoc.echipamente || [], newLoc.echipamente || [])
+      const all = [...fieldChanges, ...contactChanges, ...equipChanges]
+      if (all.length) {
+        const label = newLoc.nume || newLoc.adresa || k
+        changes.push(`locație(${label}) { ${all.join("; ")} }`)
+      }
+    }
+  }
+  return changes
+}
+
 export interface ProductItem {
   name: string
   quantity: number
@@ -263,6 +436,13 @@ export const addClient = async (client: Client) => {
   client.createdAt = serverTimestamp() as Timestamp
   client.updatedAt = serverTimestamp() as Timestamp
   const docRef = await addDoc(clientsCollection, client)
+  // Log non‑blocking
+  void addUserLogEntry({
+    actiune: "Creare client",
+    detalii: `ID: ${docRef.id}; nume: ${client.nume}; email: ${client.email || '-'}`,
+    tip: "Informație",
+    categorie: "Clienți",
+  })
   return {
     id: docRef.id,
     ...client,
@@ -272,8 +452,68 @@ export const addClient = async (client: Client) => {
 // Update a client
 export const updateClient = async (id: string, client: Partial<Client>) => {
   const clientDoc = doc(db, "clienti", id)
+  // Citim datele vechi pentru a construi dif-ul (best-effort)
+  let oldData: any = null
+  try {
+    const snap = await getDoc(clientDoc)
+    if (snap.exists()) oldData = { id: snap.id, ...snap.data() }
+  } catch (e) {
+    console.warn("Nu s-au putut obține datele vechi ale clientului pentru log dif:", e)
+  }
+
   client.updatedAt = serverTimestamp() as Timestamp
   await updateDoc(clientDoc, client as DocumentData)
+
+  // Log dif non‑blocking
+  try {
+    if (oldData) {
+      const changedFields: string[] = []
+      const whitelist: Array<keyof Client> = [
+        "nume",
+        "adresa",
+        "email",
+        "telefon" as any,
+        "reprezentantFirma" as any,
+        "cui" as any,
+        "regCom" as any,
+        "contBancar" as any,
+        "banca" as any,
+        "locatii" as any,
+      ]
+      whitelist.forEach((key) => {
+        if (key in client) {
+          const oldVal = (oldData as any)[key]
+          const newVal = (client as any)[key]
+          if (key === "locatii") {
+            const locChanges = diffLocatii(oldVal || [], newVal || [])
+            if (locChanges.length) changedFields.push(...locChanges)
+          } else {
+            const oldStr = valueToComparableString(oldVal)
+            const newStr = valueToComparableString(newVal)
+            if (oldStr !== newStr) {
+              changedFields.push(`${String(key)}: "${oldStr}" → "${newStr}"`)
+            }
+          }
+        }
+      })
+      const detalii = changedFields.length ? changedFields.join("; ") : "Actualizare fără câmpuri esențiale modificate"
+      void addUserLogEntry({
+        actiune: "Actualizare client",
+        detalii: `ID: ${id}; ${detalii}`,
+        tip: "Informație",
+        categorie: "Clienți",
+      })
+    } else {
+      void addUserLogEntry({
+        actiune: "Actualizare client",
+        detalii: `ID: ${id}; (detalii neidentificate)`,
+        tip: "Informație",
+        categorie: "Clienți",
+      })
+    }
+  } catch (e) {
+    console.warn("Log update client failed (non-blocking):", e)
+  }
   return {
     id,
     ...client,
@@ -283,7 +523,19 @@ export const updateClient = async (id: string, client: Partial<Client>) => {
 // Delete a client
 export const deleteClient = async (id: string) => {
   const clientDoc = doc(db, "clienti", id)
+  let oldName: string | undefined
+  try {
+    const snap = await getDoc(clientDoc)
+    if (snap.exists()) oldName = (snap.data() as any)?.nume
+  } catch {}
   await deleteDoc(clientDoc)
+  // Log non‑blocking
+  void addUserLogEntry({
+    actiune: "Ștergere client",
+    detalii: `ID: ${id}${oldName ? `; nume: ${oldName}` : ""}`,
+    tip: "Avertisment",
+    categorie: "Clienți",
+  })
   return id
 }
 
@@ -316,6 +568,15 @@ export const addLucrare = async (lucrare: Lucrare) => {
   lucrare.createdAt = serverTimestamp() as Timestamp
   lucrare.updatedAt = serverTimestamp() as Timestamp
   const docRef = await addDoc(lucrariCollection, lucrare)
+  // Log non‑blocking
+  void addUserLogEntry({
+    utilizator: (lucrare as any).createdByName || (lucrare as any).createdBy || "Sistem",
+    utilizatorId: (lucrare as any).createdBy || "system",
+    actiune: "Creare lucrare",
+    detalii: `ID: ${docRef.id}; client: ${lucrare.client}; tip: ${lucrare.tipLucrare}; dataInterventie: ${lucrare.dataInterventie || '-'}`,
+    tip: "Informație",
+    categorie: "Lucrări",
+  })
   return {
     id: docRef.id,
     ...lucrare,
@@ -334,15 +595,13 @@ export const updateLucrare = async (
   
   // Obținem datele vechi pentru tracking modificări
   let oldLucrareData = null
-  if (modifiedBy && modifiedByName && !silent) {
-    try {
-      const oldDoc = await getDoc(lucrareDoc)
-      if (oldDoc.exists()) {
-        oldLucrareData = { id: oldDoc.id, ...oldDoc.data() }
-      }
-    } catch (error) {
-      console.warn("Nu s-au putut obține datele vechi pentru tracking:", error)
+  try {
+    const oldDoc = await getDoc(lucrareDoc)
+    if (oldDoc.exists()) {
+      oldLucrareData = { id: oldDoc.id, ...oldDoc.data() }
     }
+  } catch (error) {
+    console.warn("Nu s-au putut obține datele vechi (log dif optional):", error)
   }
   
   // Pentru actualizări silentioase (ex: marcare ca citită), nu actualizăm updatedAt și nu resetăm notificările
@@ -368,6 +627,57 @@ export const updateLucrare = async (
       // Nu aruncăm eroarea pentru a nu bloca update-ul principal
     }
   }
+
+  // Logăm dif-urile principale (non‑blocking, fără a afecta fluxul)
+  if (oldLucrareData) {
+    try {
+      const changedFields: string[] = []
+      const whitelist: Array<keyof Lucrare> = [
+        "statusLucrare",
+        "statusFacturare",
+        "statusOferta",
+        "dataInterventie",
+        "tehnicieni",
+        "preluatDispecer",
+        "archivedAt" as any,
+        "lucrareOriginala",
+        "numarRaport",
+        "timpSosire",
+        "timpPlecare",
+        "durataInterventie",
+      ]
+      whitelist.forEach((key) => {
+        if (key in lucrare) {
+          const oldVal = (oldLucrareData as any)[key]
+          const newVal = (lucrare as any)[key]
+          if (key === "tehnicieni") {
+            const diff = diffArrays(oldVal || [], newVal || [])
+            if (diff) changedFields.push(`tehnicieni: ${diff}`)
+          } else {
+            const oldStr = valueToComparableString(oldVal)
+            const newStr = valueToComparableString(newVal)
+            if (oldStr !== newStr) {
+              changedFields.push(`${String(key)}: "${oldStr}" → "${newStr}"`)
+            }
+          }
+        }
+      })
+
+      const utilizator = modifiedByName || "Sistem"
+      const utilizatorId = modifiedBy || "system"
+      const detalii = changedFields.length ? changedFields.join("; ") : "Actualizare fără câmpuri esențiale modificate"
+      void addUserLogEntry({
+        utilizator,
+        utilizatorId,
+        actiune: "Actualizare lucrare",
+        detalii,
+        tip: "Informație",
+        categorie: "Lucrări",
+      })
+    } catch (e) {
+      console.warn("Log diff failed (non-blocking):", e)
+    }
+  }
   
   return {
     id,
@@ -379,6 +689,15 @@ export const updateLucrare = async (
 export const deleteLucrare = async (id: string) => {
   const lucrareDoc = doc(db, "lucrari", id)
   await deleteDoc(lucrareDoc)
+  // Log non‑blocking
+  void addUserLogEntry({
+    utilizator: "Sistem",
+    utilizatorId: "system",
+    actiune: "Ștergere lucrare",
+    detalii: `ID: ${id}`,
+    tip: "Avertisment",
+    categorie: "Lucrări",
+  })
   return id
 }
 

@@ -518,9 +518,7 @@ export default function LucrariArhivate() {
               <div className="font-medium text-gray-600">
                 {formatDateTime(row.original.updatedAt.toDate?.() || row.original.updatedAt)}
               </div>
-              <div className="text-xs text-gray-400">
-                (data arhivării indisponibilă)
-              </div>
+              
             </div>
           ) : (
             <span className="text-gray-400">N/A</span>

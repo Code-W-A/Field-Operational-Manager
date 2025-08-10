@@ -968,7 +968,11 @@ export default function Lucrari() {
         }),
       }
 
-      await addLucrare(dataToSubmit)
+      await addLucrare({
+        ...dataToSubmit,
+        createdBy: userData?.uid || "",
+        createdByName: userData?.displayName || userData?.email || "Utilizator necunoscut",
+      })
       
       // Resetăm starea de re-intervenție
       setIsReassignment(false)
@@ -1042,7 +1046,11 @@ export default function Lucrari() {
       }
 
       // Adăugăm lucrarea în Firestore
-      const lucrareId = await addLucrare(newLucrare)
+      const lucrareId = await addLucrare({
+        ...newLucrare,
+        createdBy: userData?.uid || "",
+        createdByName: userData?.displayName || userData?.email || "Utilizator necunoscut",
+      })
 
       // Resetăm starea de re-intervenție
       if (isReassignment) {
@@ -1373,7 +1381,7 @@ export default function Lucrari() {
     if (lucrare.preluatDispecer) return
 
     try {
-      await updateLucrare(lucrare.id, { preluatDispecer: true })
+      await updateLucrare(lucrare.id, { preluatDispecer: true, preluatDe: userData?.displayName || userData?.email || "Dispecer" })
 
       toast({
         title: "Lucrare preluată",

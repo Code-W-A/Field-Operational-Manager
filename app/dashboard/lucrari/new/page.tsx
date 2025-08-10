@@ -11,12 +11,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "@/components/ui/use-toast"
 import type { PersoanaContact } from "@/lib/firebase/firestore"
 import { sendWorkOrderNotifications } from "@/components/work-order-notification-service"
+import { useAuth } from "@/contexts/AuthContext"
 import { Check, Mail, AlertCircle, RefreshCw } from "lucide-react"
 import { WORK_STATUS, INVOICE_STATUS } from "@/lib/utils/constants"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function NewLucrarePage() {
   const router = useRouter()
+  const { userData } = useAuth()
   const [dataEmiterii, setDataEmiterii] = useState<Date>(new Date())
   const [dataInterventie, setDataInterventie] = useState<Date | undefined>(new Date())
   
@@ -142,7 +144,11 @@ export default function NewLucrarePage() {
       }
 
       // Adăugăm lucrarea în Firestore
-      const lucrareId = await addLucrare(newWorkOrderData)
+      const lucrareId = await addLucrare({
+        ...newWorkOrderData,
+        createdBy: userData?.uid || "",
+        createdByName: userData?.displayName || userData?.email || "Utilizator necunoscut",
+      })
 
       // Adăugăm un log pentru crearea lucrării
       const logMessage = isReassignment 

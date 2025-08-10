@@ -54,6 +54,7 @@ import {
   Timestamp
 } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
+import { addUserLogEntry } from "@/lib/firebase/firestore"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   AlertDialog,
@@ -252,7 +253,7 @@ export default function NoteInternePage() {
 
     setIsCreating(true)
     try {
-      await addDoc(collection(db, "note-interne"), {
+      const docRef = await addDoc(collection(db, "note-interne"), {
         title: title.trim(),
         content: content.trim(),
         priority,
@@ -261,6 +262,13 @@ export default function NoteInternePage() {
         authorName: userData.displayName || "Utilizator necunoscut",
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
+      })
+
+      // Log non-blocking
+      void addUserLogEntry({
+        actiune: "Creare notă internă",
+        detalii: `ID: ${docRef.id}; titlu: ${title.trim()}; prioritate: ${priority}; categorie: ${category}`,
+        categorie: "Note interne",
       })
 
       toast({
@@ -303,6 +311,19 @@ export default function NoteInternePage() {
         updatedAt: serverTimestamp()
       })
 
+      // Log dif non-blocking
+      const changes: string[] = []
+      if (editingNote.title !== title.trim()) changes.push(`title: "${editingNote.title}" → "${title.trim()}"`)
+      if (editingNote.content !== content.trim()) changes.push(`content: [text actualizat]`)
+      if (editingNote.priority !== priority) changes.push(`priority: "${editingNote.priority}" → "${priority}"`)
+      if (editingNote.category !== category) changes.push(`category: "${editingNote.category}" → "${category}"`)
+      const detalii = changes.length ? changes.join("; ") : "Actualizare fără câmpuri esențiale modificate"
+      void addUserLogEntry({
+        actiune: "Actualizare notă internă",
+        detalii: `ID: ${editingNote.id}; ${detalii}`,
+        categorie: "Note interne",
+      })
+
       toast({
         title: "Succes",
         description: "Nota a fost actualizată cu succes."
@@ -330,6 +351,12 @@ export default function NoteInternePage() {
     if (!confirmed) return
 
     try {
+      // Log non-blocking înainte de ștergere
+      void addUserLogEntry({
+        actiune: "Ștergere notă internă",
+        detalii: `ID: ${noteId}`,
+        categorie: "Note interne",
+      })
       await deleteDoc(doc(db, "note-interne", noteId))
       toast({
         title: "Succes",
