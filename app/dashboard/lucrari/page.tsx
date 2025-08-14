@@ -268,21 +268,25 @@ export default function Lucrari() {
   const filteredLucrari = useMemo(() => {
     if (userData?.role === "tehnician" && userData?.displayName) {
       const filteredList = lucrari.filter((lucrare) => {
-        // Verificăm dacă lucrarea este atribuită tehnicianului
         const isAssignedToTechnician =
           lucrare.tehnicieni && Array.isArray(lucrare.tehnicieni) && lucrare.tehnicieni.includes(userData.displayName)
 
-        // Verificăm dacă lucrarea este finalizată și are raport generat și a fost preluată de dispecer
         const isFinalized = lucrare.statusLucrare === "Finalizat"
         const hasReportGenerated = lucrare.raportGenerat === true
         const isPickedUpByDispatcher = lucrare.preluatDispecer === true
         const isCompletedWithReportAndPickedUp = isFinalized && hasReportGenerated && isPickedUpByDispatcher
 
-        // Verificăm dacă lucrarea este amânată (nu o afișăm tehnicianului)
         const isPostponed = lucrare.statusLucrare === WORK_STATUS.POSTPONED
 
-        // Includem lucrarea doar dacă este atribuită tehnicianului și NU este finalizată cu raport și preluată de dispecer și NU este amânată
-        return isAssignedToTechnician && !isCompletedWithReportAndPickedUp && !isPostponed
+        // Pentru tehnician:
+        // - lucrarea amânată rămâne vizibilă până este preluată (preluatDispecer === true)
+        // - lucrarea finalizată cu raport și preluată dispare
+        // - lucrarea amânată și preluată dispare
+        return (
+          isAssignedToTechnician &&
+          !isCompletedWithReportAndPickedUp &&
+          !(isPostponed && isPickedUpByDispatcher)
+        )
       })
 
       return filteredList
@@ -293,6 +297,10 @@ export default function Lucrari() {
   // Helper function to check if a work order is completed with report but not picked up
   const isCompletedWithReportNotPickedUp = useCallback((lucrare) => {
     return lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true && lucrare.preluatDispecer === false
+  }, [])
+
+  const isPostponedNotPickedUp = useCallback((lucrare) => {
+    return lucrare.statusLucrare === WORK_STATUS.POSTPONED && lucrare.preluatDispecer === false
   }, [])
 
   // Modificăm funcția filterOptions pentru a include și echipamentele și statusul echipamentului
@@ -1313,11 +1321,11 @@ export default function Lucrari() {
 
   // De asemenea, trebuie să actualizăm funcția handleViewDetails pentru a asigura consistența
   const handleViewDetails = (lucrare) => {
-    // For technicians, if the work order is completed with report but not picked up, don't allow navigation
-    if (isTechnician && isCompletedWithReportNotPickedUp(lucrare)) {
+    // Pentru tehnician: dacă lucrarea este finalizată cu raport și nepreluată SAU este amânată și nepreluată, blocăm accesul
+    if (isTechnician && (isCompletedWithReportNotPickedUp(lucrare) || isPostponedNotPickedUp(lucrare))) {
       toast({
         title: "Acces restricționat",
-        description: "Lucrarea este finalizată și în așteptare de preluare de către dispecer.",
+        description: "Lucrarea este în așteptare de preluare de către dispecer.",
         variant: "default",
         icon: <Info className="h-4 w-4" />,
       })
@@ -1339,11 +1347,11 @@ export default function Lucrari() {
 
   const handleGenerateReport = useCallback(
     (lucrare) => {
-      // For technicians, if the work order is completed with report but not picked up, don't allow report generation
-      if (isTechnician && isCompletedWithReportNotPickedUp(lucrare)) {
+      // Pentru tehnician: dacă lucrarea e finalizată nepreluată sau amânată nepreluată, blocăm generarea raportului
+      if (isTechnician && (isCompletedWithReportNotPickedUp(lucrare) || isPostponedNotPickedUp(lucrare))) {
         toast({
           title: "Acces restricționat",
-          description: "Lucrarea este finalizată și în așteptare de preluare de către dispecer.",
+          description: "Lucrarea este în așteptare de preluare de către dispecer.",
           variant: "default",
           icon: <Info className="h-4 w-4" />,
         })
@@ -2396,6 +2404,13 @@ export default function Lucrari() {
                       <Badge className={getWorkStatusClass(lucrare.statusLucrare)}>{lucrare.statusLucrare}</Badge>
                     </div>
                     <div className="p-4">
+                      {lucrare.statusLucrare === WORK_STATUS.POSTPONED && !lucrare.preluatDispecer && (
+                        <div className="mb-3">
+                          <Badge className="bg-amber-100 text-amber-800 border border-amber-300">
+                            Amânată – în așteptare preluare
+                          </Badge>
+                        </div>
+                      )}
                       <div className="mb-4 space-y-2">
                         <div className="flex justify-between">
                           <span className="text-sm font-medium text-muted-foreground">Tip:</span>
@@ -2466,14 +2481,14 @@ export default function Lucrari() {
                           <Badge className="bg-blue-100 text-blue-800">Ofertat</Badge>
                         </div>
                       )}
-                      {lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true && (
+              {(lucrare.statusLucrare === "Finalizat" || lucrare.statusLucrare === WORK_STATUS.POSTPONED) && (
                         <div className="flex justify-between items-center mt-2 mb-2">
                           <span className="text-sm font-medium text-muted-foreground">Status preluare:</span>
                           {lucrare.preluatDispecer ? (
                             <Badge className="bg-green-100 text-green-800">Preluat</Badge>
                           ) : (
                             <>
-                              {userData?.role === "tehnician" ? (
+                      {userData?.role === "tehnician" ? (
                                 <Badge className="bg-yellow-100 text-yellow-800">În așteptare</Badge>
                               ) : (
                                 <Button

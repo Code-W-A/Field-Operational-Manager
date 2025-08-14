@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/components/ui/use-toast"
@@ -648,42 +651,49 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
             </Button>
           )}
 
-          {/* Buton pentru arhivare - doar pentru admin/dispecer și lucrări finalizate */}
-          {isAdminOrDispatcher && lucrare.statusLucrare === "Finalizat" && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="text-gray-600 border-gray-200 hover:bg-gray-50"
-                    onClick={async () => {
-                      if (window.confirm("Sigur doriți să arhivați această lucrare? Lucrarea va fi mutată în secțiunea Arhivate.")) {
-                        try {
-                          await updateLucrare(paramsId, { statusLucrare: WORK_STATUS.ARCHIVED })
-                          toast({
-                            title: "Succes",
-                            description: "Lucrarea a fost arhivată cu succes.",
-                          })
-                          router.push("/dashboard/lucrari")
-                        } catch (error) {
-                          console.error("Eroare la arhivare:", error)
-                          toast({
-                            title: "Eroare",
-                            description: "Nu s-a putut arhiva lucrarea.",
-                            variant: "destructive",
-                          })
+          {/* Buton pentru arhivare - doar pentru admin/dispecer și lucrări finalizate, cu condiții de activare */}
+          {isAdminOrDispatcher && lucrare.statusLucrare === "Finalizat" && (() => {
+            const hasInvoiceDoc = Boolean((lucrare as any)?.facturaDocument)
+            const noInvoicingSelected = (lucrare.statusFacturare === "Nu se facturează")
+            const isPickedUp = lucrare.preluatDispecer === true
+            const canArchive = isPickedUp && (hasInvoiceDoc || noInvoicingSelected)
+            const archiveReason = !isPickedUp
+              ? "Necesită preluare de dispecer înainte de arhivare"
+              : (!hasInvoiceDoc && !noInvoicingSelected)
+                ? "Încărcați factura sau marcați 'Nu se facturează' pentru a arhiva"
+                : "Arhivează lucrarea finalizată"
+
+            return (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="text-gray-600 border-gray-200 hover:bg-gray-50"
+                      disabled={!canArchive}
+                      onClick={async () => {
+                        if (!canArchive) return
+                        if (window.confirm("Sigur doriți să arhivați această lucrare? Lucrarea va fi mutată în secțiunea Arhivate.")) {
+                          try {
+                            await updateLucrare(paramsId, { statusLucrare: WORK_STATUS.ARCHIVED })
+                            toast({ title: "Succes", description: "Lucrarea a fost arhivată cu succes." })
+                            router.push("/dashboard/lucrari")
+                          } catch (error) {
+                            console.error("Eroare la arhivare:", error)
+                            toast({ title: "Eroare", description: "Nu s-a putut arhiva lucrarea.", variant: "destructive" })
+                          }
                         }
-                      }
-                    }}
-                  >
-                    <Archive className="mr-2 h-4 w-4" />
-                    Arhivează
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Arhivează lucrarea finalizată</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
+                      }}
+                    >
+                      <Archive className="mr-2 h-4 w-4" />
+                      Arhivează
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{archiveReason}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )
+          })()}
 
           {/* Adăugăm butonul de preluare/anulare preluare pentru admin și dispecer */}
           {isAdminOrDispatcher && isCompletedWithReport && !lucrare.preluatDispecer && (
@@ -749,7 +759,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       )}
 
       {/* Adăugăm un banner de notificare pentru tehnicieni dacă echipamentul nu a fost verificat */}
-      {role === "tehnician" && !equipmentVerified && (
+      {role === "tehnician" && !equipmentVerified && lucrare.statusLucrare !== WORK_STATUS.POSTPONED && (
         <Alert variant="default" className="mb-4 bg-yellow-50 border-yellow-200">
           <AlertCircle className="h-4 w-4 text-yellow-500" />
           <AlertTitle>Verificare echipament necesară</AlertTitle>
@@ -761,7 +771,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       )}
 
       {/* Adăugăm un banner de confirmare dacă echipamentul a fost verificat */}
-      {role === "tehnician" && equipmentVerified && (
+      {role === "tehnician" && equipmentVerified && lucrare.statusLucrare !== WORK_STATUS.POSTPONED && (
         <Alert variant="default" className="mb-4 bg-green-50 border-green-200">
           <CheckCircle className="h-4 w-4 text-green-500" />
           <AlertTitle>Echipament verificat</AlertTitle>
@@ -770,7 +780,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       )}
 
       {/* Adăugăm un banner pentru admin/dispecer care arată starea de preluare */}
-      {isAdminOrDispatcher && isCompletedWithReport && (
+      {isAdminOrDispatcher && (isCompletedWithReport || lucrare.statusLucrare === WORK_STATUS.POSTPONED) && (
         <Alert
           variant="default"
           className={`mb-4 ${lucrare.preluatDispecer ? "bg-green-50 border-green-200" : "bg-yellow-50 border-yellow-200"}`}
@@ -780,11 +790,13 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           ) : (
             <AlertCircle className="h-4 w-4 text-yellow-500" />
           )}
-          <AlertTitle>{lucrare.preluatDispecer ? "Lucrare preluată" : "Lucrare în așteptare"}</AlertTitle>
+          <AlertTitle>{lucrare.preluatDispecer ? "Lucrare preluată" : (lucrare.statusLucrare === WORK_STATUS.POSTPONED ? "Lucrare amânată" : "Lucrare în așteptare")}</AlertTitle>
           <AlertDescription>
             {lucrare.preluatDispecer
               ? `Această lucrare a fost preluată de dispecer${lucrare.preluatDe ? ` (${lucrare.preluatDe})` : ""} și nu mai este vizibilă pentru tehnician.`
-              : "Această lucrare nu a fost încă preluată de dispecer și este încă vizibilă pentru tehnician."}
+              : (lucrare.statusLucrare === WORK_STATUS.POSTPONED
+                  ? "Această lucrare este amânată și în așteptare de preluare de către dispecer."
+                  : "Această lucrare nu a fost încă preluată de dispecer și este încă vizibilă pentru tehnician.")}
           </AlertDescription>
         </Alert>
       )}
@@ -801,13 +813,13 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           </TabsTrigger>
 
           {/* ------------ 3. Verificare Echipament (100 % pe mobil) ------- */}
-          {role === "tehnician" && !lucrare.raportGenerat && (
+          {role === "tehnician" && !lucrare.raportGenerat && lucrare.statusLucrare !== WORK_STATUS.POSTPONED && (
             <TabsTrigger value="verificare" className="basis-full md:basis-auto text-center whitespace-normal">
               Verificare echipament
             </TabsTrigger>
           )}
           {/* ------------ 2. Intervenție (50 %) --------------------------- */}
-          {role === "tehnician" && !lucrare.raportGenerat && (
+          {role === "tehnician" && !lucrare.raportGenerat && lucrare.statusLucrare !== WORK_STATUS.POSTPONED && (
             <TabsTrigger
               value="interventie"
               disabled={
@@ -1420,6 +1432,101 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   </div>
                 </div>
                 {/* Managementul statusurilor critice – mutat din cardul stâng în cardul drept */}
+                {/* Setări ofertă – disponibile pentru admin/dispecer indiferent de preluare sau status */}
+                {(role === "admin" || role === "dispecer") && (
+                  <div className="p-4 border rounded-md bg-blue-50 border-blue-200 mb-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="h-6 w-6 rounded-full bg-blue-500 flex items-center justify-center">
+                        <span className="text-white text-sm font-bold">O</span>
+                      </div>
+                      <h4 className="text-base font-semibold text-blue-900">Setări ofertă</h4>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="necesitaOfertaSwitch" className="text-xs font-medium text-blue-800">Necesită ofertă</Label>
+                        <div className="flex items-center gap-3">
+                          <Switch
+                            id="necesitaOfertaSwitch"
+                            checked={Boolean(lucrare.necesitaOferta)}
+                            onCheckedChange={async (checked) => {
+                              try {
+                                setIsUpdating(true)
+                                const updateData: any = { necesitaOferta: checked }
+                                if (!checked) {
+                                  updateData.comentariiOferta = ""
+                                  updateData.statusOferta = undefined
+                                }
+                                await updateLucrare(lucrare.id!, updateData)
+                                setLucrare(prev => prev ? { ...prev, ...updateData } : null)
+                                toast({ title: "Actualizat", description: "Setarea 'Necesită ofertă' a fost actualizată." })
+                              } catch (error) {
+                                console.error("Eroare la actualizarea necesitaOferta:", error)
+                                toast({ title: "Eroare", description: "Nu s-a putut actualiza setarea.", variant: "destructive" })
+                              } finally {
+                                setIsUpdating(false)
+                              }
+                            }}
+                            disabled={isUpdating}
+                          />
+                        </div>
+                      </div>
+                      {lucrare.necesitaOferta && (
+                        <div className="space-y-2">
+                          <Label className="text-xs font-medium text-blue-800">Status ofertă</Label>
+                          <select
+                            value={lucrare.statusOferta || "DA"}
+                            onChange={async (e) => {
+                              try {
+                                setIsUpdating(true)
+                                const newStatus = e.target.value as "DA" | "OFERTAT"
+                                await updateLucrare(lucrare.id!, { statusOferta: newStatus })
+                                setLucrare(prev => prev ? { ...prev, statusOferta: newStatus } : null)
+                                toast({ title: "Status actualizat", description: "Statusul ofertei a fost actualizat." })
+                              } catch (error) {
+                                console.error("Eroare la actualizarea statusului ofertei:", error)
+                                toast({ title: "Eroare", description: "Nu s-a putut actualiza statusul.", variant: "destructive" })
+                              } finally {
+                                setIsUpdating(false)
+                              }
+                            }}
+                            className="w-full text-xs p-2 border border-blue-300 rounded bg-white"
+                            disabled={isUpdating}
+                          >
+                            <option value="DA">DA - Necesită ofertă</option>
+                            <option value="OFERTAT">OFERTAT</option>
+                          </select>
+                        </div>
+                      )}
+                      {lucrare.necesitaOferta && (
+                        <div className="space-y-2 md:col-span-3">
+                          <Label htmlFor="comentariiOferta" className="text-xs font-medium text-blue-800">Comentarii ofertă</Label>
+                          <Textarea
+                            id="comentariiOferta"
+                            value={lucrare.comentariiOferta || ""}
+                            onChange={(e) => setLucrare(prev => prev ? { ...prev, comentariiOferta: e.target.value } : prev)}
+                            onBlur={async () => {
+                              try {
+                                setIsUpdating(true)
+                                await updateLucrare(lucrare.id!, { comentariiOferta: lucrare.comentariiOferta || "" })
+                                toast({ title: "Actualizat", description: "Comentariile ofertei au fost salvate." })
+                              } catch (error) {
+                                console.error("Eroare la salvarea comentariilor ofertei:", error)
+                                toast({ title: "Eroare", description: "Nu s-au putut salva comentariile.", variant: "destructive" })
+                              } finally {
+                                setIsUpdating(false)
+                              }
+                            }}
+                            placeholder="Detalii relevante pentru ofertă..."
+                            className="min-h-[80px] text-sm"
+                            disabled={isUpdating}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Managementul statusurilor critice – mutat din cardul stâng în cardul drept */}
                 {isAdminOrDispatcher && lucrare.statusLucrare === "Finalizat" && lucrare.preluatDispecer && (
                   <div className="p-4 border rounded-md bg-amber-50 border-amber-200">
                     <div className="flex items-center gap-2 mb-3">
@@ -1569,62 +1676,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         </div>
                       )}
 
-                      {/* Status Ofertă */}
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-amber-800">Status ofertă:</label>
-                        {lucrare.necesitaOferta ? (
-                          <div>
-                            <select
-                              value={lucrare.statusOferta || "DA"}
-                              onChange={async (e) => {
-                                try {
-                                  setIsUpdating(true)
-                                  const newStatus = e.target.value as "DA" | "OFERTAT"
-                                  console.log("Actualizare status ofertă:", { lucrareId: lucrare.id, newStatus })
-                                  await updateLucrare(lucrare.id!, { statusOferta: newStatus })
-                                  setLucrare(prev => prev ? { ...prev, statusOferta: newStatus } : null)
-                                  const updatedLucrare = await getLucrareById(lucrare.id!)
-                                  if (updatedLucrare) {
-                                    setLucrare(updatedLucrare)
-                                    console.log("Lucrare reîncărcată din Firebase:", { statusOferta: updatedLucrare.statusOferta })
-                                  }
-                                  toast({
-                                    title: "Status actualizat",
-                                    description: "Statusul ofertei a fost actualizat."
-                                  })
-                                } catch (error) {
-                                  console.error("Eroare la actualizarea statusului ofertei:", error)
-                                  toast({
-                                    title: "Eroare",
-                                    description: "Nu s-a putut actualiza statusul.",
-                                    variant: "destructive"
-                                  })
-                                } finally {
-                                  setIsUpdating(false)
-                                }
-                              }}
-                              className="w-full text-sm p-3 border border-amber-300 rounded bg-white"
-                              disabled={isUpdating}
-                            >
-                              <option value="DA">DA - Necesită ofertă</option>
-                              <option value="OFERTAT">OFERTAT</option>
-                            </select>
-                            <p className="text-sm text-green-600 mt-1 font-medium">
-                              Tehnicianul a selectat că lucrarea necesită ofertă. Puteți actualiza statusul.
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="w-full text-xs p-2 border border-amber-300 rounded bg-gray-100 text-gray-500">
-                            <select disabled className="w-full bg-transparent">
-                              <option>Dezactivat în management situații critice</option>
-                            </select>
-                            <p className="text-xs text-amber-600 mt-1">
-                              Statusul ofertei nu poate fi modificat în management situații critice. 
-                              Nu a fost selectat de către tehnician "Necesită Ofertă".
-                            </p>
-                          </div>
-                        )}
-                      </div>
+                      
 
                       {((lucrare.statusOferta === "DA" || lucrare.statusOferta === "OFERTAT") || 
                   (lucrare.statusOferta === undefined && lucrare.necesitaOferta)) && 
@@ -1681,7 +1733,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           </div>
         </TabsContent>
 
-        {role === "tehnician" && (
+        {role === "tehnician" && lucrare.statusLucrare !== WORK_STATUS.POSTPONED && (
           <TabsContent value="interventie" className="mt-4">
             {!equipmentVerified ? (
               <Card>
