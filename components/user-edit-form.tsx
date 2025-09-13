@@ -6,16 +6,19 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/hooks/use-toast"
 import { updateUserEmail } from "@/lib/firebase/auth"
-import { Key } from "lucide-react"
+import { Key, ChevronsUpDown, Check } from "lucide-react"
 import { PasswordResetDialog } from "./password-reset-dialog"
-import { doc, updateDoc } from "firebase/firestore"
+import { doc, updateDoc, collection, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 
 // Schema de validare pentru formular
 const formSchema = z.object({
@@ -41,6 +44,12 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isPasswordResetOpen, setIsPasswordResetOpen] = useState(false)
   const [formModified, setFormModified] = useState(false)
+  const [clientsForSelect, setClientsForSelect] = useState<Array<{ id: string; nume: string; locatii?: any[]; email?: string }>>([])
+  const [isClientPickerOpen, setIsClientPickerOpen] = useState(false)
+  const [selectedClientId, setSelectedClientId] = useState<string>(user?.clientId || "")
+  const [selectedClientLocations, setSelectedClientLocations] = useState<string[]>(Array.isArray(user?.allowedLocationNames) ? (user.allowedLocationNames as string[]) : [])
+
+  const sortedClientsForSelect = [...clientsForSelect].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" }))
 
   useImperativeHandle(ref, () => ({
     hasUnsavedChanges: () => formModified,
@@ -77,6 +86,21 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
     },
   })
 
+  // Load clients for client users
+  useEffect(() => {
+    const loadClients = async () => {
+      try {
+        const snap = await getDocs(collection(db, "clienti"))
+        const list: Array<{ id: string; nume: string; locatii?: any[]; email?: string }> = []
+        snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }))
+        setClientsForSelect(list)
+      } catch (e) {
+        console.warn("Nu s-au putut încărca clienții pentru editare utilizator:", e)
+      }
+    }
+    loadClients()
+  }, [])
+
   // Funcția pentru trimiterea formularului
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsSubmitting(true)
@@ -96,6 +120,8 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
         role: values.role,
         phoneNumber: values.phoneNumber || "",
         notes: values.notes || "",
+        clientId: values.role === "client" ? (selectedClientId || null) : null,
+        allowedLocationNames: values.role === "client" ? selectedClientLocations : null,
         updatedAt: new Date(),
       })
 
@@ -168,12 +194,82 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
                     <SelectItem value="admin">Administrator</SelectItem>
                     <SelectItem value="dispecer">Dispecer</SelectItem>
                     <SelectItem value="tehnician">Tehnician</SelectItem>
+                    <SelectItem value="client">Client</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
               </FormItem>
             )}
           />
+
+          {form.watch("role") === "client" && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <FormLabel>Client asociat</FormLabel>
+                <Popover open={isClientPickerOpen} onOpenChange={setIsClientPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" aria-expanded={isClientPickerOpen} className="w-full justify-between">
+                      {selectedClientId ? (sortedClientsForSelect.find((c) => c.id === selectedClientId)?.nume || "Selectați clientul") : "Selectați clientul"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="p-0 w-[--radix-popover-trigger-width] max-w-[90vw]">
+                    <Command shouldFilter={true}>
+                      <CommandInput placeholder="Căutați clientul..." />
+                      <CommandEmpty>Nu s-au găsit clienți.</CommandEmpty>
+                      <CommandList className="max-h-[240px] overflow-y-auto overflow-x-auto whitespace-nowrap">
+                        <CommandGroup>
+                          {sortedClientsForSelect.map((c) => (
+                            <CommandItem
+                              key={c.id}
+                              value={`${c.nume}__${c.id}`}
+                              onSelect={() => {
+                                setSelectedClientId(c.id)
+                                setSelectedClientLocations([])
+                                setIsClientPickerOpen(false)
+                              }}
+                              className="whitespace-nowrap"
+                            >
+                              <Check className={`mr-2 h-4 w-4 ${selectedClientId === c.id ? "opacity-100" : "opacity-0"}`} />
+                              <span className="inline-block min-w-max">{c.nume}</span>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {selectedClientId && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <FormLabel>Locații permise</FormLabel>
+                    <Badge variant="secondary">{selectedClientLocations.length}</Badge>
+                  </div>
+                  <div className="max-h-48 overflow-auto rounded border p-2 space-y-1">
+                    {(sortedClientsForSelect
+                      .find((c) => c.id === selectedClientId)?.locatii || [])
+                      .slice()
+                      .sort((a: any, b: any) => (a?.nume || "").localeCompare(b?.nume || "", "ro", { sensitivity: "base" }))
+                      .map((l: any, idx: number) => (
+                        <label key={idx} className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={selectedClientLocations.includes(l.nume)}
+                            onChange={() => setSelectedClientLocations((prev) => prev.includes(l.nume) ? prev.filter((n) => n !== l.nume) : [...prev, l.nume])}
+                          />
+                          <span>{l.nume}</span>
+                        </label>
+                      ))}
+                    {!(sortedClientsForSelect.find((c) => c.id === selectedClientId)?.locatii?.length) && (
+                      <div className="text-sm text-muted-foreground">Clientul nu are locații definite</div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <FormField
             control={form.control}

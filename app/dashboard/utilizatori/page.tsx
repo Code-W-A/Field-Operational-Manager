@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
-import { Plus, Pencil, Trash2, Loader2, AlertCircle, ChevronsUpDown, Check } from "lucide-react"
+import { Plus, Pencil, Trash2, Loader2, AlertCircle, ChevronsUpDown, Check, Eye, EyeOff } from "lucide-react"
 import { collection, query, orderBy, getDocs, doc, getDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { registerUser, deleteUserAccount, type UserData, type UserRole } from "@/lib/firebase/auth"
@@ -39,6 +39,7 @@ import { FilterModal, type FilterOption } from "@/components/filter-modal"
 import { useTablePersistence } from "@/hooks/use-table-persistence"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { useToast } from "@/components/ui/use-toast"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -87,6 +88,9 @@ export default function Utilizatori() {
   const [activeDialog, setActiveDialog] = useState<"add" | "edit" | "delete" | null>(null)
   const editFormRef = useRef<any>(null)
   const [isClientPickerOpen, setIsClientPickerOpen] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const { toast } = useToast()
 
   const sortedClientsForSelect = useMemo(() => {
     return [...clientsForSelect].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" }))
@@ -416,19 +420,25 @@ export default function Utilizatori() {
 
       // Validation
       if (!formData.email || !formData.password || !formData.displayName || !formData.role) {
-        setFormError("Vă rugăm să completați toate câmpurile obligatorii")
+        const msg = "Vă rugăm să completați toate câmpurile obligatorii"
+        setFormError(msg)
+        toast({ variant: "destructive", title: "Formular incomplet", description: msg })
         setIsSubmitting(false)
         return
       }
 
       if (formData.password !== formData.confirmPassword) {
-        setFormError("Parolele nu coincid")
+        const msg = "Parolele nu coincid"
+        setFormError(msg)
+        toast({ variant: "destructive", title: "Eroare parolă", description: msg })
         setIsSubmitting(false)
         return
       }
 
       if (formData.password.length < 6) {
-        setFormError("Parola trebuie să aibă cel puțin 6 caractere")
+        const msg = "Parola trebuie să aibă cel puțin 6 caractere"
+        setFormError(msg)
+        toast({ variant: "destructive", title: "Parolă prea scurtă", description: msg })
         setIsSubmitting(false)
         return
       }
@@ -446,6 +456,8 @@ export default function Utilizatori() {
         allowed,
       )
 
+      toast({ title: "Utilizator creat", description: `Contul pentru ${formData.displayName} a fost creat cu succes.` })
+
       // Trimitem invitația dacă este rol client și s-a bifat opțiunea
       if (formData.role === "client" && sendInvite && inviteRecipients.length) {
         try {
@@ -462,14 +474,19 @@ export default function Utilizatori() {
               <p>După autentificare, vă rugăm să schimbați parola din cont.</p>
               <p>Vă mulțumim!</p>
             </div>`
-          await fetch("/api/users/invite", {
+          const resp = await fetch("/api/users/invite", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ to: inviteRecipients, subject, content, html }),
           })
+          if (!resp.ok) throw new Error("Invite email failed")
+          toast({ title: "Invitație trimisă", description: `Email trimis către: ${inviteRecipients.join(", ")}` })
         } catch (e) {
           console.warn("Trimitere invitație eșuată (non-blocking):", e)
+          toast({ variant: "destructive", title: "Invitație eșuată", description: "Nu s-a putut trimite emailul de invitație." })
         }
+      } else if (formData.role === "client" && sendInvite && !inviteRecipients.length) {
+        toast({ variant: "destructive", title: "Nu există destinatari valizi", description: "Verificați adresele de email ale clientului/locațiilor." })
       }
 
       // Reload the user list
@@ -490,12 +507,17 @@ export default function Utilizatori() {
       setSelectedClientLocations([])
     } catch (err: any) {
       console.error("Eroare la înregistrarea utilizatorului:", err)
-
-      if (err.code === "auth/email-already-in-use") {
-        setFormError("Adresa de email este deja utilizată")
-      } else {
-        setFormError("A apărut o eroare la înregistrarea utilizatorului. Încercați din nou.")
+      const code = err?.code || ""
+      const map: Record<string, string> = {
+        "auth/email-already-in-use": "Adresa de email este deja utilizată.",
+        "auth/invalid-email": "Adresa de email nu este validă.",
+        "auth/weak-password": "Parola este prea slabă (minim 6 caractere).",
+        "auth/operation-not-allowed": "Crearea de conturi este dezactivată.",
+        "auth/network-request-failed": "Eroare de rețea. Încercați din nou.",
       }
+      const msg = map[code] || "A apărut o eroare la înregistrarea utilizatorului. Încercați din nou."
+      setFormError(msg)
+      toast({ variant: "destructive", title: "Eroare creare cont", description: msg })
     } finally {
       setIsSubmitting(false)
     }
@@ -881,26 +903,48 @@ export default function Utilizatori() {
                       <label htmlFor="password" className="text-sm font-medium">
                         Parolă
                       </label>
-                      <Input
-                        id="password"
-                        type="password"
-                        placeholder="Introduceți parola"
-                        value={formData.password}
-                        onChange={handleInputChange}
-                      />
+                      <div className="relative">
+                        <Input
+                          id="password"
+                          type={showPassword ? "text" : "password"}
+                          placeholder="Introduceți parola"
+                          value={formData.password}
+                          onChange={handleInputChange}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((v) => !v)}
+                          className="absolute inset-y-0 right-2 flex items-center text-muted-foreground"
+                          aria-label={showPassword ? "Ascunde parola" : "Arată parola"}
+                          title={showPassword ? "Ascunde parola" : "Arată parola"}
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </div>
 
                     <div className="space-y-2">
                       <label htmlFor="confirmPassword" className="text-sm font-medium">
                         Confirmă Parola
                       </label>
-                      <Input
-                        id="confirmPassword"
-                        type="password"
-                        placeholder="Confirmați parola"
-                        value={formData.confirmPassword}
-                        onChange={handleInputChange}
-                      />
+                      <div className="relative">
+                        <Input
+                          id="confirmPassword"
+                          type={showConfirmPassword ? "text" : "password"}
+                          placeholder="Confirmați parola"
+                          value={formData.confirmPassword}
+                          onChange={handleInputChange}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword((v) => !v)}
+                          className="absolute inset-y-0 right-2 flex items-center text-muted-foreground"
+                          aria-label={showConfirmPassword ? "Ascunde parola" : "Arată parola"}
+                          title={showConfirmPassword ? "Ascunde parola" : "Arată parola"}
+                        >
+                          {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </div>
                   </>
                 )}
@@ -975,26 +1019,48 @@ export default function Utilizatori() {
                     <label htmlFor="password" className="text-sm font-medium">
                       Parolă
                     </label>
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="Introduceți parola"
-                      value={formData.password}
-                      onChange={handleInputChange}
-                    />
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Introduceți parola"
+                        value={formData.password}
+                        onChange={handleInputChange}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute inset-y-0 right-2 flex items-center text-muted-foreground"
+                        aria-label={showPassword ? "Ascunde parola" : "Arată parola"}
+                        title={showPassword ? "Ascunde parola" : "Arată parola"}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
                     <label htmlFor="confirmPassword" className="text-sm font-medium">
                       Confirmă Parola
                     </label>
-                    <Input
-                      id="confirmPassword"
-                      type="password"
-                      placeholder="Confirmați parola"
-                      value={formData.confirmPassword}
-                      onChange={handleInputChange}
-                    />
+                    <div className="relative">
+                      <Input
+                        id="confirmPassword"
+                        type={showConfirmPassword ? "text" : "password"}
+                        placeholder="Confirmați parola"
+                        value={formData.confirmPassword}
+                        onChange={handleInputChange}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword((v) => !v)}
+                        className="absolute inset-y-0 right-2 flex items-center text-muted-foreground"
+                        aria-label={showConfirmPassword ? "Ascunde parola" : "Arată parola"}
+                        title={showConfirmPassword ? "Ascunde parola" : "Arată parola"}
+                      >
+                        {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
