@@ -513,7 +513,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       // Actualizăm echipamentele disponibile
       if (selectedLocation && selectedLocation.echipamente) {
         console.log("Setăm echipamentele disponibile:", selectedLocation.echipamente)
-        setAvailableEquipments(selectedLocation.echipamente)
+        setAvailableEquipments([...(selectedLocation.echipamente || [])].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" })))
         setEquipmentsLoaded(true)
       } else {
         console.log("Nu există echipamente pentru locația selectată")
@@ -574,7 +574,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
           // Actualizăm locațiile
           if (client.locatii && client.locatii.length > 0) {
-            setLocatii(client.locatii)
+            setLocatii([...client.locatii].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" })))
           } else {
             // Dacă clientul nu are locații, creăm una implicită cu persoanele de contact existente
             const defaultLocatie: Locatie = {
@@ -622,7 +622,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
           // Setăm persoanele de contact
           if (locatie.persoaneContact) {
-            setPersoaneContact(locatie.persoaneContact)
+            setPersoaneContact([...(locatie.persoaneContact || [])].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" })))
 
             // Actualizăm persoanele de contact în formData dacă nu există deja
             if (handleCustomChange && (!formData.persoaneContact || formData.persoaneContact.length === 0)) {
@@ -636,7 +636,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           // Încărcăm echipamentele pentru locația selectată
           if (locatie.echipamente && locatie.echipamente.length > 0) {
             console.log("Echipamente găsite pentru locație:", locatie.echipamente)
-            setAvailableEquipments(locatie.echipamente)
+            setAvailableEquipments([...(locatie.echipamente || [])].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" })))
             setEquipmentsLoaded(true)
 
             // Verificăm dacă există un echipament selectat în datele inițiale
@@ -867,7 +867,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         // Actualizăm persoanele de contact disponibile pentru această locație
         if (locatie.persoaneContact && locatie.persoaneContact.length > 0) {
           console.log("Persoane de contact găsite:", locatie.persoaneContact)
-          setPersoaneContact(locatie.persoaneContact)
+          setPersoaneContact([...(locatie.persoaneContact || [])].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" })))
 
           // Automatically associate all contacts with the work entry
           if (handleCustomChange) {
@@ -898,7 +898,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         // Actualizăm echipamentele disponibile pentru această locație
         if (locatie.echipamente && locatie.echipamente.length > 0) {
           console.log("Echipamente găsite pentru locație:", locatie.echipamente)
-          setAvailableEquipments(locatie.echipamente)
+          setAvailableEquipments([...(locatie.echipamente || [])].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" })))
           setEquipmentsLoaded(true)
 
           // Resetăm flag-ul pentru a permite o nouă încercare de selecție a echipamentului
@@ -931,7 +931,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
           if (locatie.echipamente && locatie.echipamente.length > 0) {
             console.log("Echipamente găsite pentru locație:", locatie.echipamente)
-            setAvailableEquipments(locatie.echipamente)
+            setAvailableEquipments([...(locatie.echipamente || [])].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" })))
             setEquipmentsLoaded(true)
 
             // Resetăm flag-ul pentru a permite o nouă încercare de selecție a echipamentului
@@ -1010,7 +1010,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     useEffect(() => {
       if (selectedLocatie && selectedLocatie.echipamente) {
         console.log("Actualizare echipamente pentru locația selectată:", selectedLocatie.echipamente)
-        setAvailableEquipments(selectedLocatie.echipamente || [])
+        setAvailableEquipments([...(selectedLocatie.echipamente || [])].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" })))
         setEquipmentsLoaded(true)
 
         // Resetăm flag-ul pentru a permite o nouă încercare de selecție a echipamentului
@@ -1144,13 +1144,13 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             
             // Actualizăm locațiile
             if (updatedClient.locatii && updatedClient.locatii.length > 0) {
-              setLocatii(updatedClient.locatii)
+              setLocatii([...updatedClient.locatii].sort((a: any, b: any) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" })))
               
                              // Găsim locația actualizată
                const updatedLocation = updatedClient.locatii.find((loc: Locatie) => loc.nume === selectedLocatie?.nume)
               if (updatedLocation) {
                 setSelectedLocatie(updatedLocation)
-                setAvailableEquipments(updatedLocation.echipamente || [])
+                setAvailableEquipments([...(updatedLocation.echipamente || [])].sort((a: any, b: any) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" })))
                 
                                  // Găsim echipamentul actualizat
                  const updatedEquipment = updatedLocation.echipamente.find((eq: Echipament) => 
@@ -1299,7 +1299,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         console.log("Locație selectată (effect):", selectedLocatie)
         if (selectedLocatie.persoaneContact) {
           console.log("Persoane de contact (effect):", selectedLocatie.persoaneContact)
-          setPersoaneContact(selectedLocatie.persoaneContact)
+          setPersoaneContact([...(selectedLocatie.persoaneContact || [])].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" })))
 
           // Automatically associate all contacts with the work entry
           if (handleCustomChange) {
@@ -1368,7 +1368,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
           if (locatie.persoaneContact && locatie.persoaneContact.length > 0) {
             console.log("Persoane de contact găsite în locație:", locatie.persoaneContact)
-            setPersoaneContact(locatie.persoaneContact)
+            setPersoaneContact([...(locatie.persoaneContact || [])].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" })))
 
             // Actualizăm și formData dacă este necesar
             if (handleCustomChange && (!formData.persoaneContact || formData.persoaneContact.length === 0)) {
@@ -1465,7 +1465,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           console.log("LucrareForm - Locație găsită cu echipamente:", locatie.echipamente.length)
 
           // Actualizăm lista de echipamente disponibile
-          setAvailableEquipments(locatie.echipamente)
+          setAvailableEquipments([...(locatie.echipamente || [])].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" })))
           setEquipmentsLoaded(true)
 
           // Resetăm flag-urile pentru a permite o nouă încercare de selecție

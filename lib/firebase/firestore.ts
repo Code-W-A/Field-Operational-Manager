@@ -67,6 +67,22 @@ export interface Lucrare {
   statusEchipament?: string
   // Adăugăm câmpul pentru necesitatea unei oferte
   necesitaOferta?: boolean
+  // Câmpuri pentru ofertă (conținut + istoric). Tipurile sunt relaxate pentru compatibilitate.
+  products?: ProductItem[]
+  offerTotal?: number
+  offerVersions?: Array<{
+    savedAt: any
+    savedBy?: string
+    total: number
+    products: ProductItem[]
+  }>
+  // Răspuns ofertă (accept / reject) – backward compatible
+  offerResponse?: {
+    status: "accept" | "reject"
+    reason?: string
+    at: any
+    by?: string
+  }
   // Adăugăm câmpul pentru comentarii legate de ofertă
   comentariiOferta?: string
   // Câmpuri pentru timpul de sosire și plecare
@@ -85,8 +101,6 @@ export interface Lucrare {
   numeBeneficiar?: string
   // Câmp pentru informații client
   clientInfo?: any
-  // Câmp pentru produse
-  products?: ProductItem[]
   // CÂMPURI NOI PENTRU BLOCAREA DATELOR RAPORT - BACKWARD COMPATIBLE
   // Snapshot-ul datelor la prima generare a raportului
   raportSnapshot?: {

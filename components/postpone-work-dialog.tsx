@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Clock, AlertTriangle } from "lucide-react"
 import { updateLucrare } from "@/lib/firebase/firestore"
+import { sendWorkOrderPostponedNotification } from "@/components/work-order-notification-service"
 import { WORK_STATUS } from "@/lib/utils/constants"
 import { toast } from "@/components/ui/use-toast"
 import { useAuth } from "@/contexts/AuthContext"
@@ -58,6 +59,22 @@ export function PostponeWorkDialog({ lucrareId, onSuccess, className }: Postpone
       }
 
       await updateLucrare(lucrareId, updateData)
+
+      // Trimitem email clientului despre amânare (preferăm email-ul persoanei de contact a locației)
+      try {
+        await sendWorkOrderPostponedNotification({
+          id: lucrareId,
+          motivAmanare: updateData.motivAmanare,
+          dataAmanare: updateData.dataAmanare,
+          locatie: (window as any)?.currentLucrare?.locatie || undefined,
+          persoanaContact: (window as any)?.currentLucrare?.persoanaContact || undefined,
+          tipLucrare: (window as any)?.currentLucrare?.tipLucrare || undefined,
+          dataInterventie: (window as any)?.currentLucrare?.dataInterventie || undefined,
+          client: (window as any)?.currentLucrare?.clientInfo || (window as any)?.currentLucrare?.client || undefined,
+        })
+      } catch (e) {
+        console.warn("Nu s-a putut trimite notificarea de amânare către client:", e)
+      }
 
       toast({
         title: "Lucrare amânată",

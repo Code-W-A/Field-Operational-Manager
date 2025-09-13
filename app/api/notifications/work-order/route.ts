@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Extract data
-    const { workOrderId, workOrderNumber, client, technicians, details } = data
+    const { workOrderId, workOrderNumber, client, technicians, details, clientEmails } = data
 
     // Log pentru datele extrase
     console.log(`[WORK-ORDER-API] [${requestId}] Date extrase:`)
@@ -229,6 +229,9 @@ export async function POST(request: NextRequest) {
       logoContent = Buffer.from(FALLBACK_LOGO_BASE64, "base64")
     }
 
+    // Detect postponed event
+    const isPostponed = details?.eventType === "postponed"
+
     // Prepare email content for technicians - include all details and rename "Descriere" to "Sfaturi pt tehnician"
     const technicianWorkOrderInfo = `
       <ul style="list-style-type: none; padding-left: 0;">
@@ -265,8 +268,21 @@ export async function POST(request: NextRequest) {
         }).join('')
       : '<div style="color: #666; font-style: italic;">Nu sunt tehnicieni asignați</div>';
 
-    // Prepare email content for client - exclude technical details and description (which is actually "Sfaturi pt tehnician")
-    const clientWorkOrderInfo = `
+    // Prepare email content for client
+    const clientWorkOrderInfo = isPostponed
+      ? `
+      <div style="padding: 10px 12px; border-left: 4px solid #8b5cf6; background:#f5f3ff; border-radius:4px; margin-bottom: 12px;">
+        <div style="font-weight:600; color:#53389e; margin-bottom:6px;">Stare lucrare: Amânată</div>
+        ${details?.postponeReason ? `<div><strong>Motiv:</strong> ${details.postponeReason}</div>` : ''}
+        
+      </div>
+      <ul style="list-style-type: none; padding-left: 0;">
+        <li><strong>Locație:</strong> ${details?.location || "N/A"}</li>
+        ${details?.interventionDate ? `<li><strong>Data intervenție:</strong> ${details.interventionDate}</li>` : ''}
+        ${details?.workType ? `<li><strong>Tip lucrare:</strong> ${details.workType}</li>` : ''}
+      </ul>
+    `
+      : `
       <ul style="list-style-type: none; padding-left: 0;">
         <li><strong>Data emiterii:</strong> ${details?.issueDate || "N/A"}</li>
         <li><strong>Data intervenție:</strong> ${details?.interventionDate || "N/A"}</li>
@@ -441,17 +457,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Send email to client if email is available
+    // Send email to client if email is available (support multiple recipients for postponed)
     let clientEmailResult = null
-    if (client?.email) {
+    const recipientsSet = new Set<string>()
+    if (client?.email && isValidEmail(client.email)) recipientsSet.add(client.email.trim().toLowerCase())
+    if (Array.isArray(clientEmails)) {
+      for (const addr of clientEmails) {
+        if (typeof addr === "string" && isValidEmail(addr)) {
+          recipientsSet.add(addr.trim().toLowerCase())
+        }
+      }
+    }
+    const uniqueRecipients = Array.from(recipientsSet)
+    if (uniqueRecipients.length > 0) {
       try {
-        console.log(`[WORK-ORDER-API] [${requestId}] Trimitere email către client: ${client.name} <${client.email}>`)
+        console.log(`[WORK-ORDER-API] [${requestId}] Trimitere email către destinatari: ${uniqueRecipients.join(", ")}`)
 
         logInfo(
           "Sending email to client",
           {
-            recipient: `${client.name} <${client.email}>`,
-            subject: `Confirmare lucrare: ${client?.name}`,
+            recipient: uniqueRecipients.join(", "),
+            subject: isPostponed ? `Anunț amânare lucrare: ${details?.location || "Locație nedefinită"}` : `Confirmare lucrare: ${client?.name}`,
           },
           { category: "email", context: logContext },
         )
@@ -462,7 +488,7 @@ export async function POST(request: NextRequest) {
             <div style="text-align: center; margin-bottom: 20px;">
               <img src="cid:company-logo" alt="Logo companie" style="max-width: 200px; max-height: 80px;" />
             </div>
-            <h2 style="color: #0f56b3;">Confirmare lucrare</h2>
+            <h2 style="color: #0f56b3;">${isPostponed ? "Lucrare amânată" : "Confirmare lucrare"}</h2>
             <p>Stimate ${client.contactPerson || client.name},</p>
             <p>Vă confirmăm programarea unei intervenții cu următoarele detalii:</p>
             
@@ -485,9 +511,13 @@ export async function POST(request: NextRequest) {
         // Configurăm opțiunile emailului (similar cu api/send-email/route.ts)
         const mailOptions = {
           from: `"Field Operational Manager" <${process.env.EMAIL_USER || "fom@nrg-acces.ro"}>`,
-          to: client.email,
-          subject: `Confirmare intervenție: ${details?.location || "Locație nedefinită"}`,
-          text: `Stimate ${client.contactPerson || client.name}, vă confirmăm programarea unei intervenții.`,
+          to: uniqueRecipients,
+          subject: isPostponed
+            ? `Anunț amânare lucrare: ${details?.location || "Locație nedefinită"}`
+            : `Confirmare intervenție: ${details?.location || "Locație nedefinită"}`,
+          text: isPostponed
+            ? `Stimate ${client.contactPerson || client.name}, vă informăm că lucrarea a fost amânată.${details?.postponeReason ? ` Motiv: ${details.postponeReason}.` : ''}`
+            : `Stimate ${client.contactPerson || client.name}, vă confirmăm programarea unei intervenții.`,
           html: htmlContent,
           attachments: [
             {
@@ -500,7 +530,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Log email details before sending
-        console.log(`[WORK-ORDER-API] [${requestId}] Detalii email pentru client:`)
+        console.log(`[WORK-ORDER-API] [${requestId}] Detalii email pentru client/destinatari:`)
         console.log(`- From: ${mailOptions.from}`)
         console.log(`- To: ${mailOptions.to}`)
         console.log(`- Subject: ${mailOptions.subject}`)
@@ -509,7 +539,7 @@ export async function POST(request: NextRequest) {
           "Email details for client",
           {
             from: mailOptions.from,
-            to: mailOptions.to,
+            to: Array.isArray(mailOptions.to) ? mailOptions.to.join(", ") : mailOptions.to,
             subject: mailOptions.subject,
             // Nu logăm conținutul HTML complet pentru a evita loguri prea mari
             htmlLength: mailOptions.html.length,
@@ -520,7 +550,7 @@ export async function POST(request: NextRequest) {
         console.log(`[WORK-ORDER-API] [${requestId}] Trimitere email către client...`)
         const info = await transporter.sendMail(mailOptions)
 
-        console.log(`[WORK-ORDER-API] [${requestId}] Email trimis cu succes către client!`)
+        console.log(`[WORK-ORDER-API] [${requestId}] Email trimis cu succes către destinatari!`)
         console.log(`- MessageId: ${info.messageId}`)
         console.log(`- Response: ${info.response}`)
 
@@ -528,7 +558,7 @@ export async function POST(request: NextRequest) {
           "Email sent to client successfully",
           {
             messageId: info.messageId,
-            recipient: client.email,
+            recipient: Array.isArray(mailOptions.to) ? mailOptions.to.join(", ") : mailOptions.to,
             response: info.response,
           },
           { category: "email", context: logContext },

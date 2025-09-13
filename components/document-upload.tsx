@@ -5,8 +5,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { uploadFile, deleteFile } from "@/lib/firebase/storage"
 import { updateLucrare } from "@/lib/firebase/firestore"
 import { deleteField } from "firebase/firestore"
@@ -45,22 +43,29 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
   const shouldShowFacturaUpload = lucrare.statusFacturare === "Facturat"
   const shouldShowOfertaUpload = lucrare.statusOferta === "OFERTAT"
 
-  // Funcție pentru a obține data curentă în format YYYY-MM-DD pentru UX mai bun
-  const getCurrentDate = () => {
-    const today = new Date()
-    const year = today.getFullYear()
-    const month = String(today.getMonth() + 1).padStart(2, '0')
-    const day = String(today.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
+  // Eliminăm câmpurile manuale pentru număr și dată; data/ora încărcării se salvează automat
+  const formatRoDateTime = (isoString: string) => {
+    const d = new Date(isoString)
+    const dd = String(d.getDate()).padStart(2, '0')
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const yyyy = d.getFullYear()
+    const hh = String(d.getHours()).padStart(2, '0')
+    const min = String(d.getMinutes()).padStart(2, '0')
+    return `${dd}-${mm}-${yyyy} ${hh}:${min}`
   }
-
-  // State pentru câmpurile de editare (pre-populate cu data curentă pentru UX mai bun)
-  const [formData, setFormData] = useState({
-    numarFactura: "",
-    dataFactura: getCurrentDate(),  // Pre-populat cu data curentă
-    numarOferta: "",
-    dataOferta: getCurrentDate()    // Pre-populat cu data curentă
-  })
+  const formatRoDate = (isoString: string) => {
+    const d = new Date(isoString)
+    const dd = String(d.getDate()).padStart(2, '0')
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const yyyy = d.getFullYear()
+    return `${dd}-${mm}-${yyyy}`
+  }
+  const formatRoTime = (isoString: string) => {
+    const d = new Date(isoString)
+    const hh = String(d.getHours()).padStart(2, '0')
+    const min = String(d.getMinutes()).padStart(2, '0')
+    return `${hh}:${min}`
+  }
 
   // Helper: forțează descărcarea unui fișier
   const triggerDownload = (url: string, suggestedName?: string) => {
@@ -83,29 +88,10 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
     return null
   }
 
-  // Funcție pentru upload factură
+  // Funcție pentru upload factură (fără câmpuri manuale)
   const handleFacturaUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
-
-    // Verificăm că sunt completate câmpurile obligatorii
-    if (!formData.numarFactura.trim()) {
-      toast({
-        title: "Câmp lipsă",
-        description: "Vă rugăm să completați numărul facturii.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (!formData.dataFactura.trim()) {
-      toast({
-        title: "Câmp lipsă", 
-        description: "Vă rugăm să completați data facturii.",
-        variant: "destructive",
-      })
-      return
-    }
 
     setIsUploading(prev => ({ ...prev, factura: true }))
 
@@ -119,25 +105,20 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
       const documentData = {
         url,
         fileName,
-        uploadedAt: new Date().toISOString(),
+        uploadedAt: new Date().toISOString(), // include data și ora
         uploadedBy: userData?.displayName || userData?.email || "Unknown",
-        numarFactura: formData.numarFactura.trim(),
-        dataFactura: formData.dataFactura.trim(),
       }
 
       console.log("📄 SALVEZ factură în Firestore cu date:", documentData)
-      await updateLucrare(lucrareId, { facturaDocument: documentData })
+      await updateLucrare(lucrareId, { facturaDocument: documentData as any } as any)
 
       // Actualizăm starea locală
       const updatedLucrare = { ...lucrare, facturaDocument: documentData }
       onLucrareUpdate(updatedLucrare)
 
-      // Resetăm formul
-      setFormData(prev => ({ ...prev, numarFactura: "", dataFactura: getCurrentDate() }))
-
       toast({
         title: "Factură încărcată",
-        description: `Documentul ${fileName} cu numărul ${documentData.numarFactura} din data ${documentData.dataFactura} a fost încărcat cu succes.`,
+        description: `Documentul ${fileName} a fost încărcat cu succes la ${new Date(documentData.uploadedAt).toLocaleString('ro-RO')}.`,
       })
     } catch (error) {
       console.error("Eroare la încărcarea facturii:", error)
@@ -154,29 +135,10 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
     }
   }
 
-  // Funcție pentru upload ofertă  
+  // Funcție pentru upload ofertă (fără câmpuri manuale)
   const handleOfertaUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
-
-    // Verificăm că sunt completate câmpurile obligatorii
-    if (!formData.numarOferta.trim()) {
-      toast({
-        title: "Câmp lipsă",
-        description: "Vă rugăm să completați numărul ofertei.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (!formData.dataOferta.trim()) {
-      toast({
-        title: "Câmp lipsă", 
-        description: "Vă rugăm să completați data ofertei.",
-        variant: "destructive",
-      })
-      return
-    }
 
     setIsUploading(prev => ({ ...prev, oferta: true }))
 
@@ -190,25 +152,20 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
       const documentData = {
         url,
         fileName,
-        uploadedAt: new Date().toISOString(),
+        uploadedAt: new Date().toISOString(), // include data și ora
         uploadedBy: userData?.displayName || userData?.email || "Unknown",
-        numarOferta: formData.numarOferta.trim(),
-        dataOferta: formData.dataOferta.trim(),
       }
 
       console.log("📄 SALVEZ ofertă în Firestore cu date:", documentData)
-      await updateLucrare(lucrareId, { ofertaDocument: documentData })
+      await updateLucrare(lucrareId, { ofertaDocument: documentData as any } as any)
 
       // Actualizăm starea locală
       const updatedLucrare = { ...lucrare, ofertaDocument: documentData }
       onLucrareUpdate(updatedLucrare)
 
-      // Resetăm formul
-      setFormData(prev => ({ ...prev, numarOferta: "", dataOferta: getCurrentDate() }))
-
       toast({
         title: "Ofertă încărcată",
-        description: `Documentul ${fileName} cu numărul ${documentData.numarOferta} din data ${documentData.dataOferta} a fost încărcat cu succes.`,
+        description: `Documentul ${fileName} a fost încărcat cu succes la ${new Date(documentData.uploadedAt).toLocaleString('ro-RO')}.`,
       })
     } catch (error) {
       console.error("Eroare la încărcarea ofertei:", error)
@@ -353,9 +310,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
                 </div>
               </div>
               <div className="text-xs text-gray-500 mt-2 space-y-1">
-                <p><strong>Număr:</strong> {lucrare.facturaDocument.numarFactura}</p>
-                <p><strong>Data:</strong> {lucrare.facturaDocument.dataFactura}</p>
-                <p>Încărcată pe {new Date(lucrare.facturaDocument.uploadedAt).toLocaleDateString('ro-RO')} de {lucrare.facturaDocument.uploadedBy}</p>
+                <p>Încărcată pe {formatRoDate(lucrare.facturaDocument.uploadedAt)} la {formatRoTime(lucrare.facturaDocument.uploadedAt)}</p>
               </div>
             </div>
           )}
@@ -363,31 +318,6 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
           {/* Secțiunea de upload - condiționată de statusFacturare */}
           {!lucrare.facturaDocument && shouldShowFacturaUpload && (
             <div className="space-y-3">
-              {/* Câmpuri pentru datele facturii */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs font-medium text-gray-700">Numărul facturii *</Label>
-                  <Input
-                    type="text"
-                    value={formData.numarFactura}
-                    onChange={(e) => setFormData(prev => ({ ...prev, numarFactura: e.target.value }))}
-                    placeholder="Ex: FACT-2024-001"
-                    className="mt-1"
-                    disabled={!isWorkPickedUp || isUploading.factura || isArchived}
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs font-medium text-gray-700">Data facturii *</Label>
-                  <Input
-                    type="date"
-                    value={formData.dataFactura}
-                    onChange={(e) => setFormData(prev => ({ ...prev, dataFactura: e.target.value }))}
-                    className="mt-1"
-                    disabled={!isWorkPickedUp || isUploading.factura || isArchived}
-                  />
-                </div>
-              </div>
-              
               {/* Upload fișier */}
               <div className="space-y-2">
                 <input
@@ -399,7 +329,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
                 />
                 <Button
                   onClick={() => facturaInputRef.current?.click()}
-                  disabled={!isWorkPickedUp || isUploading.factura || !formData.numarFactura.trim() || !formData.dataFactura.trim() || isArchived}
+                  disabled={!isWorkPickedUp || isUploading.factura || isArchived}
                   variant="outline"
                   className="w-full"
                 >
@@ -467,13 +397,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
                 </div>
               </div>
               <div className="text-xs text-gray-500 mt-2 space-y-1">
-                <p><strong>Număr ofertă:</strong> {lucrare.ofertaDocument.numarOferta}</p>
-                {lucrare.ofertaDocument.dataOferta ? (
-                  <p><strong>Data ofertă:</strong> {new Date(lucrare.ofertaDocument.dataOferta).toLocaleDateString('ro-RO')}</p>
-                ) : (
-                  <p className="text-orange-600"><strong>Data ofertă:</strong> Nu este disponibilă (document vechi)</p>
-                )}
-                <p>Încărcată pe {new Date(lucrare.ofertaDocument.uploadedAt).toLocaleDateString('ro-RO')} de {lucrare.ofertaDocument.uploadedBy}</p>
+                <p>Încărcată pe {formatRoDate(lucrare.ofertaDocument.uploadedAt)} la {formatRoTime(lucrare.ofertaDocument.uploadedAt)}</p>
               </div>
             </div>
           )}
@@ -481,31 +405,6 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
           {/* Secțiunea de upload - condiționată de statusOferta */}
           {!lucrare.ofertaDocument && shouldShowOfertaUpload && (
             <div className="space-y-3">
-              {/* Câmpuri pentru datele ofertei */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs font-medium text-gray-700">Numărul ofertei *</Label>
-                  <Input
-                    type="text"
-                    value={formData.numarOferta}
-                    onChange={(e) => setFormData(prev => ({ ...prev, numarOferta: e.target.value }))}
-                    placeholder="Ex: OF-2024-001"
-                    className="mt-1"
-                    disabled={!isWorkPickedUp || isUploading.oferta || isArchived}
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs font-medium text-gray-700">Data ofertei *</Label>
-                  <Input
-                    type="date"
-                    value={formData.dataOferta}
-                    onChange={(e) => setFormData(prev => ({ ...prev, dataOferta: e.target.value }))}
-                    className="mt-1"
-                    disabled={!isWorkPickedUp || isUploading.oferta || isArchived}
-                  />
-                </div>
-              </div>
-              
               {/* Upload fișier */}
               <div className="space-y-2">
                 <input
@@ -517,7 +416,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
                 />
                 <Button
                   onClick={() => ofertaInputRef.current?.click()}
-                  disabled={!isWorkPickedUp || isUploading.oferta || !formData.numarOferta.trim() || !formData.dataOferta.trim() || isArchived}
+                  disabled={!isWorkPickedUp || isUploading.oferta || isArchived}
                   variant="outline"
                   className="w-full"
                 >

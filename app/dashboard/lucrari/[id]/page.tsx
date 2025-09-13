@@ -9,6 +9,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
+import { OfferEditorDialog } from "./offer-editor-dialog"
+import { DownloadHistory } from "@/components/download-history"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -33,8 +35,6 @@ import {
   Mail,
 } from "lucide-react"
 import { getLucrareById, deleteLucrare, updateLucrare, getClienti } from "@/lib/firebase/firestore"
-import { collection, query, where, getDocs } from "firebase/firestore"
-import { db } from "@/lib/firebase/firebase"
 import { WORK_STATUS } from "@/lib/utils/constants"
 import { TehnicianInterventionForm } from "@/components/tehnician-intervention-form"
 import { DocumentUpload } from "@/components/document-upload"
@@ -53,6 +53,8 @@ import { ReinterventionReasonDialog } from "@/components/reintervention-reason-d
 import { PostponeWorkDialog } from "@/components/postpone-work-dialog"
 import { ModificationBanner } from "@/components/modification-banner"
 import { useModificationDetails } from "@/hooks/use-modification-details"
+import { db } from "@/lib/firebase/config"
+import { collection, query, where, getDocs } from "firebase/firestore"
 
 // Funcție utilitar pentru a extrage CUI-ul indiferent de cum este salvat
 const extractCUI = (client: any) => {
@@ -81,6 +83,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const [equipmentVerified, setEquipmentVerified] = useState(false)
   const [locationAddress, setLocationAddress] = useState<string | null>(null)
   const [isUpdating, setIsUpdating] = useState(false)
+  const [isOfferEditorOpen, setIsOfferEditorOpen] = useState(false)
   const [reinterventii, setReinterventii] = useState<Lucrare[]>([])
   const [loadingReinterventii, setLoadingReinterventii] = useState(false)
   const [clientData, setClientData] = useState<any>(null)
@@ -418,10 +421,56 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   // Modificăm funcția handleVerificationComplete pentru a actualiza și statusul lucrării la "În lucru"
   // când tehnicianul scanează cu succes codul QR al echipamentului
 
+  // Găsește o altă lucrare "În lucru" pentru același tehnician (exclus lucrarea curentă)
+  const findOtherActiveWorkForTechnician = useStableCallback(async (): Promise<null | { id: string; numar: string; client?: string; locatie?: string }> => {
+    try {
+      if (!userData?.displayName) return null
+      const lucrariRef = collection(db, "lucrari")
+      const q = query(
+        lucrariRef,
+        where("tehnicieni", "array-contains", userData.displayName),
+        where("statusLucrare", "==", WORK_STATUS.IN_PROGRESS)
+      )
+      const snap = await getDocs(q)
+      if (snap.empty) return null
+      for (const d of snap.docs) {
+        if (d.id !== lucrare?.id) {
+          const data: any = d.data()
+          const numar = data?.numarRaport || data?.number || d.id
+          const client = typeof data?.client === 'string'
+            ? data.client
+            : (data?.client?.nume || data?.client?.name || data?.clientInfo?.nume || data?.clientInfo?.name)
+          const locatie = data?.locatie || data?.location
+          return { id: d.id, numar: String(numar), client, locatie }
+        }
+      }
+      return null
+    } catch (e) {
+      console.warn("Nu s-a putut verifica existența unei alte lucrări active:", e)
+      return null
+    }
+  })
+
   const handleVerificationComplete = useStableCallback(async (success: boolean) => {
     if (!lucrare?.id) return
 
     if (success) {
+      // Guard: dacă tehnicianul are deja altă lucrare "În lucru", blocăm verificarea
+      const otherActive = await findOtherActiveWorkForTechnician()
+      if (otherActive) {
+        const url = `${window.location.origin}/dashboard/lucrari/${otherActive.id}`
+        const context = [
+          otherActive.numar ? `Număr: ${otherActive.numar}` : null,
+          otherActive.client ? `Client: ${otherActive.client}` : null,
+          otherActive.locatie ? `Locație: ${otherActive.locatie}` : null,
+        ].filter(Boolean).join(" | ")
+        toast({
+          title: "Ai deja o lucrare deschisă",
+          description: `${context ? context + "\n" : ""}Finalizează sau închide lucrarea deschisă înainte de a începe alta. Link: ${url}`,
+        })
+        return
+      }
+
       setEquipmentVerified(true)
 
       // Actualizăm lucrarea în baza de date
@@ -664,34 +713,34 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 : "Arhivează lucrarea finalizată"
 
             return (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="text-gray-600 border-gray-200 hover:bg-gray-50"
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="text-gray-600 border-gray-200 hover:bg-gray-50"
                       disabled={!canArchive}
-                      onClick={async () => {
+                    onClick={async () => {
                         if (!canArchive) return
-                        if (window.confirm("Sigur doriți să arhivați această lucrare? Lucrarea va fi mutată în secțiunea Arhivate.")) {
-                          try {
-                            await updateLucrare(paramsId, { statusLucrare: WORK_STATUS.ARCHIVED })
+                      if (window.confirm("Sigur doriți să arhivați această lucrare? Lucrarea va fi mutată în secțiunea Arhivate.")) {
+                        try {
+                          await updateLucrare(paramsId, { statusLucrare: WORK_STATUS.ARCHIVED })
                             toast({ title: "Succes", description: "Lucrarea a fost arhivată cu succes." })
-                            router.push("/dashboard/lucrari")
-                          } catch (error) {
-                            console.error("Eroare la arhivare:", error)
+                          router.push("/dashboard/lucrari")
+                        } catch (error) {
+                          console.error("Eroare la arhivare:", error)
                             toast({ title: "Eroare", description: "Nu s-a putut arhiva lucrarea.", variant: "destructive" })
-                          }
                         }
-                      }}
-                    >
-                      <Archive className="mr-2 h-4 w-4" />
-                      Arhivează
-                    </Button>
-                  </TooltipTrigger>
+                      }
+                    }}
+                  >
+                    <Archive className="mr-2 h-4 w-4" />
+                    Arhivează
+                  </Button>
+                </TooltipTrigger>
                   <TooltipContent>{archiveReason}</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              </Tooltip>
+            </TooltipProvider>
             )
           })()}
 
@@ -849,8 +898,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               <CardHeader>
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <CardTitle>Detalii lucrare</CardTitle>
-                    <CardDescription>Informații despre lucrare</CardDescription>
+                <CardTitle>Detalii lucrare</CardTitle>
+                <CardDescription>Informații despre lucrare</CardDescription>
                   </div>
                   <div className="flex items-center gap-2">
                     {(role === "admin" || role === "dispecer") && (
@@ -893,39 +942,39 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   <div className="mb-2">
                     <div className="font-medium mb-1">Data intervenție:</div>
                     <div className="text-gray-500">{lucrare.dataInterventie}</div>
-                  </div>
-                  {lucrare.timpSosire && (
+                </div>
+                {lucrare.timpSosire && (
                     <div className="mb-2">
                       <div className="font-medium mb-1">Sosire la locație:</div>
                       <div className="text-gray-500">{lucrare.dataSosire} {lucrare.oraSosire}</div>
-                    </div>
-                  )}
-                  {lucrare.timpPlecare && (
+                  </div>
+                )}
+                {lucrare.timpPlecare && (
                     <div className="mb-2">
                       <div className="font-medium mb-1">Plecare de la locație:</div>
                       <div className="text-gray-500">{lucrare.dataPlecare} {lucrare.oraPlecare}</div>
-                    </div>
-                  )}
-                  {lucrare.timpSosire && lucrare.timpPlecare && (
+                  </div>
+                )}
+                {lucrare.timpSosire && lucrare.timpPlecare && (
                     <div className="mb-2">
                       <div className="font-medium mb-1">Durata intervenție:</div>
                       <div className="text-gray-500">
-                        {lucrare.durataInterventie || calculateDuration(lucrare.timpSosire, lucrare.timpPlecare)}
+                      {lucrare.durataInterventie || calculateDuration(lucrare.timpSosire, lucrare.timpPlecare)}
                       </div>
-                    </div>
-                  )}
+                  </div>
+                )}
                   <div className="mb-2">
                     <div className="font-medium mb-1">Tip lucrare:</div>
                     <div className="text-gray-500">{lucrare.tipLucrare}</div>
-                  </div>
-                  {lucrare.tipLucrare === "Intervenție în contract" && (
+                </div>
+                {lucrare.tipLucrare === "Intervenție în contract" && (
                     <div className="mb-2">
                       <div className="font-medium mb-1">Contract:</div>
                       <div className="text-gray-500">
-                        <ContractDisplay contractId={lucrare.contract} />
+                    <ContractDisplay contractId={lucrare.contract} />
                       </div>
-                    </div>
-                  )}
+                  </div>
+                )}
                   <div className={`mb-2 ${lucrare.tipLucrare === "Intervenție în contract" ? '' : 'col-span-2'}`}>
                     <div className="font-medium mb-1">Defect reclamat:</div>
                     <div className="text-gray-500">{lucrare.defectReclamat || "Nu a fost specificat"}</div>
@@ -942,7 +991,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       </Badge>
                     ))}
                   </div>
-                </div>
+                  </div>
 
                 {/* Afișăm mesajul de reatribuire dacă există */}
                 {lucrare.mesajReatribuire && (
@@ -994,8 +1043,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   <div className="p-3 bg-orange-50 border border-orange-200 rounded-md">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center space-x-2">
-                        <RefreshCw className="h-4 w-4 text-orange-600" />
-                        <p className="text-sm font-medium text-orange-800">Motive reintervenție</p>
+                      <RefreshCw className="h-4 w-4 text-orange-600" />
+                      <p className="text-sm font-medium text-orange-800">Motive reintervenție</p>
                       </div>
                       {/* Buton pentru navigare la lucrarea originală */}
                       {lucrare.lucrareOriginala && (
@@ -1108,42 +1157,42 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 <div className="space-y-4">
                 {/* Rând cu: Locație | Persoană contact (locație) | Telefon contact (locație) */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                  <div>
-                    <p className="text-sm font-medium">Locație:</p>
-                    <div className="flex items-start">
-                      <div className="flex-grow">
-                        <p className="text-sm text-gray-500">{lucrare.locatie}</p>
-                        {locationAddress && (
-                          <div className="mt-1">
-                            <p className="text-xs italic text-gray-500 flex items-center mb-2">
+                <div>
+                  <p className="text-sm font-medium">Locație:</p>
+                  <div className="flex items-start">
+                    <div className="flex-grow">
+                      <p className="text-sm text-gray-500">{lucrare.locatie}</p>
+                      {locationAddress && (
+                        <div className="mt-1">
+                          <p className="text-xs italic text-gray-500 flex items-center mb-2">
+                            <MapPin className="h-3 w-3 mr-1 inline-block" />
+                            {locationAddress}
+                          </p>
+                          <div className="flex space-x-2 mt-2">
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lucrare.locatie}, ${locationAddress}`)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center justify-center px-3 py-1 text-xs bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+                            >
                               <MapPin className="h-3 w-3 mr-1 inline-block" />
-                              {locationAddress}
-                            </p>
-                            <div className="flex space-x-2 mt-2">
-                              <a
-                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lucrare.locatie}, ${locationAddress}`)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center justify-center px-3 py-1 text-xs bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
-                              >
-                                <MapPin className="h-3 w-3 mr-1 inline-block" />
-                                Google Maps
-                              </a>
-                              <a
-                                href={`https://waze.com/ul?q=${encodeURIComponent(`${lucrare.locatie}, ${locationAddress}`)}&navigate=yes`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center justify-center px-3 py-1 text-xs bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
-                              >
-                                <MapPin className="h-3 w-3 mr-1 inline-block" />
-                                Waze
-                              </a>
-                            </div>
+                              Google Maps
+                            </a>
+                            <a
+                              href={`https://waze.com/ul?q=${encodeURIComponent(`${lucrare.locatie}, ${locationAddress}`)}&navigate=yes`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center justify-center px-3 py-1 text-xs bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
+                            >
+                              <MapPin className="h-3 w-3 mr-1 inline-block" />
+                              Waze
+                            </a>
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   </div>
+                </div>
                   <div className="mb-2">
                     <div className="text-sm font-medium mb-1">Persoană contact (locație):</div>
                     <div className="text-sm text-gray-500">{lucrare.persoanaContact}</div>
@@ -1498,6 +1547,73 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         </div>
                       )}
                       {lucrare.necesitaOferta && (
+                        <div className="space-y-2">
+                          <Label className="text-xs font-medium text-blue-800">Editor ofertă</Label>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setIsOfferEditorOpen(true)}
+                              disabled={isUpdating}
+                            >
+                              Deschide editor
+                            </Button>
+                            {lucrare.products && lucrare.products.length > 0 && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={async () => {
+                                  try {
+                                    setIsUpdating(true)
+                                    await updateLucrare(lucrare.id!, { statusOferta: "OFERTAT" })
+                                    setLucrare(prev => prev ? { ...prev, statusOferta: "OFERTAT" } : null)
+                                    toast({ title: "Ofertă pregătită", description: "Oferta este pregătită pentru trimitere către client." })
+                                  } finally {
+                                    setIsUpdating(false)
+                                  }
+                                }}
+                              >
+                                Marchează OFERTAT
+                              </Button>
+                            )}
+                            {lucrare.products && lucrare.products.length > 0 && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={async () => {
+                                  try {
+                                    setIsUpdating(true)
+                                    const origin = typeof window !== 'undefined' ? window.location.origin : ''
+                                    const portalUrl = `${origin}/portal/${lucrare.id}`
+                                    const subject = `Ofertă pentru lucrarea ${lucrare.numarRaport || lucrare.id}`
+                                    const html = `
+                                      <div style="font-family:Arial,sans-serif;line-height:1.5">
+                                        <h2 style="margin:0 0 12px;color:#0f56b3">Ofertă lucrări</h2>
+                                        <p>Vă transmitem oferta pentru lucrarea dvs. Puteți vizualiza și răspunde (Accept/Nu accept) în portal:</p>
+                                        <p><a href="${portalUrl}" target="_blank">${portalUrl}</a></p>
+                                        <p style="margin-top:12px"><strong>Total:</strong> ${(lucrare.offerTotal || (lucrare.products || []).reduce((s:number,p:any)=>s+(p.total||0),0)).toFixed(2)} lei</p>
+                                      </div>`
+                                    await fetch('/api/users/invite', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ to: [ (lucrare as any)?.clientInfo?.email ].filter(Boolean), subject, html })
+                                    })
+                                    toast({ title: 'Ofertă trimisă', description: 'Clientul a primit email cu link spre portal.' })
+                                  } catch (e) {
+                                    console.warn('Trimitere ofertă eșuată', e)
+                                    toast({ title: 'Eroare trimitere', description: 'Nu s-a putut trimite emailul.', variant: 'destructive' })
+                                  } finally {
+                                    setIsUpdating(false)
+                                  }
+                                }}
+                              >
+                                Trimite ofertă
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {lucrare.necesitaOferta && (
                         <div className="space-y-2 md:col-span-3">
                           <Label htmlFor="comentariiOferta" className="text-xs font-medium text-blue-800">Comentarii ofertă</Label>
                           <Textarea
@@ -1526,6 +1642,16 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   </div>
                 )}
 
+                {/* Offer editor dialog */}
+                {lucrare && (
+                  <OfferEditorDialog
+                    lucrareId={lucrare.id!}
+                    open={isOfferEditorOpen}
+                    onOpenChange={setIsOfferEditorOpen}
+                    initialProducts={(lucrare as any).products || []}
+                  />
+                )}
+
                 {/* Managementul statusurilor critice – mutat din cardul stâng în cardul drept */}
                 {isAdminOrDispatcher && lucrare.statusLucrare === "Finalizat" && lucrare.preluatDispecer && (
                   <div className="p-4 border rounded-md bg-amber-50 border-amber-200">
@@ -1541,8 +1667,13 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                     <p className="text-sm text-amber-700 mb-3">
                       Acestea controlează afișarea cu fundal roșu în lista de lucrări. Modificați doar când situația s-a rezolvat.
                     </p>
-
+                    
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* Istoric descărcări documente */}
+                      <div className="md:col-span-3 space-y-2">
+                        <label className="text-sm font-semibold text-amber-800">Descărcări documente</label>
+                        <DownloadHistory lucrareId={lucrare.id!} />
+                      </div>
                       {/* Status Finalizare Intervenție */}
                       <div className="space-y-2">
                         <label className="text-sm font-semibold text-amber-800">Status finalizare intervenție:</label>
@@ -1588,106 +1719,106 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       </div>
 
                       {/* Status Facturare */}
-                      {(role === "admin" || role === "dispecer") && (
-                        <div className="space-y-2">
+{(role === "admin" || role === "dispecer") && (
+  <div className="space-y-2">
                           <label className="text-sm font-semibold text-amber-800">Status facturare:</label>
-                          <div className="space-y-2">
-                            <select
-                              value={lucrare.statusFacturare || "Nefacturat"}
-                              onChange={async (e) => {
-                                try {
-                                  setIsUpdating(true)
-                                  const newStatus = e.target.value
-                                  console.log("Actualizare status facturare:", { lucrareId: lucrare.id, newStatus })
-                                  const updateData: any = { statusFacturare: newStatus }
-                                  await updateLucrare(lucrare.id!, updateData)
-                                  setLucrare(prev => prev ? { ...prev, ...updateData } : null)
-                                  const updatedLucrare = await getLucrareById(lucrare.id!)
-                                  if (updatedLucrare) {
-                                    setLucrare(updatedLucrare)
-                                    console.log("Lucrare reîncărcată din Firebase:", { statusFacturare: updatedLucrare.statusFacturare, numarFactura: updatedLucrare.numarFactura })
-                                  }
-                                  toast({
-                                    title: "Status actualizat",
-                                    description: "Statusul facturării a fost actualizat."
-                                  })
-                                } catch (error) {
-                                  console.error("Eroare la actualizarea statusului facturare:", error)
-                                  toast({
-                                    title: "Eroare",
-                                    description: "Nu s-a putut actualiza statusul.",
-                                    variant: "destructive"
-                                  })
-                                } finally {
-                                  setIsUpdating(false)
-                                }
-                              }}
-                              className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
-                              disabled={isUpdating}
-                            >
-                              <option value="Nefacturat">Nefacturat</option>
-                              <option value="Facturat">Facturat</option>
-                              <option value="Nu se facturează">Nu se facturează</option>
-                            </select>
-                          </div>
-                        </div>
-                      )}
+    <div className="space-y-2">
+      <select
+        value={lucrare.statusFacturare || "Nefacturat"}
+        onChange={async (e) => {
+          try {
+            setIsUpdating(true)
+            const newStatus = e.target.value
+            console.log("Actualizare status facturare:", { lucrareId: lucrare.id, newStatus })
+            const updateData: any = { statusFacturare: newStatus }
+            await updateLucrare(lucrare.id!, updateData)
+            setLucrare(prev => prev ? { ...prev, ...updateData } : null)
+            const updatedLucrare = await getLucrareById(lucrare.id!)
+            if (updatedLucrare) {
+              setLucrare(updatedLucrare)
+              console.log("Lucrare reîncărcată din Firebase:", { statusFacturare: updatedLucrare.statusFacturare, numarFactura: updatedLucrare.numarFactura })
+            }
+            toast({
+              title: "Status actualizat",
+              description: "Statusul facturării a fost actualizat."
+            })
+          } catch (error) {
+            console.error("Eroare la actualizarea statusului facturare:", error)
+            toast({
+              title: "Eroare",
+              description: "Nu s-a putut actualiza statusul.",
+              variant: "destructive"
+            })
+          } finally {
+            setIsUpdating(false)
+          }
+        }}
+        className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
+        disabled={isUpdating}
+      >
+        <option value="Nefacturat">Nefacturat</option>
+        <option value="Facturat">Facturat</option>
+        <option value="Nu se facturează">Nu se facturează</option>
+      </select>
+    </div>
+  </div>
+)}
 
                       {/* Status Echipament */}
-                      {role === "admin" && (
-                        <div className="space-y-2">
-                          <label className="text-xs font-medium text-amber-800">Status echipament:</label>
-                          <select
-                            value={lucrare.statusEchipament || "Funcțional"}
-                            onChange={async (e) => {
-                              try {
-                                setIsUpdating(true)
-                                const newStatus = e.target.value
-                                console.log("Actualizare status echipament:", { lucrareId: lucrare.id, newStatus })
-                                await updateLucrare(lucrare.id!, { statusEchipament: newStatus })
-                                setLucrare(prev => prev ? { ...prev, statusEchipament: newStatus } : null)
-                                const updatedLucrare = await getLucrareById(lucrare.id!)
-                                if (updatedLucrare) {
-                                  setLucrare(updatedLucrare)
-                                  console.log("Lucrare reîncărcată din Firebase:", { statusEchipament: updatedLucrare.statusEchipament })
-                                }
-                                toast({
-                                  title: "Status actualizat",
-                                  description: "Statusul echipamentului a fost actualizat."
-                                })
-                              } catch (error) {
-                                console.error("Eroare la actualizarea statusului echipament:", error)
-                                toast({
-                                  title: "Eroare",
-                                  description: "Nu s-a putut actualiza statusul.",
-                                  variant: "destructive"
-                                })
-                              } finally {
-                                setIsUpdating(false)
-                              }
-                            }}
-                            className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
-                            disabled={isUpdating}
-                          >
-                            <option value="Funcțional">Funcțional</option>
-                            <option value="Parțial funcțional">Parțial funcțional</option>
-                            <option value="Nefuncțional">Nefuncțional</option>
-                          </select>
-                        </div>
-                      )}
+{role === "admin" && (
+  <div className="space-y-2">
+    <label className="text-xs font-medium text-amber-800">Status echipament:</label>
+    <select
+      value={lucrare.statusEchipament || "Funcțional"}
+      onChange={async (e) => {
+        try {
+          setIsUpdating(true)
+          const newStatus = e.target.value
+          console.log("Actualizare status echipament:", { lucrareId: lucrare.id, newStatus })
+          await updateLucrare(lucrare.id!, { statusEchipament: newStatus })
+          setLucrare(prev => prev ? { ...prev, statusEchipament: newStatus } : null)
+          const updatedLucrare = await getLucrareById(lucrare.id!)
+          if (updatedLucrare) {
+            setLucrare(updatedLucrare)
+            console.log("Lucrare reîncărcată din Firebase:", { statusEchipament: updatedLucrare.statusEchipament })
+          }
+          toast({
+            title: "Status actualizat",
+            description: "Statusul echipamentului a fost actualizat."
+          })
+        } catch (error) {
+          console.error("Eroare la actualizarea statusului echipament:", error)
+          toast({
+            title: "Eroare",
+            description: "Nu s-a putut actualiza statusul.",
+            variant: "destructive"
+          })
+        } finally {
+          setIsUpdating(false)
+        }
+      }}
+      className="w-full text-xs p-2 border border-amber-300 rounded bg-white"
+      disabled={isUpdating}
+    >
+      <option value="Funcțional">Funcțional</option>
+      <option value="Parțial funcțional">Parțial funcțional</option>
+      <option value="Nefuncțional">Nefuncțional</option>
+    </select>
+  </div>
+)}
 
-                      
+
 
                       {((lucrare.statusOferta === "DA" || lucrare.statusOferta === "OFERTAT") || 
                   (lucrare.statusOferta === undefined && lucrare.necesitaOferta)) && 
                   lucrare.comentariiOferta && (
-                  <div>
+                          <div>
                     <p className="text-sm font-medium">Comentarii ofertă:</p>
                     <p className="text-sm text-gray-500">{lucrare.comentariiOferta}</p>
-                  </div>
-                )}
+                          </div>
+                        )}
                     </div>
-
+                    
                     <div className="mt-3 p-3 bg-amber-100 rounded text-sm text-amber-700">
                       <strong>Notă:</strong> Modificarea acestor statusuri va schimba culoarea rândului în lista de lucrări. 
                       Lucrările cu status "NEFINALIZAT", echipament "Nefuncțional" sau status ofertă "DA" apar cu fundal roșu. 
@@ -1901,11 +2032,24 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       </Tabs>
 
       {/* Secțiunea pentru vizualizarea imaginilor defectelor - doar pentru admin și dispecer */}
-      <div className="mt-6">
+      <div className="mt-6 space-y-6">
         <ImageDefectViewer
           imaginiDefecte={lucrare.imaginiDefecte}
           userRole={role}
         />
+
+        {/* Istoric descărcări documente – vizibil pentru admin/dispecer */}
+        {isAdminOrDispatcher && lucrare?.id && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Istoric descărcări documente</CardTitle>
+              <CardDescription>Înregistrări cine/când a descărcat documente din portal</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DownloadHistory lucrareId={lucrare.id} />
+            </CardContent>
+          </Card>
+        )}
       </div>
 
 

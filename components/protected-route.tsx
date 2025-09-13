@@ -41,6 +41,15 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
         // Prevent technicians from accessing the Clients page
         console.log("Technician attempting to access Clients page, redirecting to dashboard/lucrari")
         router.push("/dashboard/lucrari")
+      } else if (userData?.role === "client") {
+        // Clients should be redirected to their portal root
+        if (pathname === "/dashboard") {
+          router.push("/portal")
+        }
+        // Block clients from internal admin pages
+        if (pathname?.startsWith("/dashboard")) {
+          router.push("/portal")
+        }
       }
     }
   }, [user, userData, loading, router, allowedRoles, pathname])

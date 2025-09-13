@@ -10,7 +10,7 @@ import { auth, db } from "./config"
 import { doc, setDoc, serverTimestamp, deleteDoc } from "firebase/firestore"
 
 // Tipuri pentru autentificare
-export type UserRole = "admin" | "dispecer" | "tehnician"
+export type UserRole = "admin" | "dispecer" | "tehnician" | "client"
 
 export interface UserData {
   uid: string
@@ -18,6 +18,9 @@ export interface UserData {
   displayName: string | null
   role: UserRole
   telefon?: string
+  // For client role: link to client and which locations are allowed
+  clientId?: string | null
+  allowedLocationNames?: string[] | null
   createdAt?: Date
   lastLogin?: Date
 }
@@ -29,6 +32,8 @@ export const registerUser = async (
   displayName: string,
   role: UserRole,
   telefon?: string,
+  clientId?: string | null,
+  allowedLocationNames?: string[] | null,
 ): Promise<UserData> => {
   try {
     // Creăm utilizatorul în Firebase Auth
@@ -45,6 +50,8 @@ export const registerUser = async (
       displayName: user.displayName,
       role,
       telefon,
+      clientId: clientId ?? null,
+      allowedLocationNames: allowedLocationNames ?? null,
       createdAt: new Date(),
       lastLogin: new Date(),
     }

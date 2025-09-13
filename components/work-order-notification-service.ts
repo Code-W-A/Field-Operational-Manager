@@ -267,6 +267,101 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
 }
 
 /**
+ * Sends a client notification specifically for postponed work orders
+ * Prefers location contact email; falls back to client's main email
+ */
+export async function sendWorkOrderPostponedNotification(workOrderData: any) {
+  try {
+    // Resolve client record (by id if present; else by name)
+    let clientRecord: any | null = null
+    let clientEmail: string | null = null
+    let contactEmail: string | null = null
+    let clientName: string = typeof workOrderData.client === "string" ? workOrderData.client : (workOrderData.client?.nume || workOrderData.client?.name || "")
+
+    if (workOrderData.client && typeof workOrderData.client === "object" && workOrderData.client.id) {
+      try {
+        clientRecord = await getClientById(workOrderData.client.id)
+      } catch {}
+    }
+
+    if (!clientRecord && typeof workOrderData.client === "string" && workOrderData.client) {
+      try {
+        clientRecord = await getClientByName(workOrderData.client)
+      } catch {}
+    }
+
+    // Prefer email-ul persoanei de contact de la locație, dacă există
+    if (clientRecord && Array.isArray(clientRecord.locatii) && workOrderData.locatie) {
+      const loc = clientRecord.locatii.find((l: any) => l?.nume === workOrderData.locatie)
+      if (loc && Array.isArray(loc.persoaneContact)) {
+        const contact = workOrderData.persoanaContact
+          ? loc.persoaneContact.find((c: any) => c?.nume === workOrderData.persoanaContact)
+          : null
+        contactEmail = contact?.email || null
+      }
+    }
+
+    // Email-ul principal al clientului
+    if (clientRecord && clientRecord.email) {
+      clientEmail = clientRecord.email
+    } else if (workOrderData.client && typeof workOrderData.client === "object" && workOrderData.client.email) {
+      clientEmail = workOrderData.client.email
+    }
+
+    // Dacă nu avem încă un nume client de la record, folosește din workOrderData
+    if (clientRecord && (clientRecord.nume || (clientRecord as any).name)) {
+      clientName = clientRecord.nume || (clientRecord as any).name
+    }
+
+    // Construim lista finală de destinatari (client principal + persoana de contact de la locație)
+    const recipients = Array.from(
+      new Set(
+        [clientEmail, contactEmail]
+          .filter((e): e is string => Boolean(e))
+          .map((e) => e.trim().toLowerCase()),
+      ),
+    )
+
+    const payload = {
+      workOrderId: workOrderData.id || workOrderData.lucrareId || "",
+      workOrderNumber: workOrderData.number || workOrderData.id || "",
+      client: {
+        name: clientName,
+        email: clientEmail,
+        contactPerson: workOrderData.persoanaContact || null,
+      },
+      clientEmails: recipients,
+      technicians: [], // nu notificăm tehnicieni la amânare, doar clientul
+      details: {
+        eventType: "postponed",
+        postponeReason: workOrderData.motivAmanare || workOrderData.motiv || "",
+        postponedAt: workOrderData.dataAmanare || null,
+        status: "Amânată",
+        location: workOrderData.locatie || "",
+        workType: workOrderData.tipLucrare || "",
+        interventionDate: workOrderData.dataInterventie || "",
+      },
+    }
+
+    const response = await fetch("/api/notifications/work-order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      return { success: false, error: errorData.error || response.statusText }
+    }
+
+    const result = await response.json().catch(() => ({}))
+    return { success: true, result }
+  } catch (error: any) {
+    return { success: false, error: error?.message || "Unknown error" }
+  }
+}
+
+/**
  * Fetches a technician's email and phone from Firestore
  * @param technicianName The technician's name
  * @returns Promise with the email address, phone number or null

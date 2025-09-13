@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Plus, Pencil, Trash2, Loader2, AlertCircle } from "lucide-react"
-import { collection, query, orderBy, getDocs } from "firebase/firestore"
+import { collection, query, orderBy, getDocs, doc, getDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { registerUser, deleteUserAccount, type UserData, type UserRole } from "@/lib/firebase/auth"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -63,7 +63,13 @@ export default function Utilizatori() {
     displayName: "",
     telefon: "",
     role: "" as UserRole,
+    clientId: "",
+    allowedLocationNames: [] as string[],
   })
+  const [clientsForSelect, setClientsForSelect] = useState<Array<{id:string; nume:string; locatii?: any[]}>>([])
+  const [selectedClientLocations, setSelectedClientLocations] = useState<string[]>([])
+  const [sendInvite, setSendInvite] = useState<boolean>(false)
+  const [inviteRecipients, setInviteRecipients] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
@@ -97,7 +103,7 @@ export default function Utilizatori() {
 
       const users: UserData[] = []
       querySnapshot.forEach((doc) => {
-        users.push({ id: doc.id, ...doc.data() } as UserData)
+        users.push({ uid: doc.id, ...(doc.data() as any) } as unknown as UserData)
       })
 
       setUtilizatori(users)
@@ -113,6 +119,21 @@ export default function Utilizatori() {
 
   useEffect(() => {
     fetchUtilizatori()
+  }, [])
+
+  // Fetch clients for client-user creation
+  useEffect(() => {
+    const loadClients = async () => {
+      try {
+        const snap = await getDocs(collection(db, "clienti"))
+        const list: Array<{id:string; nume:string; locatii?: any[]}> = []
+        snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }))
+        setClientsForSelect(list)
+      } catch (e) {
+        console.warn("Nu s-au putut încărca clienții pentru cont client:", e)
+      }
+    }
+    loadClients()
   }, [])
 
   // Încărcăm setările salvate la inițializare
@@ -133,7 +154,7 @@ export default function Utilizatori() {
   }
 
   // Define filter options based on user data
-  const filterOptions = useMemo(() => {
+  const filterOptions = useMemo<FilterOption[]>(() => {
     // Extract unique roles for multiselect filter
     const roleOptions = Array.from(new Set(utilizatori.map((user) => user.role))).map((role) => ({
       value: role,
@@ -148,13 +169,13 @@ export default function Utilizatori() {
         type: "multiselect",
         options: roleOptions,
         value: [],
-      },
+      } as unknown as FilterOption,
       {
         id: "lastLogin",
         label: "Ultima autentificare",
         type: "dateRange",
         value: null,
-      },
+      } as unknown as FilterOption,
     ]
   }, [utilizatori])
 
@@ -182,8 +203,8 @@ export default function Utilizatori() {
               if (filter.value.from || filter.value.to) {
                 try {
                   if (!item.lastLogin) return false
-
-                  const itemDate = item.lastLogin.toDate ? item.lastLogin.toDate() : new Date(item.lastLogin)
+                  const ts: any = item.lastLogin as any
+                  const itemDate = ts?.toDate ? ts.toDate() : new Date(ts)
 
                   if (filter.value.from) {
                     const fromDate = new Date(filter.value.from)
@@ -233,8 +254,8 @@ export default function Utilizatori() {
     if (searchText.trim()) {
       const lowercasedFilter = searchText.toLowerCase()
       filtered = filtered.filter((item) => {
-        return Object.keys(item).some((key) => {
-          const value = item[key]
+        return Object.keys(item as any).some((key) => {
+          const value = (item as any)[key]
           if (value === null || value === undefined) return false
 
           // Handle arrays (if any)
@@ -266,8 +287,8 @@ export default function Utilizatori() {
         if (searchText.trim()) {
           const lowercasedFilter = searchText.toLowerCase()
           filtered = filtered.filter((item) => {
-            return Object.keys(item).some((key) => {
-              const value = item[key]
+            return Object.keys(item as any).some((key) => {
+              const value = (item as any)[key]
               if (value === null || value === undefined) return false
 
               if (Array.isArray(value)) {
@@ -341,6 +362,46 @@ export default function Utilizatori() {
     setFormData((prev) => ({ ...prev, role: value as UserRole }))
   }
 
+  const handleClientChange = (value: string) => {
+    setFormData((prev) => ({ ...prev, clientId: value }))
+    // Reset selected locations when client changes
+    setSelectedClientLocations([])
+    // Precompletează emailul cu emailul principal al clientului (dacă există)
+    const selected = clientsForSelect.find((c) => c.id === value) as any
+    if (selected?.email) {
+      setFormData((prev) => ({ ...prev, email: selected.email }))
+    }
+    // Activăm implicit trimiterea invitației pentru rol client
+    setSendInvite(true)
+  }
+
+  const handleToggleLocation = (locName: string) => {
+    setSelectedClientLocations((prev) =>
+      prev.includes(locName) ? prev.filter((n) => n !== locName) : [...prev, locName],
+    )
+  }
+
+  // Recalculează destinatarii invitației
+  useEffect(() => {
+    if (formData.role !== "client") {
+      setInviteRecipients([])
+      return
+    }
+    const recipients = new Set<string>()
+    const mainEmail = formData.email?.trim()
+    const client = clientsForSelect.find((c) => c.id === formData.clientId) as any
+    const isValid = (e?: string) => !!e && /.+@.+\..+/.test(e)
+    if (isValid(mainEmail)) recipients.add(mainEmail!)
+    if (isValid(client?.email)) recipients.add(client.email)
+    const selectedLocs = (client?.locatii || []).filter((l: any) => selectedClientLocations.includes(l?.nume))
+    selectedLocs.forEach((l: any) => {
+      (l?.persoaneContact || []).forEach((p: any) => {
+        if (isValid(p?.email)) recipients.add(p.email)
+      })
+    })
+    setInviteRecipients(Array.from(recipients))
+  }, [formData.role, formData.email, formData.clientId, selectedClientLocations, clientsForSelect])
+
   const handleSubmit = async () => {
     try {
       setIsSubmitting(true)
@@ -365,8 +426,44 @@ export default function Utilizatori() {
         return
       }
 
-      // Register the user
-      await registerUser(formData.email, formData.password, formData.displayName, formData.role, formData.telefon)
+      // Register the user (support client role extra fields)
+      const allowed = formData.role === "client" ? selectedClientLocations : null
+      const clientId = formData.role === "client" ? (formData.clientId || null) : null
+      await registerUser(
+        formData.email,
+        formData.password,
+        formData.displayName,
+        formData.role,
+        formData.telefon,
+        clientId,
+        allowed,
+      )
+
+      // Trimitem invitația dacă este rol client și s-a bifat opțiunea
+      if (formData.role === "client" && sendInvite && inviteRecipients.length) {
+        try {
+          const origin = (typeof window !== 'undefined' ? window.location.origin : '')
+          const subject = "Invitație acces Portal Client – FOM"
+          const content = `Bună ziua,\n\nVă-am creat acces în Portalul Client FOM.\n\nEmail: ${formData.email}\nParolă provizorie: ${formData.password}\nPortal: ${origin}/portal\n\nDupă autentificare, vă rugăm să schimbați parola din cont.\n\nVă mulțumim!`
+          const html = `
+            <div style="font-family:Arial,sans-serif;line-height:1.5">
+              <h2 style="margin:0 0 12px;color:#0f56b3">Invitație acces Portal Client – FOM</h2>
+              <p>Vă-am creat acces în Portalul Client FOM.</p>
+              <p><strong>Email:</strong> ${formData.email}<br/>
+                 <strong>Parolă provizorie:</strong> ${formData.password}<br/>
+                 <strong>Portal:</strong> <a href="${origin}/portal" target="_blank">${origin}/portal</a></p>
+              <p>După autentificare, vă rugăm să schimbați parola din cont.</p>
+              <p>Vă mulțumim!</p>
+            </div>`
+          await fetch("/api/users/invite", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ to: inviteRecipients, subject, content, html }),
+          })
+        } catch (e) {
+          console.warn("Trimitere invitație eșuată (non-blocking):", e)
+        }
+      }
 
       // Reload the user list
       await fetchUtilizatori()
@@ -380,7 +477,10 @@ export default function Utilizatori() {
         displayName: "",
         telefon: "",
         role: "" as UserRole,
+        clientId: "",
+        allowedLocationNames: [],
       })
+      setSelectedClientLocations([])
     } catch (err: any) {
       console.error("Eroare la înregistrarea utilizatorului:", err)
 
@@ -452,8 +552,8 @@ export default function Utilizatori() {
     if (table) {
       const allColumns = table.getAllColumns()
       const options = allColumns
-        .filter((column) => column.getCanHide())
-        .map((column) => ({
+        .filter((column: any) => column.getCanHide())
+        .map((column: any) => ({
           id: column.id,
           label:
             typeof column.columnDef.header === "string"
@@ -482,7 +582,7 @@ export default function Utilizatori() {
   const handleSelectAllColumns = () => {
     if (!table) return
 
-    table.getAllColumns().forEach((column) => {
+    table.getAllColumns().forEach((column: any) => {
       if (column.getCanHide()) {
         column.toggleVisibility(true)
       }
@@ -495,7 +595,7 @@ export default function Utilizatori() {
   const handleDeselectAllColumns = () => {
     if (!table) return
 
-    table.getAllColumns().forEach((column) => {
+    table.getAllColumns().forEach((column: any) => {
       if (column.getCanHide() && column.id !== "actions") {
         column.toggleVisibility(false)
       }
@@ -577,7 +677,9 @@ export default function Utilizatori() {
               ? "Administrator"
               : row.original.role === "dispecer"
                 ? "Dispecer"
-                : "Tehnician"}
+                : row.original.role === "tehnician"
+                  ? "Tehnician"
+                  : "Client"}
           </Badge>
         ),
       },
@@ -758,9 +860,53 @@ export default function Utilizatori() {
                     <SelectItem value="admin">Administrator</SelectItem>
                     <SelectItem value="dispecer">Dispecer</SelectItem>
                     <SelectItem value="tehnician">Tehnician</SelectItem>
+                    <SelectItem value="client">Client</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+
+              {formData.role === "client" && (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Client asociat</label>
+                    <Select value={formData.clientId} onValueChange={handleClientChange}>
+                      <SelectTrigger id="clientId">
+                        <SelectValue placeholder="Selectați clientul" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {clientsForSelect.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>{c.nume}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {formData.clientId && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Locații permise</label>
+                      <div className="max-h-48 overflow-auto rounded border p-2 space-y-1">
+                        {clientsForSelect
+                          .find((c) => c.id === formData.clientId)?.locatii?.map((l: any, idx: number) => (
+                            <label key={idx} className="flex items-center gap-2 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={selectedClientLocations.includes(l.nume)}
+                                onChange={() => handleToggleLocation(l.nume)}
+                              />
+                              <span>{l.nume}</span>
+                            </label>
+                          )) || <div className="text-sm text-muted-foreground">Clientul nu are locații definite</div>}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-2">
+                        Emailul de invitație se va trimite către: {inviteRecipients.length ? inviteRecipients.join(", ") : "—"}
+                      </div>
+                      <label className="flex items-center gap-2 text-sm mt-2">
+                        <input type="checkbox" checked={sendInvite} onChange={(e) => setSendInvite(e.target.checked)} />
+                        <span>Trimite invitație pe email</span>
+                      </label>
+                    </div>
+                  )}
+                </>
+              )}
 
               <div className="space-y-2">
                 <label htmlFor="password" className="text-sm font-medium">

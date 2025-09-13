@@ -26,6 +26,29 @@ export function ImageDefectViewer({ imaginiDefecte, userRole }: ImageDefectViewe
     return null
   }
 
+  const formatRoDateTime = (isoString: string) => {
+    const d = new Date(isoString)
+    const dd = String(d.getDate()).padStart(2, '0')
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const yyyy = d.getFullYear()
+    const hh = String(d.getHours()).padStart(2, '0')
+    const min = String(d.getMinutes()).padStart(2, '0')
+    return `${dd}-${mm}-${yyyy} ${hh}:${min}`
+  }
+  const formatRoDate = (isoString: string) => {
+    const d = new Date(isoString)
+    const dd = String(d.getDate()).padStart(2, '0')
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const yyyy = d.getFullYear()
+    return `${dd}-${mm}-${yyyy}`
+  }
+  const formatRoTime = (isoString: string) => {
+    const d = new Date(isoString)
+    const hh = String(d.getHours()).padStart(2, '0')
+    const min = String(d.getMinutes()).padStart(2, '0')
+    return `${hh}:${min}`
+  }
+
   return (
     <>
       <Card>
@@ -74,14 +97,7 @@ export function ImageDefectViewer({ imaginiDefecte, userRole }: ImageDefectViewe
                   </div>
                   
                   <div className="text-xs text-gray-500 space-y-1">
-                    <p><strong>Încărcat de:</strong> {image.uploadedBy}</p>
-                    <p><strong>Data:</strong> {new Date(image.uploadedAt).toLocaleDateString('ro-RO', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}</p>
+                    <p><strong>Data:</strong> {formatRoDate(image.uploadedAt)} <span className="mx-1">•</span> <strong>Ora:</strong> {formatRoTime(image.uploadedAt)}</p>
                   </div>
 
                   <Button
