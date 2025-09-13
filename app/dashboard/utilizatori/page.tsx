@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
-import { Plus, Pencil, Trash2, Loader2, AlertCircle } from "lucide-react"
+import { Plus, Pencil, Trash2, Loader2, AlertCircle, ChevronsUpDown, Check } from "lucide-react"
 import { collection, query, orderBy, getDocs, doc, getDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { registerUser, deleteUserAccount, type UserData, type UserRole } from "@/lib/firebase/auth"
@@ -37,6 +37,8 @@ import { ColumnSelectionModal } from "@/components/column-selection-modal"
 import { FilterButton } from "@/components/filter-button"
 import { FilterModal, type FilterOption } from "@/components/filter-modal"
 import { useTablePersistence } from "@/hooks/use-table-persistence"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -84,6 +86,11 @@ export default function Utilizatori() {
   const [showCloseAlert, setShowCloseAlert] = useState(false)
   const [activeDialog, setActiveDialog] = useState<"add" | "edit" | "delete" | null>(null)
   const editFormRef = useRef<any>(null)
+  const [isClientPickerOpen, setIsClientPickerOpen] = useState(false)
+
+  const sortedClientsForSelect = useMemo(() => {
+    return [...clientsForSelect].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" }))
+  }, [clientsForSelect])
 
   // Add state for activeTab
   const [activeTab, setActiveTab] = useState("tabel")
@@ -128,7 +135,7 @@ export default function Utilizatori() {
         const snap = await getDocs(collection(db, "clienti"))
         const list: Array<{id:string; nume:string; locatii?: any[]}> = []
         snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }))
-        setClientsForSelect(list)
+        setClientsForSelect(list.sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" })))
       } catch (e) {
         console.warn("Nu s-au putut încărca clienții pentru cont client:", e)
       }
@@ -904,16 +911,37 @@ export default function Utilizatori() {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Client asociat</label>
-                    <Select value={formData.clientId} onValueChange={handleClientChange}>
-                      <SelectTrigger id="clientId">
-                        <SelectValue placeholder="Selectați clientul" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {clientsForSelect.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>{c.nume}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Popover open={isClientPickerOpen} onOpenChange={setIsClientPickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" role="combobox" aria-expanded={isClientPickerOpen} className="w-full justify-between">
+                          {formData.clientId ? (sortedClientsForSelect.find((c) => c.id === formData.clientId)?.nume || "Selectați clientul") : "Selectați clientul"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="p-0 w-[--radix-popover-trigger-width]">
+                        <Command shouldFilter={true}>
+                          <CommandInput placeholder="Căutați clientul..." />
+                          <CommandEmpty>Nu s-au găsit clienți.</CommandEmpty>
+                          <CommandList className="max-h-[200px] overflow-y-auto">
+                            <CommandGroup>
+                              {sortedClientsForSelect.map((c) => (
+                                <CommandItem
+                                  key={c.id}
+                                  value={`${c.nume}__${c.id}`}
+                                  onSelect={() => {
+                                    handleClientChange(c.id)
+                                    setIsClientPickerOpen(false)
+                                  }}
+                                >
+                                  <Check className={`mr-2 h-4 w-4 ${formData.clientId === c.id ? "opacity-100" : "opacity-0"}`} />
+                                  {c.nume}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   
                   {formData.clientId && (
