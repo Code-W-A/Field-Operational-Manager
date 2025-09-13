@@ -53,7 +53,11 @@ export async function GET(request: Request) {
       isAllowed = true
     } else {
       // Match requested url against stored document URLs for this lucrare
-      const requestedUrl = decodeURIComponent(url)
+      const safeDecode = (v: string) => {
+        try { return decodeURIComponent(v) } catch { return v }
+      }
+      const requestedRaw = url
+      const requestedDecoded = safeDecode(url)
       const candidateUrls: string[] = []
       const addIf = (v?: any) => { if (typeof v === 'string' && v) candidateUrls.push(v) }
       const t = (docType || '').toLowerCase()
@@ -65,7 +69,20 @@ export async function GET(request: Request) {
       addIf(workData?.facturaDocument?.url)
       addIf(workData?.ofertaDocument?.url)
 
-      isAllowed = candidateUrls.some((u) => u === requestedUrl)
+      const urlMatches = (candidate: string) => {
+        if (!candidate) return false
+        if (candidate === requestedRaw || candidate === requestedDecoded) return true
+        try {
+          const a = new URL(candidate)
+          const b = new URL(requestedDecoded || requestedRaw)
+          // Match by origin + pathname to ignore query param ordering/token variations
+          return a.origin === b.origin && a.pathname === b.pathname
+        } catch {
+          return false
+        }
+      }
+
+      isAllowed = candidateUrls.some((u) => urlMatches(u) || urlMatches(safeDecode(u)))
       if (!isAllowed) {
         return NextResponse.json({ error: "URL nevalid pentru lucrarea indicată" }, { status: 403 })
       }

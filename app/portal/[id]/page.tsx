@@ -241,7 +241,9 @@ export default function PortalWorkDetail() {
                   {w.raportSnapshot?.url && (
                     <Link 
                       className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors" 
-                      href={`/api/download?lucrareId=${id}&type=raport&url=${encodeURIComponent(w.raportSnapshot.url)}`}
+                      href={w.raportSnapshot.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
                     >
                       <div className="p-2 bg-blue-100 rounded">
                         <FileText className="h-5 w-5 text-blue-600" />
@@ -255,7 +257,9 @@ export default function PortalWorkDetail() {
                   {w.facturaDocument?.url && (
                     <Link 
                       className="flex items-center gap-3 p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors" 
-                      href={`/api/download?lucrareId=${id}&type=factura&url=${encodeURIComponent(w.facturaDocument.url)}`}
+                      href={w.facturaDocument.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
                     >
                       <div className="p-2 bg-green-100 rounded">
                         <FileText className="h-5 w-5 text-green-600" />
@@ -269,7 +273,9 @@ export default function PortalWorkDetail() {
                   {w.ofertaDocument?.url && (
                     <Link 
                       className="flex items-center gap-3 p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors" 
-                      href={`/api/download?lucrareId=${id}&type=oferta&url=${encodeURIComponent(w.ofertaDocument.url)}`}
+                      href={w.ofertaDocument.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
                     >
                       <div className="p-2 bg-purple-100 rounded">
                         <FileText className="h-5 w-5 text-purple-600" />

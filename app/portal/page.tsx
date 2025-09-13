@@ -118,8 +118,10 @@ export default function ClientPortalPage() {
                     {w.raportSnapshot?.url && (
                       <Link 
                         className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-medium hover:bg-blue-100 transition-colors" 
-                        href={`/api/download?lucrareId=${w.id}&type=raport&url=${encodeURIComponent(w.raportSnapshot.url)}`}
+                        href={w.raportSnapshot.url}
                         onClick={(e) => e.stopPropagation()}
+                        target="_blank"
+                        rel="noopener noreferrer"
                       >
                         <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -130,8 +132,10 @@ export default function ClientPortalPage() {
                     {w.facturaDocument?.url && (
                       <Link 
                         className="inline-flex items-center gap-1 px-3 py-1 bg-green-50 text-green-700 rounded-full text-sm font-medium hover:bg-green-100 transition-colors" 
-                        href={`/api/download?lucrareId=${w.id}&type=factura&url=${encodeURIComponent(w.facturaDocument.url)}`}
+                        href={w.facturaDocument.url}
                         onClick={(e) => e.stopPropagation()}
+                        target="_blank"
+                        rel="noopener noreferrer"
                       >
                         <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
@@ -142,8 +146,10 @@ export default function ClientPortalPage() {
                     {w.ofertaDocument?.url && (
                       <Link 
                         className="inline-flex items-center gap-1 px-3 py-1 bg-purple-50 text-purple-700 rounded-full text-sm font-medium hover:bg-purple-100 transition-colors" 
-                        href={`/api/download?lucrareId=${w.id}&type=oferta&url=${encodeURIComponent(w.ofertaDocument.url)}`}
+                        href={w.ofertaDocument.url}
                         onClick={(e) => e.stopPropagation()}
+                        target="_blank"
+                        rel="noopener noreferrer"
                       >
                         <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
