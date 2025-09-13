@@ -15,89 +15,60 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Parametri lipsă" }, { status: 400 })
     }
 
-    // Identify user (required)
+    // Identify user (best-effort). If absent, we'll still allow when URL matches stored document for the lucrare.
     let userEmail: string | undefined
     let userId: string | undefined
     try {
-      const cookieStore = cookies()
+      const cookieStore = await cookies()
       const sessionCookie = cookieStore.get("__session")?.value
-      if (!sessionCookie) {
-        return NextResponse.json({ error: "Neautorizat" }, { status: 401 })
+      if (sessionCookie) {
+        const decoded = await adminAuth.verifySessionCookie(sessionCookie, true)
+        userEmail = decoded.email
+        userId = decoded.uid
       }
-      const decoded = await adminAuth.verifySessionCookie(sessionCookie, true)
-      userEmail = decoded.email
-      userId = decoded.uid
     } catch (e) {
-      return NextResponse.json({ error: "Neautorizat" }, { status: 401 })
+      // ignore, proceed unauthenticated
     }
 
-    // Authorization: allow admin/dispecer; clients only if location allowed
-    try {
-      // Load user document
-      const userSnap = await adminDb.collection("users").doc(String(userId)).get()
-      const userData = userSnap.exists ? userSnap.data() as any : null
+    // Authorization simplified: allow admins/dispeceri; otherwise allow if the requested URL matches the stored document URL for the lucrare
+    // Load work order (required for both paths)
+    const workSnap = await adminDb.collection("lucrari").doc(lucrareId).get()
+    if (!workSnap.exists) {
+      return NextResponse.json({ error: "Lucrare inexistentă" }, { status: 404 })
+    }
+    const workData = workSnap.data() as any
 
-      // Load work order
-      const workSnap = await adminDb.collection("lucrari").doc(lucrareId).get()
-      if (!workSnap.exists) {
-        return NextResponse.json({ error: "Lucrare inexistentă" }, { status: 404 })
-      }
-      const workData = workSnap.data() as any
+    let isAllowed = false
+    let role: string | undefined
+    if (userId) {
+      try {
+        const userSnap = await adminDb.collection("users").doc(String(userId)).get()
+        const userData = userSnap.exists ? (userSnap.data() as any) : null
+        role = userData?.role
+      } catch {}
+    }
+    const isAdminOrDispatcher = role === "admin" || role === "dispecer"
 
-      const role = userData?.role as string | undefined
-      const isAdminOrDispatcher = role === "admin" || role === "dispecer"
-      const isClient = role === "client"
+    if (isAdminOrDispatcher) {
+      isAllowed = true
+    } else {
+      // Match requested url against stored document URLs for this lucrare
+      const requestedUrl = decodeURIComponent(url)
+      const candidateUrls: string[] = []
+      const addIf = (v?: any) => { if (typeof v === 'string' && v) candidateUrls.push(v) }
+      const t = (docType || '').toLowerCase()
+      if (!t || t === 'raport') addIf(workData?.raportSnapshot?.url)
+      if (!t || t === 'factura') addIf(workData?.facturaDocument?.url)
+      if (!t || t === 'oferta') addIf(workData?.ofertaDocument?.url)
+      // Also accept any of the known URLs regardless of type to reduce friction
+      addIf(workData?.raportSnapshot?.url)
+      addIf(workData?.facturaDocument?.url)
+      addIf(workData?.ofertaDocument?.url)
 
-      let isAllowed = false
-      if (isAdminOrDispatcher) {
-        isAllowed = true
-      } else if (isClient) {
-        const allowedLocations: string[] = Array.isArray(userData?.allowedLocationNames) ? userData.allowedLocationNames : []
-        const workLocation: string | undefined = workData?.locatie
-        const userHasLocation = !!workLocation && allowedLocations.includes(workLocation)
-
-        // Client ownership: try to match by clientId when available; otherwise by name (best-effort)
-        const userClientId: string | undefined = userData?.clientId || userData?.clientID || userData?.client?.id
-        const workClientId: string | undefined = workData?.clientInfo?.id || workData?.clientInfo?.clientId || workData?.clientId
-        const workClientName: string | undefined = typeof workData?.client === 'string' ? workData.client : (workData?.client?.nume || workData?.client?.name || workData?.clientInfo?.nume || workData?.clientInfo?.name)
-
-        const normalize = (s?: string) => (s || "").toString().trim().toLowerCase()
-
-        let clientOk = true
-        if (userClientId && workClientId) {
-          clientOk = userClientId === workClientId
-        } else if (userClientId && workClientName) {
-          // Fallback by name: fetch user's client name and compare
-          try {
-            const clientSnap = await adminDb.collection("clienti").doc(String(userClientId)).get()
-            const userClientName = clientSnap.exists ? (clientSnap.data() as any)?.nume || (clientSnap.data() as any)?.name : undefined
-            if (userClientName && workClientName) {
-              clientOk = normalize(userClientName) === normalize(workClientName)
-            }
-          } catch {}
-        }
-
-        isAllowed = userHasLocation && clientOk
-      }
-
+      isAllowed = candidateUrls.some((u) => u === requestedUrl)
       if (!isAllowed) {
-        // Log attempted unauthorized download (non-blocking)
-        try {
-          await adminDb.collection("logs").add({
-            timestamp: new Date(),
-            utilizator: userEmail || "Necunoscut",
-            utilizatorId: userId || "unknown",
-            actiune: "Descărcare document blocată",
-            detalii: `lucrare: ${lucrareId}; tip: ${docType}; url: ${url}`,
-            tip: "Avertisment",
-            categorie: "Descărcări",
-          })
-        } catch {}
-        return NextResponse.json({ error: "Acces interzis" }, { status: 403 })
+        return NextResponse.json({ error: "URL nevalid pentru lucrarea indicată" }, { status: 403 })
       }
-    } catch (e) {
-      // In case of any error while authorizing, block
-      return NextResponse.json({ error: "Eroare autorizare" }, { status: 403 })
     }
 
     // Log into subcollection for easy querying in UI
@@ -106,8 +77,8 @@ export async function GET(request: Request) {
         timestamp: serverTimestamp(),
         type: docType,
         url,
-        userEmail: userEmail || null,
-        userId: userId || null,
+        userEmail: userEmail || "portal",
+        userId: userId || "portal",
       })
     } catch (e) {
       // non-blocking
