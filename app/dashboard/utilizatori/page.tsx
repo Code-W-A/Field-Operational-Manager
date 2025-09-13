@@ -918,11 +918,11 @@ export default function Utilizatori() {
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="p-0 w-[--radix-popover-trigger-width]">
+                      <PopoverContent className="p-0 w-[--radix-popover-trigger-width] max-w-[90vw]">
                         <Command shouldFilter={true}>
                           <CommandInput placeholder="Căutați clientul..." />
                           <CommandEmpty>Nu s-au găsit clienți.</CommandEmpty>
-                          <CommandList className="max-h-[200px] overflow-y-auto">
+                          <CommandList className="max-h-[240px] overflow-y-auto overflow-x-auto whitespace-nowrap">
                             <CommandGroup>
                               {sortedClientsForSelect.map((c) => (
                                 <CommandItem
@@ -932,9 +932,10 @@ export default function Utilizatori() {
                                     handleClientChange(c.id)
                                     setIsClientPickerOpen(false)
                                   }}
+                                  className="whitespace-nowrap"
                                 >
                                   <Check className={`mr-2 h-4 w-4 ${formData.clientId === c.id ? "opacity-100" : "opacity-0"}`} />
-                                  {c.nume}
+                                  <span className="inline-block min-w-max">{c.nume}</span>
                                 </CommandItem>
                               ))}
                             </CommandGroup>
