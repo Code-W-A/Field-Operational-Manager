@@ -799,7 +799,7 @@ export default function Utilizatori() {
               <Plus className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Adaugă</span> Utilizator
             </Button>
           </DialogTrigger>
-          <DialogContent className="w-[calc(100%-2rem)] max-w-[500px]">
+          <DialogContent className={`w-[calc(100%-2rem)] ${formData.role === "client" ? "max-w-[800px]" : "max-w-[500px]"}`}>
             <DialogHeader>
               <DialogTitle>Adaugă Utilizator Nou</DialogTitle>
               <DialogDescription>Completați detaliile pentru a adăuga un utilizator nou</DialogDescription>
@@ -810,63 +810,98 @@ export default function Utilizatori() {
                 <AlertDescription>{formError}</AlertDescription>
               </Alert>
             )}
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <label htmlFor="displayName" className="text-sm font-medium">
-                  Nume Complet
-                </label>
-                <Input
-                  id="displayName"
-                  placeholder="Introduceți numele complet"
-                  value={formData.displayName}
-                  onChange={handleInputChange}
-                />
+            <div className={`py-4 ${formData.role === "client" ? "grid grid-cols-1 lg:grid-cols-2 gap-6" : "grid gap-4"}`}>
+              {/* Coloana stângă - Informații de bază */}
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label htmlFor="displayName" className="text-sm font-medium">
+                    Nume Complet
+                  </label>
+                  <Input
+                    id="displayName"
+                    placeholder="Introduceți numele complet"
+                    value={formData.displayName}
+                    onChange={handleInputChange}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="email" className="text-sm font-medium">
+                    Email
+                  </label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="Adresă de email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="telefon" className="text-sm font-medium">
+                    Telefon
+                  </label>
+                  <Input
+                    id="telefon"
+                    placeholder="Număr de telefon"
+                    value={formData.telefon}
+                    onChange={handleInputChange}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="role" className="text-sm font-medium">
+                    Rol
+                  </label>
+                  <Select value={formData.role} onValueChange={handleSelectChange}>
+                    <SelectTrigger id="role">
+                      <SelectValue placeholder="Selectați rolul" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Administrator</SelectItem>
+                      <SelectItem value="dispecer">Dispecer</SelectItem>
+                      <SelectItem value="tehnician">Tehnician</SelectItem>
+                      <SelectItem value="client">Client</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Pentru roluri non-client, parolele rămân în aceeași coloană */}
+                {formData.role !== "client" && (
+                  <>
+                    <div className="space-y-2">
+                      <label htmlFor="password" className="text-sm font-medium">
+                        Parolă
+                      </label>
+                      <Input
+                        id="password"
+                        type="password"
+                        placeholder="Introduceți parola"
+                        value={formData.password}
+                        onChange={handleInputChange}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label htmlFor="confirmPassword" className="text-sm font-medium">
+                        Confirmă Parola
+                      </label>
+                      <Input
+                        id="confirmPassword"
+                        type="password"
+                        placeholder="Confirmați parola"
+                        value={formData.confirmPassword}
+                        onChange={handleInputChange}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
-              <div className="space-y-2">
-                <label htmlFor="email" className="text-sm font-medium">
-                  Email
-                </label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="Adresă de email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="telefon" className="text-sm font-medium">
-                  Telefon
-                </label>
-                <Input
-                  id="telefon"
-                  placeholder="Număr de telefon"
-                  value={formData.telefon}
-                  onChange={handleInputChange}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="role" className="text-sm font-medium">
-                  Rol
-                </label>
-                <Select value={formData.role} onValueChange={handleSelectChange}>
-                  <SelectTrigger id="role">
-                    <SelectValue placeholder="Selectați rolul" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">Administrator</SelectItem>
-                    <SelectItem value="dispecer">Dispecer</SelectItem>
-                    <SelectItem value="tehnician">Tehnician</SelectItem>
-                    <SelectItem value="client">Client</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
+              {/* Coloana dreaptă - Informații client (doar pentru rol client) */}
               {formData.role === "client" && (
-                <>
+                <div className="space-y-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Client asociat</label>
                     <Select value={formData.clientId} onValueChange={handleClientChange}>
@@ -880,6 +915,7 @@ export default function Utilizatori() {
                       </SelectContent>
                     </Select>
                   </div>
+                  
                   {formData.clientId && (
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Locații permise</label>
@@ -905,34 +941,34 @@ export default function Utilizatori() {
                       </label>
                     </div>
                   )}
-                </>
+
+                  <div className="space-y-2">
+                    <label htmlFor="password" className="text-sm font-medium">
+                      Parolă
+                    </label>
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="Introduceți parola"
+                      value={formData.password}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label htmlFor="confirmPassword" className="text-sm font-medium">
+                      Confirmă Parola
+                    </label>
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      placeholder="Confirmați parola"
+                      value={formData.confirmPassword}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+                </div>
               )}
-
-              <div className="space-y-2">
-                <label htmlFor="password" className="text-sm font-medium">
-                  Parolă
-                </label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Introduceți parola"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="confirmPassword" className="text-sm font-medium">
-                  Confirmă Parola
-                </label>
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  placeholder="Confirmați parola"
-                  value={formData.confirmPassword}
-                  onChange={handleInputChange}
-                />
-              </div>
             </div>
             <DialogFooter className="flex-col gap-2 sm:flex-row">
               <Button variant="outline" onClick={handleCloseAddDialog}>
