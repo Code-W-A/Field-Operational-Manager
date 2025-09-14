@@ -35,13 +35,16 @@ export default function PortalWorkDetail() {
   const setStatus = async (accepted: boolean) => {
     try {
       setSaving(true)
+      const response: any = {
+        status: accepted ? "accept" : "reject",
+        at: new Date().toISOString(),
+      }
+      if (reason && reason.trim()) {
+        response.reason = reason.trim()
+      }
       await updateLucrare(id, {
         // menținem statusOferta ca "OFERTAT"; folosim offerResponse pentru decizia finală
-        offerResponse: {
-          status: accepted ? "accept" : "reject",
-          reason: reason || undefined,
-          at: new Date().toISOString(),
-        },
+        offerResponse: response,
         // Actualizăm și statusul ofertei pentru vizibilitate în admin/dispecer
         statusOferta: accepted ? "DA" : "NU",
       } as any, undefined, undefined, true)
@@ -179,14 +182,34 @@ export default function PortalWorkDetail() {
                             <span className="font-medium">{(p.total || (p.quantity * p.price)).toFixed(2)} lei</span>
                           </div>
                         ))}
-                        <div className="flex justify-between items-center pt-3 border-t font-bold text-lg">
-                          <span>Total:</span>
-                          <span>{(w.offerTotal?.toFixed?.(2) || w.products.reduce((s: number, p: any) => s + (p.total || (p.quantity * p.price)), 0).toFixed(2))} lei</span>
-                        </div>
+                        {(() => {
+                          const subtotal = w.products.reduce((s: number, p: any) => s + (p.total || (p.quantity * p.price) || 0), 0)
+                          const vatPercent = (typeof w.offerVAT === 'number' && w.offerVAT > 0) ? Number(w.offerVAT) : 21
+                          const vatVal = subtotal * (vatPercent / 100)
+                          const total = subtotal + vatVal
+                          return (
+                            <div className="pt-3 border-t text-sm">
+                              <div className="flex justify-between items-center">
+                                <span className="font-medium">Total fără TVA:</span>
+                                <span className="font-medium">{subtotal.toFixed(2)} lei</span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="font-medium">TVA ({vatPercent}%):</span>
+                                <span className="font-medium">{vatVal.toFixed(2)} lei</span>
+                              </div>
+                              <div className="flex justify-between items-center font-bold text-lg mt-1">
+                                <span>Total cu TVA:</span>
+                                <span>{total.toFixed(2)} lei</span>
+                              </div>
+                            </div>
+                          )
+                        })()}
                       </div>
                     </div>
                   ) : (
-                    <p className="text-muted-foreground">Se pregătește oferta...</p>
+                    <p className="text-muted-foreground">
+                      Încă nu a fost introdusă o ofertă de către echipa noastră. Vă rugăm să reveniți pe această pagină mai târziu pentru a verifica dacă oferta a fost adăugată.
+                    </p>
                   )}
 
                   {w.statusOferta === "OFERTAT" && !w.offerResponse?.status && (
