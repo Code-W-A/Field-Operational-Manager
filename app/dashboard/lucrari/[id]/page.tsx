@@ -1621,14 +1621,34 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                           <p><a href=\"${portalUrl}\" target=\"_blank\">${portalUrl}</a></p>
                                           <p style=\"margin-top:12px\"><strong>Total:</strong> ${(lucrare.offerTotal || (lucrare.products || []).reduce((s:number,p:any)=>s+(p.total||0),0)).toFixed(2)} lei</p>
                                         </div>`
-                                      const recipient = (lucrare as any)?.clientInfo?.email
-                                      toast({ title: 'Se trimite ofertă', description: recipient ? `Către: ${recipient}` : 'Se trimite către client' })
-                                      await fetch('/api/users/invite', {
+                                      const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(e)
+                                      const recipientsSet = new Set<string>()
+                                      const clientInfoEmail = (lucrare as any)?.clientInfo?.email
+                                      const clientEmail = (typeof (clientData as any)?.email === 'string') ? (clientData as any).email : undefined
+                                      let locationContactEmail: string | undefined
+                                      try {
+                                        const loc = (clientData as any)?.locatii?.find((l: any) => l?.nume === lucrare.locatie)
+                                        const contact = loc?.persoaneContact?.find((c: any) => c?.nume === lucrare.persoanaContact)
+                                        locationContactEmail = contact?.email
+                                      } catch {}
+                                      ;[clientInfoEmail, clientEmail, locationContactEmail].forEach((e) => { if (isValid(e)) recipientsSet.add((e as string).trim()) })
+                                      const recipients = Array.from(recipientsSet)
+                                      if (recipients.length === 0) {
+                                        toast({ title: 'Destinatar lipsă', description: 'Nu există un email valid al clientului sau al persoanei de contact.', variant: 'destructive' })
+                                        return
+                                      }
+                                      toast({ title: 'Se trimite ofertă', description: `Către: ${recipients.join(', ')}` })
+                                      const resp = await fetch('/api/users/invite', {
                                         method: 'POST',
                                         headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ to: [ recipient ].filter(Boolean), subject, html })
+                                        body: JSON.stringify({ to: recipients, subject, html })
                                       })
-                                      toast({ title: 'Ofertă trimisă', description: recipient ? `S-a trimis oferta la: ${recipient}` : 'Clientul a primit email cu link spre portal.' })
+                                      if (!resp.ok) {
+                                        const err = await resp.json().catch(() => ({}))
+                                        toast({ title: 'Eroare trimitere', description: err?.error || `Cerere invalidă (${resp.status})`, variant: 'destructive' })
+                                      } else {
+                                        toast({ title: 'Ofertă trimisă', description: `S-a trimis oferta la: ${recipients.join(', ')}` })
+                                      }
                                     } catch (e) {
                                       console.warn('Trimitere ofertă eșuată', e)
                                       toast({ title: 'Eroare trimitere', description: 'Nu s-a putut trimite emailul.', variant: 'destructive' })
