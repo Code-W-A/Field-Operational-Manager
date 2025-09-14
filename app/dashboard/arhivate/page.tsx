@@ -272,6 +272,9 @@ export default function LucrariArhivate() {
     (data: Lucrare[]) => {
       if (!activeFilters.length) return data
 
+      const norm = (v: any) => (v == null ? "" : String(v).toLowerCase().trim())
+      const normArr = (arr: any[]) => arr.map((v) => (typeof v === 'string' ? v : v?.value)).filter(Boolean).map(norm)
+
       return data.filter((item) => {
         return activeFilters.every((filter) => {
           if (!filter.value || (Array.isArray(filter.value) && filter.value.length === 0)) return true
@@ -287,26 +290,53 @@ export default function LucrariArhivate() {
               }
               return true
 
-            case "archivedAt":
-              if (filter.value?.start && filter.value?.end) {
-                const itemDate = item.archivedAt ? (item.archivedAt.toDate?.() || new Date(item.archivedAt as any)) : new Date(0)
-                const startDate = new Date(filter.value.start)
-                const endDate = new Date(filter.value.end)
-                return itemDate >= startDate && itemDate <= endDate
-              }
-              return true
+            case "archivedAt": {
+              const startVal = (filter.value && (filter.value.start || filter.value.from)) || undefined
+              const endVal = (filter.value && (filter.value.end || filter.value.to)) || undefined
+              if (!startVal || !endVal) return true
 
-            case "tehnicieni":
-              return filter.value.some((filterTechnician: string) =>
-                item.tehnicieni.includes(filterTechnician)
-              )
+              const parseDate = (v: any) => {
+                try {
+                  const d = new Date(v)
+                  return isNaN(d.getTime()) ? null : d
+                } catch {
+                  return null
+                }
+              }
+
+              const startDate = parseDate(startVal)
+              const endDate = parseDate(endVal)
+              if (!startDate || !endDate) return true
+
+              // Normalizăm la începutul și sfârșitul zilei pentru a include ziua întreagă
+              startDate.setHours(0, 0, 0, 0)
+              endDate.setHours(23, 59, 59, 999)
+
+              const itemDate = item.archivedAt
+                ? (item.archivedAt.toDate?.() || new Date(item.archivedAt as any))
+                : (item.updatedAt ? (item.updatedAt.toDate?.() || new Date(item.updatedAt as any)) : null)
+
+              if (!itemDate || isNaN(itemDate.getTime?.() || (itemDate as any))) return false
+              return itemDate >= startDate && itemDate <= endDate
+            }
+
+            case "tehnicieni": {
+              const vals = normArr(Array.isArray(filter.value) ? filter.value : [])
+              if (!vals.length) return true
+              const itemTech = Array.isArray(item.tehnicieni) ? item.tehnicieni.map(norm) : []
+              return vals.some((t) => itemTech.includes(t))
+            }
 
                          case "tipLucrare":
              case "client":
              case "locatie":
              case "statusFacturare":
-             case "statusEchipament":
-               return filter.value.includes((item as any)[filter.id] || "Nedefinit")
+             case "statusEchipament": {
+               const vals = normArr(Array.isArray(filter.value) ? filter.value : [])
+               if (!vals.length) return true
+               const target = norm((item as any)[filter.id] || "Nedefinit")
+               return vals.includes(target)
+             }
 
             case "numarRaport":
               if (filter.value.includes("cu_numar")) {
@@ -741,7 +771,21 @@ export default function LucrariArhivate() {
               {activeFilters.map((filter, index) => (
                 <Badge key={index} variant="secondary" className="flex items-center gap-1">
                   <span className="text-xs">
-                    {filter.label}: {Array.isArray(filter.value) ? filter.value.join(", ") : filter.value}
+                    {filter.label}: {(() => {
+                      const v = filter.value
+                      if (Array.isArray(v)) return v.join(", ")
+                      if (v && typeof v === 'object') {
+                        const from = v.start || v.from
+                        const to = v.end || v.to
+                        const fmt = (d: any) => {
+                          try { return d ? new Date(d).toLocaleDateString("ro-RO") : "" } catch { return String(d ?? "") }
+                        }
+                        const fromTxt = fmt(from)
+                        const toTxt = fmt(to)
+                        return [fromTxt, toTxt].filter(Boolean).join(" → ") || "-"
+                      }
+                      return String(v ?? "-")
+                    })()}
                   </span>
                   <Button
                     variant="ghost"

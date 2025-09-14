@@ -1612,7 +1612,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                     try {
                                       setIsUpdating(true)
                                       const origin = typeof window !== 'undefined' ? window.location.origin : ''
-                                      const portalUrl = `${origin}/portal/${lucrare.id}`
+                                      const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/portal/${lucrare.id}`
                                       const subject = `Ofertă pentru lucrarea ${lucrare.numarRaport || lucrare.id}`
                                       const html = `
                                         <div style=\"font-family:Arial,sans-serif;line-height:1.5\">
