@@ -37,7 +37,7 @@ export function ProductTableForm({ products, onProductsChange, disabled = false 
       id: generateId(),
       name: "",
       um: "buc",
-      quantity: 0,
+      quantity: 1,
       price: 0,
       total: 0,
     }
@@ -57,7 +57,9 @@ export function ProductTableForm({ products, onProductsChange, disabled = false 
 
         // Recalculăm totalul dacă s-a modificat cantitatea sau prețul
         if (field === "quantity" || field === "price") {
-          updatedProduct.total = updatedProduct.quantity * updatedProduct.price
+          const q = Number(updatedProduct.quantity) || 0
+          const p = Number(updatedProduct.price) || 0
+          updatedProduct.total = q * p
         }
 
         return updatedProduct
@@ -69,7 +71,7 @@ export function ProductTableForm({ products, onProductsChange, disabled = false 
   }
 
   // Calculăm totalul general
-  const totalWithoutVAT = products.reduce((sum, product) => sum + product.total, 0)
+  const totalWithoutVAT = products.reduce((sum, product) => sum + (Number(product.total) || 0), 0)
   const totalWithVAT = totalWithoutVAT * 1.21 // Presupunem TVA 21%
 const handleNumberChange = (
   id: string,
@@ -81,126 +83,101 @@ const handleNumberChange = (
   updateProduct(id, field, parsed ?? 0) // păstrăm 0 doar când vrem noi
 }
 
+  const hasValidationError = (p: ProductItem) => {
+    const nameOk = (p.name || "").trim().length > 0
+    const priceOk = (Number(p.price) || 0) >= 0
+    const qtyOk = (Number(p.quantity) || 0) >= 1
+    return !(nameOk && priceOk && qtyOk)
+  }
+
   return (
-    <div className="space-y-6">
-      <h3 className="text-lg font-medium">Produse și servicii</h3>
+    <div className="space-y-4">
+      <h3 className="text-lg font-medium">Calcul costuri pentru remediere</h3>
 
-      {products.length > 0 ? (
-        <div className="space-y-4">
-          {products.map((product, index) => (
-            <Card key={product.id} className="overflow-hidden">
-              <CardContent className="p-4">
-                <div className="flex justify-between items-start mb-3">
-                  <div className="font-medium">Produs #{index + 1}</div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeProduct(product.id)}
-                    className="h-8 w-8 text-red-500 hover:text-red-700"
-                    disabled={disabled}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label htmlFor={`name-${product.id}`} className="block text-sm font-medium text-gray-700 mb-1">
-                      Denumire produs/serviciu
-                    </label>
-                    <Textarea
-                      id={`name-${product.id}`}
-                      value={product.name}
-                      onChange={(e) => updateProduct(product.id, "name", e.target.value)}
-                      placeholder="Descriere detaliată a produsului sau serviciului"
-                      className="min-h-[80px] resize-y"
-                      disabled={disabled}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                      <label htmlFor={`um-${product.id}`} className="block text-sm font-medium text-gray-700 mb-1">
-                        UM
-                      </label>
-                      <Input
-                        id={`um-${product.id}`}
-                        value={product.um}
-                        onChange={(e) => updateProduct(product.id, "um", e.target.value)}
-                        placeholder="buc"
+      <div className="overflow-x-auto rounded border">
+        <table className="w-full text-sm">
+          <thead className="bg-muted">
+            <tr>
+              <th className="px-3 py-2 text-left w-16">Nr. Crt.</th>
+              <th className="px-3 py-2 text-left">Denumire</th>
+              <th className="px-3 py-2 text-right w-28">PU (lei)</th>
+              <th className="px-3 py-2 text-right w-24">Buc</th>
+              <th className="px-3 py-2 text-right w-32">Total (lei)</th>
+              <th className="px-3 py-2 text-right w-10">&nbsp;</th>
+            </tr>
+          </thead>
+          <tbody>
+            {products.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-3 py-4 text-center text-muted-foreground">Nu există poziții. Adăugați un rând.</td>
+              </tr>
+            ) : (
+              products.map((p, idx) => {
+                const invalid = hasValidationError(p)
+                return (
+                  <tr key={p.id} className={invalid ? "bg-red-50" : ""}>
+                    <td className="px-3 py-2 align-top">{idx + 1}</td>
+                    <td className="px-3 py-2 align-top">
+                      <Textarea
+                        id={`name-${p.id}`}
+                        value={p.name}
+                        onChange={(e) => updateProduct(p.id, "name", e.target.value)}
+                        placeholder="Denumire produs/serviciu"
+                        className="min-h-[60px]"
                         disabled={disabled}
                       />
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor={`quantity-${product.id}`}
-                        className="block text-sm font-medium text-gray-700 mb-1"
-                      >
-                        Cantitate
-                      </label>
+                    </td>
+                    <td className="px-3 py-2 align-top">
                       <Input
-                        id={`quantity-${product.id}`}
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={product.quantity === 0 ? "" : product.quantity}
-                        onChange={handleNumberChange(product.id, "quantity")}
-                        disabled={disabled}
-                      />
-                    </div>
-
-                    <div>
-                      <label htmlFor={`price-${product.id}`} className="block text-sm font-medium text-gray-700 mb-1">
-                        Preț unitar
-                      </label>
-                      <Input
-                        id={`price-${product.id}`}
+                        id={`price-${p.id}`}
                         type="number"
                         min="0"
                         step="0.01"
-                        value={product.price === 0 ? "" : product.price}
-                        onChange={handleNumberChange(product.id, "price")}
+                        value={p.price === 0 ? "" : String(p.price)}
+                        onChange={handleNumberChange(p.id, "price")}
                         disabled={disabled}
+                        className="text-right"
                       />
-                    </div>
+                    </td>
+                    <td className="px-3 py-2 align-top">
+                      <Input
+                        id={`quantity-${p.id}`}
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={p.quantity === 0 ? "" : String(p.quantity)}
+                        onChange={handleNumberChange(p.id, "quantity")}
+                        disabled={disabled}
+                        className="text-right"
+                      />
+                    </td>
+                    <td className="px-3 py-2 align-top text-right font-medium">{(Number(p.total) || 0).toFixed(2)}</td>
+                    <td className="px-3 py-2 align-top text-right">
+                      <Button variant="ghost" size="icon" onClick={() => removeProduct(p.id)} disabled={disabled}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </td>
+                  </tr>
+                )
+              })
+            )}
+          </tbody>
+          <tfoot>
+            <tr className="bg-yellow-50">
+              <td colSpan={4} className="px-3 py-2 text-right font-medium">Total lei fără TVA</td>
+              <td className="px-3 py-2 text-right font-bold">{totalWithoutVAT.toFixed(2)}</td>
+              <td className="px-3 py-2" />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Total</label>
-                      <div className="h-10 px-3 py-2 rounded-md border border-input bg-background text-sm font-medium flex items-center">
-                        {product.total.toFixed(2)} lei
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-8 border rounded-md bg-muted/20">
-          <p className="text-muted-foreground">
-            Nu există produse adăugate. Folosiți butonul de mai jos pentru a adăuga.
-          </p>
-        </div>
-      )}
-
-      <Button variant="outline" onClick={addProduct} className="gap-1" disabled={disabled}>
-        <Plus className="h-4 w-4" /> Adaugă produs
-      </Button>
-
-      {products.length > 0 && (
-        <div className="flex flex-col items-end space-y-2 pt-4">
-          <div className="flex justify-between w-full max-w-[300px]">
-            <span className="font-medium">Total fără TVA:</span>
-            <span>{totalWithoutVAT.toFixed(2)} lei</span>
-          </div>
-          <div className="flex justify-between w-full max-w-[300px]">
-            <span className="font-medium">Total cu TVA (21%):</span>
-            <span className="font-bold">{totalWithVAT.toFixed(2)} lei</span>
-          </div>
-        </div>
-      )}
+      <div className="flex items-center justify-between">
+        <Button variant="outline" onClick={addProduct} disabled={disabled} className="gap-1">
+          <Plus className="h-4 w-4" /> Adaugă rând
+        </Button>
+        <div className="text-xs text-muted-foreground">Valută: RON</div>
+      </div>
     </div>
   )
 }

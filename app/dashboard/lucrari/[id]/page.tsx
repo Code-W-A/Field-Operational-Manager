@@ -1663,6 +1663,23 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                           />
                         </div>
                       )}
+                      {/* Răspuns ofertă din portal (read-only) */}
+                      {lucrare.offerResponse?.status && (
+                        <div className="md:col-span-3 p-3 rounded border bg-white">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs font-medium text-blue-800">Răspuns ofertă (client)</span>
+                            <Badge variant={lucrare.offerResponse.status === "accept" ? "default" : "destructive"}>
+                              {lucrare.offerResponse.status === "accept" ? "Acceptată" : "Respinsă"}
+                            </Badge>
+                          </div>
+                          {lucrare.offerResponse.reason && (
+                            <div className="text-sm text-gray-700">Motiv: {lucrare.offerResponse.reason}</div>
+                          )}
+                          {lucrare.offerResponse.at && (
+                            <div className="text-xs text-gray-500 mt-1">{new Date(lucrare.offerResponse.at).toLocaleString('ro-RO')}</div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

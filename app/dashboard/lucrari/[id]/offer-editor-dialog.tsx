@@ -20,6 +20,8 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
   const [saving, setSaving] = useState(false)
   const [versions, setVersions] = useState<Array<{ savedAt: string; savedBy?: string; total: number; products: ProductItem[] }>>([])
   const [viewIndex, setViewIndex] = useState<number | null>(null)
+  const [vatPercent, setVatPercent] = useState<number>(0)
+  const [isPickedUp, setIsPickedUp] = useState<boolean>(true)
 
   useEffect(() => {
     setProducts(initialProducts || [])
@@ -29,13 +31,27 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
     const load = async () => {
       const current = await getLucrareById(lucrareId)
       setVersions(((current as any)?.offerVersions || []) as any)
+      setIsPickedUp(Boolean((current as any)?.preluatDispecer))
+      if ((current as any)?.offerVAT != null) setVatPercent(Number((current as any)?.offerVAT) || 0)
     }
     if (open) void load()
   }, [open, lucrareId])
 
   const total = useMemo(() => products.reduce((s, p) => s + (p.total || 0), 0), [products])
+  const totalWithVAT = useMemo(() => total * (1 + (Number(vatPercent) || 0) / 100), [total, vatPercent])
 
-  const handleSave = async () => {
+  // Seed rows on empty open
+  useEffect(() => {
+    if (open && (!products || products.length === 0)) {
+      setProducts([
+        { id: `seed1`, name: "Fotocelule de siguranță", um: "buc", price: 180, quantity: 1, total: 180 },
+        { id: `seed2`, name: "Picior mobil", um: "buc", price: 290, quantity: 2, total: 580 },
+        { id: `seed3`, name: "Manoperă montaj", um: "buc", price: 750, quantity: 1, total: 750 },
+      ])
+    }
+  }, [open])
+
+  const handleSave = async (asNewVersion = false) => {
     try {
       setSaving(true)
       const version = {
@@ -44,16 +60,16 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
         total,
         products,
       }
-      // Append version to existing list (best-effort)
       const current = await getLucrareById(lucrareId)
       const existing = (current as any)?.offerVersions || []
-      const newVersions = [...existing, version]
+      const newVersions = asNewVersion ? [...existing, version] : existing
       await updateLucrare(lucrareId, {
         products,
         offerTotal: total,
+        offerVAT: Number(vatPercent) || 0,
         offerVersions: newVersions as any,
       } as any)
-      setVersions(newVersions)
+      if (asNewVersion) setVersions(newVersions)
       // Fallback save: append version to a dedicated endpoint by overwriting whole array is not ideal; leave for next iteration
       onOpenChange(false)
     } finally {
@@ -88,10 +104,35 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
       <DialogContent className="max-w-[1000px] w-[calc(100%-2rem)]">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-4">
-            <ProductTableForm products={products} onProductsChange={setProducts} />
+            <ProductTableForm products={products} onProductsChange={setProducts} disabled={!isPickedUp} />
+
+            {/* VAT controls & totals */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm">TVA (%)</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={vatPercent}
+                  onChange={(e) => setVatPercent(e.target.value === "" ? 0 : Number(e.target.value))}
+                  className="w-20 border rounded px-2 py-1 text-sm"
+                  disabled={!isPickedUp}
+                />
+              </div>
+              <div className="text-right text-sm">
+                <div>Total fără TVA: <strong>{total.toFixed(2)} lei</strong></div>
+                <div>Total cu TVA: <strong>{totalWithVAT.toFixed(2)} lei</strong></div>
+              </div>
+            </div>
+
             <div className="flex items-center justify-end gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Închide</Button>
-              <Button onClick={handleSave} disabled={saving || products.length === 0}>{saving ? "Se salvează..." : "Salvează"}</Button>
+              {!isPickedUp && (
+                <span className="text-xs text-muted-foreground mr-auto">Editorul este disponibil după preluarea lucrării de către dispecer.</span>
+              )}
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Anulează</Button>
+              <Button onClick={() => handleSave(false)} disabled={saving || products.length === 0 || !isPickedUp}>{saving ? "Se salvează..." : "Salvează"}</Button>
+              <Button onClick={() => handleSave(true)} disabled={saving || products.length === 0 || !isPickedUp}>Salvează ca versiune nouă</Button>
             </div>
           </div>
           <div className="space-y-3">

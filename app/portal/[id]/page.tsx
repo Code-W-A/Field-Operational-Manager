@@ -42,6 +42,8 @@ export default function PortalWorkDetail() {
           reason: reason || undefined,
           at: new Date().toISOString(),
         },
+        // Actualizăm și statusul ofertei pentru vizibilitate în admin/dispecer
+        statusOferta: accepted ? "DA" : "NU",
       } as any, undefined, undefined, true)
       
       // Log response in global logs (best-effort)
