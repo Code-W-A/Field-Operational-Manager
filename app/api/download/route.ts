@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
-import { collection, addDoc, serverTimestamp } from "firebase/firestore"
-import { db } from "@/lib/firebase/config"
+// NOTE: For server-side logging, use Admin SDK (adminDb). Do not use client SDK here.
 import { cookies } from "next/headers"
 import { adminAuth, adminDb } from "@/lib/firebase/admin"
 
@@ -103,13 +102,17 @@ export async function GET(request: Request) {
     // Log into subcollection for easy querying in UI
     if (shouldLog) {
       try {
-        await addDoc(collection(db, "lucrari", lucrareId, "downloads"), {
-          timestamp: serverTimestamp(),
-          type: docType,
-          url,
-          userEmail: userEmail || "portal",
-          userId: userId || "portal",
-        })
+        await adminDb
+          .collection("lucrari")
+          .doc(lucrareId)
+          .collection("downloads")
+          .add({
+            timestamp: new Date(),
+            type: docType,
+            url,
+            userEmail: userEmail || "portal",
+            userId: userId || "portal",
+          })
         console.log(`[DOWNLOAD] [${requestId}] Download logged`, { lucrareId, type: docType })
       } catch (e) {
         // non-blocking

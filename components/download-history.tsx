@@ -11,13 +11,11 @@ export function DownloadHistory({ lucrareId }: { lucrareId: string }) {
   useEffect(() => {
     const load = async () => {
       try {
-        const q = query(collection(db, "lucrari", lucrareId, "downloads"))
+        const q = query(collection(db, "lucrari", lucrareId, "downloads"), orderBy("timestamp", "desc"))
         const snap = await getDocs(q)
         const list: any[] = []
         snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }))
-        // best effort sort by server timestamp if present
-        list.sort((a, b) => (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0))
-        setItems(list.reverse())
+        setItems(list)
       } finally {
         setLoading(false)
       }
@@ -34,13 +32,18 @@ export function DownloadHistory({ lucrareId }: { lucrareId: string }) {
         {items.map((it) => {
           const d = it.timestamp?.toDate ? it.timestamp.toDate() : it.timestamp ? new Date(it.timestamp) : null
           const when = d ? `${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")}.${d.getFullYear()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}` : "-"
+          const who = (it.userEmail && it.userEmail !== "portal") ? it.userEmail : "Portal client"
           return (
             <div key={it.id} className="p-2 text-sm flex items-center justify-between">
-              <div>
-                <span className="font-medium mr-2">{it.type || "document"}</span>
-                <span className="text-muted-foreground break-all">{it.url}</span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-medium">{it.type || "document"}</span>
+                  <span className="text-xs text-muted-foreground">•</span>
+                  <span className="text-muted-foreground truncate max-w-[38ch]" title={it.url}>{it.url}</span>
+                </div>
+                <div className="text-xs text-muted-foreground">de: {who}</div>
               </div>
-              <div className="text-muted-foreground">{when}</div>
+              <div className="text-muted-foreground whitespace-nowrap ml-4">{when}</div>
             </div>
           )
         })}
