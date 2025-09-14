@@ -1619,7 +1619,6 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                           <h2 style=\"margin:0 0 12px;color:#0f56b3\">Ofertă lucrări</h2>
                                           <p>Vă transmitem oferta pentru lucrarea dvs. Puteți vizualiza și răspunde (Accept/Nu accept) în portal:</p>
                                           <p><a href=\"${portalUrl}\" target=\"_blank\">${portalUrl}</a></p>
-                                          <p style=\"margin-top:12px\"><strong>Total:</strong> ${(lucrare.offerTotal || (lucrare.products || []).reduce((s:number,p:any)=>s+(p.total||0),0)).toFixed(2)} lei</p>
                                         </div>`
                                       const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(e)
                                       const recipientsSet = new Set<string>()
