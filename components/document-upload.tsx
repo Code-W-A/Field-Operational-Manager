@@ -285,7 +285,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => window.open(lucrare.facturaDocument.url, '_blank')}
+                    onClick={() => window.open(`/api/download?lucrareId=${encodeURIComponent(lucrareId)}&type=factura&url=${encodeURIComponent(lucrare.facturaDocument.url)}`, '_blank')}
                   >
                     <Eye className="h-4 w-4 mr-1" />
                     Vizualizează
@@ -293,7 +293,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => triggerDownload(lucrare.facturaDocument.url, lucrare.facturaDocument.fileName || 'factura.pdf')}
+                    onClick={() => window.open(`/api/download?lucrareId=${encodeURIComponent(lucrareId)}&type=factura&url=${encodeURIComponent(lucrare.facturaDocument.url)}`, '_blank')}
                   >
                     <Download className="h-4 w-4 mr-1" />
                     Descarcă
@@ -372,7 +372,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => window.open(lucrare.ofertaDocument.url, '_blank')}
+                    onClick={() => window.open(`/api/download?lucrareId=${encodeURIComponent(lucrareId)}&type=oferta&url=${encodeURIComponent(lucrare.ofertaDocument.url)}`, '_blank')}
                   >
                     <Eye className="h-4 w-4 mr-1" />
                     Vizualizează
@@ -380,7 +380,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => triggerDownload(lucrare.ofertaDocument.url, lucrare.ofertaDocument.fileName || 'oferta.pdf')}
+                    onClick={() => window.open(`/api/download?lucrareId=${encodeURIComponent(lucrareId)}&type=oferta&url=${encodeURIComponent(lucrare.ofertaDocument.url)}`, '_blank')}
                   >
                     <Download className="h-4 w-4 mr-1" />
                     Descarcă

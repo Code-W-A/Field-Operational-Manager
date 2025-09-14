@@ -241,7 +241,7 @@ export default function PortalWorkDetail() {
                   {w.raportSnapshot?.url && (
                     <Link 
                       className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors" 
-                      href={w.raportSnapshot.url}
+                      href={`/api/download?lucrareId=${encodeURIComponent(id)}&type=raport&url=${encodeURIComponent(w.raportSnapshot.url)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -257,7 +257,7 @@ export default function PortalWorkDetail() {
                   {w.facturaDocument?.url && (
                     <Link 
                       className="flex items-center gap-3 p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors" 
-                      href={w.facturaDocument.url}
+                      href={`/api/download?lucrareId=${encodeURIComponent(id)}&type=factura&url=${encodeURIComponent(w.facturaDocument.url)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -273,7 +273,7 @@ export default function PortalWorkDetail() {
                   {w.ofertaDocument?.url && (
                     <Link 
                       className="flex items-center gap-3 p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors" 
-                      href={w.ofertaDocument.url}
+                      href={`/api/download?lucrareId=${encodeURIComponent(id)}&type=oferta&url=${encodeURIComponent(w.ofertaDocument.url)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
