@@ -87,6 +87,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const [reinterventii, setReinterventii] = useState<Lucrare[]>([])
   const [loadingReinterventii, setLoadingReinterventii] = useState(false)
   const [clientData, setClientData] = useState<any>(null)
+  // Blocare scanare dacă tehnicianul are deja altă lucrare "În lucru"
+  const [otherActiveWork, setOtherActiveWork] = useState<null | { id: string; numar: string; client?: string; locatie?: string }>(null)
+  const [checkingOtherActive, setCheckingOtherActive] = useState(false)
 
   // Funcție pentru încărcarea reintervențiilor derivate din lucrarea curentă
   const loadReinterventii = useCallback(async (lucrareId: string) => {
@@ -450,6 +453,28 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       return null
     }
   })
+
+  // La intrarea pe tabul de verificare, dacă tehnicianul are deja o altă lucrare "În lucru",
+  // ascundem scannerul și afișăm mesaj cu link către lucrarea deschisă.
+  useEffect(() => {
+    let mounted = true
+    const check = async () => {
+      try {
+        // Se aplică doar pentru tehnicieni, pe lucrări neamânate și când echipamentul NU e verificat încă
+        if (role !== "tehnician" || !lucrare || equipmentVerified || lucrare.statusLucrare === WORK_STATUS.POSTPONED) {
+          setOtherActiveWork(null)
+          return
+        }
+        setCheckingOtherActive(true)
+        const other = await findOtherActiveWorkForTechnician()
+        if (mounted) setOtherActiveWork(other)
+      } finally {
+        if (mounted) setCheckingOtherActive(false)
+      }
+    }
+    check()
+    return () => { mounted = false }
+  }, [role, lucrare?.id, lucrare?.statusLucrare, equipmentVerified, findOtherActiveWorkForTechnician])
 
   const handleVerificationComplete = useStableCallback(async (success: boolean) => {
     if (!lucrare?.id) return
@@ -1950,7 +1975,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   <div>
                     <CardTitle>Verificare Echipament</CardTitle>
                     <CardDescription>
-                      Scanați QR code-ul echipamentului pentru a verifica dacă corespunde cu lucrarea.
+                      {otherActiveWork
+                        ? "Ai deja o lucrare în lucru. Finalizează sau închide lucrarea deschisă înainte de a începe alta."
+                        : "Scanați QR code-ul echipamentului pentru a verifica dacă corespunde cu lucrarea."}
                     </CardDescription>
                   </div>
                   {/* Buton de amânare - disponibil doar pentru lucrări neamânate și nefinalizate */}
@@ -1982,6 +2009,30 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       Echipamentul a fost verificat cu succes. Puteți continua intervenția.
                     </AlertDescription>
                   </Alert>
+                ) : otherActiveWork ? (
+                  <>
+                    <Alert className="bg-yellow-50 border-yellow-200">
+                      <AlertCircle className="h-4 w-4 text-yellow-600" />
+                      <AlertTitle>Ai deja o lucrare în lucru</AlertTitle>
+                      <AlertDescription>
+                        {(() => {
+                          const parts = [
+                            otherActiveWork.client ? `Client: ${otherActiveWork.client}` : null,
+                            otherActiveWork.locatie ? `Locație: ${otherActiveWork.locatie}` : null,
+                          ].filter(Boolean)
+                          return parts.length > 0 ? parts.join(" | ") : "Finalizează sau închide lucrarea deschisă înainte de a începe alta."
+                        })()}
+                      </AlertDescription>
+                    </Alert>
+                    <div className="flex items-center justify-center gap-3">
+                      <Button onClick={() => router.push(`/dashboard/lucrari/${otherActiveWork.id}`)}>
+                        Deschide lucrarea în lucru
+                      </Button>
+                      {checkingOtherActive && (
+                        <span className="text-xs text-gray-500">Se verifică starea lucrărilor...</span>
+                      )}
+                    </div>
+                  </>
                 ) : (
                   <>
                     <div className="flex flex-col items-center justify-center p-4 border rounded-lg">
