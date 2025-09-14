@@ -25,9 +25,10 @@ interface ProductTableFormProps {
   products: ProductItem[]
   onProductsChange: (products: ProductItem[]) => void
   disabled?: boolean
+  showTitle?: boolean
 }
 
-export function ProductTableForm({ products, onProductsChange, disabled = false }: ProductTableFormProps) {
+export function ProductTableForm({ products, onProductsChange, disabled = false, showTitle = true }: ProductTableFormProps) {
   // Funcție pentru a genera un ID unic
   const generateId = () => `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
@@ -92,7 +93,9 @@ const handleNumberChange = (
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-medium">Calcul costuri pentru remediere</h3>
+      {showTitle && (
+        <h3 className="text-lg font-medium">Calcul costuri pentru remediere</h3>
+      )}
 
       <div className="overflow-x-auto rounded border">
         <table className="w-full text-sm">

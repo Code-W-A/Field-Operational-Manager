@@ -1855,7 +1855,8 @@ FOM by NRG`,
                 <ProductTableForm 
                   products={products} 
                   onProductsChange={setProducts}
-                  disabled={lucrare?.raportDataLocked} 
+                  disabled={lucrare?.raportDataLocked}
+                  showTitle={false}
                 />
 
                 <Separator />
