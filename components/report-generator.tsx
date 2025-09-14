@@ -590,7 +590,11 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       addTextBlock("Descriere interventie:", lucrareForPDF.descriereInterventie)
 
       // Use the products from the snapshot if available, otherwise fallback to current products
-      const productsToUse = lucrareForPDF.products || products
+      const productsToUse = (lucrareForPDF.raportSnapshot?.products && lucrareForPDF.raportSnapshot.products.length > 0)
+        ? lucrareForPDF.raportSnapshot.products
+        : (lucrareForPDF.products && lucrareForPDF.products.length > 0)
+          ? lucrareForPDF.products
+          : products
 
       // PRODUCT TABLE (shown only if there are products)
       if (productsToUse && productsToUse.length > 0) {
@@ -654,14 +658,17 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         checkPageBreak(30)
         currentY += 10
         const subtotal = productsToUse.reduce((s, p) => s + (p.quantity || 0) * (p.price || 0), 0)
-        const vat = subtotal * 0.19
+        // Use offerVAT if a positive number was set; otherwise default to 21%
+        const rawOfferVat = (lucrareForPDF as any)?.offerVAT
+        const vatPercent = (typeof rawOfferVat === 'number' && rawOfferVat > 0) ? rawOfferVat : 21
+        const vat = subtotal * (vatPercent / 100)
         const total = subtotal + vat
         const labelX = PW - 70
         const valX = PW - 20
         doc.setFontSize(9).setFont("helvetica", "bold").text("Total fara TVA:", labelX, currentY, { align: "right" })
         doc.setFont("helvetica", "normal").text(`${subtotal.toFixed(2)} RON`, valX, currentY, { align: "right" })
         currentY += 6
-        doc.setFont("helvetica", "bold").text("TVA (21%):", labelX, currentY, { align: "right" })
+        doc.setFont("helvetica", "bold").text(`TVA (${vatPercent}%):`, labelX, currentY, { align: "right" })
         doc.setFont("helvetica", "normal").text(`${vat.toFixed(2)} RON`, valX, currentY, { align: "right" })
         currentY += 6
         doc.setFont("helvetica", "bold").text("Total cu TVA:", labelX, currentY, { align: "right" })

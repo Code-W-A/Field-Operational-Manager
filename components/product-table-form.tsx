@@ -97,7 +97,7 @@ const handleNumberChange = (
         <h3 className="text-lg font-medium">Calcul costuri pentru remediere</h3>
       )}
 
-      <div className="overflow-x-auto rounded border">
+      <div className="overflow-x-auto overflow-y-auto rounded border max-h-[60vh]">
         <table className="w-full text-sm">
           <thead className="bg-muted">
             <tr>

@@ -1852,12 +1852,44 @@ FOM by NRG`,
                 <Separator />
 
                 {/* Adăugăm formularul pentru produse */}
+                {!lucrare?.raportDataLocked && (
+                  <div className="flex justify-end mb-2">
+                    <button
+                      type="button"
+                      className="text-sm px-3 py-1.5 rounded border bg-white hover:bg-gray-50"
+                      onClick={() => setProducts(prev => ([
+                        ...prev,
+                        { id: `rp_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, name: "", um: "buc", price: 0, quantity: 1, total: 0 }
+                      ]))}
+                    >
+                      Adaugă produs
+                    </button>
+                  </div>
+                )}
                 <ProductTableForm 
                   products={products} 
                   onProductsChange={setProducts}
                   disabled={lucrare?.raportDataLocked}
                   showTitle={false}
                 />
+                {/* Sumar totaluri pentru raport (21% TVA) */}
+                {products && products.length > 0 && (
+                  <div className="mt-3 flex justify-end">
+                    {(() => {
+                      const subtotal = products.reduce((s: number, p: any) => s + (Number(p.total) || ((Number(p.quantity)||0)*(Number(p.price)||0))), 0)
+                      const vatPercent = 21
+                      const vat = subtotal * (vatPercent / 100)
+                      const total = subtotal + vat
+                      return (
+                        <div className="text-sm space-y-1 text-right">
+                          <div><span className="font-medium">Total lei fără TVA:</span> {subtotal.toFixed(2)}</div>
+                          <div><span className="font-medium">TVA (21%):</span> {vat.toFixed(2)}</div>
+                          <div><span className="font-medium">Total cu TVA:</span> {total.toFixed(2)}</div>
+                        </div>
+                      )
+                    })()}
+                  </div>
+                )}
 
                 <Separator />
 

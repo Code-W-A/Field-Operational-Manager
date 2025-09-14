@@ -20,7 +20,7 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
   const [saving, setSaving] = useState(false)
   const [versions, setVersions] = useState<Array<{ savedAt: string; savedBy?: string; total: number; products: ProductItem[] }>>([])
   const [viewIndex, setViewIndex] = useState<number | null>(null)
-  const [vatPercent, setVatPercent] = useState<number>(0)
+  const [vatPercent, setVatPercent] = useState<number>(21)
   const [isPickedUp, setIsPickedUp] = useState<boolean>(true)
 
   useEffect(() => {
@@ -32,7 +32,11 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
       const current = await getLucrareById(lucrareId)
       setVersions(((current as any)?.offerVersions || []) as any)
       setIsPickedUp(Boolean((current as any)?.preluatDispecer))
-      if ((current as any)?.offerVAT != null) setVatPercent(Number((current as any)?.offerVAT) || 0)
+      {
+        const rawVat = (current as any)?.offerVAT
+        const nextVat = (typeof rawVat === 'number' && rawVat > 0) ? Number(rawVat) : 21
+        setVatPercent(nextVat)
+      }
     }
     if (open) void load()
   }, [open, lucrareId])
@@ -81,16 +85,13 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
     try {
       setSaving(true)
       const v = versions[index]
-      const current = await getLucrareById(lucrareId)
-      const existing = (current as any)?.offerVersions || []
-      const newVersions = [...existing, { ...v, savedAt: new Date().toISOString(), savedBy: userData?.displayName || userData?.email || "Unknown" }]
+      // Restaurăm produsele și totalul fără a crea o versiune nouă în istoric
       await updateLucrare(lucrareId, {
         products: v.products,
         offerTotal: v.total,
-        offerVersions: newVersions as any,
       } as any)
       setProducts(v.products)
-      setVersions(newVersions)
+      // Istoricul rămâne neschimbat (nu adăugăm o versiune nouă)
     } finally {
       setSaving(false)
     }

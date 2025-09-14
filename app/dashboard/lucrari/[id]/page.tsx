@@ -1569,21 +1569,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                             <option value="DA">DA - Necesită ofertă</option>
                             <option value="OFERTAT">OFERTAT</option>
                           </select>
-                        </div>
-                      )}
-                      {lucrare.necesitaOferta && (
-                        <div className="space-y-2">
-                          <Label className="text-xs font-medium text-blue-800">Editor ofertă</Label>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setIsOfferEditorOpen(true)}
-                              disabled={isUpdating}
-                            >
-                              Deschide editor
-                            </Button>
-                            {lucrare.products && lucrare.products.length > 0 && (
+                          {/* Marchează OFERTAT sub dropdown */}
+                          {lucrare.products && lucrare.products.length > 0 && (
+                            <div>
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -1600,40 +1588,57 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                               >
                                 Marchează OFERTAT
                               </Button>
-                            )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {lucrare.necesitaOferta && (
+                        <div className="space-y-2">
+                          <Label className="text-xs font-medium text-blue-800">Editor ofertă</Label>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setIsOfferEditorOpen(true)}
+                              disabled={isUpdating}
+                            >
+                              Deschide editor
+                            </Button>
                             {lucrare.products && lucrare.products.length > 0 && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={async () => {
-                                  try {
-                                    setIsUpdating(true)
-                                    const origin = typeof window !== 'undefined' ? window.location.origin : ''
-                                    const portalUrl = `${origin}/portal/${lucrare.id}`
-                                    const subject = `Ofertă pentru lucrarea ${lucrare.numarRaport || lucrare.id}`
-                                    const html = `
-                                      <div style="font-family:Arial,sans-serif;line-height:1.5">
-                                        <h2 style="margin:0 0 12px;color:#0f56b3">Ofertă lucrări</h2>
-                                        <p>Vă transmitem oferta pentru lucrarea dvs. Puteți vizualiza și răspunde (Accept/Nu accept) în portal:</p>
-                                        <p><a href="${portalUrl}" target="_blank">${portalUrl}</a></p>
-                                        <p style="margin-top:12px"><strong>Total:</strong> ${(lucrare.offerTotal || (lucrare.products || []).reduce((s:number,p:any)=>s+(p.total||0),0)).toFixed(2)} lei</p>
-                                      </div>`
-                                    await fetch('/api/users/invite', {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ to: [ (lucrare as any)?.clientInfo?.email ].filter(Boolean), subject, html })
-                                    })
-                                    toast({ title: 'Ofertă trimisă', description: 'Clientul a primit email cu link spre portal.' })
-                                  } catch (e) {
-                                    console.warn('Trimitere ofertă eșuată', e)
-                                    toast({ title: 'Eroare trimitere', description: 'Nu s-a putut trimite emailul.', variant: 'destructive' })
-                                  } finally {
-                                    setIsUpdating(false)
-                                  }
-                                }}
-                              >
-                                Trimite ofertă
-                              </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    try {
+                                      setIsUpdating(true)
+                                      const origin = typeof window !== 'undefined' ? window.location.origin : ''
+                                      const portalUrl = `${origin}/portal/${lucrare.id}`
+                                      const subject = `Ofertă pentru lucrarea ${lucrare.numarRaport || lucrare.id}`
+                                      const html = `
+                                        <div style=\"font-family:Arial,sans-serif;line-height:1.5\">
+                                          <h2 style=\"margin:0 0 12px;color:#0f56b3\">Ofertă lucrări</h2>
+                                          <p>Vă transmitem oferta pentru lucrarea dvs. Puteți vizualiza și răspunde (Accept/Nu accept) în portal:</p>
+                                          <p><a href=\"${portalUrl}\" target=\"_blank\">${portalUrl}</a></p>
+                                          <p style=\"margin-top:12px\"><strong>Total:</strong> ${(lucrare.offerTotal || (lucrare.products || []).reduce((s:number,p:any)=>s+(p.total||0),0)).toFixed(2)} lei</p>
+                                        </div>`
+                                      const recipient = (lucrare as any)?.clientInfo?.email
+                                      toast({ title: 'Se trimite ofertă', description: recipient ? `Către: ${recipient}` : 'Se trimite către client' })
+                                      await fetch('/api/users/invite', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ to: [ recipient ].filter(Boolean), subject, html })
+                                      })
+                                      toast({ title: 'Ofertă trimisă', description: recipient ? `S-a trimis oferta la: ${recipient}` : 'Clientul a primit email cu link spre portal.' })
+                                    } catch (e) {
+                                      console.warn('Trimitere ofertă eșuată', e)
+                                      toast({ title: 'Eroare trimitere', description: 'Nu s-a putut trimite emailul.', variant: 'destructive' })
+                                    } finally {
+                                      setIsUpdating(false)
+                                    }
+                                  }}
+                                >
+                                  Trimite ofertă
+                                </Button>
                             )}
                           </div>
                         </div>
