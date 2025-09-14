@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Clock, AlertTriangle } from "lucide-react"
-import { updateLucrare } from "@/lib/firebase/firestore"
+import { updateLucrare, getLucrareById } from "@/lib/firebase/firestore"
 import { sendWorkOrderPostponedNotification } from "@/components/work-order-notification-service"
 import { WORK_STATUS } from "@/lib/utils/constants"
 import { toast } from "@/components/ui/use-toast"
@@ -62,15 +62,19 @@ export function PostponeWorkDialog({ lucrareId, onSuccess, className }: Postpone
 
       // Trimitem email clientului despre amânare (preferăm email-ul persoanei de contact a locației)
       try {
+        // Obținem datele actuale ale lucrării pentru a construi corect payload-ul
+        const lucrare = await getLucrareById(lucrareId)
+
         await sendWorkOrderPostponedNotification({
           id: lucrareId,
           motivAmanare: updateData.motivAmanare,
           dataAmanare: updateData.dataAmanare,
-          locatie: (window as any)?.currentLucrare?.locatie || undefined,
-          persoanaContact: (window as any)?.currentLucrare?.persoanaContact || undefined,
-          tipLucrare: (window as any)?.currentLucrare?.tipLucrare || undefined,
-          dataInterventie: (window as any)?.currentLucrare?.dataInterventie || undefined,
-          client: (window as any)?.currentLucrare?.clientInfo || (window as any)?.currentLucrare?.client || undefined,
+          locatie: lucrare?.locatie,
+          persoanaContact: lucrare?.persoanaContact,
+          tipLucrare: lucrare?.tipLucrare,
+          dataInterventie: lucrare?.dataInterventie,
+          // Trimitem numele clientului ca string pentru a permite rezolvarea corectă a emailului în serviciu
+          client: lucrare?.client,
         })
       } catch (e) {
         console.warn("Nu s-a putut trimite notificarea de amânare către client:", e)
