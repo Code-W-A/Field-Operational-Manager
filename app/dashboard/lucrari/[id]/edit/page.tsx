@@ -227,17 +227,24 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
         description: "Lucrarea a fost actualizată cu succes.",
       })
 
-      // Trimitem notificări dacă s-a schimbat data intervenției sau tehnicienii
+      // Trimitem notificări dacă s-a schimbat data intervenției, tehnicienii, locația sau statusul
       if (
         initialData &&
-        (data.dataInterventie !== initialData.dataInterventie ||
-          JSON.stringify(data.tehnicieni) !== JSON.stringify(initialData.tehnicieni))
+        (
+          data.dataInterventie !== initialData.dataInterventie ||
+          JSON.stringify(data.tehnicieni) !== JSON.stringify(initialData.tehnicieni) ||
+          data.locatie !== initialData.locatie ||
+          statusLucrare !== initialData.statusLucrare
+        )
       ) {
         try {
           const workOrderData = {
             id,
             ...initialData,
             ...data,
+            // Asigurăm că trimitem statusul recalculat și locația curentă
+            statusLucrare,
+            locatie: data.locatie ?? initialData.locatie,
           }
 
           console.log("Sending notifications for updated work order:", id)
