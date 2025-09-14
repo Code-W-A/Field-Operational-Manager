@@ -491,17 +491,21 @@ export async function POST(request: NextRequest) {
             </div>
             <h2 style="color: #0f56b3;">${isPostponed ? "Lucrare amânată" : "Confirmare lucrare"}</h2>
             <p>Stimate ${client.contactPerson || client.name},</p>
-            <p>Vă confirmăm programarea unei intervenții cu următoarele detalii:</p>
+            <p>${isPostponed
+              ? "Vă informăm că lucrarea a fost amânată. Mai jos regăsiți detaliile relevante:"
+              : "Vă confirmăm programarea unei intervenții cu următoarele detalii:"}
+            </p>
             
             <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 15px 0;">
               <h3 style="margin-top: 0;">Detalii lucrare</h3>
               ${clientWorkOrderInfo}
             </div>
-
-            <div style="background-color: #f0f8ff; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #0f56b3;">
-              <h3 style="margin-top: 0; color: #0f56b3;">Tehnicieni</h3>
+            ${!isPostponed ? `
+            <div style=\"background-color: #f0f8ff; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #0f56b3;\">
+              <h3 style=\"margin-top: 0; color: #0f56b3;\">Tehnicieni</h3>
               ${technicianInfoForClient}
             </div>
+            ` : ''}
             
             <p>Vă mulțumim pentru înțelegere și vă stăm la dispoziție pentru orice întrebări.</p>
             <hr style="border: 1px solid #eee; margin: 20px 0;" />
