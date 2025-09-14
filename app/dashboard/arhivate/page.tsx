@@ -546,7 +546,7 @@ export default function LucrariArhivate() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => router.push(`/dashboard/arhivate/${row.id}`)}
+                  onClick={() => router.push(`/dashboard/arhivate/${row.original.id}`)}
                 >
                   <Eye className="h-4 w-4" />
                 </Button>
@@ -561,7 +561,7 @@ export default function LucrariArhivate() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => handleDezarhivare(row.id)}
+                  onClick={() => handleDezarhivare(row.original.id)}
                 >
                   <ArchiveRestore className="h-4 w-4" />
                 </Button>
@@ -577,7 +577,7 @@ export default function LucrariArhivate() {
                   <Button
                     variant="default"
                     size="sm"
-                    onClick={() => router.push(`/raport/${row.id}`)}
+                    onClick={() => router.push(`/raport/${row.original.id}`)}
                   >
                     <Download className="h-4 w-4" />
                   </Button>
