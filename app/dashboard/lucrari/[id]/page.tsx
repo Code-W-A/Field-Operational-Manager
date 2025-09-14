@@ -1616,7 +1616,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                       const subject = `Ofertă pentru lucrarea ${lucrare.numarRaport || lucrare.id}`
                                       const html = `
                                         <div style=\"font-family:Arial,sans-serif;line-height:1.5\">
-                                          <h2 style=\"margin:0 0 12px;color:#0f56b3\">Ofertă lucrări</h2>
+                                          <h2 style=\"margin:0 0 12px;color:#0f56b3\">Ofertă lucrarea ${lucrare.numarRaport || lucrare.id}</h2>
                                           <p>Vă transmitem oferta pentru lucrarea dvs. Puteți vizualiza și răspunde (Accept/Nu accept) în portal:</p>
                                           <p><a href=\"${portalUrl}\" target=\"_blank\">${portalUrl}</a></p>
                                         </div>`
