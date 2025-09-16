@@ -1094,7 +1094,7 @@ export default function Utilizatori() {
           }
         }}
       >
-        <DialogContent className="w-[calc(100%-2rem)] max-w-[500px]">
+        <DialogContent className={`w-[calc(100%-2rem)] ${(selectedUser?.role || "") === "client" ? "max-w-[800px]" : "max-w-[500px]"}`}>
           <DialogHeader>
             <DialogTitle>Editează Utilizator</DialogTitle>
             <DialogDescription>Modificați detaliile utilizatorului</DialogDescription>

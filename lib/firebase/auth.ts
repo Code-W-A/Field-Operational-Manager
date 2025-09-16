@@ -114,11 +114,21 @@ export const resetPassword = async (email: string): Promise<void> => {
 // Ștergere utilizator
 export const deleteUserAccount = async (userId: string): Promise<void> => {
   try {
-    // Ștergem documentul utilizatorului din Firestore
-    await deleteDoc(doc(db, "users", userId))
+    // Folosim endpoint-ul server pentru a șterge din Authentication și Firestore
+    const response = await fetch("/api/users/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    })
 
-    // Adăugăm un log pentru ștergerea utilizatorului
-    await addAuthLog("Ștergere utilizator", `Utilizatorul cu ID ${userId} a fost șters`, null)
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(data?.error || "Ștergerea utilizatorului a eșuat")
+    }
+
+    // Adăugăm un log client-side best-effort (server-ul deja loghează)
+    await addAuthLog("Ștergere utilizator", `Utilizatorul cu ID ${userId} a fost șters (via API)`, null)
 
     return Promise.resolve()
   } catch (error) {

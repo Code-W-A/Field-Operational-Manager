@@ -48,6 +48,8 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
   const [isClientPickerOpen, setIsClientPickerOpen] = useState(false)
   const [selectedClientId, setSelectedClientId] = useState<string>(user?.clientId || "")
   const [selectedClientLocations, setSelectedClientLocations] = useState<string[]>(Array.isArray(user?.allowedLocationNames) ? (user.allowedLocationNames as string[]) : [])
+  const [sendInvite, setSendInvite] = useState<boolean>(false)
+  const [inviteRecipients, setInviteRecipients] = useState<string[]>([])
 
   const sortedClientsForSelect = [...clientsForSelect].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" }))
 
@@ -101,6 +103,66 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
     loadClients()
   }, [])
 
+  // Recalculează destinatarii invitației pentru rol client
+  useEffect(() => {
+    const currentRole = form.getValues("role")
+    const email = (form.getValues("email") || "").trim()
+    if (currentRole !== "client") {
+      setInviteRecipients([])
+      return
+    }
+    const recipients = new Set<string>()
+    const isValid = (e?: string) => !!e && /.+@.+\..+/.test(e)
+    if (isValid(email)) recipients.add(email)
+    const client = clientsForSelect.find((c) => c.id === selectedClientId)
+    if (isValid(client?.email)) recipients.add(client!.email!)
+    const selectedLocs = (client?.locatii || []).filter((l: any) => selectedClientLocations.includes(l?.nume))
+    selectedLocs.forEach((l: any) => {
+      ;(l?.persoaneContact || []).forEach((p: any) => {
+        if (isValid(p?.email)) recipients.add(p.email)
+      })
+    })
+    setInviteRecipients(Array.from(recipients))
+  }, [clientsForSelect, selectedClientId, selectedClientLocations, form])
+
+  // Trimitere invitație imediat
+  const handleSendInviteNow = async () => {
+    try {
+      const role = form.getValues("role")
+      if (role !== "client") {
+        toast({ variant: "destructive", title: "Invitație indisponibilă", description: "Invitația se aplică doar pentru rolul Client." })
+        return
+      }
+      if (!inviteRecipients.length) {
+        toast({ variant: "destructive", title: "Nu există destinatari valizi", description: "Verificați email-ul utilizatorului și al clientului/locațiilor." })
+        return
+      }
+      const origin = typeof window !== "undefined" ? window.location.origin : ""
+      const email = form.getValues("email")
+      const subject = "Invitație acces Portal Client – FOM"
+      const content = `Bună ziua,\n\nV-am activat/actualizat accesul în Portalul Client FOM.\n\nEmail: ${email}\nPortal: ${origin}/portal\n\nDupă autentificare, vă rugăm să schimbați parola din cont (dacă a fost resetată).\n\nVă mulțumim!`
+      const html = `
+        <div style="font-family:Arial,sans-serif;line-height:1.5">
+          <h2 style="margin:0 0 12px;color:#0f56b3">Invitație acces Portal Client – FOM</h2>
+          <p>V-am activat/actualizat accesul în Portalul Client FOM.</p>
+          <p><strong>Email:</strong> ${email}<br/>
+             <strong>Portal:</strong> <a href="${origin}/portal" target="_blank">${origin}/portal</a></p>
+          <p>După autentificare, vă rugăm să schimbați parola din cont (dacă a fost resetată).</p>
+          <p>Vă mulțumim!</p>
+        </div>`
+      const resp = await fetch("/api/users/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: inviteRecipients, subject, content, html }),
+      })
+      if (!resp.ok) throw new Error("Invite email failed")
+      toast({ title: "Invitație trimisă", description: `Email trimis către: ${inviteRecipients.join(", ")}` })
+    } catch (e) {
+      console.warn("Trimitere invitație eșuată:", e)
+      toast({ variant: "destructive", title: "Invitație eșuată", description: "Nu s-a putut trimite emailul de invitație." })
+    }
+  }
+
   // Funcția pentru trimiterea formularului
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsSubmitting(true)
@@ -124,6 +186,33 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
         allowedLocationNames: values.role === "client" ? selectedClientLocations : null,
         updatedAt: new Date(),
       })
+
+      // Trimitere invitație după salvare, dacă s-a bifat
+      if (values.role === "client" && sendInvite) {
+        if (!inviteRecipients.length) {
+          toast({ variant: "destructive", title: "Nu există destinatari valizi", description: "Verificați email-ul utilizatorului și al clientului/locațiilor." })
+        } else {
+          const origin = typeof window !== "undefined" ? window.location.origin : ""
+          const subject = "Invitație acces Portal Client – FOM"
+          const content = `Bună ziua,\n\nV-am activat/actualizat accesul în Portalul Client FOM.\n\nEmail: ${values.email}\nPortal: ${origin}/portal\n\nDupă autentificare, vă rugăm să schimbați parola din cont (dacă a fost resetată).\n\nVă mulțumim!`
+          const html = `
+            <div style="font-family:Arial,sans-serif;line-height:1.5">
+              <h2 style="margin:0 0 12px;color:#0f56b3">Invitație acces Portal Client – FOM</h2>
+              <p>V-am activat/actualizat accesul în Portalul Client FOM.</p>
+              <p><strong>Email:</strong> ${values.email}<br/>
+                 <strong>Portal:</strong> <a href="${origin}/portal" target="_blank">${origin}/portal</a></p>
+              <p>După autentificare, vă rugăm să schimbați parola din cont (dacă a fost resetată).</p>
+              <p>Vă mulțumim!</p>
+            </div>`
+          const resp = await fetch("/api/users/invite", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ to: inviteRecipients, subject, content, html }),
+          })
+          if (!resp.ok) throw new Error("Invite email failed")
+          toast({ title: "Invitație trimisă", description: `Email trimis către: ${inviteRecipients.join(", ")}` })
+        }
+      }
 
       toast({
         title: "Utilizator actualizat",
@@ -149,7 +238,9 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
   return (
     <div className="space-y-6">
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={form.handleSubmit(onSubmit)} className={`py-0 ${form.watch("role") === "client" ? "grid grid-cols-1 lg:grid-cols-2 gap-6" : "grid gap-6"}`}>
+          {/* Coloana stângă - informații de bază */}
+          <div className="space-y-6">
           <FormField
             control={form.control}
             name="displayName"
@@ -202,6 +293,52 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
             )}
           />
 
+          <FormField
+            control={form.control}
+            name="phoneNumber"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Număr de telefon</FormLabel>
+                <FormControl>
+                  <Input placeholder="Număr de telefon" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="notes"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Note</FormLabel>
+                <FormControl>
+                  <Textarea placeholder="Note despre utilizator" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <div className="flex flex-col sm:flex-row gap-4">
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Se salvează..." : "Salvează modificările"}
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsPasswordResetOpen(true)}
+              className="flex items-center gap-2"
+            >
+              <Key className="h-4 w-4" />
+              Resetare parolă
+            </Button>
+          </div>
+          </div>
+
+          {/* Coloana dreaptă - zona client (doar pentru rol client) */}
           {form.watch("role") === "client" && (
             <div className="space-y-4">
               <div className="space-y-2">
@@ -266,54 +403,23 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
                       <div className="text-sm text-muted-foreground">Clientul nu are locații definite</div>
                     )}
                   </div>
+
+                  <div className="text-xs text-muted-foreground mt-2">
+                    Emailul de invitație se va trimite către: {inviteRecipients.length ? inviteRecipients.join(", ") : "—"}
+                  </div>
+                  <label className="flex items-center gap-2 text-sm mt-2">
+                    <input type="checkbox" checked={sendInvite} onChange={(e) => setSendInvite(e.target.checked)} />
+                    <span>Trimite invitație pe email după salvare</span>
+                  </label>
+                  <div className="flex gap-2 mt-2">
+                    <Button type="button" variant="outline" onClick={handleSendInviteNow}>
+                      Trimite invitație acum
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
           )}
-
-          <FormField
-            control={form.control}
-            name="phoneNumber"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Număr de telefon</FormLabel>
-                <FormControl>
-                  <Input placeholder="Număr de telefon" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="notes"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Note</FormLabel>
-                <FormControl>
-                  <Textarea placeholder="Note despre utilizator" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <div className="flex flex-col sm:flex-row gap-4">
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Se salvează..." : "Salvează modificările"}
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsPasswordResetOpen(true)}
-              className="flex items-center gap-2"
-            >
-              <Key className="h-4 w-4" />
-              Resetare parolă
-            </Button>
-          </div>
         </form>
       </Form>
 

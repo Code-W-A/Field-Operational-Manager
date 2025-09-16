@@ -598,7 +598,7 @@ export function TehnicianInterventionForm({
               )}
             </div>
 
-            {/* Secțiunea pentru încărcarea imaginilor defectelor - doar dacă necesită ofertă */}
+            {/* Secțiunea pentru încărcarea imaginilor defectelor - disponibilă oricând */}
             <ImageDefectUpload
               lucrareId={lucrareId}
               lucrare={{ imaginiDefecte: initialData.imaginiDefecte || [] }}
@@ -610,7 +610,6 @@ export function TehnicianInterventionForm({
                 setImagePreviews(previews)
               }}
               onImageDeleted={handleImageMarkedForDeletion}
-              necesitaOferta={necesitaOferta}
               isUploading={isGeneratingReport || isSaving} // Loading state din componenta părinte
             />
 

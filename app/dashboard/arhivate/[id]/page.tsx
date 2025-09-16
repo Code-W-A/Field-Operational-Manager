@@ -48,13 +48,14 @@ import { ImageDefectViewer } from "@/components/image-defect-viewer"
 import { calculateWarranty, getWarrantyDisplayInfo } from "@/lib/utils/warranty-calculator"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface ArchivedWorkDetailPageProps {
   params: { id: string }
 }
 
 export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPageProps) {
-  const { userData } = useAuth()
+  const { userData, loading: authLoading } = useAuth()
   const router = useRouter()
   const [lucrare, setLucrare] = useState<Lucrare | null>(null)
   const [client, setClient] = useState<Client | null>(null)
@@ -64,11 +65,75 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
   // Verificăm accesul - doar admin și dispecer
   const hasAccess = userData?.role === "admin" || userData?.role === "dispecer"
 
+  // Redirectăm către pagina detaliu principală, reutilizând UI-ul standard cu un flag pentru back
+  useEffect(() => {
+    if (hasAccess) {
+      router.replace(`/dashboard/lucrari/${params.id}?from=arhivate`)
+    }
+  }, [hasAccess, params.id, router])
+
+  // Afișăm spinner până se stabilește accesul și în timpul redirect-ului
+  if (authLoading || hasAccess) {
+    return (
+      <DashboardShell>
+        <DashboardHeader
+          heading={<span className="inline-flex items-center gap-2"><Skeleton className="h-6 w-48" /></span> as any}
+          text={<Skeleton className="h-4 w-72" /> as any}
+        >
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Skeleton className="h-9 w-28" />
+            <Skeleton className="h-9 w-40" />
+            <Skeleton className="h-9 w-36" />
+          </div>
+        </DashboardHeader>
+
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="space-y-3">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-4 w-64" />
+              <Skeleton className="h-4 w-56" />
+              <Skeleton className="h-4 w-52" />
+            </div>
+            <div className="space-y-3">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-4 w-64" />
+              <Skeleton className="h-4 w-56" />
+              <Skeleton className="h-4 w-52" />
+            </div>
+            <div className="space-y-3">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-4 w-64" />
+              <Skeleton className="h-4 w-56" />
+              <Skeleton className="h-4 w-52" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <Skeleton className="h-6 w-44" />
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+            <div className="space-y-3">
+              <Skeleton className="h-6 w-44" />
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          </div>
+        </div>
+      </DashboardShell>
+    )
+  }
+
   useEffect(() => {
     if (!hasAccess) {
       router.push("/dashboard")
       return
     }
+
+    // Dacă avem acces și am declanșat redirect-ul, nu mai încărcăm datele locale ale paginii
+    if (hasAccess) return
 
     const fetchData = async () => {
       try {

@@ -29,6 +29,7 @@ import {
   Info,
   Check,
   RefreshCw,
+  ArchiveRestore,
   Archive,
   Clock,
   Download,
@@ -67,6 +68,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const { userData } = useAuth()
   const role = userData?.role || "tehnician"
   const isAdminOrDispatcher = role === "admin" || role === "dispecer"
+  const fromArhivate = searchParams.get('from') === 'arhivate'
   
   // Unwrap params using React.use() for Next.js 15
   const { id: paramsId } = use(params)
@@ -703,7 +705,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       <DashboardShell>
       <DashboardHeader heading={`Lucrare: ${lucrare.tipLucrare}`} text={`Client: ${lucrare.client}`}>
         <div className="flex flex-col sm:flex-row gap-2">
-          <Button variant="outline" onClick={() => router.push("/dashboard/lucrari")}>
+          <Button variant="outline" onClick={() => router.push(fromArhivate ? "/dashboard/arhivate" : "/dashboard/lucrari")}>
             <ChevronLeft className="mr-2 h-4 w-4" /> Înapoi
           </Button>
           <Button 
@@ -712,6 +714,35 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           >
             <FileText className="mr-2 h-4 w-4" /> Generează raport
           </Button>
+
+          {lucrare.statusLucrare === WORK_STATUS.ARCHIVED && role === "admin" && (
+            <Button
+              variant="default"
+              className="bg-green-600 hover:bg-green-700 text-white"
+              onClick={async () => {
+                if (!window.confirm("Sigur doriți să dezarhivați această lucrare? Va reveni la statusul 'Finalizat'.")) return
+                try {
+                  setIsUpdating(true)
+                  await updateLucrare(paramsId, {
+                    statusLucrare: WORK_STATUS.COMPLETED,
+                    archivedAt: null as any,
+                    archivedBy: null as any,
+                  })
+                  toast({ title: "Succes", description: "Lucrarea a fost dezarhivată." })
+                  router.refresh()
+                } catch (error) {
+                  console.error("Eroare la dezarhivare:", error)
+                  toast({ title: "Eroare", description: "Nu s-a putut dezarhiva lucrarea.", variant: "destructive" })
+                } finally {
+                  setIsUpdating(false)
+                }
+              }}
+              disabled={isUpdating}
+            >
+              <ArchiveRestore className="mr-2 h-4 w-4" />
+              {isUpdating ? "Se dezarhivează..." : "Dezarhivează"}
+            </Button>
+          )}
 
           {/* Buton pentru reintervenție - doar pentru admin/dispecer și dacă îndeplinește condițiile */}
           {isAdminOrDispatcher && needsReintervention(lucrare) && (

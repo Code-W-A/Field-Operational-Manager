@@ -19,15 +19,14 @@ interface ImageDefectUploadProps {
   imagesToDelete: number[] // Indicii imaginilor marcate pentru ștergere
   onImagesChange: (images: File[], previews: string[]) => void // Callback pentru imaginile selectate local
   onImageDeleted?: (deletedImageIndex: number) => void // Callback pentru imaginile uplodate șterse
-  necesitaOferta: boolean // Condiția pentru afișare
   isUploading?: boolean // Loading state controlat de component părinte
 }
 
-export function ImageDefectUpload({ lucrareId, lucrare, selectedImages, imagePreviews, imagesToDelete, onImagesChange, onImageDeleted, necesitaOferta, isUploading = false }: ImageDefectUploadProps) {
+export function ImageDefectUpload({ lucrareId, lucrare, selectedImages, imagePreviews, imagesToDelete, onImagesChange, onImageDeleted, isUploading = false }: ImageDefectUploadProps) {
   const { userData } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const maxImages = 3
+  const maxImages = 4
   const currentImages = lucrare.imaginiDefecte || [] // Imaginile deja uplodate
 
   // Funcție pentru compresia imaginilor
@@ -200,11 +199,6 @@ export function ImageDefectUpload({ lucrareId, lucrare, selectedImages, imagePre
       title: "Imagine ștearsă",
       description: "Imaginea a fost ștearsă din selecție.",
     })
-  }
-
-  // Nu afișăm componenta dacă nu este necesară ofertă
-  if (!necesitaOferta) {
-    return null
   }
 
   return (
