@@ -25,8 +25,10 @@ export default function ClientPortalPage() {
     const load = async () => {
       try {
         const all = await getLucrari()
-        const allowedLocations = userData?.allowedLocationNames || []
-        const clientName = userData?.clientId // we match by clientId through clientInfo if available
+        // Derivăm lista de locații permise din toate intrările clientAccess
+        const allowedLocations: string[] = ([] as string[]).concat(
+          ...((userData as any)?.clientAccess || []).map((e: any) => e?.locationNames || [])
+        )
         const filtered = all.filter((w: any) => {
           // Backward compatibility: match by client name string and location name string
           const byLocation = !allowedLocations?.length || allowedLocations.includes(w.locatie)
@@ -105,8 +107,8 @@ export default function ClientPortalPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Toate locațiile</SelectItem>
-            {(userData?.allowedLocationNames || []).map((n) => (
-              <SelectItem key={n} value={n}>{n}</SelectItem>
+            {((userData as any)?.clientAccess || []).flatMap((e: any) => e?.locationNames || []).map((n: string, idx: number) => (
+              <SelectItem key={`${n}-${idx}`} value={n}>{n}</SelectItem>
             ))}
           </SelectContent>
         </Select>

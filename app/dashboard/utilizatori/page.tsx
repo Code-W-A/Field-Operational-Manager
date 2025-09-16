@@ -69,8 +69,11 @@ export default function Utilizatori() {
     clientId: "",
     allowedLocationNames: [] as string[],
   })
-  const [clientsForSelect, setClientsForSelect] = useState<Array<{id:string; nume:string; locatii?: any[]}>>([])
+  const [clientsForSelect, setClientsForSelect] = useState<Array<{id:string; nume:string; locatii?: any[]; email?: string}>>([])
   const [selectedClientLocations, setSelectedClientLocations] = useState<string[]>([])
+  const [clientAccess, setClientAccess] = useState<Array<{ clientId: string; locationNames: string[] }>>([])
+  const [tempClientId, setTempClientId] = useState<string>("")
+  const [tempLocations, setTempLocations] = useState<string[]>([])
   const [sendInvite, setSendInvite] = useState<boolean>(false)
   const [inviteRecipients, setInviteRecipients] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -374,7 +377,7 @@ export default function Utilizatori() {
   }
 
   const handleClientChange = (value: string) => {
-    setFormData((prev) => ({ ...prev, clientId: value }))
+    setTempClientId(value)
     // Reset selected locations when client changes
     setSelectedClientLocations([])
     // Precompletează emailul cu emailul principal al clientului (dacă există)
@@ -386,8 +389,30 @@ export default function Utilizatori() {
     setSendInvite(true)
   }
 
+  const addClientAccessEntry = () => {
+    if (!tempClientId) return
+    const entry = { clientId: tempClientId, locationNames: [...selectedClientLocations] }
+    // evităm duplicatele (după clientId)
+    setClientAccess((prev) => {
+      const without = prev.filter((e) => e.clientId !== tempClientId)
+      return [...without, entry]
+    })
+    setTempClientId("")
+    setSelectedClientLocations([])
+  }
+
+  const removeClientAccessEntry = (clientId: string) => {
+    setClientAccess((prev) => prev.filter((e) => e.clientId !== clientId))
+  }
+
   const handleToggleLocation = (locName: string) => {
     setSelectedClientLocations((prev) =>
+      prev.includes(locName) ? prev.filter((n) => n !== locName) : [...prev, locName],
+    )
+  }
+
+  const handleToggleTempLocation = (locName: string) => {
+    setTempLocations((prev) =>
       prev.includes(locName) ? prev.filter((n) => n !== locName) : [...prev, locName],
     )
   }
@@ -400,18 +425,21 @@ export default function Utilizatori() {
     }
     const recipients = new Set<string>()
     const mainEmail = formData.email?.trim()
-    const client = clientsForSelect.find((c) => c.id === formData.clientId) as any
     const isValid = (e?: string) => !!e && /.+@.+\..+/.test(e)
     if (isValid(mainEmail)) recipients.add(mainEmail!)
-    if (isValid(client?.email)) recipients.add(client.email)
-    const selectedLocs = (client?.locatii || []).filter((l: any) => selectedClientLocations.includes(l?.nume))
-    selectedLocs.forEach((l: any) => {
-      (l?.persoaneContact || []).forEach((p: any) => {
-        if (isValid(p?.email)) recipients.add(p.email)
+    // parcurgem toate intrările selectate
+    clientAccess.forEach((entry) => {
+      const client = clientsForSelect.find((c) => c.id === entry.clientId) as any
+      if (isValid(client?.email)) recipients.add(client.email)
+      const selectedLocs = (client?.locatii || []).filter((l: any) => entry.locationNames.includes(l?.nume))
+      selectedLocs.forEach((l: any) => {
+        (l?.persoaneContact || []).forEach((p: any) => {
+          if (isValid(p?.email)) recipients.add(p.email)
+        })
       })
     })
     setInviteRecipients(Array.from(recipients))
-  }, [formData.role, formData.email, formData.clientId, selectedClientLocations, clientsForSelect])
+  }, [formData.role, formData.email, clientAccess, clientsForSelect])
 
   const handleSubmit = async () => {
     try {
@@ -443,17 +471,15 @@ export default function Utilizatori() {
         return
       }
 
-      // Register the user (support client role extra fields)
-      const allowed = formData.role === "client" ? selectedClientLocations : null
-      const clientId = formData.role === "client" ? (formData.clientId || null) : null
+      // Register the user (support clientAccess for client role)
+      const access = formData.role === "client" ? clientAccess : []
       await registerUser(
         formData.email,
         formData.password,
         formData.displayName,
         formData.role,
         formData.telefon,
-        clientId,
-        allowed,
+        access,
       )
 
       toast({ title: "Utilizator creat", description: `Contul pentru ${formData.displayName} a fost creat cu succes.` })
@@ -505,6 +531,8 @@ export default function Utilizatori() {
         allowedLocationNames: [],
       })
       setSelectedClientLocations([])
+      setClientAccess([])
+      setTempClientId("")
     } catch (err: any) {
       console.error("Eroare la înregistrarea utilizatorului:", err)
       const code = err?.code || ""
@@ -954,11 +982,11 @@ export default function Utilizatori() {
               {formData.role === "client" && (
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Client asociat</label>
+                    <label className="text-sm font-medium">Client și locații (poți adăuga mai mulți clienți)</label>
                     <Popover open={isClientPickerOpen} onOpenChange={setIsClientPickerOpen}>
                       <PopoverTrigger asChild>
                         <Button variant="outline" role="combobox" aria-expanded={isClientPickerOpen} className="w-full justify-between">
-                          {formData.clientId ? (sortedClientsForSelect.find((c) => c.id === formData.clientId)?.nume || "Selectați clientul") : "Selectați clientul"}
+                          {tempClientId ? (sortedClientsForSelect.find((c) => c.id === tempClientId)?.nume || "Selectați clientul") : "Selectați clientul"}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
@@ -978,7 +1006,7 @@ export default function Utilizatori() {
                                   }}
                                   className="whitespace-nowrap"
                                 >
-                                  <Check className={`mr-2 h-4 w-4 ${formData.clientId === c.id ? "opacity-100" : "opacity-0"}`} />
+                                  <Check className={`mr-2 h-4 w-4 ${tempClientId === c.id ? "opacity-100" : "opacity-0"}`} />
                                   <span className="inline-block min-w-max">{c.nume}</span>
                                 </CommandItem>
                               ))}
@@ -989,21 +1017,24 @@ export default function Utilizatori() {
                     </Popover>
                   </div>
                   
-                  {formData.clientId && (
+                  {tempClientId && (
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Locații permise</label>
                       <div className="max-h-48 overflow-auto rounded border p-2 space-y-1">
                         {clientsForSelect
-                          .find((c) => c.id === formData.clientId)?.locatii?.map((l: any, idx: number) => (
+                          .find((c) => c.id === tempClientId)?.locatii?.map((l: any, idx: number) => (
                             <label key={idx} className="flex items-center gap-2 text-sm">
                               <input
                                 type="checkbox"
-                                checked={selectedClientLocations.includes(l.nume)}
-                                onChange={() => handleToggleLocation(l.nume)}
+                                checked={tempLocations.includes(l.nume)}
+                                onChange={() => handleToggleTempLocation(l.nume)}
                               />
                               <span>{l.nume}</span>
                             </label>
                           )) || <div className="text-sm text-muted-foreground">Clientul nu are locații definite</div>}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button type="button" variant="outline" onClick={addClientAccessEntry} disabled={!tempClientId}>Adaugă setul</Button>
                       </div>
                       <div className="text-xs text-muted-foreground mt-2">
                         Emailul de invitație se va trimite către: {inviteRecipients.length ? inviteRecipients.join(", ") : "—"}
@@ -1012,6 +1043,26 @@ export default function Utilizatori() {
                         <input type="checkbox" checked={sendInvite} onChange={(e) => setSendInvite(e.target.checked)} />
                         <span>Trimite invitație pe email</span>
                       </label>
+                    </div>
+                  )}
+
+                  {clientAccess.length > 0 && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Clienți selectați</label>
+                      <div className="space-y-2">
+                        {clientAccess.map((entry) => {
+                          const c = clientsForSelect.find((x) => x.id === entry.clientId)
+                          return (
+                            <div key={entry.clientId} className="flex items-center justify-between rounded border p-2">
+                              <div className="text-sm">
+                                <div className="font-medium">{c?.nume || entry.clientId}</div>
+                                <div className="text-muted-foreground">{entry.locationNames.join(", ") || "—"}</div>
+                              </div>
+                              <Button type="button" variant="ghost" size="sm" onClick={() => removeClientAccessEntry(entry.clientId)}>Elimină</Button>
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
                   )}
 

@@ -46,8 +46,9 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
   const [formModified, setFormModified] = useState(false)
   const [clientsForSelect, setClientsForSelect] = useState<Array<{ id: string; nume: string; locatii?: any[]; email?: string }>>([])
   const [isClientPickerOpen, setIsClientPickerOpen] = useState(false)
-  const [selectedClientId, setSelectedClientId] = useState<string>(user?.clientId || "")
-  const [selectedClientLocations, setSelectedClientLocations] = useState<string[]>(Array.isArray(user?.allowedLocationNames) ? (user.allowedLocationNames as string[]) : [])
+  const [clientAccess, setClientAccess] = useState<Array<{ clientId: string; locationNames: string[] }>>(Array.isArray((user as any)?.clientAccess) ? ((user as any).clientAccess as any) : [])
+  const [tempClientId, setTempClientId] = useState<string>("")
+  const [tempLocations, setTempLocations] = useState<string[]>([])
   const [sendInvite, setSendInvite] = useState<boolean>(false)
   const [inviteRecipients, setInviteRecipients] = useState<string[]>([])
 
@@ -114,16 +115,33 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
     const recipients = new Set<string>()
     const isValid = (e?: string) => !!e && /.+@.+\..+/.test(e)
     if (isValid(email)) recipients.add(email)
-    const client = clientsForSelect.find((c) => c.id === selectedClientId)
-    if (isValid(client?.email)) recipients.add(client!.email!)
-    const selectedLocs = (client?.locatii || []).filter((l: any) => selectedClientLocations.includes(l?.nume))
-    selectedLocs.forEach((l: any) => {
-      ;(l?.persoaneContact || []).forEach((p: any) => {
-        if (isValid(p?.email)) recipients.add(p.email)
+    clientAccess.forEach((entry) => {
+      const client = clientsForSelect.find((c) => c.id === entry.clientId)
+      if (isValid(client?.email)) recipients.add(client!.email!)
+      const selectedLocs = (client?.locatii || []).filter((l: any) => entry.locationNames.includes(l?.nume))
+      selectedLocs.forEach((l: any) => {
+        ;(l?.persoaneContact || []).forEach((p: any) => {
+          if (isValid(p?.email)) recipients.add(p.email)
+        })
       })
     })
     setInviteRecipients(Array.from(recipients))
-  }, [clientsForSelect, selectedClientId, selectedClientLocations, form])
+  }, [clientsForSelect, clientAccess, form])
+
+  const addClientAccessEntry = () => {
+    if (!tempClientId) return
+    const entry = { clientId: tempClientId, locationNames: [...tempLocations] }
+    setClientAccess((prev) => {
+      const without = prev.filter((e) => e.clientId !== tempClientId)
+      return [...without, entry]
+    })
+    setTempClientId("")
+    setTempLocations([])
+  }
+
+  const removeClientAccessEntry = (clientId: string) => {
+    setClientAccess((prev) => prev.filter((e) => e.clientId !== clientId))
+  }
 
   // Trimitere invitație imediat
   const handleSendInviteNow = async () => {
@@ -182,8 +200,7 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
         role: values.role,
         phoneNumber: values.phoneNumber || "",
         notes: values.notes || "",
-        clientId: values.role === "client" ? (selectedClientId || null) : null,
-        allowedLocationNames: values.role === "client" ? selectedClientLocations : null,
+        clientAccess: values.role === "client" ? clientAccess : [],
         updatedAt: new Date(),
       })
 
@@ -342,11 +359,11 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
           {form.watch("role") === "client" && (
             <div className="space-y-4">
               <div className="space-y-2">
-                <FormLabel>Client asociat</FormLabel>
+                <FormLabel>Client și locații (poți adăuga mai mulți clienți)</FormLabel>
                 <Popover open={isClientPickerOpen} onOpenChange={setIsClientPickerOpen}>
                   <PopoverTrigger asChild>
                     <Button variant="outline" role="combobox" aria-expanded={isClientPickerOpen} className="w-full justify-between">
-                      {selectedClientId ? (sortedClientsForSelect.find((c) => c.id === selectedClientId)?.nume || "Selectați clientul") : "Selectați clientul"}
+                      {tempClientId ? (sortedClientsForSelect.find((c) => c.id === tempClientId)?.nume || "Selectați clientul") : "Selectați clientul"}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
@@ -361,13 +378,13 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
                               key={c.id}
                               value={`${c.nume}__${c.id}`}
                               onSelect={() => {
-                                setSelectedClientId(c.id)
-                                setSelectedClientLocations([])
+                                setTempClientId(c.id)
+                                setTempLocations([])
                                 setIsClientPickerOpen(false)
                               }}
                               className="whitespace-nowrap"
                             >
-                              <Check className={`mr-2 h-4 w-4 ${selectedClientId === c.id ? "opacity-100" : "opacity-0"}`} />
+                              <Check className={`mr-2 h-4 w-4 ${tempClientId === c.id ? "opacity-100" : "opacity-0"}`} />
                               <span className="inline-block min-w-max">{c.nume}</span>
                             </CommandItem>
                           ))}
@@ -378,43 +395,53 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
                 </Popover>
               </div>
 
-              {selectedClientId && (
+              {tempClientId && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <FormLabel>Locații permise</FormLabel>
-                    <Badge variant="secondary">{selectedClientLocations.length}</Badge>
+                    <Badge variant="secondary">{tempLocations.length}</Badge>
                   </div>
                   <div className="max-h-48 overflow-auto rounded border p-2 space-y-1">
                     {(sortedClientsForSelect
-                      .find((c) => c.id === selectedClientId)?.locatii || [])
+                      .find((c) => c.id === tempClientId)?.locatii || [])
                       .slice()
                       .sort((a: any, b: any) => (a?.nume || "").localeCompare(b?.nume || "", "ro", { sensitivity: "base" }))
                       .map((l: any, idx: number) => (
                         <label key={idx} className="flex items-center gap-2 text-sm">
                           <input
                             type="checkbox"
-                            checked={selectedClientLocations.includes(l.nume)}
-                            onChange={() => setSelectedClientLocations((prev) => prev.includes(l.nume) ? prev.filter((n) => n !== l.nume) : [...prev, l.nume])}
+                            checked={tempLocations.includes(l.nume)}
+                            onChange={() => setTempLocations((prev) => prev.includes(l.nume) ? prev.filter((n) => n !== l.nume) : [...prev, l.nume])}
                           />
                           <span>{l.nume}</span>
                         </label>
                       ))}
-                    {!(sortedClientsForSelect.find((c) => c.id === selectedClientId)?.locatii?.length) && (
+                    {!(sortedClientsForSelect.find((c) => c.id === tempClientId)?.locatii?.length) && (
                       <div className="text-sm text-muted-foreground">Clientul nu are locații definite</div>
                     )}
                   </div>
-
-                  <div className="text-xs text-muted-foreground mt-2">
-                    Emailul de invitație se va trimite către: {inviteRecipients.length ? inviteRecipients.join(", ") : "—"}
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" onClick={addClientAccessEntry} disabled={!tempClientId}>Adaugă setul</Button>
                   </div>
-                  <label className="flex items-center gap-2 text-sm mt-2">
-                    <input type="checkbox" checked={sendInvite} onChange={(e) => setSendInvite(e.target.checked)} />
-                    <span>Trimite invitație pe email după salvare</span>
-                  </label>
-                  <div className="flex gap-2 mt-2">
-                    <Button type="button" variant="outline" onClick={handleSendInviteNow}>
-                      Trimite invitație acum
-                    </Button>
+                </div>
+              )}
+
+              {clientAccess.length > 0 && (
+                <div className="space-y-2">
+                  <FormLabel>Clienți selectați</FormLabel>
+                  <div className="space-y-2">
+                    {clientAccess.map((entry) => {
+                      const c = clientsForSelect.find((x) => x.id === entry.clientId)
+                      return (
+                        <div key={entry.clientId} className="flex items-center justify-between rounded border p-2">
+                          <div className="text-sm">
+                            <div className="font-medium">{c?.nume || entry.clientId}</div>
+                            <div className="text-muted-foreground">{entry.locationNames.join(", ") || "—"}</div>
+                          </div>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => removeClientAccessEntry(entry.clientId)}>Elimină</Button>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )}

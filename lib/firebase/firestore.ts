@@ -83,6 +83,10 @@ export interface Lucrare {
     at: any
     by?: string
   }
+  // Token de acțiune pentru ofertă (link din email)
+  offerActionToken?: string
+  offerActionExpiresAt?: any
+  offerActionUsedAt?: any
   // Adăugăm câmpul pentru comentarii legate de ofertă
   comentariiOferta?: string
   // Câmpuri pentru timpul de sosire și plecare

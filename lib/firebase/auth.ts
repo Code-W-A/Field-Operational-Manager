@@ -18,9 +18,8 @@ export interface UserData {
   displayName: string | null
   role: UserRole
   telefon?: string
-  // For client role: link to client and which locations are allowed
-  clientId?: string | null
-  allowedLocationNames?: string[] | null
+  // Client access: multiple clients with multiple locations
+  clientAccess?: Array<{ clientId: string; locationNames: string[] }>
   createdAt?: Date
   lastLogin?: Date
 }
@@ -32,8 +31,7 @@ export const registerUser = async (
   displayName: string,
   role: UserRole,
   telefon?: string,
-  clientId?: string | null,
-  allowedLocationNames?: string[] | null,
+  clientAccess?: Array<{ clientId: string; locationNames: string[] }>,
 ): Promise<UserData> => {
   try {
     // Creăm utilizatorul în Firebase Auth
@@ -50,8 +48,7 @@ export const registerUser = async (
       displayName: user.displayName,
       role,
       telefon,
-      clientId: clientId ?? null,
-      allowedLocationNames: allowedLocationNames ?? null,
+      clientAccess: clientAccess || [],
       createdAt: new Date(),
       lastLogin: new Date(),
     }

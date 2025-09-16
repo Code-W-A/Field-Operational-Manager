@@ -1642,29 +1642,60 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                   onClick={async () => {
                                     try {
                                       setIsUpdating(true)
-                                      const origin = typeof window !== 'undefined' ? window.location.origin : ''
-                                      const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/portal/${lucrare.id}`
+                                      const base = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '')
+                                      // Generează token și link-uri accept/decline (valabile 30 zile)
+                                      const tokenResp = await fetch('/api/offer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lucrareId: lucrare.id }) })
+                                      if (!tokenResp.ok) throw new Error('Nu s-a putut genera link-ul de ofertă')
+                                      const { acceptUrl, rejectUrl, expiresAt } = await tokenResp.json()
                                       const subject = `Ofertă pentru lucrarea ${lucrare.numarRaport || lucrare.id}`
+                                      const rows = (lucrare.products || []).map((p: any) => `
+                                        <tr>
+                                          <td style=\"padding:6px;border:1px solid #e5e7eb\">${p.name || ''}</td>
+                                          <td style=\"padding:6px;border:1px solid #e5e7eb;text-align:center\">${p.um || '-'}</td>
+                                          <td style=\"padding:6px;border:1px solid #e5e7eb;text-align:right\">${Number(p.quantity||0)}</td>
+                                          <td style=\"padding:6px;border:1px solid #e5e7eb;text-align:right\">${Number(p.price||0).toFixed(2)}</td>
+                                          <td style=\"padding:6px;border:1px solid #e5e7eb;text-align:right\">${((Number(p.quantity)||0)*(Number(p.price)||0)).toFixed(2)}</td>
+                                        </tr>`).join('')
+                                      const total = (lucrare.products || []).reduce((s: number, p: any) => s + (Number(p.quantity)||0)*(Number(p.price)||0), 0)
                                       const html = `
-                                        <div style=\"font-family:Arial,sans-serif;line-height:1.5\">
-                                          <h2 style=\"margin:0 0 12px;color:#0f56b3\">Ofertă lucrarea ${lucrare.numarRaport || lucrare.id}</h2>
-                                          <p>Vă transmitem oferta pentru lucrarea dvs. Puteți vizualiza și răspunde (Accept/Nu accept) în portal:</p>
-                                          <p><a href=\"${portalUrl}\" target=\"_blank\">${portalUrl}</a></p>
+                                        <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0b1220">
+                                          <h2 style="margin:0 0 12px;color:#0f56b3">Ofertă lucrarea ${lucrare.numarRaport || lucrare.id}</h2>
+                                          ${lucrare.comentariiOferta ? `<p style=\"margin:8px 0;color:#475569\">${lucrare.comentariiOferta}</p>` : ''}
+                                          <table style="border-collapse:collapse;width:100%;margin-top:8px;font-size:14px">
+                                            <thead>
+                                              <tr style="background:#f8fafc">
+                                                <th style="padding:6px;border:1px solid #e5e7eb;text-align:left">Denumire</th>
+                                                <th style="padding:6px;border:1px solid #e5e7eb;text-align:center">UM</th>
+                                                <th style="padding:6px;border:1px solid #e5e7eb;text-align:right">Buc</th>
+                                                <th style="padding:6px;border:1px solid #e5e7eb;text-align:right">PU (lei)</th>
+                                                <th style="padding:6px;border:1px solid #e5e7eb;text-align:right">Total (lei)</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>${rows}</tbody>
+                                            <tfoot>
+                                              <tr>
+                                                <td colspan="4" style="padding:8px;border:1px solid #e5e7eb;text-align:right;font-weight:600">Total fără TVA</td>
+                                                <td style="padding:8px;border:1px solid #e5e7eb;text-align:right;font-weight:700">${total.toFixed(2)}</td>
+                                              </tr>
+                                            </tfoot>
+                                          </table>
+                                          <p style="margin:12px 0 6px;color:#64748b">Acest link este valabil 30 de zile de la primirea emailului. După confirmare, linkurile devin inactive.</p>
+                                          <div style="display:flex;gap:8px;margin-top:12px">
+                                            <a href="${acceptUrl}" style="padding:10px 14px;background:#16a34a;color:#fff;border-radius:6px;text-decoration:none;font-weight:600">Accept ofertă</a>
+                                            <a href="${rejectUrl}" style="padding:10px 14px;background:#dc2626;color:#fff;border-radius:6px;text-decoration:none;font-weight:600">Refuz ofertă</a>
+                                          </div>
                                         </div>`
                                       const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(e)
-                                      const recipientsSet = new Set<string>()
-                                      const clientInfoEmail = (lucrare as any)?.clientInfo?.email
-                                      const clientEmail = (typeof (clientData as any)?.email === 'string') ? (clientData as any).email : undefined
-                                      let locationContactEmail: string | undefined
+                                      // Trimitem DOAR la emailul persoanei de contact a locației (cerință)
+                                      let recipient: string | undefined
                                       try {
                                         const loc = (clientData as any)?.locatii?.find((l: any) => l?.nume === lucrare.locatie)
                                         const contact = loc?.persoaneContact?.find((c: any) => c?.nume === lucrare.persoanaContact)
-                                        locationContactEmail = contact?.email
+                                        recipient = contact?.email
                                       } catch {}
-                                      ;[clientInfoEmail, clientEmail, locationContactEmail].forEach((e) => { if (isValid(e)) recipientsSet.add((e as string).trim()) })
-                                      const recipients = Array.from(recipientsSet)
+                                      const recipients = isValid(recipient) ? [recipient as string] : []
                                       if (recipients.length === 0) {
-                                        toast({ title: 'Destinatar lipsă', description: 'Nu există un email valid al clientului sau al persoanei de contact.', variant: 'destructive' })
+                                        toast({ title: 'Destinatar lipsă', description: 'Nu există un email valid pentru persoana de contact a locației.', variant: 'destructive' })
                                         return
                                       }
                                       toast({ title: 'Se trimite ofertă', description: `Către: ${recipients.join(', ')}` })
