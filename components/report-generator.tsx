@@ -165,6 +165,9 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         const timpPlecare = now.toISOString()
         const dataPlecare = formatDate(now)
         const oraPlecare = formatTime(now)
+        // Folosim mereu cele mai recente produse venite prin props (din pagina),
+        // iar dacă nu există acolo, cădem înapoi pe state-ul intern.
+        const currentProducts = (lucrare?.products && lucrare.products.length > 0) ? lucrare.products : products
         
         // DEBUGGING PENTRU TIMPI CORUPȚI - VERIFICARE LA SETARE timpPlecare
         console.log("🕐 SETARE timpPlecare la generarea raportului (PRIMA GENERARE):")
@@ -191,7 +194,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           dataPlecare,
           oraPlecare,
           durataInterventie,
-          products: [...products], // copie a produselor
+          products: [...currentProducts], // copie a produselor (cele mai recente din props sau state)
           constatareLaLocatie: lucrare.constatareLaLocatie,
           descriereInterventie: lucrare.descriereInterventie,
           semnaturaTehnician: lucrare.semnaturaTehnician,
@@ -206,7 +209,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           dataPlecare: dataPlecare,
           oraPlecare: oraPlecare,
           durataInterventie: durataInterventie,
-          numarProduse: products.length,
+          numarProduse: currentProducts.length,
           constatareLength: lucrare.constatareLaLocatie?.length || 0,
           descriereLength: lucrare.descriereInterventie?.length || 0,
           semnaturaTehnician: lucrare.semnaturaTehnician ? "PREZENTĂ" : "LIPSEȘTE",
@@ -221,7 +224,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           dataPlecare,
           oraPlecare,
           durataInterventie,
-          products,
+          products: currentProducts,
           raportSnapshot,
           raportDataLocked: true,
           // Includem numărul de raport generat pentru prima generare
