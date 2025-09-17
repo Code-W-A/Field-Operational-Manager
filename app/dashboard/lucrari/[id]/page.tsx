@@ -1773,6 +1773,88 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   </div>
                 )}
 
+                {/* Snapshot produse la generarea raportului – vizibil doar pentru admin/dispecer */}
+                {isAdminOrDispatcher && (lucrare as any)?.raportSnapshot?.products?.length > 0 && (
+                  <div className="mt-4 p-4 border rounded-md bg-white">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="h-6 w-6 rounded-full bg-slate-600 flex items-center justify-center">
+                        <span className="text-white text-sm font-bold">P</span>
+                      </div>
+                      <h4 className="text-sm font-semibold text-slate-900">Produse la momentul generării raportului</h4>
+                      <Badge variant="outline" className="ml-1">{(lucrare as any).raportSnapshot.products.length} poziții</Badge>
+                    </div>
+                    <div className="overflow-x-auto rounded border">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted">
+                          <tr>
+                            <th className="px-3 py-2 text-left">Denumire</th>
+                            <th className="px-3 py-2 text-center w-20">UM</th>
+                            <th className="px-3 py-2 text-right w-20">Buc</th>
+                            <th className="px-3 py-2 text-right w-28">PU (lei)</th>
+                            <th className="px-3 py-2 text-right w-32">Total (lei)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(lucrare as any).raportSnapshot.products.map((p: any, idx: number) => {
+                            const name = p?.name ?? p?.denumire ?? p?.title ?? "—"
+                            const qty = Number(p?.quantity) || 0
+                            const price = Number(p?.price) || 0
+                            const total = qty * price
+                            return (
+                              <tr key={idx} className="border-t">
+                                <td className="px-3 py-2 align-top">{name}</td>
+                                <td className="px-3 py-2 align-top text-center">{p?.um || '-'}</td>
+                                <td className="px-3 py-2 align-top text-right">{qty}</td>
+                                <td className="px-3 py-2 align-top text-right">{price.toFixed(2)}</td>
+                                <td className="px-3 py-2 align-top text-right font-medium">{total.toFixed(2)}</td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-slate-50">
+                            <td colSpan={4} className="px-3 py-2 text-right font-medium">Total lei fără TVA</td>
+                            <td className="px-3 py-2 text-right font-bold">
+                              {((lucrare as any).raportSnapshot.products || []).reduce((s: number, p: any) => s + ((Number(p?.quantity)||0) * (Number(p?.price)||0)), 0).toFixed(2)}
+                            </td>
+                          </tr>
+                          <tr className="bg-slate-50 border-t">
+                            <td colSpan={4} className="px-3 py-2 text-right font-medium">
+                              {(() => {
+                                const vat = typeof (lucrare as any)?.offerVAT === 'number' ? (lucrare as any).offerVAT : 21
+                                return `TVA (${vat}%)`
+                              })()}
+                            </td>
+                            <td className="px-3 py-2 text-right font-semibold">
+                              {(() => {
+                                const prods = (lucrare as any).raportSnapshot.products || []
+                                const subtotal = prods.reduce((s: number, p: any) => s + ((Number(p?.quantity)||0) * (Number(p?.price)||0)), 0)
+                                const vat = typeof (lucrare as any)?.offerVAT === 'number' ? (lucrare as any).offerVAT : 21
+                                const vatAmount = subtotal * (Number(vat) || 0) / 100
+                                return vatAmount.toFixed(2)
+                              })()}
+                            </td>
+                          </tr>
+                          <tr className="bg-slate-100 border-t">
+                            <td colSpan={4} className="px-3 py-2 text-right font-medium">Total lei cu TVA</td>
+                            <td className="px-3 py-2 text-right font-bold">
+                              {(() => {
+                                const prods = (lucrare as any).raportSnapshot.products || []
+                                const subtotal = prods.reduce((s: number, p: any) => s + ((Number(p?.quantity)||0) * (Number(p?.price)||0)), 0)
+                                const vat = typeof (lucrare as any)?.offerVAT === 'number' ? (lucrare as any).offerVAT : 21
+                                const vatAmount = subtotal * (Number(vat) || 0) / 100
+                                const total = subtotal + vatAmount
+                                return total.toFixed(2)
+                              })()}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">Secțiune doar pentru vizualizare. Valorile sunt înghețate la momentul generării raportului. TVA folosește procentul stocat la ofertă (implicit 21% dacă lipsă).</p>
+                  </div>
+                )}
+
                 {/* Offer editor dialog */}
                 {lucrare && role !== "tehnician" && (
                   <OfferEditorDialog
