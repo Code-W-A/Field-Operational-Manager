@@ -1774,7 +1774,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 )}
 
                 {/* Offer editor dialog */}
-                {lucrare && (
+                {lucrare && role !== "tehnician" && (
                   <OfferEditorDialog
                     lucrareId={lucrare.id!}
                     open={isOfferEditorOpen}
