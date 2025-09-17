@@ -117,8 +117,8 @@ const handleNumberChange = (
     if (!draft) return
     updateProduct(draft.id, "name", draft.name)
     updateProduct(draft.id, "um", draft.um)
-    updateProduct(draft.id, "quantity", Number(draft.quantity) || 0)
-    updateProduct(draft.id, "price", Number(draft.price) || 0)
+    updateProduct(draft.id, "quantity", draft.quantity === (undefined as unknown as number) ? 0 : Number(draft.quantity) || 0)
+    updateProduct(draft.id, "price", draft.price === (undefined as unknown as number) ? 0 : Number(draft.price) || 0)
     closeEditor()
   }
 
@@ -271,8 +271,11 @@ const handleNumberChange = (
                   type="number"
                   min="1"
                   step="1"
-                  value={draft?.quantity ?? 0}
-                  onChange={(e) => setDraft((d) => ({ ...(d as ProductItem), quantity: Number(e.target.value) || 0 }))}
+                  value={draft?.quantity === undefined || draft?.quantity === null ? "" : String(draft.quantity)}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    setDraft((d) => ({ ...(d as ProductItem), quantity: v === "" ? (undefined as unknown as number) : Number(v) }))
+                  }}
                   disabled={disabled}
                 />
               </div>
@@ -284,8 +287,11 @@ const handleNumberChange = (
                   type="number"
                   min="0"
                   step="0.01"
-                  value={draft?.price ?? 0}
-                  onChange={(e) => setDraft((d) => ({ ...(d as ProductItem), price: parseFloat(e.target.value || "0") }))}
+                  value={draft?.price === undefined || draft?.price === null ? "" : String(draft.price)}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    setDraft((d) => ({ ...(d as ProductItem), price: v === "" ? (undefined as unknown as number) : parseFloat(v) }))
+                  }}
                   disabled={disabled}
                 />
               </div>
