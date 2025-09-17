@@ -1851,21 +1851,8 @@ FOM by NRG`,
 
                 <Separator />
 
-                {/* Adăugăm formularul pentru produse */}
-                {!lucrare?.raportDataLocked && (
-                  <div className="flex justify-end mb-2">
-                    <button
-                      type="button"
-                      className="text-sm px-3 py-1.5 rounded border bg-white hover:bg-gray-50"
-                      onClick={() => setProducts(prev => ([
-                        ...prev,
-                        { id: `rp_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, name: "", um: "buc", price: 0, quantity: 1, total: 0 }
-                      ]))}
-                    >
-                      Adaugă produs
-                    </button>
-                  </div>
-                )}
+        
+             
                 <ProductTableForm 
                   products={products} 
                   onProductsChange={setProducts}

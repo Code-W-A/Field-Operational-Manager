@@ -235,7 +235,7 @@ const handleNumberChange = (
 
       <div className="flex items-center justify-between">
         <Button variant="outline" onClick={addProduct} disabled={disabled} className="gap-1">
-          <Plus className="h-4 w-4" /> Adaugă rând
+          <Plus className="h-4 w-4" /> Adaugă produs
         </Button>
         <div className="text-xs text-muted-foreground">Valută: RON</div>
       </div>
