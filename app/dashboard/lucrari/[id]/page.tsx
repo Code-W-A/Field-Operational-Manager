@@ -1508,6 +1508,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 </div>
                 <Separator className="my-4" />
    {/* Rezumat statusuri – un singur rând, 4 coloane: titlu sus, valoare sub titlu */}
+   {role !== "tehnician" && (
    <div className="mb-4 grid grid-cols-4 gap-4">
                   <div className="min-w-0">
                     <div className="text-xs font-medium text-muted-foreground">Status lucrare</div>
@@ -1536,6 +1537,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                     </div>
                   </div>
                 </div>
+   )}
                 {/* Managementul statusurilor critice – mutat din cardul stâng în cardul drept */}
                 {/* Setări ofertă – disponibile pentru admin/dispecer indiferent de preluare sau status */}
                 {(role === "admin" || role === "dispecer") && (
@@ -1683,7 +1685,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                           <div style="display:flex;gap:8px;margin-top:12px">
                                             <a href="${acceptUrl}" style="padding:10px 14px;background:#16a34a;color:#fff;border-radius:6px;text-decoration:none;font-weight:600">Accept ofertă</a>
                                             <a href="${rejectUrl}" style="padding:10px 14px;background:#dc2626;color:#fff;border-radius:6px;text-decoration:none;font-weight:600">Refuz ofertă</a>
-                                          </div>
+                                          </div
+                                          >
                                         </div>`
                                       const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(e)
                                       // Trimitem DOAR la emailul persoanei de contact a locației (cerință)
