@@ -601,6 +601,15 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 
       // PRODUCT TABLE (shown only if there are products)
       if (productsToUse && productsToUse.length > 0) {
+        // Normalize products to a consistent shape to avoid missing name/fields from legacy keys
+        const normalizedProducts = productsToUse.map((p: any) => {
+          const name = p?.name ?? p?.denumire ?? p?.title ?? ""
+          const um = p?.um ?? p?.unitate ?? p?.unit ?? "-"
+          const quantity = Number(p?.quantity ?? p?.cantitate ?? p?.qty ?? 0)
+          const price = Number(p?.price ?? p?.pretUnitar ?? p?.unitPrice ?? 0)
+          return { name, um, quantity, price }
+        })
+        
         checkPageBreak(15)
         doc.setFillColor(DARK_GRAY, DARK_GRAY, DARK_GRAY).rect(M, currentY, W, 8, "FD")
         doc
@@ -627,8 +636,9 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 
         drawTableHeader()
 
-        productsToUse.forEach((product, index) => {
-          const nameLines = doc.splitTextToSize(normalize(product.name || ""), colWidths[1] - 4)
+        normalizedProducts.forEach((product, index) => {
+          const nameText = product.name && String(product.name).trim().length > 0 ? product.name : "—"
+          const nameLines = doc.splitTextToSize(normalize(nameText), colWidths[1] - 4)
           const rowHeight = nameLines.length * 4 + 2
           if (currentY + rowHeight > PH - M) {
             doc.addPage()
@@ -660,7 +670,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         // TOTALS
         checkPageBreak(30)
         currentY += 10
-        const subtotal = productsToUse.reduce((s, p) => s + (p.quantity || 0) * (p.price || 0), 0)
+        const subtotal = normalizedProducts.reduce((s, p) => s + (p.quantity || 0) * (p.price || 0), 0)
         // Use offerVAT if a positive number was set; otherwise default to 21%
         const rawOfferVat = (lucrareForPDF as any)?.offerVAT
         const vatPercent = (typeof rawOfferVat === 'number' && rawOfferVat > 0) ? rawOfferVat : 21
