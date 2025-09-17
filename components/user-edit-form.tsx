@@ -19,6 +19,8 @@ import { doc, updateDoc, collection, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 // Schema de validare pentru formular
 const formSchema = z.object({
@@ -51,8 +53,20 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
   const [tempLocations, setTempLocations] = useState<string[]>([])
   const [sendInvite, setSendInvite] = useState<boolean>(false)
   const [inviteRecipients, setInviteRecipients] = useState<string[]>([])
+  const [isClientPickerOpen2, setIsClientPickerOpen2] = useState(false)
+  const [locationDialogOpen, setLocationDialogOpen] = useState(false)
+  const [pendingClientId, setPendingClientId] = useState<string>("")
+  const [pendingLocations, setPendingLocations] = useState<string[]>([])
+  const [selectedClientsDialogOpen, setSelectedClientsDialogOpen] = useState(false)
 
   const sortedClientsForSelect = [...clientsForSelect].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" }))
+  const clientOptions = sortedClientsForSelect.map(c => ({ label: c.nume || c.id, value: c.id }))
+  const aggregatedLocationOptions = React.useMemo(() => {
+    const selected = clientsForSelect.filter(c => clientAccess.some(e => e.clientId === c.id) || tempClientId === c.id)
+    const names = new Set<string>()
+    selected.forEach(c => (c.locatii || []).forEach((l:any) => names.add(l?.nume)))
+    return Array.from(names).sort((a,b)=> (a||"").localeCompare(b||"","ro",{sensitivity:"base"})).map(n => ({ label: n, value: n }))
+  }, [clientsForSelect, clientAccess, tempClientId])
 
   useImperativeHandle(ref, () => ({
     hasUnsavedChanges: () => formModified,
@@ -129,14 +143,15 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
   }, [clientsForSelect, clientAccess, form])
 
   const addClientAccessEntry = () => {
-    if (!tempClientId) return
-    const entry = { clientId: tempClientId, locationNames: [...tempLocations] }
+    if (!pendingClientId) return
+    const entry = { clientId: pendingClientId, locationNames: [...pendingLocations] }
     setClientAccess((prev) => {
-      const without = prev.filter((e) => e.clientId !== tempClientId)
+      const without = prev.filter((e) => e.clientId !== pendingClientId)
       return [...without, entry]
     })
-    setTempClientId("")
-    setTempLocations([])
+    setPendingClientId("")
+    setPendingLocations([])
+    setLocationDialogOpen(false)
   }
 
   const removeClientAccessEntry = (clientId: string) => {
@@ -359,11 +374,11 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
           {form.watch("role") === "client" && (
             <div className="space-y-4">
               <div className="space-y-2">
-                <FormLabel>Client și locații (poți adăuga mai mulți clienți)</FormLabel>
-                <Popover open={isClientPickerOpen} onOpenChange={setIsClientPickerOpen}>
+                <FormLabel>Adaugă client</FormLabel>
+                <Popover open={isClientPickerOpen2} onOpenChange={setIsClientPickerOpen2}>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" role="combobox" aria-expanded={isClientPickerOpen} className="w-full justify-between">
-                      {tempClientId ? (sortedClientsForSelect.find((c) => c.id === tempClientId)?.nume || "Selectați clientul") : "Selectați clientul"}
+                    <Button variant="outline" role="combobox" aria-expanded={isClientPickerOpen2} className="w-full justify-between">
+                      Selectează client
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
@@ -378,13 +393,13 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
                               key={c.id}
                               value={`${c.nume}__${c.id}`}
                               onSelect={() => {
-                                setTempClientId(c.id)
-                                setTempLocations([])
-                                setIsClientPickerOpen(false)
+                                setIsClientPickerOpen2(false)
+                                setPendingClientId(c.id)
+                                setPendingLocations([])
+                                setLocationDialogOpen(true)
                               }}
                               className="whitespace-nowrap"
                             >
-                              <Check className={`mr-2 h-4 w-4 ${tempClientId === c.id ? "opacity-100" : "opacity-0"}`} />
                               <span className="inline-block min-w-max">{c.nume}</span>
                             </CommandItem>
                           ))}
@@ -395,53 +410,14 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
                 </Popover>
               </div>
 
-              {tempClientId && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <FormLabel>Locații permise</FormLabel>
-                    <Badge variant="secondary">{tempLocations.length}</Badge>
-                  </div>
-                  <div className="max-h-48 overflow-auto rounded border p-2 space-y-1">
-                    {(sortedClientsForSelect
-                      .find((c) => c.id === tempClientId)?.locatii || [])
-                      .slice()
-                      .sort((a: any, b: any) => (a?.nume || "").localeCompare(b?.nume || "", "ro", { sensitivity: "base" }))
-                      .map((l: any, idx: number) => (
-                        <label key={idx} className="flex items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={tempLocations.includes(l.nume)}
-                            onChange={() => setTempLocations((prev) => prev.includes(l.nume) ? prev.filter((n) => n !== l.nume) : [...prev, l.nume])}
-                          />
-                          <span>{l.nume}</span>
-                        </label>
-                      ))}
-                    {!(sortedClientsForSelect.find((c) => c.id === tempClientId)?.locatii?.length) && (
-                      <div className="text-sm text-muted-foreground">Clientul nu are locații definite</div>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button type="button" variant="outline" onClick={addClientAccessEntry} disabled={!tempClientId}>Adaugă setul</Button>
-                  </div>
-                </div>
-              )}
-
               {clientAccess.length > 0 && (
                 <div className="space-y-2">
-                  <FormLabel>Clienți selectați</FormLabel>
-                  <div className="space-y-2">
-                    {clientAccess.map((entry) => {
-                      const c = clientsForSelect.find((x) => x.id === entry.clientId)
-                      return (
-                        <div key={entry.clientId} className="flex items-center justify-between rounded border p-2">
-                          <div className="text-sm">
-                            <div className="font-medium">{c?.nume || entry.clientId}</div>
-                            <div className="text-muted-foreground">{entry.locationNames.join(", ") || "—"}</div>
-                          </div>
-                          <Button type="button" variant="ghost" size="sm" onClick={() => removeClientAccessEntry(entry.clientId)}>Elimină</Button>
-                        </div>
-                      )
-                    })}
+                  <div className="flex items-center justify-between">
+                    <FormLabel>Clienți selectați</FormLabel>
+                    <div className="text-sm text-muted-foreground">{clientAccess.length} clienți adăugați</div>
+                  </div>
+                  <div>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setSelectedClientsDialogOpen(true)}>Arată clienții selectați</Button>
                   </div>
                 </div>
               )}
@@ -461,6 +437,88 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
           })
         }}
       />
+      {/* Dialog pentru selectarea/edidarea locațiilor pentru clientul ales */}
+      <Dialog
+        open={locationDialogOpen}
+        onOpenChange={(o) => {
+          if (!o) setLocationDialogOpen(false)
+        }}
+      >
+        <DialogContent className="w-[calc(100%-2rem)] max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Locații pentru {clientsForSelect.find(c => c.id === pendingClientId)?.nume || "client"}</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm text-muted-foreground">Selectați locațiile permise</div>
+            {(() => {
+              const all = (clientsForSelect.find(c => c.id === pendingClientId)?.locatii || []).map((l:any) => l?.nume)
+              const allSelected = all.length > 0 && all.every((n:string) => pendingLocations.includes(n))
+              return (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPendingLocations(allSelected ? [] : all)}
+                >
+                  {allSelected ? "Deselectează tot" : "Selectează tot"}
+                </Button>
+              )
+            })()}
+          </div>
+          <div className="max-h-[320px] overflow-auto border rounded p-2 space-y-1">
+            {(clientsForSelect.find(c => c.id === pendingClientId)?.locatii || []).map((l: any, idx: number) => (
+              <label key={idx} className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={pendingLocations.includes(l.nume)}
+                  onCheckedChange={() => setPendingLocations((prev) => prev.includes(l.nume) ? prev.filter((n) => n !== l.nume) : [...prev, l.nume])}
+                />
+                <span>{l.nume}</span>
+              </label>
+            )) || <div className="text-sm text-muted-foreground">Clientul nu are locații definite</div>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLocationDialogOpen(false)}>Anulează</Button>
+            <Button onClick={addClientAccessEntry} disabled={!pendingClientId}>Salvează setul</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Dialog listă clienți selectați (edit) */}
+      <Dialog open={selectedClientsDialogOpen} onOpenChange={setSelectedClientsDialogOpen}>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Clienți selectați</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 max-h-[60vh] overflow-auto">
+            {clientAccess.length === 0 ? (
+              <div className="text-sm text-muted-foreground">Nu există clienți adăugați.</div>
+            ) : (
+              clientAccess.map((entry) => {
+                const c = clientsForSelect.find((x) => x.id === entry.clientId)
+                return (
+                  <div key={entry.clientId} className="flex items-center justify-between rounded border p-2">
+                    <div className="text-sm">
+                      <div className="font-medium">{c?.nume || entry.clientId}</div>
+                      <div className="text-muted-foreground">{entry.locationNames.join(", ") || "—"}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button type="button" variant="outline" size="sm" onClick={() => {
+                        setPendingClientId(entry.clientId)
+                        setPendingLocations(entry.locationNames)
+                        setSelectedClientsDialogOpen(false)
+                        setLocationDialogOpen(true)
+                      }}>Editează</Button>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => removeClientAccessEntry(entry.clientId)}>Elimină</Button>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedClientsDialogOpen(false)}>Închide</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 })

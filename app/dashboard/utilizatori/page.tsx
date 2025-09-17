@@ -50,6 +50,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { MultiSelect } from "@/components/ui/multi-select"
+import { Dialog as UiDialog, DialogContent as UiDialogContent, DialogHeader as UiDialogHeader, DialogTitle as UiDialogTitle, DialogFooter as UiDialogFooter } from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
 
 export default function Utilizatori() {
   const { userData: currentUser } = useAuth()
@@ -72,8 +75,18 @@ export default function Utilizatori() {
   const [clientsForSelect, setClientsForSelect] = useState<Array<{id:string; nume:string; locatii?: any[]; email?: string}>>([])
   const [selectedClientLocations, setSelectedClientLocations] = useState<string[]>([])
   const [clientAccess, setClientAccess] = useState<Array<{ clientId: string; locationNames: string[] }>>([])
-  const [tempClientId, setTempClientId] = useState<string>("")
-  const [tempLocations, setTempLocations] = useState<string[]>([])
+  const [isClientPickerOpen2, setIsClientPickerOpen2] = useState(false)
+  const [locationDialogOpen, setLocationDialogOpen] = useState(false)
+  const [pendingClientId, setPendingClientId] = useState<string>("")
+  const [pendingLocations, setPendingLocations] = useState<string[]>([])
+  const [selectedClientsDialogOpen, setSelectedClientsDialogOpen] = useState(false)
+  const clientOptions = useMemo(() => clientsForSelect.map(c => ({ label: c.nume || c.id, value: c.id })), [clientsForSelect])
+  const aggregatedLocationOptions = useMemo(() => {
+    const selected = clientsForSelect.filter(c => pendingClientId === c.id)
+    const names = new Set<string>()
+    selected.forEach(c => (c.locatii || []).forEach((l:any) => names.add(l?.nume)))
+    return Array.from(names).sort((a,b)=> (a||"").localeCompare(b||"","ro",{sensitivity:"base"})).map(n => ({ label: n, value: n }))
+  }, [clientsForSelect, pendingClientId])
   const [sendInvite, setSendInvite] = useState<boolean>(false)
   const [inviteRecipients, setInviteRecipients] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -377,7 +390,7 @@ export default function Utilizatori() {
   }
 
   const handleClientChange = (value: string) => {
-    setTempClientId(value)
+    setPendingClientId(value)
     // Reset selected locations when client changes
     setSelectedClientLocations([])
     // Precompletează emailul cu emailul principal al clientului (dacă există)
@@ -390,15 +403,15 @@ export default function Utilizatori() {
   }
 
   const addClientAccessEntry = () => {
-    if (!tempClientId) return
-    const entry = { clientId: tempClientId, locationNames: [...selectedClientLocations] }
-    // evităm duplicatele (după clientId)
+    if (!pendingClientId) return
+    const newEntry = { clientId: pendingClientId, locationNames: [...pendingLocations] }
     setClientAccess((prev) => {
-      const without = prev.filter((e) => e.clientId !== tempClientId)
-      return [...without, entry]
+      const without = prev.filter((e) => e.clientId !== pendingClientId)
+      return [...without, newEntry]
     })
-    setTempClientId("")
-    setSelectedClientLocations([])
+    setPendingClientId("")
+    setPendingLocations([])
+    setLocationDialogOpen(false)
   }
 
   const removeClientAccessEntry = (clientId: string) => {
@@ -412,7 +425,7 @@ export default function Utilizatori() {
   }
 
   const handleToggleTempLocation = (locName: string) => {
-    setTempLocations((prev) =>
+    setPendingLocations((prev) =>
       prev.includes(locName) ? prev.filter((n) => n !== locName) : [...prev, locName],
     )
   }
@@ -532,7 +545,8 @@ export default function Utilizatori() {
       })
       setSelectedClientLocations([])
       setClientAccess([])
-      setTempClientId("")
+      setPendingClientId("")
+      setPendingLocations([])
     } catch (err: any) {
       console.error("Eroare la înregistrarea utilizatorului:", err)
       const code = err?.code || ""
@@ -982,11 +996,11 @@ export default function Utilizatori() {
               {formData.role === "client" && (
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Client și locații (poți adăuga mai mulți clienți)</label>
-                    <Popover open={isClientPickerOpen} onOpenChange={setIsClientPickerOpen}>
+                    <label className="text-sm font-medium">Adaugă client</label>
+                    <Popover open={isClientPickerOpen2} onOpenChange={setIsClientPickerOpen2}>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" role="combobox" aria-expanded={isClientPickerOpen} className="w-full justify-between">
-                          {tempClientId ? (sortedClientsForSelect.find((c) => c.id === tempClientId)?.nume || "Selectați clientul") : "Selectați clientul"}
+                        <Button variant="outline" role="combobox" aria-expanded={isClientPickerOpen2} className="w-full justify-between">
+                          Selectează client
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
@@ -1001,12 +1015,14 @@ export default function Utilizatori() {
                                   key={c.id}
                                   value={`${c.nume}__${c.id}`}
                                   onSelect={() => {
-                                    handleClientChange(c.id)
-                                    setIsClientPickerOpen(false)
+                                    setIsClientPickerOpen2(false)
+                                    setPendingClientId(c.id)
+                                    // preselectăm nimic; deschidem dialogul de locații
+                                    setPendingLocations([])
+                                    setLocationDialogOpen(true)
                                   }}
                                   className="whitespace-nowrap"
                                 >
-                                  <Check className={`mr-2 h-4 w-4 ${tempClientId === c.id ? "opacity-100" : "opacity-0"}`} />
                                   <span className="inline-block min-w-max">{c.nume}</span>
                                 </CommandItem>
                               ))}
@@ -1017,51 +1033,18 @@ export default function Utilizatori() {
                     </Popover>
                   </div>
                   
-                  {tempClientId && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Locații permise</label>
-                      <div className="max-h-48 overflow-auto rounded border p-2 space-y-1">
-                        {clientsForSelect
-                          .find((c) => c.id === tempClientId)?.locatii?.map((l: any, idx: number) => (
-                            <label key={idx} className="flex items-center gap-2 text-sm">
-                              <input
-                                type="checkbox"
-                                checked={tempLocations.includes(l.nume)}
-                                onChange={() => handleToggleTempLocation(l.nume)}
-                              />
-                              <span>{l.nume}</span>
-                            </label>
-                          )) || <div className="text-sm text-muted-foreground">Clientul nu are locații definite</div>}
-                      </div>
-                      <div className="flex gap-2">
-                        <Button type="button" variant="outline" onClick={addClientAccessEntry} disabled={!tempClientId}>Adaugă setul</Button>
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-2">
-                        Emailul de invitație se va trimite către: {inviteRecipients.length ? inviteRecipients.join(", ") : "—"}
-                      </div>
-                      <label className="flex items-center gap-2 text-sm mt-2">
-                        <input type="checkbox" checked={sendInvite} onChange={(e) => setSendInvite(e.target.checked)} />
-                        <span>Trimite invitație pe email</span>
-                      </label>
-                    </div>
-                  )}
+                  <div className="text-xs text-muted-foreground">
+                    După selectarea unui client, se va deschide un dialog pentru alegerea locațiilor. După salvare, clientul cu locațiile selectate va fi adăugat mai jos.
+                  </div>
 
                   {clientAccess.length > 0 && (
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Clienți selectați</label>
-                      <div className="space-y-2">
-                        {clientAccess.map((entry) => {
-                          const c = clientsForSelect.find((x) => x.id === entry.clientId)
-                          return (
-                            <div key={entry.clientId} className="flex items-center justify-between rounded border p-2">
-                              <div className="text-sm">
-                                <div className="font-medium">{c?.nume || entry.clientId}</div>
-                                <div className="text-muted-foreground">{entry.locationNames.join(", ") || "—"}</div>
-                              </div>
-                              <Button type="button" variant="ghost" size="sm" onClick={() => removeClientAccessEntry(entry.clientId)}>Elimină</Button>
-                            </div>
-                          )
-                        })}
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium">Clienți selectați</label>
+                        <div className="text-sm text-muted-foreground">{clientAccess.length} clienți adăugați</div>
+                      </div>
+                      <div>
+                        <Button type="button" variant="outline" size="sm" onClick={() => setSelectedClientsDialogOpen(true)}>Arată clienții selectați</Button>
                       </div>
                     </div>
                   )}
@@ -1195,6 +1178,77 @@ export default function Utilizatori() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog pentru selectarea locațiilor clientului selectat */}
+      <UiDialog open={locationDialogOpen} onOpenChange={(o) => { if (!o) { setLocationDialogOpen(false) } }}>
+        <UiDialogContent className="w-[calc(100%-2rem)] max-w-[520px]">
+          <UiDialogHeader>
+            <UiDialogTitle>Locații pentru {clientsForSelect.find(c => c.id === pendingClientId)?.nume || "client"}</UiDialogTitle>
+          </UiDialogHeader>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm text-muted-foreground">Selectați locațiile permise</div>
+            {(() => {
+              const all = (clientsForSelect.find(c => c.id === pendingClientId)?.locatii || []).map((l:any) => l?.nume)
+              const allSelected = all.length > 0 && all.every((n:string) => pendingLocations.includes(n))
+              return (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPendingLocations(allSelected ? [] : all)}
+                >
+                  {allSelected ? "Deselectează tot" : "Selectează tot"}
+                </Button>
+              )
+            })()}
+          </div>
+          <div className="max-h-[320px] overflow-auto border rounded p-2 space-y-1">
+            {(clientsForSelect.find(c => c.id === pendingClientId)?.locatii || []).map((l: any, idx: number) => (
+              <label key={idx} className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={pendingLocations.includes(l.nume)}
+                  onCheckedChange={() => setPendingLocations((prev: string[]) => prev.includes(l.nume) ? prev.filter((n: string) => n !== l.nume) : [...prev, l.nume])}
+                />
+                <span>{l.nume}</span>
+              </label>
+            )) || <div className="text-sm text-muted-foreground">Clientul nu are locații definite</div>}
+          </div>
+          <UiDialogFooter>
+            <Button variant="outline" onClick={() => setLocationDialogOpen(false)}>Anulează</Button>
+            <Button onClick={addClientAccessEntry} disabled={!pendingClientId}>Salvează setul</Button>
+          </UiDialogFooter>
+        </UiDialogContent>
+      </UiDialog>
+
+      {/* Dialog listă clienți selectați */}
+      <UiDialog open={selectedClientsDialogOpen} onOpenChange={setSelectedClientsDialogOpen}>
+        <UiDialogContent className="w-[calc(100%-2rem)] max-w-[600px]">
+          <UiDialogHeader>
+            <UiDialogTitle>Clienți selectați</UiDialogTitle>
+          </UiDialogHeader>
+          <div className="space-y-2 max-h-[60vh] overflow-auto">
+            {clientAccess.length === 0 ? (
+              <div className="text-sm text-muted-foreground">Nu există clienți adăugați.</div>
+            ) : (
+              clientAccess.map((entry) => {
+                const c = clientsForSelect.find((x) => x.id === entry.clientId)
+                return (
+                  <div key={entry.clientId} className="flex items-center justify-between rounded border p-2">
+                    <div className="text-sm">
+                      <div className="font-medium">{c?.nume || entry.clientId}</div>
+                      <div className="text-muted-foreground">{entry.locationNames.join(", ") || "—"}</div>
+                    </div>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => removeClientAccessEntry(entry.clientId)}>Elimină</Button>
+                  </div>
+                )
+              })
+            )}
+          </div>
+          <UiDialogFooter>
+            <Button variant="outline" onClick={() => setSelectedClientsDialogOpen(false)}>Închide</Button>
+          </UiDialogFooter>
+        </UiDialogContent>
+      </UiDialog>
 
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:justify-between gap-4">
