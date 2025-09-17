@@ -1627,7 +1627,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       )}
                       {lucrare.necesitaOferta && (
                         <div className="space-y-2">
-                          <Label className="text-xs font-medium text-blue-800">Editor ofertă</Label>
+                          <Label className="text-xs font-medium text-blue-800 my-2">Editor ofertă</Label>
                           <div className="flex flex-wrap gap-2">
                             <Button
                               variant="outline"
