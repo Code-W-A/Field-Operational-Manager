@@ -115,10 +115,20 @@ const handleNumberChange = (
 
   const saveEditor = () => {
     if (!draft) return
-    updateProduct(draft.id, "name", draft.name)
-    updateProduct(draft.id, "um", draft.um)
-    updateProduct(draft.id, "quantity", draft.quantity === (undefined as unknown as number) ? 0 : Number(draft.quantity) || 0)
-    updateProduct(draft.id, "price", draft.price === (undefined as unknown as number) ? 0 : Number(draft.price) || 0)
+    const nextProducts = products.map((p) => {
+      if (p.id !== draft.id) return p
+      const nextQuantity = draft.quantity === (undefined as unknown as number) ? 0 : Number(draft.quantity) || 0
+      const nextPrice = draft.price === (undefined as unknown as number) ? 0 : Number(draft.price) || 0
+      return {
+        ...p,
+        name: draft.name,
+        um: draft.um,
+        quantity: nextQuantity,
+        price: nextPrice,
+        total: nextQuantity * nextPrice,
+      }
+    })
+    onProductsChange(nextProducts)
     closeEditor()
   }
 
