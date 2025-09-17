@@ -1851,7 +1851,6 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         </tfoot>
                       </table>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-2">Secțiune doar pentru vizualizare. Valorile sunt înghețate la momentul generării raportului. TVA folosește procentul stocat la ofertă (implicit 21% dacă lipsă).</p>
                   </div>
                 )}
 
