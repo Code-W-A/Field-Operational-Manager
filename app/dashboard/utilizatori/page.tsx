@@ -1049,6 +1049,52 @@ export default function Utilizatori() {
                     </div>
                   )}
 
+                  {/* Bifa și buton pentru trimitere invitație */}
+                  <div className="flex items-center justify-between gap-4 border rounded p-3">
+                    <label className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={sendInvite}
+                        onCheckedChange={(v: boolean) => setSendInvite(!!v)}
+                      />
+                      <span>Trimite invitație la salvare</span>
+                    </label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={inviteRecipients.length === 0}
+                      onClick={async () => {
+                        try {
+                          if (inviteRecipients.length === 0) return
+                          const origin = (typeof window !== 'undefined' ? window.location.origin : '')
+                          const subject = "Invitație acces Portal Client – FOM"
+                          const content = `Bună ziua,\n\nVă-am creat/actualizat acces în Portalul Client FOM.\n\nEmail: ${formData.email}\nPortal: ${origin}/portal\n\nDupă autentificare, vă rugăm să schimbați parola din cont (dacă a fost resetată).\n\nVă mulțumim!`
+                          const html = `
+                            <div style="font-family:Arial,sans-serif;line-height:1.5">
+                              <h2 style="margin:0 0 12px;color:#0f56b3">Invitație acces Portal Client – FOM</h2>
+                              <p>Vă-am creat/actualizat acces în Portalul Client FOM.</p>
+                              <p><strong>Email:</strong> ${formData.email}<br/>
+                                 <strong>Portal:</strong> <a href="${origin}/portal" target="_blank">${origin}/portal</a></p>
+                              <p>După autentificare, vă rugăm să schimbați parola din cont (dacă a fost resetată).</p>
+                              <p>Vă mulțumim!</p>
+                            </div>`
+                          const resp = await fetch('/api/users/invite', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ to: inviteRecipients, subject, content, html })
+                          })
+                          if (!resp.ok) throw new Error('Invite email failed')
+                          toast({ title: 'Invitație trimisă', description: `Email trimis către: ${inviteRecipients.join(', ')}` })
+                        } catch (e) {
+                          console.warn('Trimitere invitație eșuată', e)
+                          toast({ variant: 'destructive', title: 'Invitație eșuată', description: 'Nu s-a putut trimite emailul de invitație.' })
+                        }
+                      }}
+                    >
+                      Trimite invitație
+                    </Button>
+                  </div>
+
                   <div className="space-y-2">
                     <label htmlFor="password" className="text-sm font-medium">
                       Parolă
