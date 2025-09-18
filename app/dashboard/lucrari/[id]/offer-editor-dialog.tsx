@@ -226,7 +226,7 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogHeader>
+      <DialogHeader >
         <DialogTitle>Editor ofertă</DialogTitle>
       </DialogHeader>
       <DialogContent className="max-w-[1000px] w-[calc(100%-2rem)]">

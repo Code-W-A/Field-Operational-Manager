@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, forwardRef, useImperativeHandle } from "react"
+import { useState, useEffect, useMemo, forwardRef, useImperativeHandle } from "react"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -61,7 +61,7 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
 
   const sortedClientsForSelect = [...clientsForSelect].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" }))
   const clientOptions = sortedClientsForSelect.map(c => ({ label: c.nume || c.id, value: c.id }))
-  const aggregatedLocationOptions = React.useMemo(() => {
+  const aggregatedLocationOptions = useMemo(() => {
     const selected = clientsForSelect.filter(c => clientAccess.some(e => e.clientId === c.id) || tempClientId === c.id)
     const names = new Set<string>()
     selected.forEach(c => (c.locatii || []).forEach((l:any) => names.add(l?.nume)))
@@ -98,7 +98,7 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
       displayName: user.displayName || "",
       email: user.email || "",
       role: user.role || "tehnician",
-      phoneNumber: user.phoneNumber || "",
+      phoneNumber: user.phoneNumber || (user as any).telefon || "",
       notes: user.notes || "",
     },
   })
@@ -214,6 +214,8 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
         email: values.email,
         role: values.role,
         phoneNumber: values.phoneNumber || "",
+        // legacy field for backward compatibility
+        telefon: values.phoneNumber || "",
         notes: values.notes || "",
         clientAccess: values.role === "client" ? clientAccess : [],
         updatedAt: new Date(),

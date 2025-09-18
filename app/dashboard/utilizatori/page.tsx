@@ -67,7 +67,7 @@ export default function Utilizatori() {
     password: "",
     confirmPassword: "",
     displayName: "",
-    telefon: "",
+    phoneNumber: "",
     role: "" as UserRole,
     clientId: "",
     allowedLocationNames: [] as string[],
@@ -491,7 +491,7 @@ export default function Utilizatori() {
         formData.password,
         formData.displayName,
         formData.role,
-        formData.telefon,
+        formData.phoneNumber,
         access,
       )
 
@@ -538,7 +538,7 @@ export default function Utilizatori() {
         password: "",
         confirmPassword: "",
         displayName: "",
-        telefon: "",
+        phoneNumber: "",
         role: "" as UserRole,
         clientId: "",
         allowedLocationNames: [],
@@ -733,10 +733,10 @@ export default function Utilizatori() {
         enableFiltering: true,
       },
       {
-        accessorKey: "telefon",
+        accessorKey: "phoneNumber",
         header: "Telefon",
         enableFiltering: true,
-        cell: ({ row }: any) => <span>{row.original.telefon || "N/A"}</span>,
+        cell: ({ row }: any) => <span>{(row.original as any).phoneNumber || (row.original as any).telefon || "N/A"}</span>,
       },
       {
         accessorKey: "role",
@@ -815,7 +815,7 @@ export default function Utilizatori() {
   // Function to check if we should show the close confirmation dialog for add
   const handleCloseAddDialog = () => {
     // Check if any form fields have values
-    if (formData.email || formData.password || formData.displayName || formData.telefon || formData.role) {
+    if (formData.email || formData.password || formData.displayName || formData.phoneNumber || formData.role) {
       setActiveDialog("add")
       setShowCloseAlert(true)
     } else {
@@ -910,13 +910,13 @@ export default function Utilizatori() {
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="telefon" className="text-sm font-medium">
+                  <label htmlFor="phoneNumber" className="text-sm font-medium">
                     Telefon
                   </label>
                   <Input
-                    id="telefon"
+                    id="phoneNumber"
                     placeholder="Număr de telefon"
-                    value={formData.telefon}
+                    value={formData.phoneNumber}
                     onChange={handleInputChange}
                   />
                 </div>
@@ -1360,7 +1360,7 @@ export default function Utilizatori() {
                     <div className="mb-4 space-y-2">
                       <div className="flex justify-between">
                         <span className="text-sm font-medium text-muted-foreground">Telefon:</span>
-                        <span className="text-sm">{user.telefon || "N/A"}</span>
+                        <span className="text-sm">{(user as any).phoneNumber || (user as any).telefon || "N/A"}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm font-medium text-muted-foreground">Status:</span>

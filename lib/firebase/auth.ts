@@ -17,6 +17,7 @@ export interface UserData {
   email: string | null
   displayName: string | null
   role: UserRole
+  phoneNumber?: string
   telefon?: string
   // Client access: multiple clients with multiple locations
   clientAccess?: Array<{ clientId: string; locationNames: string[] }>
@@ -30,7 +31,7 @@ export const registerUser = async (
   password: string,
   displayName: string,
   role: UserRole,
-  telefon?: string,
+  phoneNumber?: string,
   clientAccess?: Array<{ clientId: string; locationNames: string[] }>,
 ): Promise<UserData> => {
   try {
@@ -47,7 +48,9 @@ export const registerUser = async (
       email: user.email,
       displayName: user.displayName,
       role,
-      telefon,
+      phoneNumber,
+      // keep legacy field in Firestore for backward compatibility
+      telefon: phoneNumber,
       clientAccess: clientAccess || [],
       createdAt: new Date(),
       lastLogin: new Date(),
