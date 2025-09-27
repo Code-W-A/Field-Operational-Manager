@@ -19,7 +19,12 @@ export async function POST(req: NextRequest) {
       offerActionUsedAt: null,
     })
 
-    const base = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "")
+    // Build absolute base URL for email links (works on server): prefer env, then headers
+    const envBase = process.env.NEXT_PUBLIC_APP_URL
+    const proto = req.headers.get("x-forwarded-proto") || "https"
+    const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || ""
+    const headerBase = host ? `${proto}://${host}` : ""
+    const base = envBase || headerBase
     const acceptUrl = `${base}/offer/${encodeURIComponent(lucrareId)}?t=${encodeURIComponent(token)}&action=accept`
     const rejectUrl = `${base}/offer/${encodeURIComponent(lucrareId)}?t=${encodeURIComponent(token)}&action=reject`
 

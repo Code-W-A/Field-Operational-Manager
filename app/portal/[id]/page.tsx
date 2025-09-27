@@ -14,7 +14,6 @@ import { Badge } from "@/components/ui/badge"
 import { UserNav } from "@/components/user-nav"
 import { ArrowLeft, Calendar, MapPin, FileText, Download, CheckCircle, XCircle } from "lucide-react"
 import { generateOfferPdf } from "@/lib/utils/offer-pdf"
-import { uploadFile } from "@/lib/firebase/storage"
 import Link from "next/link"
 
 export default function PortalWorkDetail() {
@@ -24,6 +23,7 @@ export default function PortalWorkDetail() {
   const [w, setW] = useState<any>(null)
   const [saving, setSaving] = useState(false)
   const [reason, setReason] = useState("")
+  const [downloading, setDownloading] = useState(false)
   const id = params?.id as string
 
   useEffect(() => {
@@ -85,55 +85,57 @@ export default function PortalWorkDetail() {
           body: JSON.stringify({ to, subject, html })
         })
       } catch {}
-      
-      // Dacă este acceptată și nu avem ofertă salvată ca document, generăm PDF și îl urcăm
-      try {
-        if (accepted) {
-          const fresh = await getLucrareById(id)
-          const hasOfferDoc = !!fresh?.ofertaDocument?.url
-          const products = fresh?.products || []
-          if (!hasOfferDoc && Array.isArray(products) && products.length > 0) {
-            const damages: string[] = (() => {
-              const raw = (fresh as any)?.comentariiOferta
-              if (!raw) return []
-              // split by newlines or bullet-like dashes
-              return String(raw)
-                .split(/\r?\n|\u2022|\-|\*/)
-                .map((s: string) => s.trim())
-                .filter(Boolean)
-            })()
-
-            const conditions: string[] | undefined = Array.isArray((fresh as any)?.conditiiOferta)
-              ? (fresh as any).conditiiOferta
-              : undefined
-
-            const offerVatVal = typeof (fresh as any)?.offerVAT === 'number' ? (fresh as any).offerVAT : 19
-
-            const blob = await generateOfferPdf({
-              id: id,
-              client: fresh?.client || "",
-              attentionTo: fresh?.persoanaContact || "",
-              fromCompany: "NRG Access Systems SRL",
-              products: products.map((p: any) => ({ name: p?.name || p?.denumire || "", quantity: Number(p?.quantity || p?.cantitate || 0), price: Number(p?.price || p?.pretUnitar || 0) })),
-              offerVAT: offerVatVal,
-              damages,
-              conditions,
-            })
-            const fileName = `oferta_${id}.pdf`
-            const file = new File([blob], fileName, { type: "application/pdf" })
-            const path = `oferte/${id}/oferta_${Date.now()}.pdf`
-            const { url } = await uploadFile(file, path)
-            await updateLucrare(id, { ofertaDocument: { url, fileName, uploadedAt: new Date().toISOString(), uploadedBy: 'Client portal' } } as any)
-          }
-        }
-      } catch (e) {
-        console.warn("Generare/încărcare PDF ofertă eșuată (non-blocking)", e)
-      }
 
       const data = await getLucrareById(id)
       setW(data)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const downloadOffer = async () => {
+    try {
+      setDownloading(true)
+      const fresh = await getLucrareById(id)
+      const products = Array.isArray(fresh?.products) ? fresh.products : []
+      if (!products.length) return
+      const damages: string[] = (() => {
+        const raw = (fresh as any)?.comentariiOferta
+        if (!raw) return []
+        return String(raw)
+          .split(/\r?\n|\u2022|\-|\*/)
+          .map((s: string) => s.trim())
+          .filter(Boolean)
+      })()
+      const conditions: string[] | undefined = Array.isArray((fresh as any)?.conditiiOferta)
+        ? (fresh as any).conditiiOferta
+        : undefined
+      const offerVatVal = typeof (fresh as any)?.offerVAT === 'number' ? (fresh as any).offerVAT : 19
+      const blob = await generateOfferPdf({
+        id: id,
+        client: fresh?.client || "",
+        attentionTo: fresh?.persoanaContact || "",
+        fromCompany: "NRG Access Systems SRL",
+        products: products.map((p: any) => ({
+          name: p?.name || p?.denumire || "",
+          quantity: Number(p?.quantity || p?.cantitate || 0),
+          price: Number(p?.price || p?.pretUnitar || 0),
+        })),
+        offerVAT: offerVatVal,
+        damages,
+        conditions,
+      })
+      const fileName = `oferta_${id}.pdf`
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } finally {
+      setDownloading(false)
     }
   }
 
@@ -292,16 +294,11 @@ export default function PortalWorkDetail() {
                           Motiv: {w.offerResponse.reason}
                         </p>
                       )}
-                      {w.offerResponse.status === "accept" && w.ofertaDocument?.url && (
+                      {w.offerResponse.status === "accept" && (
                         <div className="mt-3">
-                          <Link 
-                            className="inline-flex items-center gap-1 px-3 py-1 bg-purple-50 text-purple-700 rounded-full text-sm font-medium hover:bg-purple-100 transition-colors" 
-                            href={`/api/download?lucrareId=${encodeURIComponent(id)}&type=oferta&url=${encodeURIComponent(w.ofertaDocument.url)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            Descarcă oferta
-                          </Link>
+                          <Button onClick={downloadOffer} disabled={downloading}>
+                            {downloading ? "Se generează..." : "Descarcă oferta"}
+                          </Button>
                         </div>
                       )}
                     </div>

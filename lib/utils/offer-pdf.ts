@@ -52,16 +52,28 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
       reader.onload = () => resolve(reader.result as string)
       reader.readAsDataURL(blob)
     })
-    // Place logo area ~32x14mm
-    doc.addImage(dataUrl, "PNG", M + W - 36, y - 2, 32, 14)
+    // Place logo area ~32x14mm in top-right corner
+    doc.addImage(dataUrl, "PNG", M + W - 36, y, 32, 14)
   } catch {}
 
+  // Ensure the header table starts clearly below the logo (logo height + margin)
+  y += 20
+
   // Header table (CĂTRE / ÎN ATENȚIA / DE LA / DATA)
+  // Format date as DD-MMM-YYYY (e.g., 31-Jul-2025) to match sample
+  const fmtDate = (() => {
+    if (input.date) return input.date
+    const d = new Date()
+    const day = String(d.getDate()).padStart(2, "0")
+    const month = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]
+    const year = d.getFullYear()
+    return `${day}-${month}-${year}`
+  })()
   const headerRows: Array<[string, string]> = [
     ["CATRE:", normalize(input.client || "-")],
     ["IN ATENTIA:", normalize(input.attentionTo || "-")],
     ["DE LA:", normalize(input.fromCompany || "NRG Access Systems SRL")],
-    ["DATA:", input.date || new Date().toLocaleDateString("ro-RO", { day: "2-digit", month: "short", year: "numeric" })],
+    ["DATA:", fmtDate],
   ]
 
   doc.setFont("helvetica", "bold").setFontSize(9)
@@ -169,7 +181,7 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   doc.text(`${subtotal.toLocaleString("ro-RO")} €`, xPos[4] + 2, y + 5)
   y += 14
 
-  // Conditions
+  // Conditions (match sample wording and spacing)
   const vatPercent = typeof input.offerVAT === "number" && input.offerVAT > 0 ? input.offerVAT : 19
   const defaultConds = [
     `Plata: 100% in avans`,

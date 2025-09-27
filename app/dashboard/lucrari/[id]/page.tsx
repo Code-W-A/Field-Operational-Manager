@@ -1612,7 +1612,13 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => setIsOfferEditorOpen(true)}
+                              onClick={() => {
+                                if (!lucrare.preluatDispecer) {
+                                  toast({ title: 'Editor indisponibil', description: 'Lucrarea trebuie preluată de dispecer/admin înainte de editarea ofertei.', variant: 'destructive' })
+                                  return
+                                }
+                                setIsOfferEditorOpen(true)
+                              }}
                               disabled={isUpdating}
                             >
                               Deschide editor
@@ -1662,37 +1668,22 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                             </tfoot>
                                           </table>
                                           <p style="margin:12px 0 6px;color:#64748b">Acest link este valabil 30 de zile de la primirea emailului. După confirmare, linkurile devin inactive.</p>
-                                          <div style="display:flex;margin-top:12px">
-                                            <a href="${acceptUrl}" style="padding:10px 14px;background:#16a34a;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;margin-right:8px">Accept ofertă</a>
-                                            <a href="${rejectUrl}" style="padding:10px 14px;background:#dc2626;color:#fff;border-radius:6px;text-decoration:none;font-weight:600">Refuz ofertă</a>
-                                          </div
-                                          >
+                                          <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-top:12px">
+                                            <tr>
+                                              <td>
+                                                <a href="${acceptUrl}" style="background:#16a34a;border-radius:6px;color:#ffffff;display:inline-block;font-weight:600;padding:10px 14px;text-decoration:none;line-height:normal">Accept ofertă</a>
+                                              </td>
+                                              <td style="width:8px">&nbsp;</td>
+                                              <td>
+                                                <a href="${rejectUrl}" style="background:#dc2626;border-radius:6px;color:#ffffff;display:inline-block;font-weight:600;padding:10px 14px;text-decoration:none;line-height:normal">Refuz ofertă</a>
+                                              </td>
+                                            </tr>
+                                          </table>
                                         </div>`
                                       const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(e)
-                                      // Trimitem DOAR la emailul persoanei de contact a locației (cerință)
-                                      let recipient: string | undefined
-                                      try {
-                                        const loc = (clientData as any)?.locatii?.find((l: any) => l?.nume === lucrare.locatie)
-                                        const contact = loc?.persoaneContact?.find((c: any) => c?.nume === lucrare.persoanaContact)
-                                        recipient = contact?.email
-                                      } catch {}
-                                      const recipients = isValid(recipient) ? [recipient as string] : []
-                                      if (recipients.length === 0) {
-                                        toast({ title: 'Destinatar lipsă', description: 'Nu există un email valid pentru persoana de contact a locației.', variant: 'destructive' })
-                                        return
-                                      }
-                                      toast({ title: 'Se trimite ofertă', description: `Către: ${recipients.join(', ')}` })
-                                      const resp = await fetch('/api/users/invite', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ to: recipients, subject, html })
-                                      })
-                                      if (!resp.ok) {
-                                        const err = await resp.json().catch(() => ({}))
-                                        toast({ title: 'Eroare trimitere', description: err?.error || `Cerere invalidă (${resp.status})`, variant: 'destructive' })
-                                      } else {
-                                        toast({ title: 'Ofertă trimisă', description: `S-a trimis oferta la: ${recipients.join(', ')}` })
-                                      }
+                                      // Mutăm trimiterea în editorul de ofertă, nu din pagina de detalii
+                                      toast({ title: 'Trimitere din editor', description: 'Deschideți editorul de ofertă și folosiți butonul Trimite ofertă.' })
+                                      return
                                     } catch (e) {
                                       console.warn('Trimitere ofertă eșuată', e)
                                       toast({ title: 'Eroare trimitere', description: 'Nu s-a putut trimite emailul.', variant: 'destructive' })
@@ -1834,8 +1825,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   </div>
                 )}
 
-                {/* Offer editor dialog */}
-                {lucrare && role !== "tehnician" && (
+                {/* Offer editor dialog - disponibil doar după preluare de către dispecer/admin */}
+                {lucrare && role !== "tehnician" && lucrare.preluatDispecer && (
                   <OfferEditorDialog
                     lucrareId={lucrare.id!}
                     open={isOfferEditorOpen}

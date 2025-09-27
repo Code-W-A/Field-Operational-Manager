@@ -89,7 +89,8 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
       const baseline = last?.products?.length ? last.products : baselineProducts
       const changed = JSON.stringify(products) !== JSON.stringify(baseline) || (last?.total ?? 0) !== total
       if (!changed) {
-        onOpenChange(false)
+        // Nu închidem dialogul dacă nu sunt schimbări
+        setCanSendOffer(true)
         return
       }
       const version = {
@@ -110,10 +111,8 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
       setVersions(newVersions)
       setBaselineProducts(products)
       setEditingNewVersion(false)
-      // allow sending after a new version is created
+      // allow sending after a new version is created și păstrăm dialogul deschis
       setCanSendOffer(true)
-      // Fallback save: append version to a dedicated endpoint by overwriting whole array is not ideal; leave for next iteration
-      onOpenChange(false)
     } finally {
       setSaving(false)
     }
@@ -152,16 +151,20 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
       if (!tokenResp.ok) throw new Error('Nu s-a putut genera link-ul de ofertă')
       const { acceptUrl, rejectUrl } = await tokenResp.json()
 
-      // recipients from location contact email only
-      let recipient: string | undefined
+      // recipients: întâi email persoană de contact din locație, fallback pe email principal al clientului
+      let locRecipient: string | undefined
+      let clientRecipient: string | undefined
       try {
         const loc = (clientData as any)?.locatii?.find((l: any) => l?.nume === currentWork?.locatie)
         const contact = loc?.persoaneContact?.find((c: any) => c?.nume === currentWork?.persoanaContact)
-        recipient = contact?.email
+        locRecipient = contact?.email
+      } catch {}
+      try {
+        clientRecipient = (clientData as any)?.email
       } catch {}
       const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(e || '')
-      const recipients = isValid(recipient) ? [recipient as string] : []
-      if (!recipients.length) throw new Error('Nu există un email valid pentru persoana de contact a locației.')
+      const recipients = isValid(locRecipient) ? [locRecipient as string] : (isValid(clientRecipient) ? [clientRecipient as string] : [])
+      if (!recipients.length) throw new Error('Nu există un email valid pentru locație sau pentru client.')
 
       toast({ title: 'Se trimite ofertă', description: `Către: ${recipients.join(', ')}` })
 
@@ -198,10 +201,17 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
             </tfoot>
           </table>
           <p style=\"margin:12px 0 6px;color:#64748b\">Acest link este valabil 30 de zile de la primirea emailului. După confirmare, linkurile devin inactive.</p>
-          <div style=\"display:flex;margin-top:12px\">
-            <a href=\"${acceptUrl}\" style=\"padding:10px 14px;background:#16a34a;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;margin-right:8px\">Accept ofertă</a>
-            <a href=\"${rejectUrl}\" style=\"padding:10px 14px;background:#dc2626;color:#fff;border-radius:6px;text-decoration:none;font-weight:600\">Refuz ofertă</a>
-          </div>
+          <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"margin-top:12px\">
+            <tr>
+              <td>
+                <a href=\"${acceptUrl}\" style=\"background:#16a34a;border-radius:6px;color:#ffffff;display:inline-block;font-weight:600;padding:10px 14px;text-decoration:none;line-height:normal\">Accept ofertă</a>
+              </td>
+              <td style=\"width:8px\">&nbsp;</td>
+              <td>
+                <a href=\"${rejectUrl}\" style=\"background:#dc2626;border-radius:6px;color:#ffffff;display:inline-block;font-weight:600;padding:10px 14px;text-decoration:none;line-height:normal\">Refuz ofertă</a>
+              </td>
+            </tr>
+          </table>
         </div>`
 
       const resp = await fetch('/api/users/invite', {
@@ -218,7 +228,6 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
       await updateLucrare(lucrareId, { statusOferta: "OFERTAT" } as any)
       setStatusOferta("OFERTAT")
       setCanSendOffer(false)
-      onOpenChange(false)
       toast({ title: 'Ofertă trimisă', description: `S-a trimis oferta la: ${recipients.join(', ')}` })
     } catch (e) {
       console.warn('Trimitere ofertă eșuată', e)

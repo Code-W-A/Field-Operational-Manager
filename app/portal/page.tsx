@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useAuth } from "@/contexts/AuthContext"
 import { ProtectedRoute } from "@/components/protected-route"
-import { getLucrari } from "@/lib/firebase/firestore"
+import { getLucrari, getClienti } from "@/lib/firebase/firestore"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
@@ -20,11 +20,17 @@ export default function ClientPortalPage() {
   const [activeOnly, setActiveOnly] = useState<boolean>(false)
   const [search, setSearch] = useState("")
   const [locationFilter, setLocationFilter] = useState<string>("all")
+  const [clientFilter, setClientFilter] = useState<string>("all")
+  const [clients, setClients] = useState<any[]>([])
 
   useEffect(() => {
     const load = async () => {
       try {
-        const all = await getLucrari()
+        const [all, allClients] = await Promise.all([
+          getLucrari(),
+          getClienti(),
+        ])
+        setClients(allClients)
         // Derivăm lista de locații permise din toate intrările clientAccess
         const allowedLocations: string[] = ([] as string[]).concat(
           ...((userData as any)?.clientAccess || []).map((e: any) => e?.locationNames || [])
@@ -67,12 +73,37 @@ export default function ClientPortalPage() {
   const visible = useMemo(() => {
     return items.filter((w) => {
       if (statusFilter !== "all" && (w.statusLucrare || "").toLowerCase() !== statusFilter) return false
+      if (clientFilter !== "all") {
+        const c = clients.find((cx: any) => cx.id === clientFilter)
+        const byClientId = (w as any)?.clientInfo?.id && (w as any).clientInfo.id === clientFilter
+        const byClientName = c?.nume && String(w.client || "").toLowerCase().trim() === String(c.nume).toLowerCase().trim()
+        if (!byClientId && !byClientName) return false
+      }
       if (locationFilter !== "all" && w.locatie !== locationFilter) return false
       if (activeOnly && !isActiveStatus(w.statusLucrare)) return false
       if (search && !(`${w.client} ${w.locatie} ${w.tipLucrare}`.toLowerCase().includes(search.toLowerCase()))) return false
       return true
     })
-  }, [items, statusFilter, locationFilter, search, activeOnly])
+  }, [items, statusFilter, clientFilter, locationFilter, search, activeOnly, clients])
+
+  // Compute filter options for clients and their locations based on access
+  const clientAccess: Array<{ clientId: string; locationNames: string[] }> = ((userData as any)?.clientAccess || [])
+  const allowedClientIds = new Set(clientAccess.map((e) => e.clientId))
+  const clientsForFilter = useMemo(() => {
+    const list = clients.filter((c: any) => allowedClientIds.has(c.id))
+    return list.sort((a: any, b: any) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" }))
+  }, [clients, userData])
+
+  const locationOptionsForSelected = useMemo(() => {
+    if (clientFilter === "all") {
+      const allLocs = new Set<string>()
+      clientAccess.forEach((e) => (e.locationNames || []).forEach((n) => allLocs.add(n)))
+      return Array.from(allLocs).sort((a, b) => (a || "").localeCompare(b || "", "ro", { sensitivity: "base" }))
+    }
+    const entry = clientAccess.find((e) => e.clientId === clientFilter)
+    const list = entry?.locationNames || []
+    return [...list].sort((a, b) => (a || "").localeCompare(b || "", "ro", { sensitivity: "base" }))
+  }, [clientFilter, userData])
 
   const getStatusBadge = (status?: string) => {
     const s = (status || "").toLowerCase()
@@ -99,15 +130,26 @@ export default function ClientPortalPage() {
 
       <div className="p-4 mx-auto max-w-7xl">
         <h1 className="text-xl font-semibold mb-4">Lucrările mele</h1>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4">
         <Input placeholder="Caută client/locație/tip" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <Select value={clientFilter} onValueChange={setClientFilter}>
+          <SelectTrigger>
+            <SelectValue placeholder="Client" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Toți clienții</SelectItem>
+            {clientsForFilter.map((c: any) => (
+              <SelectItem key={c.id} value={c.id}>{c.nume}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Select value={locationFilter} onValueChange={setLocationFilter}>
           <SelectTrigger>
             <SelectValue placeholder="Locație" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Toate locațiile</SelectItem>
-            {((userData as any)?.clientAccess || []).flatMap((e: any) => e?.locationNames || []).map((n: string, idx: number) => (
+            {locationOptionsForSelected.map((n: string, idx: number) => (
               <SelectItem key={`${n}-${idx}`} value={n}>{n}</SelectItem>
             ))}
           </SelectContent>
