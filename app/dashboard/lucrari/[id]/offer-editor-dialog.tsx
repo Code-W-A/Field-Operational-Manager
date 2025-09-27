@@ -151,19 +151,44 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
       if (!tokenResp.ok) throw new Error('Nu s-a putut genera link-ul de ofertă')
       const { acceptUrl, rejectUrl } = await tokenResp.json()
 
-      // recipients: întâi email persoană de contact din locație, fallback pe email principal al clientului
-      let locRecipient: string | undefined
-      let clientRecipient: string | undefined
-      try {
-        const loc = (clientData as any)?.locatii?.find((l: any) => l?.nume === currentWork?.locatie)
-        const contact = loc?.persoaneContact?.find((c: any) => c?.nume === currentWork?.persoanaContact)
-        locRecipient = contact?.email
-      } catch {}
-      try {
-        clientRecipient = (clientData as any)?.email
-      } catch {}
+      // recipients resolution order:
+      // 1) lucrare.emailDestinatar (dacă există)
+      // 2) persoana de contact din locație corespunzătoare lucrării
+      // 3) orice email valid din persoanele de contact ale locației
+      // 4) emailul principal al clientului
       const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(e || '')
-      const recipients = isValid(locRecipient) ? [locRecipient as string] : (isValid(clientRecipient) ? [clientRecipient as string] : [])
+      const unique: string[] = []
+      const addIfValid = (e?: string) => { if (isValid(e) && !unique.includes(e!)) unique.push(e!) }
+
+      // 1) explicit destinatari pe lucrare
+      try {
+        const list = Array.isArray((currentWork as any)?.emailDestinatar) ? (currentWork as any).emailDestinatar as string[] : []
+        list.forEach((e) => addIfValid(e))
+      } catch {}
+
+      // 2) match locație by nume/adresă și persoană de contact exactă
+      let loc: any
+      try {
+        const locatii = (clientData as any)?.locatii || []
+        loc = locatii.find((l: any) => l?.nume === currentWork?.locatie || l?.adresa === (currentWork as any)?.clientInfo?.locationAddress)
+        if (loc && currentWork?.persoanaContact) {
+          const contact = loc?.persoaneContact?.find((c: any) => c?.nume === currentWork?.persoanaContact)
+          addIfValid(contact?.email)
+        }
+      } catch {}
+
+      // 3) dacă încă nu avem, ia orice email valid din persoanele de contact ale locației
+      if (unique.length === 0 && loc?.persoaneContact?.length) {
+        for (const c of loc.persoaneContact) {
+          if (unique.length) break
+          addIfValid(c?.email)
+        }
+      }
+
+      // 4) fallback client email
+      try { addIfValid((clientData as any)?.email) } catch {}
+
+      const recipients = unique
       if (!recipients.length) throw new Error('Nu există un email valid pentru locație sau pentru client.')
 
       toast({ title: 'Se trimite ofertă', description: `Către: ${recipients.join(', ')}` })
