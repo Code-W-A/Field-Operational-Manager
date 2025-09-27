@@ -1623,7 +1623,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                             >
                               Deschide editor
                             </Button>
-                            {lucrare.products && lucrare.products.length > 0 && (
+                            {/* {lucrare.products && lucrare.products.length > 0 && (
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -1694,7 +1694,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                 >
                                   Trimite ofertă
                                 </Button>
-                            )}
+                            )} */}
                           </div>
                         </div>
                       )}
