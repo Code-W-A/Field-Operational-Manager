@@ -30,6 +30,9 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
   const [canSendOffer, setCanSendOffer] = useState(false)
   const [currentWork, setCurrentWork] = useState<any>(null)
   const [clientData, setClientData] = useState<any>(null)
+  const [termsPayment, setTermsPayment] = useState<string>("100% in avans")
+  const [termsDelivery, setTermsDelivery] = useState<string>("30 zile lucratoare de la plata")
+  const [termsInstallation, setTermsInstallation] = useState<string>("3 zile lucratoare de la livrare")
 
   useEffect(() => {
     setProducts(initialProducts || [])
@@ -55,6 +58,17 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
         const nextVat = (typeof rawVat === 'number' && rawVat > 0) ? Number(rawVat) : 21
         setVatPercent(nextVat)
       }
+      // Initialize dynamic terms from existing conditiiOferta if present
+      try {
+        const conds: string[] = Array.isArray((current as any)?.conditiiOferta) ? ((current as any).conditiiOferta as string[]) : []
+        const findByPrefix = (prefix: string) => conds.find((c) => String(c || '').toLowerCase().startsWith(prefix))
+        const p = findByPrefix('plata:')
+        const l = findByPrefix('livrare:')
+        const i = findByPrefix('instalare:')
+        if (p) setTermsPayment(p.replace(/^plata:\s*/i, '').trim() || termsPayment)
+        if (l) setTermsDelivery(l.replace(/^livrare:\s*/i, '').trim() || termsDelivery)
+        if (i) setTermsInstallation(i.replace(/^instalare:\s*/i, '').trim() || termsInstallation)
+      } catch {}
     }
     if (open) void load()
   }, [open, lucrareId])
@@ -140,11 +154,18 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
       const current = await getLucrareById(lucrareId)
       const existing = (current as any)?.offerVersions || []
       const newVersions = [...existing, version]
+      // Build dynamic conditions (without warranty)
+      const conditiiOferta = [
+        `Plata: ${termsPayment}`,
+        `Livrare: ${termsDelivery}`,
+        `Instalare: ${termsInstallation}`,
+      ]
       await updateLucrare(lucrareId, {
         products,
         offerTotal: total,
         offerVAT: Number(vatPercent) || 0,
         offerVersions: newVersions as any,
+        conditiiOferta: conditiiOferta as any,
       } as any)
       setVersions(newVersions)
       setBaselineProducts(products)
@@ -281,23 +302,45 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
           <div className="lg:col-span-2 space-y-4">
             <ProductTableForm products={products} onProductsChange={setProducts} disabled={effectiveDisabled} />
 
-            {/* VAT controls & totals */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-sm">TVA (%)</span>
-                <input
-                  type="number"
-                  min={0}
-                  step={1}
-                  value={vatPercent}
-                  onChange={(e) => setVatPercent(e.target.value === "" ? 0 : Number(e.target.value))}
-                  className="w-20 border rounded px-2 py-1 text-sm"
-                  disabled={effectiveDisabled}
-                />
+            {/* Termeni ofertă (dinamici) */}
+            <div className="space-y-2">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Termen de plată</label>
+                  <input
+                    type="text"
+                    value={termsPayment}
+                    onChange={(e) => setTermsPayment(e.target.value)}
+                    className="w-full border rounded px-2 py-1 text-sm"
+                    disabled={effectiveDisabled}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Termen de livrare</label>
+                  <input
+                    type="text"
+                    value={termsDelivery}
+                    onChange={(e) => setTermsDelivery(e.target.value)}
+                    className="w-full border rounded px-2 py-1 text-sm"
+                    disabled={effectiveDisabled}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Termen de instalare</label>
+                  <input
+                    type="text"
+                    value={termsInstallation}
+                    onChange={(e) => setTermsInstallation(e.target.value)}
+                    className="w-full border rounded px-2 py-1 text-sm"
+                    disabled={effectiveDisabled}
+                  />
+                </div>
               </div>
-              <div className="text-right text-sm">
-                <div>Total fără TVA: <strong>{total.toFixed(2)} lei</strong></div>
-                <div>Total cu TVA: <strong>{totalWithVAT.toFixed(2)} lei</strong></div>
+              {/* Sumar total */}
+              <div className="flex items-center justify-end">
+                <div className="text-right text-sm">
+                  <div>Total: <strong>{total.toFixed(2)} lei</strong></div>
+                </div>
               </div>
             </div>
 

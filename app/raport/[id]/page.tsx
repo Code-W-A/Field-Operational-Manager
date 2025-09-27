@@ -1864,14 +1864,10 @@ FOM by NRG`,
                   <div className="mt-3 flex justify-end">
                     {(() => {
                       const subtotal = products.reduce((s: number, p: any) => s + (Number(p.total) || ((Number(p.quantity)||0)*(Number(p.price)||0))), 0)
-                      const vatPercent = 21
-                      const vat = subtotal * (vatPercent / 100)
-                      const total = subtotal + vat
+                      const total = subtotal
                       return (
                         <div className="text-sm space-y-1 text-right">
-                          <div><span className="font-medium">Total lei fără TVA:</span> {subtotal.toFixed(2)}</div>
-                          <div><span className="font-medium">TVA (21%):</span> {vat.toFixed(2)}</div>
-                          <div><span className="font-medium">Total cu TVA:</span> {total.toFixed(2)}</div>
+                          <div><span className="font-medium">Total:</span> {total.toFixed(2)}</div>
                         </div>
                       )
                     })()}

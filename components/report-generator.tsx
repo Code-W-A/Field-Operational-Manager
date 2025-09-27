@@ -673,18 +673,14 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         const subtotal = normalizedProducts.reduce((s, p) => s + (p.quantity || 0) * (p.price || 0), 0)
         // Use offerVAT if a positive number was set; otherwise default to 21%
         const rawOfferVat = (lucrareForPDF as any)?.offerVAT
-        const vatPercent = (typeof rawOfferVat === 'number' && rawOfferVat > 0) ? rawOfferVat : 21
-        const vat = subtotal * (vatPercent / 100)
-        const total = subtotal + vat
+        const total = subtotal
         const labelX = PW - 70
         const valX = PW - 20
         doc.setFontSize(9).setFont("helvetica", "bold").text("Total fara TVA:", labelX, currentY, { align: "right" })
         doc.setFont("helvetica", "normal").text(`${subtotal.toFixed(2)} RON`, valX, currentY, { align: "right" })
         currentY += 6
-        doc.setFont("helvetica", "bold").text(`TVA (${vatPercent}%):`, labelX, currentY, { align: "right" })
-        doc.setFont("helvetica", "normal").text(`${vat.toFixed(2)} RON`, valX, currentY, { align: "right" })
-        currentY += 6
-        doc.setFont("helvetica", "bold").text("Total cu TVA:", labelX, currentY, { align: "right" })
+        // TVA și total cu TVA eliminate din PDF
+        doc.setFont("helvetica", "bold").text("Total:", labelX, currentY, { align: "right" })
         doc.setFont("helvetica", "normal").text(`${total.toFixed(2)} RON`, valX, currentY, { align: "right" })
         doc.setDrawColor(150, 150, 150).line(labelX - 40, currentY + 3, valX + 5, currentY + 3)
         currentY += 15

@@ -231,22 +231,11 @@ export default function PortalWorkDetail() {
                         ))}
                         {(() => {
                           const subtotal = w.products.reduce((s: number, p: any) => s + (p.total || (p.quantity * p.price) || 0), 0)
-                          const vatPercent = (typeof w.offerVAT === 'number' && w.offerVAT > 0) ? Number(w.offerVAT) : 21
-                          const vatVal = subtotal * (vatPercent / 100)
-                          const total = subtotal + vatVal
                           return (
                             <div className="pt-3 border-t text-sm">
                               <div className="flex justify-between items-center">
-                                <span className="font-medium">Total fără TVA:</span>
+                                <span className="font-medium">Total:</span>
                                 <span className="font-medium">{subtotal.toFixed(2)} lei</span>
-                              </div>
-                              <div className="flex justify-between items-center">
-                                <span className="font-medium">TVA ({vatPercent}%):</span>
-                                <span className="font-medium">{vatVal.toFixed(2)} lei</span>
-                              </div>
-                              <div className="flex justify-between items-center font-bold text-lg mt-1">
-                                <span>Total cu TVA:</span>
-                                <span>{total.toFixed(2)} lei</span>
                               </div>
                             </div>
                           )
@@ -285,7 +274,8 @@ export default function PortalWorkDetail() {
                     <div className={`p-4 rounded-lg ${w.offerResponse.status === "accept" ? "bg-green-50" : "bg-red-50"}`}>
                       <div className="flex items-center gap-2">
                         <span className="font-medium">Răspuns ofertă:</span>
-                        <Badge variant={w.offerResponse.status === "accept" ? "default" : "destructive"}>
+                        <Badge variant={w.offerResponse.status === "accept" ? "secondary" : "destructive"} 
+                               className={w.offerResponse.status === "accept" ? "bg-green-100 text-green-800 hover:bg-green-200" : ""}>
                           {w.offerResponse.status === "accept" ? "Acceptată" : "Respinsă"}
                         </Badge>
                       </div>

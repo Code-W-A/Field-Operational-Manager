@@ -1799,36 +1799,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                               {((lucrare as any).raportSnapshot.products || []).reduce((s: number, p: any) => s + ((Number(p?.quantity)||0) * (Number(p?.price)||0)), 0).toFixed(2)}
                             </td>
                           </tr>
-                          <tr className="bg-slate-50 border-t">
-                            <td colSpan={4} className="px-3 py-2 text-right font-medium">
-                              {(() => {
-                                const vat = typeof (lucrare as any)?.offerVAT === 'number' ? (lucrare as any).offerVAT : 21
-                                return `TVA (${vat}%)`
-                              })()}
-                            </td>
-                            <td className="px-3 py-2 text-right font-semibold">
-                              {(() => {
-                                const prods = (lucrare as any).raportSnapshot.products || []
-                                const subtotal = prods.reduce((s: number, p: any) => s + ((Number(p?.quantity)||0) * (Number(p?.price)||0)), 0)
-                                const vat = typeof (lucrare as any)?.offerVAT === 'number' ? (lucrare as any).offerVAT : 21
-                                const vatAmount = subtotal * (Number(vat) || 0) / 100
-                                return vatAmount.toFixed(2)
-                              })()}
-                            </td>
-                          </tr>
-                          <tr className="bg-slate-100 border-t">
-                            <td colSpan={4} className="px-3 py-2 text-right font-medium">Total lei cu TVA</td>
-                            <td className="px-3 py-2 text-right font-bold">
-                              {(() => {
-                                const prods = (lucrare as any).raportSnapshot.products || []
-                                const subtotal = prods.reduce((s: number, p: any) => s + ((Number(p?.quantity)||0) * (Number(p?.price)||0)), 0)
-                                const vat = typeof (lucrare as any)?.offerVAT === 'number' ? (lucrare as any).offerVAT : 21
-                                const vatAmount = subtotal * (Number(vat) || 0) / 100
-                                const total = subtotal + vatAmount
-                                return total.toFixed(2)
-                              })()}
-                            </td>
-                          </tr>
+                          {/* TVA și total cu TVA eliminate din afișare */}
                         </tfoot>
                       </table>
                     </div>

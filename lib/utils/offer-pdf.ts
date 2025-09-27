@@ -167,8 +167,8 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
     doc.rect(M, y, W, cellH)
     doc.text(nameLines, xPos[1] + 2, y + 5)
     doc.text(String(r.qty), xPos[2] + 2, y + 5)
-    doc.text(`${r.price.toLocaleString("ro-RO")} €`, xPos[3] + 2, y + 5)
-    doc.text(`${r.total.toLocaleString("ro-RO")} €`, xPos[4] + 2, y + 5)
+    doc.text(`${r.price.toLocaleString("ro-RO")} RON`, xPos[3] + 2, y + 5)
+    doc.text(`${r.total.toLocaleString("ro-RO")} RON`, xPos[4] + 2, y + 5)
     y += cellH
     subtotal += r.total
   })
@@ -177,8 +177,8 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   checkPage(8)
   doc.setFillColor(199, 230, 203).rect(M, y, W, 8, "F")
   doc.setFont("helvetica", "bold").setFontSize(10)
-  doc.text("Total EURO fara TVA", xPos[0] + 2, y + 5)
-  doc.text(`${subtotal.toLocaleString("ro-RO")} €`, xPos[4] + 2, y + 5)
+  doc.text("Total lei fara TVA", xPos[0] + 2, y + 5)
+  doc.text(`${subtotal.toLocaleString("ro-RO")} RON`, xPos[4] + 2, y + 5)
   y += 14
 
   // Conditions (match sample wording and spacing)
@@ -187,7 +187,7 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
     `Plata: 100% in avans`,
     `Livrare: 30 zile lucratoare de la plata`,
     `Instalare: 3 zile lucratoare de la livrare`,
-    `Garantie: 12 luni`,
+    // Garantiile nu se mai afișează in oferta
     `Preturile nu includ TVA (${vatPercent}%)`,
   ]
   const conds = (input.conditions && input.conditions.length ? input.conditions : defaultConds).map(normalize)
