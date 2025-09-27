@@ -1736,7 +1736,17 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                             <div className="text-sm text-gray-700">Motiv: {lucrare.offerResponse.reason}</div>
                           )}
                           {lucrare.offerResponse.at && (
-                            <div className="text-xs text-gray-500 mt-1">{new Date(lucrare.offerResponse.at).toLocaleString('ro-RO')}</div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {(() => {
+                                try {
+                                  const at: any = (lucrare as any).offerResponse?.at
+                                  const d = at?.toDate ? at.toDate() : new Date(at)
+                                  return isNaN(d?.getTime?.() ?? Number.NaN) ? '-' : d.toLocaleString('ro-RO')
+                                } catch {
+                                  return '-'
+                                }
+                              })()}
+                            </div>
                           )}
                         </div>
                       )}
