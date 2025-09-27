@@ -73,42 +73,22 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
     if (open) void load()
   }, [open, lucrareId])
 
-  // Helper: build recipients list fresh from Firestore data
-  const resolveRecipientsFrom = (client: any, work: any): string[] => {
+  // Helper: return ONLY the email for the exact contact of the work's location
+  const resolveRecipientEmailForLocation = (client: any, work: any): string | null => {
     const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(e || '')
     const norm = (s?: string) => String(s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').trim()
-    const unique: string[] = []
-    const addIfValid = (e?: string) => { if (isValid(e) && !unique.includes(e!)) unique.push(e!) }
 
     const locatii = Array.isArray(client?.locatii) ? client.locatii : []
     const targetName = norm(work?.locatie || work?.clientInfo?.locationName)
     const targetAddr = norm(work?.clientInfo?.locationAddress)
     const targetContactName = norm(work?.persoanaContact)
 
-    let loc = locatii.find((l: any) => norm(l?.nume) === targetName || norm(l?.adresa) === targetAddr)
+    const loc = locatii.find((l: any) => norm(l?.nume) === targetName || norm(l?.adresa) === targetAddr)
+    if (!loc) return null
 
-    // 1) exact contact match within location
-    if (loc && targetContactName) {
-      const exact = (loc.persoaneContact || []).find((c: any) => norm(c?.nume) === targetContactName)
-      addIfValid(exact?.email)
-    }
-
-    // 2) any valid email on that location
-    if (unique.length === 0 && loc?.persoaneContact?.length) {
-      for (const c of loc.persoaneContact) addIfValid(c?.email)
-    }
-
-    // 3) fallback to client email
-    addIfValid(client?.email)
-
-    // 4) as last resort, use explicitly set work recipient
-    if (unique.length === 0) {
-      const raw = (work as any)?.emailDestinatar
-      if (Array.isArray(raw)) raw.forEach((e: string) => addIfValid(e))
-      else addIfValid(String(raw || ''))
-    }
-
-    return unique
+    const exact = (loc.persoaneContact || []).find((c: any) => norm(c?.nume) === targetContactName)
+    const email = exact?.email
+    return isValid(email) ? String(email) : null
   }
 
   const total = useMemo(() => products.reduce((s, p) => s + (p.total || 0), 0), [products])
@@ -217,10 +197,10 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
         const cid = (freshWork as any)?.clientInfo?.id
         if (cid) freshClient = await getClientById(cid)
       } catch {}
-      const recipients = resolveRecipientsFrom(freshClient, freshWork)
-      if (!recipients.length) throw new Error('Nu există un email valid pentru locație sau pentru client.')
+      const recipient = resolveRecipientEmailForLocation(freshClient, freshWork)
+      if (!recipient) throw new Error('Nu există un email valid pentru persoana de contact din locația lucrării.')
 
-      toast({ title: 'Se trimite ofertă', description: `Către: ${recipients.join(', ')}` })
+      toast({ title: 'Se trimite ofertă', description: `Către: ${recipient}` })
 
       // build email body with current products
       const subject = `Ofertă pentru lucrarea ${currentWork?.numarRaport || currentWork?.id}`
@@ -271,7 +251,7 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
       const resp = await fetch('/api/users/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: recipients, subject, html })
+        body: JSON.stringify({ to: [recipient], subject, html })
       })
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}))
@@ -282,7 +262,7 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
       await updateLucrare(lucrareId, { statusOferta: "OFERTAT" } as any)
       setStatusOferta("OFERTAT")
       setCanSendOffer(false)
-      toast({ title: 'Ofertă trimisă', description: `S-a trimis oferta la: ${recipients.join(', ')}` })
+      toast({ title: 'Ofertă trimisă', description: `S-a trimis oferta la: ${recipient}` })
     } catch (e) {
       console.warn('Trimitere ofertă eșuată', e)
       const msg = e instanceof Error ? e.message : 'Nu s-a putut trimite emailul.'
