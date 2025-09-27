@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { ProductTableForm, type ProductItem } from "@/components/product-table-form"
 import { updateLucrare, getLucrareById, getClientById } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
@@ -30,6 +31,7 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
   const [canSendOffer, setCanSendOffer] = useState(false)
   const [currentWork, setCurrentWork] = useState<any>(null)
   const [clientData, setClientData] = useState<any>(null)
+  const [recipientInput, setRecipientInput] = useState<string>("")
 
   useEffect(() => {
     setProducts(initialProducts || [])
@@ -58,6 +60,68 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
     }
     if (open) void load()
   }, [open, lucrareId])
+
+  // Helper: build default recipient list based on lucrare/client
+  const resolveDefaultRecipients = (): string[] => {
+    const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(e || '')
+    const unique: string[] = []
+    const addIfValid = (e?: string) => { if (isValid(e) && !unique.includes(e!)) unique.push(e!) }
+
+    try {
+      const list = Array.isArray((currentWork as any)?.emailDestinatar) ? (currentWork as any).emailDestinatar as string[] : []
+      list.forEach((e) => addIfValid(e))
+    } catch {}
+
+    let loc: any
+    try {
+      const locatii = (clientData as any)?.locatii || []
+      loc = locatii.find((l: any) => l?.nume === currentWork?.locatie || l?.adresa === (currentWork as any)?.clientInfo?.locationAddress)
+      if (loc && currentWork?.persoanaContact) {
+        const contact = loc?.persoaneContact?.find((c: any) => c?.nume === currentWork?.persoanaContact)
+        addIfValid(contact?.email)
+      }
+    } catch {}
+
+    if (unique.length === 0 && loc?.persoaneContact?.length) {
+      for (const c of loc.persoaneContact) {
+        if (unique.length) break
+        addIfValid(c?.email)
+      }
+    }
+
+    try { addIfValid((clientData as any)?.email) } catch {}
+
+    return unique
+  }
+
+  // Helper: preferred single email for prefill (location-first)
+  const resolvePrefillRecipient = (): string => {
+    const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(e || '')
+    try {
+      const locatii = (clientData as any)?.locatii || []
+      const loc = locatii.find((l: any) => l?.nume === currentWork?.locatie || l?.adresa === (currentWork as any)?.clientInfo?.locationAddress)
+      if (loc) {
+        if (currentWork?.persoanaContact) {
+          const exact = loc?.persoaneContact?.find((c: any) => c?.nume === currentWork?.persoanaContact)
+          if (isValid(exact?.email)) return String(exact.email)
+        }
+        const anyContact = (loc?.persoaneContact || []).find((c: any) => isValid(c?.email))
+        if (isValid(anyContact?.email)) return String(anyContact.email)
+      }
+    } catch {}
+    // fallback: client email
+    try { const ce = (clientData as any)?.email; if (isValid(ce)) return String(ce) } catch {}
+    return ""
+  }
+
+  // Prefill recipient input on open/data load
+  useEffect(() => {
+    if (open && currentWork) {
+      const preferred = resolvePrefillRecipient()
+      setRecipientInput(preferred)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, currentWork, clientData])
 
   const total = useMemo(() => products.reduce((s, p) => s + (p.total || 0), 0), [products])
   const totalWithVAT = useMemo(() => total * (1 + (Number(vatPercent) || 0) / 100), [total, vatPercent])
@@ -151,44 +215,14 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
       if (!tokenResp.ok) throw new Error('Nu s-a putut genera link-ul de ofertă')
       const { acceptUrl, rejectUrl } = await tokenResp.json()
 
-      // recipients resolution order:
-      // 1) lucrare.emailDestinatar (dacă există)
-      // 2) persoana de contact din locație corespunzătoare lucrării
-      // 3) orice email valid din persoanele de contact ale locației
-      // 4) emailul principal al clientului
       const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(e || '')
-      const unique: string[] = []
-      const addIfValid = (e?: string) => { if (isValid(e) && !unique.includes(e!)) unique.push(e!) }
-
-      // 1) explicit destinatari pe lucrare
-      try {
-        const list = Array.isArray((currentWork as any)?.emailDestinatar) ? (currentWork as any).emailDestinatar as string[] : []
-        list.forEach((e) => addIfValid(e))
-      } catch {}
-
-      // 2) match locație by nume/adresă și persoană de contact exactă
-      let loc: any
-      try {
-        const locatii = (clientData as any)?.locatii || []
-        loc = locatii.find((l: any) => l?.nume === currentWork?.locatie || l?.adresa === (currentWork as any)?.clientInfo?.locationAddress)
-        if (loc && currentWork?.persoanaContact) {
-          const contact = loc?.persoaneContact?.find((c: any) => c?.nume === currentWork?.persoanaContact)
-          addIfValid(contact?.email)
-        }
-      } catch {}
-
-      // 3) dacă încă nu avem, ia orice email valid din persoanele de contact ale locației
-      if (unique.length === 0 && loc?.persoaneContact?.length) {
-        for (const c of loc.persoaneContact) {
-          if (unique.length) break
-          addIfValid(c?.email)
-        }
-      }
-
-      // 4) fallback client email
-      try { addIfValid((clientData as any)?.email) } catch {}
-
-      const recipients = unique
+      const manual = String(recipientInput || "")
+        .split(/[\s,;]+/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+      const manualValid = Array.from(new Set(manual.filter((e) => isValid(e))))
+      const defaults = resolveDefaultRecipients()
+      const recipients = manualValid.length ? manualValid : defaults
       if (!recipients.length) throw new Error('Nu există un email valid pentru locație sau pentru client.')
 
       toast({ title: 'Se trimite ofertă', description: `Către: ${recipients.join(', ')}` })
@@ -291,6 +325,16 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
                 <div>Total fără TVA: <strong>{total.toFixed(2)} lei</strong></div>
                 <div>Total cu TVA: <strong>{totalWithVAT.toFixed(2)} lei</strong></div>
               </div>
+            </div>
+            {/* Recipient input */}
+            <div className="space-y-2">
+              <label className="text-sm">Către</label>
+              <Input
+                value={recipientInput}
+                onChange={(e) => setRecipientInput(e.target.value)}
+                placeholder="email@exemplu.ro, altul@exemplu.ro"
+              />
+              <div className="text-xs text-muted-foreground">Implicit: persoana de contact a locației. Poți modifica lista.</div>
             </div>
 
             <div className="flex items-center justify-end gap-2">
