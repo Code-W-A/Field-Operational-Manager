@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { ProductTableForm, type ProductItem } from "@/components/product-table-form"
 import { updateLucrare, getLucrareById, getClientById } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
 
 interface OfferEditorDialogProps {
   lucrareId: string
