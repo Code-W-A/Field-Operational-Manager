@@ -278,7 +278,7 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
               ) : (
                 <Button onClick={handleSave} disabled={saving || products.length === 0 || (!isPickedUp && !editingNewVersion)}>{saving ? "Se salvează..." : "Salvează"}</Button>
               )}
-              <Button onClick={handleSendOffer} disabled={saving || !canSendOffer || statusOferta === "OFERTAT"}>Trimite ofertă</Button>
+              <Button onClick={handleSendOffer} disabled={saving}>Trimite ofertă</Button>
             </div>
           </div>
           <div className="space-y-3">
