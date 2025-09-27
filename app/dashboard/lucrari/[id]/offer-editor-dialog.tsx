@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { ProductTableForm, type ProductItem } from "@/components/product-table-form"
 import { updateLucrare, getLucrareById, getClientById } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
+import { toast } from "@/components/ui/use-toast"
 
 interface OfferEditorDialogProps {
   lucrareId: string
@@ -162,6 +163,8 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
       const recipients = isValid(recipient) ? [recipient as string] : []
       if (!recipients.length) throw new Error('Nu există un email valid pentru persoana de contact a locației.')
 
+      toast({ title: 'Se trimite ofertă', description: `Către: ${recipients.join(', ')}` })
+
       // build email body with current products
       const subject = `Ofertă pentru lucrarea ${currentWork?.numarRaport || currentWork?.id}`
       const rows = (products || []).map((p: any) => `
@@ -195,8 +198,8 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
             </tfoot>
           </table>
           <p style=\"margin:12px 0 6px;color:#64748b\">Acest link este valabil 30 de zile de la primirea emailului. După confirmare, linkurile devin inactive.</p>
-          <div style=\"display:flex;gap:8px;margin-top:12px\">
-            <a href=\"${acceptUrl}\" style=\"padding:10px 14px;background:#16a34a;color:#fff;border-radius:6px;text-decoration:none;font-weight:600\">Accept ofertă</a>
+          <div style=\"display:flex;margin-top:12px\">
+            <a href=\"${acceptUrl}\" style=\"padding:10px 14px;background:#16a34a;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;margin-right:8px\">Accept ofertă</a>
             <a href=\"${rejectUrl}\" style=\"padding:10px 14px;background:#dc2626;color:#fff;border-radius:6px;text-decoration:none;font-weight:600\">Refuz ofertă</a>
           </div>
         </div>`
@@ -216,9 +219,11 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
       setStatusOferta("OFERTAT")
       setCanSendOffer(false)
       onOpenChange(false)
+      toast({ title: 'Ofertă trimisă', description: `S-a trimis oferta la: ${recipients.join(', ')}` })
     } catch (e) {
       console.warn('Trimitere ofertă eșuată', e)
-      // optional: surface a toast - left out to avoid adding imports; page level will handle notifications
+      const msg = e instanceof Error ? e.message : 'Nu s-a putut trimite emailul.'
+      toast({ title: 'Eroare trimitere', description: msg, variant: 'destructive' })
     } finally {
       setSaving(false)
     }
@@ -227,7 +232,7 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogHeader >
-        <DialogTitle>Editor ofertă</DialogTitle>
+        <DialogTitle className="my-4">Editor ofertă</DialogTitle>
       </DialogHeader>
       <DialogContent className="max-w-[1000px] w-[calc(100%-2rem)]">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

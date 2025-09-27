@@ -13,6 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { UserNav } from "@/components/user-nav"
 import { ArrowLeft, Calendar, MapPin, FileText, Download, CheckCircle, XCircle } from "lucide-react"
+import { generateOfferPdf } from "@/lib/utils/offer-pdf"
+import { uploadFile } from "@/lib/firebase/storage"
 import Link from "next/link"
 
 export default function PortalWorkDetail() {
@@ -43,10 +45,9 @@ export default function PortalWorkDetail() {
         response.reason = reason.trim()
       }
       await updateLucrare(id, {
-        // menținem statusOferta ca "OFERTAT"; folosim offerResponse pentru decizia finală
         offerResponse: response,
-        // Actualizăm și statusul ofertei pentru vizibilitate în admin/dispecer
-        statusOferta: accepted ? "DA" : "NU",
+        // La acceptarea clientului, marcăm "OFERTAT" (oferta a fost emisă și acceptată)
+        statusOferta: accepted ? "OFERTAT" : "DA",
       } as any, undefined, undefined, true)
       
       // Log response in global logs (best-effort)
@@ -85,6 +86,50 @@ export default function PortalWorkDetail() {
         })
       } catch {}
       
+      // Dacă este acceptată și nu avem ofertă salvată ca document, generăm PDF și îl urcăm
+      try {
+        if (accepted) {
+          const fresh = await getLucrareById(id)
+          const hasOfferDoc = !!fresh?.ofertaDocument?.url
+          const products = fresh?.products || []
+          if (!hasOfferDoc && Array.isArray(products) && products.length > 0) {
+            const damages: string[] = (() => {
+              const raw = (fresh as any)?.comentariiOferta
+              if (!raw) return []
+              // split by newlines or bullet-like dashes
+              return String(raw)
+                .split(/\r?\n|\u2022|\-|\*/)
+                .map((s: string) => s.trim())
+                .filter(Boolean)
+            })()
+
+            const conditions: string[] | undefined = Array.isArray((fresh as any)?.conditiiOferta)
+              ? (fresh as any).conditiiOferta
+              : undefined
+
+            const offerVatVal = typeof (fresh as any)?.offerVAT === 'number' ? (fresh as any).offerVAT : 19
+
+            const blob = await generateOfferPdf({
+              id: id,
+              client: fresh?.client || "",
+              attentionTo: fresh?.persoanaContact || "",
+              fromCompany: "NRG Access Systems SRL",
+              products: products.map((p: any) => ({ name: p?.name || p?.denumire || "", quantity: Number(p?.quantity || p?.cantitate || 0), price: Number(p?.price || p?.pretUnitar || 0) })),
+              offerVAT: offerVatVal,
+              damages,
+              conditions,
+            })
+            const fileName = `oferta_${id}.pdf`
+            const file = new File([blob], fileName, { type: "application/pdf" })
+            const path = `oferte/${id}/oferta_${Date.now()}.pdf`
+            const { url } = await uploadFile(file, path)
+            await updateLucrare(id, { ofertaDocument: { url, fileName, uploadedAt: new Date().toISOString(), uploadedBy: 'Client portal' } } as any)
+          }
+        }
+      } catch (e) {
+        console.warn("Generare/încărcare PDF ofertă eșuată (non-blocking)", e)
+      }
+
       const data = await getLucrareById(id)
       setW(data)
     } finally {
@@ -221,8 +266,8 @@ export default function PortalWorkDetail() {
                         onChange={(e) => setReason(e.target.value)}
                         className="mb-3"
                       />
-                      <div className="flex gap-3">
-                        <Button onClick={() => setStatus(true)} disabled={saving} className="bg-green-600 hover:bg-green-700">
+                      <div className="flex space-x-3">
+                        <Button onClick={() => setStatus(true)} disabled={saving} className="bg-green-600 hover:bg-green-700 mr-3">
                           <CheckCircle className="h-4 w-4 mr-2" />
                           {saving ? "Se procesează..." : "Accept oferta"}
                         </Button>
@@ -246,6 +291,18 @@ export default function PortalWorkDetail() {
                         <p className="mt-2 text-sm text-muted-foreground">
                           Motiv: {w.offerResponse.reason}
                         </p>
+                      )}
+                      {w.offerResponse.status === "accept" && w.ofertaDocument?.url && (
+                        <div className="mt-3">
+                          <Link 
+                            className="inline-flex items-center gap-1 px-3 py-1 bg-purple-50 text-purple-700 rounded-full text-sm font-medium hover:bg-purple-100 transition-colors" 
+                            href={`/api/download?lucrareId=${encodeURIComponent(id)}&type=oferta&url=${encodeURIComponent(w.ofertaDocument.url)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Descarcă oferta
+                          </Link>
+                        </div>
                       )}
                     </div>
                   )}

@@ -16,9 +16,10 @@ interface DocumentUploadProps {
   lucrareId: string
   lucrare: any // Tipul complet al lucrării
   onLucrareUpdate: (updatedLucrare: any) => void
+  hideOfertaUpload?: boolean
 }
 
-export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: DocumentUploadProps) {
+export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOfertaUpload = false }: DocumentUploadProps) {
   const { userData } = useAuth()
   const [isUploading, setIsUploading] = useState<{ factura: boolean; oferta: boolean }>({
     factura: false,
@@ -402,8 +403,8 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
             </div>
           )}
 
-          {/* Secțiunea de upload - condiționată de statusOferta */}
-          {!lucrare.ofertaDocument && shouldShowOfertaUpload && (
+          {/* Secțiunea de upload - condiționată de statusOferta (ascunsă dacă hideOfertaUpload) */}
+          {!hideOfertaUpload && !lucrare.ofertaDocument && shouldShowOfertaUpload && (
             <div className="space-y-3">
               {/* Upload fișier */}
               <div className="space-y-2">
@@ -427,8 +428,8 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
             </div>
           )}
 
-          {/* Mesaje când upload-ul nu este disponibil */}
-          {!lucrare.ofertaDocument && !shouldShowOfertaUpload && (
+          {/* Mesaje când upload-ul nu este disponibil (ascuns dacă hideOfertaUpload) */}
+          {!hideOfertaUpload && !lucrare.ofertaDocument && !shouldShowOfertaUpload && (
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
@@ -438,6 +439,13 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate }: Document
                 }
               </AlertDescription>
             </Alert>
+          )}
+
+          {/* Notă informativă când upload-ul ofertei este ascuns */}
+          {hideOfertaUpload && !lucrare.ofertaDocument && (
+            <div className="text-xs text-muted-foreground">
+              Oferta se generează automat după acceptarea clientului în portal.
+            </div>
           )}
         </div>
 

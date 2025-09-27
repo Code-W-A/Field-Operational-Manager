@@ -1602,32 +1602,12 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                             <option value="DA">DA - Necesită ofertă</option>
                             <option value="OFERTAT">OFERTAT</option>
                           </select>
-                          {/* Marchează OFERTAT sub dropdown */}
-                          {lucrare.products && lucrare.products.length > 0 && (
-                            <div>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={async () => {
-                                  try {
-                                    setIsUpdating(true)
-                                    await updateLucrare(lucrare.id!, { statusOferta: "OFERTAT" })
-                                    setLucrare(prev => prev ? { ...prev, statusOferta: "OFERTAT" } : null)
-                                    toast({ title: "Ofertă pregătită", description: "Oferta este pregătită pentru trimitere către client." })
-                                  } finally {
-                                    setIsUpdating(false)
-                                  }
-                                }}
-                              >
-                                Marchează OFERTAT
-                              </Button>
-                            </div>
-                          )}
+                          {/* Butonul manual 'Marchează OFERTAT' a fost ascuns. Statusul se setează automat la accept în portal. */}
                         </div>
                       )}
                       {lucrare.necesitaOferta && (
                         <div className="space-y-2">
-                          <Label className="text-xs font-medium text-blue-800 my-2">Editor ofertă</Label>
+                          <Label className="text-xs font-medium text-blue-800 my-4">Editor ofertă</Label>
                           <div className="flex flex-wrap gap-2">
                             <Button
                               variant="outline"
@@ -1682,8 +1662,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                             </tfoot>
                                           </table>
                                           <p style="margin:12px 0 6px;color:#64748b">Acest link este valabil 30 de zile de la primirea emailului. După confirmare, linkurile devin inactive.</p>
-                                          <div style="display:flex;gap:8px;margin-top:12px">
-                                            <a href="${acceptUrl}" style="padding:10px 14px;background:#16a34a;color:#fff;border-radius:6px;text-decoration:none;font-weight:600">Accept ofertă</a>
+                                          <div style="display:flex;margin-top:12px">
+                                            <a href="${acceptUrl}" style="padding:10px 14px;background:#16a34a;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;margin-right:8px">Accept ofertă</a>
                                             <a href="${rejectUrl}" style="padding:10px 14px;background:#dc2626;color:#fff;border-radius:6px;text-decoration:none;font-weight:600">Refuz ofertă</a>
                                           </div
                                           >
@@ -2057,13 +2037,14 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   </div>
                 )}
 
-                {/* Documente PDF – mutat aici, sub Managementul statusurilor critice, în același container */}
+                {/* Documente PDF – păstrăm încărcarea pentru facturi; upload ofertă ascuns (se generează automat după acceptare) */}
                 <div className="mt-4">
                   <div className="mt-2 p-3">
                     <DocumentUpload
                       lucrareId={lucrare.id!}
                       lucrare={lucrare}
                       onLucrareUpdate={setLucrare}
+                      hideOfertaUpload
                     />
                   </div>
                 </div>

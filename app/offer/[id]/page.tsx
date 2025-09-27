@@ -8,6 +8,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Check, X, AlertCircle } from "lucide-react"
 import { doc, getDoc, updateDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
+import { generateOfferPdf } from "@/lib/utils/offer-pdf"
+import { uploadFile } from "@/lib/firebase/storage"
 
 export default function OfferActionPage() {
   const { id } = useParams<{ id: string }>()
@@ -17,6 +19,8 @@ export default function OfferActionPage() {
 
   const [state, setState] = useState<"loading" | "success" | "error" | "expired" | "used" | "invalid">("loading")
   const [message, setMessage] = useState<string>("")
+  const [offerUrl, setOfferUrl] = useState<string>("")
+  const [generating, setGenerating] = useState<boolean>(false)
 
   useEffect(() => {
     const run = async () => {
@@ -59,6 +63,53 @@ export default function OfferActionPage() {
           },
           offerActionUsedAt: new Date(),
         })
+        // Re-încărcăm lucrarea pentru a verifica dacă există deja oferta generată
+        const freshSnap = await getDoc(ref)
+        const fresh = freshSnap.exists() ? (freshSnap.data() as any) : null
+        if (action === "accept") {
+          try {
+            // Dacă nu avem încă oferta ca document, o generăm acum
+            if (!fresh?.ofertaDocument?.url) {
+              const products = Array.isArray(fresh?.products) ? fresh.products : []
+              if (products.length > 0) {
+                setGenerating(true)
+                const blob = await generateOfferPdf({
+                  id: id,
+                  client: fresh?.client || "",
+                  attentionTo: fresh?.persoanaContact || "",
+                  fromCompany: "NRG Access Systems SRL",
+                  products: products.map((p: any) => ({
+                    name: p?.name || p?.denumire || "",
+                    quantity: Number(p?.quantity || p?.cantitate || 0),
+                    price: Number(p?.price || p?.pretUnitar || 0),
+                  })),
+                  offerVAT: typeof (fresh as any)?.offerVAT === "number" ? (fresh as any).offerVAT : 19,
+                  damages: String(fresh?.comentariiOferta || "")
+                    .split(/\r?\n|\u2022|\-|\*/)
+                    .map((s: string) => s.trim())
+                    .filter(Boolean),
+                  conditions: Array.isArray((fresh as any)?.conditiiOferta)
+                    ? (fresh as any).conditiiOferta
+                    : undefined,
+                })
+                const fileName = `oferta_${id}.pdf`
+                const file = new File([blob], fileName, { type: "application/pdf" })
+                const path = `oferte/${id}/oferta_${Date.now()}.pdf`
+                const { url } = await uploadFile(file, path)
+                await updateDoc(ref, {
+                  ofertaDocument: { url, fileName, uploadedAt: new Date().toISOString(), uploadedBy: "Client portal" } as any,
+                })
+                setOfferUrl(url)
+              } else if (fresh?.ofertaDocument?.url) {
+                setOfferUrl(fresh.ofertaDocument.url)
+              }
+            } else {
+              setOfferUrl(fresh.ofertaDocument.url)
+            }
+          } finally {
+            setGenerating(false)
+          }
+        }
         setState("success")
         setMessage(action === "accept" ? "Ați acceptat oferta. Vă mulțumim!" : "Ați refuzat oferta. Am înregistrat răspunsul.")
       } catch (e) {
@@ -81,10 +132,24 @@ export default function OfferActionPage() {
             <div className="text-sm text-muted-foreground">Se procesează...</div>
           )}
           {state === "success" && (
-            <Alert>
-              <Check className="h-4 w-4" />
-              <AlertDescription>{message}</AlertDescription>
-            </Alert>
+            <div className="space-y-3">
+              <Alert>
+                <Check className="h-4 w-4" />
+                <AlertDescription>{message}</AlertDescription>
+              </Alert>
+              {action === "accept" && (
+                <div className="space-y-2">
+                  {generating && (
+                    <div className="text-sm text-muted-foreground">Se generează oferta în format PDF...</div>
+                  )}
+                  {!generating && offerUrl && (
+                    <Button asChild>
+                      <a href={offerUrl} target="_blank" rel="noopener noreferrer">Descarcă oferta</a>
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
           )}
           {(state === "error" || state === "expired" || state === "used" || state === "invalid") && (
             <Alert variant="destructive">
