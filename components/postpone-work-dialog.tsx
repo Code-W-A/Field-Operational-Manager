@@ -65,7 +65,7 @@ export function PostponeWorkDialog({ lucrareId, onSuccess, className }: Postpone
         // Obținem datele actuale ale lucrării pentru a construi corect payload-ul
         const lucrare = await getLucrareById(lucrareId)
 
-        await sendWorkOrderPostponedNotification({
+        const result = await sendWorkOrderPostponedNotification({
           id: lucrareId,
           motivAmanare: updateData.motivAmanare,
           dataAmanare: updateData.dataAmanare,
@@ -76,6 +76,14 @@ export function PostponeWorkDialog({ lucrareId, onSuccess, className }: Postpone
           // Trimitem numele clientului ca string pentru a permite rezolvarea corectă a emailului în serviciu
           client: lucrare?.client,
         })
+
+        if (result?.success) {
+          const recipients = result?.result?.clientEmails || []
+          toast({
+            title: "Notificare amânare trimisă",
+            description: `Către: ${Array.isArray(recipients) && recipients.length ? recipients.join(", ") : "client"}`,
+          })
+        }
       } catch (e) {
         console.warn("Nu s-a putut trimite notificarea de amânare către client:", e)
       }

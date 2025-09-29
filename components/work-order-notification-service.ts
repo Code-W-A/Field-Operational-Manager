@@ -19,6 +19,7 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
     let clientName = workOrderData.client
     const contactPerson = workOrderData.persoanaContact
     let clientId = null
+    let locationContactEmail: string | null = null
 
     // Try to get client email from client object
     if (typeof workOrderData.client === "object" && workOrderData.client !== null) {
@@ -49,6 +50,21 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
             clientName = clientData.nume || (clientData as any).name || clientName
             console.log("Found client email by ID:", clientEmail)
           }
+          // Resolve location contact email if possible
+          try {
+            if (clientData && Array.isArray(clientData.locatii) && (workOrderData.locatie || workOrderData.clientInfo?.locationName)) {
+              const targetName = (workOrderData.locatie || workOrderData.clientInfo?.locationName || "").trim()
+              const loc = clientData.locatii.find((l: any) => (l?.nume || "").trim() === targetName)
+              if (loc && Array.isArray((loc as any).persoaneContact)) {
+                const contact = workOrderData.persoanaContact
+                  ? (loc as any).persoaneContact.find((c: any) => (c?.nume || "").trim() === (workOrderData.persoanaContact || "").trim())
+                  : null
+                locationContactEmail = (contact?.email || (loc as any).email || null) as string | null
+              } else if (loc && (loc as any).email) {
+                locationContactEmail = String((loc as any).email)
+              }
+            }
+          } catch {}
         } catch (error) {
           console.error("Error fetching client by ID:", error)
         }
@@ -114,6 +130,19 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
               clientName = clientData.nume || (clientData as any).name || clientName
               console.log("Found client email in Firestore by name query:", clientEmail)
             }
+            // Try resolve location email from this record as well
+            try {
+              if (Array.isArray((clientData as any)?.locatii) && (workOrderData.locatie || workOrderData.clientInfo?.locationName)) {
+                const targetName = (workOrderData.locatie || workOrderData.clientInfo?.locationName || "").trim()
+                const loc = (clientData as any).locatii.find((l: any) => (l?.nume || "").trim() === targetName)
+                if (loc) {
+                  const contact = workOrderData.persoanaContact
+                    ? (loc as any).persoaneContact?.find((c: any) => (c?.nume || "").trim() === (workOrderData.persoanaContact || "").trim())
+                    : null
+                  locationContactEmail = (contact?.email || (loc as any).email || locationContactEmail) as string | null
+                }
+              }
+            } catch {}
           }
         } catch (error) {
           console.error("Error querying Firestore for client:", error)
@@ -206,6 +235,16 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
       return dateTimeString.split(" ")[0] || dateTimeString
     }
 
+    // Prepare combined recipients: prefer location contact + main client
+    const clientRecipientSet = new Set<string>()
+    const addIfValid = (e?: string) => {
+      if (!e) return
+      const s = String(e).trim().toLowerCase()
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) clientRecipientSet.add(s)
+    }
+    addIfValid(locationContactEmail || undefined)
+    addIfValid(clientEmail || undefined)
+
     // Prepare notification data
     const notificationData = {
       client: {
@@ -235,6 +274,7 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
       },
       workOrderId: workOrderData.id || "", // Asigurăm-ne că ID-ul lucrării este transmis corect
       workOrderNumber: workOrderData.number || workOrderData.id || "",
+      clientEmails: Array.from(clientRecipientSet),
     }
 
     console.log("ID-ul lucrării pentru notificare:", workOrderData.id || "nedefinit")

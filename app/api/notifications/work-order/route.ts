@@ -569,7 +569,7 @@ export async function POST(request: NextRequest) {
           { category: "email", context: logContext },
         )
 
-        clientEmailResult = { success: true, messageId: info.messageId }
+        clientEmailResult = { success: true, messageId: info.messageId, recipient: uniqueRecipients.join(", ") }
       } catch (error: any) {
         console.error(
           `[WORK-ORDER-API] [${requestId}] EROARE la trimiterea email-ului către client ${client.name}:`,
