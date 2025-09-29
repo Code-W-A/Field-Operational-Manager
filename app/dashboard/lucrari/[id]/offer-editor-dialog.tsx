@@ -84,26 +84,76 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
 
   // no manual recipient selection; display-only suggestion handled via suggestedRecipient
 
-  // Helper: return ONLY the email for the exact contact of the work's location
+  // Helper: resolve best email for the work's location/contact with robust fallbacks
   const resolveRecipientEmailForLocation = (client: any, work: any): string | null => {
-    const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(e || '')
+    const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(String(e || ''))
     const norm = (s?: string) => String(s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').trim()
+    const matches = (a?: string, b?: string) => {
+      const na = norm(a); const nb = norm(b)
+      if (!na || !nb) return false
+      return na === nb || na.includes(nb) || nb.includes(na)
+    }
 
     const locatii = Array.isArray(client?.locatii) ? client.locatii : []
-    const targetName = norm(work?.locatie || work?.clientInfo?.locationName)
-    const targetAddr = norm(work?.clientInfo?.locationAddress)
-    const targetContactName = norm(work?.persoanaContact)
+    const targetId = work?.clientInfo?.locationId || work?.clientInfo?.locatieId || work?.locationId
+    const targetName = work?.locatie || work?.clientInfo?.locationName
+    const targetAddr = work?.clientInfo?.locationAddress
+    const targetContactName = work?.persoanaContact
 
-    const loc = locatii.find((l: any) => norm(l?.nume) === targetName || norm(l?.adresa) === targetAddr)
-    if (!loc) return null
+    // 1) Try ID match first
+    let loc = targetId ? locatii.find((l: any) => String(l?.id || '') === String(targetId)) : undefined
+    // 2) Fallback: name/address fuzzy match
+    if (!loc) {
+      loc = locatii.find((l: any) => matches(l?.nume, targetName) || matches(l?.adresa, targetAddr))
+    }
 
-    const exact = (loc.persoaneContact || []).find((c: any) => norm(c?.nume) === targetContactName)
-    const email = exact?.email
-    return isValid(email) ? String(email) : null
+    // If we have a location, try exact contact match first, then any contact, then location email
+    if (loc) {
+      const persoane: any[] = Array.isArray(loc?.persoaneContact) ? loc.persoaneContact : []
+      const exact = persoane.find((c: any) => matches(c?.nume, targetContactName))
+      if (isValid(exact?.email)) return String(exact.email)
+      const anyContact = persoane.find((c: any) => isValid(c?.email))
+      if (isValid(anyContact?.email)) return String(anyContact.email)
+      if (isValid(loc?.email)) return String(loc.email)
+    }
+
+    // Global fallbacks on client level
+    if (isValid(client?.email)) return String(client.email)
+    const persoaneClient: any[] = Array.isArray(client?.persoaneContact) ? client.persoaneContact : []
+    const anyClientContact = persoaneClient.find((c: any) => isValid(c?.email))
+    if (isValid(anyClientContact?.email)) return String(anyClientContact.email)
+
+    // No valid email found
+    return null
   }
 
   const total = useMemo(() => products.reduce((s, p) => s + (p.total || 0), 0), [products])
   const totalWithVAT = useMemo(() => total * (1 + (Number(vatPercent) || 0) / 100), [total, vatPercent])
+
+  // Persist draft locally so rows added are not lost if dialog is closed without save
+  const draftStorageKey = useMemo(() => `offerDraft:${lucrareId}`, [lucrareId])
+
+  // Load draft on open (if exists)
+  useEffect(() => {
+    if (!open) return
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem(draftStorageKey) : null
+      if (!raw) return
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed?.products)) {
+        setProducts(parsed.products as ProductItem[])
+      }
+    } catch {}
+  }, [open, draftStorageKey])
+
+  // Save draft whenever products change (debounced by event loop naturally; lightweight)
+  useEffect(() => {
+    try {
+      if (typeof window === 'undefined') return
+      const payload = JSON.stringify({ products, updatedAt: new Date().toISOString() })
+      localStorage.setItem(draftStorageKey, payload)
+    } catch {}
+  }, [products, draftStorageKey])
 
   // Seed rows on empty open
   useEffect(() => {
@@ -163,6 +213,8 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
       setEditingNewVersion(false)
       // allow sending after a new version is created și păstrăm dialogul deschis
       setCanSendOffer(true)
+      // clear draft after successful save
+      try { if (typeof window !== 'undefined') localStorage.removeItem(draftStorageKey) } catch {}
     } finally {
       setSaving(false)
     }
@@ -274,6 +326,8 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
       setStatusOferta("OFERTAT")
       setCanSendOffer(false)
       toast({ title: 'Ofertă trimisă', description: `S-a trimis oferta la: ${recipient}` })
+      // clear draft after successful send
+      try { if (typeof window !== 'undefined') localStorage.removeItem(draftStorageKey) } catch {}
     } catch (e) {
       console.warn('Trimitere ofertă eșuată', e)
       const msg = e instanceof Error ? e.message : 'Nu s-a putut trimite emailul.'
