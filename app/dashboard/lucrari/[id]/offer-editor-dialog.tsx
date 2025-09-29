@@ -261,12 +261,16 @@ useEffect(() => {
   const handleSendOffer = async () => {
     try {
       setSaving(true)
-      // generate token and links
-      const tokenResp = await fetch('/api/offer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lucrareId }) })
+      // generează token și link-uri
+      const tokenResp = await fetch('/api/offer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lucrareId })
+      })
       if (!tokenResp.ok) throw new Error('Nu s-a putut genera link-ul de ofertă')
       const { acceptUrl, rejectUrl } = await tokenResp.json()
-
-      // Fetch fresh data to avoid stale emails
+  
+      // ia date proaspete
       const freshWork = await getLucrareById(lucrareId)
       let freshClient: any = clientData
       try {
@@ -275,76 +279,89 @@ useEffect(() => {
       } catch {}
       const recipient = presetRecipientEmail || resolveRecipientEmailForLocation(freshClient, freshWork)
       if (!recipient) throw new Error('Nu există un email valid disponibil pentru această lucrare.')
-
+  
       toast({ title: 'Se trimite ofertă', description: `Către: ${recipient}` })
-
-      // build email body with current products
+  
+      // construiește tabelul cu produse
       const subject = `Ofertă pentru lucrarea ${currentWork?.numarRaport || currentWork?.id}`
       const rows = (products || []).map((p: any) => `
         <tr>
-          <td style=\"padding:6px;border:1px solid #e5e7eb\">${p.name || ''}</td>
-          <td style=\"padding:6px;border:1px solid #e5e7eb;text-align:center\">${p.um || '-'}</td>
-          <td style=\"padding:6px;border:1px solid #e5e7eb;text-align:right\">${Number(p.quantity||0)}</td>
-          <td style=\"padding:6px;border:1px solid #e5e7eb;text-align:right\">${Number(p.price||0).toFixed(2)}</td>
-          <td style=\"padding:6px;border:1px solid #e5e7eb;text-align:right\">${((Number(p.quantity)||0)*(Number(p.price)||0)).toFixed(2)}</td>
+          <td style="padding:6px;border:1px solid #e5e7eb">${p.name || ''}</td>
+          <td style="padding:6px;border:1px solid #e5e7eb;text-align:center">${p.um || '-'}</td>
+          <td style="padding:6px;border:1px solid #e5e7eb;text-align:right">${Number(p.quantity||0)}</td>
+          <td style="padding:6px;border:1px solid #e5e7eb;text-align:right">${Number(p.price||0).toFixed(2)}</td>
+          <td style="padding:6px;border:1px solid #e5e7eb;text-align:right">${((Number(p.quantity)||0)*(Number(p.price)||0)).toFixed(2)}</td>
         </tr>`).join('')
       const totalNoVat = (products || []).reduce((s: number, p: any) => s + (Number(p.quantity)||0)*(Number(p.price)||0), 0)
+  
+      // HTML email cu butoane compatibile Yahoo
       const html = `
-        <div style=\"font-family:Arial,sans-serif;line-height:1.6;color:#0b1220\"> 
-          <h2 style=\"margin:0 0 12px;color:#0f56b3\">Ofertă lucrarea ${currentWork?.numarRaport || currentWork?.id}</h2>
-          <table style=\"border-collapse:collapse;width:100%;margin-top:8px;font-size:14px\">
+        <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0b1220"> 
+          <h2 style="margin:0 0 12px;color:#0f56b3">Ofertă lucrarea ${currentWork?.numarRaport || currentWork?.id}</h2>
+          <table style="border-collapse:collapse;width:100%;margin-top:8px;font-size:14px">
             <thead>
-              <tr style=\"background:#f8fafc\">
-                <th style=\"padding:6px;border:1px solid #e5e7eb;text-align:left\">Denumire</th>
-                <th style=\"padding:6px;border:1px solid #e5e7eb;text-align:center\">UM</th>
-                <th style=\"padding:6px;border:1px solid #e5e7eb;text-align:right\">Buc</th>
-                <th style=\"padding:6px;border:1px solid #e5e7eb;text-align:right\">PU (lei)</th>
-                <th style=\"padding:6px;border:1px solid #e5e7eb;text-align:right\">Total (lei)</th>
+              <tr style="background:#f8fafc">
+                <th style="padding:6px;border:1px solid #e5e7eb;text-align:left">Denumire</th>
+                <th style="padding:6px;border:1px solid #e5e7eb;text-align:center">UM</th>
+                <th style="padding:6px;border:1px solid #e5e7eb;text-align:right">Buc</th>
+                <th style="padding:6px;border:1px solid #e5e7eb;text-align:right">PU (lei)</th>
+                <th style="padding:6px;border:1px solid #e5e7eb;text-align:right">Total (lei)</th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>
             <tfoot>
               <tr>
-                <td colspan=\"4\" style=\"padding:8px;border:1px solid #e5e7eb;text-align:right;font-weight:600\">Total fără TVA</td>
-                <td style=\"padding:8px;border:1px solid #e5e7eb;text-align:right;font-weight:700\">${totalNoVat.toFixed(2)}</td>
+                <td colspan="4" style="padding:8px;border:1px solid #e5e7eb;text-align:right;font-weight:600">Total fără TVA</td>
+                <td style="padding:8px;border:1px solid #e5e7eb;text-align:right;font-weight:700">${totalNoVat.toFixed(2)}</td>
               </tr>
             </tfoot>
           </table>
-          <p style=\"margin:12px 0 6px;color:#64748b\">Acest link este valabil 30 de zile de la primirea emailului. După confirmare, linkurile devin inactive.</p>
-          <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"margin-top:12px\"> 
+  
+          <p style="margin:12px 0 6px;color:#64748b">
+            Acest link este valabil 30 de zile de la primirea emailului. După confirmare, linkurile devin inactive.
+          </p>
+  
+          <!-- Butoane -->
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-top:12px">
             <tr>
-              <td align=\"center\" valign=\"middle\"> 
-                <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\"> 
-                  <tr> 
-                    <td style=\"border-radius:6px;\"> 
-                      <a href=\"${acceptUrl}\" target=\"_blank\" aria-label=\"Accept ofertă\" style=\"display:block;background:#16a34a;padding:12px 16px;font-weight:600;color:#ffffff;text-decoration:none;line-height:normal;border-radius:6px;\">Accept ofertă</a> 
-                    </td> 
-                  </tr> 
-                </table> 
-              </td> 
-              <td style=\"width:8px\">&nbsp;</td>
-              <td align=\"center\" valign=\"middle\"> 
-                <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\"> 
-                  <tr> 
-                    <td style=\"border-radius:6px;\"> 
-                      <a href=\"${rejectUrl}\" target=\"_blank\" aria-label=\"Refuz ofertă\" style=\"display:block;background:#dc2626;padding:12px 16px;font-weight:600;color:#ffffff;text-decoration:none;line-height:normal;border-radius:6px;\">Refuz ofertă</a> 
-                    </td> 
-                  </tr> 
-                </table> 
+              <!-- Accept -->
+              <td align="center" valign="middle" bgcolor="#16a34a" style="border-radius:6px;">
+                <a href="${acceptUrl}"
+                   style="display:inline-block;padding:12px 16px;font-weight:600;
+                          font-family:Arial,sans-serif;font-size:14px;
+                          color:#ffffff;text-decoration:none;border-radius:6px;">
+                  Accept ofertă
+                </a>
+              </td>
+              <td style="width:12px">&nbsp;</td>
+              <!-- Refuz -->
+              <td align="center" valign="middle" bgcolor="#dc2626" style="border-radius:6px;">
+                <a href="${rejectUrl}"
+                   style="display:inline-block;padding:12px 16px;font-weight:600;
+                          font-family:Arial,sans-serif;font-size:14px;
+                          color:#ffffff;text-decoration:none;border-radius:6px;">
+                  Refuz ofertă
+                </a>
               </td>
             </tr>
           </table>
-          <div style=\"margin-top:10px;font-size:12px;color:#64748b\"> 
+  
+          <div style="margin-top:10px;font-size:12px;color:#64748b"> 
             Dacă butoanele nu funcționează, folosiți direct link-urile: 
-            <div style=\"margin-top:6px\"> 
-              Accept: <span style=\"word-break:break-all\"><a href=\"${acceptUrl}\" target=\"_blank\" style=\"color:#0f56b3;text-decoration:underline\">${acceptUrl}</a></span> 
+            <div style="margin-top:6px"> 
+              Accept: <span style="word-break:break-all">
+                <a href="${acceptUrl}" style="color:#0f56b3;text-decoration:underline">${acceptUrl}</a>
+              </span> 
             </div> 
             <div> 
-              Refuz: <span style=\"word-break:break-all\"><a href=\"${rejectUrl}\" target=\"_blank\" style=\"color:#0f56b3;text-decoration:underline\">${rejectUrl}</a></span> 
+              Refuz: <span style="word-break:break-all">
+                <a href="${rejectUrl}" style="color:#0f56b3;text-decoration:underline">${rejectUrl}</a>
+              </span> 
             </div> 
           </div>
         </div>`
-
+  
+      // trimite email
       const resp = await fetch('/api/users/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -354,13 +371,14 @@ useEffect(() => {
         const err = await resp.json().catch(() => ({}))
         throw new Error(err?.error || `Cerere invalidă (${resp.status})`)
       }
-
-      // Lock offer after sending
+  
+      // marchează ca ofertat
       await updateLucrare(lucrareId, { statusOferta: "OFERTAT" } as any)
       setStatusOferta("OFERTAT")
       setCanSendOffer(false)
       toast({ title: 'Ofertă trimisă', description: `S-a trimis oferta la: ${recipient}` })
-      // clear draft after successful send
+  
+      // curăță draft
       try { if (typeof window !== 'undefined') localStorage.removeItem(draftStorageKey) } catch {}
     } catch (e) {
       console.warn('Trimitere ofertă eșuată', e)
@@ -370,6 +388,7 @@ useEffect(() => {
       setSaving(false)
     }
   }
+  
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
