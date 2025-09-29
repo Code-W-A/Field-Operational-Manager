@@ -3,7 +3,7 @@ import { adminDb } from "@/lib/firebase/admin"
 
 export async function POST(req: NextRequest) {
   try {
-    const { lucrareId } = await req.json()
+    const { lucrareId, snapshot } = await req.json()
     if (!lucrareId) return NextResponse.json({ error: "lucrareId lipsă" }, { status: 400 })
 
     const workRef = adminDb.collection("lucrari").doc(String(lucrareId))
@@ -13,11 +13,17 @@ export async function POST(req: NextRequest) {
     const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 zile
 
-    await workRef.update({
+    const updateData: Record<string, any> = {
       offerActionToken: token,
       offerActionExpiresAt: expiresAt,
       offerActionUsedAt: null,
-    })
+    }
+    // Persist optional snapshot of the offer being sent so we can later show exactly what was accepted
+    if (snapshot && typeof snapshot === 'object') {
+      updateData.offerActionSnapshot = snapshot
+      updateData.offerActionVersionSavedAt = snapshot.savedAt || new Date().toISOString()
+    }
+    await workRef.update(updateData)
 
     // Build absolute base URL for email links (works on server): prefer env, then headers
     const envBase = process.env.NEXT_PUBLIC_APP_URL

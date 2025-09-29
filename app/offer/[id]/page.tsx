@@ -64,6 +64,8 @@ export default function OfferActionPage() {
             at: new Date(),
           },
           offerActionUsedAt: new Date(),
+          // Dacă avem un snapshot stocat la trimitere, îl marcăm ca acceptat
+          acceptedOfferSnapshot: action === "accept" ? (data as any)?.offerActionSnapshot || null : (data as any)?.acceptedOfferSnapshot || null,
         })
         // Helper: return ONLY the email for the exact contact of the work's location
         const resolveRecipientEmailForLocation = (client: any, work: any): string | null => {

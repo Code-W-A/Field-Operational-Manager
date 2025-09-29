@@ -170,12 +170,12 @@ const handleNumberChange = (
           <table className="w-full text-sm table-fixed">
           <thead className="bg-muted">
             <tr>
-              <th className="px-2 py-2 text-left w-12">Nr.</th>
+              <th className="px-2 py-2 text-left w-10">Nr.</th>
               <th className="px-3 py-2 text-left">Denumire</th>
-              <th className="px-2 py-2 text-right w-24">PU (lei)</th>
-              <th className="px-2 py-2 text-right w-16">Buc</th>
-              <th className="px-2 py-2 text-right w-24">Total</th>
-              <th className="px-1 py-2 text-right w-8">&nbsp;</th>
+              <th className="px-2 py-2 text-right w-32">PU (lei)</th>
+              <th className="px-2 py-2 text-right w-24">Buc</th>
+              <th className="px-2 py-2 text-right w-28">Total</th>
+              <th className="px-1 py-2 text-right w-10">&nbsp;</th>
             </tr>
           </thead>
           <tbody>
@@ -200,7 +200,7 @@ const handleNumberChange = (
                         onFocus={(e) => { lastFocusedFieldIdRef.current = e.currentTarget.id }}
                       />
                     </td>
-                    <td className="px-2 py-2 align-top">
+                    <td className="px-2 py-2 align-top w-32">
                       <Input
                         id={`price-${p.id}`}
                         type="number"
@@ -213,7 +213,7 @@ const handleNumberChange = (
                       onFocus={(e) => { lastFocusedFieldIdRef.current = e.currentTarget.id }}
                       />
                     </td>
-                    <td className="px-2 py-2 align-top">
+                    <td className="px-2 py-2 align-top w-24">
                       <Input
                         id={`quantity-${p.id}`}
                         type="number"

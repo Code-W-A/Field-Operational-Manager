@@ -262,10 +262,16 @@ useEffect(() => {
     try {
       setSaving(true)
       // generează token și link-uri
+      const currentSnapshot = {
+        products: products,
+        total: (products || []).reduce((s: number, p: any) => s + (Number(p.total) || (Number(p.quantity)||0)*(Number(p.price)||0)), 0),
+        vat: Number(vatPercent) || 0,
+        savedAt: new Date().toISOString(),
+      }
       const tokenResp = await fetch('/api/offer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lucrareId })
+        body: JSON.stringify({ lucrareId, snapshot: currentSnapshot })
       })
       if (!tokenResp.ok) throw new Error('Nu s-a putut genera link-ul de ofertă')
       const { acceptUrl, rejectUrl } = await tokenResp.json()
@@ -395,7 +401,7 @@ useEffect(() => {
       <DialogHeader >
         <DialogTitle className="my-4">Editor ofertă</DialogTitle>
       </DialogHeader>
-      <DialogContent className="max-w-[1400px] w-[calc(100%-2rem)] max-h-[95vh] p-0">
+      <DialogContent className="max-w-[1600px] w-[calc(100%-2rem)] max-h-[95vh] p-0">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
           <div className="lg:col-span-2 space-y-4 overflow-y-auto max-h-[calc(95vh-8rem)] p-6">
             <ProductTableForm products={products} onProductsChange={setProducts} disabled={effectiveDisabled} />

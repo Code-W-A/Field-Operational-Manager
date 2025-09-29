@@ -1657,6 +1657,16 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                             >
                               Deschide editor
                             </Button>
+                            {(lucrare as any)?.acceptedOfferSnapshot && (
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => setIsOfferEditorOpen(true)}
+                                className="bg-green-600 text-white hover:bg-green-700"
+                              >
+                                Vizualizează oferta acceptată
+                              </Button>
+                            )}
                             {/* {lucrare.products && lucrare.products.length > 0 && (
                                 <Button
                                   variant="outline"
