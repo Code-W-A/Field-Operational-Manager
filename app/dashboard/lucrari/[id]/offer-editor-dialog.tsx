@@ -314,14 +314,23 @@ useEffect(() => {
           <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"margin-top:12px\">
             <tr>
               <td>
-                <a href=\"${acceptUrl}\" style=\"background:#16a34a;border-radius:6px;color:#ffffff;display:inline-block;font-weight:600;padding:10px 14px;text-decoration:none;line-height:normal\">Accept ofertă</a>
+                <a href=\"${acceptUrl}\" target=\"_blank\" style=\"background:#16a34a;border-radius:6px;color:#ffffff;display:inline-block;font-weight:600;padding:10px 14px;text-decoration:none;line-height:normal\">Accept ofertă</a>
               </td>
               <td style=\"width:8px\">&nbsp;</td>
               <td>
-                <a href=\"${rejectUrl}\" style=\"background:#dc2626;border-radius:6px;color:#ffffff;display:inline-block;font-weight:600;padding:10px 14px;text-decoration:none;line-height:normal\">Refuz ofertă</a>
+                <a href=\"${rejectUrl}\" target=\"_blank\" style=\"background:#dc2626;border-radius:6px;color:#ffffff;display:inline-block;font-weight:600;padding:10px 14px;text-decoration:none;line-height:normal\">Refuz ofertă</a>
               </td>
             </tr>
           </table>
+          <div style=\"margin-top:10px;font-size:12px;color:#64748b\"> 
+            Dacă butoanele nu funcționează, folosiți direct link-urile: 
+            <div style=\"margin-top:6px\"> 
+              Accept: <a href=\"${acceptUrl}\" target=\"_blank\" style=\"color:#0f56b3;word-break:break-all;text-decoration:underline\">${acceptUrl}</a> 
+            </div> 
+            <div> 
+              Refuz: <a href=\"${rejectUrl}\" target=\"_blank\" style=\"color:#0f56b3;word-break:break-all;text-decoration:underline\">${rejectUrl}</a> 
+            </div> 
+          </div>
         </div>`
 
       const resp = await fetch('/api/users/invite', {
