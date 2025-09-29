@@ -24,7 +24,10 @@ export async function POST(req: NextRequest) {
     const proto = req.headers.get("x-forwarded-proto") || "https"
     const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || ""
     const headerBase = host ? `${proto}://${host}` : ""
-    const base = envBase || headerBase
+    const rawBase = envBase || headerBase
+    const base = rawBase && !rawBase.startsWith("http://") && !rawBase.startsWith("https://")
+      ? `https://${rawBase}`
+      : rawBase
     const acceptUrl = `${base}/offer/${encodeURIComponent(lucrareId)}?t=${encodeURIComponent(token)}&action=accept`
     const rejectUrl = `${base}/offer/${encodeURIComponent(lucrareId)}?t=${encodeURIComponent(token)}&action=reject`
 
