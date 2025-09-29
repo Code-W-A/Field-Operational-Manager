@@ -1734,12 +1734,19 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       )}
                       {lucrare.necesitaOferta && (
                         <div className="space-y-2 md:col-span-3">
-                          <Label htmlFor="comentariiOferta" className="text-xs font-medium text-blue-800">Comentarii ofertă</Label>
+                          <Label htmlFor="comentariiOferta" className={`text-xs font-medium ${!lucrare.preluatDispecer ? 'text-gray-500' : 'text-blue-800'}`}>Comentarii ofertă</Label>
                           <Textarea
                             id="comentariiOferta"
                             value={lucrare.comentariiOferta || ""}
-                            onChange={(e) => setLucrare(prev => prev ? { ...prev, comentariiOferta: e.target.value } : prev)}
+                            onChange={(e) => {
+                              if (!lucrare.preluatDispecer) {
+                                toast({ title: 'Acțiune indisponibilă', description: 'Lucrarea trebuie preluată de dispecer/admin pentru a modifica comentariile ofertei.', variant: 'destructive' })
+                                return
+                              }
+                              setLucrare(prev => prev ? { ...prev, comentariiOferta: e.target.value } : prev)
+                            }}
                             onBlur={async () => {
+                              if (!lucrare.preluatDispecer) return
                               try {
                                 setIsUpdating(true)
                                 await updateLucrare(lucrare.id!, { comentariiOferta: lucrare.comentariiOferta || "" })
@@ -1751,9 +1758,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                 setIsUpdating(false)
                               }
                             }}
-                            placeholder="Detalii relevante pentru ofertă..."
-                            className="min-h-[80px] text-sm"
-                            disabled={isUpdating}
+                            placeholder={!lucrare.preluatDispecer ? "Indisponibil până la preluarea lucrării..." : "Detalii relevante pentru ofertă..."}
+                            className={`min-h-[80px] text-sm ${!lucrare.preluatDispecer ? 'bg-gray-50 text-gray-500 border-gray-300 cursor-not-allowed' : ''}`}
+                            disabled={isUpdating || !lucrare.preluatDispecer}
                           />
                         </div>
                       )}
