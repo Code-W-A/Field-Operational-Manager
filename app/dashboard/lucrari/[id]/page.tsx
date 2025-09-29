@@ -1588,6 +1588,12 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                             disabled={isUpdating}
                           />
                         </div>
+                        {!lucrare.preluatDispecer && (
+                          <div className="flex items-start gap-2 text-xs bg-yellow-50 text-yellow-800 border border-yellow-200 rounded px-2 py-1">
+                            <AlertCircle className="h-3.5 w-3.5 mt-0.5" />
+                            <span>Lucrarea nu este preluată. Editorul de ofertă devine disponibil după preluare de către dispecer/admin.</span>
+                          </div>
+                        )}
                       </div>
                       {lucrare.necesitaOferta && (
                         <div className="space-y-2">
