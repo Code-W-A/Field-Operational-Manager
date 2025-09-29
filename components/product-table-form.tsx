@@ -140,15 +140,15 @@ const handleNumberChange = (
 
       {!isMobile ? (
         <div className="overflow-x-auto overflow-y-auto rounded border max-h-[60vh]">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm table-fixed">
           <thead className="bg-muted">
             <tr>
-              <th className="px-3 py-2 text-left w-16">Nr. Crt.</th>
+              <th className="px-2 py-2 text-left w-12">Nr.</th>
               <th className="px-3 py-2 text-left">Denumire</th>
-              <th className="px-3 py-2 text-right w-28">PU (lei)</th>
-              <th className="px-3 py-2 text-right w-24">Buc</th>
-              <th className="px-3 py-2 text-right w-32">Total (lei)</th>
-              <th className="px-3 py-2 text-right w-10">&nbsp;</th>
+              <th className="px-2 py-2 text-right w-24">PU (lei)</th>
+              <th className="px-2 py-2 text-right w-16">Buc</th>
+              <th className="px-2 py-2 text-right w-24">Total</th>
+              <th className="px-1 py-2 text-right w-8">&nbsp;</th>
             </tr>
           </thead>
           <tbody>
@@ -161,18 +161,18 @@ const handleNumberChange = (
                 const invalid = hasValidationError(p)
                 return (
                   <tr key={p.id} className={invalid ? "bg-red-50" : ""}>
-                    <td className="px-3 py-2 align-top">{idx + 1}</td>
+                    <td className="px-2 py-2 align-top text-center">{idx + 1}</td>
                     <td className="px-3 py-2 align-top">
                       <Textarea
                         id={`name-${p.id}`}
                         value={p.name}
                         onChange={(e) => updateProduct(p.id, "name", e.target.value)}
                         placeholder="Denumire produs/serviciu"
-                        className="min-h-[60px]"
+                        className="min-h-[80px] text-sm w-full resize-none"
                         disabled={disabled}
                       />
                     </td>
-                    <td className="px-3 py-2 align-top">
+                    <td className="px-2 py-2 align-top">
                       <Input
                         id={`price-${p.id}`}
                         type="number"
@@ -181,10 +181,10 @@ const handleNumberChange = (
                         value={p.price === 0 ? "" : String(p.price)}
                         onChange={handleNumberChange(p.id, "price")}
                         disabled={disabled}
-                        className="text-right"
+                        className="text-right text-xs"
                       />
                     </td>
-                    <td className="px-3 py-2 align-top">
+                    <td className="px-2 py-2 align-top">
                       <Input
                         id={`quantity-${p.id}`}
                         type="number"
@@ -193,13 +193,13 @@ const handleNumberChange = (
                         value={p.quantity === 0 ? "" : String(p.quantity)}
                         onChange={handleNumberChange(p.id, "quantity")}
                         disabled={disabled}
-                        className="text-right"
+                        className="text-right text-xs"
                       />
                     </td>
-                    <td className="px-3 py-2 align-top text-right font-medium">{(Number(p.total) || 0).toFixed(2)}</td>
-                    <td className="px-3 py-2 align-top text-right">
-                      <Button variant="ghost" size="icon" onClick={() => removeProduct(p.id)} disabled={disabled}>
-                        <Trash2 className="h-4 w-4" />
+                    <td className="px-2 py-2 align-top text-right font-medium text-xs">{(Number(p.total) || 0).toFixed(2)}</td>
+                    <td className="px-1 py-2 align-top text-center">
+                      <Button variant="ghost" size="sm" onClick={() => removeProduct(p.id)} disabled={disabled} className="h-6 w-6 p-0">
+                        <Trash2 className="h-3 w-3" />
                       </Button>
                     </td>
                   </tr>

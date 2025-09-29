@@ -277,9 +277,9 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
       <DialogHeader >
         <DialogTitle className="my-4">Editor ofertă</DialogTitle>
       </DialogHeader>
-      <DialogContent className="max-w-[1000px] w-[calc(100%-2rem)] max-h-[90vh] p-0">
+      <DialogContent className="max-w-[1400px] w-[calc(100%-2rem)] max-h-[95vh] p-0">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
-          <div className="lg:col-span-2 space-y-4 overflow-y-auto max-h-[calc(90vh-8rem)] p-6">
+          <div className="lg:col-span-2 space-y-4 overflow-y-auto max-h-[calc(95vh-8rem)] p-6">
             <ProductTableForm products={products} onProductsChange={setProducts} disabled={effectiveDisabled} />
 
             {/* Termeni ofertă (dinamici) */}
@@ -340,7 +340,7 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
               <Button onClick={handleSendOffer} disabled={saving}>Trimite ofertă</Button>
             </div>
           </div>
-          <div className="space-y-3 p-6 overflow-y-auto max-h-[calc(90vh-8rem)]">
+          <div className="space-y-3 p-6 overflow-y-auto max-h-[calc(95vh-8rem)]">
             <div className="text-sm font-medium">Istoric versiuni ofertă</div>
             <div className="rounded border divide-y bg-white">
               {versions?.length ? versions.map((v, i) => (
