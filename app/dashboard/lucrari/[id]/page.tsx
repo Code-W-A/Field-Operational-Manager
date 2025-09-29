@@ -93,6 +93,18 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const [otherActiveWork, setOtherActiveWork] = useState<null | { id: string; numar: string; client?: string; locatie?: string }>(null)
   const [checkingOtherActive, setCheckingOtherActive] = useState(false)
 
+  // Asigurăm feedback atunci când se încearcă deschiderea editorului fără preluare
+  useEffect(() => {
+    if (isOfferEditorOpen && lucrare && role !== "tehnician" && !lucrare.preluatDispecer) {
+      toast({
+        title: "Editor indisponibil",
+        description: "Lucrarea trebuie preluată de dispecer/admin înainte de editarea ofertei.",
+        variant: "destructive",
+      })
+      setIsOfferEditorOpen(false)
+    }
+  }, [isOfferEditorOpen, lucrare, role])
+
   // Funcție pentru încărcarea reintervențiilor derivate din lucrarea curentă
   const loadReinterventii = useCallback(async (lucrareId: string) => {
     if (!lucrareId) return
