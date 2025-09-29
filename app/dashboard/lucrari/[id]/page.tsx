@@ -1854,6 +1854,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                     open={isOfferEditorOpen}
                     onOpenChange={setIsOfferEditorOpen}
                     initialProducts={(lucrare as any).products || []}
+                    presetRecipientEmail={(clientData?.locatii || []).find((l: any) => l?.nume === lucrare.locatie)?.persoaneContact?.find((c: any) => c?.nume === lucrare.persoanaContact)?.email || undefined}
+                    presetLocationLabel={`${lucrare.locatie || (lucrare as any)?.clientInfo?.locationName || ''}${(lucrare as any)?.clientInfo?.locationAddress ? ` — ${(lucrare as any).clientInfo.locationAddress}` : ''}`}
                   />
                 )}
 

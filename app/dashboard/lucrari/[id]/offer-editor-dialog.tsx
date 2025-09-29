@@ -14,9 +14,12 @@ interface OfferEditorDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   initialProducts?: ProductItem[]
+  // Optional preset recipient/location from parent page to avoid async mismatch
+  presetRecipientEmail?: string
+  presetLocationLabel?: string
 }
 
-export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProducts = [] }: OfferEditorDialogProps) {
+export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProducts = [], presetRecipientEmail, presetLocationLabel }: OfferEditorDialogProps) {
   const { userData } = useAuth()
   const [products, setProducts] = useState<ProductItem[]>(initialProducts)
   const [saving, setSaving] = useState(false)
@@ -34,11 +37,11 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
   // read-only suggested recipient
   const suggestedRecipient = useMemo(() => {
     try {
-      return resolveRecipientEmailForLocation(clientData, currentWork)
+      return presetRecipientEmail || resolveRecipientEmailForLocation(clientData, currentWork)
     } catch {
       return null
     }
-  }, [clientData, currentWork])
+  }, [presetRecipientEmail, clientData, currentWork])
   const [termsPayment, setTermsPayment] = useState<string>("100% in avans")
   const [termsDelivery, setTermsDelivery] = useState<string>("30 zile lucratoare de la plata")
   const [termsInstallation, setTermsInstallation] = useState<string>("3 zile lucratoare de la livrare")
@@ -270,7 +273,7 @@ useEffect(() => {
         const cid = (freshWork as any)?.clientInfo?.id
         if (cid) freshClient = await getClientById(cid)
       } catch {}
-      const recipient = resolveRecipientEmailForLocation(freshClient, freshWork)
+      const recipient = presetRecipientEmail || resolveRecipientEmailForLocation(freshClient, freshWork)
       if (!recipient) throw new Error('Nu există un email valid disponibil pentru această lucrare.')
 
       toast({ title: 'Se trimite ofertă', description: `Către: ${recipient}` })
@@ -410,8 +413,8 @@ useEffect(() => {
                   <>
                     <span className="font-medium">Oferta se va trimite la adresa de email: </span>
                     <span>{suggestedRecipient}</span>
-                    {currentWork?.locatie || currentWork?.clientInfo?.locationName || currentWork?.clientInfo?.locationAddress ? (
-                      <span>{` (Locație: ${currentWork?.locatie || currentWork?.clientInfo?.locationName || ''}${currentWork?.clientInfo?.locationAddress ? ` — ${currentWork?.clientInfo?.locationAddress}` : ''})`}</span>
+                    {(presetLocationLabel || currentWork?.locatie || currentWork?.clientInfo?.locationName || currentWork?.clientInfo?.locationAddress) ? (
+                      <span>{` (Locație: ${presetLocationLabel || currentWork?.locatie || currentWork?.clientInfo?.locationName || ''}${currentWork?.clientInfo?.locationAddress && !presetLocationLabel ? ` — ${currentWork?.clientInfo?.locationAddress}` : ''})`}</span>
                     ) : null}
                   </>
                 ) : (
