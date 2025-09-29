@@ -168,7 +168,7 @@ const handleNumberChange = (
                         value={p.name}
                         onChange={(e) => updateProduct(p.id, "name", e.target.value)}
                         placeholder="Denumire produs/serviciu"
-                        className="min-h-[80px] text-sm w-full resize-none"
+                        className="min-h-[60px] text-sm w-full resize-none"
                         disabled={disabled}
                       />
                     </td>
