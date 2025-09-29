@@ -283,8 +283,8 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
             <ProductTableForm products={products} onProductsChange={setProducts} disabled={effectiveDisabled} />
 
             {/* Termeni ofertă (dinamici) */}
-            <div className="space-y-2">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="space-y-3">
+              <div className="space-y-3">
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">Termen de plată</label>
                   <input
@@ -293,6 +293,7 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
                     onChange={(e) => setTermsPayment(e.target.value)}
                     className="w-full border rounded px-2 py-1 text-sm"
                     disabled={effectiveDisabled}
+                    placeholder="ex: 100% în avans"
                   />
                 </div>
                 <div>
@@ -303,6 +304,7 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
                     onChange={(e) => setTermsDelivery(e.target.value)}
                     className="w-full border rounded px-2 py-1 text-sm"
                     disabled={effectiveDisabled}
+                    placeholder="ex: 30 zile lucrătoare de la plată"
                   />
                 </div>
                 <div>
@@ -313,6 +315,7 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
                     onChange={(e) => setTermsInstallation(e.target.value)}
                     className="w-full border rounded px-2 py-1 text-sm"
                     disabled={effectiveDisabled}
+                    placeholder="ex: 1-2 zile lucrătoare de la livrare"
                   />
                 </div>
               </div>
