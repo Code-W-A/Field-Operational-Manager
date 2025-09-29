@@ -311,14 +311,26 @@ useEffect(() => {
             </tfoot>
           </table>
           <p style=\"margin:12px 0 6px;color:#64748b\">Acest link este valabil 30 de zile de la primirea emailului. După confirmare, linkurile devin inactive.</p>
-          <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"margin-top:12px\">
+          <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"margin-top:12px\"> 
             <tr>
-              <td>
-                <a href=\"${acceptUrl}\" target=\"_blank\" style=\"background:#16a34a;border-radius:6px;color:#ffffff;display:inline-block;font-weight:600;padding:10px 14px;text-decoration:none;line-height:normal\">Accept ofertă</a>
+              <td align=\"center\" valign=\"middle\">
+                <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">
+                  <tr>
+                    <td bgcolor=\"#16a34a\" style=\"border-radius:6px;\">
+                      <a href=\"${acceptUrl}\" target=\"_blank\" style=\"display:inline-block;padding:10px 14px;font-weight:600;color:#ffffff;text-decoration:none;line-height:normal;\">Accept ofertă</a>
+                    </td>
+                  </tr>
+                </table>
               </td>
               <td style=\"width:8px\">&nbsp;</td>
-              <td>
-                <a href=\"${rejectUrl}\" target=\"_blank\" style=\"background:#dc2626;border-radius:6px;color:#ffffff;display:inline-block;font-weight:600;padding:10px 14px;text-decoration:none;line-height:normal\">Refuz ofertă</a>
+              <td align=\"center\" valign=\"middle\">
+                <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">
+                  <tr>
+                    <td bgcolor=\"#dc2626\" style=\"border-radius:6px;\">
+                      <a href=\"${rejectUrl}\" target=\"_blank\" style=\"display:inline-block;padding:10px 14px;font-weight:600;color:#ffffff;text-decoration:none;line-height:normal;\">Refuz ofertă</a>
+                    </td>
+                  </tr>
+                </table>
               </td>
             </tr>
           </table>
