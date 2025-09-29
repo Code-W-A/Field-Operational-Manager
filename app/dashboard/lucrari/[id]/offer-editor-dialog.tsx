@@ -43,10 +43,20 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
   const [termsDelivery, setTermsDelivery] = useState<string>("30 zile lucratoare de la plata")
   const [termsInstallation, setTermsInstallation] = useState<string>("3 zile lucratoare de la livrare")
 
-  useEffect(() => {
+useEffect(() => {
+  // Actualizăm mereu baseline-ul din props
+  setBaselineProducts(initialProducts || [])
+  // Nu suprascriem produsele în timp ce dialogul este deschis și există deja rânduri (nesalvate)
+  if (!open) {
     setProducts(initialProducts || [])
-    setBaselineProducts(initialProducts || [])
-  }, [initialProducts])
+    return
+  }
+  if (!products || products.length === 0) {
+    setProducts(initialProducts || [])
+  }
+  // altfel, păstrăm lista curentă (rânduri noi incluse)
+// eslint-disable-next-line react-hooks/exhaustive-deps
+}, [initialProducts, open])
 
   useEffect(() => {
     const load = async () => {
