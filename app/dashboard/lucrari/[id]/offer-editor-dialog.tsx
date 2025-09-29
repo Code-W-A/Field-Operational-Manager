@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { ProductTableForm, type ProductItem } from "@/components/product-table-form"
 import { updateLucrare, getLucrareById, getClientById } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
@@ -34,6 +35,7 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
   const [canSendOffer, setCanSendOffer] = useState(false)
   const [currentWork, setCurrentWork] = useState<any>(null)
   const [clientData, setClientData] = useState<any>(null)
+  const [acceptedSavedAt, setAcceptedSavedAt] = useState<string | null>(null)
   // read-only suggested recipient
   const suggestedRecipient = useMemo(() => {
     try {
@@ -68,6 +70,10 @@ useEffect(() => {
       setIsPickedUp(Boolean((current as any)?.preluatDispecer))
       setStatusOferta((current as any)?.statusOferta)
       setCurrentWork(current)
+      try {
+        const accAt = (current as any)?.acceptedOfferSnapshot?.savedAt || (current as any)?.offerActionVersionSavedAt || null
+        setAcceptedSavedAt(accAt ? String(accAt) : null)
+      } catch {}
       try {
         const cid = (current as any)?.clientInfo?.id
         if (cid) {
@@ -484,18 +490,23 @@ useEffect(() => {
             </div>
           </div>
           <div className="space-y-3 p-6 overflow-y-auto max-h-[calc(95vh-8rem)]">
-            <div className="text-sm font-medium">Istoric versiuni ofertă</div>
+          <div className="text-sm font-medium">Istoric versiuni ofertă</div>
             <div className="rounded border divide-y bg-white">
               {versions?.length ? versions.map((v, i) => (
                 <div key={i} className="p-2 text-sm">
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="font-medium truncate">{new Date(v.savedAt).toLocaleString("ro-RO")}</div>
+                    <div className="font-medium truncate flex items-center gap-2">
+                      <span>{new Date(v.savedAt).toLocaleString("ro-RO")}</span>
+                      {acceptedSavedAt && String(v.savedAt) === String(acceptedSavedAt) && (
+                        <Badge variant="secondary" className="bg-green-100 text-green-800">ACCEPTAT</Badge>
+                      )}
+                    </div>
                       <div className="text-xs text-muted-foreground truncate">{v.savedBy || "-"} • Total: {v.total?.toFixed?.(2) ?? v.total} lei</div>
                     </div>
                     <div className="flex-shrink-0 flex gap-2">
-                      <Button size="sm" variant="outline" onClick={() => setViewIndex(i)}>Vizualizează</Button>
-                      <Button size="sm" onClick={() => handleRestore(i)} disabled={saving}>Restaurează</Button>
+                    <Button size="sm" variant="outline" onClick={() => setViewIndex(i)}>Vizualizează</Button>
+                    <Button size="sm" onClick={() => handleRestore(i)} disabled={saving}>Restaurează</Button>
                     </div>
                   </div>
                   {viewIndex === i && (
