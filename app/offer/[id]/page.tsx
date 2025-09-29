@@ -65,122 +65,115 @@ export default function OfferActionPage() {
           },
           offerActionUsedAt: new Date(),
         })
-        // La accept: generăm (dacă lipsește) și salvăm PDF-ul în Storage, apoi trimitem email cu link de descărcare
-        if (action === "accept") {
-          try {
-            const freshSnap = await getDoc(ref)
-            const fresh = freshSnap.exists() ? (freshSnap.data() as any) : null
-            if (fresh) {
-              let ofertaUrl: string | undefined = fresh?.ofertaDocument?.url
+        // Helper: return ONLY the email for the exact contact of the work's location
+        const resolveRecipientEmailForLocation = (client: any, work: any): string | null => {
+          const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(e || "")
+          const norm = (s?: string) => String(s || "").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "").trim()
 
-              // Dacă nu există deja PDF încărcat, îl generăm și îl urcăm în Storage
-              if (!ofertaUrl) {
-                const products = Array.isArray(fresh?.products) ? fresh.products : []
-                if (products.length) {
-                  const blob = await generateOfferPdf({
-                    id: String(id),
-                    client: fresh?.client || "",
-                    attentionTo: fresh?.persoanaContact || "",
-                    fromCompany: "NRG Access Systems SRL",
-                    products: products.map((p: any) => ({
-                      name: p?.name || p?.denumire || "",
-                      quantity: Number(p?.quantity || p?.cantitate || 0),
-                      price: Number(p?.price || p?.pretUnitar || 0),
-                    })),
-                    offerVAT: typeof (fresh as any)?.offerVAT === "number" ? (fresh as any).offerVAT : 19,
-                    damages: String(fresh?.comentariiOferta || "")
-                      .split(/\r?\n|\u2022|\-|\*/)
-                      .map((s: string) => s.trim())
-                      .filter(Boolean),
-                    conditions: Array.isArray((fresh as any)?.conditiiOferta)
-                      ? (fresh as any).conditiiOferta
-                      : undefined,
-                  })
-                  const fileName = `oferta_${id}.pdf`
-                  const file = new File([blob], fileName, { type: "application/pdf" })
-                  const path = `lucrari/${id}/oferta/${fileName}`
-                  const uploaded = await uploadFile(file, path)
-                  ofertaUrl = uploaded.url
-                  await updateDoc(ref, {
-                    ofertaDocument: {
-                      url: uploaded.url,
-                      fileName: uploaded.fileName,
-                      uploadedAt: new Date().toISOString(),
-                      uploadedBy: "Portal client",
-                      numarOferta: (fresh as any)?.numarOferta || "",
-                      dataOferta: new Date().toISOString().slice(0, 10),
-                    },
-                  })
-                }
-              }
+          const locatii = Array.isArray(client?.locatii) ? client.locatii : []
+          const targetName = norm(work?.locatie || work?.clientInfo?.locationName)
+          const targetAddr = norm(work?.clientInfo?.locationAddress)
+          const targetContactName = norm(work?.persoanaContact)
 
-              // Dacă avem URL pentru ofertă, trimitem email cu linkul de descărcare
-              if (ofertaUrl) {
-                const base = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "")
-                const downloadLink = `${base}/api/download?lucrareId=${encodeURIComponent(String(id))}&type=oferta&url=${encodeURIComponent(ofertaUrl)}`
+          const loc = locatii.find((l: any) => norm(l?.nume) === targetName || norm(l?.adresa) === targetAddr)
+          if (!loc) return null
 
-                // Determinăm destinatarii email (contact locație -> orice email locație -> email client -> fallback explicit dacă e setat)
-                const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(e || "")
-                const norm = (s?: string) => String(s || "").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "").trim()
-                const recipients: string[] = []
-                const addIfValid = (e?: string) => { if (isValid(e) && !recipients.includes(e!)) recipients.push(e!) }
+          const exact = (loc.persoaneContact || []).find((c: any) => norm(c?.nume) === targetContactName)
+          const email = exact?.email
+          return isValid(email) ? String(email) : null
+        }
 
-                let clientData: any = null
-                try {
-                  const cid = fresh?.clientInfo?.id
-                  if (cid) clientData = await getClientById(cid)
-                } catch {}
-
-                const locatii = Array.isArray(clientData?.locatii) ? clientData.locatii : []
-                const targetName = norm(fresh?.locatie || fresh?.clientInfo?.locationName)
-                const targetAddr = norm(fresh?.clientInfo?.locationAddress)
-                const targetContactName = norm(fresh?.persoanaContact)
-                let loc = locatii.find((l: any) => norm(l?.nume) === targetName || norm(l?.adresa) === targetAddr)
-                if (loc && targetContactName) {
-                  const exact = (loc.persoaneContact || []).find((c: any) => norm(c?.nume) === targetContactName)
-                  addIfValid(exact?.email)
-                }
-                if (recipients.length === 0 && loc?.persoaneContact?.length) {
-                  for (const c of loc.persoaneContact) addIfValid(c?.email)
-                }
-                addIfValid(clientData?.email)
-                if (recipients.length === 0) {
-                  const raw = (fresh as any)?.emailDestinatar
-                  if (Array.isArray(raw)) raw.forEach((e: string) => addIfValid(e))
-                  else addIfValid(String(raw || ""))
-                }
-                if (recipients.length === 0) {
-                  const fallback = process.env.NEXT_PUBLIC_FALLBACK_EMAIL || "fom@nrg-acces.ro"
-                  addIfValid(fallback)
-                }
-
-                const subject = `Ofertă acceptată – lucrare ${fresh?.numarRaport || String(id)}`
-                const html = `
-                  <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0b1220">
-                    <h2 style="margin:0 0 12px;color:#16a34a">Confirmare acceptare ofertă</h2>
-                    <p>Vă mulțumim! Oferta pentru lucrarea <strong>${fresh?.numarRaport || String(id)}</strong> a fost acceptată.</p>
-                    <p>Puteți descărca oricând oferta în format PDF de aici:</p>
-                    <p style="margin:12px 0"><a href="${downloadLink}" style="background:#2563eb;border-radius:6px;color:#ffffff;display:inline-block;font-weight:600;padding:10px 14px;text-decoration:none">Descarcă oferta</a></p>
-                    <p style="font-size:12px;color:#64748b">Păstrați acest email pentru acces rapid la documentul dvs.</p>
-                  </div>
-                `
-
-                try {
-                  await fetch('/api/users/invite', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ to: recipients, subject, html })
-                  })
-                } catch (e) {
-                  console.warn('Trimitere email ofertă acceptată eșuată (non-blocant):', e)
-                }
+        // Pregătim emailul de confirmare pentru accept/refuz – strict către emailul locației din Firestore
+        try {
+          const freshSnap = await getDoc(ref)
+          const fresh = freshSnap.exists() ? (freshSnap.data() as any) : null
+          if (fresh) {
+            // La accept: generăm (dacă lipsește) și salvăm PDF-ul în Storage pentru a putea oferi link de descărcare
+            let ofertaUrl: string | undefined = fresh?.ofertaDocument?.url
+            if (action === "accept" && !ofertaUrl) {
+              const products = Array.isArray(fresh?.products) ? fresh.products : []
+              if (products.length) {
+                const blob = await generateOfferPdf({
+                  id: String(id),
+                  client: fresh?.client || "",
+                  attentionTo: fresh?.persoanaContact || "",
+                  fromCompany: "NRG Access Systems SRL",
+                  products: products.map((p: any) => ({
+                    name: p?.name || p?.denumire || "",
+                    quantity: Number(p?.quantity || p?.cantitate || 0),
+                    price: Number(p?.price || p?.pretUnitar || 0),
+                  })),
+                  offerVAT: typeof (fresh as any)?.offerVAT === "number" ? (fresh as any).offerVAT : 19,
+                  damages: String(fresh?.comentariiOferta || "")
+                    .split(/\r?\n|\u2022|\-|\*/)
+                    .map((s: string) => s.trim())
+                    .filter(Boolean),
+                  conditions: Array.isArray((fresh as any)?.conditiiOferta)
+                    ? (fresh as any).conditiiOferta
+                    : undefined,
+                })
+                const fileName = `oferta_${id}.pdf`
+                const file = new File([blob], fileName, { type: "application/pdf" })
+                const path = `lucrari/${id}/oferta/${fileName}`
+                const uploaded = await uploadFile(file, path)
+                ofertaUrl = uploaded.url
+                await updateDoc(ref, {
+                  ofertaDocument: {
+                    url: uploaded.url,
+                    fileName: uploaded.fileName,
+                    uploadedAt: new Date().toISOString(),
+                    uploadedBy: "Portal client",
+                    numarOferta: (fresh as any)?.numarOferta || "",
+                    dataOferta: new Date().toISOString().slice(0, 10),
+                  },
+                })
               }
             }
-          } catch (e) {
-            console.warn('Post-accept processing failed (non-blocant):', e)
+
+            // Determinăm destinatarul (doar email-ul persoanei de contact a locației)
+            let clientData: any = null
+            try {
+              const cid = fresh?.clientInfo?.id
+              if (cid) clientData = await getClientById(cid)
+            } catch {}
+            const recipient = resolveRecipientEmailForLocation(clientData, fresh)
+
+            if (recipient) {
+              const to = [recipient]
+              const subject = `${action === "accept" ? "Confirmare acceptare ofertă" : "Confirmare răspuns – refuz ofertă"} – lucrare ${fresh?.numarRaport || String(id)}`
+              const base = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "")
+              const downloadLink = ofertaUrl ? `${base}/api/download?lucrareId=${encodeURIComponent(String(id))}&type=oferta&url=${encodeURIComponent(ofertaUrl)}` : ""
+
+              const messageParagraph = action === "accept"
+                ? "Va multumim pentru acceptarea ofertei noastre. In continuare veti fi contactat de un reprezentant NRG pt a stabili urmatorii pasi."
+                : "Va multumim pentru raspunsul dvs. In continuare veti fi contactat de un reprezentant NRG pt a stabili urmatorii pasi."
+
+              const linkSection = action === "accept" && downloadLink
+                ? `<p style="margin:12px 0"><a href="${downloadLink}" style="background:#2563eb;border-radius:6px;color:#ffffff;display:inline-block;font-weight:600;padding:10px 14px;text-decoration:none">Descarcă oferta</a></p>`
+                : ""
+
+              const html = `
+                <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0b1220">
+                  <p>${messageParagraph}</p>
+                  ${linkSection}
+                </div>
+              `
+
+              try {
+                await fetch('/api/users/invite', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ to, subject, html })
+                })
+              } catch (e) {
+                console.warn('Trimitere email confirmare ofertă eșuată (non-blocant):', e)
+              }
+            }
           }
-          setGenerating(false)
+        } catch (e) {
+          console.warn('Post-response email or attachment handling failed (non-blocant):', e)
         }
+        if (action === "accept") setGenerating(false)
         setState("success")
         setMessage(action === "accept" ? "Ați acceptat oferta. Vă mulțumim!" : "Ați refuzat oferta. Am înregistrat răspunsul.")
       } catch (e) {

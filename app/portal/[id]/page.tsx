@@ -6,7 +6,7 @@ import { ProtectedRoute } from "@/components/protected-route"
 import { addDoc, collection, serverTimestamp } from "firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import { db } from "@/lib/firebase/config"
-import { getLucrareById, updateLucrare } from "@/lib/firebase/firestore"
+import { getLucrareById, updateLucrare, getClientById } from "@/lib/firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -84,6 +84,60 @@ export default function PortalWorkDetail() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ to, subject, html })
         })
+      } catch {}
+
+      // Best-effort: email de confirmare către contactul locației (doar către acel email)
+      try {
+        const fresh = await getLucrareById(id)
+        if (fresh) {
+          // Helper: return ONLY the email for the exact contact of the work's location
+          const resolveRecipientEmailForLocation = (client: any, work: any): string | null => {
+            const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(e || '')
+            const norm = (s?: string) => String(s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').trim()
+            const locatii = Array.isArray(client?.locatii) ? client.locatii : []
+            const targetName = norm(work?.locatie || work?.clientInfo?.locationName)
+            const targetAddr = norm(work?.clientInfo?.locationAddress)
+            const targetContactName = norm(work?.persoanaContact)
+            const loc = locatii.find((l: any) => norm(l?.nume) === targetName || norm(l?.adresa) === targetAddr)
+            if (!loc) return null
+            const exact = (loc.persoaneContact || []).find((c: any) => norm(c?.nume) === targetContactName)
+            const email = exact?.email
+            return isValid(email) ? String(email) : null
+          }
+
+          let clientData: any = null
+          try {
+            const cid = (fresh as any)?.clientInfo?.id
+            if (cid) clientData = await getClientById(cid)
+          } catch {}
+
+          const recipient = resolveRecipientEmailForLocation(clientData, fresh)
+          if (recipient) {
+            const to = [recipient]
+            const base = typeof window !== 'undefined' ? window.location.origin : ''
+            const ofertaUrl = (fresh as any)?.ofertaDocument?.url
+            const downloadLink = ofertaUrl ? `${base}/api/download?lucrareId=${encodeURIComponent(String(id))}&type=oferta&url=${encodeURIComponent(ofertaUrl)}` : ''
+            const subject = accepted ? `Confirmare acceptare ofertă – lucrare ${String(id)}` : `Confirmare răspuns – refuz ofertă – lucrare ${String(id)}`
+            const messageParagraph = accepted
+              ? 'Va multumim pentru acceptarea ofertei noastre. In continuare veti fi contactat de un reprezentant NRG pt a stabili urmatorii pasi.'
+              : 'Va multumim pentru raspunsul dvs. In continuare veti fi contactat de un reprezentant NRG pt a stabili urmatorii pasi.'
+            const linkSection = accepted && downloadLink
+              ? `<p style="margin:12px 0"><a href="${downloadLink}" style="background:#2563eb;border-radius:6px;color:#ffffff;display:inline-block;font-weight:600;padding:10px 14px;text-decoration:none">Descarcă oferta</a></p>`
+              : ''
+            const html = `
+              <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0b1220">
+                <p>${messageParagraph}</p>
+                ${linkSection}
+              </div>
+            `
+
+            await fetch('/api/users/invite', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ to, subject, html })
+            })
+          }
+        }
       } catch {}
 
       const data = await getLucrareById(id)

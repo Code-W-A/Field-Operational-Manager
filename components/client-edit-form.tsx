@@ -564,21 +564,10 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
   // Stilul pentru câmpurile cu eroare
   const errorStyle = "border-red-500 focus-visible:ring-red-500"
 
-  // New function to handle close attempt - SIMPLIFIED
+  // New function to handle close attempt - delegate to parent dialog only
   const handleCloseAttempt = () => {
-    console.log("handleCloseAttempt called, formModified:", formModified)
-
-    // For testing, always show the dialog
-    setShowCloseAlert(true)
-
-    // Uncomment this for production
-    /*
-    if (formModified) {
-      setShowCloseAlert(true)
-    } else if (onCancel) {
-      onCancel()
-    }
-    */
+    console.log("handleCloseAttempt called (delegated to parent), formModified:", formModified)
+    if (onCancel) onCancel()
   }
 
   // Functions to handle alert dialog responses
@@ -1176,24 +1165,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
         </Button>
       </div>
 
-      {/* Alert Dialog for unsaved changes when clicking Cancel */}
-      <AlertDialog open={showCloseAlert} onOpenChange={setShowCloseAlert}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmați închiderea</AlertDialogTitle>
-            <AlertDialogDescription>
-              Aveți modificări nesalvate. Sunteți sigur că doriți să închideți formularul? Toate modificările vor fi
-              pierdute.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={cancelClose}>Anulează</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmClose} className="bg-red-600 hover:bg-red-700">
-              Închide fără salvare
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Internal AlertDialog removed in favor of parent-level confirmation */}
 
       {/* UnsavedChangesDialog for navigation attempts */}
       <UnsavedChangesDialog
