@@ -313,34 +313,34 @@ useEffect(() => {
           <p style=\"margin:12px 0 6px;color:#64748b\">Acest link este valabil 30 de zile de la primirea emailului. După confirmare, linkurile devin inactive.</p>
           <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"margin-top:12px\"> 
             <tr>
-              <td align=\"center\" valign=\"middle\">
-                <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">
-                  <tr>
-                    <td bgcolor=\"#16a34a\" style=\"border-radius:6px;\">
-                      <a href=\"${acceptUrl}\" target=\"_blank\" style=\"display:inline-block;padding:10px 14px;font-weight:600;color:#ffffff;text-decoration:none;line-height:normal;\">Accept ofertă</a>
-                    </td>
-                  </tr>
-                </table>
-              </td>
+              <td align=\"center\" valign=\"middle\"> 
+                <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\"> 
+                  <tr> 
+                    <td style=\"border-radius:6px;\"> 
+                      <a href=\"${acceptUrl}\" target=\"_blank\" aria-label=\"Accept ofertă\" style=\"display:block;background:#16a34a;padding:12px 16px;font-weight:600;color:#ffffff;text-decoration:none;line-height:normal;border-radius:6px;\">Accept ofertă</a> 
+                    </td> 
+                  </tr> 
+                </table> 
+              </td> 
               <td style=\"width:8px\">&nbsp;</td>
-              <td align=\"center\" valign=\"middle\">
-                <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">
-                  <tr>
-                    <td bgcolor=\"#dc2626\" style=\"border-radius:6px;\">
-                      <a href=\"${rejectUrl}\" target=\"_blank\" style=\"display:inline-block;padding:10px 14px;font-weight:600;color:#ffffff;text-decoration:none;line-height:normal;\">Refuz ofertă</a>
-                    </td>
-                  </tr>
-                </table>
+              <td align=\"center\" valign=\"middle\"> 
+                <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\"> 
+                  <tr> 
+                    <td style=\"border-radius:6px;\"> 
+                      <a href=\"${rejectUrl}\" target=\"_blank\" aria-label=\"Refuz ofertă\" style=\"display:block;background:#dc2626;padding:12px 16px;font-weight:600;color:#ffffff;text-decoration:none;line-height:normal;border-radius:6px;\">Refuz ofertă</a> 
+                    </td> 
+                  </tr> 
+                </table> 
               </td>
             </tr>
           </table>
           <div style=\"margin-top:10px;font-size:12px;color:#64748b\"> 
             Dacă butoanele nu funcționează, folosiți direct link-urile: 
             <div style=\"margin-top:6px\"> 
-              Accept: <a href=\"${acceptUrl}\" target=\"_blank\" style=\"color:#0f56b3;word-break:break-all;text-decoration:underline\">${acceptUrl}</a> 
+              Accept: <span style=\"word-break:break-all\"><a href=\"${acceptUrl}\" target=\"_blank\" style=\"color:#0f56b3;text-decoration:underline\">${acceptUrl}</a></span> 
             </div> 
             <div> 
-              Refuz: <a href=\"${rejectUrl}\" target=\"_blank\" style=\"color:#0f56b3;word-break:break-all;text-decoration:underline\">${rejectUrl}</a> 
+              Refuz: <span style=\"word-break:break-all\"><a href=\"${rejectUrl}\" target=\"_blank\" style=\"color:#0f56b3;text-decoration:underline\">${rejectUrl}</a></span> 
             </div> 
           </div>
         </div>`
