@@ -7,6 +7,7 @@ import { ProductTableForm, type ProductItem } from "@/components/product-table-f
 import { updateLucrare, getLucrareById, getClientById } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import { toast } from "@/hooks/use-toast"
+// Recipient selection temporarily disabled; show read-only info instead
 
 interface OfferEditorDialogProps {
   lucrareId: string
@@ -30,6 +31,14 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
   const [canSendOffer, setCanSendOffer] = useState(false)
   const [currentWork, setCurrentWork] = useState<any>(null)
   const [clientData, setClientData] = useState<any>(null)
+  // read-only suggested recipient
+  const suggestedRecipient = useMemo(() => {
+    try {
+      return resolveRecipientEmailForLocation(clientData, currentWork)
+    } catch {
+      return null
+    }
+  }, [clientData, currentWork])
   const [termsPayment, setTermsPayment] = useState<string>("100% in avans")
   const [termsDelivery, setTermsDelivery] = useState<string>("30 zile lucratoare de la plata")
   const [termsInstallation, setTermsInstallation] = useState<string>("3 zile lucratoare de la livrare")
@@ -72,6 +81,8 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
     }
     if (open) void load()
   }, [open, lucrareId])
+
+  // no manual recipient selection; display-only suggestion handled via suggestedRecipient
 
   // Helper: return ONLY the email for the exact contact of the work's location
   const resolveRecipientEmailForLocation = (client: any, work: any): string | null => {
@@ -198,7 +209,7 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
         if (cid) freshClient = await getClientById(cid)
       } catch {}
       const recipient = resolveRecipientEmailForLocation(freshClient, freshWork)
-      if (!recipient) throw new Error('Nu există un email valid pentru persoana de contact din locația lucrării.')
+      if (!recipient) throw new Error('Nu există un email valid disponibil pentru această lucrare.')
 
       toast({ title: 'Se trimite ofertă', description: `Către: ${recipient}` })
 
@@ -319,12 +330,20 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
                   />
                 </div>
               </div>
-              {/* Sumar total */}
+            {/* Sumar total */}
+            <div className="space-y-3">
               <div className="flex items-center justify-end">
                 <div className="text-right text-sm">
                   <div>Total: <strong>{total.toFixed(2)} lei</strong></div>
                 </div>
               </div>
+
+              {/* Destinatar informativ (read-only) */}
+              <div className="text-xs bg-blue-50 text-blue-800 border border-blue-200 rounded px-2 py-2">
+                <span className="font-medium">Destinatar ofertă: </span>
+                <span>{suggestedRecipient || 'Nu există email valid pentru persoana de contact din locația lucrării.'}</span>
+              </div>
+            </div>
             </div>
 
             <div className="flex items-center justify-end gap-2">
