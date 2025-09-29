@@ -35,6 +35,33 @@ export function ProductTableForm({ products, onProductsChange, disabled = false,
   const isMobile = useIsMobile()
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const [draft, setDraft] = React.useState<ProductItem | null>(null)
+  const lastFocusedFieldIdRef = React.useRef<string | null>(null)
+
+  React.useEffect(() => {
+    const handleWindowFocus = () => {
+      const id = lastFocusedFieldIdRef.current
+      if (!id) return
+      const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null
+      if (el) {
+        try {
+          el.focus()
+          const val = (el as HTMLInputElement).value || ""
+          if (typeof (el as HTMLInputElement).setSelectionRange === "function") {
+            (el as HTMLInputElement).setSelectionRange(val.length, val.length)
+          }
+        } catch {}
+      }
+    }
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") handleWindowFocus()
+    }
+    window.addEventListener("focus", handleWindowFocus)
+    document.addEventListener("visibilitychange", handleVisibility)
+    return () => {
+      window.removeEventListener("focus", handleWindowFocus)
+      document.removeEventListener("visibilitychange", handleVisibility)
+    }
+  }, [])
 
   // Funcție pentru a genera un ID unic
   const generateId = () => `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
@@ -170,6 +197,7 @@ const handleNumberChange = (
                         placeholder="Denumire produs/serviciu"
                         className="min-h-[60px] text-sm w-full resize-none"
                         disabled={disabled}
+                        onFocus={(e) => { lastFocusedFieldIdRef.current = e.currentTarget.id }}
                       />
                     </td>
                     <td className="px-2 py-2 align-top">
@@ -182,6 +210,7 @@ const handleNumberChange = (
                         onChange={handleNumberChange(p.id, "price")}
                         disabled={disabled}
                         className="text-right text-xs"
+                      onFocus={(e) => { lastFocusedFieldIdRef.current = e.currentTarget.id }}
                       />
                     </td>
                     <td className="px-2 py-2 align-top">
@@ -194,6 +223,7 @@ const handleNumberChange = (
                         onChange={handleNumberChange(p.id, "quantity")}
                         disabled={disabled}
                         className="text-right text-xs"
+                      onFocus={(e) => { lastFocusedFieldIdRef.current = e.currentTarget.id }}
                       />
                     </td>
                     <td className="px-2 py-2 align-top text-right font-medium text-xs">{(Number(p.total) || 0).toFixed(2)}</td>
