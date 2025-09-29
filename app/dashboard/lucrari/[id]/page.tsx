@@ -1560,14 +1560,29 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       </div>
                       <h4 className="text-base font-semibold text-blue-900">Setări ofertă</h4>
                     </div>
+                    {!lucrare.preluatDispecer && (
+                          <div className="flex items-start gap-3 text-sm bg-gradient-to-r from-amber-50 to-orange-50 text-amber-800 border-l-4 border-amber-400 rounded-r-lg px-4 py-3 shadow-sm">
+                            <div className="flex-shrink-0">
+                              <AlertCircle className="h-4 w-4 text-amber-500" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="font-medium text-amber-900">Editor indisponibil</p>
+                              <p className="text-amber-700 mt-1">Lucrarea trebuie preluată de dispecer/admin pentru a edita oferta.</p>
+                            </div>
+                          </div>
+                        )}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="necesitaOfertaSwitch" className="text-xs font-medium text-blue-800">Necesită ofertă</Label>
+                        <Label htmlFor="necesitaOfertaSwitch" className={`text-xs font-medium ${!lucrare.preluatDispecer ? 'text-gray-500' : 'text-blue-800'}`}>Necesită ofertă</Label>
                         <div className="flex items-center gap-3">
                           <Switch
                             id="necesitaOfertaSwitch"
                             checked={Boolean(lucrare.necesitaOferta)}
                             onCheckedChange={async (checked) => {
+                              if (!lucrare.preluatDispecer) {
+                                toast({ title: 'Acțiune indisponibilă', description: 'Lucrarea trebuie preluată de dispecer/admin pentru a modifica setările ofertei.', variant: 'destructive' })
+                                return
+                              }
                               try {
                                 setIsUpdating(true)
                                 const updateData: any = { necesitaOferta: checked }
@@ -1585,27 +1600,22 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                 setIsUpdating(false)
                               }
                             }}
-                            disabled={isUpdating}
+                            disabled={isUpdating || !lucrare.preluatDispecer}
+                            className={!lucrare.preluatDispecer ? 'opacity-50' : ''}
                           />
                         </div>
-                        {!lucrare.preluatDispecer && (
-                          <div className="flex items-start gap-3 text-sm bg-gradient-to-r from-amber-50 to-orange-50 text-amber-800 border-l-4 border-amber-400 rounded-r-lg px-4 py-3 shadow-sm">
-                            <div className="flex-shrink-0">
-                              <AlertCircle className="h-4 w-4 text-amber-500" />
-                            </div>
-                            <div className="flex-1">
-                              <p className="font-medium text-amber-900">Editor indisponibil</p>
-                              <p className="text-amber-700 mt-1">Lucrarea trebuie preluată de dispecer/admin pentru a edita oferta.</p>
-                            </div>
-                          </div>
-                        )}
+                       
                       </div>
                       {lucrare.necesitaOferta && (
                         <div className="space-y-2">
-                          <Label className="text-xs font-medium text-blue-800">Status ofertă</Label>
+                          <Label className={`text-xs font-medium ${!lucrare.preluatDispecer ? 'text-gray-500' : 'text-blue-800'}`}>Status ofertă</Label>
                           <select
                             value={lucrare.statusOferta || "DA"}
                             onChange={async (e) => {
+                              if (!lucrare.preluatDispecer) {
+                                toast({ title: 'Acțiune indisponibilă', description: 'Lucrarea trebuie preluată de dispecer/admin pentru a modifica statusul ofertei.', variant: 'destructive' })
+                                return
+                              }
                               try {
                                 setIsUpdating(true)
                                 const newStatus = e.target.value as "DA" | "OFERTAT"
@@ -1619,8 +1629,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                 setIsUpdating(false)
                               }
                             }}
-                            className="w-full text-xs p-2 border border-blue-300 rounded bg-white"
-                            disabled={isUpdating}
+                            className={`w-full text-xs p-2 border rounded ${!lucrare.preluatDispecer ? 'border-gray-300 bg-gray-50 text-gray-500 cursor-not-allowed' : 'border-blue-300 bg-white'}`}
+                            disabled={isUpdating || !lucrare.preluatDispecer}
                           >
                             <option value="DA">DA - Necesită ofertă</option>
                             <option value="OFERTAT">OFERTAT</option>
@@ -1630,7 +1640,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       )}
                       {lucrare.necesitaOferta && (
                         <div className="space-y-2">
-                          <Label className="text-xs font-medium text-blue-800 my-4">Editor ofertă</Label>
+                          <Label className={`text-xs font-medium my-4 ${!lucrare.preluatDispecer ? 'text-gray-500' : 'text-blue-800'}`}>Editor ofertă</Label>
                           <div className="flex flex-wrap gap-2">
                             <Button
                               variant="outline"
@@ -1642,7 +1652,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                 }
                                 setIsOfferEditorOpen(true)
                               }}
-                              disabled={isUpdating}
+                              disabled={isUpdating || !lucrare.preluatDispecer}
+                              className={!lucrare.preluatDispecer ? 'bg-gray-100 text-gray-500 border-gray-300 hover:bg-gray-100 hover:text-gray-500 cursor-not-allowed' : ''}
                             >
                               Deschide editor
                             </Button>
