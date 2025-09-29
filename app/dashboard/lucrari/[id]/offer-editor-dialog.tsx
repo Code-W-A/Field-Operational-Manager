@@ -407,9 +407,7 @@ useEffect(() => {
 
               {/* Destinatar informativ (read-only) */}
               <div className="text-xs bg-blue-50 text-blue-800 border border-blue-200 rounded px-2 py-2">
-                {!currentWork || clientData === null ? (
-                  <span>Se identifică adresa de email a persoanei de contact din locația lucrării...</span>
-                ) : suggestedRecipient ? (
+                {suggestedRecipient ? (
                   <>
                     <span className="font-medium">Oferta se va trimite la adresa de email: </span>
                     <span>{suggestedRecipient}</span>
@@ -417,6 +415,8 @@ useEffect(() => {
                       <span>{` (Locație: ${presetLocationLabel || currentWork?.locatie || currentWork?.clientInfo?.locationName || ''}${currentWork?.clientInfo?.locationAddress && !presetLocationLabel ? ` — ${currentWork?.clientInfo?.locationAddress}` : ''})`}</span>
                     ) : null}
                   </>
+                ) : (!currentWork || clientData === null) ? (
+                  <span>Se identifică adresa de email a persoanei de contact din locația lucrării...</span>
                 ) : (
                   <span>Nu există email valid pentru persoana de contact din locația lucrării.</span>
                 )}
