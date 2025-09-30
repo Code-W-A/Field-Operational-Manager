@@ -268,11 +268,14 @@ useEffect(() => {
     try {
       setSaving(true)
       // generează token și link-uri
+      // Folosim savedAt-ul ultimei versiuni salvate, pentru a putea marca corect versiunea ACCEPTATĂ în istoric
+      const lastVersion = versions && versions.length ? versions[versions.length - 1] : undefined
+      const computedTotal = (products || []).reduce((s: number, p: any) => s + (Number(p.total) || (Number(p.quantity)||0)*(Number(p.price)||0)), 0)
       const currentSnapshot = {
-        products: products,
-        total: (products || []).reduce((s: number, p: any) => s + (Number(p.total) || (Number(p.quantity)||0)*(Number(p.price)||0)), 0),
+        products: (lastVersion?.products && Array.isArray(lastVersion.products)) ? lastVersion.products : products,
+        total: typeof lastVersion?.total === 'number' ? lastVersion.total : computedTotal,
         vat: Number(vatPercent) || 0,
-        savedAt: new Date().toISOString(),
+        savedAt: String(lastVersion?.savedAt || new Date().toISOString()),
       }
       const tokenResp = await fetch('/api/offer', {
         method: 'POST',
