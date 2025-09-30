@@ -17,6 +17,9 @@ export interface OfferPdfInput {
   products: OfferItem[]
   offerVAT?: number
   conditions?: string[]
+  adjustmentPercent?: number
+  prestator?: { name?: string; cui?: string; reg?: string; address?: string }
+  beneficiar?: { name?: string; cui?: string; reg?: string; address?: string }
 }
 
 // Helper to strip diacritics for built-in Helvetica
@@ -29,7 +32,7 @@ const normalize = (text = "") =>
 // Generate Offer PDF as Blob using a clean layout
 export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   const doc = new jsPDF({ unit: "mm", format: "a4" })
-  const M = 15
+  const M = 20
   const W = doc.internal.pageSize.getWidth() - 2 * M
   const PH = doc.internal.pageSize.getHeight()
   let y = M
@@ -41,26 +44,28 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
     }
   }
 
-  // Try to render NRG logo in top-right corner
+  // Header ribbon (blue) with title on left and logo on right
+  doc.setFillColor(30, 58, 138).rect(M, y, W, 12, "F")
+  doc.setTextColor(255).setFont("helvetica", "bold").setFontSize(12)
+  const title = `Oferta piese si servicii: \"Lucrare nr. #${normalize(input.id)}\"`
+  doc.text(title, M + 4, y + 7.8)
+  // Logo (right)
   try {
-    const logoUrl = "/nrglogo.png"
-    // Fetch as blob -> dataURL for consistency across browsers
-    const resp = await fetch(logoUrl)
+    const resp = await fetch("/nrglogo.png")
     const blob = await resp.blob()
     const reader = new FileReader()
     const dataUrl: string = await new Promise((resolve) => {
       reader.onload = () => resolve(reader.result as string)
       reader.readAsDataURL(blob)
     })
-    // Place logo area ~32x14mm in top-right corner
-    doc.addImage(dataUrl, "PNG", M + W - 36, y, 32, 14)
+    const logoW = 22; const logoH = 10
+    doc.addImage(dataUrl, "PNG", M + W - logoW - 4, y + 1, logoW, logoH)
   } catch {}
+  y += 16
+  doc.setTextColor(0)
 
-  // Ensure the header table starts clearly below the logo (logo height + margin)
-  y += 20
-
-  // Header table (CĂTRE / ÎN ATENȚIA / DE LA / DATA)
-  // Format date as DD-MMM-YYYY (e.g., 31-Jul-2025) to match sample
+  // Prestator / Beneficiar (two columns)
+  // Format date as DD-MMM-YYYY (e.g., 31-Jul-2025)
   const fmtDate = (() => {
     if (input.date) return input.date
     const d = new Date()
@@ -69,33 +74,37 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
     const year = d.getFullYear()
     return `${day}-${month}-${year}`
   })()
-  const headerRows: Array<[string, string]> = [
-    ["CATRE:", normalize(input.client || "-")],
-    ["IN ATENTIA:", normalize(input.attentionTo || "-")],
-    ["DE LA:", normalize(input.fromCompany || "NRG Access Systems SRL")],
-    ["DATA:", fmtDate],
-  ]
-
+  const leftW = W/2 - 3
+  const rightW = W/2 - 3
+  const l = input.prestator || {}
+  const r = input.beneficiar || {}
   doc.setFont("helvetica", "bold").setFontSize(9)
-  const col1 = 30
-  const rowH = 7
-  headerRows.forEach(([l, v], i) => {
-    checkPage(rowH)
-    doc.rect(M, y, col1, rowH)
-    doc.rect(M + col1, y, W - col1, rowH)
-    doc.text(l, M + 2.5, y + 4.7)
-    doc.setFont("helvetica", "normal")
-    doc.text(v, M + col1 + 2.5, y + 4.7)
-    doc.setFont("helvetica", "bold")
-    y += rowH
-  })
+  // Left: Prestator
+  doc.text("Prestator", M, y)
+  doc.setFont("helvetica", "normal")
+  const prestLeftLines = [
+    normalize(l.name || input.fromCompany || "NRG Access Systems SRL"),
+    normalize(l.cui || "RO34722913"),
+    normalize(l.reg || "J23/991/2015"),
+    normalize(l.address || "Rezervelor 70, Chiajna, Ilfov"),
+  ]
+  prestLeftLines.forEach((t, i) => doc.text(t, M, y + 6 + i*5))
+  // Right: Beneficiar
+  doc.setFont("helvetica", "bold").text("Beneficiar", M + leftW + 6, y)
+  doc.setFont("helvetica", "normal")
+  const prestRightLines = [
+    normalize(r.name || input.client || "-"),
+    normalize(r.cui || "-"),
+    normalize(r.reg || "-"),
+    normalize(r.address || "-"),
+  ]
+  prestRightLines.forEach((t, i) => doc.text(t, M + leftW + 6, y + 6 + i*5))
+  y += 6 + Math.max(prestLeftLines.length, prestRightLines.length)*5 + 6
 
   y += 8
   // Intro paragraph
   doc.setFontSize(10).setFont("helvetica", "normal")
-  const intro = normalize(
-    "Buna ziua,\n\nIn cele ce urmeaza va voi face cunoscuta oferta noastra pentru remedierea usii sectionale Horman accidentata.",
-  )
+  const intro = normalize(`Referitor la lucrarea nr. "Lucrare Nr. #${input.id}" va facem cunoscute costurile aferente pieselor si de schimb serviciilor necesare remedierii dupa cum urmeaza:`)
   const introLines = doc.splitTextToSize(intro, W)
   introLines.forEach((line: string) => {
     checkPage(6)
@@ -127,17 +136,14 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   y += 8
 
   // Products table
-  const headers = ["Nr", "Denumire", "Buc", "PU", "Total"]
-  const colW = [10, W - 10 - 20 - 20 - 22, 20, 20, 22]
+  const headers = ["Servicii&Piese", "Cantitate", "Pret unitar", "Suma liniei"]
+  const colW = [W - 20 - 24 - 28, 20, 24, 28]
   const xPos: number[] = [M]
   for (let i = 0; i < colW.length; i++) xPos.push(xPos[i] + colW[i])
 
   // Section title bar (dark blue) like in the sample
-  doc.setFillColor(28, 79, 140).rect(M, y, W, 8, "F")
-  doc.setTextColor(255)
-  doc.setFont("helvetica", "bold").setFontSize(10)
-  doc.text("Calcul costuri remediere usa Novum", M + W / 2, y + 5.2, { align: "center" })
-  y += 8
+  // Small gap before table
+  y += 4
 
   // Column header with light blue background
   doc.setTextColor(0)
@@ -148,8 +154,7 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
 
   // Rows
   doc.setFont("helvetica", "normal").setFontSize(9)
-  const items = (input.products || []).map((p, idx) => ({
-    nr: String(idx + 1),
+  const items = (input.products || []).map((p) => ({
     name: normalize(p.name || "—"),
     qty: Number(p.quantity || 0),
     price: Number(p.price || 0),
@@ -160,25 +165,39 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   items.forEach((r) => {
     const lineH = 7
     checkPage(lineH)
-    doc.text(r.nr, xPos[0] + 2, y + 5)
-    const nameLines = doc.splitTextToSize(r.name, colW[1] - 2)
+    const nameLines = doc.splitTextToSize(r.name, colW[0] - 2)
     const cellH = Math.max(lineH, nameLines.length * 5 + 2)
     // borders per row height
     doc.rect(M, y, W, cellH)
-    doc.text(nameLines, xPos[1] + 2, y + 5)
-    doc.text(String(r.qty), xPos[2] + 2, y + 5)
-    doc.text(`${r.price.toLocaleString("ro-RO")} RON`, xPos[3] + 2, y + 5)
-    doc.text(`${r.total.toLocaleString("ro-RO")} RON`, xPos[4] + 2, y + 5)
+    doc.text(nameLines, xPos[0] + 2, y + 5)
+    doc.text(String(r.qty), xPos[1] + colW[1] - 2, y + 5, { align: "right" })
+    doc.text(`${r.price.toLocaleString("ro-RO")}`, xPos[2] + colW[2] - 2, y + 5, { align: "right" })
+    doc.text(`${r.total.toLocaleString("ro-RO")}`, xPos[3] + colW[3] - 2, y + 5, { align: "right" })
     y += cellH
     subtotal += r.total
   })
 
-  // Total row
-  checkPage(8)
-  doc.setFillColor(199, 230, 203).rect(M, y, W, 8, "F")
+  // Subtotal / Ajustare / Total
+  const lineH2 = 7
+  const adj = typeof input.adjustmentPercent === 'number' ? Number(input.adjustmentPercent) : 0
+  const totalNoVat = subtotal * (1 - (adj || 0) / 100)
+  const rightLabelX = M + W - 60
+  // Subtotal
+  checkPage(lineH2)
+  doc.setFont("helvetica", "normal").setFontSize(9)
+  doc.text("Subtotal:", rightLabelX, y + 5)
+  doc.text(`${subtotal.toLocaleString("ro-RO")}`, M + W - 2, y + 5, { align: "right" })
+  y += lineH2
+  // Ajustare
+  checkPage(lineH2)
+  doc.text("Ajustare:", rightLabelX, y + 5)
+  doc.text(`${(adj || 0)}%`, M + W - 2, y + 5, { align: "right" })
+  y += lineH2
+  // Total lei fara TVA (accentuat)
+  checkPage(10)
   doc.setFont("helvetica", "bold").setFontSize(10)
-  doc.text("Total lei fara TVA", xPos[0] + 2, y + 5)
-  doc.text(`${subtotal.toLocaleString("ro-RO")} RON`, xPos[4] + 2, y + 5)
+  doc.text("Total insumat LEI fara TVA:", rightLabelX, y + 6)
+  doc.text(`${totalNoVat.toLocaleString("ro-RO")}`, M + W - 2, y + 6, { align: "right" })
   y += 14
 
   // Conditions (match sample wording and spacing)
@@ -203,29 +222,32 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
     })
   })
 
-  // Footer company info and bank details (two columns)
+  // Footer separator line
+  doc.setDrawColor(209, 213, 219)
+  doc.line(M, PH - 40, M + W, PH - 40)
+  // Footer company info and bank details (two columns + middle)
   y = Math.max(y, PH - 35)
   doc.setFontSize(8)
   const leftX = M
   const rightX = M + W / 2 + 5
-  const leftLines = [
+  const footerLeft = [
     "NRG Access Systems SRL",
     "Rezervelor Nr 70,",
     "Chiajna, Ilfov",
     "Nr. Reg Com J23/991/2015   C.I.F. RO34722913",
   ]
-  const midLines = [
+  const footerMid = [
     "Telefon:    +40 371 49 44 99",
     "E-mail:      office@nrg-acces.ro",
     "Website:   www.nrg-acces.ro",
   ]
-  const rightLines = [
+  const footerRight = [
     "IBAN RO79BTRL RON CRT 0294 5948 01",
     "Banca Transilvania Sucursala Aviatiei",
   ]
-  leftLines.forEach((l, i) => doc.text(l, leftX, y + i * 5))
-  midLines.forEach((l, i) => doc.text(l, leftX + 65, y + i * 5))
-  rightLines.forEach((l, i) => doc.text(l, rightX, y + i * 5))
+  footerLeft.forEach((l, i) => doc.text(l, leftX, y + i * 5))
+  footerMid.forEach((l, i) => doc.text(l, leftX + 65, y + i * 5))
+  footerRight.forEach((l, i) => doc.text(l, rightX, y + i * 5))
 
   const blob = doc.output("blob")
   return blob
