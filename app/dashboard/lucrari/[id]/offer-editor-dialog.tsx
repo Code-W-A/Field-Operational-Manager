@@ -338,7 +338,7 @@ useEffect(() => {
             <tr>
               <!-- Accept -->
               <td align="center" valign="middle" bgcolor="#16a34a" style="border-radius:6px;">
-                <a href="${acceptUrl}"
+                <a href="${acceptUrl}" rel="noopener noreferrer"
                    style="display:inline-block;padding:12px 16px;font-weight:600;
                           font-family:Arial,sans-serif;font-size:14px;
                           color:#ffffff;text-decoration:none;border-radius:6px;">
@@ -348,7 +348,7 @@ useEffect(() => {
               <td style="width:12px">&nbsp;</td>
               <!-- Refuz -->
               <td align="center" valign="middle" bgcolor="#dc2626" style="border-radius:6px;">
-                <a href="${rejectUrl}"
+                <a href="${rejectUrl}" rel="noopener noreferrer"
                    style="display:inline-block;padding:12px 16px;font-weight:600;
                           font-family:Arial,sans-serif;font-size:14px;
                           color:#ffffff;text-decoration:none;border-radius:6px;">
@@ -362,12 +362,12 @@ useEffect(() => {
             Dacă butoanele nu funcționează, folosiți direct link-urile: 
             <div style="margin-top:6px"> 
               Accept: <span style="word-break:break-all">
-                <a href="${acceptUrl}" style="color:#0f56b3;text-decoration:underline">${acceptUrl}</a>
+                <a href="${acceptUrl}" rel="noopener noreferrer" style="color:#0f56b3;text-decoration:underline">${acceptUrl}</a>
               </span> 
             </div> 
             <div> 
               Refuz: <span style="word-break:break-all">
-                <a href="${rejectUrl}" style="color:#0f56b3;text-decoration:underline">${rejectUrl}</a>
+                <a href="${rejectUrl}" rel="noopener noreferrer" style="color:#0f56b3;text-decoration:underline">${rejectUrl}</a>
               </span> 
             </div> 
           </div>

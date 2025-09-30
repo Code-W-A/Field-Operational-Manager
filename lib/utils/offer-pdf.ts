@@ -191,7 +191,7 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
     `Preturile nu includ TVA (${vatPercent}%)`,
   ]
   const conds = (input.conditions && input.conditions.length ? input.conditions : defaultConds).map(normalize)
-  doc.setFont("helvetica", "bold").setFontSize(10).text("Conditii:", M, y)
+  doc.setFont("helvetica", "bold").setFontSize(10).text("Termeni si conditii:", M, y)
   y += 6
   doc.setFont("helvetica", "normal").setFontSize(9)
   conds.forEach((c) => {
