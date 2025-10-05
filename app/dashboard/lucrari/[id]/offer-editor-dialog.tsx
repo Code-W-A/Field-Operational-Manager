@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle } from "lucide-react"
+import { CheckCircle, XCircle } from "lucide-react"
 import { ProductTableForm, type ProductItem } from "@/components/product-table-form"
 import { updateLucrare, getLucrareById, getClientById } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
@@ -37,6 +37,8 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
   const [currentWork, setCurrentWork] = useState<any>(null)
   const [clientData, setClientData] = useState<any>(null)
   const [acceptedSavedAt, setAcceptedSavedAt] = useState<string | null>(null)
+  const [rejectedSavedAt, setRejectedSavedAt] = useState<string | null>(null)
+  const [rejectionReason, setRejectionReason] = useState<string | null>(null)
   // read-only suggested recipient
   const suggestedRecipient = useMemo(() => {
     try {
@@ -72,8 +74,23 @@ useEffect(() => {
       setStatusOferta((current as any)?.statusOferta)
       setCurrentWork(current)
       try {
-        const accAt = (current as any)?.acceptedOfferSnapshot?.savedAt || (current as any)?.offerActionVersionSavedAt || null
-        setAcceptedSavedAt(accAt ? String(accAt) : null)
+        const resp = (current as any)?.offerResponse
+        const acceptedSnapshotAt = (current as any)?.acceptedOfferSnapshot?.savedAt || null
+        const versionAt = (current as any)?.offerActionVersionSavedAt || null
+        if (resp?.status === 'accept') {
+          setAcceptedSavedAt(acceptedSnapshotAt ? String(acceptedSnapshotAt) : (versionAt ? String(versionAt) : null))
+          setRejectedSavedAt(null)
+          setRejectionReason(null)
+        } else if (resp?.status === 'reject') {
+          setAcceptedSavedAt(null)
+          const rejAt = versionAt || (current as any)?.offerActionSnapshot?.savedAt || null
+          setRejectedSavedAt(rejAt ? String(rejAt) : null)
+          setRejectionReason(resp?.reason ? String(resp.reason) : null)
+        } else {
+          setAcceptedSavedAt(acceptedSnapshotAt ? String(acceptedSnapshotAt) : null)
+          setRejectedSavedAt(null)
+          setRejectionReason(null)
+        }
       } catch {}
       try {
         const cid = (current as any)?.clientInfo?.id
@@ -497,18 +514,39 @@ useEffect(() => {
           <div className="text-sm font-medium">Istoric versiuni ofertă</div>
             <div className="rounded border divide-y bg-white">
               {versions?.length ? versions.map((v, i) => (
-                <div key={i} className={`p-2 text-sm ${acceptedSavedAt && String(v.savedAt) === String(acceptedSavedAt) ? 'ring-2 ring-green-500 rounded-md bg-green-50' : ''}`}>
+                <div key={i} className={`p-2 text-sm ${
+                  acceptedSavedAt && String(v.savedAt) === String(acceptedSavedAt)
+                    ? 'ring-2 ring-green-500 rounded-md bg-green-50'
+                    : rejectedSavedAt && String(v.savedAt) === String(rejectedSavedAt)
+                      ? 'ring-2 ring-red-500 rounded-md bg-red-50'
+                      : ''
+                }`}>
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                    <div className="font-medium truncate flex items-center gap-2">
-                      <span>{new Date(v.savedAt).toLocaleString("ro-RO")}</span>
+                      <div className="font-medium truncate">
+                        <span>{new Date(v.savedAt).toLocaleString("ro-RO")}</span>
+                      </div>
                       {acceptedSavedAt && String(v.savedAt) === String(acceptedSavedAt) && (
-                        <Badge variant="secondary" className="bg-green-200 text-green-800 inline-flex items-center gap-1">
-                          <CheckCircle className="w-3.5 h-3.5" />
-                          Ofertă acceptată
-                        </Badge>
+                        <div className="mt-1">
+                          <Badge variant="secondary" className="bg-green-200 text-green-800 inline-flex items-center gap-1">
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            Ofertă acceptată
+                          </Badge>
+                        </div>
                       )}
-                    </div>
+                      {rejectedSavedAt && String(v.savedAt) === String(rejectedSavedAt) && (
+                        <div className="mt-1">
+                          <Badge variant="secondary" className="bg-red-200 text-red-800 inline-flex items-center gap-1">
+                            <XCircle className="w-3.5 h-3.5" />
+                            Ofertă refuzată
+                          </Badge>
+                        </div>
+                      )}
+                      {rejectedSavedAt && String(v.savedAt) === String(rejectedSavedAt) && rejectionReason && (
+                        <div className="mt-1 text-[11px] leading-4 text-red-800 bg-red-100/60 rounded px-1.5 py-0.5 max-w-full truncate" title={rejectionReason}>
+                          {rejectionReason}
+                        </div>
+                      )}
                       <div className="text-xs text-muted-foreground truncate">{v.savedBy || "-"} • Total: {v.total?.toFixed?.(2) ?? v.total} lei</div>
                     </div>
                     <div className="flex-shrink-0 flex gap-2">
@@ -526,6 +564,12 @@ useEffect(() => {
                         </ul>
                       ) : (
                         <div className="text-xs text-muted-foreground">Fără produse</div>
+                      )}
+                      {rejectedSavedAt && String(v.savedAt) === String(rejectedSavedAt) && rejectionReason && (
+                        <div className="mt-2 text-xs">
+                          <span className="font-medium text-red-800">Motiv refuz:</span>{' '}
+                          <span className="text-red-900">{rejectionReason}</span>
+                        </div>
                       )}
                     </div>
                   )}

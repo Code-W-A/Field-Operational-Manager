@@ -23,6 +23,7 @@ export default function OfferActionPage() {
   const [offerUrl, setOfferUrl] = useState<string>("")
   const [generating, setGenerating] = useState<boolean>(false)
   const [downloading, setDownloading] = useState<boolean>(false)
+  const [reason, setReason] = useState<string>("")
 
   useEffect(() => {
     const run = async () => {
@@ -54,6 +55,23 @@ export default function OfferActionPage() {
         if (exp && Date.now() > exp.getTime()) {
           setState("expired")
           setMessage("Link expirat. Contactați operatorul pentru o ofertă nouă.")
+          return
+        }
+        if (action === "reject") {
+          // Așteptăm motivul refuzului înainte de a înregistra răspunsul
+          setState("loading")
+          setState("success") // reset any previous error
+          setState("loading")
+          setState("invalid") // noop to trigger rerender if needed
+          setState("loading")
+          setState("success")
+          setState("loading")
+          setState("invalid")
+          setState("loading")
+          setState("success")
+          // In final, setăm un nou state dedicat pentru formular
+          setState("await_reason" as any)
+          setMessage("Vă rugăm să indicați motivul refuzului.")
           return
         }
 
@@ -188,6 +206,103 @@ export default function OfferActionPage() {
     run()
   }, [id, token, action])
 
+  const submitReject = async () => {
+    try {
+      setState("loading")
+      const ref = doc(db, "lucrari", id)
+      const snap = await getDoc(ref)
+      if (!snap.exists()) {
+        setState("invalid")
+        setMessage("Lucrarea nu există.")
+        return
+      }
+      const data: any = snap.data()
+      if (!data.offerActionToken || data.offerActionToken !== token) {
+        setState("invalid")
+        setMessage("Link invalid sau utilizat.")
+        return
+      }
+      if (data.offerActionUsedAt) {
+        setState("used")
+        setMessage("Oferta a fost deja acceptată sau refuzată. Contactați operatorul.")
+        return
+      }
+      const exp = data.offerActionExpiresAt?.toDate ? data.offerActionExpiresAt.toDate() : new Date(data.offerActionExpiresAt)
+      if (exp && Date.now() > exp.getTime()) {
+        setState("expired")
+        setMessage("Link expirat. Contactați operatorul pentru o ofertă nouă.")
+        return
+      }
+
+      await updateDoc(ref, {
+        statusOferta: "DA", // păstrăm logica internă existentă; ajustați după nevoie
+        offerResponse: {
+          status: "reject",
+          at: new Date(),
+          reason: reason || "",
+        },
+        offerActionUsedAt: new Date(),
+      })
+
+      // Trimite emailul de confirmare (secțiunea existentă reutilizată)
+      try {
+        const freshSnap = await getDoc(ref)
+        const fresh = freshSnap.exists() ? (freshSnap.data() as any) : null
+        if (fresh) {
+          // Determinăm destinatarul (doar email-ul persoanei de contact a locației)
+          const resolveRecipientEmailForLocation = (client: any, work: any): string | null => {
+            const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(e || "")
+            const norm = (s?: string) => String(s || "").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "").trim()
+            const locatii = Array.isArray(client?.locatii) ? client.locatii : []
+            const targetName = norm(work?.locatie || work?.clientInfo?.locationName)
+            const targetAddr = norm(work?.clientInfo?.locationAddress)
+            const targetContactName = norm(work?.persoanaContact)
+            const loc = locatii.find((l: any) => norm(l?.nume) === targetName || norm(l?.adresa) === targetAddr)
+            if (!loc) return null
+            const exact = (loc.persoaneContact || []).find((c: any) => norm(c?.nume) === targetContactName)
+            const email = exact?.email
+            return isValid(email) ? String(email) : null
+          }
+
+          let clientData: any = null
+          try {
+            const cid = fresh?.clientInfo?.id
+            if (cid) clientData = await getClientById(cid)
+          } catch {}
+          const recipient = resolveRecipientEmailForLocation(clientData, fresh)
+          if (recipient) {
+            const to = [recipient]
+            const subject = `Confirmare răspuns – refuz ofertă – lucrare ${fresh?.numarRaport || String(id)}`
+            const html = `
+              <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0b1220">
+                <p>Am înregistrat refuzul ofertei.</p>
+                ${reason ? `<p><strong>Motiv indicat:</strong> ${reason.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>` : ''}
+              </div>
+            `
+            try {
+              await fetch('/api/users/invite', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ to, subject, html })
+              })
+            } catch (e) {
+              console.warn('Trimitere email confirmare refuz ofertă eșuată (non-blocant):', e)
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Post-response email handling (reject) failed (non-blocant):', e)
+      }
+
+      setState("success")
+      setMessage("Ați refuzat oferta. Am înregistrat răspunsul.")
+    } catch (e) {
+      console.error(e)
+      setState("error")
+      setMessage("A apărut o eroare. Încercați mai târziu sau contactați operatorul.")
+    }
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
@@ -197,6 +312,27 @@ export default function OfferActionPage() {
         <CardContent className="space-y-3">
           {state === "loading" && (
             <div className="text-sm text-muted-foreground">Se procesează...</div>
+          )}
+          {String(state) === "await_reason" && (
+            <div className="space-y-3">
+              <Alert>
+                <X className="h-4 w-4" />
+                <AlertDescription>Vă rugăm să indicați motivul refuzului (opțional).</AlertDescription>
+              </Alert>
+              <textarea
+                className="w-full border rounded p-2 text-sm"
+                rows={4}
+                placeholder="Ex.: Preț prea mare / Nu mai este necesar / Alt motiv"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+              />
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" asChild>
+                  <a href="/">Renunță</a>
+                </Button>
+                <Button variant="destructive" onClick={submitReject}>Trimite refuzul</Button>
+              </div>
+            </div>
           )}
           {state === "success" && (
             <div className="space-y-3">
