@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { CheckCircle } from "lucide-react"
 import { ProductTableForm, type ProductItem } from "@/components/product-table-form"
 import { updateLucrare, getLucrareById, getClientById } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
@@ -496,13 +497,16 @@ useEffect(() => {
           <div className="text-sm font-medium">Istoric versiuni ofertă</div>
             <div className="rounded border divide-y bg-white">
               {versions?.length ? versions.map((v, i) => (
-                <div key={i} className="p-2 text-sm">
+                <div key={i} className={`p-2 text-sm ${acceptedSavedAt && String(v.savedAt) === String(acceptedSavedAt) ? 'ring-2 ring-green-500 rounded-md bg-green-50' : ''}`}>
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
                     <div className="font-medium truncate flex items-center gap-2">
                       <span>{new Date(v.savedAt).toLocaleString("ro-RO")}</span>
                       {acceptedSavedAt && String(v.savedAt) === String(acceptedSavedAt) && (
-                        <Badge variant="secondary" className="bg-green-100 text-green-800">ACCEPTAT</Badge>
+                        <Badge variant="secondary" className="bg-green-200 text-green-800 inline-flex items-center gap-1">
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          Ofertă acceptată
+                        </Badge>
                       )}
                     </div>
                       <div className="text-xs text-muted-foreground truncate">{v.savedBy || "-"} • Total: {v.total?.toFixed?.(2) ?? v.total} lei</div>
