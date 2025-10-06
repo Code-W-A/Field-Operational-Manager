@@ -168,6 +168,7 @@ export default function PortalWorkDetail() {
       const blob = await generateOfferPdf({
         id: id,
         numarRaport: String(fresh?.numarRaport || ''),
+        offerNumber: Number((fresh as any)?.offerSendCount || 0) + 1,
         client: fresh?.client || "",
         attentionTo: fresh?.persoanaContact || "",
         fromCompany: "NRG Access Systems SRL",
@@ -177,8 +178,11 @@ export default function PortalWorkDetail() {
           price: Number(p?.price || p?.pretUnitar || 0),
         })),
         offerVAT: offerVatVal,
+        adjustmentPercent: Number((fresh as any)?.offerAdjustmentPercent || 0),
         damages,
         conditions,
+        equipmentName: String((fresh as any)?.echipament || ''),
+        locationName: String((fresh as any)?.locatie || ''),
       })
       const fileName = `oferta_${id}.pdf`
       const url = URL.createObjectURL(blob)

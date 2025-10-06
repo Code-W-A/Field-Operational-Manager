@@ -28,6 +28,7 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
   const [versions, setVersions] = useState<Array<{ savedAt: string; savedBy?: string; total: number; products: ProductItem[] }>>([])
   const [viewIndex, setViewIndex] = useState<number | null>(null)
   const [vatPercent, setVatPercent] = useState<number>(21)
+  const [adjustmentPercent, setAdjustmentPercent] = useState<number>(0)
   const [isPickedUp, setIsPickedUp] = useState<boolean>(true)
   const [statusOferta, setStatusOferta] = useState<string | undefined>(undefined)
   const [editingNewVersion, setEditingNewVersion] = useState(false)
@@ -103,6 +104,9 @@ useEffect(() => {
         const rawVat = (current as any)?.offerVAT
         const nextVat = (typeof rawVat === 'number' && rawVat > 0) ? Number(rawVat) : 21
         setVatPercent(nextVat)
+        const rawAdj = (current as any)?.offerAdjustmentPercent
+        const nextAdj = (typeof rawAdj === 'number') ? Number(rawAdj) : 0
+        setAdjustmentPercent(nextAdj)
       }
       // Initialize dynamic terms from existing conditiiOferta if present
       try {
@@ -242,6 +246,7 @@ useEffect(() => {
         products,
         offerTotal: total,
         offerVAT: Number(vatPercent) || 0,
+        offerAdjustmentPercent: Number(adjustmentPercent) || 0,
         offerVersions: newVersions as any,
         conditiiOferta: conditiiOferta as any,
       } as any)
@@ -469,6 +474,32 @@ useEffect(() => {
                     placeholder="ex: 1-2 zile lucrătoare de la livrare"
                   />
                 </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">TVA (%)</label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={vatPercent}
+                    onChange={(e) => setVatPercent(Number(e.target.value) || 0)}
+                    className="w-full border rounded px-2 py-1 text-sm"
+                    disabled={effectiveDisabled}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Ajustare (%)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={adjustmentPercent}
+                    onChange={(e) => setAdjustmentPercent(Number(e.target.value))}
+                    className="w-full border rounded px-2 py-1 text-sm"
+                    disabled={effectiveDisabled}
+                    placeholder="ex: 5"
+                  />
+                </div>
+              </div>
               </div>
             {/* Sumar total */}
             <div className="space-y-3">

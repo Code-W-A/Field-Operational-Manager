@@ -117,6 +117,7 @@ export default function OfferActionPage() {
                 const blob = await generateOfferPdf({
                   id: String(id),
                   numarRaport: String(data?.numarRaport || ''),
+                  offerNumber: Number((fresh as any)?.offerSendCount || 0) + 1,
                   client: fresh?.client || "",
                   attentionTo: fresh?.persoanaContact || "",
                   fromCompany: "NRG Access Systems SRL",
@@ -126,6 +127,7 @@ export default function OfferActionPage() {
                     price: Number(p?.price || p?.pretUnitar || 0),
                   })),
                   offerVAT: typeof (fresh as any)?.offerVAT === "number" ? (fresh as any).offerVAT : 19,
+                  adjustmentPercent: Number((fresh as any)?.offerAdjustmentPercent || 0),
                   damages: String((fresh as any)?.constatareLaLocatie || (fresh as any)?.raportSnapshot?.constatareLaLocatie || fresh?.comentariiOferta || "")
                     .split(/\r?\n|\u2022|\-|\*/)
                     .map((s: string) => s.trim())
@@ -133,6 +135,8 @@ export default function OfferActionPage() {
                   conditions: Array.isArray((fresh as any)?.conditiiOferta)
                     ? (fresh as any).conditiiOferta
                     : undefined,
+                  equipmentName: String((fresh as any)?.echipament || ''),
+                  locationName: String((fresh as any)?.locatie || ''),
                 })
                 const fileName = `oferta_${id}.pdf`
                 const file = new File([blob], fileName, { type: "application/pdf" })
@@ -148,6 +152,7 @@ export default function OfferActionPage() {
                     numarOferta: (fresh as any)?.numarOferta || "",
                     dataOferta: new Date().toISOString().slice(0, 10),
                   },
+                  offerSendCount: Number((fresh as any)?.offerSendCount || 0) + 1,
                 })
               }
             }

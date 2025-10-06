@@ -11,6 +11,8 @@ export interface OfferPdfInput {
   id: string
   // Optional human-readable work number to display instead of the internal id
   numarRaport?: string
+  // Sequential offer number for this work (1,2,3...)
+  offerNumber?: number
   client: string
   attentionTo?: string
   fromCompany?: string
@@ -20,6 +22,9 @@ export interface OfferPdfInput {
   offerVAT?: number
   conditions?: string[]
   adjustmentPercent?: number
+  // Extra display data
+  equipmentName?: string
+  locationName?: string
   prestator?: { name?: string; cui?: string; reg?: string; address?: string }
   beneficiar?: { name?: string; cui?: string; reg?: string; address?: string }
 }
@@ -34,7 +39,7 @@ const normalize = (text = "") =>
 // Generate Offer PDF as Blob using a clean layout
 export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   const doc = new jsPDF({ unit: "mm", format: "a4" })
-  const M = 20
+  const M = 14
   const W = doc.internal.pageSize.getWidth() - 2 * M
   const PH = doc.internal.pageSize.getHeight()
   let y = M
@@ -46,15 +51,16 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
     }
   }
 
-  // Header ribbon (blue) with title on left and logo on right
-  doc.setFillColor(30, 58, 138).rect(M, y, W, 12, "F")
+  // Header ribbon (lighter blue) with title on left and logo on right
+  doc.setFillColor(59, 130, 246).rect(M, y, W, 12, "F")
   doc.setTextColor(255).setFont("helvetica", "bold").setFontSize(12)
   const displayWorkId = (() => {
     const n = (input.numarRaport || '').trim()
     if (n) return n.startsWith('#') ? n : `#${n}`
     return `#${String(input.id)}`
   })()
-  const title = `Oferta piese si servicii: Lucrare nr. ${normalize(displayWorkId)}`
+  const offerNo = typeof input.offerNumber === 'number' && input.offerNumber > 0 ? ` • Oferta nr. ${input.offerNumber}` : ''
+  const title = `Oferta piese si servicii: "Lucrare nr. ${normalize(displayWorkId)}"${offerNo}`
   doc.text(title, M + 4, y + 7.8)
   // Logo (right)
   try {
@@ -65,10 +71,10 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
       reader.onload = () => resolve(reader.result as string)
       reader.readAsDataURL(blob)
     })
-    const logoW = 22; const logoH = 10
-    doc.addImage(dataUrl, "PNG", M + W - logoW - 4, y + 1, logoW, logoH)
+    const logoW = 22; const logoH = 12
+    doc.addImage(dataUrl, "PNG", M + W - logoW - 4, y + 0.5, logoW, logoH)
   } catch {}
-  y += 16
+  y += 22
   doc.setTextColor(0)
 
   // Prestator / Beneficiar (two columns)
@@ -92,12 +98,11 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   const prestLeftLines = [
     normalize(l.name || input.fromCompany || "NRG Access Systems SRL"),
     normalize(l.cui || "RO34722913"),
-    normalize(l.reg || "J23/991/2015"),
     normalize(l.address || "Rezervelor 70, Chiajna, Ilfov"),
   ]
   prestLeftLines.forEach((t, i) => doc.text(t, M, y + 6 + i*5))
-  // Right: Beneficiar
-  doc.setFont("helvetica", "bold").text("Beneficiar", M + leftW + 6, y)
+  // Right: Beneficiar (right-aligned)
+  doc.setFont("helvetica", "bold").text("Beneficiar", M + W, y, { align: "right" })
   doc.setFont("helvetica", "normal")
   const prestRightLines = [
     normalize(r.name || input.client || "-"),
@@ -105,13 +110,15 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
     normalize(r.reg || "-"),
     normalize(r.address || "-"),
   ]
-  prestRightLines.forEach((t, i) => doc.text(t, M + leftW + 6, y + 6 + i*5))
+  prestRightLines.forEach((t, i) => doc.text(t, M + W, y + 6 + i*5, { align: "right" }))
   y += 6 + Math.max(prestLeftLines.length, prestRightLines.length)*5 + 6
 
   y += 8
   // Intro paragraph
   doc.setFontSize(10).setFont("helvetica", "normal")
-  const intro = normalize(`Referitor la lucrarea nr. ${displayWorkId} va facem cunoscute costurile aferente pieselor si de schimb serviciilor necesare remedierii dupa cum urmeaza:`)
+  const equip = input.equipmentName ? `, Echipament: ${input.equipmentName}` : ""
+  const loc = input.locationName ? `, Locație: ${input.locationName}` : ""
+  const intro = normalize(`Referitor la lucrarea nr. ${displayWorkId}${equip}${loc} va facem cunoscute costurile aferente pieselor si de schimb serviciilor necesare remedierii dupa cum urmeaza:`)
   const introLines = doc.splitTextToSize(intro, W)
   introLines.forEach((line: string) => {
     checkPage(6)
@@ -152,14 +159,15 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   // Small gap before table
   y += 4
 
-  // Column header with light blue background
+  // Column header (no fill, underline)
   doc.setTextColor(0)
-  doc.setFillColor(224, 237, 255).rect(M, y, W, 8, "F")
   doc.setFont("helvetica", "bold").setFontSize(9)
   headers.forEach((h, i) => doc.text(h, xPos[i] + 2, y + 5))
   y += 8
+  doc.setDrawColor(209, 213, 219)
+  doc.line(M, y, M + W, y)
 
-  // Rows
+  // Rows (only horizontal lines)
   doc.setFont("helvetica", "normal").setFontSize(9)
   const items = (input.products || []).map((p) => ({
     name: normalize(p.name || "—"),
@@ -174,21 +182,24 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
     checkPage(lineH)
     const nameLines = doc.splitTextToSize(r.name, colW[0] - 2)
     const cellH = Math.max(lineH, nameLines.length * 5 + 2)
-    // borders per row height
-    doc.rect(M, y, W, cellH)
     doc.text(nameLines, xPos[0] + 2, y + 5)
     doc.text(String(r.qty), xPos[1] + colW[1] - 2, y + 5, { align: "right" })
     doc.text(`${r.price.toLocaleString("ro-RO")}`, xPos[2] + colW[2] - 2, y + 5, { align: "right" })
     doc.text(`${r.total.toLocaleString("ro-RO")}`, xPos[3] + colW[3] - 2, y + 5, { align: "right" })
     y += cellH
+    doc.setDrawColor(229, 231, 235)
+    doc.line(M, y, M + W, y)
     subtotal += r.total
   })
 
-  // Subtotal / Ajustare / Total
+  // Subtotal / Ajustare / Total (blue band background)
   const lineH2 = 7
   const adj = typeof input.adjustmentPercent === 'number' ? Number(input.adjustmentPercent) : 0
   const totalNoVat = subtotal * (1 - (adj || 0) / 100)
   const rightLabelX = M + W - 60
+  const totalsBlockHeight = lineH2 * 3 + 6
+  doc.setFillColor(224, 237, 255)
+  doc.rect(M, y + 2, W, totalsBlockHeight, "F")
   // Subtotal
   checkPage(lineH2)
   doc.setFont("helvetica", "normal").setFontSize(9)
@@ -246,7 +257,7 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
     "NRG Access Systems SRL",
     "Rezervelor Nr 70,",
     "Chiajna, Ilfov",
-    "Nr. Reg Com J23/991/2015   C.I.F. RO34722913",
+    "C.I.F. RO34722913",
   ]
   const footerMid = [
     "Telefon: +40 371 49 44 99",

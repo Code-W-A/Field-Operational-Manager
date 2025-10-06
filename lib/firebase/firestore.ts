@@ -70,6 +70,8 @@ export interface Lucrare {
   // Câmpuri pentru ofertă (conținut + istoric). Tipurile sunt relaxate pentru compatibilitate.
   products?: ProductItem[]
   offerTotal?: number
+  offerAdjustmentPercent?: number
+  offerSendCount?: number
   offerVersions?: Array<{
     savedAt: any
     savedBy?: string
