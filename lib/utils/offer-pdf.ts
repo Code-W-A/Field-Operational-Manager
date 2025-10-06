@@ -9,6 +9,8 @@ export interface OfferItem {
 
 export interface OfferPdfInput {
   id: string
+  // Optional human-readable work number to display instead of the internal id
+  numarRaport?: string
   client: string
   attentionTo?: string
   fromCompany?: string
@@ -47,7 +49,12 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   // Header ribbon (blue) with title on left and logo on right
   doc.setFillColor(30, 58, 138).rect(M, y, W, 12, "F")
   doc.setTextColor(255).setFont("helvetica", "bold").setFontSize(12)
-  const title = `Oferta piese si servicii: \"Lucrare nr. #${normalize(input.id)}\"`
+  const displayWorkId = (() => {
+    const n = (input.numarRaport || '').trim()
+    if (n) return n.startsWith('#') ? n : `#${n}`
+    return `#${String(input.id)}`
+  })()
+  const title = `Oferta piese si servicii: Lucrare nr. ${normalize(displayWorkId)}`
   doc.text(title, M + 4, y + 7.8)
   // Logo (right)
   try {
@@ -104,7 +111,7 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   y += 8
   // Intro paragraph
   doc.setFontSize(10).setFont("helvetica", "normal")
-  const intro = normalize(`Referitor la lucrarea nr. "Lucrare Nr. #${input.id}" va facem cunoscute costurile aferente pieselor si de schimb serviciilor necesare remedierii dupa cum urmeaza:`)
+  const intro = normalize(`Referitor la lucrarea nr. ${displayWorkId} va facem cunoscute costurile aferente pieselor si de schimb serviciilor necesare remedierii dupa cum urmeaza:`)
   const introLines = doc.splitTextToSize(intro, W)
   introLines.forEach((line: string) => {
     checkPage(6)
@@ -114,7 +121,7 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
 
   // Damages bullet list (optional)
   if (input.damages && input.damages.length) {
-    const lead = normalize("In urma loviturii usa a suferit urmatoarele deteriorari:")
+    const lead = normalize("Constatarea la fata locului:")
     checkPage(6)
     doc.text(lead, M, y)
     y += 6
@@ -130,7 +137,7 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   }
 
   y += 6
-  const lead2 = normalize("In vederea remedierii usii costurile sunt urmatoarele:")
+  const lead2 = normalize("In urma interventiei costurile sunt urmatoarele:")
   checkPage(6)
   doc.text(lead2, M, y)
   y += 8
@@ -196,8 +203,13 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   // Total lei fara TVA (accentuat)
   checkPage(10)
   doc.setFont("helvetica", "bold").setFontSize(10)
-  doc.text("Total insumat LEI fara TVA:", rightLabelX, y + 6)
-  doc.text(`${totalNoVat.toLocaleString("ro-RO")}`, M + W - 2, y + 6, { align: "right" })
+  const amountText = `${totalNoVat.toLocaleString("ro-RO")}`
+  const amountRightX = M + W - 2
+  const gap = 3
+  const amountWidth = doc.getTextWidth(amountText)
+  const labelRightX = amountRightX - amountWidth - gap
+  doc.text("Total insumat LEI fara TVA:", labelRightX, y + 6, { align: "right" })
+  doc.text(amountText, amountRightX, y + 6, { align: "right" })
   y += 14
 
   // Conditions (match sample wording and spacing)
@@ -225,11 +237,11 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   // Footer separator line
   doc.setDrawColor(209, 213, 219)
   doc.line(M, PH - 40, M + W, PH - 40)
-  // Footer company info and bank details (two columns + middle)
+  // Footer company info and bank details laid out in three equal columns with wrapping
   y = Math.max(y, PH - 35)
   doc.setFontSize(8)
-  const leftX = M
-  const rightX = M + W / 2 + 5
+  const footerColW = W / 3 - 4
+  const footerColX = [M, M + W / 3, M + (2 * W) / 3]
   const footerLeft = [
     "NRG Access Systems SRL",
     "Rezervelor Nr 70,",
@@ -237,17 +249,27 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
     "Nr. Reg Com J23/991/2015   C.I.F. RO34722913",
   ]
   const footerMid = [
-    "Telefon:    +40 371 49 44 99",
-    "E-mail:      office@nrg-acces.ro",
-    "Website:   www.nrg-acces.ro",
+    "Telefon: +40 371 49 44 99",
+    "E-mail: office@nrg-acces.ro",
+    "Website: www.nrg-acces.ro",
   ]
   const footerRight = [
     "IBAN RO79BTRL RON CRT 0294 5948 01",
     "Banca Transilvania Sucursala Aviatiei",
   ]
-  footerLeft.forEach((l, i) => doc.text(l, leftX, y + i * 5))
-  footerMid.forEach((l, i) => doc.text(l, leftX + 65, y + i * 5))
-  footerRight.forEach((l, i) => doc.text(l, rightX, y + i * 5))
+  const renderColumn = (items: string[], x: number) => {
+    let yy = y
+    items.forEach((t) => {
+      const lines = doc.splitTextToSize(t, footerColW)
+      lines.forEach((ln: string) => {
+        doc.text(ln, x, yy)
+        yy += 5
+      })
+    })
+  }
+  renderColumn(footerLeft, footerColX[0])
+  renderColumn(footerMid, footerColX[1])
+  renderColumn(footerRight, footerColX[2])
 
   const blob = doc.output("blob")
   return blob

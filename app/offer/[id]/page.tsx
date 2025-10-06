@@ -116,6 +116,7 @@ export default function OfferActionPage() {
               if (products.length) {
                 const blob = await generateOfferPdf({
                   id: String(id),
+                  numarRaport: String(data?.numarRaport || ''),
                   client: fresh?.client || "",
                   attentionTo: fresh?.persoanaContact || "",
                   fromCompany: "NRG Access Systems SRL",
@@ -125,7 +126,7 @@ export default function OfferActionPage() {
                     price: Number(p?.price || p?.pretUnitar || 0),
                   })),
                   offerVAT: typeof (fresh as any)?.offerVAT === "number" ? (fresh as any).offerVAT : 19,
-                  damages: String(fresh?.comentariiOferta || "")
+                  damages: String((fresh as any)?.constatareLaLocatie || (fresh as any)?.raportSnapshot?.constatareLaLocatie || fresh?.comentariiOferta || "")
                     .split(/\r?\n|\u2022|\-|\*/)
                     .map((s: string) => s.trim())
                     .filter(Boolean),
@@ -350,8 +351,9 @@ export default function OfferActionPage() {
                       const fresh = freshSnap.exists() ? (freshSnap.data() as any) : null
                       const products = Array.isArray(fresh?.products) ? fresh.products : []
                       if (!products.length) return
-                      const blob = await generateOfferPdf({
-                        id: id,
+                const blob = await generateOfferPdf({
+                  id: id,
+                  numarRaport: String(fresh?.numarRaport || ''),
                         client: fresh?.client || "",
                         attentionTo: fresh?.persoanaContact || "",
                         fromCompany: "NRG Access Systems SRL",
@@ -361,7 +363,7 @@ export default function OfferActionPage() {
                           price: Number(p?.price || p?.pretUnitar || 0),
                         })),
                         offerVAT: typeof (fresh as any)?.offerVAT === "number" ? (fresh as any).offerVAT : 19,
-                        damages: String(fresh?.comentariiOferta || "")
+                        damages: String((fresh as any)?.constatareLaLocatie || (fresh as any)?.raportSnapshot?.constatareLaLocatie || fresh?.comentariiOferta || "")
                           .split(/\r?\n|\u2022|\-|\*/)
                           .map((s: string) => s.trim())
                           .filter(Boolean),

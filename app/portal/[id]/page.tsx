@@ -154,7 +154,7 @@ export default function PortalWorkDetail() {
       const products = Array.isArray(fresh?.products) ? fresh.products : []
       if (!products.length) return
       const damages: string[] = (() => {
-        const raw = (fresh as any)?.comentariiOferta
+        const raw = (fresh as any)?.constatareLaLocatie || (fresh as any)?.raportSnapshot?.constatareLaLocatie || (fresh as any)?.comentariiOferta
         if (!raw) return []
         return String(raw)
           .split(/\r?\n|\u2022|\-|\*/)
@@ -167,6 +167,7 @@ export default function PortalWorkDetail() {
       const offerVatVal = typeof (fresh as any)?.offerVAT === 'number' ? (fresh as any).offerVAT : 19
       const blob = await generateOfferPdf({
         id: id,
+        numarRaport: String(fresh?.numarRaport || ''),
         client: fresh?.client || "",
         attentionTo: fresh?.persoanaContact || "",
         fromCompany: "NRG Access Systems SRL",
