@@ -197,9 +197,13 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   const adj = typeof input.adjustmentPercent === 'number' ? Number(input.adjustmentPercent) : 0
   const totalNoVat = subtotal * (1 - (adj || 0) / 100)
   const rightLabelX = M + W - 60
-  const totalsBlockHeight = lineH2 * 3 + 6
+  const topPad = 3
+  const subtotalTextOffset = 5
+  const totalsBandY = y + (subtotalTextOffset - topPad)
+  const totalsContentHeight = lineH2 + lineH2 + 14 // 7 + 7 + 14
+  const totalsBlockHeight = totalsContentHeight + topPad * 2
   doc.setFillColor(224, 237, 255)
-  doc.rect(M, y + 2, W, totalsBlockHeight, "F")
+  doc.rect(M, totalsBandY, W, totalsBlockHeight, "F")
   // Subtotal
   checkPage(lineH2)
   doc.setFont("helvetica", "normal").setFontSize(9)
@@ -222,6 +226,8 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   doc.text("Total insumat LEI fara TVA:", labelRightX, y + 6, { align: "right" })
   doc.text(amountText, amountRightX, y + 6, { align: "right" })
   y += 14
+  // push conditions further down
+  y += 8
 
   // Conditions (match sample wording and spacing)
   const vatPercent = typeof input.offerVAT === "number" && input.offerVAT > 0 ? input.offerVAT : 19
@@ -251,6 +257,7 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   // Footer company info and bank details laid out in three equal columns with wrapping
   y = Math.max(y, PH - 35)
   doc.setFontSize(8)
+  doc.setTextColor(30, 58, 138)
   const footerColW = W / 3 - 4
   const footerColX = [M, M + W / 3, M + (2 * W) / 3]
   const footerLeft = [
@@ -274,7 +281,7 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
       const lines = doc.splitTextToSize(t, footerColW)
       lines.forEach((ln: string) => {
         doc.text(ln, x, yy)
-        yy += 5
+        yy += 4
       })
     })
   }
