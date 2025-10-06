@@ -51,17 +51,18 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
     }
   }
 
-  // Header ribbon (lighter blue) with title on left and logo on right
-  doc.setFillColor(59, 130, 246).rect(M, y, W, 12, "F")
+  // Header ribbon with title on left and logo on right (#49649b)
+  const headerHeight = 16
+  doc.setFillColor(73, 100, 155).rect(M, y, W, headerHeight, "F")
   doc.setTextColor(255).setFont("helvetica", "bold").setFontSize(12)
   const displayWorkId = (() => {
     const n = (input.numarRaport || '').trim()
     if (n) return n.startsWith('#') ? n : `#${n}`
     return `#${String(input.id)}`
   })()
-  const offerNo = typeof input.offerNumber === 'number' && input.offerNumber > 0 ? ` • Oferta nr. ${input.offerNumber}` : ''
-  const title = `Oferta piese si servicii: "Lucrare nr. ${normalize(displayWorkId)}"${offerNo}`
-  doc.text(title, M + 4, y + 7.8)
+  const offerNo = typeof input.offerNumber === 'number' && input.offerNumber > 0 ? `-${input.offerNumber}` : ''
+  const title = normalize(`Oferta piese si servicii ${displayWorkId}${offerNo}`)
+  doc.text(title, M + 4, y + (headerHeight / 2) + 1)
   // Logo (right)
   try {
     const resp = await fetch("/nrglogo.png")
@@ -71,10 +72,10 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
       reader.onload = () => resolve(reader.result as string)
       reader.readAsDataURL(blob)
     })
-    const logoW = 22; const logoH = 12
-    doc.addImage(dataUrl, "PNG", M + W - logoW - 4, y + 0.5, logoW, logoH)
+    const logoW = 24; const logoH = 18
+    doc.addImage(dataUrl, "PNG", M + W - logoW - 4, y + (headerHeight - logoH) / 2, logoW, logoH)
   } catch {}
-  y += 22
+  y += headerHeight + 6
   doc.setTextColor(0)
 
   // Prestator / Beneficiar (two columns)
@@ -116,9 +117,9 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   y += 8
   // Intro paragraph
   doc.setFontSize(10).setFont("helvetica", "normal")
-  const equip = input.equipmentName ? `, Echipament: ${input.equipmentName}` : ""
-  const loc = input.locationName ? `, Locație: ${input.locationName}` : ""
-  const intro = normalize(`Referitor la lucrarea nr. ${displayWorkId}${equip}${loc} va facem cunoscute costurile aferente pieselor si de schimb serviciilor necesare remedierii dupa cum urmeaza:`)
+  const equip = input.equipmentName ? `, echipament ${input.equipmentName}` : ""
+  const loc = input.locationName ? ` din locatia ${input.locationName}` : ""
+  const intro = normalize(`Referitor la lucrarea nr. ${displayWorkId}${equip}${loc} va facem cunoscute costurile aferente pieselor de schimb si serviciilor necesare remedierii dupa cum urmeaza:`)
   const introLines = doc.splitTextToSize(intro, W)
   introLines.forEach((line: string) => {
     checkPage(6)
@@ -126,28 +127,7 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
     y += 6
   })
 
-  // Damages bullet list (optional)
-  if (input.damages && input.damages.length) {
-    const lead = normalize("Constatarea la fata locului:")
-    checkPage(6)
-    doc.text(lead, M, y)
-    y += 6
-    input.damages.forEach((d) => {
-      const txt = "- " + normalize(d)
-      const lines = doc.splitTextToSize(txt, W - 6)
-      lines.forEach((l: string) => {
-        checkPage(5)
-        doc.text(l, M + 4, y)
-        y += 5
-      })
-    })
-  }
-
   y += 6
-  const lead2 = normalize("In urma interventiei costurile sunt urmatoarele:")
-  checkPage(6)
-  doc.text(lead2, M, y)
-  y += 8
 
   // Products table
   const headers = ["Servicii&Piese", "Cantitate", "Pret unitar", "Suma liniei"]
@@ -159,13 +139,20 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   // Small gap before table
   y += 4
 
-  // Column header (no fill, underline)
-  doc.setTextColor(0)
+  // Column header with blue text (#49649b), no background
+  doc.setTextColor(73, 100, 155)
   doc.setFont("helvetica", "bold").setFontSize(9)
-  headers.forEach((h, i) => doc.text(h, xPos[i] + 2, y + 5))
-  y += 8
-  doc.setDrawColor(209, 213, 219)
-  doc.line(M, y, M + W, y)
+  headers.forEach((h, i) => {
+    if (i === 0) {
+      // First column (Servicii&Piese) aligned left
+      doc.text(h, xPos[i] + 2, y + 5)
+    } else {
+      // Numeric columns (Cantitate, Pret unitar, Suma liniei) aligned right
+      doc.text(h, xPos[i] + colW[i] - 1, y + 5, { align: "right" })
+    }
+  })
+  y += 7
+  doc.setTextColor(0) // reset to black for body
 
   // Rows (only horizontal lines)
   doc.setFont("helvetica", "normal").setFontSize(9)
@@ -183,51 +170,63 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
     const nameLines = doc.splitTextToSize(r.name, colW[0] - 2)
     const cellH = Math.max(lineH, nameLines.length * 5 + 2)
     doc.text(nameLines, xPos[0] + 2, y + 5)
-    doc.text(String(r.qty), xPos[1] + colW[1] - 2, y + 5, { align: "right" })
-    doc.text(`${r.price.toLocaleString("ro-RO")}`, xPos[2] + colW[2] - 2, y + 5, { align: "right" })
-    doc.text(`${r.total.toLocaleString("ro-RO")}`, xPos[3] + colW[3] - 2, y + 5, { align: "right" })
+    doc.text(String(r.qty), xPos[1] + colW[1] - 1, y + 5, { align: "right" })
+    doc.text(`${r.price.toLocaleString("ro-RO")}`, xPos[2] + colW[2] - 1, y + 5, { align: "right" })
+    doc.text(`${r.total.toLocaleString("ro-RO")}`, xPos[3] + colW[3] - 1, y + 5, { align: "right" })
     y += cellH
-    doc.setDrawColor(229, 231, 235)
+    doc.setDrawColor(0, 0, 0).setLineWidth(0.5)
     doc.line(M, y, M + W, y)
     subtotal += r.total
   })
 
+  // Add spacing between table and totals
+  y += 6
+  
   // Subtotal / Ajustare / Total (blue band background)
   const lineH2 = 7
   const adj = typeof input.adjustmentPercent === 'number' ? Number(input.adjustmentPercent) : 0
   const totalNoVat = subtotal * (1 - (adj || 0) / 100)
   const rightLabelX = M + W - 60
-  const topPad = 3
-  const subtotalTextOffset = 5
-  const totalsBandY = y + (subtotalTextOffset - topPad)
-  const totalsContentHeight = lineH2 + lineH2 + 14 // 7 + 7 + 14
-  const totalsBlockHeight = totalsContentHeight + topPad * 2
-  doc.setFillColor(224, 237, 255)
-  doc.rect(M, totalsBandY, W, totalsBlockHeight, "F")
+  
+  // Calculate total content height with proper spacing
+  const rowHeight = 5 // vertical space per text line
+  const verticalPad = 1 // minimal padding top and bottom
+  const bandHeight = (rowHeight * 3) + (verticalPad * 2) // 3 rows + padding
+  
+  // Draw blue band with symmetric padding (light version of #49649b)
+  doc.setFillColor(220, 227, 240) // very light blue tint
+  doc.rect(M, y, W, bandHeight, "F")
+  
+  // Start text with top padding
+  y += verticalPad + 3
+  
   // Subtotal
   checkPage(lineH2)
+  doc.setTextColor(0, 0, 0) // black text on light background
   doc.setFont("helvetica", "normal").setFontSize(9)
-  doc.text("Subtotal:", rightLabelX, y + 5)
-  doc.text(`${subtotal.toLocaleString("ro-RO")}`, M + W - 2, y + 5, { align: "right" })
-  y += lineH2
+  const valueX = M + W - 5 // values aligned at right edge
+  const labelColonX = M + W - 25 // fixed position for all colons (right aligned, very close)
+  doc.text("Subtotal:", labelColonX, y, { align: "right" })
+  doc.text(`${subtotal.toLocaleString("ro-RO")}`, valueX, y, { align: "right" })
+  y += rowHeight
   // Ajustare
   checkPage(lineH2)
-  doc.text("Ajustare:", rightLabelX, y + 5)
-  doc.text(`${(adj || 0)}%`, M + W - 2, y + 5, { align: "right" })
-  y += lineH2
+  doc.text("Ajustare:", labelColonX, y, { align: "right" })
+  doc.text(`${(adj || 0)}%`, valueX, y, { align: "right" })
+  y += rowHeight
   // Total lei fara TVA (accentuat)
   checkPage(10)
   doc.setFont("helvetica", "bold").setFontSize(10)
   const amountText = `${totalNoVat.toLocaleString("ro-RO")}`
-  const amountRightX = M + W - 2
-  const gap = 3
-  const amountWidth = doc.getTextWidth(amountText)
-  const labelRightX = amountRightX - amountWidth - gap
-  doc.text("Total insumat LEI fara TVA:", labelRightX, y + 6, { align: "right" })
-  doc.text(amountText, amountRightX, y + 6, { align: "right" })
-  y += 14
-  // push conditions further down
-  y += 8
+  doc.text("Total insumat LEI fara TVA:", labelColonX, y, { align: "right" })
+  doc.text(amountText, valueX, y, { align: "right" })
+  y += rowHeight + verticalPad + 3
+  
+  // Reset text color to black
+  doc.setTextColor(0, 0, 0)
+  
+  // Add extra gap before terms
+  y += 12
 
   // Conditions (match sample wording and spacing)
   const vatPercent = typeof input.offerVAT === "number" && input.offerVAT > 0 ? input.offerVAT : 19
@@ -257,7 +256,7 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   // Footer company info and bank details laid out in three equal columns with wrapping
   y = Math.max(y, PH - 35)
   doc.setFontSize(8)
-  doc.setTextColor(30, 58, 138)
+  doc.setTextColor(41, 72, 143) // footer text - more vibrant blue
   const footerColW = W / 3 - 4
   const footerColX = [M, M + W / 3, M + (2 * W) / 3]
   const footerLeft = [

@@ -137,6 +137,12 @@ export default function OfferActionPage() {
                     : undefined,
                   equipmentName: String((fresh as any)?.echipament || ''),
                   locationName: String((fresh as any)?.locatie || ''),
+                  beneficiar: {
+                    name: String((fresh as any)?.client || (fresh as any)?.clientInfo?.nume || ''),
+                    cui: String((fresh as any)?.clientInfo?.cui || ''),
+                    reg: String((fresh as any)?.clientInfo?.rc || ''),
+                    address: String((fresh as any)?.clientInfo?.adresa || ''),
+                  },
                 })
                 const fileName = `oferta_${id}.pdf`
                 const file = new File([blob], fileName, { type: "application/pdf" })
@@ -375,6 +381,14 @@ export default function OfferActionPage() {
                         conditions: Array.isArray((fresh as any)?.conditiiOferta)
                           ? (fresh as any).conditiiOferta
                           : undefined,
+                        equipmentName: String((fresh as any)?.echipament || ''),
+                        locationName: String((fresh as any)?.locatie || ''),
+                        beneficiar: {
+                          name: String((fresh as any)?.client || (fresh as any)?.clientInfo?.nume || ''),
+                          cui: String((fresh as any)?.clientInfo?.cui || ''),
+                          reg: String((fresh as any)?.clientInfo?.rc || ''),
+                          address: String((fresh as any)?.clientInfo?.adresa || ''),
+                        },
                       })
                       const fileName = `oferta_${id}.pdf`
                       const url = URL.createObjectURL(blob)
