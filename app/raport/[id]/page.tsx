@@ -1840,6 +1840,13 @@ FOM by NRG`,
                 <Separator />
 
                 <div>
+                  <h3 className="font-medium text-gray-500">Constatarea la locație</h3>
+                  <p className="whitespace-pre-line">{lucrare?.constatareLaLocatie || "Nu a fost specificată"}</p>
+                </div>
+
+                <Separator />
+
+                <div>
                   <h3 className="font-medium text-gray-500">Descriere Intervenție</h3>
                   <p className="whitespace-pre-line">{lucrare?.descriereInterventie || "Nu a fost specificată"}</p>
                 </div>

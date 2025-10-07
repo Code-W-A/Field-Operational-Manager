@@ -438,7 +438,7 @@ useEffect(() => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogHeader >
-        <DialogTitle className="my-4">Editor ofertă</DialogTitle>
+        {/* <DialogTitle className="my-4">Editor ofertă</DialogTitle> */}
       </DialogHeader>
       <DialogContent className="max-w-[1600px] w-[calc(100%-2rem)] max-h-[95vh] p-0">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">

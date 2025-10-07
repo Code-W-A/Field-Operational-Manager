@@ -1626,46 +1626,47 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                     )}
 
                     <div className="space-y-4">
-                      {/* Grid cu 2 coloane: Necesită ofertă și Editor ofertă */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Necesită ofertă - switch */}
-                        <div className="flex items-center justify-between md:justify-start md:gap-4">
+                      {/* Flex cu 2 coloane: Necesită ofertă și Editor ofertă - aliniate la stânga */}
+                      <div className="flex flex-wrap gap-8">
+                        {/* Necesită ofertă - switch dedesubt */}
+                        <div className="space-y-2">
                           <Label htmlFor="necesitaOfertaSwitch" className={`text-sm font-medium ${!lucrare.preluatDispecer ? 'text-gray-500' : 'text-blue-800'}`}>Necesită ofertă</Label>
-                          <Switch
-                            id="necesitaOfertaSwitch"
-                            checked={Boolean(lucrare.necesitaOferta)}
-                            onCheckedChange={async (checked) => {
-                              if (!lucrare.preluatDispecer) {
-                                toast({ title: 'Acțiune indisponibilă', description: 'Lucrarea trebuie preluată de dispecer/admin pentru a modifica setările ofertei.', variant: 'destructive' })
-                                return
-                              }
-                              try {
-                                setIsUpdating(true)
-                                const updateData: any = { necesitaOferta: checked }
-                                if (!checked) {
-                                  updateData.comentariiOferta = ""
-                                  updateData.statusOferta = undefined
+                          <div>
+                            <Switch
+                              id="necesitaOfertaSwitch"
+                              checked={Boolean(lucrare.necesitaOferta)}
+                              onCheckedChange={async (checked) => {
+                                if (!lucrare.preluatDispecer) {
+                                  toast({ title: 'Acțiune indisponibilă', description: 'Lucrarea trebuie preluată de dispecer/admin pentru a modifica setările ofertei.', variant: 'destructive' })
+                                  return
                                 }
-                                await updateLucrare(lucrare.id!, updateData)
-                                setLucrare(prev => prev ? { ...prev, ...updateData } : null)
-                                toast({ title: "Actualizat", description: "Setarea 'Necesită ofertă' a fost actualizată." })
-                              } catch (error) {
-                                console.error("Eroare la actualizarea necesitaOferta:", error)
-                                toast({ title: "Eroare", description: "Nu s-a putut actualiza setarea.", variant: "destructive" })
-                              } finally {
-                                setIsUpdating(false)
-                              }
-                            }}
-                            disabled={isUpdating || !lucrare.preluatDispecer}
-                            className={!lucrare.preluatDispecer ? 'opacity-50' : ''}
-                          />
+                                try {
+                                  setIsUpdating(true)
+                                  const updateData: any = { necesitaOferta: checked }
+                                  if (!checked) {
+                                    updateData.comentariiOferta = ""
+                                    updateData.statusOferta = undefined
+                                  }
+                                  await updateLucrare(lucrare.id!, updateData)
+                                  setLucrare(prev => prev ? { ...prev, ...updateData } : null)
+                                  toast({ title: "Actualizat", description: "Setarea 'Necesită ofertă' a fost actualizată." })
+                                } catch (error) {
+                                  console.error("Eroare la actualizarea necesitaOferta:", error)
+                                  toast({ title: "Eroare", description: "Nu s-a putut actualiza setarea.", variant: "destructive" })
+                                } finally {
+                                  setIsUpdating(false)
+                                }
+                              }}
+                              disabled={isUpdating || !lucrare.preluatDispecer}
+                              className={!lucrare.preluatDispecer ? 'opacity-50' : ''}
+                            />
+                          </div>
                         </div>
 
-                        {/* Editor ofertă - butoane */}
+                        {/* Editor ofertă - buton dedesubt */}
                         <div className="space-y-2">
                           <Label className={`text-sm font-medium ${!lucrare.preluatDispecer || !lucrare.necesitaOferta ? 'text-gray-500' : 'text-blue-800'}`}>Editor ofertă</Label>
-                          {lucrare.necesitaOferta && (
-                            <div className="flex flex-wrap gap-2">
+                          <div>
                             <Button
                               variant="outline"
                               size="sm"
@@ -1676,86 +1677,12 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                 }
                                 setIsOfferEditorOpen(true)
                               }}
-                              disabled={isUpdating || !lucrare.preluatDispecer}
-                              className={!lucrare.preluatDispecer ? 'bg-gray-100 text-gray-500 border-gray-300 hover:bg-gray-100 hover:text-gray-500 cursor-not-allowed' : ''}
+                              disabled={isUpdating || !lucrare.preluatDispecer || !lucrare.necesitaOferta}
+                              className={!lucrare.preluatDispecer || !lucrare.necesitaOferta ? 'bg-gray-100 text-gray-500 border-gray-300 hover:bg-gray-100 hover:text-gray-500 cursor-not-allowed' : ''}
                             >
                               Deschide editor
                             </Button>
-                          
-                            {/* {lucrare.products && lucrare.products.length > 0 && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={async () => {
-                                    try {
-                                      setIsUpdating(true)
-                                      const base = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '')
-                                      // Generează token și link-uri accept/decline (valabile 30 zile)
-                                      const tokenResp = await fetch('/api/offer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lucrareId: lucrare.id }) })
-                                      if (!tokenResp.ok) throw new Error('Nu s-a putut genera link-ul de ofertă')
-                                      const { acceptUrl, rejectUrl, expiresAt } = await tokenResp.json()
-                                      const subject = `Ofertă pentru lucrarea ${lucrare.numarRaport || lucrare.id}`
-                                      const rows = (lucrare.products || []).map((p: any) => `
-                                        <tr>
-                                          <td style=\"padding:6px;border:1px solid #e5e7eb\">${p.name || ''}</td>
-                                          <td style=\"padding:6px;border:1px solid #e5e7eb;text-align:center\">${p.um || '-'}</td>
-                                          <td style=\"padding:6px;border:1px solid #e5e7eb;text-align:right\">${Number(p.quantity||0)}</td>
-                                          <td style=\"padding:6px;border:1px solid #e5e7eb;text-align:right\">${Number(p.price||0).toFixed(2)}</td>
-                                          <td style=\"padding:6px;border:1px solid #e5e7eb;text-align:right\">${((Number(p.quantity)||0)*(Number(p.price)||0)).toFixed(2)}</td>
-                                        </tr>`).join('')
-                                      const total = (lucrare.products || []).reduce((s: number, p: any) => s + (Number(p.quantity)||0)*(Number(p.price)||0), 0)
-                                      const html = `
-                                        <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0b1220">
-                                          <h2 style="margin:0 0 12px;color:#0f56b3">Ofertă lucrarea ${lucrare.numarRaport || lucrare.id}</h2>
-                                          ${lucrare.comentariiOferta ? `<p style=\"margin:8px 0;color:#475569\">${lucrare.comentariiOferta}</p>` : ''}
-                                          <table style="border-collapse:collapse;width:100%;margin-top:8px;font-size:14px">
-                                            <thead>
-                                              <tr style="background:#f8fafc">
-                                                <th style="padding:6px;border:1px solid #e5e7eb;text-align:left">Denumire</th>
-                                                <th style="padding:6px;border:1px solid #e5e7eb;text-align:center">UM</th>
-                                                <th style="padding:6px;border:1px solid #e5e7eb;text-align:right">Buc</th>
-                                                <th style="padding:6px;border:1px solid #e5e7eb;text-align:right">PU (lei)</th>
-                                                <th style="padding:6px;border:1px solid #e5e7eb;text-align:right">Total (lei)</th>
-                                              </tr>
-                                            </thead>
-                                            <tbody>${rows}</tbody>
-                                            <tfoot>
-                                              <tr>
-                                                <td colspan="4" style="padding:8px;border:1px solid #e5e7eb;text-align:right;font-weight:600">Total fără TVA</td>
-                                                <td style="padding:8px;border:1px solid #e5e7eb;text-align:right;font-weight:700">${total.toFixed(2)}</td>
-                                              </tr>
-                                            </tfoot>
-                                          </table>
-                                          <p style="margin:12px 0 6px;color:#64748b">Acest link este valabil 30 de zile de la primirea emailului. După confirmare, linkurile devin inactive.</p>
-                                          <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-top:12px">
-                                            <tr>
-                                              <td>
-                                                <a href="${acceptUrl}" style="background:#16a34a;border-radius:6px;color:#ffffff;display:inline-block;font-weight:600;padding:10px 14px;text-decoration:none;line-height:normal">Accept ofertă</a>
-                                              </td>
-                                              <td style="width:8px">&nbsp;</td>
-                                              <td>
-                                                <a href="${rejectUrl}" style="background:#dc2626;border-radius:6px;color:#ffffff;display:inline-block;font-weight:600;padding:10px 14px;text-decoration:none;line-height:normal">Refuz ofertă</a>
-                                              </td>
-                                            </tr>
-                                          </table>
-                                        </div>`
-                                      const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(e)
-                                      // Mutăm trimiterea în editorul de ofertă, nu din pagina de detalii
-                                      toast({ title: 'Trimitere din editor', description: 'Deschideți editorul de ofertă și folosiți butonul Trimite ofertă.' })
-                                      return
-                                    } catch (e) {
-                                      console.warn('Trimitere ofertă eșuată', e)
-                                      toast({ title: 'Eroare trimitere', description: 'Nu s-a putut trimite emailul.', variant: 'destructive' })
-                                    } finally {
-                                      setIsUpdating(false)
-                                    }
-                                  }}
-                                >
-                                  Trimite ofertă
-                                </Button>
-                            )} */}
-                            </div>
-                          )}
+                          </div>
                         </div>
                       </div>
 
