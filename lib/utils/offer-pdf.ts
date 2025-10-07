@@ -42,7 +42,7 @@ const normalize = (text = "") =>
 // Generate Offer PDF as Blob using a clean layout
 export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   const doc = new jsPDF({ unit: "mm", format: "a4" })
-  const M = 14
+  const M = 10
   const W = doc.internal.pageSize.getWidth() - 2 * M
   const PH = doc.internal.pageSize.getHeight()
   let y = M
@@ -78,7 +78,7 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
     const logoW = 24; const logoH = 18
     doc.addImage(dataUrl, "PNG", M + W - logoW - 4, y + (headerHeight - logoH) / 2, logoW, logoH)
   } catch {}
-  y += headerHeight + 6
+  y += headerHeight + 12
   doc.setTextColor(0)
 
   // Prestator / Beneficiar (two columns)
@@ -116,7 +116,7 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   prestRightLines.forEach((t, i) => doc.text(t, M + W, y + 6 + i*5, { align: "right" }))
   y += 6 + Math.max(prestLeftLines.length, prestRightLines.length)*5 + 6
 
-  y += 8
+  y += 14
   // Intro paragraph
   doc.setFontSize(10).setFont("helvetica", "normal")
   const equip = input.equipmentName ? `, echipament ${input.equipmentName}` : ""
@@ -143,7 +143,7 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
 
   // Column header with blue text (#49649b), no background
   doc.setTextColor(73, 100, 155)
-  doc.setFont("helvetica", "bold").setFontSize(9)
+  doc.setFont("helvetica", "bold").setFontSize(10)
   headers.forEach((h, i) => {
     if (i === 0) {
       // First column (Servicii&Piese) aligned left
@@ -268,16 +268,16 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
       return `${dd}.${mm}.${yy}`
     })()
     const line = author ? `Intocmit de ${author} la data de ${when}` : `Intocmit la data de ${when}`
-    const footerSepY = PH - 40
+    const footerSepY = PH - 28
     doc.setFontSize(9).setTextColor(0)
-    doc.text(line, M, footerSepY - 3)
+    doc.text(line, M, footerSepY - 4)
   } catch {}
 
-  // Footer separator line
+  // Footer separator line (moved lower)
   doc.setDrawColor(209, 213, 219)
-  doc.line(M, PH - 40, M + W, PH - 40)
+  doc.line(M, PH - 28, M + W, PH - 28)
   // Footer company info and bank details laid out in three equal columns with wrapping
-  y = Math.max(y, PH - 35)
+  y = Math.max(y, PH - 23)
   doc.setFontSize(8)
   doc.setTextColor(41, 72, 143) // footer text - more vibrant blue
   const footerColW = W / 3 - 4
