@@ -715,7 +715,20 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   return (
     <TooltipProvider>
       <DashboardShell>
-      <DashboardHeader heading={`Lucrare: ${lucrare.tipLucrare}`} text={`Client: ${lucrare.client}`}>
+      <DashboardHeader 
+        heading={
+          <span className="flex items-center gap-2">
+            Lucrare: 
+            {lucrare.numarRaport && (
+              <Badge className="bg-purple-100 text-purple-800 border border-purple-200 hover:bg-purple-100 text-base font-semibold px-3 py-1">
+                {lucrare.numarRaport}
+              </Badge>
+            )}
+            {lucrare.tipLucrare}
+          </span>
+        } 
+        text={`Client: ${lucrare.client}`}
+      >
         <div className="flex flex-col sm:flex-row gap-2">
           <Button variant="outline" onClick={() => router.push(fromArhivate ? "/dashboard/arhivate" : "/dashboard/lucrari")}>
             <ChevronLeft className="mr-2 h-4 w-4" /> Înapoi
@@ -1043,11 +1056,10 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       </div>
                   </div>
                 )}
-                  <div className={`mb-2 ${lucrare.tipLucrare === "Intervenție în contract" ? '' : 'col-span-2'}`}>
-                    <div className="font-medium mb-1">Defect reclamat:</div>
-                    <div className="text-gray-500">{lucrare.defectReclamat || "Nu a fost specificat"}</div>
-                  </div>
                 </div>
+
+                {/* Linie de separare */}
+                <Separator className="my-4" />
 
                 {/* Tehnicieni asignați – mutat aici din cardul "Informații client" pentru a păstra layout-ul dorit */}
                 <div className="mt-4 text-base flex flex-wrap gap-y-3 items-center mb-4">
@@ -1059,11 +1071,31 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       </Badge>
                     ))}
                   </div>
+                  
+                  {/* Badge status preluare */}
+                  {isCompletedWithReport && (
+                    <>
+                      <Separator orientation="vertical" className="h-6 mx-2" />
+                      <span className="font-semibold mr-2 text-gray-600">Status preluare:</span>
+                      <Badge 
+                        variant="outline" 
+                        className={lucrare.preluatDispecer 
+                          ? "bg-green-50 text-green-700 border-green-300 px-3 py-1" 
+                          : "bg-yellow-50 text-yellow-700 border-yellow-300 px-3 py-1"
+                        }
+                      >
+                        {lucrare.preluatDispecer 
+                          ? `Preluat de ${lucrare.preluatDe || 'Dispecer'}` 
+                          : "Ne-preluat"
+                        }
+                      </Badge>
+                    </>
+                  )}
                   </div>
 
                 {/* Afișăm mesajul de reatribuire dacă există */}
                 {lucrare.mesajReatribuire && (
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md mb-4">
                     <div className="flex items-center space-x-2 mb-1">
                       <RefreshCw className="h-4 w-4 text-blue-600" />
                       <p className="text-sm font-medium text-blue-800">Lucrare reatribuită:</p>
@@ -1084,7 +1116,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
                 {/* Afișăm informațiile de amânare dacă există */}
                 {lucrare.statusLucrare === WORK_STATUS.POSTPONED && lucrare.motivAmanare && (
-                  <div className="p-3 bg-purple-50 border border-purple-200 rounded-md">
+                  <div className="p-3 bg-purple-50 border border-purple-200 rounded-md mb-4">
                     <div className="flex items-center space-x-2 mb-2">
                       <Clock className="h-4 w-4 text-purple-600" />
                       <p className="text-sm font-medium text-purple-800">Lucrare amânată</p>
@@ -1108,7 +1140,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
                 {/* Afișăm motivele reintervenției dacă există */}
                 {lucrare.reinterventieMotiv && (
-                  <div className="p-3 bg-orange-50 border border-orange-200 rounded-md">
+                  <div className="p-3 bg-orange-50 border border-orange-200 rounded-md mb-4">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center space-x-2">
                       <RefreshCw className="h-4 w-4 text-orange-600" />
@@ -1160,7 +1192,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
                 {/* Afișăm reintervențiile derivate dacă există */}
                 {reinterventii.length > 0 && (
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md mb-4">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center space-x-2">
                         <RefreshCw className="h-4 w-4 text-blue-600" />
@@ -1223,72 +1255,70 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
                 <Separator />
                 <div className="space-y-4">
-                {/* Rând cu: Locație | Persoană contact (locație) | Telefon contact (locație) */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                <div>
-                  <p className="text-sm font-medium">Locație:</p>
-                  <div className="flex items-start">
-                    <div className="flex-grow">
-                      <p className="text-sm text-gray-500">{lucrare.locatie}</p>
-                      {locationAddress && (
-                        <div className="mt-1">
-                          <p className="text-xs italic text-gray-500 flex items-center mb-2">
-                            <MapPin className="h-3 w-3 mr-1 inline-block" />
-                            {locationAddress}
-                          </p>
-                          <div className="flex space-x-2 mt-2">
-                            <a
-                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lucrare.locatie}, ${locationAddress}`)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center justify-center px-3 py-1 text-xs bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
-                            >
-                              <MapPin className="h-3 w-3 mr-1 inline-block" />
-                              Google Maps
-                            </a>
-                            <a
-                              href={`https://waze.com/ul?q=${encodeURIComponent(`${lucrare.locatie}, ${locationAddress}`)}&navigate=yes`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center justify-center px-3 py-1 text-xs bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
-                            >
-                              <MapPin className="h-3 w-3 mr-1 inline-block" />
-                              Waze
-                            </a>
-                          </div>
+                {/* Rând cu: Locație | Persoană contact (locație) | Echipament */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
+                  {/* Locație */}
+                  <div>
+                    <p className="text-base font-semibold mb-2">Locație:</p>
+                    <p className="text-base mb-1">{lucrare.locatie}</p>
+                    {locationAddress && (
+                      <div className="mt-2">
+                        <p className="text-sm text-gray-600 flex items-center gap-1 mb-2">
+                          <MapPin className="h-4 w-4" />
+                          {locationAddress}
+                        </p>
+                        <div className="flex gap-2">
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lucrare.locatie}, ${locationAddress}`)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                          >
+                            <MapPin className="h-3 w-3" />
+                            Google Maps
+                          </a>
+                          <a
+                            href={`https://waze.com/ul?q=${encodeURIComponent(`${lucrare.locatie}, ${locationAddress}`)}&navigate=yes`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+                          >
+                            <MapPin className="h-3 w-3" />
+                            Waze
+                          </a>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-                  <div className="mb-2">
-                    <div className="text-sm font-medium mb-1">Persoană contact (locație):</div>
-                    <div className="text-sm text-gray-500">{lucrare.persoanaContact}</div>
+
+                  {/* Persoană contact */}
+                  <div>
+                    <p className="text-base font-semibold mb-2">Persoană contact (locație):</p>
+                    <p className="text-base mb-2">{lucrare.persoanaContact}</p>
                     {/* Email persoană de contact dacă există în clientData pentru locația curentă */}
                     {clientData?.locatii && (
                       () => {
                         const loc = clientData.locatii.find((l: any) => l.nume === lucrare.locatie)
                         const contact = loc?.persoaneContact?.find((c: any) => c.nume === lucrare.persoanaContact)
                         return contact?.email ? (
-                          <div className="text-xs text-gray-500 flex items-center gap-2 mt-1">
-                            <span>{contact.email}</span>
-                            <a
-                              href={`mailto:${contact.email}`}
-                              className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-gray-600 text-white hover:bg-gray-700 transition-colors"
-                              aria-label={`Scrie email către ${contact.email}`}
-                              title={`Scrie email către ${contact.email}`}
-                            >
-                              <Mail className="h-3 w-3" />
-                            </a>
+                          <div className="text-sm mb-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="break-all">{contact.email}</span>
+                              <a
+                                href={`mailto:${contact.email}`}
+                                className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-gray-600 text-white hover:bg-gray-700 transition-colors flex-shrink-0"
+                                aria-label={`Scrie email către ${contact.email}`}
+                                title={`Scrie email către ${contact.email}`}
+                              >
+                                <Mail className="h-3 w-3" />
+                              </a>
+                            </div>
                           </div>
                         ) : null
                       }
                     )()}
-                  </div>
-                  <div className="mb-2">
-                    <div className="text-sm font-medium mb-1">Telefon contact (locație):</div>
-                    <div className="text-sm text-gray-500 flex items-center gap-2">
-                      {lucrare.telefon}
+                    <div className="text-base flex items-center gap-2">
+                      <span>{lucrare.telefon}</span>
                       <a
                         href={`tel:${formatPhoneForCall(lucrare.telefon)}`}
                         className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-green-500 text-white hover:bg-green-600 transition-colors"
@@ -1299,94 +1329,123 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       </a>
                     </div>
                   </div>
-                
-                </div>
 
-                {/* Echipament sub rândul cu locația */}
-                <div>
-                  <p className="text-sm font-medium">Echipament:</p>
-                  <div className="space-y-1">
-                    <p className="text-sm text-gray-500">
+                  {/* Echipament */}
+                  <div>
+                    <p className="text-base font-semibold mb-2">Echipament:</p>
+                    <p className="text-base mb-2">
                       {lucrare.echipament ? `${lucrare.echipament}` : "Nespecificat"}
                     </p>
-                    {role !== "tehnician" && lucrare.echipamentCod && (
-                      <p className="text-sm text-gray-500 flex items-center">
-                        <span className="font-medium text-xs mr-2 bg-purple-100 text-purple-800 px-2 py-0.5 rounded">Cod:</span>
-                        {lucrare.echipamentCod}
-                      </p>
-                    )}
-                    {lucrare.echipamentModel && (
-                      <p className="text-sm text-gray-500 flex items-center">
-                        <span className="font-medium text-xs mr-2 bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Model:</span>
-                        {lucrare.echipamentModel}
-                      </p>
-                    )}
-                    {lucrare.statusEchipament && (
-                      <p className="text-sm text-gray-500 flex items-center mt-1">
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded ${
-                            lucrare.statusEchipament === "Funcțional"
-                              ? "bg-green-100 text-green-800"
-                              : lucrare.statusEchipament === "Parțial funcțional"
-                                ? "bg-yellow-100 text-yellow-800"
-                                : lucrare.statusEchipament === "Nefuncțional"
-                                  ? "bg-red-100 text-red-800"
-                                  : "bg-gray-100 text-gray-800"
-                          }`}
-                        >
-                          Status: {lucrare.statusEchipament}
-                        </span>
-                      </p>
-                    )}
+                    <div className="space-y-1">
+                      {role !== "tehnician" && lucrare.echipamentCod && (
+                        <p className="text-base">
+                          <span className="font-medium text-blue-600">Cod:</span>{" "}
+                          <span className="text-blue-600">{lucrare.echipamentCod}</span>
+                        </p>
+                      )}
+                      {lucrare.echipamentModel && (
+                        <p className="text-base">
+                          <span className="font-medium text-blue-600">Model:</span>{" "}
+                          <span className="text-blue-600">{lucrare.echipamentModel}</span>
+                        </p>
+                      )}
+                      {lucrare.statusEchipament && (
+                        <p className="text-base flex items-center mt-2">
+                          <span className="font-medium mr-2">Status:</span>
+                          <span
+                            className={`text-base font-medium px-2 py-1 rounded ${
+                              lucrare.statusEchipament === "Funcțional"
+                                ? "bg-green-100 text-green-700"
+                                : lucrare.statusEchipament === "Parțial funcțional"
+                                  ? "bg-yellow-100 text-yellow-700"
+                                  : lucrare.statusEchipament === "Nefuncțional"
+                                    ? "bg-red-100 text-red-700"
+                                    : "bg-gray-100 text-gray-700"
+                            }`}
+                          >
+                            {lucrare.statusEchipament}
+                          </span>
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
                 </div>
-                  
-                <div className="mt-2">
-                  {lucrare.descriere ? (
-                    <>
-                      <p className="text-sm font-medium">Notă internă:</p>
-                      <p className="text-sm text-gray-500">{lucrare.descriere || "Fără descriere"}</p>
-                    </>
-                  ) : (
-                    <p className="text-sm font-medium">Fără notă</p>
+
+                {/* Separator înainte de secțiunile de detalii */}
+                <Separator className="my-4" />
+                
+                <div className="space-y-4">
+                  {/* Defect reclamat */}
+                  <div>
+                    <p className="text-base font-semibold mb-2">Defect reclamat:</p>
+                    <p className="text-base text-gray-600">{lucrare.defectReclamat || "Nu a fost specificat"}</p>
+                  </div>
+
+                  {/* Constatare la locație */}
+                  {lucrare.constatareLaLocatie && (
+                    <div>
+                      <p className="text-base font-semibold mb-2">Constatare la locație:</p>
+                      <p className="text-base text-gray-600">{lucrare.constatareLaLocatie}</p>
+                    </div>
+                  )}
+
+                  {/* Descriere intervenție */}
+                  {lucrare.descriereInterventie && (
+                    <div>
+                      <p className="text-base font-semibold mb-2">Descriere intervenție:</p>
+                      <p className="text-base text-gray-600">{lucrare.descriereInterventie}</p>
+                    </div>
+                  )}
+
+                  {/* Notă internă */}
+                  {lucrare.descriere && (
+                    <div>
+                      <p className="text-base font-semibold mb-3">Notă internă:</p>
+                      <div className="space-y-2">
+                        <div>
+                          <span className="font-semibold text-base">Dispecer:</span>{" "}
+                          <span className="text-base text-gray-600">{lucrare.descriere}</span>
+                        </div>
+                        <div>
+                          <span className="font-semibold text-base">Tehnician:</span>{" "}
+                          <span className="text-base text-gray-600">{lucrare.descriere}</span>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
 
-                {lucrare.constatareLaLocatie && (
-                  <div className="mt-2">
-                    <p className="text-sm font-medium">Constatare la locație:</p>
-                    <p className="text-sm text-gray-500">{lucrare.constatareLaLocatie}</p>
-                  </div>
-                )}
-                  
-                {lucrare.descriereInterventie && (
-                  <div className="mt-2">
-                    <p className="text-sm font-medium">Descriere intervenție:</p>
-                    <p className="text-sm text-gray-500">{lucrare.descriereInterventie}</p>
-                  </div>
-                )}
-                  
-            
-                  
-                {((lucrare.statusOferta === "DA" || lucrare.statusOferta === "OFERTAT") || 
-                  (lucrare.statusOferta === undefined && lucrare.necesitaOferta)) && 
-                  lucrare.comentariiOferta && (
-                  <div>
-                    <p className="text-sm font-medium">Comentarii ofertă:</p>
-                    <p className="text-sm text-gray-500">{lucrare.comentariiOferta}</p>
-                  </div>
-                )}
-                  
-            
+                {/* Separator după secțiunile de detalii */}
+                <Separator className="my-4" />
                 
                 {/* Afișăm numărul raportului dacă a fost generat */}
                 {lucrare.raportGenerat && lucrare.numarRaport && (
                   <div className="mt-2">
-                    <p className="text-sm font-medium">Număr raport:</p>
+                    <p className="text-sm font-medium">Număr raport generat:</p>
                     <p className="text-sm font-medium text-purple-800 bg-purple-50 px-2 py-1 rounded border border-purple-200 inline-block">
                       {lucrare.numarRaport}
                     </p>
+                    {/* Afișare Notă internă: Dispecer/Tehnician */}
+                    {(lucrare.descriere || lucrare.notaInternaTehnician) && (
+                      <div className="mt-4">
+                        <p className="text-base font-semibold mb-2">Notă internă:</p>
+                        <div className="space-y-1">
+                          {lucrare.descriere && (
+                            <div>
+                              <span className="font-semibold text-base mr-2">Dispecer:</span>
+                              <span className="text-base text-gray-600">{lucrare.descriere}</span>
+                            </div>
+                          )}
+                          {lucrare.notaInternaTehnician && (
+                            <div>
+                              <span className="font-semibold text-base mr-2">Tehnician:</span>
+                              <span className="text-base text-gray-600">{lucrare.notaInternaTehnician}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
                 {/* Informații despre garanție pentru lucrările de tip "Intervenție în garanție" */}
@@ -1432,7 +1491,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
                     {/* Confirmarea tehnicianului la fața locului */}
                     {lucrare.tehnicianConfirmaGarantie !== undefined && (
-                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md mb-4">
                         <div className="flex items-center space-x-2">
                           <span className="font-medium text-sm text-yellow-800">
                             Confirmarea tehnicianului la fața locului:
@@ -2151,7 +2210,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   // Adăugăm confirmarea garanției de către tehnician
                   tehnicianConfirmaGarantie: lucrare.tehnicianConfirmaGarantie,
                   // Adăugăm imaginile defectelor
-                  imaginiDefecte: lucrare.imaginiDefecte
+                  imaginiDefecte: lucrare.imaginiDefecte,
+                  // Notă internă tehnician
+                  notaInternaTehnician: lucrare.notaInternaTehnician
                 }}
                 onUpdate={(preserveActiveTab) => refreshLucrare(preserveActiveTab)}
                 isCompleted={lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true}

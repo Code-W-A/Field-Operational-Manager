@@ -2,7 +2,7 @@ import type React from "react"
 import { cn } from "@/lib/utils"
 
 interface DashboardHeaderProps {
-  heading: string
+  heading: React.ReactNode
   text?: string
   children?: React.ReactNode
   headerAction?: React.ReactNode // Nou: element în partea dreaptă a titlului

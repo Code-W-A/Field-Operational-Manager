@@ -37,6 +37,7 @@ export interface Lucrare {
   echipamentCod?: string
   echipamentModel?: string
   descriere: string
+  // Notă internă introdusă la creare de către dispecer/admin
   statusLucrare: string
   statusFacturare: string
   tehnicieni: string[]
@@ -188,6 +189,8 @@ export interface Lucrare {
   // CÂMPURI NOI PENTRU NOTIFICATION TRACKING - BACKWARD COMPATIBLE
   notificationRead?: boolean          // Backward compatibility: dacă notificarea a fost citită (general)
   notificationReadBy?: string[]       // Array cu ID-urile utilizatorilor care au citit notificarea
+  // CÂMP NOU: Notă internă a tehnicianului (nu apare în raportul final)
+  notaInternaTehnician?: string
 }
 
 export interface Client {

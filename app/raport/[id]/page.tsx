@@ -1837,11 +1837,6 @@ FOM by NRG`,
                   <p>{lucrare?.defectReclamat || "Nu a fost specificat"}</p>
                 </div>
 
-                <div>
-                  <h3 className="font-medium text-gray-500">Descriere Lucrare</h3>
-                  <p>{lucrare?.descriere || "Nu a fost specificată"}</p>
-                </div>
-
                 <Separator />
 
                 <div>

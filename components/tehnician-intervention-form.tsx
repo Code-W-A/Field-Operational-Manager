@@ -52,6 +52,8 @@ interface TehnicianInterventionFormProps {
       uploadedBy: string
       compressed: boolean
     }>
+    // Notă internă tehnician
+    notaInternaTehnician?: string
   }
   onUpdate: (preserveActiveTab?: boolean) => void
   isCompleted?: boolean
@@ -83,6 +85,7 @@ export function TehnicianInterventionForm({
   const [necesitaOferta, setNecesitaOferta] = useState(initialData.necesitaOferta || false)
   const [comentariiOferta, setComentariiOferta] = useState(initialData.comentariiOferta || "")
   const [formDisabled, setFormDisabled] = useState(isCompleted || initialData.raportGenerat)
+  const [notaInternaTehnician, setNotaInternaTehnician] = useState(initialData.notaInternaTehnician || "")
 
   // State pentru imaginile selectate local
   const [selectedImages, setSelectedImages] = useState<File[]>([])
@@ -176,6 +179,7 @@ export function TehnicianInterventionForm({
         comentariiOferta: necesitaOferta ? comentariiOferta : "", // Clear comments if necesitaOferta is false
         statusFinalizareInterventie,
         imaginiDefecte: allImages, // Includem toate imaginile (existente + noi)
+        notaInternaTehnician,
       }
 
       // Adăugăm tehnicianConfirmaGarantie doar pentru lucrările în garanție
@@ -255,6 +259,7 @@ export function TehnicianInterventionForm({
         comentariiOferta: necesitaOferta ? comentariiOferta : "", // Clear comments if necesitaOferta is false
         statusFinalizareInterventie,
         imaginiDefecte: allImages, // Includem toate imaginile (existente + noi)
+        notaInternaTehnician,
       }
 
       // Adăugăm tehnicianConfirmaGarantie doar pentru lucrările în garanție
@@ -612,6 +617,19 @@ export function TehnicianInterventionForm({
               onImageDeleted={handleImageMarkedForDeletion}
               isUploading={isGeneratingReport || isSaving} // Loading state din componenta părinte
             />
+
+            {/* Notă internă tehnician */}
+            <div className="space-y-2">
+              <Label htmlFor="notaInternaTehnician">Notă internă (tehnician)</Label>
+              <Textarea
+                id="notaInternaTehnician"
+                placeholder="Adăugați observații interne pentru dispecer/admin (nu apar în raportul final)"
+                value={notaInternaTehnician}
+                onChange={(e) => setNotaInternaTehnician(e.target.value)}
+                disabled={formDisabled}
+                className={formDisabled ? "opacity-70 cursor-not-allowed" : ""}
+              />
+            </div>
 
             {formDisabled ? (
               <Alert variant="default">
