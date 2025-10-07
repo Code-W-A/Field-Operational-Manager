@@ -25,6 +25,9 @@ export interface OfferPdfInput {
   // Extra display data
   equipmentName?: string
   locationName?: string
+  // Prepared by (author) and date to display at the end
+  preparedBy?: string
+  preparedAt?: string
   prestator?: { name?: string; cui?: string; reg?: string; address?: string }
   beneficiar?: { name?: string; cui?: string; reg?: string; address?: string }
 }
@@ -108,7 +111,6 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   const prestRightLines = [
     normalize(r.name || input.client || "-"),
     normalize(r.cui || "-"),
-    normalize(r.reg || "-"),
     normalize(r.address || "-"),
   ]
   prestRightLines.forEach((t, i) => doc.text(t, M + W, y + 6 + i*5, { align: "right" }))
@@ -165,10 +167,10 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
 
   let subtotal = 0
   items.forEach((r) => {
-    const lineH = 7
+    const lineH = 6 // tighter rows
     checkPage(lineH)
     const nameLines = doc.splitTextToSize(r.name, colW[0] - 2)
-    const cellH = Math.max(lineH, nameLines.length * 5 + 2)
+    const cellH = Math.max(lineH, nameLines.length * 4.5 + 2)
     doc.text(nameLines, xPos[0] + 2, y + 5)
     doc.text(String(r.qty), xPos[1] + colW[1] - 1, y + 5, { align: "right" })
     doc.text(`${r.price.toLocaleString("ro-RO")}`, xPos[2] + colW[2] - 1, y + 5, { align: "right" })
@@ -287,6 +289,22 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   renderColumn(footerLeft, footerColX[0])
   renderColumn(footerMid, footerColX[1])
   renderColumn(footerRight, footerColX[2])
+
+  // Prepared by line (author and date) at the very end
+  try {
+    const author = normalize(input.preparedBy || "")
+    const when = ((): string => {
+      if (input.preparedAt) return normalize(input.preparedAt)
+      const d = new Date()
+      const dd = String(d.getDate()).padStart(2, '0')
+      const mm = String(d.getMonth() + 1).padStart(2, '0')
+      const yy = String(d.getFullYear())
+      return `${dd}.${mm}.${yy}`
+    })()
+    const line = author ? `Intocmit de ${author} la data ${when}` : `Intocmit la data ${when}`
+    doc.setFontSize(8).setTextColor(0)
+    doc.text(line, M, PH - 8)
+  } catch {}
 
   const blob = doc.output("blob")
   return blob
