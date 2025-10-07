@@ -1017,6 +1017,10 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               <CardContent>
                 <div className="text-sm grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-4 gap-y-3 mt-4">
                   <div className="mb-2">
+                    <div className="font-medium mb-1">Status lucrare:</div>
+                    <div><Badge>{lucrare.statusLucrare}</Badge></div>
+                  </div>
+                  <div className="mb-2">
                     <div className="font-medium mb-1">Data emiterii:</div>
                     <div className="text-gray-500">{lucrare.dataEmiterii}</div>
                   </div>
@@ -1294,7 +1298,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   {/* Persoană contact */}
                   <div>
                     <p className="text-base font-semibold mb-2">Persoană contact (locație):</p>
-                    <p className="text-base mb-2">{lucrare.persoanaContact}</p>
+                    <p className="text-sm mb-2">{lucrare.persoanaContact}</p>
                     {/* Email persoană de contact dacă există în clientData pentru locația curentă */}
                     {clientData?.locatii && (
                       () => {
@@ -1317,7 +1321,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         ) : null
                       }
                     )()}
-                    <div className="text-base flex items-center gap-2">
+                    <div className="text-sm flex items-center gap-2">
                       <span>{lucrare.telefon}</span>
                       <a
                         href={`tel:${formatPhoneForCall(lucrare.telefon)}`}
@@ -1333,27 +1337,27 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   {/* Echipament */}
                   <div>
                     <p className="text-base font-semibold mb-2">Echipament:</p>
-                    <p className="text-base mb-2">
+                    <p className="text-sm mb-2">
                       {lucrare.echipament ? `${lucrare.echipament}` : "Nespecificat"}
                     </p>
                     <div className="space-y-1">
                       {role !== "tehnician" && lucrare.echipamentCod && (
-                        <p className="text-base">
+                        <p className="text-sm">
                           <span className="font-medium text-blue-600">Cod:</span>{" "}
                           <span className="text-blue-600">{lucrare.echipamentCod}</span>
                         </p>
                       )}
                       {lucrare.echipamentModel && (
-                        <p className="text-base">
+                        <p className="text-sm">
                           <span className="font-medium text-blue-600">Model:</span>{" "}
                           <span className="text-blue-600">{lucrare.echipamentModel}</span>
                         </p>
                       )}
                       {lucrare.statusEchipament && (
-                        <p className="text-base flex items-center mt-2">
+                        <p className="text-sm flex items-center mt-2">
                           <span className="font-medium mr-2">Status:</span>
                           <span
-                            className={`text-base font-medium px-2 py-1 rounded ${
+                            className={`text-sm font-medium px-2 py-1 rounded ${
                               lucrare.statusEchipament === "Funcțional"
                                 ? "bg-green-100 text-green-700"
                                 : lucrare.statusEchipament === "Parțial funcțional"
@@ -1580,13 +1584,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               
                 </div>
                 <Separator className="my-4" />
-   {/* Rezumat statusuri – un singur rând, 2 coloane: titlu sus, valoare sub titlu */}
+   {/* Rezumat statusuri – doar status facturare */}
    {role !== "tehnician" && (
-   <div className="mb-4 grid grid-cols-2 gap-4">
-                  <div className="min-w-0">
-                    <div className="text-xs font-medium text-muted-foreground">Status lucrare</div>
-                    <div className="mt-1"><Badge>{lucrare.statusLucrare}</Badge></div>
-                  </div>
+   <div className="mb-4">
                   <div className="min-w-0">
                     <div className="text-xs font-medium text-muted-foreground">Status facturare</div>
                     <div className="mt-1"><Badge variant="outline">{lucrare.statusFacturare}</Badge></div>
