@@ -30,6 +30,7 @@ interface QRCodeScannerProps {
   expectedEquipmentCode?: string
   expectedLocationName?: string
   expectedClientName?: string
+  workId?: string
   onScanSuccess?: (data: any) => void
   onScanError?: (error: string) => void
   onVerificationComplete?: (success: boolean) => void
@@ -52,6 +53,7 @@ export function QRCodeScanner({
   expectedEquipmentCode,
   expectedLocationName,
   expectedClientName,
+  workId,
   onScanSuccess,
   onScanError,
   onVerificationComplete,
@@ -95,6 +97,8 @@ export function QRCodeScanner({
   const [globalTimeoutExpired, setGlobalTimeoutExpired] = useState(false)
   // Adăugăm un state pentru a afișa timpul rămas
   const [timeRemaining, setTimeRemaining] = useState(GLOBAL_SCAN_TIMEOUT / 1000)
+  const [reporting, setReporting] = useState(false)
+  const lastDetectedRawRef = useRef<string | null>(null)
 
   // State pentru funcționalitatea de garanție
   const [warrantyInfo, setWarrantyInfo] = useState<any>(null)
@@ -516,6 +520,7 @@ export function QRCodeScanner({
   const handleScan = (detectedCodes: any[]) => {
     if (detectedCodes && detectedCodes.length > 0 && detectedCodes[0].rawValue) {
       console.log("QR Code detected:", detectedCodes[0].rawValue)
+      lastDetectedRawRef.current = String(detectedCodes[0].rawValue)
       setScanResult(detectedCodes[0].rawValue)
       setIsScanning(false) // Oprim starea de scanare când am detectat un QR code
       setGlobalTimeoutProgress(0) // Resetăm progresul
@@ -688,11 +693,70 @@ export function QRCodeScanner({
               <Camera className="mr-2 h-4 w-4" />
               Încearcă scanarea din nou
             </Button>
+            {failedScanAttempts >= 3 && (
+              <Button onClick={handleReportScanIssue} variant="destructive" className="w-full" disabled={reporting}>
+                {reporting ? (
+                  <>
+                    <Spinner className="mr-2 h-4 w-4" />
+                    Se raportează problema...
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle className="mr-2 h-4 w-4" />
+                    Raportează problema scanare
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         </div>
       )
     }
     return null
+  }
+
+  // Raportare problemă scanare pentru aprobare admin
+  const handleReportScanIssue = async () => {
+    try {
+      if (!workId) {
+        toast({ title: "Lipsă context lucrare", description: "ID-ul lucrării nu este disponibil.", variant: "destructive" })
+        return
+      }
+      setReporting(true)
+      const payload = {
+        lucrareId: workId,
+        expectedEquipmentCode: expectedEquipmentCode || null,
+        expectedClientName: expectedClientName || null,
+        expectedLocationName: expectedLocationName || null,
+        latestDetectedCodeRaw: lastDetectedRawRef.current,
+        failedScanAttempts,
+        device: {
+          isMobile,
+          userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
+          platform: typeof navigator !== "undefined" ? (navigator as any).platform : "",
+        },
+        cameraPermissionStatus,
+        scanError,
+        timeRemaining,
+      }
+      const res = await fetch("/api/scan-issues", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || "Eroare la trimiterea raportului")
+      }
+      toast({
+        title: "Raport trimis",
+        description: "Problema de scanare a fost raportată. Un administrator o poate aproba manual.",
+      })
+    } catch (e: any) {
+      toast({ title: "Eroare", description: e?.message || String(e), variant: "destructive" })
+    } finally {
+      setReporting(false)
+    }
   }
 
   // Renderăm formularul de introducere manuală a codului

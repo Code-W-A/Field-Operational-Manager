@@ -2237,6 +2237,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         expectedEquipmentCode={lucrare.echipamentCod}
                         expectedLocationName={lucrare.locatie}
                         expectedClientName={lucrare.client}
+                        workId={lucrare.id}
                         onScanSuccess={(data) => {
                           toast({
                             title: "Verificare reușită",

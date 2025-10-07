@@ -24,6 +24,12 @@ export default function AdminPage() {
       href: "/dashboard/admin/email-logs",
     },
     {
+      title: "Probleme scanare",
+      description: "Aprobați manual verificări raportate de tehnicieni",
+      icon: <FileCheck className="h-6 w-6" />,
+      href: "/dashboard/admin/scan-issues",
+    },
+    {
       title: "Administrare Contracte",
       description: "Gestionați contractele din sistem",
       icon: <FileCheck className="h-6 w-6" />,
