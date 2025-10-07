@@ -1549,22 +1549,24 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                           )}
                         </div>
                       </div>
-                      <div className="mb-2">
-                        <div className="font-medium mb-1">Email (client):</div>
-                        <div className="text-gray-500 flex items-center gap-2">
-                          {clientData.email || "N/A"}
-                          {clientData.email && (
-                            <a
-                              href={`mailto:${clientData.email}`}
-                              className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-gray-600 text-white hover:bg-gray-700 transition-colors"
-                              aria-label={`Scrie email către ${clientData.email}`}
-                              title={`Scrie email către ${clientData.email}`}
-                            >
-                              <Mail className="h-3 w-3" />
-                            </a>
-                          )}
-                        </div>
+                  <div className="mb-2">
+                    <div className="font-medium mb-1">Email (client):</div>
+                    <div className="text-gray-500">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="break-all">{clientData.email || "N/A"}</span>
+                        {clientData.email && (
+                          <a
+                            href={`mailto:${clientData.email}`}
+                            className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-gray-600 text-white hover:bg-gray-700 transition-colors flex-shrink-0"
+                            aria-label={`Scrie email către ${clientData.email}`}
+                            title={`Scrie email către ${clientData.email}`}
+                          >
+                            <Mail className="h-3 w-3" />
+                          </a>
+                        )}
                       </div>
+                    </div>
+                  </div>
                       <div className="mb-2">
                       <div className="font-medium mb-1">Reprezentant Firmă:</div>
                       <div className="text-gray-500">{clientData.reprezentantFirma || "N/A"}{clientData.functieReprezentant ? `, ${clientData.functieReprezentant}` : ""}</div>
@@ -1578,34 +1580,16 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               
                 </div>
                 <Separator className="my-4" />
-   {/* Rezumat statusuri – un singur rând, 4 coloane: titlu sus, valoare sub titlu */}
+   {/* Rezumat statusuri – un singur rând, 2 coloane: titlu sus, valoare sub titlu */}
    {role !== "tehnician" && (
-   <div className="mb-4 grid grid-cols-4 gap-4">
+   <div className="mb-4 grid grid-cols-2 gap-4">
                   <div className="min-w-0">
                     <div className="text-xs font-medium text-muted-foreground">Status lucrare</div>
                     <div className="mt-1"><Badge>{lucrare.statusLucrare}</Badge></div>
                   </div>
                   <div className="min-w-0">
-                    <div className="text-xs font-medium text-muted-foreground">Status ofertă</div>
-                    <div className="mt-1">
-                      <Badge variant="outline">
-                        {lucrare.statusOferta || (lucrare.necesitaOferta ? "DA" : "NU")}
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="min-w-0">
                     <div className="text-xs font-medium text-muted-foreground">Status facturare</div>
                     <div className="mt-1"><Badge variant="outline">{lucrare.statusFacturare}</Badge></div>
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-medium text-muted-foreground">Status preluare</div>
-                    <div className="mt-1">
-                      <Badge variant="outline">
-                        {isCompletedWithReport
-                          ? (lucrare.preluatDispecer ? `Preluat${lucrare.preluatDe ? ` de ${lucrare.preluatDe}` : ''}` : "Ne-preluat")
-                          : "N/A"}
-                      </Badge>
-                    </div>
                   </div>
                 </div>
    )}
@@ -1613,27 +1597,40 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 {/* Setări ofertă – disponibile pentru admin/dispecer indiferent de preluare sau status */}
                 {(role === "admin" || role === "dispecer") && (
                   <div className="p-4 border rounded-md bg-blue-50 border-blue-200 mb-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="h-6 w-6 rounded-full bg-blue-500 flex items-center justify-center">
-                        <span className="text-white text-sm font-bold">O</span>
+                    {/* Header cu titlu și status ofertă */}
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded-full bg-blue-500 flex items-center justify-center">
+                          <span className="text-white text-sm font-bold">O</span>
+                        </div>
+                        <h4 className="text-base font-semibold text-blue-900">Setări ofertă</h4>
                       </div>
-                      <h4 className="text-base font-semibold text-blue-900">Setări ofertă</h4>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-blue-800">Status ofertă:</span>
+                        <Badge variant="outline" className="bg-white">
+                          {lucrare.statusOferta || (lucrare.necesitaOferta ? "DA" : "NU")}
+                        </Badge>
+                      </div>
                     </div>
+
                     {!lucrare.preluatDispecer && (
-                          <div className="flex items-start gap-3 text-sm bg-gradient-to-r from-amber-50 to-orange-50 text-amber-800 border-l-4 border-amber-400 rounded-r-lg px-4 py-3 shadow-sm">
-                            <div className="flex-shrink-0">
-                              <AlertCircle className="h-4 w-4 text-amber-500" />
-                            </div>
-                            <div className="flex-1">
-                              <p className="font-medium text-amber-900">Editor indisponibil</p>
-                              <p className="text-amber-700 mt-1">Lucrarea trebuie preluată de dispecer/admin pentru a edita oferta.</p>
-                            </div>
-                          </div>
-                        )}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="necesitaOfertaSwitch" className={`text-xs font-medium ${!lucrare.preluatDispecer ? 'text-gray-500' : 'text-blue-800'}`}>Necesită ofertă</Label>
-                        <div className="flex items-center gap-3">
+                      <div className="flex items-start gap-3 text-sm bg-gradient-to-r from-amber-50 to-orange-50 text-amber-800 border-l-4 border-amber-400 rounded-r-lg px-4 py-3 shadow-sm mb-4">
+                        <div className="flex-shrink-0">
+                          <AlertCircle className="h-4 w-4 text-amber-500" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-amber-900">Editor indisponibil</p>
+                          <p className="text-amber-700 mt-1">Lucrarea trebuie preluată de dispecer/admin pentru a edita oferta.</p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="space-y-4">
+                      {/* Grid cu 2 coloane: Necesită ofertă și Editor ofertă */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Necesită ofertă - switch */}
+                        <div className="flex items-center justify-between md:justify-start md:gap-4">
+                          <Label htmlFor="necesitaOfertaSwitch" className={`text-sm font-medium ${!lucrare.preluatDispecer ? 'text-gray-500' : 'text-blue-800'}`}>Necesită ofertă</Label>
                           <Switch
                             id="necesitaOfertaSwitch"
                             checked={Boolean(lucrare.necesitaOferta)}
@@ -1663,44 +1660,12 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                             className={!lucrare.preluatDispecer ? 'opacity-50' : ''}
                           />
                         </div>
-                       
-                      </div>
-                      {lucrare.necesitaOferta && (
+
+                        {/* Editor ofertă - butoane */}
                         <div className="space-y-2">
-                          <Label className={`text-xs font-medium ${!lucrare.preluatDispecer ? 'text-gray-500' : 'text-blue-800'}`}>Status ofertă</Label>
-                          <select
-                            value={lucrare.statusOferta || "DA"}
-                            onChange={async (e) => {
-                              if (!lucrare.preluatDispecer) {
-                                toast({ title: 'Acțiune indisponibilă', description: 'Lucrarea trebuie preluată de dispecer/admin pentru a modifica statusul ofertei.', variant: 'destructive' })
-                                return
-                              }
-                              try {
-                                setIsUpdating(true)
-                                const newStatus = e.target.value as "DA" | "OFERTAT"
-                                await updateLucrare(lucrare.id!, { statusOferta: newStatus })
-                                setLucrare(prev => prev ? { ...prev, statusOferta: newStatus } : null)
-                                toast({ title: "Status actualizat", description: "Statusul ofertei a fost actualizat." })
-                              } catch (error) {
-                                console.error("Eroare la actualizarea statusului ofertei:", error)
-                                toast({ title: "Eroare", description: "Nu s-a putut actualiza statusul.", variant: "destructive" })
-                              } finally {
-                                setIsUpdating(false)
-                              }
-                            }}
-                            className={`w-full text-xs p-2 border rounded ${!lucrare.preluatDispecer ? 'border-gray-300 bg-gray-50 text-gray-500 cursor-not-allowed' : 'border-blue-300 bg-white'}`}
-                            disabled={isUpdating || !lucrare.preluatDispecer}
-                          >
-                            <option value="DA">DA - Necesită ofertă</option>
-                            <option value="OFERTAT">OFERTAT</option>
-                          </select>
-                          {/* Butonul manual 'Marchează OFERTAT' a fost ascuns. Statusul se setează automat la accept în portal. */}
-                        </div>
-                      )}
-                      {lucrare.necesitaOferta && (
-                        <div className="space-y-2">
-                          <Label className={`text-xs font-medium my-4 ${!lucrare.preluatDispecer ? 'text-gray-500' : 'text-blue-800'}`}>Editor ofertă</Label>
-                          <div className="flex flex-wrap gap-2">
+                          <Label className={`text-sm font-medium ${!lucrare.preluatDispecer || !lucrare.necesitaOferta ? 'text-gray-500' : 'text-blue-800'}`}>Editor ofertă</Label>
+                          {lucrare.necesitaOferta && (
+                            <div className="flex flex-wrap gap-2">
                             <Button
                               variant="outline"
                               size="sm"
@@ -1789,12 +1754,15 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                   Trimite ofertă
                                 </Button>
                             )} */}
-                          </div>
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
+
+                      {/* Comentarii ofertă */}
                       {lucrare.necesitaOferta && (
-                        <div className="space-y-2 md:col-span-3">
-                          <Label htmlFor="comentariiOferta" className={`text-xs font-medium ${!lucrare.preluatDispecer ? 'text-gray-500' : 'text-blue-800'}`}>Comentarii ofertă</Label>
+                        <div className="space-y-2">
+                          <Label htmlFor="comentariiOferta" className={`text-sm font-medium ${!lucrare.preluatDispecer ? 'text-gray-500' : 'text-blue-800'}`}>Comentarii ofertă</Label>
                           <Textarea
                             id="comentariiOferta"
                             value={lucrare.comentariiOferta || ""}
@@ -1826,7 +1794,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       )}
                       {/* Răspuns ofertă din portal (read-only) */}
                       {lucrare.offerResponse?.status && (
-                        <div className="md:col-span-3 p-3 rounded border bg-white">
+                        <div className="p-3 rounded border bg-white">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-xs font-medium text-blue-800">Răspuns ofertă (client)</span>
                             <Badge variant={lucrare.offerResponse.status === "accept" ? "default" : "destructive"}>
