@@ -256,7 +256,7 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
     })
   })
 
-  // Prepared by (author and date) above footer
+  // Prepared by (author and date) directly above footer separator (absolute positioning)
   try {
     const author = normalize(input.preparedBy || "")
     const when = (() => {
@@ -268,10 +268,9 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
       return `${dd}.${mm}.${yy}`
     })()
     const line = author ? `Intocmit de ${author} la data de ${when}` : `Intocmit la data de ${when}`
-    y += 6
+    const footerSepY = PH - 40
     doc.setFontSize(9).setTextColor(0)
-    doc.text(line, M, y)
-    y += 6
+    doc.text(line, M, footerSepY - 3)
   } catch {}
 
   // Footer separator line
