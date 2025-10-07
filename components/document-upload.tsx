@@ -277,16 +277,17 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
           {/* Vizualizarea documentului existent - mereu vizibilă */}
           {lucrare.facturaDocument && (
             <div className="p-3 border rounded-lg bg-green-50 border-green-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
                   <Check className="h-4 w-4 text-green-600" />
-                  <span className="text-sm font-medium">{lucrare.facturaDocument.fileName}</span>
+                  <span className="text-sm font-medium truncate">{lucrare.facturaDocument.fileName}</span>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2 justify-start sm:justify-end w-full sm:w-auto">
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => window.open(`/api/download?lucrareId=${encodeURIComponent(lucrareId)}&type=factura&url=${encodeURIComponent(lucrare.facturaDocument.url)}`, '_blank')}
+                    className="w-full sm:w-auto"
                   >
                     <Eye className="h-4 w-4 mr-1" />
                     Vizualizează
@@ -295,6 +296,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
                     size="sm"
                     variant="outline"
                     onClick={() => window.open(`/api/download?lucrareId=${encodeURIComponent(lucrareId)}&type=factura&url=${encodeURIComponent(lucrare.facturaDocument.url)}`, '_blank')}
+                    className="w-full sm:w-auto"
                   >
                     <Download className="h-4 w-4 mr-1" />
                     Descarcă
@@ -304,6 +306,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
                     variant="outline"
                     onClick={() => handleDeleteDocument('factura')}
                     disabled={!isWorkPickedUp}
+                    className="w-full sm:w-auto"
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
                     Șterge
@@ -364,16 +367,17 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
           {/* Vizualizarea documentului existent - mereu vizibilă */}
           {lucrare.ofertaDocument && (
             <div className="p-3 border rounded-lg bg-green-50 border-green-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
                   <Check className="h-4 w-4 text-green-600" />
-                  <span className="text-sm font-medium">{lucrare.ofertaDocument.fileName}</span>
+                  <span className="text-sm font-medium truncate">{lucrare.ofertaDocument.fileName}</span>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2 justify-start sm:justify-end w-full sm:w-auto">
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => window.open(`/api/download?lucrareId=${encodeURIComponent(lucrareId)}&type=oferta&url=${encodeURIComponent(lucrare.ofertaDocument.url)}`, '_blank')}
+                    className="w-full sm:w-auto"
                   >
                     <Eye className="h-4 w-4 mr-1" />
                     Vizualizează
@@ -382,6 +386,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
                     size="sm"
                     variant="outline"
                     onClick={() => window.open(`/api/download?lucrareId=${encodeURIComponent(lucrareId)}&type=oferta&url=${encodeURIComponent(lucrare.ofertaDocument.url)}`, '_blank')}
+                    className="w-full sm:w-auto"
                   >
                     <Download className="h-4 w-4 mr-1" />
                     Descarcă
@@ -391,6 +396,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
                     variant="outline"
                     onClick={() => handleDeleteDocument('oferta')}
                     disabled={!isWorkPickedUp}
+                    className="w-full sm:w-auto"
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
                     Șterge
