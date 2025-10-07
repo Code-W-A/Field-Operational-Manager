@@ -132,7 +132,7 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   y += 6
 
   // Products table
-  const headers = ["Servicii&Piese", "Cantitate", "Pret unitar", "Suma liniei"]
+  const headers = ["Servicii/Piese", "Cantitate", "Pret unitar", "Suma liniei"]
   const colW = [W - 20 - 24 - 28, 20, 24, 28]
   const xPos: number[] = [M]
   for (let i = 0; i < colW.length; i++) xPos.push(xPos[i] + colW[i])
@@ -154,6 +154,9 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
     }
   })
   y += 7
+  // Top border line above first table row (match footer separator thickness/color)
+  doc.setDrawColor(209, 213, 219).setLineWidth(0.2)
+  doc.line(M, y, M + W, y)
   doc.setTextColor(0) // reset to black for body
 
   // Rows (only horizontal lines)
@@ -176,7 +179,8 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
     doc.text(`${r.price.toLocaleString("ro-RO")}`, xPos[2] + colW[2] - 1, y + 5, { align: "right" })
     doc.text(`${r.total.toLocaleString("ro-RO")}`, xPos[3] + colW[3] - 1, y + 5, { align: "right" })
     y += cellH
-    doc.setDrawColor(0, 0, 0).setLineWidth(0.5)
+    // Row separator (match footer separator thickness/color)
+    doc.setDrawColor(209, 213, 219).setLineWidth(0.2)
     doc.line(M, y, M + W, y)
     subtotal += r.total
   })
@@ -252,6 +256,24 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
     })
   })
 
+  // Prepared by (author and date) above footer
+  try {
+    const author = normalize(input.preparedBy || "")
+    const when = (() => {
+      if (input.preparedAt) return normalize(input.preparedAt)
+      const d = new Date()
+      const dd = String(d.getDate()).padStart(2, '0')
+      const mm = String(d.getMonth() + 1).padStart(2, '0')
+      const yy = String(d.getFullYear())
+      return `${dd}.${mm}.${yy}`
+    })()
+    const line = author ? `Intocmit de ${author} la data de ${when}` : `Intocmit la data de ${when}`
+    y += 6
+    doc.setFontSize(9).setTextColor(0)
+    doc.text(line, M, y)
+    y += 6
+  } catch {}
+
   // Footer separator line
   doc.setDrawColor(209, 213, 219)
   doc.line(M, PH - 40, M + W, PH - 40)
@@ -290,21 +312,7 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   renderColumn(footerMid, footerColX[1])
   renderColumn(footerRight, footerColX[2])
 
-  // Prepared by line (author and date) at the very end
-  try {
-    const author = normalize(input.preparedBy || "")
-    const when = ((): string => {
-      if (input.preparedAt) return normalize(input.preparedAt)
-      const d = new Date()
-      const dd = String(d.getDate()).padStart(2, '0')
-      const mm = String(d.getMonth() + 1).padStart(2, '0')
-      const yy = String(d.getFullYear())
-      return `${dd}.${mm}.${yy}`
-    })()
-    const line = author ? `Intocmit de ${author} la data ${when}` : `Intocmit la data ${when}`
-    doc.setFontSize(8).setTextColor(0)
-    doc.text(line, M, PH - 8)
-  } catch {}
+  
 
   const blob = doc.output("blob")
   return blob

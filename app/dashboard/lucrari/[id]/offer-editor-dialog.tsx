@@ -29,6 +29,7 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
   const [viewIndex, setViewIndex] = useState<number | null>(null)
   const [vatPercent, setVatPercent] = useState<number>(21)
   const [adjustmentPercent, setAdjustmentPercent] = useState<number>(0)
+  const [adjustmentInput, setAdjustmentInput] = useState<string>("")
   const [isPickedUp, setIsPickedUp] = useState<boolean>(true)
   const [statusOferta, setStatusOferta] = useState<string | undefined>(undefined)
   const [editingNewVersion, setEditingNewVersion] = useState(false)
@@ -107,6 +108,7 @@ useEffect(() => {
         const rawAdj = (current as any)?.offerAdjustmentPercent
         const nextAdj = (typeof rawAdj === 'number') ? Number(rawAdj) : 0
         setAdjustmentPercent(nextAdj)
+        setAdjustmentInput(String(nextAdj))
       }
       // Initialize dynamic terms from existing conditiiOferta if present
       try {
@@ -242,11 +244,12 @@ useEffect(() => {
         `Livrare: ${termsDelivery}`,
         `Instalare: ${termsInstallation}`,
       ]
+      const adjToSave = (() => { const n = parseFloat(String(adjustmentInput).replace(',', '.')); return isNaN(n) ? 0 : n })()
       await updateLucrare(lucrareId, {
         products,
         offerTotal: total,
         offerVAT: Number(vatPercent) || 0,
-        offerAdjustmentPercent: Number(adjustmentPercent) || 0,
+        offerAdjustmentPercent: adjToSave,
         offerVersions: newVersions as any,
         conditiiOferta: conditiiOferta as any,
       } as any)
@@ -490,10 +493,16 @@ useEffect(() => {
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">Ajustare (%)</label>
                   <input
-                    type="number"
-                    step="0.1"
-                    value={adjustmentPercent}
-                    onChange={(e) => setAdjustmentPercent(Number(e.target.value))}
+                    type="text"
+                    inputMode="decimal"
+                    value={adjustmentInput}
+                    onChange={(e) => setAdjustmentInput(e.target.value)}
+                    onBlur={() => {
+                      const n = parseFloat(String(adjustmentInput).replace(',', '.'))
+                      const safe = isNaN(n) ? 0 : n
+                      setAdjustmentPercent(safe)
+                      setAdjustmentInput(String(safe))
+                    }}
                     className="w-full border rounded px-2 py-1 text-sm"
                     disabled={effectiveDisabled}
                     placeholder="ex: 5"
