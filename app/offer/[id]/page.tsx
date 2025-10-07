@@ -137,6 +137,10 @@ export default function OfferActionPage() {
                     : undefined,
                   equipmentName: String((fresh as any)?.echipament || ''),
                   locationName: String((fresh as any)?.locatie || ''),
+                  preparedBy: String((fresh as any)?.offerPreparedBy || (fresh as any)?.updatedByName || (fresh as any)?.createdByName || ''),
+                  preparedAt: ((fresh as any)?.offerPreparedAt ? (() => {
+                    try { const d = (fresh as any).offerPreparedAt?.toDate ? (fresh as any).offerPreparedAt.toDate() : new Date((fresh as any).offerPreparedAt); return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}` } catch { return new Date().toISOString().slice(0,10).split('-').reverse().join('.') }
+                  })() : new Date().toISOString().slice(0,10).split('-').reverse().join('.')),
                   beneficiar: {
                     name: String((fresh as any)?.client || (fresh as any)?.clientInfo?.nume || ''),
                     cui: String((fresh as any)?.clientInfo?.cui || ''),

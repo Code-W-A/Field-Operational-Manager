@@ -413,8 +413,12 @@ useEffect(() => {
         throw new Error(err?.error || `Cerere invalidă (${resp.status})`)
       }
   
-      // marchează ca ofertat
-      await updateLucrare(lucrareId, { statusOferta: "OFERTAT" } as any)
+      // marchează ca ofertat și salvează autorul/datele pregătirii ofertei
+      await updateLucrare(lucrareId, {
+        statusOferta: "OFERTAT",
+        offerPreparedBy: userData?.displayName || userData?.email || "—",
+        offerPreparedAt: new Date(),
+      } as any)
       setStatusOferta("OFERTAT")
       setCanSendOffer(false)
       toast({ title: 'Ofertă trimisă', description: `S-a trimis oferta la: ${recipient}` })

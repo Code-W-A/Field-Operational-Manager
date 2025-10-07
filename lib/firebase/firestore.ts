@@ -72,6 +72,8 @@ export interface Lucrare {
   offerTotal?: number
   offerAdjustmentPercent?: number
   offerSendCount?: number
+  offerPreparedBy?: string
+  offerPreparedAt?: any
   offerVersions?: Array<{
     savedAt: any
     savedBy?: string
