@@ -995,31 +995,31 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-sm flex flex-wrap items-center gap-x-6 gap-y-3 mt-4">
-                  <div className="flex items-center gap-2">
-                    <div className="font-medium">Data emiterii:</div>
-                    <div className="text-gray-500">{String(lucrare.dataEmiterii || "").split(" ")[0]}</div>
+                <div className="text-sm flex flex-wrap items-start gap-x-6 gap-y-3 mt-4">
+                  <div className="flex flex-col min-w-[160px]">
+                    <div className="text-xs font-medium text-muted-foreground">Data emiterii:</div>
+                    <div className="text-gray-900 whitespace-nowrap">{String(lucrare.dataEmiterii || "").split(" ")[0]}</div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="font-medium">Data intervenție:</div>
-                    <div className="text-gray-500">{String(lucrare.dataInterventie || "").split(" ")[0]}</div>
+                  <div className="flex flex-col min-w-[160px]">
+                    <div className="text-xs font-medium text-muted-foreground">Data intervenție:</div>
+                    <div className="text-gray-900 whitespace-nowrap">{String(lucrare.dataInterventie || "").split(" ")[0]}</div>
                   </div>
                   {lucrare.timpSosire && (
-                    <div className="flex items-center gap-2">
-                      <div className="font-medium">Sosire la locație:</div>
-                      <div className="text-gray-500">{lucrare.dataSosire} {lucrare.oraSosire}</div>
+                    <div className="flex flex-col min-w-[200px]">
+                      <div className="text-xs font-medium text-muted-foreground">Sosire la locație:</div>
+                      <div className="text-gray-900 whitespace-nowrap">{lucrare.dataSosire} {lucrare.oraSosire}</div>
                     </div>
                   )}
                   {lucrare.timpPlecare && (
-                    <div className="flex items-center gap-2">
-                      <div className="font-medium">Plecare de la locație:</div>
-                      <div className="text-gray-500">{lucrare.dataPlecare} {lucrare.oraPlecare}</div>
+                    <div className="flex flex-col min-w-[200px]">
+                      <div className="text-xs font-medium text-muted-foreground">Plecare de la locație:</div>
+                      <div className="text-gray-900 whitespace-nowrap">{lucrare.dataPlecare} {lucrare.oraPlecare}</div>
                     </div>
                   )}
                   {lucrare.timpSosire && lucrare.timpPlecare && (
-                    <div className="flex items-center gap-2">
-                      <div className="font-medium">Durata intervenție:</div>
-                      <div className="text-gray-500">{lucrare.durataInterventie || calculateDuration(lucrare.timpSosire, lucrare.timpPlecare)}</div>
+                    <div className="flex flex-col min-w-[140px]">
+                      <div className="text-xs font-medium text-muted-foreground">Durata intervenție:</div>
+                      <div className="text-gray-900 whitespace-nowrap">{lucrare.durataInterventie || calculateDuration(lucrare.timpSosire, lucrare.timpPlecare)}</div>
                     </div>
                   )}
                 </div>
@@ -1027,9 +1027,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 {/* Linie de separare */}
                 <Separator className="my-4" />
 
-                {/* Tehnicieni asignați – badge-uri pe un singur rând, cu wrap */}
-                <div className="mt-4 text-base mb-4 w-full">
-                  <div className="font-semibold mb-2">Tehnicieni asignați:</div>
+                {/* Tehnicieni asignați – etichetă și valori pe același rând */}
+                <div className="mt-4 text-base mb-4 w-full flex items-center flex-wrap gap-2">
+                  <span className="font-semibold">Tehnicieni asignați:</span>
                   <div className="flex flex-wrap gap-2">
                     {lucrare.tehnicieni.map((tehnician, index) => (
                       <Badge key={index} variant="secondary" className="text-base px-4 py-2 rounded-md">
