@@ -724,7 +724,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 {lucrare.numarRaport}
               </Badge>
             )}
-            -
+            {" - "}
             {lucrare.tipLucrare}
           </span>
         } 
@@ -1472,21 +1472,21 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               </CardHeader>
               <CardContent>
              
-                <div className="text-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-3">
-                  <div className="mb-2">
-                    <div className="font-medium mb-1">Client:</div>
-                    <div className="text-gray-500">{lucrare.client}</div>
+                <div className="text-sm flex flex-wrap items-start gap-x-3 gap-y-2">
+                  <div className="flex flex-col min-w-[200px]">
+                    <div className="text-xs font-medium text-muted-foreground">Client:</div>
+                    <div className="text-gray-900 whitespace-nowrap">{lucrare.client}</div>
                   </div>
                   {clientData && (
                     <>
-                      <div className="mb-2">
-                        <div className="font-medium mb-1">Telefon Principal:</div>
-                        <div className="text-gray-500 flex items-center gap-2">
+                      <div className="flex flex-col min-w-[170px]">
+                        <div className="text-xs font-medium text-muted-foreground">Telefon Principal:</div>
+                        <div className="text-gray-900 whitespace-nowrap flex items-center gap-2">
                           {clientData.telefon || "N/A"}
                           {clientData.telefon && (
                             <a
                               href={`tel:${formatPhoneForCall(clientData.telefon)}`}
-                              className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                              className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-colors"
                               aria-label={`Apelează ${clientData.telefon}`}
                               title={`Apelează ${clientData.telefon}`}
                             >
@@ -1495,63 +1495,65 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                           )}
                         </div>
                       </div>
-                  <div className="mb-2">
-                    <div className="font-medium mb-1">Email (client):</div>
-                    <div className="text-gray-500">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="break-all">{clientData.email || "N/A"}</span>
-                        {clientData.email && (
-                          <a
-                            href={`mailto:${clientData.email}`}
-                            className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-gray-600 text-white hover:bg-gray-700 transition-colors flex-shrink-0"
-                            aria-label={`Scrie email către ${clientData.email}`}
-                            title={`Scrie email către ${clientData.email}`}
-                          >
-                            <Mail className="h-3 w-3" />
-                          </a>
-                        )}
+                      <div className="flex flex-col min-w-[220px]">
+                        <div className="text-xs font-medium text-muted-foreground">Email (client):</div>
+                        <div className="text-gray-900 whitespace-nowrap flex items-center gap-2">
+                          <span className="truncate max-w-[220px]" title={clientData.email || "N/A"}>{clientData.email || "N/A"}</span>
+                          {clientData.email && (
+                            <a
+                              href={`mailto:${clientData.email}`}
+                              className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-gray-600 text-white hover:bg-gray-700 transition-colors flex-shrink-0"
+                              aria-label={`Scrie email către ${clientData.email}`}
+                              title={`Scrie email către ${clientData.email}`}
+                            >
+                              <Mail className="h-3 w-3" />
+                            </a>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                      <div className="mb-2">
-                      <div className="font-medium mb-1">Reprezentant Firmă:</div>
-                      <div className="text-gray-500">{clientData.reprezentantFirma || "N/A"}{clientData.functieReprezentant ? `, ${clientData.functieReprezentant}` : ""}</div>
+                      <div className="flex flex-col min-w-[180px]">
+                        <div className="text-xs font-medium text-muted-foreground">Reprezentant Firmă:</div>
+                        <div className="text-gray-900 whitespace-nowrap">{clientData.reprezentantFirma || "N/A"}{clientData.functieReprezentant ? `, ${clientData.functieReprezentant}` : ""}</div>
                       </div>
-                      <div className="mb-2">
-                        <div className="font-medium mb-1">CUI/CIF:</div>
-                        <div className="text-gray-500">{(clientData as any)?.cif || "N/A"}</div>
+                      <div className="flex flex-col min-w-[140px]">
+                        <div className="text-xs font-medium text-muted-foreground">CUI/CIF:</div>
+                        <div className="text-gray-900 whitespace-nowrap">{(clientData as any)?.cif || "N/A"}</div>
                       </div>
                     </>
                   )}
-              
                 </div>
                 <Separator className="my-4" />
-  {/* Rezumat statusuri – facturare, preluare, lucrare */}
+  {/* Rezumat statusuri – lucrare, preluare, ofertare, facturare (etichetă deasupra valorii) */}
   {role !== "tehnician" && (
     <div className="mb-4">
-      <div className="text-xs font-medium text-muted-foreground mb-1">Statusuri</div>
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Facturare:</span>
-          <Badge variant="outline" className="rounded-md">{lucrare.statusFacturare}</Badge>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Preluare:</span>
-          <Badge 
-            variant="outline" 
-            className={lucrare.preluatDispecer 
-              ? "bg-green-50 text-green-700 border-green-300 px-3 py-1 rounded-md" 
-              : "bg-yellow-50 text-yellow-700 border-yellow-300 px-3 py-1 rounded-md"
-            }
-          >
-            {lucrare.preluatDispecer 
-              ? `Preluat de ${lucrare.preluatDe || 'Dispecer'}` 
-              : "Ne-preluat"}
-          </Badge>
-        </div>
-        <div className="flex items-center gap-2">
+      <div className="text-base font-semibold mb-2">Statusuri</div>
+      <div className="flex flex-wrap items-start gap-x-6 gap-y-2">
+        <div className="flex flex-col min-w-[140px]">
           <span className="text-xs text-muted-foreground">Lucrare:</span>
-          <Badge className="rounded-md">{lucrare.statusLucrare}</Badge>
+          <span className="mt-0.5"><Badge className="rounded-md">{lucrare.statusLucrare}</Badge></span>
+        </div>
+        <div className="flex flex-col min-w-[160px]">
+          <span className="text-xs text-muted-foreground">Preluare:</span>
+          <span className="mt-0.5">
+            <Badge 
+              variant="outline" 
+              className={lucrare.preluatDispecer 
+                ? "bg-green-50 text-green-700 border-green-300 px-3 py-1 rounded-md" 
+                : "bg-yellow-50 text-yellow-700 border-yellow-300 px-3 py-1 rounded-md"}
+            >
+              {lucrare.preluatDispecer 
+                ? `Preluat de ${lucrare.preluatDe || 'Dispecer'}` 
+                : "Ne-preluat"}
+            </Badge>
+          </span>
+        </div>
+        <div className="flex flex-col min-w-[150px]">
+          <span className="text-xs text-muted-foreground">Ofertare:</span>
+          <span className="mt-0.5"><Badge variant="outline" className="rounded-md">{lucrare.statusOferta || (lucrare.necesitaOferta ? "DA" : "NU")}</Badge></span>
+        </div>
+        <div className="flex flex-col min-w-[140px]">
+          <span className="text-xs text-muted-foreground">Facturare:</span>
+          <span className="mt-0.5"><Badge variant="outline" className="rounded-md">{lucrare.statusFacturare}</Badge></span>
         </div>
       </div>
     </div>
