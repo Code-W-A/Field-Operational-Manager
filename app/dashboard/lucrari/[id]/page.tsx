@@ -1344,22 +1344,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                     </div>
                   )}
 
-                  {/* Notă internă */}
-                  {lucrare.descriere && (
-                    <div>
-                      <p className="text-base font-semibold mb-3">Notă internă:</p>
-                      <div className="space-y-2">
-                        <div>
-                          <span className="font-semibold text-base">Dispecer:</span>{" "}
-                          <span className="text-base text-gray-600">{lucrare.descriere}</span>
-                        </div>
-                        <div>
-                          <span className="font-semibold text-base">Tehnician:</span>{" "}
-                          <span className="text-base text-gray-600">{lucrare.descriere}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+               
                 </div>
 
                 {/* Separator după secțiunile de detalii */}
@@ -1368,10 +1353,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 {/* Afișăm numărul raportului dacă a fost generat */}
                 {lucrare.raportGenerat && lucrare.numarRaport && (
                   <div className="mt-2">
-                    <p className="text-sm font-medium">Număr raport generat:</p>
-                    <p className="text-sm font-medium text-purple-800 bg-purple-50 px-2 py-1 rounded border border-purple-200 inline-block">
-                      {lucrare.numarRaport}
-                    </p>
+              
                     {/* Afișare Notă internă: Dispecer/Tehnician */}
                     {(lucrare.descriere || lucrare.notaInternaTehnician) && (
                       <div className="mt-4">
