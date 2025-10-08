@@ -995,29 +995,29 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-sm flex flex-wrap items-start gap-x-6 gap-y-3 mt-4">
-                  <div className="flex flex-col min-w-[160px]">
+                <div className="text-sm flex flex-wrap items-start gap-x-3 gap-y-2 mt-4">
+                  <div className="flex flex-col min-w-[140px]">
                     <div className="text-xs font-medium text-muted-foreground">Data emiterii:</div>
                     <div className="text-gray-900 whitespace-nowrap">{String(lucrare.dataEmiterii || "").split(" ")[0]}</div>
                   </div>
-                  <div className="flex flex-col min-w-[160px]">
+                  <div className="flex flex-col min-w-[140px]">
                     <div className="text-xs font-medium text-muted-foreground">Data intervenție:</div>
                     <div className="text-gray-900 whitespace-nowrap">{String(lucrare.dataInterventie || "").split(" ")[0]}</div>
                   </div>
                   {lucrare.timpSosire && (
-                    <div className="flex flex-col min-w-[200px]">
+                    <div className="flex flex-col min-w-[160px]">
                       <div className="text-xs font-medium text-muted-foreground">Sosire la locație:</div>
                       <div className="text-gray-900 whitespace-nowrap">{lucrare.dataSosire} {lucrare.oraSosire}</div>
                     </div>
                   )}
                   {lucrare.timpPlecare && (
-                    <div className="flex flex-col min-w-[200px]">
+                    <div className="flex flex-col min-w-[160px]">
                       <div className="text-xs font-medium text-muted-foreground">Plecare de la locație:</div>
                       <div className="text-gray-900 whitespace-nowrap">{lucrare.dataPlecare} {lucrare.oraPlecare}</div>
                     </div>
                   )}
                   {lucrare.timpSosire && lucrare.timpPlecare && (
-                    <div className="flex flex-col min-w-[140px]">
+                    <div className="flex flex-col min-w-[120px]">
                       <div className="text-xs font-medium text-muted-foreground">Durata intervenție:</div>
                       <div className="text-gray-900 whitespace-nowrap">{lucrare.durataInterventie || calculateDuration(lucrare.timpSosire, lucrare.timpPlecare)}</div>
                     </div>
