@@ -235,8 +235,8 @@ export async function POST(request: NextRequest) {
     // Prepare email content for technicians - include all details and rename "Descriere" to "Sfaturi pt tehnician"
     const technicianWorkOrderInfo = `
       <ul style="list-style-type: none; padding-left: 0;">
-        <li><strong>Data emiterii:</strong> ${details?.issueDate || "N/A"}</li>
-        <li><strong>Data intervenție:</strong> ${details?.interventionDate || "N/A"}</li>
+        <li><strong>Data emiterii:</strong> ${(details?.issueDate || "N/A").split(' ')[0]}</li>
+        <li><strong>Data intervenție:</strong> ${(details?.interventionDate || "N/A").split(' ')[0]}</li>
         <li><strong>Tip lucrare:</strong> ${details?.workType || "N/A"}</li>
         <li><strong>Locație:</strong> ${details?.location || "N/A"}</li>
         <li><strong>Echipament:</strong> ${details?.equipment || "N/A"}</li>
@@ -278,14 +278,14 @@ export async function POST(request: NextRequest) {
       </div>
       <ul style="list-style-type: none; padding-left: 0;">
         <li><strong>Locație:</strong> ${details?.location || "N/A"}</li>
-        ${details?.interventionDate ? `<li><strong>Data intervenție:</strong> ${details.interventionDate}</li>` : ''}
+        ${details?.interventionDate ? `<li><strong>Data intervenție:</strong> ${(details.interventionDate || '').split(' ')[0]}</li>` : ''}
         ${details?.workType ? `<li><strong>Tip lucrare:</strong> ${details.workType}</li>` : ''}
       </ul>
     `
       : `
       <ul style="list-style-type: none; padding-left: 0;">
-        <li><strong>Data emiterii:</strong> ${details?.issueDate || "N/A"}</li>
-        <li><strong>Data intervenție:</strong> ${details?.interventionDate || "N/A"}</li>
+        <li><strong>Data emiterii:</strong> ${(details?.issueDate || "N/A").split(' ')[0]}</li>
+        <li><strong>Data intervenție:</strong> ${(details?.interventionDate || "N/A").split(' ')[0]}</li>
         <li><strong>Tip lucrare:</strong> ${details?.workType || "N/A"}</li>
         <li><strong>Locație:</strong> ${details?.location || "N/A"}</li>
         <li><strong>Status:</strong> ${details?.status || "N/A"}</li>

@@ -422,13 +422,13 @@ export default function RaportPage({ params }: { params: { id: string } }) {
             formData.append("to", emailInfo.email)
             formData.append(
               "subject",
-              `Raport Interventie - ${updatedLucrare.client || "Client"} - ${updatedLucrare.dataInterventie || "Data"}`,
+              `Raport Interventie - ${updatedLucrare.client || "Client"} - ${String(updatedLucrare.dataInterventie || "Data").split(' ')[0]}`,
             )
             formData.append(
               "message",
               `Stimata/Stimate ${updatedLucrare.persoanaContact || "Client"},
 
-Va transmitem atasat raportul de interventie pentru lucrarea efectuata in data de ${updatedLucrare.dataInterventie || "N/A"}.
+Va transmitem atasat raportul de interventie pentru lucrarea efectuata in data de ${String(updatedLucrare.dataInterventie || "N/A").split(' ')[0]}.
 
 Cu stima,
 FOM by NRG`,

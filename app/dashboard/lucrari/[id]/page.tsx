@@ -720,14 +720,15 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           <span className="flex items-center gap-2">
             Lucrare: 
             {lucrare.numarRaport && (
-              <Badge className="bg-purple-100 text-purple-800 border border-purple-200 hover:bg-purple-100 text-base font-semibold px-3 py-1">
+              <Badge className="bg-purple-100 text-purple-800 border border-purple-200 hover:bg-purple-100 text-base font-semibold px-3 py-1 rounded-md">
                 {lucrare.numarRaport}
               </Badge>
             )}
+            -
             {lucrare.tipLucrare}
           </span>
         } 
-        text={`Client: ${lucrare.client}`}
+        // text={`Client: ${lucrare.client}`}
       >
         <div className="flex flex-col sm:flex-row gap-2">
           <Button variant="outline" onClick={() => router.push(fromArhivate ? "/dashboard/arhivate" : "/dashboard/lucrari")}>
@@ -909,28 +910,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         </Alert>
       )}
 
-      {/* Adăugăm un banner pentru admin/dispecer care arată starea de preluare */}
-      {isAdminOrDispatcher && (isCompletedWithReport || lucrare.statusLucrare === WORK_STATUS.POSTPONED) && (
-        <Alert
-          variant="default"
-          className={`mb-4 ${lucrare.preluatDispecer ? "bg-green-50 border-green-200" : "bg-yellow-50 border-yellow-200"}`}
-        >
-          {lucrare.preluatDispecer ? (
-            <CheckCircle className="h-4 w-4 text-green-500" />
-          ) : (
-            <AlertCircle className="h-4 w-4 text-yellow-500" />
-          )}
-          <AlertTitle>{lucrare.preluatDispecer ? "Lucrare preluată" : (lucrare.statusLucrare === WORK_STATUS.POSTPONED ? "Lucrare amânată" : "Lucrare în așteptare")}</AlertTitle>
-          <AlertDescription>
-            {lucrare.preluatDispecer
-              ? `Această lucrare a fost preluată de dispecer${lucrare.preluatDe ? ` (${lucrare.preluatDe})` : ""} și nu mai este vizibilă pentru tehnician.`
-              : (lucrare.statusLucrare === WORK_STATUS.POSTPONED
-                  ? "Această lucrare este amânată și în așteptare de preluare de către dispecer."
-                  : "Această lucrare nu a fost încă preluată de dispecer și este încă vizibilă pentru tehnician.")}
-          </AlertDescription>
-        </Alert>
-      )}
-
+    
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList
           className="inline-flex w-full flex-wrap gap-2 h-auto
@@ -1015,87 +995,49 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-sm grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-4 gap-y-3 mt-4">
-                  <div className="mb-2">
-                    <div className="font-medium mb-1">Status lucrare:</div>
-                    <div><Badge>{lucrare.statusLucrare}</Badge></div>
+                <div className="text-sm flex flex-wrap items-center gap-x-6 gap-y-3 mt-4">
+                  <div className="flex items-center gap-2">
+                    <div className="font-medium">Data emiterii:</div>
+                    <div className="text-gray-500">{String(lucrare.dataEmiterii || "").split(" ")[0]}</div>
                   </div>
-                  <div className="mb-2">
-                    <div className="font-medium mb-1">Data emiterii:</div>
-                    <div className="text-gray-500">{lucrare.dataEmiterii}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="font-medium">Data intervenție:</div>
+                    <div className="text-gray-500">{String(lucrare.dataInterventie || "").split(" ")[0]}</div>
                   </div>
-                  <div className="mb-2">
-                    <div className="font-medium mb-1">Data intervenție:</div>
-                    <div className="text-gray-500">{lucrare.dataInterventie}</div>
-                </div>
-                {lucrare.timpSosire && (
-                    <div className="mb-2">
-                      <div className="font-medium mb-1">Sosire la locație:</div>
+                  {lucrare.timpSosire && (
+                    <div className="flex items-center gap-2">
+                      <div className="font-medium">Sosire la locație:</div>
                       <div className="text-gray-500">{lucrare.dataSosire} {lucrare.oraSosire}</div>
-                  </div>
-                )}
-                {lucrare.timpPlecare && (
-                    <div className="mb-2">
-                      <div className="font-medium mb-1">Plecare de la locație:</div>
+                    </div>
+                  )}
+                  {lucrare.timpPlecare && (
+                    <div className="flex items-center gap-2">
+                      <div className="font-medium">Plecare de la locație:</div>
                       <div className="text-gray-500">{lucrare.dataPlecare} {lucrare.oraPlecare}</div>
-                  </div>
-                )}
-                {lucrare.timpSosire && lucrare.timpPlecare && (
-                    <div className="mb-2">
-                      <div className="font-medium mb-1">Durata intervenție:</div>
-                      <div className="text-gray-500">
-                      {lucrare.durataInterventie || calculateDuration(lucrare.timpSosire, lucrare.timpPlecare)}
-                      </div>
-                  </div>
-                )}
-                  <div className="mb-2">
-                    <div className="font-medium mb-1">Tip lucrare:</div>
-                    <div className="text-gray-500">{lucrare.tipLucrare}</div>
-                </div>
-                {lucrare.tipLucrare === "Intervenție în contract" && (
-                    <div className="mb-2">
-                      <div className="font-medium mb-1">Contract:</div>
-                      <div className="text-gray-500">
-                    <ContractDisplay contractId={lucrare.contract} />
-                      </div>
-                  </div>
-                )}
+                    </div>
+                  )}
+                  {lucrare.timpSosire && lucrare.timpPlecare && (
+                    <div className="flex items-center gap-2">
+                      <div className="font-medium">Durata intervenție:</div>
+                      <div className="text-gray-500">{lucrare.durataInterventie || calculateDuration(lucrare.timpSosire, lucrare.timpPlecare)}</div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Linie de separare */}
                 <Separator className="my-4" />
 
-                {/* Tehnicieni asignați – mutat aici din cardul "Informații client" pentru a păstra layout-ul dorit */}
-                <div className="mt-4 text-base flex flex-wrap gap-y-3 items-center mb-4">
-                  <span className="font-semibold mr-3">Tehnicieni asignați:</span>
-                  <div className="flex flex-wrap gap-3">
+                {/* Tehnicieni asignați – badge-uri pe un singur rând, cu wrap */}
+                <div className="mt-4 text-base mb-4 w-full">
+                  <div className="font-semibold mb-2">Tehnicieni asignați:</div>
+                  <div className="flex flex-wrap gap-2">
                     {lucrare.tehnicieni.map((tehnician, index) => (
-                      <Badge key={index} variant="secondary" className="text-base px-4 py-2 font-semibold">
+                      <Badge key={index} variant="secondary" className="text-base px-4 py-2 rounded-md">
                         {tehnician}
                       </Badge>
                     ))}
                   </div>
-                  
-                  {/* Badge status preluare */}
-                  {isCompletedWithReport && (
-                    <>
-                      <Separator orientation="vertical" className="h-6 mx-2" />
-                      <span className="font-semibold mr-2 text-gray-600">Status preluare:</span>
-                      <Badge 
-                        variant="outline" 
-                        className={lucrare.preluatDispecer 
-                          ? "bg-green-50 text-green-700 border-green-300 px-3 py-1" 
-                          : "bg-yellow-50 text-yellow-700 border-yellow-300 px-3 py-1"
-                        }
-                      >
-                        {lucrare.preluatDispecer 
-                          ? `Preluat de ${lucrare.preluatDe || 'Dispecer'}` 
-                          : "Ne-preluat"
-                        }
-                      </Badge>
-                    </>
-                  )}
-                  </div>
+                </div>
 
                 {/* Afișăm mesajul de reatribuire dacă există */}
                 {lucrare.mesajReatribuire && (
@@ -1219,7 +1161,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                 <div className="flex items-center gap-2 text-sm">
                                   <Badge 
                                     variant="outline" 
-                                    className="text-xs bg-blue-100 text-blue-800 border-blue-300"
+                                    className="text-xs bg-blue-100 text-blue-800 border-blue-300 rounded-md"
                                   >
                                     {reinterventie.statusLucrare}
                                   </Badge>
@@ -1460,7 +1402,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         <span className="text-white text-xs font-bold">G</span>
                       </div>
                       <h4 className="text-sm font-medium text-blue-900">Informații Garanție Echipament</h4>
-                      <Badge className={warrantyInfo.statusBadgeClass}>
+                      <Badge className={warrantyInfo.statusBadgeClass + " rounded-md"}>
                         {warrantyInfo.statusText}
                       </Badge>
                     </div>
@@ -1471,7 +1413,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       <div className="grid grid-cols-2 gap-2 text-xs">
                           <div>
                           <span className="text-gray-600">Status:</span>
-                          <Badge className={warrantyInfo.statusBadgeClass + " ml-1"}>
+                          <Badge className={warrantyInfo.statusBadgeClass + " ml-1 rounded-md"}>
                             {warrantyInfo.statusText}
                           </Badge>
                           </div>
@@ -1502,8 +1444,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                           </span>
                           <Badge 
                             className={lucrare.tehnicianConfirmaGarantie 
-                              ? "bg-green-100 text-green-800 border-green-200" 
-                              : "bg-red-100 text-red-800 border-red-200"
+                              ? "bg-green-100 text-green-800 border-green-200 rounded-md" 
+                              : "bg-red-100 text-red-800 border-red-200 rounded-md"
                             }
                           >
                             {lucrare.tehnicianConfirmaGarantie ? "✓ Confirmă garanția" : "✗ Nu confirmă garanția"}
@@ -1584,15 +1526,36 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               
                 </div>
                 <Separator className="my-4" />
-   {/* Rezumat statusuri – doar status facturare */}
-   {role !== "tehnician" && (
-   <div className="mb-4">
-                  <div className="min-w-0">
-                    <div className="text-xs font-medium text-muted-foreground">Status facturare</div>
-                    <div className="mt-1"><Badge variant="outline">{lucrare.statusFacturare}</Badge></div>
-                  </div>
-                </div>
-   )}
+  {/* Rezumat statusuri – facturare, preluare, lucrare */}
+  {role !== "tehnician" && (
+    <div className="mb-4">
+      <div className="text-xs font-medium text-muted-foreground mb-1">Statusuri</div>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Facturare:</span>
+          <Badge variant="outline" className="rounded-md">{lucrare.statusFacturare}</Badge>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Preluare:</span>
+          <Badge 
+            variant="outline" 
+            className={lucrare.preluatDispecer 
+              ? "bg-green-50 text-green-700 border-green-300 px-3 py-1 rounded-md" 
+              : "bg-yellow-50 text-yellow-700 border-yellow-300 px-3 py-1 rounded-md"
+            }
+          >
+            {lucrare.preluatDispecer 
+              ? `Preluat de ${lucrare.preluatDe || 'Dispecer'}` 
+              : "Ne-preluat"}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Lucrare:</span>
+          <Badge className="rounded-md">{lucrare.statusLucrare}</Badge>
+        </div>
+      </div>
+    </div>
+  )}
                 {/* Managementul statusurilor critice – mutat din cardul stâng în cardul drept */}
                 {/* Setări ofertă – disponibile pentru admin/dispecer indiferent de preluare sau status */}
                 {(role === "admin" || role === "dispecer") && (
@@ -1607,7 +1570,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-blue-800">Status ofertă:</span>
-                        <Badge variant="outline" className="bg-white">
+                        <Badge variant="outline" className="bg-white rounded-md">
                           {lucrare.statusOferta || (lucrare.necesitaOferta ? "DA" : "NU")}
                         </Badge>
                       </div>
