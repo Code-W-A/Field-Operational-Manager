@@ -865,6 +865,35 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               )}
             </Button>
           )}
+
+          {(role === "admin" || role === "dispecer") && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" onClick={handleEdit}>
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Editează</TooltipContent>
+            </Tooltip>
+          )}
+          {role === "admin" && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  onClick={() => {
+                    if (window.confirm("Sigur doriți să ștergeți această lucrare?")) {
+                      handleDeleteLucrare()
+                    }
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Șterge</TooltipContent>
+            </Tooltip>
+          )}
         </div>
       </DashboardHeader>
 
@@ -961,36 +990,6 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   <div>
                 <CardTitle>Detalii lucrare</CardTitle>
                 <CardDescription>Informații despre lucrare</CardDescription>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {(role === "admin" || role === "dispecer") && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button variant="outline" size="icon" onClick={handleEdit}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Editează</TooltipContent>
-                      </Tooltip>
-                    )}
-                    {role === "admin" && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="destructive"
-                            size="icon"
-                            onClick={() => {
-                              if (window.confirm("Sigur doriți să ștergeți această lucrare?")) {
-                                handleDeleteLucrare()
-                              }
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Șterge</TooltipContent>
-                      </Tooltip>
-                    )}
                   </div>
                 </div>
               </CardHeader>
