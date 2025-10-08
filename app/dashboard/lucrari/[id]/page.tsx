@@ -1508,7 +1508,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   {role !== "tehnician" && (
     <div className="mb-4">
       <div className="text-base font-semibold mb-2">Statusuri</div>
-      <div className="flex flex-wrap items-start gap-x-6 gap-y-2">
+      <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
         <div className="flex flex-col min-w-[140px]">
           <span className="text-xs text-muted-foreground">Lucrare:</span>
           <span className="mt-0.5"><Badge className="rounded-md">{lucrare.statusLucrare}</Badge></span>
@@ -1530,7 +1530,11 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         </div>
         <div className="flex flex-col min-w-[150px]">
           <span className="text-xs text-muted-foreground">Ofertare:</span>
-          <span className="mt-0.5"><Badge variant="outline" className="rounded-md">{lucrare.statusOferta || (lucrare.necesitaOferta ? "DA" : "NU")}</Badge></span>
+          <span className="mt-0.5">
+            <Badge variant="outline" className="rounded-md">
+              {lucrare.offerResponse?.status === "accept" ? "Acceptat" : (lucrare.statusOferta || "N/A")}
+            </Badge>
+          </span>
         </div>
         <div className="flex flex-col min-w-[140px]">
           <span className="text-xs text-muted-foreground">Facturare:</span>
@@ -1543,19 +1547,13 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 {/* Setări ofertă – disponibile pentru admin/dispecer indiferent de preluare sau status */}
                 {(role === "admin" || role === "dispecer") && (
                   <div className="p-4 border rounded-md bg-blue-50 border-blue-200 mb-4">
-                    {/* Header cu titlu și status ofertă */}
+                    {/* Header cu titlu */}
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
                         <div className="h-6 w-6 rounded-full bg-blue-500 flex items-center justify-center">
                           <span className="text-white text-sm font-bold">O</span>
                         </div>
-                        <h4 className="text-base font-semibold text-blue-900">Setări ofertă</h4>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-blue-800">Status ofertă:</span>
-                        <Badge variant="outline" className="bg-white rounded-md">
-                          {lucrare.statusOferta || (lucrare.necesitaOferta ? "DA" : "NU")}
-                        </Badge>
+                        <h4 className="text-base font-semibold text-blue-900">Ofertare</h4>
                       </div>
                     </div>
 
@@ -1690,7 +1688,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                               })()}
                             </div>
                           )}
-                            {(lucrare as any)?.acceptedOfferSnapshot && (
+                          {(lucrare as any)?.acceptedOfferSnapshot && (
+                            <div className="mt-2">
                               <Button
                                 variant="secondary"
                                 size="sm"
@@ -1699,7 +1698,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                               >
                                 Vizualizează oferta acceptată
                               </Button>
-                            )}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

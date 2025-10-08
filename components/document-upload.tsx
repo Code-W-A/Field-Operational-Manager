@@ -111,10 +111,10 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
       }
 
       console.log("📄 SALVEZ factură în Firestore cu date:", documentData)
-      await updateLucrare(lucrareId, { facturaDocument: documentData as any } as any)
+      await updateLucrare(lucrareId, { facturaDocument: documentData as any, statusFacturare: "Facturat" } as any)
 
       // Actualizăm starea locală
-      const updatedLucrare = { ...lucrare, facturaDocument: documentData }
+      const updatedLucrare = { ...lucrare, facturaDocument: documentData, statusFacturare: "Facturat" }
       onLucrareUpdate(updatedLucrare)
 
       toast({
@@ -355,105 +355,67 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
           )}
         </div>
 
-        {/* Secțiunea pentru ofertă */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-medium">Ofertă</h4>
-            <Badge variant={lucrare.ofertaDocument ? "default" : "secondary"}>
-              {lucrare.ofertaDocument ? "Încărcată" : "Neîncărcată"}
-            </Badge>
-          </div>
+        {/* Secțiunea pentru ofertă - ascunsă complet când hideOfertaUpload este activ */}
+        {!hideOfertaUpload && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-medium">Ofertă</h4>
+              <Badge variant={lucrare.ofertaDocument ? "default" : "secondary"}>
+                {lucrare.ofertaDocument ? "Încărcată" : "Neîncărcată"}
+              </Badge>
+            </div>
 
-          {/* Vizualizarea documentului existent - mereu vizibilă */}
-          {lucrare.ofertaDocument && (
-            <div className="p-3 border rounded-lg bg-green-50 border-green-200">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            {/* Vizualizarea documentului existent */}
+            {lucrare.ofertaDocument && (
+              <div className="p-3 border rounded-lg bg-green-50 border-green-200">
                 <div className="flex items-center gap-2 min-w-0">
                   <Check className="h-4 w-4 text-green-600" />
                   <span className="text-sm font-medium truncate">{lucrare.ofertaDocument.fileName}</span>
                 </div>
-                <div className="flex flex-wrap gap-2 justify-start sm:justify-end w-full sm:w-auto">
+                <div className="text-xs text-gray-500 mt-2 space-y-1">
+                  <p>Încărcată pe {formatRoDate(lucrare.ofertaDocument.uploadedAt)} la {formatRoTime(lucrare.ofertaDocument.uploadedAt)}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Upload ofertă */}
+            {!lucrare.ofertaDocument && shouldShowOfertaUpload && (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <input
+                    ref={ofertaInputRef}
+                    type="file"
+                    onChange={handleOfertaUpload}
+                    className="hidden"
+                    disabled={!isWorkPickedUp || isUploading.oferta || isArchived}
+                  />
                   <Button
-                    size="sm"
+                    onClick={() => ofertaInputRef.current?.click()}
+                    disabled={!isWorkPickedUp || isUploading.oferta || isArchived}
                     variant="outline"
-                    onClick={() => window.open(`/api/download?lucrareId=${encodeURIComponent(lucrareId)}&type=oferta&url=${encodeURIComponent(lucrare.ofertaDocument.url)}`, '_blank')}
-                    className="w-full sm:w-auto"
+                    className="w-full"
                   >
-                    <Eye className="h-4 w-4 mr-1" />
-                    Vizualizează
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => window.open(`/api/download?lucrareId=${encodeURIComponent(lucrareId)}&type=oferta&url=${encodeURIComponent(lucrare.ofertaDocument.url)}`, '_blank')}
-                    className="w-full sm:w-auto"
-                  >
-                    <Download className="h-4 w-4 mr-1" />
-                    Descarcă
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleDeleteDocument('oferta')}
-                    disabled={!isWorkPickedUp}
-                    className="w-full sm:w-auto"
-                  >
-                    <Trash2 className="h-4 w-4 mr-1" />
-                    Șterge
+                    <Upload className="h-4 w-4 mr-2" />
+                    {isArchived ? "Indisponibil pentru lucrări arhivate" : (isUploading.oferta ? "Se încarcă..." : "Selectează și încarcă fișier ofertă")}
                   </Button>
                 </div>
               </div>
-              <div className="text-xs text-gray-500 mt-2 space-y-1">
-                <p>Încărcată pe {formatRoDate(lucrare.ofertaDocument.uploadedAt)} la {formatRoTime(lucrare.ofertaDocument.uploadedAt)}</p>
-              </div>
-            </div>
-          )}
+            )}
 
-          {/* Secțiunea de upload - condiționată de statusOferta (ascunsă dacă hideOfertaUpload) */}
-          {!hideOfertaUpload && !lucrare.ofertaDocument && shouldShowOfertaUpload && (
-            <div className="space-y-3">
-              {/* Upload fișier */}
-              <div className="space-y-2">
-                <input
-                  ref={ofertaInputRef}
-                  type="file"
-                  onChange={handleOfertaUpload}
-                  className="hidden"
-                  disabled={!isWorkPickedUp || isUploading.oferta || isArchived}
-                />
-                <Button
-                  onClick={() => ofertaInputRef.current?.click()}
-                  disabled={!isWorkPickedUp || isUploading.oferta || isArchived}
-                  variant="outline"
-                  className="w-full"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  {isArchived ? "Indisponibil pentru lucrări arhivate" : (isUploading.oferta ? "Se încarcă..." : "Selectează și încarcă fișier ofertă")}
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Mesaje când upload-ul nu este disponibil (ascuns dacă hideOfertaUpload) */}
-          {!hideOfertaUpload && !lucrare.ofertaDocument && !shouldShowOfertaUpload && (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                {!needsOffer 
-                  ? "Încărcarea ofertei este dezactivată. Tehnicianul nu a marcat că această lucrare necesită ofertă."
-                  : "Încărcarea ofertei este disponibilă doar când statusul ofertei este setat pe \"OFERTAT\"."
-                }
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Notă informativă când upload-ul ofertei este ascuns */}
-          {hideOfertaUpload && !lucrare.ofertaDocument && (
-            <div className="text-xs text-muted-foreground">
-              Oferta se generează automat după acceptarea clientului în portal.
-            </div>
-          )}
-        </div>
+            {/* Mesaj indisponibil */}
+            {!lucrare.ofertaDocument && !shouldShowOfertaUpload && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  {!needsOffer 
+                    ? "Încărcarea ofertei este dezactivată. Tehnicianul nu a marcat că această lucrare necesită ofertă."
+                    : "Încărcarea ofertei este disponibilă doar când statusul ofertei este setat pe \"OFERTAT\"."
+                  }
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        )}
 
         {/* Informații ajutătoare */}
         {/* <div className="text-xs text-gray-500 p-3 bg-gray-50 rounded-lg">
