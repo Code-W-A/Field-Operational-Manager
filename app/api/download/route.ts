@@ -11,8 +11,7 @@ export async function GET(request: Request) {
     const lucrareId = searchParams.get("lucrareId") || ""
     const docType = searchParams.get("type") || "generic"
     const url = searchParams.get("url") || ""
-    // Optional: email-ul destinatarului (din link-ul trimis pe email) pentru cazurile fără sesiune autentificată
-    const recipientEmailParam = searchParams.get("recipient") || undefined
+    
 
     if (!lucrareId || !url) {
       console.warn(`[DOWNLOAD] [${requestId}] Missing params`, { lucrareId, urlPresent: Boolean(url) })
@@ -33,11 +32,7 @@ export async function GET(request: Request) {
     } catch (e) {
       // ignore, proceed unauthenticated
     }
-    // Dacă nu avem userEmail din sesiune, folosim email-ul din link (dacă este prezent)
-    if (!userEmail && recipientEmailParam) {
-      userEmail = recipientEmailParam
-    }
-    console.log(`[DOWNLOAD] [${requestId}] Identity`, { userId: userId || null, userEmail: userEmail || null, recipientEmailParam: recipientEmailParam || null })
+    console.log(`[DOWNLOAD] [${requestId}] Identity`, { userId: userId || null, userEmail: userEmail || null })
 
     // Authorization simplified: allow admins/dispeceri; otherwise allow if the requested URL matches the stored document URL for the lucrare
     // Load work order (required for both paths)
@@ -104,6 +99,8 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: "URL nevalid pentru lucrarea indicată" }, { status: 403 })
       }
     }
+
+    // păstrăm comportamentul inițial: dacă nu avem userEmail, salvăm "portal"
 
     // Log into subcollection for easy querying in UI
     if (shouldLog) {
