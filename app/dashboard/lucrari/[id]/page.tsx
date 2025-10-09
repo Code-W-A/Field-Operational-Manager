@@ -988,8 +988,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               <CardHeader>
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                <CardTitle>Detalii lucrare</CardTitle>
-                <CardDescription>Informații despre lucrare</CardDescription>
+                <CardTitle>{lucrare.client}</CardTitle>
+            
                   </div>
                 </div>
               </CardHeader>
@@ -1031,7 +1031,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   <span className="font-semibold">Tehnicieni asignați:</span>
                   <div className="flex flex-wrap gap-2">
                     {lucrare.tehnicieni.map((tehnician, index) => (
-                      <Badge key={index} variant="secondary" className="text-base px-4 py-2 rounded-md">
+                      <Badge key={index} variant="secondary" className="text-base font-normal px-4 py-2 rounded-md">
                         {tehnician}
                       </Badge>
                     ))}
@@ -1454,10 +1454,6 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               <CardContent>
              
                 <div className="text-sm flex flex-wrap sm:flex-nowrap items-start gap-x-3 gap-y-2 sm:gap-y-0 overflow-x-auto w-full">
-                  <div className="flex flex-col shrink-0 min-w-[140px]">
-                    <div className="text-xs font-medium text-muted-foreground">Client:</div>
-                    <div className="text-gray-900 whitespace-nowrap">{lucrare.client}</div>
-                  </div>
                   {clientData && (
                     <>
                       <div className="flex flex-col shrink-0 min-w-[140px]">
