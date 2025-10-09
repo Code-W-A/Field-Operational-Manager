@@ -2222,7 +2222,16 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               <CardDescription>Înregistrări cine/când a descărcat documente din portal</CardDescription>
             </CardHeader>
             <CardContent>
-              <DownloadHistory lucrareId={lucrare.id} />
+              <DownloadHistory 
+                lucrareId={lucrare.id}
+                locationEmail={(() => {
+                  try {
+                    const loc = (clientData?.locatii || []).find((l: any) => l?.nume === lucrare.locatie)
+                    const contact = loc?.persoaneContact?.find((c: any) => c?.nume === lucrare.persoanaContact)
+                    return contact?.email || loc?.email || undefined
+                  } catch { return undefined }
+                })()}
+              />
             </CardContent>
           </Card>
         )}
