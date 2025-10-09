@@ -1634,14 +1634,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                               <Button
                                 variant="secondary"
                                 size="sm"
-                                onClick={() => {
-                                  const url = (lucrare as any)?.ofertaDocument?.url
-                                  if (url) {
-                                    window.open(`/api/download?lucrareId=${encodeURIComponent(lucrare.id!)}&type=oferta&url=${encodeURIComponent(url)}`, '_blank')
-                                  }
-                                }}
+                                onClick={() => setIsOfferEditorOpen(true)}
                               >
-                                Vizualizează ofertă (PDF)
+                                Vizualizează în editor
                               </Button>
                             </div>
                           )}
@@ -1711,21 +1706,10 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                               <Button
                                 variant="secondary"
                                 size="sm"
-                                onClick={() => {
-                                  try {
-                                    const url = (lucrare as any)?.ofertaDocument?.url
-                                    if (url) {
-                                      window.open(`/api/download?lucrareId=${encodeURIComponent(lucrare.id!)}&type=oferta&url=${encodeURIComponent(url)}`, '_blank')
-                                    } else {
-                                      setIsOfferEditorOpen(true)
-                                    }
-                                  } catch {
-                                    setIsOfferEditorOpen(true)
-                                  }
-                                }}
+                                onClick={() => setIsOfferEditorOpen(true)}
                                 className="bg-green-600 text-white hover:bg-green-700"
                               >
-                                Vizualizează ofertă PDF
+                                Deschide versiunea acceptată în editor
                               </Button>
                             </div>
                           )}
