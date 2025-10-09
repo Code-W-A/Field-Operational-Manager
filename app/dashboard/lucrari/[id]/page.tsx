@@ -1632,11 +1632,17 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                           {(lucrare as any)?.ofertaDocument?.url && (
                             <div>
                               <Button
-                                variant="secondary"
+                                variant="default"
                                 size="sm"
-                                onClick={() => setIsOfferEditorOpen(true)}
+                                className="bg-blue-600 text-white hover:bg-blue-700"
+                                onClick={() => {
+                                  const url = (lucrare as any)?.ofertaDocument?.url
+                                  if (url) {
+                                    window.open(`/api/download?lucrareId=${encodeURIComponent(lucrare.id!)}&type=oferta&url=${encodeURIComponent(url)}`, '_blank')
+                                  }
+                                }}
                               >
-                                Vizualizează în editor
+                                Vizualizează ofertă (PDF)
                               </Button>
                             </div>
                           )}
