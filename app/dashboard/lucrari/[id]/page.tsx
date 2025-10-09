@@ -1474,7 +1474,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       </div>
                       <div className="flex flex-col min-w-0">
                         <div className="text-xs font-medium text-muted-foreground">Email (client):</div>
-                        <div className="text-gray-900 whitespace-normal break-words flex items-center gap-2">
+                        <div className="text-gray-900 whitespace-normal break-words flex flex-col gap-1">
                           <span className="break-words" title={clientData.email || "N/A"}>{clientData.email || "N/A"}</span>
                           {clientData.email && (
                             <a
