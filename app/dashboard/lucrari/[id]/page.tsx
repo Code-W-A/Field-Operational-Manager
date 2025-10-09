@@ -1458,7 +1458,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                     <>
                       <div className="flex flex-col min-w-0">
                         <div className="text-xs font-medium text-muted-foreground">Telefon Principal:</div>
-                        <div className="text-gray-900 whitespace-nowrap flex items-center gap-2">
+                        <div className="text-gray-900 whitespace-normal break-words flex items-center gap-2">
                           {clientData.telefon || "N/A"}
                           {clientData.telefon && (
                             <a
@@ -1474,8 +1474,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       </div>
                       <div className="flex flex-col min-w-0">
                         <div className="text-xs font-medium text-muted-foreground">Email (client):</div>
-                        <div className="text-gray-900 whitespace-nowrap flex items-center gap-2">
-                          <span className="truncate w-full" title={clientData.email || "N/A"}>{clientData.email || "N/A"}</span>
+                        <div className="text-gray-900 whitespace-normal break-words flex items-center gap-2">
+                          <span className="break-words" title={clientData.email || "N/A"}>{clientData.email || "N/A"}</span>
                           {clientData.email && (
                             <a
                               href={`mailto:${clientData.email}`}
@@ -1490,11 +1490,11 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       </div>
                       <div className="flex flex-col min-w-0">
                         <div className="text-xs font-medium text-muted-foreground">Reprezentant Firmă:</div>
-                        <div className="text-gray-900 whitespace-nowrap">{clientData.reprezentantFirma || "N/A"}{clientData.functieReprezentant ? `, ${clientData.functieReprezentant}` : ""}</div>
+                        <div className="text-gray-900 whitespace-normal break-words">{clientData.reprezentantFirma || "N/A"}{clientData.functieReprezentant ? `, ${clientData.functieReprezentant}` : ""}</div>
                       </div>
                       <div className="flex flex-col min-w-0">
                         <div className="text-xs font-medium text-muted-foreground">CUI/CIF:</div>
-                        <div className="text-gray-900 whitespace-nowrap">{(clientData as any)?.cif || "N/A"}</div>
+                        <div className="text-gray-900 whitespace-normal break-words">{(clientData as any)?.cif || "N/A"}</div>
                       </div>
                     </>
                   )}
