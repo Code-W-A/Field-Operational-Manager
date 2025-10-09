@@ -1453,10 +1453,10 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               </CardHeader>
               <CardContent>
              
-                <div className="text-sm flex flex-wrap sm:flex-nowrap items-start gap-x-3 gap-y-2 sm:gap-y-0 overflow-x-auto w-full">
+                <div className="text-sm grid grid-cols-1 sm:grid-cols-4 gap-x-6 gap-y-2 w-full items-start">
                   {clientData && (
                     <>
-                      <div className="flex flex-col shrink-0 min-w-[140px]">
+                      <div className="flex flex-col min-w-0">
                         <div className="text-xs font-medium text-muted-foreground">Telefon Principal:</div>
                         <div className="text-gray-900 whitespace-nowrap flex items-center gap-2">
                           {clientData.telefon || "N/A"}
@@ -1472,10 +1472,10 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                           )}
                         </div>
                       </div>
-                      <div className="flex flex-col shrink-0 min-w-[160px]">
+                      <div className="flex flex-col min-w-0">
                         <div className="text-xs font-medium text-muted-foreground">Email (client):</div>
                         <div className="text-gray-900 whitespace-nowrap flex items-center gap-2">
-                          <span className="truncate max-w-[220px]" title={clientData.email || "N/A"}>{clientData.email || "N/A"}</span>
+                          <span className="truncate w-full" title={clientData.email || "N/A"}>{clientData.email || "N/A"}</span>
                           {clientData.email && (
                             <a
                               href={`mailto:${clientData.email}`}
@@ -1488,11 +1488,11 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                           )}
                         </div>
                       </div>
-                      <div className="flex flex-col shrink-0 min-w-[160px]">
+                      <div className="flex flex-col min-w-0">
                         <div className="text-xs font-medium text-muted-foreground">Reprezentant Firmă:</div>
                         <div className="text-gray-900 whitespace-nowrap">{clientData.reprezentantFirma || "N/A"}{clientData.functieReprezentant ? `, ${clientData.functieReprezentant}` : ""}</div>
                       </div>
-                      <div className="flex flex-col shrink-0 min-w-[120px]">
+                      <div className="flex flex-col min-w-0">
                         <div className="text-xs font-medium text-muted-foreground">CUI/CIF:</div>
                         <div className="text-gray-900 whitespace-nowrap">{(clientData as any)?.cif || "N/A"}</div>
                       </div>
