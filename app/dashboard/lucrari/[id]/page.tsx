@@ -1453,14 +1453,14 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               </CardHeader>
               <CardContent>
              
-                <div className="text-sm flex flex-wrap items-start gap-x-3 gap-y-2">
-                  <div className="flex flex-col min-w-[200px]">
+                <div className="text-sm flex flex-wrap sm:flex-nowrap items-start gap-x-3 gap-y-2 sm:gap-y-0 overflow-x-auto w-full">
+                  <div className="flex flex-col shrink-0 min-w-[140px]">
                     <div className="text-xs font-medium text-muted-foreground">Client:</div>
                     <div className="text-gray-900 whitespace-nowrap">{lucrare.client}</div>
                   </div>
                   {clientData && (
                     <>
-                      <div className="flex flex-col min-w-[170px]">
+                      <div className="flex flex-col shrink-0 min-w-[140px]">
                         <div className="text-xs font-medium text-muted-foreground">Telefon Principal:</div>
                         <div className="text-gray-900 whitespace-nowrap flex items-center gap-2">
                           {clientData.telefon || "N/A"}
@@ -1476,7 +1476,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                           )}
                         </div>
                       </div>
-                      <div className="flex flex-col min-w-[220px]">
+                      <div className="flex flex-col shrink-0 min-w-[160px]">
                         <div className="text-xs font-medium text-muted-foreground">Email (client):</div>
                         <div className="text-gray-900 whitespace-nowrap flex items-center gap-2">
                           <span className="truncate max-w-[220px]" title={clientData.email || "N/A"}>{clientData.email || "N/A"}</span>
@@ -1492,11 +1492,11 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                           )}
                         </div>
                       </div>
-                      <div className="flex flex-col min-w-[180px]">
+                      <div className="flex flex-col shrink-0 min-w-[160px]">
                         <div className="text-xs font-medium text-muted-foreground">Reprezentant Firmă:</div>
                         <div className="text-gray-900 whitespace-nowrap">{clientData.reprezentantFirma || "N/A"}{clientData.functieReprezentant ? `, ${clientData.functieReprezentant}` : ""}</div>
                       </div>
-                      <div className="flex flex-col min-w-[140px]">
+                      <div className="flex flex-col shrink-0 min-w-[120px]">
                         <div className="text-xs font-medium text-muted-foreground">CUI/CIF:</div>
                         <div className="text-gray-900 whitespace-nowrap">{(clientData as any)?.cif || "N/A"}</div>
                       </div>
@@ -1508,12 +1508,12 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   {role !== "tehnician" && (
     <div className="mb-4">
       <div className="text-base font-semibold mb-2">Statusuri</div>
-      <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
-        <div className="flex flex-col min-w-[140px]">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 w-full">
+        <div className="flex flex-col">
           <span className="text-xs text-muted-foreground">Lucrare:</span>
           <span className="mt-0.5"><Badge className="rounded-md">{lucrare.statusLucrare}</Badge></span>
         </div>
-        <div className="flex flex-col min-w-[160px]">
+        <div className="flex flex-col">
           <span className="text-xs text-muted-foreground">Preluare:</span>
           <span className="mt-0.5">
             <Badge 
@@ -1528,7 +1528,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
             </Badge>
           </span>
         </div>
-        <div className="flex flex-col min-w-[150px]">
+        <div className="flex flex-col">
           <span className="text-xs text-muted-foreground">Ofertare:</span>
           <span className="mt-0.5">
             <Badge variant="outline" className="rounded-md">
@@ -1536,7 +1536,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
             </Badge>
           </span>
         </div>
-        <div className="flex flex-col min-w-[140px]">
+        <div className="flex flex-col">
           <span className="text-xs text-muted-foreground">Facturare:</span>
           <span className="mt-0.5"><Badge variant="outline" className="rounded-md">{lucrare.statusFacturare}</Badge></span>
         </div>
@@ -1693,10 +1693,21 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                               <Button
                                 variant="secondary"
                                 size="sm"
-                                onClick={() => setIsOfferEditorOpen(true)}
+                                onClick={() => {
+                                  try {
+                                    const url = (lucrare as any)?.ofertaDocument?.url
+                                    if (url) {
+                                      window.open(`/api/download?lucrareId=${encodeURIComponent(lucrare.id!)}&type=oferta&url=${encodeURIComponent(url)}`, '_blank')
+                                    } else {
+                                      setIsOfferEditorOpen(true)
+                                    }
+                                  } catch {
+                                    setIsOfferEditorOpen(true)
+                                  }
+                                }}
                                 className="bg-green-600 text-white hover:bg-green-700"
                               >
-                                Vizualizează oferta acceptată
+                                Vizualizează ofertă PDF
                               </Button>
                             </div>
                           )}

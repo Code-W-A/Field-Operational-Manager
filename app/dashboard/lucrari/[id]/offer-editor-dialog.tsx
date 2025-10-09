@@ -545,7 +545,7 @@ useEffect(() => {
               {(!isPickedUp || statusOferta === "OFERTAT") && (
                 <span className="text-xs text-muted-foreground mr-auto">{!isPickedUp ? "Editorul este disponibil după preluarea lucrării de către dispecer." : "Oferta trimisă este înghețată. Creați o versiune nouă pentru modificări."}</span>
               )}
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Anulează</Button>
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Închide</Button>
               {statusOferta === "OFERTAT" && !editingNewVersion ? (
                 <Button onClick={startNewVersion} disabled={saving}>Începe versiune nouă</Button>
               ) : (
