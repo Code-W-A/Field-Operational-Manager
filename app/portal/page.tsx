@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import Link from "next/link"
 import { UserNav } from "@/components/user-nav"
+import { useTablePersistence } from "@/hooks/use-table-persistence"
 
 export default function ClientPortalPage() {
   const { userData } = useAuth()
@@ -22,6 +23,38 @@ export default function ClientPortalPage() {
   const [locationFilter, setLocationFilter] = useState<string>("all")
   const [clientFilter, setClientFilter] = useState<string>("all")
   const [clients, setClients] = useState<any[]>([])
+
+  // Persist filters/search for client portal
+  const { loadSettings, saveFilters, saveSearchText } = useTablePersistence("portal")
+
+  // Load saved filters/search on mount
+  useEffect(() => {
+    const saved = loadSettings()
+    if (saved?.searchText) setSearch(saved.searchText)
+    const getFilterVal = (id: string) => {
+      const list = Array.isArray(saved?.activeFilters) ? saved.activeFilters : []
+      return list.find((f: any) => f?.id === id)?.value
+    }
+    const s = getFilterVal("status"); if (typeof s === "string") setStatusFilter(s)
+    const a = getFilterVal("activeOnly"); if (typeof a === "boolean") setActiveOnly(a)
+    const l = getFilterVal("location"); if (typeof l === "string") setLocationFilter(l)
+    const c = getFilterVal("client"); if (typeof c === "string") setClientFilter(c)
+  }, [loadSettings])
+
+  // Save filters whenever they change
+  useEffect(() => {
+    saveFilters([
+      { id: "status", value: statusFilter },
+      { id: "activeOnly", value: activeOnly },
+      { id: "location", value: locationFilter },
+      { id: "client", value: clientFilter },
+    ])
+  }, [statusFilter, activeOnly, locationFilter, clientFilter, saveFilters])
+
+  // Save search text whenever it changes
+  useEffect(() => {
+    saveSearchText(search)
+  }, [search, saveSearchText])
 
   useEffect(() => {
     const load = async () => {

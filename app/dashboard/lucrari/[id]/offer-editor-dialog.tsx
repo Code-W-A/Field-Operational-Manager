@@ -49,9 +49,9 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
       return null
     }
   }, [presetRecipientEmail, clientData, currentWork])
-  const [termsPayment, setTermsPayment] = useState<string>("100% in avans")
-  const [termsDelivery, setTermsDelivery] = useState<string>("30 zile lucratoare de la plata")
-  const [termsInstallation, setTermsInstallation] = useState<string>("3 zile lucratoare de la livrare")
+  const [termsPayment, setTermsPayment] = useState<string>("")
+  const [termsDelivery, setTermsDelivery] = useState<string>("")
+  const [termsInstallation, setTermsInstallation] = useState<string>("")
 
 useEffect(() => {
   // Actualizăm mereu baseline-ul din props
@@ -198,16 +198,7 @@ useEffect(() => {
     } catch {}
   }, [products, draftStorageKey])
 
-  // Seed rows on empty open
-  useEffect(() => {
-    if (open && (!products || products.length === 0)) {
-      setProducts([
-        { id: `seed1`, name: "Fotocelule de siguranță", um: "buc", price: 180, quantity: 1, total: 180 },
-        { id: `seed2`, name: "Picior mobil", um: "buc", price: 290, quantity: 2, total: 580 },
-        { id: `seed3`, name: "Manoperă montaj", um: "buc", price: 750, quantity: 1, total: 750 },
-      ])
-    }
-  }, [open])
+  // Nu populăm automat rânduri demo când dialogul este deschis – lăsăm gol implicit
 
   // When versions load, remember initial count to know if a save created a new version
   useEffect(() => {
@@ -402,11 +393,59 @@ useEffect(() => {
           </div>
         </div>`
   
-      // trimite email
+      // atașament PDF ofertă pentru client
+      let attachmentData: any[] | undefined = undefined
+      try {
+        const currentProducts = products || []
+        if (currentProducts.length) {
+          const { generateOfferPdf } = await import('@/lib/utils/offer-pdf')
+          const blob = await generateOfferPdf({
+            id: String(lucrareId),
+            numarRaport: String(currentWork?.numarRaport || ''),
+            offerNumber: Number((freshWork as any)?.offerSendCount || 0) + 1,
+            client: freshWork?.client || "",
+            attentionTo: freshWork?.persoanaContact || "",
+            fromCompany: "NRG Access Systems SRL",
+            products: currentProducts.map((p: any) => ({ name: p?.name || '', quantity: Number(p?.quantity||0), price: Number(p?.price||0) })),
+            offerVAT: Number(vatPercent) || 0,
+            adjustmentPercent: Number(adjustmentPercent) || 0,
+            damages: [],
+            conditions: Array.isArray((freshWork as any)?.conditiiOferta) ? (freshWork as any).conditiiOferta : undefined,
+            equipmentName: String((freshWork as any)?.echipament || ''),
+            locationName: String((freshWork as any)?.locatie || ''),
+            preparedBy: String(userData?.displayName || userData?.email || ''),
+            preparedAt: new Date().toISOString().slice(0,10).split('-').reverse().join('.'),
+            beneficiar: {
+              name: String((freshWork as any)?.client || (freshWork as any)?.clientInfo?.nume || ''),
+              cui: String((freshWork as any)?.clientInfo?.cui || ''),
+              reg: String((freshWork as any)?.clientInfo?.rc || ''),
+              address: String((freshWork as any)?.clientInfo?.adresa || ''),
+            },
+          } as any)
+
+          const blobToBase64 = (b: Blob): Promise<string> => new Promise((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onloadend = () => {
+              try {
+                const result = String(reader.result || '')
+                const base64 = result.includes(',') ? result.split(',')[1] : result
+                resolve(base64)
+              } catch (e) { reject(e) }
+            }
+            reader.onerror = reject
+            reader.readAsDataURL(b)
+          })
+
+          const base64 = await blobToBase64(blob)
+          attachmentData = [{ filename: `oferta_${String(currentWork?.numarRaport || currentWork?.id)}.pdf`, content: base64, encoding: 'base64', contentType: 'application/pdf' }]
+        }
+      } catch {}
+
+      // trimite email (cu atașament, dacă există)
       const resp = await fetch('/api/users/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: [recipient], subject, html })
+        body: JSON.stringify({ to: [recipient], subject, html, attachments: attachmentData })
       })
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}))

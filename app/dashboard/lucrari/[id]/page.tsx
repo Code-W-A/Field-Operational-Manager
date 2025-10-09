@@ -994,7 +994,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-sm flex flex-wrap items-start gap-x-3 gap-y-2 mt-4">
+                <div className="text-sm flex flex-wrap items-start gap-x-3 gap-y-2 mt-2">
                   <div className="flex flex-col min-w-[140px]">
                     <div className="text-xs font-medium text-muted-foreground">Data emiterii:</div>
                     <div className="text-gray-900 whitespace-nowrap">{String(lucrare.dataEmiterii || "").split(" ")[0]}</div>
@@ -1528,7 +1528,13 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           <span className="text-xs text-muted-foreground">Ofertare:</span>
           <span className="mt-0.5">
             <Badge variant="outline" className="rounded-md">
-              {lucrare.offerResponse?.status === "accept" ? "Acceptat" : (lucrare.statusOferta || "N/A")}
+              {(() => {
+                const resp = lucrare.offerResponse?.status
+                if (resp === "accept") return "Da (acceptată)"
+                if (resp === "reject") return "Da (refuzată)"
+                if (lucrare.statusOferta) return String(lucrare.statusOferta)
+                return "N/A"
+              })()}
             </Badge>
           </span>
         </div>

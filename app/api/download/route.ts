@@ -11,6 +11,8 @@ export async function GET(request: Request) {
     const lucrareId = searchParams.get("lucrareId") || ""
     const docType = searchParams.get("type") || "generic"
     const url = searchParams.get("url") || ""
+    // Optional: email-ul destinatarului (din link-ul trimis pe email) pentru cazurile fără sesiune autentificată
+    const recipientEmailParam = searchParams.get("recipient") || undefined
 
     if (!lucrareId || !url) {
       console.warn(`[DOWNLOAD] [${requestId}] Missing params`, { lucrareId, urlPresent: Boolean(url) })
@@ -31,7 +33,11 @@ export async function GET(request: Request) {
     } catch (e) {
       // ignore, proceed unauthenticated
     }
-    console.log(`[DOWNLOAD] [${requestId}] Identity`, { userId: userId || null, userEmail: userEmail || null })
+    // Dacă nu avem userEmail din sesiune, folosim email-ul din link (dacă este prezent)
+    if (!userEmail && recipientEmailParam) {
+      userEmail = recipientEmailParam
+    }
+    console.log(`[DOWNLOAD] [${requestId}] Identity`, { userId: userId || null, userEmail: userEmail || null, recipientEmailParam: recipientEmailParam || null })
 
     // Authorization simplified: allow admins/dispeceri; otherwise allow if the requested URL matches the stored document URL for the lucrare
     // Load work order (required for both paths)

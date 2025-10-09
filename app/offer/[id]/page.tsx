@@ -179,7 +179,7 @@ export default function OfferActionPage() {
               const to = [recipient]
               const subject = `${action === "accept" ? "Confirmare acceptare ofertă" : "Confirmare răspuns – refuz ofertă"} – lucrare ${fresh?.numarRaport || String(id)}`
               const base = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "")
-              const downloadLink = ofertaUrl ? `${base}/api/download?lucrareId=${encodeURIComponent(String(id))}&type=oferta&url=${encodeURIComponent(ofertaUrl)}` : ""
+              const downloadLink = ofertaUrl ? `${base}/api/download?lucrareId=${encodeURIComponent(String(id))}&type=oferta&url=${encodeURIComponent(ofertaUrl)}&recipient=${encodeURIComponent(String(recipient))}` : ""
 
               const messageParagraph = action === "accept"
                 ? "Va multumim pentru acceptarea ofertei noastre. In continuare veti fi contactat de un reprezentant NRG pt a stabili urmatorii pasi."

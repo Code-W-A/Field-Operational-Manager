@@ -3,7 +3,7 @@ import nodemailer from "nodemailer"
 
 export async function POST(request: Request) {
   try {
-    const { to, subject, content, html } = await request.json()
+    const { to, subject, content, html, attachments } = await request.json()
     if (!to || !Array.isArray(to) || to.length === 0) {
       return NextResponse.json({ error: "Destinatari lipsă" }, { status: 400 })
     }
@@ -24,6 +24,12 @@ export async function POST(request: Request) {
       subject: subject || "Invitație acces Portal Client – FOM",
       text: content || "Vă-am creat acces în Portalul Client FOM.",
       html: html || undefined,
+      attachments: Array.isArray(attachments) ? attachments.map((a: any) => ({
+        filename: String(a?.filename || 'attachment'),
+        content: a?.content,
+        encoding: a?.encoding || undefined,
+        contentType: a?.contentType || undefined,
+      })) : undefined,
     })
 
     return NextResponse.json({ success: true })
