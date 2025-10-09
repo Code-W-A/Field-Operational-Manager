@@ -988,7 +988,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               <CardHeader>
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                <CardTitle>{lucrare.client}</CardTitle>
+                <CardTitle>Detalii lucrare</CardTitle>
             
                   </div>
                 </div>
@@ -1449,7 +1449,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
             <Card>
               <CardHeader>
                 <CardTitle>Informații client</CardTitle>
-                <CardDescription>Detalii despre client și persoana de contact</CardDescription>
+                <CardDescription>{lucrare.client}</CardDescription>
               </CardHeader>
               <CardContent>
              
