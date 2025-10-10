@@ -26,9 +26,11 @@ export function MainNav({ className, ...props }: React.HTMLAttributes<HTMLElemen
   const { userData } = useAuth()
 
   // Verificăm dacă utilizatorul este admin pentru a afișa meniurile restricționate
-  const isAdmin = userData?.role === "admin"
-  const isTechnician = userData?.role === "tehnician"
-  const isAdminOrDispatcher = userData?.role === "admin" || userData?.role === "dispecer"
+  const role = userData?.role
+  const isAdmin = role === "admin"
+  const isTechnician = role === "tehnician"
+  const isAdminOrDispatcher = role === "admin" || role === "dispecer"
+  const isClient = role === "client"
 
   return (
     <div className={cn("flex items-center space-x-4 lg:space-x-6", className)} {...props}>
@@ -36,6 +38,19 @@ export function MainNav({ className, ...props }: React.HTMLAttributes<HTMLElemen
         <span className="hidden font-bold sm:inline-block">FOM</span>
       </Link>
       <nav className="hidden md:flex items-center space-x-4 lg:space-x-6">
+        {isClient ? (
+          <Link
+            href="/portal"
+            className={cn(
+              "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
+              pathname === "/portal" ? "text-primary" : "text-muted-foreground",
+            )}
+          >
+            <ClipboardList className="h-4 w-4" />
+            <span>Lucrările mele</span>
+          </Link>
+        ) : (
+          <>
         <Link
           href="/dashboard"
           className={cn(
@@ -147,6 +162,8 @@ export function MainNav({ className, ...props }: React.HTMLAttributes<HTMLElemen
             <StickyNote className="h-4 w-4" />
             <span>Note interne</span>
           </Link>
+        )}
+          </>
         )}
       </nav>
     </div>

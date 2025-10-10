@@ -144,8 +144,12 @@ export interface Lucrare {
   statusOferta?: "NU" | "DA" | "OFERTAT" // Nou câmp pentru managementul statusului ofertei
   // CÂMP NOU PENTRU NUMĂRUL FACTURII - BACKWARD COMPATIBLE
   numarFactura?: string // Numărul facturii (opțional, pentru lucrările facturate)
+  // CÂMP NOU PENTRU MOTIV NEFACTURARE - BACKWARD COMPATIBLE
+  motivNefacturare?: string // Motivul pentru care nu se facturează
   // CÂMP NOU PENTRU NUMĂRUL RAPORTULUI - BACKWARD COMPATIBLE
   numarRaport?: string // Numărul raportului (format: #00001, generat automat la prima generare raport)
+  // CÂMP NOU PENTRU NUMĂR LUCRARE - BACKWARD COMPATIBLE (egal cu numarRaport la generare)
+  nrLucrare?: string
   // CÂMPURI NOI PENTRU DOCUMENTE PDF - BACKWARD COMPATIBLE
   facturaDocument?: {
     url: string         // URL-ul documentului în Firebase Storage
@@ -662,6 +666,7 @@ export const updateLucrare = async (
       const whitelist: Array<keyof Lucrare> = [
         "statusLucrare",
         "statusFacturare",
+        "motivNefacturare",
         "statusOferta",
         "dataInterventie",
         "tehnicieni",
@@ -669,6 +674,7 @@ export const updateLucrare = async (
         "archivedAt" as any,
         "lucrareOriginala",
         "numarRaport",
+        "nrLucrare",
         "timpSosire",
         "timpPlecare",
         "durataInterventie",

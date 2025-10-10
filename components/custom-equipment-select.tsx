@@ -66,8 +66,8 @@ export function CustomEquipmentSelect({
     }
   }, [open])
 
-  // Modificăm efectul pentru a prioritiza selecția după nume când nu există un ID valid
-  // Înlocuim efectul de la linia ~70 cu această versiune îmbunătățită:
+  // Efectul principal de selecție: folosim doar ID/cod pentru value;
+  // folosim fallbackName doar când există o singură potrivire unică de nume.
 
   useEffect(() => {
     console.log("CustomEquipmentSelect - Efect principal de selecție rulat cu:", {
@@ -79,7 +79,7 @@ export function CustomEquipmentSelect({
     // Dacă nu avem echipamente, nu facem nimic
     if (equipments.length === 0) return
 
-    // Prioritate 1: Selecție după ID (cea mai precisă)
+    // Prioritate 1: Selecție după ID/cod (cea mai precisă)
     if (value) {
   const vLower = value.toLowerCase()
 
@@ -102,33 +102,21 @@ export function CustomEquipmentSelect({
       }
     }
 
-    // Prioritate 2: Selecție după nume (fallback)
-    if (fallbackName) {
-      // Căutare exactă
-      let equipment = equipments.find((e) => e.nume === fallbackName)
+    // Prioritate 2: Fallback după nume doar când există o singură potrivire de nume
+    if (!value && fallbackName) {
+      const exactMatches = equipments.filter((e) => e.nume === fallbackName)
+      const fallbackNameLower = fallbackName.toLowerCase()
+      const partialMatches = exactMatches.length === 0
+        ? equipments.filter((e) => e.nume.toLowerCase() === fallbackNameLower)
+        : exactMatches
 
-      // Căutare parțială (case insensitive)
-      if (!equipment) {
-        const fallbackNameLower = fallbackName.toLowerCase()
-        equipment = equipments.find(
-          (e) => e.nume.toLowerCase().includes(fallbackNameLower) || fallbackNameLower.includes(e.nume.toLowerCase()),
-        )
-      }
-
-      if (equipment) {
-        console.log("CustomEquipmentSelect - Echipament găsit după nume:", equipment)
-        setSelectedEquipment(equipment)
-
-        // Notificăm componenta părinte despre selecție doar dacă nu avem deja un ID
-        if (!value) {
-          console.log("CustomEquipmentSelect - Notificăm părinte despre selecția după nume")
-          onSelect(equipment.id || "", equipment)
-        }
-
+      const uniqueMatch = partialMatches.length === 1 ? partialMatches[0] : null
+      if (uniqueMatch) {
+        console.log("CustomEquipmentSelect - Fallback unic după nume:", uniqueMatch)
+        setSelectedEquipment(uniqueMatch)
+        onSelect(uniqueMatch.id || "", uniqueMatch)
         setFallbackUsed(true)
         return
-      } else {
-        console.log("CustomEquipmentSelect - Echipamentul cu numele", fallbackName, "nu a fost găsit")
       }
     }
 

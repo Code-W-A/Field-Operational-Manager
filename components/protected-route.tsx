@@ -42,12 +42,10 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
         console.log("Technician attempting to access Clients page, redirecting to dashboard/lucrari")
         router.push("/dashboard/lucrari")
       } else if (userData?.role === "client") {
-        // Clients should be redirected to their portal root
-        if (pathname === "/dashboard") {
-          router.push("/portal")
-        }
-        // Block clients from internal admin pages
-        if (pathname?.startsWith("/dashboard")) {
+        // Clients: allow only /dashboard/lucrari and its subroutes; redirect others to /portal
+        const isDashboard = pathname?.startsWith("/dashboard")
+        const isAllowedLucrari = pathname === "/dashboard/lucrari" || pathname?.startsWith("/dashboard/lucrari/")
+        if (isDashboard && !isAllowedLucrari) {
           router.push("/portal")
         }
       }

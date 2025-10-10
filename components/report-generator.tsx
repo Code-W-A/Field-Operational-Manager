@@ -228,7 +228,9 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           raportSnapshot,
           raportDataLocked: true,
           // Includem numărul de raport generat pentru prima generare
-          numarRaport: numarRaport
+          numarRaport: numarRaport,
+          // Setăm și numărul lucrării (egal la prima generare)
+          nrLucrare: String(numarRaport || "")
         }
       } else {
         // REGENERARE - folosește datele înghețate din snapshot

@@ -24,7 +24,26 @@ export default function PortalWorkDetail() {
   const [saving, setSaving] = useState(false)
   const [reason, setReason] = useState("")
   const [downloading, setDownloading] = useState(false)
+  const [redirecting, setRedirecting] = useState(true)
   const id = params?.id as string
+  // Redirect client portal view to the unified dashboard detail page
+  useEffect(() => {
+    if (id) {
+      router.replace(`/dashboard/lucrari/${id}`)
+    }
+  }, [id, router])
+
+  if (redirecting) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Se încarcă detaliile lucrării...</p>
+        </div>
+      </div>
+    )
+  }
+
 
   useEffect(() => {
     const load = async () => {
@@ -275,98 +294,9 @@ export default function PortalWorkDetail() {
               </CardContent>
             </Card>
 
-            {/* Ofertă Section */}
-            {w.necesitaOferta && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    Ofertă
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {w.products?.length ? (
-                    <div>
-                      <h4 className="font-medium mb-3">Detalii ofertă:</h4>
-                      <div className="space-y-2">
-                        {w.products.map((p: any, i: number) => (
-                          <div key={i} className="flex justify-between items-center py-2 border-b last:border-b-0">
-                            <div>
-                              <span className="font-medium">{p.name}</span>
-                              <span className="text-muted-foreground ml-2">x{p.quantity}</span>
-                            </div>
-                            <span className="font-medium">{(p.total || (p.quantity * p.price)).toFixed(2)} lei</span>
-                          </div>
-                        ))}
-                        {(() => {
-                          const subtotal = w.products.reduce((s: number, p: any) => s + (p.total || (p.quantity * p.price) || 0), 0)
-                          return (
-                            <div className="pt-3 border-t text-sm">
-                              <div className="flex justify-between items-center">
-                                <span className="font-medium">Total:</span>
-                                <span className="font-medium">{subtotal.toFixed(2)} lei</span>
-                              </div>
-                            </div>
-                          )
-                        })()}
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-muted-foreground">
-                      Încă nu a fost introdusă o ofertă de către echipa noastră. Vă rugăm să reveniți pe această pagină mai târziu pentru a verifica dacă oferta a fost adăugată.
-                    </p>
-                  )}
+            {/* Ofertă Section – ascuns pentru client */}
 
-                  {w.statusOferta === "OFERTAT" && !w.offerResponse?.status && (
-                    <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                      <h4 className="font-medium mb-3">Răspuns ofertă:</h4>
-                      <Textarea 
-                        placeholder="Motiv (opțional pentru Nu accept)" 
-                        value={reason} 
-                        onChange={(e) => setReason(e.target.value)}
-                        className="mb-3"
-                      />
-                      <div className="flex space-x-3">
-                        <Button onClick={() => setStatus(true)} disabled={saving} className="bg-green-600 hover:bg-green-700 mr-3">
-                          <CheckCircle className="h-4 w-4 mr-2" />
-                          {saving ? "Se procesează..." : "Accept oferta"}
-                        </Button>
-                        <Button variant="destructive" onClick={() => setStatus(false)} disabled={saving}>
-                          <XCircle className="h-4 w-4 mr-2" />
-                          Nu accept
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {w.offerResponse?.status && (
-                    <div className={`p-4 rounded-lg ${w.offerResponse.status === "accept" ? "bg-green-50" : "bg-red-50"}`}>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">Răspuns ofertă:</span>
-                        <Badge variant={w.offerResponse.status === "accept" ? "secondary" : "destructive"} 
-                               className={w.offerResponse.status === "accept" ? "bg-green-100 text-green-800 hover:bg-green-200" : ""}>
-                          {w.offerResponse.status === "accept" ? "Acceptată" : "Respinsă"}
-                        </Badge>
-                      </div>
-                      {w.offerResponse.reason && (
-                        <p className="mt-2 text-sm text-muted-foreground">
-                          Motiv: {w.offerResponse.reason}
-                        </p>
-                      )}
-                      {w.offerResponse.status === "accept" && (
-                        <div className="mt-3">
-                          <Button onClick={downloadOffer} disabled={downloading}>
-                            {downloading ? "Se generează..." : "Descarcă oferta"}
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Documents */}
+            {/* Documents: afișăm doar Factură și Ofertă pentru client */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -376,22 +306,6 @@ export default function PortalWorkDetail() {
               </CardHeader>
               <CardContent>
                 <div className="grid gap-3">
-                  {w.raportSnapshot?.url && (
-                    <Link 
-                      className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors" 
-                      href={`/api/download?lucrareId=${encodeURIComponent(id)}&type=raport&url=${encodeURIComponent(w.raportSnapshot.url)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <div className="p-2 bg-blue-100 rounded">
-                        <FileText className="h-5 w-5 text-blue-600" />
-                      </div>
-                      <div>
-                        <div className="font-medium">Raport lucrare</div>
-                        <div className="text-sm text-muted-foreground">Descarcă raportul complet</div>
-                      </div>
-                    </Link>
-                  )}
                   {w.facturaDocument?.url && (
                     <Link 
                       className="flex items-center gap-3 p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors" 

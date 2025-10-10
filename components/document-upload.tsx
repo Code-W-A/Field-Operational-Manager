@@ -40,8 +40,8 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
   // Verificăm dacă oferta este necesară (condiție pentru upload ofertă)
   const needsOffer = lucrare.necesitaOferta === true
   
-  // Noi condiții pentru afișarea upload-urilor
-  const shouldShowFacturaUpload = lucrare.statusFacturare === "Facturat"
+  // Condiții pentru afișarea upload-ului: afișăm cât timp nu există o factură
+  const shouldShowFacturaUpload = !lucrare.facturaDocument
   const shouldShowOfertaUpload = lucrare.statusOferta === "OFERTAT"
 
   // Eliminăm câmpurile manuale pentru număr și dată; data/ora încărcării se salvează automat
@@ -195,7 +195,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
     try {
       // Actualizăm Firestore mai întâi (înainte de ștergerea din Storage)
       const updateData = type === 'factura' 
-        ? { facturaDocument: deleteField() as any }
+        ? { facturaDocument: deleteField() as any, statusFacturare: (lucrare.motivNefacturare ? "Nu se facturează" : "Nefacturat") } as any
         : { ofertaDocument: deleteField() as any }
       
       await updateLucrare(lucrareId, updateData)
@@ -216,6 +216,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
       const updatedLucrare = { ...lucrare }
       if (type === 'factura') {
         delete updatedLucrare.facturaDocument
+        updatedLucrare.statusFacturare = lucrare.motivNefacturare ? "Nu se facturează" : "Nefacturat"
       } else {
         delete updatedLucrare.ofertaDocument
       }
@@ -235,9 +236,58 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
     }
   }
 
-  // Dacă utilizatorul nu are permisiuni, nu afișăm nimic
+  // Dacă utilizatorul este client (fără permisiuni de upload), afișăm doar descărcări pentru factură/ofertă
   if (!hasPermission) {
-    return null
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Documente
+          </CardTitle>
+          <CardDescription>Descărcați documentele disponibile</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3">
+            {lucrare.facturaDocument?.url && (
+              <a
+                className="flex items-center gap-3 p-3 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
+                href={`/api/download?lucrareId=${encodeURIComponent(lucrareId)}&type=factura&url=${encodeURIComponent(lucrare.facturaDocument.url)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <div className="p-2 bg-green-100 rounded">
+                  <FileText className="h-5 w-5 text-green-600" />
+                </div>
+                <div>
+                  <div className="font-medium">Factură</div>
+                  <div className="text-sm text-muted-foreground">Descarcă factura</div>
+                </div>
+              </a>
+            )}
+            {lucrare.ofertaDocument?.url && (
+              <a
+                className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
+                href={`/api/download?lucrareId=${encodeURIComponent(lucrareId)}&type=oferta&url=${encodeURIComponent(lucrare.ofertaDocument.url)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <div className="p-2 bg-purple-100 rounded">
+                  <FileText className="h-5 w-5 text-purple-600" />
+                </div>
+                <div>
+                  <div className="font-medium">Ofertă</div>
+                  <div className="text-sm text-muted-foreground">Descarcă oferta</div>
+                </div>
+              </a>
+            )}
+            {!lucrare.facturaDocument?.url && !lucrare.ofertaDocument?.url && (
+              <div className="text-center py-6 text-muted-foreground text-sm">Nu există documente disponibile</div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
@@ -250,7 +300,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
         <CardDescription>
           {isArchived 
             ? "Documentele pot fi doar vizualizate și descărcate pentru lucrările arhivate"
-            : "Încărcare documente pentru factură și ofertă (orice tip de fișier)"
+            : "Facturare: Încărcați factura sau marcați 'Nu se facturează' și adăugați motivul"
           }
         </CardDescription>
       </CardHeader>
@@ -265,10 +315,10 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
           </Alert>
         )}
 
-        {/* Secțiunea pentru factură */}
+        {/* Secțiunea pentru factură / facturare */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h4 className="text-sm font-medium">Factură</h4>
+            <h4 className="text-sm font-medium">Facturare</h4>
             <Badge variant={lucrare.facturaDocument ? "default" : "secondary"}>
               {lucrare.facturaDocument ? "Încărcată" : "Neîncărcată"}
             </Badge>
@@ -319,39 +369,88 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
             </div>
           )}
 
-          {/* Secțiunea de upload - condiționată de statusFacturare */}
-          {!lucrare.facturaDocument && shouldShowFacturaUpload && (
-            <div className="space-y-3">
-              {/* Upload fișier */}
-              <div className="space-y-2">
-                <input
-                  ref={facturaInputRef}
-                  type="file"
-                  onChange={handleFacturaUpload}
-                  className="hidden"
-                  disabled={!isWorkPickedUp || isUploading.factura || isArchived}
-                />
-                <Button
-                  onClick={() => facturaInputRef.current?.click()}
-                  disabled={!isWorkPickedUp || isUploading.factura || isArchived}
-                  variant="outline"
-                  className="w-full"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  {isArchived ? "Indisponibil pentru lucrări arhivate" : (isUploading.factura ? "Se încarcă..." : "Selectează și încarcă fișier factură")}
-                </Button>
+          {/* Rând: Încarcă factură (stânga) | Nu se facturează + motiv (dreapta) */}
+          {!lucrare.facturaDocument && (
+            <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+              {/* Stânga: Upload factură */}
+              {shouldShowFacturaUpload && (
+                <div className="sm:w-1/2 space-y-2">
+                  <input
+                    ref={facturaInputRef}
+                    type="file"
+                    onChange={handleFacturaUpload}
+                    className="hidden"
+                    disabled={!isWorkPickedUp || isUploading.factura || isArchived || lucrare.statusFacturare === "Nu se facturează"}
+                  />
+                  <Button
+                    onClick={() => facturaInputRef.current?.click()}
+                    disabled={!isWorkPickedUp || isUploading.factura || isArchived || lucrare.statusFacturare === "Nu se facturează"}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    {isArchived ? "Indisponibil pentru lucrări arhivate" : (isUploading.factura ? "Se încarcă..." : "Încarcă factură")}
+                  </Button>
+                </div>
+              )}
+
+              {/* Dreapta: Nu se facturează + motiv */}
+              <div className="sm:w-1/2 space-y-2">
+                {lucrare.statusFacturare !== "Nu se facturează" ? (
+                  <Button
+                    variant="outline"
+                    disabled={!isWorkPickedUp || isArchived}
+                    onClick={async () => {
+                      try {
+                        await updateLucrare(lucrareId, { statusFacturare: "Nu se facturează" } as any)
+                        onLucrareUpdate({ ...lucrare, statusFacturare: "Nu se facturează" })
+                      } catch (e) {
+                        toast({ title: "Eroare", description: "Nu s-a putut seta 'Nu se facturează'", variant: "destructive" })
+                      }
+                    }}
+                    className="w-full"
+                  >
+                    Nu se facturează
+                  </Button>
+                ) : (
+                  <div className="space-y-2">
+                    <textarea
+                      className="w-full border rounded p-2 text-sm"
+                      rows={3}
+                      placeholder="Motivul pentru care nu se facturează"
+                      defaultValue={lucrare.motivNefacturare || ""}
+                      onBlur={async (e) => {
+                        const value = e.target.value.trim()
+                        try {
+                          await updateLucrare(lucrareId, { motivNefacturare: value } as any)
+                          onLucrareUpdate({ ...lucrare, motivNefacturare: value })
+                          if (!value) {
+                            toast({ title: "Salvat", description: "Motivul a fost golit." })
+                          }
+                        } catch (err) {
+                          toast({ title: "Eroare", description: "Nu s-a putut salva motivul.", variant: "destructive" })
+                        }
+                      }}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={async () => {
+                          try {
+                            await updateLucrare(lucrareId, { statusFacturare: "Nefacturat", motivNefacturare: "" } as any)
+                            onLucrareUpdate({ ...lucrare, statusFacturare: "Nefacturat", motivNefacturare: "" })
+                          } catch (err) {
+                            toast({ title: "Eroare", description: "Nu s-a putut reveni la 'Nefacturat'", variant: "destructive" })
+                          }
+                        }}
+                      >
+                        Revocă 'Nu se facturează'
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-          )}
-
-          {/* Mesaj când upload-ul nu este disponibil */}
-          {!lucrare.facturaDocument && !shouldShowFacturaUpload && (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Încărcarea facturii este disponibilă doar când statusul facturării este setat pe "Facturat".
-              </AlertDescription>
-            </Alert>
           )}
         </div>
 

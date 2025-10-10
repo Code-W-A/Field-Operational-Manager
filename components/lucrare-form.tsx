@@ -1703,14 +1703,14 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             <CustomEquipmentSelect
               key={`equipment-select-${availableEquipments.length}-${formData.echipamentCod || formData.echipament}`}
               equipments={availableEquipments}
-              value={formData.echipamentId || formData.echipamentCod || formData.echipament}
+              value={formData.echipamentId || formData.echipamentCod}
               onSelect={handleEquipmentSelect}
               disabled={!formData.locatie}
               placeholder={formData.locatie ? "Selectați echipamentul" : "Selectați mai întâi o locație"}
               emptyMessage={
                 formData.locatie ? "Nu există echipamente pentru această locație" : "Selectați mai întâi o locație"
               }
-              fallbackName={formData.echipament} // Adăugăm numele echipamentului pentru fallback
+              fallbackName={formData.echipament}
             />
             {availableEquipments.length === 0 && formData.locatie && equipmentsLoaded && (
               <div>

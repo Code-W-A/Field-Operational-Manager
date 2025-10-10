@@ -1214,7 +1214,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         </p>
                         <div className="flex gap-2">
                           <a
-                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lucrare.locatie}, ${locationAddress}`)}`}
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationAddress)}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
@@ -1223,7 +1223,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                             Google Maps
                           </a>
                           <a
-                            href={`https://waze.com/ul?q=${encodeURIComponent(`${lucrare.locatie}, ${locationAddress}`)}&navigate=yes`}
+                            href={`https://waze.com/ul?q=${encodeURIComponent(locationAddress)}&navigate=yes`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
@@ -1449,7 +1449,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
             <Card>
               <CardHeader>
                 <CardTitle>Informații client</CardTitle>
-                <CardDescription>{lucrare.client}</CardDescription>
+                <CardDescription className="text-foreground font-semibold">{lucrare.client}</CardDescription>
               </CardHeader>
               <CardContent>
              
@@ -1545,7 +1545,6 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       </div>
     </div>
   )}
-                {/* Managementul statusurilor critice – mutat din cardul stâng în cardul drept */}
                 {/* Setări ofertă – disponibile pentru admin/dispecer indiferent de preluare sau status */}
                 {(role === "admin" || role === "dispecer") && (
                   <div className="p-4 border rounded-md bg-blue-50 border-blue-200 mb-4">

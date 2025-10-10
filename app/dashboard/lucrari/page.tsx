@@ -1566,6 +1566,22 @@ export default function Lucrari() {
   // Definim coloanele pentru DataTable
   const columns = [
     {
+      accessorKey: "nrLucrareDisplay",
+      header: "Număr lucrare",
+      enableHiding: false,
+      enableFiltering: false,
+      cell: ({ row }) => {
+        const base = row.original.nrLucrare || row.original.numarRaport || "-"
+        const offerCount = Number((row.original as any)?.offerSendCount || 0)
+        const suffix = offerCount > 0 ? `-${offerCount}` : ""
+        return (
+          <Badge className="bg-purple-100 text-purple-800 font-mono text-xs">
+            {String(base)}{suffix}
+          </Badge>
+        )
+      },
+    },
+    {
       accessorKey: "updatedAt",
       header: "Ultima modificare",
       enableHiding: true,
@@ -2395,7 +2411,12 @@ export default function Lucrari() {
                   <CardContent className="p-0">
                     <div className="flex items-center justify-between border-b p-4">
                       <div>
-                        <h3 className="font-medium">{lucrare.client}</h3>
+                        <h3 className="font-medium flex items-center gap-2">
+                          {lucrare.client}
+                          <Badge className="bg-purple-100 text-purple-800 font-mono text-xs">
+                            {String(lucrare.nrLucrare || lucrare.numarRaport || "-")}{Number((lucrare as any)?.offerSendCount || 0) > 0 ? `-${Number((lucrare as any)?.offerSendCount || 0)}` : ""}
+                          </Badge>
+                        </h3>
                         <p className="text-sm text-muted-foreground">
                         Locatie: {lucrare.locatie}
                              
