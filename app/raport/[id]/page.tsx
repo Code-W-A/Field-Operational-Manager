@@ -516,12 +516,14 @@ FOM by NRG`,
       })
     }
 
-    // Validarea se va face în funcția sendEmail - aici doar avertizăm
+    // Validare strictă: cel puțin un email manual este obligatoriu
     if (manualEmails.length === 0) {
       toast({
-        title: "Informație",
-        description: "Nu ați introdus emailuri manuale. Se va încerca trimiterea către emailul clientului din baza de date.",
+        title: "Eroare",
+        description: "Adăugați cel puțin un e-mail destinatar înainte de a finaliza raportul.",
+        variant: "destructive",
       })
+      return
     }
 
     setIsSubmitting(true)
@@ -2026,7 +2028,7 @@ FOM by NRG`,
                 ref={submitButtonRef}
                 className="gap-2 bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
                 onClick={handleSubmit}
-                disabled={isSubmitting}
+                disabled={isSubmitting || manualEmails.length === 0}
                 style={{
                   position: "relative",
                   zIndex: 50,
