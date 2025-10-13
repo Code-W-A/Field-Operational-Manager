@@ -1496,6 +1496,12 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         <div className="text-xs font-medium text-muted-foreground">CUI/CIF:</div>
                         <div className="text-gray-900 whitespace-normal break-words">{(clientData as any)?.cif || "N/A"}</div>
                       </div>
+                  {isAdminOrDispatcher && (
+                    <div className="flex flex-col min-w-0">
+                      <div className="text-xs font-medium text-muted-foreground">Nr. ordine ONRC:</div>
+                      <div className="text-gray-900 whitespace-normal break-words">{(clientData as any)?.regCom || "N/A"}</div>
+                    </div>
+                  )}
                     </>
                   )}
                 </div>

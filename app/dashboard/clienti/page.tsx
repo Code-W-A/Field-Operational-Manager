@@ -136,7 +136,19 @@ export default function Clienti() {
   const { clienti: rawClienti, loading, error: fetchError, refreshData } = useClientLucrari()
 
   // Sortare hibridă: prioritizăm clienții cu updatedAt (modificați recent), apoi cei cu createdAt
-  const clienti = useMemo(() => {
+  const clienti = useMemo<(
+    Client & {
+      numarLucrari?: number
+      locatii?: any[]
+      persoaneContact?: any[]
+      cif?: string
+      cui?: string
+      regCom?: string
+      persoanaContact?: string
+      createdAt?: any
+      updatedAt?: any
+    }
+  )[]>(() => {
     if (!rawClienti || rawClienti.length === 0) return []
     
     return [...rawClienti].sort((a: any, b: any) => {
@@ -165,6 +177,61 @@ export default function Clienti() {
     })
   }, [rawClienti])
 
+  // Helper: match client against search text across many nested fields (locations, contacts, etc.)
+  const clientMatchesSearch = useCallback((item: any, lowercasedFilter: string): boolean => {
+    const test = (v?: any) => {
+      if (v === null || v === undefined) return false
+      try {
+        return String(v).toLowerCase().includes(lowercasedFilter)
+      } catch {
+        return false
+      }
+    }
+
+    // Top-level fields
+    if (
+      test(item.nume) ||
+      test(item.cif) || test(item.cui) ||
+      test(item.adresa) ||
+      test(item.email) ||
+      test(item.telefon) ||
+      test(item.persoanaContact) ||
+      test(item.reprezentantFirma) ||
+      test(item.functieReprezentant) ||
+      test((item as any)?.regCom)
+    ) {
+      return true
+    }
+
+    // Client-level contacts (optional legacy)
+    const persoaneClient = Array.isArray(item.persoaneContact) ? item.persoaneContact : []
+    for (const p of persoaneClient) {
+      if (test(p?.nume) || test(p?.telefon) || test(p?.email) || test(p?.functie)) return true
+    }
+
+    // Locations and their contacts/equipment
+    const locatii = Array.isArray(item.locatii) ? item.locatii : []
+    for (const loc of locatii) {
+      if (test(loc?.nume) || test(loc?.adresa)) return true
+      const persoane = Array.isArray(loc?.persoaneContact) ? loc.persoaneContact : []
+      for (const p of persoane) {
+        if (test(p?.nume) || test(p?.telefon) || test(p?.email) || test(p?.functie)) return true
+      }
+      const echipamente = Array.isArray(loc?.echipamente) ? loc.echipamente : []
+      for (const e of echipamente) {
+        if (test(e?.nume) || test(e?.cod) || test(e?.model) || test(e?.serie)) return true
+      }
+    }
+
+    // Contracts (if present on client object)
+    const contracte = Array.isArray((item as any)?.contracte) ? (item as any).contracte : []
+    for (const c of contracte) {
+      if (test(c?.numar) || test(c?.tip)) return true
+    }
+
+    return false
+  }, [])
+
   // Define filter options based on client data
   const filterOptions = useMemo(() => {
     // Get unique work counts and sort them
@@ -182,16 +249,16 @@ export default function Clienti() {
       {
         id: "numarLucrari",
         label: "Număr lucrări",
-        type: "multiselect",
+        type: "multiselect" as const,
         options: numarLucrariOptions,
-        value: [],
+        value: [] as string[],
       },
     ]
   }, [clienti])
 
   // Apply active filters
   const applyFilters = useCallback(
-    (data: Client[]) => {
+    (data: any[]) => {
       if (!activeFilters.length) return data
 
       return data.filter((item) => {
@@ -241,20 +308,7 @@ export default function Clienti() {
     // Apply global search
     if (searchText.trim()) {
       const lowercasedFilter = searchText.toLowerCase()
-      filtered = filtered.filter((item) => {
-        return Object.keys(item).some((key) => {
-          const value = item[key]
-          if (value === null || value === undefined) return false
-
-          // Handle arrays (if any)
-          if (Array.isArray(value)) {
-            return value.some((v) => String(v).toLowerCase().includes(lowercasedFilter))
-          }
-
-          // Convert to string for search
-          return String(value).toLowerCase().includes(lowercasedFilter)
-        })
-      })
+      filtered = filtered.filter((item) => clientMatchesSearch(item, lowercasedFilter))
     }
 
     setFilteredData(filtered)
@@ -274,18 +328,7 @@ export default function Clienti() {
 
         if (searchText.trim()) {
           const lowercasedFilter = searchText.toLowerCase()
-          filtered = filtered.filter((item) => {
-            return Object.keys(item).some((key) => {
-              const value = item[key]
-              if (value === null || value === undefined) return false
-
-              if (Array.isArray(value)) {
-                return value.some((v) => String(v).toLowerCase().includes(lowercasedFilter))
-              }
-
-              return String(value).toLowerCase().includes(lowercasedFilter)
-            })
-          })
+          filtered = filtered.filter((item: any) => clientMatchesSearch(item, lowercasedFilter))
         }
 
         setFilteredData(filtered)
@@ -347,7 +390,7 @@ export default function Clienti() {
       const savedSettings = loadSettings()
       const savedColumnVisibility = savedSettings.columnVisibility || {}
       
-      const allColumns = table.getAllColumns()
+      const allColumns = table.getAllColumns() as any[]
       
       // Aplicăm vizibilitatea salvată
       allColumns.forEach((column) => {
@@ -373,7 +416,7 @@ export default function Clienti() {
   const handleToggleColumn = (columnId: string) => {
     if (!table) return
 
-    const column = table.getColumn(columnId)
+    const column = table.getColumn(columnId) as any
     if (column) {
       column.toggleVisibility(!column.getIsVisible())
 
@@ -395,7 +438,7 @@ export default function Clienti() {
   const handleSelectAllColumns = () => {
     if (!table) return
 
-    table.getAllColumns().forEach((column) => {
+    ;(table.getAllColumns() as any[]).forEach((column) => {
       if (column.getCanHide()) {
         column.toggleVisibility(true)
       }
@@ -416,7 +459,7 @@ export default function Clienti() {
   const handleDeselectAllColumns = () => {
     if (!table) return
 
-    table.getAllColumns().forEach((column) => {
+    ;(table.getAllColumns() as any[]).forEach((column) => {
       if (column.getCanHide() && column.id !== "actions") {
         column.toggleVisibility(false)
       }
@@ -848,7 +891,7 @@ export default function Clienti() {
 
             {/* Grid cu cards */}
             <div className="grid gap-4 px-4 sm:px-0 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 w-full overflow-auto">
-              {paginatedCardsData.map((client) => (
+              {paginatedCardsData.map((client: any) => (
               <Card
                 key={client.id}
                 className="overflow-hidden cursor-pointer hover:shadow-md"

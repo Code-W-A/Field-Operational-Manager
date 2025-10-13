@@ -433,6 +433,12 @@ export function TehnicianInterventionForm({
                 placeholder="Descrieți ce ați constatat la locație..."
                 value={constatareLaLocatie}
                 onChange={(e) => setConstatareLaLocatie(e.target.value)}
+                onKeyDown={(e) => {
+                  // Prevenim propagarea pentru anumite taste care pot declanșa scurtături globale
+                  if (e.key === ",") {
+                    e.stopPropagation()
+                  }
+                }}
                 disabled={formDisabled}
                 className={formDisabled ? "opacity-70 cursor-not-allowed" : ""}
               />
@@ -445,6 +451,11 @@ export function TehnicianInterventionForm({
                 placeholder="Descrieți intervenția efectuată..."
                 value={descriereInterventie}
                 onChange={(e) => setDescriereInterventie(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === ",") {
+                    e.stopPropagation()
+                  }
+                }}
                 disabled={formDisabled}
                 className={formDisabled ? "opacity-70 cursor-not-allowed" : ""}
               />

@@ -54,6 +54,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
   const [formData, setFormData] = useState({
     nume: client.nume || "",
     cif: (client as any).cif || client.cui || "",
+    regCom: (client as any).regCom || "",
     adresa: client.adresa || "",
     email: client.email || "",
     telefon: client.telefon || "",
@@ -539,6 +540,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
       await updateClient(client.id, {
         ...formData,
         cui: formData.cif, // Mapăm cif → cui pentru consistență cu interfața
+        regCom: formData.regCom || (client as any).regCom || "",
         // Nu setăm persoanaContact la nivel de client (schema folosește persoaneContact/locatii)
         locatii: filteredLocatii,
       })
@@ -618,6 +620,14 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
           CIF / CUI
         </label>
         <Input id="cif" placeholder="Introduceți CIF/CUI" value={formData.cif} onChange={handleInputChange} />
+      </div>
+
+      <div className="space-y-2">
+        <label htmlFor="regCom" className="text-sm font-medium">
+          Nr. ordine ONRC (J-…)
+        </label>
+        <Input id="regCom" placeholder="Ex: J40/12345/2020" value={formData.regCom} onChange={handleInputChange} />
+        <p className="text-xs text-muted-foreground">Vizibil doar pentru admin/dispecer.</p>
       </div>
 
       <div className="space-y-2">

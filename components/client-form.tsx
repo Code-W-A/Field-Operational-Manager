@@ -82,6 +82,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
   const [formData, setFormData] = useState({
     nume: "",
     cif: "", // Adăugăm CIF
+    regCom: "",
     adresa: "",
     email: "",
     telefon: "", // Adăugăm telefon principal
@@ -156,6 +157,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
     const hasContent =
       formData.nume ||
       formData.cif ||
+      formData.regCom ||
       formData.adresa ||
       formData.email ||
       formData.telefon ||
@@ -593,7 +595,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
       const newClient = {
         ...formData,
         cui: formData.cif,
-        regCom: "",
+        regCom: formData.regCom || "",
         contBancar: "",
         banca: "",
         persoanaContact: primaryContact ? primaryContact.nume : "",
@@ -693,6 +695,19 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
             </div>
           )}
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <label htmlFor="regCom" className="text-sm font-medium">
+          Nr. ordine ONRC (J-…)
+        </label>
+        <Input
+          id="regCom"
+          placeholder="Ex: J40/12345/2020"
+          value={formData.regCom}
+          onChange={handleInputChange}
+        />
+        <p className="text-xs text-muted-foreground">Opțional. Se poate completa ulterior.</p>
       </div>
 
       <div className="space-y-2">

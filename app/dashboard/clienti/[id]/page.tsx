@@ -167,6 +167,12 @@ export default function ClientPage({ params }: { params: { id: string } }) {
               <h3 className="font-medium text-gray-500">CUI/CIF</h3>
               <p>{(client as any)?.cif || "N/A"}</p>
             </div>
+            {(userData?.role === "admin" || userData?.role === "dispecer") && (
+              <div>
+                <h3 className="font-medium text-gray-500">Nr. ordine ONRC</h3>
+                <p>{(client as any)?.regCom || "N/A"}</p>
+              </div>
+            )}
           </div>
 
           <Separator />

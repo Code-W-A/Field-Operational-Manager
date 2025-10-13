@@ -584,13 +584,13 @@ useEffect(() => {
               {(!isPickedUp || statusOferta === "OFERTAT") && (
                 <span className="text-xs text-muted-foreground mr-auto">{!isPickedUp ? "Editorul este disponibil după preluarea lucrării de către dispecer." : "Oferta trimisă este înghețată. Creați o versiune nouă pentru modificări."}</span>
               )}
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Închide</Button>
               {statusOferta === "OFERTAT" && !editingNewVersion ? (
                 <Button onClick={startNewVersion} disabled={saving}>Începe versiune nouă</Button>
               ) : (
                 <Button onClick={handleSave} disabled={saving || products.length === 0 || (!isPickedUp && !editingNewVersion)}>{saving ? "Se salvează..." : "Salvează"}</Button>
               )}
               <Button onClick={handleSendOffer} disabled={saving}>Trimite ofertă</Button>
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving} className="ml-2">Închide</Button>
             </div>
           </div>
           <div className="space-y-3 p-6 overflow-y-auto max-h-[calc(95vh-8rem)]">
