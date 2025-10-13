@@ -15,6 +15,7 @@ import { useStableCallback } from "@/lib/utils/hooks"
 import { ProductTableForm, type Product } from "@/components/product-table-form"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "@/components/ui/use-toast"
 import { ReportGenerator } from "@/components/report-generator"
 import { MultiEmailInput } from "@/components/ui/multi-email-input"
@@ -55,6 +56,8 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isEmailSending, setIsEmailSending] = useState(false)
   const [updatedLucrare, setUpdatedLucrare] = useState<any>(null)
+  // Toggle for manual multiple recipients
+  const [useManualRecipients, setUseManualRecipients] = useState(false)
   
   // Add name states for signers
   const [numeTehnician, setNumeTehnician] = useState("")
@@ -356,8 +359,9 @@ export default function RaportPage({ params }: { params: { id: string } }) {
 
         setIsEmailSending(true)
 
-        // Obținem emailul clientului din Firestore pe baza numelui clientului
+        // Obținem emailurile de locație (persoaneContact) + fallback la email client
         let clientEmail = ""
+        const locationEmails: string[] = []
         if (updatedLucrare.client && typeof updatedLucrare.client === "string") {
           try {
             console.log("Căutăm clientul:", updatedLucrare.client)
@@ -366,11 +370,38 @@ export default function RaportPage({ params }: { params: { id: string } }) {
             const querySnapshot = await getDocs(q)
 
             if (!querySnapshot.empty) {
-              const clientData = querySnapshot.docs[0].data()
+              const clientData: any = querySnapshot.docs[0].data()
               if (clientData.email) {
                 clientEmail = clientData.email
                 console.log("Am găsit emailul clientului:", clientEmail)
               }
+
+              // căutăm emailuri de la locație selectată (după numele locației din lucrare)
+              const selectedLocationName = updatedLucrare.locatie || updatedLucrare.location || ""
+              const locatii = Array.isArray(clientData.locatii) ? clientData.locatii : []
+              const selectedLocations = locatii.filter((l: any) => {
+                const nume = (l?.nume || l?.name || "").toString().trim().toLowerCase()
+                const target = selectedLocationName.toString().trim().toLowerCase()
+                return nume && target && nume === target
+              })
+              const contactsFromSelected = selectedLocations.flatMap((l: any) => Array.isArray(l?.persoaneContact) ? l.persoaneContact : [])
+              for (const p of contactsFromSelected) {
+                const e = (p?.email || "").toString().trim()
+                if (e && /.+@.+\..+/.test(e)) {
+                  locationEmails.push(e)
+                }
+              }
+              // dacă nu găsim locația exactă, luăm toate persoanele de contact valide
+              if (locationEmails.length === 0) {
+                const allContacts = locatii.flatMap((l: any) => Array.isArray(l?.persoaneContact) ? l.persoaneContact : [])
+                for (const p of allContacts) {
+                  const e = (p?.email || "").toString().trim()
+                  if (e && /.+@.+\..+/.test(e)) {
+                    locationEmails.push(e)
+                  }
+                }
+              }
+              console.log("Emailuri locație găsite:", locationEmails)
             } else {
               console.log("Clientul nu a fost găsit în Firestore:", updatedLucrare.client)
             }
@@ -380,34 +411,34 @@ export default function RaportPage({ params }: { params: { id: string } }) {
         }
 
         // Construim lista de emailuri pentru trimitere (evităm duplicatele)
-        const emailsToSend = []
-        const sentToEmails = []
+        const emailsToSend: { email: string; label: string }[] = []
+        const sentToEmails: string[] = []
 
-        // Adăugăm emailurile introduse manual (prioritare)
-        manualEmails.forEach(email => {
-          if (email && email.trim()) {
-            emailsToSend.push({ 
-              email: email.trim(), 
-              label: "E-mail manual" 
-            })
-          }
-        })
+        // Implicit: adăugăm emailuri de locație
+        const pushUnique = (e: string, label: string) => {
+          const email = e.trim().toLowerCase()
+          if (!email) return
+          const exists = emailsToSend.some((x) => x.email.toLowerCase() === email)
+          if (!exists) emailsToSend.push({ email: e.trim(), label })
+        }
+        locationEmails.forEach(e => pushUnique(e, "Email locație"))
 
-        // Adăugăm emailul clientului din Firestore dacă nu există deja în lista manuală
+        // Fallback: email client
         if (clientEmail && clientEmail.trim()) {
-          const existsInManual = manualEmails.some(email => 
-            email.trim().toLowerCase() === clientEmail.trim().toLowerCase()
-          )
-          if (!existsInManual) {
-            emailsToSend.push({ 
-              email: clientEmail.trim(), 
-              label: "Email client (din Firestore)" 
-            })
-          }
+          pushUnique(clientEmail, "Email client (din Firestore)")
+        }
+
+        // Dacă este bifat, adăugăm și emailurile manuale
+        if (useManualRecipients) {
+          manualEmails.forEach(email => {
+            if (email && email.trim()) {
+              pushUnique(email, "E-mail manual")
+            }
+          })
         }
 
         if (emailsToSend.length === 0) {
-          throw new Error("Nu există adrese de email pentru trimitere")
+          throw new Error("Nu există adrese de email pentru trimitere (nu s-a găsit niciun email de locație sau client)")
         }
 
         console.log("📧 LISTA FINALĂ DE EMAILURI PENTRU TRIMITERE:", emailsToSend)
@@ -494,7 +525,7 @@ FOM by NRG`,
         return false
       }
     },
-    [manualEmails, updatedLucrare, params.id, isEmailSending],
+    [manualEmails, updatedLucrare, params.id, isEmailSending, useManualRecipients],
   )
 
   // Use useStableCallback to ensure we have access to the latest state values
@@ -516,15 +547,7 @@ FOM by NRG`,
       })
     }
 
-    // Validare strictă: cel puțin un email manual este obligatoriu
-    if (manualEmails.length === 0) {
-      toast({
-        title: "Eroare",
-        description: "Adăugați cel puțin un e-mail destinatar înainte de a finaliza raportul.",
-        variant: "destructive",
-      })
-      return
-    }
+    // Nu mai cerem obligatoriu email manual; se va trimite implicit la emailurile locației
 
     setIsSubmitting(true)
 
@@ -1952,15 +1975,24 @@ FOM by NRG`,
 
                 {/* Adăugăm câmpul pentru email */}
                 <div className="space-y-2">
-                  <Label htmlFor="emails">E-mailuri destinatari</Label>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="useManualRecipients"
+                  checked={useManualRecipients}
+                  onCheckedChange={(v) => setUseManualRecipients(Boolean(v))}
+                  disabled={isSubmitting}
+                />
+                <Label htmlFor="useManualRecipients">Destinatari multipli pt raport</Label>
+              </div>
+              <Label htmlFor="emails">E-mailuri destinatari (opțional)</Label>
                   <MultiEmailInput
                     emails={manualEmails}
                     onEmailsChange={setManualEmails}
                     placeholder="Introduceți adresele de email pentru raport..."
-                    disabled={isSubmitting}
+                disabled={isSubmitting || !useManualRecipients}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Raportul va fi trimis automat la toate adresele introduse + emailul clientului din baza de date
+                Implicit se trimite către emailurile de locație din client. Bifați „Destinatari multipli pt raport” pentru a adăuga și alte adrese.
                   </p>
                 </div>
 
@@ -2028,7 +2060,7 @@ FOM by NRG`,
                 ref={submitButtonRef}
                 className="gap-2 bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
                 onClick={handleSubmit}
-                disabled={isSubmitting || manualEmails.length === 0}
+                disabled={isSubmitting}
                 style={{
                   position: "relative",
                   zIndex: 50,
