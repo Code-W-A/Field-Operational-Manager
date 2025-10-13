@@ -359,7 +359,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
 
         setIsEmailSending(true)
 
-        // Obținem emailurile de locație (persoaneContact) + fallback la email client
+        // Obținem emailurile de locație (persoaneContact) + fallback la email client – matching robust (ID, nume normalizat, includes)
         let clientEmail = ""
         const locationEmails: string[] = []
         if (updatedLucrare.client && typeof updatedLucrare.client === "string") {
@@ -376,22 +376,68 @@ export default function RaportPage({ params }: { params: { id: string } }) {
                 console.log("Am găsit emailul clientului:", clientEmail)
               }
 
-              // căutăm emailuri de la locație selectată (după numele locației din lucrare)
-              const selectedLocationName = updatedLucrare.locatie || updatedLucrare.location || ""
+              // Căutăm emailuri pentru locația selectată folosind potrivire robustă
+              const selectedLocationNameRaw = (updatedLucrare.locatie || updatedLucrare.location || "").toString()
+              const selectedLocationId = (updatedLucrare as any)?.clientInfo?.locationId || (updatedLucrare as any)?.clientInfo?.locatieId
+              const selectedContactNameRaw = (updatedLucrare.persoanaContact || "").toString()
+
+              const norm = (s?: string) =>
+                (s || "")
+                  .toString()
+                  .normalize("NFD")
+                  .replace(/\p{Diacritic}/gu, "")
+                  .trim()
+                  .toLowerCase()
+
               const locatii = Array.isArray(clientData.locatii) ? clientData.locatii : []
-              const selectedLocations = locatii.filter((l: any) => {
-                const nume = (l?.nume || l?.name || "").toString().trim().toLowerCase()
-                const target = selectedLocationName.toString().trim().toLowerCase()
-                return nume && target && nume === target
-              })
-              const contactsFromSelected = selectedLocations.flatMap((l: any) => Array.isArray(l?.persoaneContact) ? l.persoaneContact : [])
-              for (const p of contactsFromSelected) {
-                const e = (p?.email || "").toString().trim()
-                if (e && /.+@.+\..+/.test(e)) {
-                  locationEmails.push(e)
+              const targetName = norm(selectedLocationNameRaw)
+              let matchedLocations: any[] = []
+
+              // 1) Match by ID dacă există
+              if (selectedLocationId) {
+                matchedLocations = locatii.filter((l: any) => String(l?.id || "") === String(selectedLocationId))
+              }
+
+              // 2) Fallback la nume: egalitate sau includes (ambele sensuri) cu normalizare
+              if (matchedLocations.length === 0 && targetName) {
+                matchedLocations = locatii.filter((l: any) => {
+                  const ln = norm(l?.nume || l?.name)
+                  return (ln && ln === targetName) || (ln && targetName && (ln.includes(targetName) || targetName.includes(ln)))
+                })
+              }
+
+              // 3) Dacă tot nu avem match, încercăm adresa (uneori în lucrare se folosește adresa ca locație)
+              if (matchedLocations.length === 0 && targetName) {
+                matchedLocations = locatii.filter((l: any) => {
+                  const la = norm(l?.adresa)
+                  return la && (la === targetName || la.includes(targetName) || targetName.includes(la))
+                })
+              }
+
+              // Preferăm emailul persoanei de contact potrivite (după nume) din locația identificată
+              const selectedContactName = norm(selectedContactNameRaw)
+              if (matchedLocations.length > 0) {
+                const contactsFromSelected = matchedLocations.flatMap((l: any) => Array.isArray(l?.persoaneContact) ? l.persoaneContact : [])
+
+                // 3a) Încercăm să găsim contactul după nume, dacă este specificat în lucrare
+                if (selectedContactName) {
+                  const exact = contactsFromSelected.find((p: any) => norm(p?.nume) === selectedContactName || norm(p?.nume).includes(selectedContactName) || selectedContactName.includes(norm(p?.nume)))
+                  const e = (exact?.email || "").toString().trim()
+                  if (e && /.+@.+\..+/.test(e)) {
+                    locationEmails.push(e)
+                  }
+                }
+
+                // 3b) Adăugăm restul contactelor valide din locație (fără duplicate)
+                for (const p of contactsFromSelected) {
+                  const e = (p?.email || "").toString().trim()
+                  if (e && /.+@.+\..+/.test(e) && !locationEmails.map(x => x.toLowerCase()).includes(e.toLowerCase())) {
+                    locationEmails.push(e)
+                  }
                 }
               }
-              // dacă nu găsim locația exactă, luăm toate persoanele de contact valide
+
+              // 4) Ultimul fallback – dacă nu am reușit să identificăm locația, luăm toate persoanele de contact valide ale clientului
               if (locationEmails.length === 0) {
                 const allContacts = locatii.flatMap((l: any) => Array.isArray(l?.persoaneContact) ? l.persoaneContact : [])
                 for (const p of allContacts) {
@@ -401,7 +447,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
                   }
                 }
               }
-              console.log("Emailuri locație găsite:", locationEmails)
+              console.log("Emailuri locație găsite (robust):", locationEmails)
             } else {
               console.log("Clientul nu a fost găsit în Firestore:", updatedLucrare.client)
             }
