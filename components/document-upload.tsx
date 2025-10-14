@@ -371,10 +371,10 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
 
           {/* Rând: Încarcă factură (stânga) | Nu se facturează + motiv (dreapta) */}
           {!lucrare.facturaDocument && (
-            <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
               {/* Stânga: Upload factură */}
               {shouldShowFacturaUpload && (
-                <div className="sm:w-1/2 space-y-2">
+                <div className="w-full sm:w-auto space-y-2">
                   <input
                     ref={facturaInputRef}
                     type="file"
@@ -386,7 +386,8 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
                     onClick={() => facturaInputRef.current?.click()}
                     disabled={!isWorkPickedUp || isUploading.factura || isArchived || lucrare.statusFacturare === "Nu se facturează"}
                     variant="outline"
-                    className="w-full"
+                    size="sm"
+                    className="w-full sm:w-auto"
                   >
                     <Upload className="h-4 w-4 mr-2" />
                     {isArchived ? "Indisponibil pentru lucrări arhivate" : (isUploading.factura ? "Se încarcă..." : "Încarcă factură")}
@@ -395,7 +396,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
               )}
 
               {/* Dreapta: Nu se facturează + motiv */}
-              <div className="sm:w-1/2 space-y-2">
+              <div className="w-full sm:w-auto space-y-2">
                 {lucrare.statusFacturare !== "Nu se facturează" ? (
                   <Button
                     variant="outline"
@@ -408,8 +409,10 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
                         toast({ title: "Eroare", description: "Nu s-a putut seta 'Nu se facturează'", variant: "destructive" })
                       }
                     }}
-                    className="w-full"
+                    size="sm"
+                    className="w-full sm:w-auto bg-gray-100 text-gray-800 hover:bg-gray-200 border border-gray-300"
                   >
+                    <AlertCircle className="h-4 w-4 mr-2 text-gray-600" />
                     Nu se facturează
                   </Button>
                 ) : (
