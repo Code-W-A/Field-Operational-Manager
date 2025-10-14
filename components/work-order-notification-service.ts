@@ -19,7 +19,10 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
     let clientName = workOrderData.client
     const contactPerson = workOrderData.persoanaContact
     let clientId = null
-    let locationContactEmail: string | null = null
+    let locationContactEmails: string[] = []
+
+    const isValidEmail = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(String(e || ""))
+    const norm = (s?: string) => String(s || "").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "").trim()
 
     // Try to get client email from client object
     if (typeof workOrderData.client === "object" && workOrderData.client !== null) {
@@ -50,19 +53,61 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
             clientName = clientData.nume || (clientData as any).name || clientName
             console.log("Found client email by ID:", clientEmail)
           }
-          // Resolve location contact email if possible
+          // Resolve location contact emails robustly (ID, name includes, address, all contacts)
           try {
-            if (clientData && Array.isArray(clientData.locatii) && (workOrderData.locatie || workOrderData.clientInfo?.locationName)) {
-              const targetName = (workOrderData.locatie || workOrderData.clientInfo?.locationName || "").trim()
-              const loc = clientData.locatii.find((l: any) => (l?.nume || "").trim() === targetName)
-              if (loc && Array.isArray((loc as any).persoaneContact)) {
-                const contact = workOrderData.persoanaContact
-                  ? (loc as any).persoaneContact.find((c: any) => (c?.nume || "").trim() === (workOrderData.persoanaContact || "").trim())
-                  : null
-                locationContactEmail = (contact?.email || (loc as any).email || null) as string | null
-              } else if (loc && (loc as any).email) {
-                locationContactEmail = String((loc as any).email)
+            if (clientData && Array.isArray(clientData.locatii)) {
+              const selectedLocationNameRaw = (workOrderData.locatie || workOrderData.clientInfo?.locationName || "").toString()
+              const selectedLocationId = (workOrderData as any)?.clientInfo?.locationId || (workOrderData as any)?.clientInfo?.locatieId
+              const selectedContactNameRaw = (workOrderData.persoanaContact || "").toString()
+
+              const targetName = norm(selectedLocationNameRaw)
+              let matchedLocations: any[] = []
+
+              // 1) Match by ID
+              if (selectedLocationId) {
+                matchedLocations = clientData.locatii.filter((l: any) => String(l?.id || "") === String(selectedLocationId))
               }
+              // 2) Fallback: name equality or includes (both sides)
+              if (matchedLocations.length === 0 && targetName) {
+                matchedLocations = clientData.locatii.filter((l: any) => {
+                  const ln = norm(l?.nume || l?.name)
+                  return (ln && ln === targetName) || (ln && targetName && (ln.includes(targetName) || targetName.includes(ln)))
+                })
+              }
+              // 3) Fallback: address match
+              if (matchedLocations.length === 0 && targetName) {
+                matchedLocations = clientData.locatii.filter((l: any) => {
+                  const la = norm(l?.adresa)
+                  return la && (la === targetName || la.includes(targetName) || targetName.includes(la))
+                })
+              }
+
+              // Collect emails from matched locations
+              const emails: string[] = []
+              const pushUnique = (e?: string) => {
+                const ee = (e || "").toString().trim()
+                if (isValidEmail(ee) && !emails.map((x) => x.toLowerCase()).includes(ee.toLowerCase())) emails.push(ee)
+              }
+
+              const selectedContactName = norm(selectedContactNameRaw)
+              const locsToScan = matchedLocations.length > 0 ? matchedLocations : clientData.locatii
+              for (const l of locsToScan) {
+                const persoane = Array.isArray(l?.persoaneContact) ? l.persoaneContact : []
+                // Prefer exact/fuzzy match to selected contact name
+                if (selectedContactName) {
+                  const exact = persoane.find((p: any) => {
+                    const pn = norm(p?.nume)
+                    return pn === selectedContactName || pn.includes(selectedContactName) || selectedContactName.includes(pn)
+                  })
+                  if (exact?.email) pushUnique(exact.email)
+                }
+                // Add all valid contact emails
+                for (const p of persoane) pushUnique(p?.email)
+                // Add location email
+                pushUnique(l?.email)
+              }
+
+              locationContactEmails = emails
             }
           } catch {}
         } catch (error) {
@@ -130,17 +175,51 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
               clientName = clientData.nume || (clientData as any).name || clientName
               console.log("Found client email in Firestore by name query:", clientEmail)
             }
-            // Try resolve location email from this record as well
+            // Resolve robust location emails on this record too
             try {
-              if (Array.isArray((clientData as any)?.locatii) && (workOrderData.locatie || workOrderData.clientInfo?.locationName)) {
-                const targetName = (workOrderData.locatie || workOrderData.clientInfo?.locationName || "").trim()
-                const loc = (clientData as any).locatii.find((l: any) => (l?.nume || "").trim() === targetName)
-                if (loc) {
-                  const contact = workOrderData.persoanaContact
-                    ? (loc as any).persoaneContact?.find((c: any) => (c?.nume || "").trim() === (workOrderData.persoanaContact || "").trim())
-                    : null
-                  locationContactEmail = (contact?.email || (loc as any).email || locationContactEmail) as string | null
+              const clientRecord: any = clientData
+              if (Array.isArray(clientRecord?.locatii)) {
+                const selectedLocationNameRaw = (workOrderData.locatie || workOrderData.clientInfo?.locationName || "").toString()
+                const selectedLocationId = (workOrderData as any)?.clientInfo?.locationId || (workOrderData as any)?.clientInfo?.locatieId
+                const selectedContactNameRaw = (workOrderData.persoanaContact || "").toString()
+
+                const targetName = norm(selectedLocationNameRaw)
+                let matchedLocations: any[] = []
+                if (selectedLocationId) {
+                  matchedLocations = clientRecord.locatii.filter((l: any) => String(l?.id || "") === String(selectedLocationId))
                 }
+                if (matchedLocations.length === 0 && targetName) {
+                  matchedLocations = clientRecord.locatii.filter((l: any) => {
+                    const ln = norm(l?.nume || l?.name)
+                    return (ln && ln === targetName) || (ln && targetName && (ln.includes(targetName) || targetName.includes(ln)))
+                  })
+                }
+                if (matchedLocations.length === 0 && targetName) {
+                  matchedLocations = clientRecord.locatii.filter((l: any) => {
+                    const la = norm(l?.adresa)
+                    return la && (la === targetName || la.includes(targetName) || targetName.includes(la))
+                  })
+                }
+                const emails: string[] = locationContactEmails.slice()
+                const pushUnique = (e?: string) => {
+                  const ee = (e || "").toString().trim()
+                  if (isValidEmail(ee) && !emails.map((x) => x.toLowerCase()).includes(ee.toLowerCase())) emails.push(ee)
+                }
+                const selectedContactName = norm(selectedContactNameRaw)
+                const locsToScan = matchedLocations.length > 0 ? matchedLocations : clientRecord.locatii
+                for (const l of locsToScan) {
+                  const persoane = Array.isArray(l?.persoaneContact) ? l.persoaneContact : []
+                  if (selectedContactName) {
+                    const exact = persoane.find((p: any) => {
+                      const pn = norm(p?.nume)
+                      return pn === selectedContactName || pn.includes(selectedContactName) || selectedContactName.includes(pn)
+                    })
+                    if (exact?.email) pushUnique(exact.email)
+                  }
+                  for (const p of persoane) pushUnique(p?.email)
+                  pushUnique(l?.email)
+                }
+                locationContactEmails = emails
               }
             } catch {}
           }
@@ -235,14 +314,14 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
       return dateTimeString.split(" ")[0] || dateTimeString
     }
 
-    // Prepare combined recipients: prefer location contact + main client
+    // Prepare combined recipients: include all location contact emails + main client
     const clientRecipientSet = new Set<string>()
     const addIfValid = (e?: string) => {
       if (!e) return
       const s = String(e).trim().toLowerCase()
       if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) clientRecipientSet.add(s)
     }
-    addIfValid(locationContactEmail || undefined)
+    ;(locationContactEmails || []).forEach((e) => addIfValid(e))
     addIfValid(clientEmail || undefined)
 
     // Prepare notification data

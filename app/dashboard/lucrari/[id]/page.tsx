@@ -786,13 +786,17 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           {isAdminOrDispatcher && lucrare.statusLucrare === "Finalizat" && (() => {
             const hasInvoiceDoc = Boolean((lucrare as any)?.facturaDocument)
             const noInvoicingSelected = (lucrare.statusFacturare === "Nu se facturează")
+            const hasNoInvoiceReason = Boolean((lucrare as any)?.motivNefacturare && String((lucrare as any)?.motivNefacturare).trim().length > 0)
             const isPickedUp = lucrare.preluatDispecer === true
-            const canArchive = isPickedUp && (hasInvoiceDoc || noInvoicingSelected)
+            // Allow archive only if picked up, and either invoice exists OR (no-invoice selected WITH reason)
+            const canArchive = isPickedUp && (hasInvoiceDoc || (noInvoicingSelected && hasNoInvoiceReason))
             const archiveReason = !isPickedUp
               ? "Necesită preluare de dispecer înainte de arhivare"
               : (!hasInvoiceDoc && !noInvoicingSelected)
                 ? "Încărcați factura sau marcați 'Nu se facturează' pentru a arhiva"
-                : "Arhivează lucrarea finalizată"
+                : (noInvoicingSelected && !hasNoInvoiceReason)
+                  ? "Completați motivul pentru 'Nu se facturează' pentru a arhiva"
+                  : "Arhivează lucrarea finalizată"
 
             return (
             <TooltipProvider>

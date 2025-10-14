@@ -171,7 +171,12 @@ useEffect(() => {
   }
 
   const total = useMemo(() => products.reduce((s, p) => s + (p.total || 0), 0), [products])
-  const totalWithVAT = useMemo(() => total * (1 + (Number(vatPercent) || 0) / 100), [total, vatPercent])
+  // Discount as percentage applied to subtotal (acts like a discount)
+  const discountedTotal = useMemo(() => {
+    const adj = Number(adjustmentPercent) || 0
+    return total * (1 - adj / 100)
+  }, [total, adjustmentPercent])
+  const totalWithVAT = useMemo(() => discountedTotal * (1 + (Number(vatPercent) || 0) / 100), [discountedTotal, vatPercent])
 
   // Persist draft locally so rows added are not lost if dialog is closed without save
   const draftStorageKey = useMemo(() => `offerDraft:${lucrareId}`, [lucrareId])
@@ -223,7 +228,7 @@ useEffect(() => {
       const version = {
         savedAt: new Date().toISOString(),
         savedBy: userData?.displayName || userData?.email || "Unknown",
-        total,
+        total: discountedTotal,
         products,
       }
       const current = await getLucrareById(lucrareId)
@@ -238,7 +243,8 @@ useEffect(() => {
       const adjToSave = (() => { const n = parseFloat(String(adjustmentInput).replace(',', '.')); return isNaN(n) ? 0 : n })()
       await updateLucrare(lucrareId, {
         products,
-        offerTotal: total,
+        // Save discounted total as the effective offer total
+        offerTotal: discountedTotal,
         offerVAT: Number(vatPercent) || 0,
         offerAdjustmentPercent: adjToSave,
         offerVersions: newVersions as any,
@@ -287,7 +293,8 @@ useEffect(() => {
       // generează token și link-uri
       // Folosim savedAt-ul ultimei versiuni salvate, pentru a putea marca corect versiunea ACCEPTATĂ în istoric
       const lastVersion = versions && versions.length ? versions[versions.length - 1] : undefined
-      const computedTotal = (products || []).reduce((s: number, p: any) => s + (Number(p.total) || (Number(p.quantity)||0)*(Number(p.price)||0)), 0)
+      const computedSubtotal = (products || []).reduce((s: number, p: any) => s + (Number(p.total) || (Number(p.quantity)||0)*(Number(p.price)||0)), 0)
+      const computedTotal = computedSubtotal * (1 - (Number(adjustmentPercent)||0)/100)
       const currentSnapshot = {
         products: (lastVersion?.products && Array.isArray(lastVersion.products)) ? lastVersion.products : products,
         total: typeof lastVersion?.total === 'number' ? lastVersion.total : computedTotal,
@@ -324,7 +331,8 @@ useEffect(() => {
           <td style="padding:6px;border:1px solid #e5e7eb;text-align:right">${Number(p.price||0).toFixed(2)}</td>
           <td style="padding:6px;border:1px solid #e5e7eb;text-align:right">${((Number(p.quantity)||0)*(Number(p.price)||0)).toFixed(2)}</td>
         </tr>`).join('')
-      const totalNoVat = (products || []).reduce((s: number, p: any) => s + (Number(p.quantity)||0)*(Number(p.price)||0), 0)
+      const subtotalNoVat = (products || []).reduce((s: number, p: any) => s + (Number(p.quantity)||0)*(Number(p.price)||0), 0)
+      const totalNoVat = subtotalNoVat * (1 - (Number(adjustmentPercent)||0)/100)
   
       // HTML email cu butoane compatibile Yahoo
       const html = `
@@ -557,7 +565,9 @@ useEffect(() => {
             <div className="space-y-3">
               <div className="flex items-center justify-end">
                 <div className="text-right text-sm">
-                  <div>Total: <strong>{total.toFixed(2)} lei</strong></div>
+                  <div>Subtotal: <strong>{total.toFixed(2)} lei</strong></div>
+                  <div>Ajustare: <strong>-{(Number(adjustmentPercent)||0).toFixed(0)}%</strong></div>
+                  <div>Total după ajustare: <strong>{discountedTotal.toFixed(2)} lei</strong></div>
                 </div>
               </div>
 

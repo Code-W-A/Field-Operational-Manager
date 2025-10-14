@@ -117,8 +117,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
                      "REGENERARE - VA FOLOSI DATELE ÎNGHEȚATE"
       })
       
-      // Gestionăm numărul de raport
-      let numarRaport = lucrare.numarRaport // Folosim numărul existent din Firestore (dacă există)
+      // Gestionăm numărul de raport: preferăm nrLucrare dacă există; altfel numarRaport; altfel generăm
+      let numarRaport = lucrare.nrLucrare || lucrare.numarRaport // Folosim numărul existent (nrLucrare sau numarRaport)
       console.log("🔢 ÎNCEPUT gestionare numarRaport - valoarea inițială:", numarRaport || "LIPSEȘTE")
       
       if (isOldFinalizedReport) {
@@ -227,9 +227,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           products: currentProducts,
           raportSnapshot,
           raportDataLocked: true,
-          // Includem numărul de raport generat pentru prima generare
+          // Includem numărul (preexistent sau generat) și sincronizăm ambele câmpuri
           numarRaport: numarRaport,
-          // Setăm și numărul lucrării (egal la prima generare)
           nrLucrare: String(numarRaport || "")
         }
       } else {
@@ -755,12 +754,13 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
               durataInterventie: lucrareForPDF.durataInterventie,
             }
             
-            // Adăugăm numărul de raport doar dacă există (pentru lucrări noi)
+            // Adăugăm și sincronizăm numerele dacă există
             if (numarRaport) {
               updateData.numarRaport = numarRaport
-              console.log("✅ SALVEZ numarRaport în Firestore:", numarRaport)
+              updateData.nrLucrare = String(numarRaport)
+              console.log("✅ SALVEZ numarRaport/nrLucrare în Firestore:", numarRaport)
             } else {
-              console.log("❌ NU salvez numarRaport (nu există)")
+              console.log("❌ NU salvez numarRaport/nrLucrare (nu există)")
             }
             
             console.log("📦 Date care se salvează:", {

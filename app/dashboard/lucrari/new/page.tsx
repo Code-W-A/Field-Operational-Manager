@@ -5,7 +5,7 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { LucrareForm } from "@/components/lucrare-form"
-import { addLucrare } from "@/lib/firebase/firestore"
+import { addLucrare, getNextReportNumber } from "@/lib/firebase/firestore"
 import { addLog } from "@/lib/firebase/firestore"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/components/ui/use-toast"
@@ -143,9 +143,18 @@ export default function NewLucrarePage() {
         newWorkOrderData.mesajReatribuire = `Re-intervenție de la lucrarea ${originalWorkOrderId}`
       }
 
-      // Adăugăm lucrarea în Firestore
+      // Generăm nrLucrare din sistemul centralizat (egal ulterior cu numărul de raport)
+      let nrLucrareGenerated = ""
+      try {
+        nrLucrareGenerated = await getNextReportNumber()
+      } catch (e) {
+        nrLucrareGenerated = `#${Date.now().toString().slice(-6)}`
+      }
+
+      // Adăugăm lucrarea în Firestore cu nrLucrare
       const lucrareId = await addLucrare({
         ...newWorkOrderData,
+        nrLucrare: nrLucrareGenerated,
         createdBy: userData?.uid || "",
         createdByName: userData?.displayName || userData?.email || "Utilizator necunoscut",
       })

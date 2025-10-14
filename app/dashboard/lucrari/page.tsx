@@ -39,7 +39,7 @@ import { FilterModal, type FilterOption } from "@/components/filter-modal"
 import { ColumnSelectionButton } from "@/components/column-selection-button"
 import { ColumnSelectionModal } from "@/components/column-selection-modal"
 import { sendWorkOrderNotifications } from "@/components/work-order-notification-service"
-import { getCurrentReportNumber, updateReportNumber } from "@/lib/firebase/firestore"
+import { getCurrentReportNumber, updateReportNumber, getNextReportNumber } from "@/lib/firebase/firestore"
 import { LucrariNotificationsBell } from "@/components/lucrari-notifications-bell"
 import { ReinterventionReasonDialog } from "@/components/reintervention-reason-dialog"
 import {
@@ -1055,9 +1055,20 @@ export default function Lucrari() {
           : {}),
       }
 
-      // Adăugăm lucrarea în Firestore
+      // Generăm număr de lucrare din sistemul centralizat (egal ulterior cu numărul de raport)
+      let nrLucrareGenerated = ""
+      try {
+        nrLucrareGenerated = await getNextReportNumber()
+      } catch (e) {
+        // fallback simplu: ultimele 6 cifre din timestamp
+        const fallback = `#${Date.now().toString().slice(-6)}`
+        nrLucrareGenerated = fallback
+      }
+
+      // Adăugăm lucrarea în Firestore cu nrLucrare
       const lucrareId = await addLucrare({
         ...newLucrare,
+        nrLucrare: nrLucrareGenerated,
         createdBy: userData?.uid || "",
         createdByName: userData?.displayName || userData?.email || "Utilizator necunoscut",
       })
