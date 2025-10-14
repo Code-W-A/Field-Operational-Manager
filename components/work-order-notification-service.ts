@@ -82,7 +82,7 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
                 })
               }
 
-              // Collect emails from matched locations
+              // Collect emails from matched locations and ALSO from workOrderData.persoaneContact if present
               const emails: string[] = []
               const pushUnique = (e?: string) => {
                 const ee = (e || "").toString().trim()
@@ -106,6 +106,12 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
                 // Add location email
                 pushUnique(l?.email)
               }
+
+              // Add directly from workOrderData.persoaneContact if provided by form
+              try {
+                const persoaneFromWork = Array.isArray(workOrderData?.persoaneContact) ? workOrderData.persoaneContact : []
+                for (const p of persoaneFromWork) pushUnique((p as any)?.email)
+              } catch {}
 
               locationContactEmails = emails
             }
@@ -219,6 +225,10 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
                   for (const p of persoane) pushUnique(p?.email)
                   pushUnique(l?.email)
                 }
+                try {
+                  const persoaneFromWork = Array.isArray(workOrderData?.persoaneContact) ? workOrderData.persoaneContact : []
+                  for (const p of persoaneFromWork) pushUnique((p as any)?.email)
+                } catch {}
                 locationContactEmails = emails
               }
             } catch {}
@@ -314,21 +324,45 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
       return dateTimeString.split(" ")[0] || dateTimeString
     }
 
-    // Prepare combined recipients: include all location contact emails + main client
+    // DEBUG: Log resolved location contact emails
+    try {
+      console.log("[WorkOrderNotify] Location email resolution debug:")
+      console.log("- Selected location name:", (workOrderData.locatie || (workOrderData as any)?.clientInfo?.locationName || ""))
+      console.log("- Selected location ID:", (workOrderData as any)?.clientInfo?.locationId || (workOrderData as any)?.clientInfo?.locatieId || "")
+      console.log("- Selected contact name:", (workOrderData.persoanaContact || ""))
+      console.log("- Resolved locationContactEmails (unique):", (locationContactEmails || []).join(", "))
+    } catch {}
+
+    // Prepare combined recipients:
+    // - If we have location contact emails, send ONLY to those (and location email)
+    // - Else, fallback to client's main email
     const clientRecipientSet = new Set<string>()
     const addIfValid = (e?: string) => {
       if (!e) return
       const s = String(e).trim().toLowerCase()
       if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) clientRecipientSet.add(s)
     }
-    ;(locationContactEmails || []).forEach((e) => addIfValid(e))
-    addIfValid(clientEmail || undefined)
+    if ((locationContactEmails || []).length > 0) {
+      ;(locationContactEmails || []).forEach((e) => addIfValid(e))
+      // When sending to location contacts, do NOT include client main email
+      try { console.log("[WorkOrderNotify] Using LOCATION CONTACT recipients only.") } catch {}
+    } else {
+      addIfValid(clientEmail || undefined)
+      try { console.log("[WorkOrderNotify] Fallback to CLIENT email (no location contact emails found).") } catch {}
+    }
 
     // Prepare notification data
+    // DEBUG: Final recipients list before API call
+    try {
+      console.log("[WorkOrderNotify] Final client recipients:", Array.from(clientRecipientSet))
+      console.log("[WorkOrderNotify] Client email fallback:", clientEmail)
+    } catch {}
+
     const notificationData = {
       client: {
         name: clientName,
-        email: clientEmail,
+        // If we use location contacts, do not pass client email to avoid API preferring it
+        email: (locationContactEmails || []).length > 0 ? "" : clientEmail,
         contactPerson: contactPerson,
       },
       technicians: technicians,

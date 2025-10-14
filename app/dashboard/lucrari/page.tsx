@@ -1084,12 +1084,25 @@ export default function Lucrari() {
         // Obținem lucrarea completă cu ID pentru a o trimite la notificări
         const lucrareCompleta = { id: lucrareId, ...newLucrare }
 
+        // DEBUG LOG: Snapshot înainte de trimitere
+        console.log("[CreateWork] Sending notifications snapshot:", {
+          id: lucrareId,
+          client: newLucrare.client,
+          locatie: newLucrare.locatie,
+          persoanaContact: newLucrare.persoanaContact,
+          clientInfo: (newLucrare as any)?.clientInfo,
+          tehnicieni: newLucrare.tehnicieni,
+          dataInterventie: newLucrare.dataInterventie,
+        })
+
         console.log("Sending notifications for new work order:", lucrareId)
 
         // Trimitem notificările
         const notificationResult = await sendWorkOrderNotifications(lucrareCompleta)
 
         if (notificationResult.success) {
+          // DEBUG LOG: Rezultate email
+          console.log("[CreateWork] Notification result:", notificationResult)
           // Extragem email-urile tehnicienilor
           const techEmails = notificationResult.result?.technicianEmails || []
           const successfulTechEmails = techEmails.filter((t) => t.success).map((t) => t.email)

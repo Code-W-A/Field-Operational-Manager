@@ -110,8 +110,14 @@ export async function POST(request: NextRequest) {
     // Validate and sanitize email addresses
     data = await validateEmails(data)
 
-    // Log the data after validation
-    console.log(`[WORK-ORDER-API] [${requestId}] Date validate:`, JSON.stringify(data, null, 2))
+    // Log the data after validation (key fields for debugging)
+    try {
+      console.log(`[WORK-ORDER-API] [${requestId}] Debug payload fields:`)
+      console.log(`- client.name:`, data?.client?.name)
+      console.log(`- client.contactPerson:`, data?.client?.contactPerson)
+      console.log(`- details.location:`, data?.details?.location)
+      console.log(`- clientEmails (raw):`, Array.isArray(data?.clientEmails) ? data.clientEmails.join(', ') : data?.clientEmails)
+    } catch {}
 
     // Validate required fields
     if (!data.workOrderId) {
@@ -458,18 +464,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Send email to client if email is available (support multiple recipients for postponed)
+    // Send email to client/location contacts
     let clientEmailResult = null
-    const recipientsSet = new Set<string>()
-    if (client?.email && isValidEmail(client.email)) recipientsSet.add(client.email.trim().toLowerCase())
-    if (Array.isArray(clientEmails)) {
-      for (const addr of clientEmails) {
-        if (typeof addr === "string" && isValidEmail(addr)) {
-          recipientsSet.add(addr.trim().toLowerCase())
-        }
-      }
+    let uniqueRecipients: string[] = []
+    // If clientEmails array is provided and not empty, use ONLY those (location contacts)
+    if (Array.isArray(clientEmails) && clientEmails.length > 0) {
+      uniqueRecipients = Array.from(
+        new Set(
+          clientEmails
+            .filter((addr: any) => typeof addr === "string" && isValidEmail(addr))
+            .map((addr: string) => addr.trim().toLowerCase()),
+        ),
+      )
+      try { console.log(`[WORK-ORDER-API] [${requestId}] Using clientEmails (location contacts) only:`, uniqueRecipients.join(', ')) } catch {}
+    } else if (client?.email && isValidEmail(client.email)) {
+      // Fallback to client's main email if no location contact emails provided
+      uniqueRecipients = [client.email.trim().toLowerCase()]
+      try { console.log(`[WORK-ORDER-API] [${requestId}] Fallback to client.email:`, uniqueRecipients[0]) } catch {}
     }
-    const uniqueRecipients = Array.from(recipientsSet)
+    try {
+      console.log(`[WORK-ORDER-API] [${requestId}] Recipients after normalization:`, uniqueRecipients.join(', ') || '(none)')
+    } catch {}
     if (uniqueRecipients.length > 0) {
       try {
         console.log(`[WORK-ORDER-API] [${requestId}] Trimitere email către destinatari: ${uniqueRecipients.join(", ")}`)
