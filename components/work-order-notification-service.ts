@@ -324,6 +324,19 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
       return dateTimeString.split(" ")[0] || dateTimeString
     }
 
+    // Ensure emails from workOrderData.persoaneContact are included regardless of client lookup success
+    try {
+      const directContacts = Array.isArray(workOrderData?.persoaneContact) ? workOrderData.persoaneContact : []
+      const existingLower = new Set((locationContactEmails || []).map((e) => String(e).toLowerCase()))
+      for (const c of directContacts) {
+        const e = String((c as any)?.email || '').trim()
+        if (isValidEmail(e) && !existingLower.has(e.toLowerCase())) {
+          locationContactEmails.push(e)
+          existingLower.add(e.toLowerCase())
+        }
+      }
+    } catch {}
+
     // DEBUG: Log resolved location contact emails
     try {
       console.log("[WorkOrderNotify] Location email resolution debug:")
