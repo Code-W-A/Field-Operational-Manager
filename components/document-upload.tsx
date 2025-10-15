@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { uploadFile, deleteFile } from "@/lib/firebase/storage"
 import { updateLucrare } from "@/lib/firebase/firestore"
 import { deleteField } from "firebase/firestore"
@@ -25,6 +26,8 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
     factura: false,
     oferta: false,
   })
+  const [isMotivDialogOpen, setIsMotivDialogOpen] = useState(false)
+  const [motivTemp, setMotivTemp] = useState(lucrare?.motivNefacturare || "")
   
   // Verificăm dacă lucrarea este arhivată
   const isArchived = lucrare?.statusLucrare === "Arhivată"
@@ -374,7 +377,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
               {/* Stânga: Upload factură */}
               {shouldShowFacturaUpload && (
-                <div className="w-full sm:w-auto space-y-2">
+                <div className="w-full sm:w-auto">
                   <input
                     ref={facturaInputRef}
                     type="file"
@@ -396,7 +399,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
               )}
 
               {/* Dreapta: Nu se facturează + motiv */}
-              <div className="w-full sm:w-auto space-y-2">
+              <div className="w-full sm:w-auto">
                 {lucrare.statusFacturare !== "Nu se facturează" ? (
                   <Button
                     variant="outline"
@@ -405,6 +408,8 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
                       try {
                         await updateLucrare(lucrareId, { statusFacturare: "Nu se facturează" } as any)
                         onLucrareUpdate({ ...lucrare, statusFacturare: "Nu se facturează" })
+                        setMotivTemp(lucrare?.motivNefacturare || "")
+                        setIsMotivDialogOpen(true)
                       } catch (e) {
                         toast({ title: "Eroare", description: "Nu s-a putut seta 'Nu se facturează'", variant: "destructive" })
                       }
@@ -416,43 +421,44 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
                     Nu se facturează
                   </Button>
                 ) : (
-                  <div className="space-y-2">
-                    <textarea
-                      className="w-full border rounded p-2 text-sm"
-                      rows={3}
-                      placeholder="Motivul pentru care nu se facturează"
-                      defaultValue={lucrare.motivNefacturare || ""}
-                      onBlur={async (e) => {
-                        const value = e.target.value.trim()
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full sm:w-auto"
+                      onClick={() => {
+                        setMotivTemp(lucrare?.motivNefacturare || "")
+                        setIsMotivDialogOpen(true)
+                      }}
+                    >
+                      <AlertCircle className="h-4 w-4 mr-2 text-gray-600" />
+                      Setează motiv
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
                         try {
-                          await updateLucrare(lucrareId, { motivNefacturare: value } as any)
-                          onLucrareUpdate({ ...lucrare, motivNefacturare: value })
-                          if (!value) {
-                            toast({ title: "Salvat", description: "Motivul a fost golit." })
-                          }
+                          await updateLucrare(lucrareId, { statusFacturare: "Nefacturat", motivNefacturare: "" } as any)
+                          onLucrareUpdate({ ...lucrare, statusFacturare: "Nefacturat", motivNefacturare: "" })
                         } catch (err) {
-                          toast({ title: "Eroare", description: "Nu s-a putut salva motivul.", variant: "destructive" })
+                          toast({ title: "Eroare", description: "Nu s-a putut reveni la 'Nefacturat'", variant: "destructive" })
                         }
                       }}
-                    />
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={async () => {
-                          try {
-                            await updateLucrare(lucrareId, { statusFacturare: "Nefacturat", motivNefacturare: "" } as any)
-                            onLucrareUpdate({ ...lucrare, statusFacturare: "Nefacturat", motivNefacturare: "" })
-                          } catch (err) {
-                            toast({ title: "Eroare", description: "Nu s-a putut reveni la 'Nefacturat'", variant: "destructive" })
-                          }
-                        }}
-                      >
-                        Revocă 'Nu se facturează'
-                      </Button>
-                    </div>
+                      className="w-full sm:w-auto"
+                    >
+                      Revocă 'Nu se facturează'
+                    </Button>
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Afișare motiv nefăcturare sub butoane */}
+          {lucrare.statusFacturare === "Nu se facturează" && (lucrare.motivNefacturare?.trim()?.length ?? 0) > 0 && (
+            <div className="text-xs sm:text-sm text-gray-700 bg-yellow-50 border border-yellow-200 rounded-md p-2 sm:p-3">
+              <span className="font-medium">Motiv nefăcturare:</span> {lucrare.motivNefacturare}
             </div>
           )}
         </div>
@@ -530,6 +536,58 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
             <li>Documentele pot fi înlocuite prin încărcarea unor fișiere noi</li>
           </ul>
         </div> */}
+
+        {/* Dialog pentru motivul nefăcturării */}
+        <Dialog open={isMotivDialogOpen} onOpenChange={setIsMotivDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Motivul pentru care nu se facturează</DialogTitle>
+              <DialogDescription>
+                Introdu motivul pentru care această lucrare nu se facturează.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2">
+              <textarea
+                className="w-full border rounded p-2 text-sm"
+                rows={4}
+                placeholder="Motivul pentru care nu se facturează"
+                value={motivTemp}
+                onChange={(e) => setMotivTemp(e.target.value)}
+              />
+            </div>
+
+            <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsMotivDialogOpen(false)}
+                className="w-full sm:w-auto"
+              >
+                Anulează
+              </Button>
+              <Button
+                className="w-full sm:w-auto"
+                onClick={async () => {
+                  const value = motivTemp.trim()
+                  try {
+                    await updateLucrare(lucrareId, { motivNefacturare: value } as any)
+                    onLucrareUpdate({ ...lucrare, motivNefacturare: value })
+                    if (!value) {
+                      toast({ title: "Salvat", description: "Motivul a fost golit." })
+                    } else {
+                      toast({ title: "Salvat", description: "Motivul a fost salvat." })
+                    }
+                    setIsMotivDialogOpen(false)
+                  } catch (err) {
+                    toast({ title: "Eroare", description: "Nu s-a putut salva motivul.", variant: "destructive" })
+                  }
+                }}
+              >
+                Salvează
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   )
