@@ -40,6 +40,7 @@ export function FilterModal({
   onResetFilters,
 }: FilterModalProps) {
   const [filters, setFilters] = useState<FilterOption[]>(filterOptions)
+  const [clientsSearch, setClientsSearch] = useState("")
 
   // Use our custom hook to manage body scroll locking
   const { unlockBody } = useLockBody()
@@ -189,6 +190,78 @@ export function FilterModal({
                       </div>
                     )
                   })}
+                </div>
+              </ScrollArea>
+            </div>
+          )
+        }
+        // Multiselect cu search pentru lista mare de clienți
+        if (filter.id === "clienti") {
+          const normalized = (s: string) => (s || "").toLocaleLowerCase()
+          const filteredOptions = (filter.options || []).filter((opt) =>
+            normalized(opt.label).includes(normalized(clientsSearch)) || normalized(opt.value).includes(normalized(clientsSearch)),
+          )
+
+          return (
+            <div className="space-y-2">
+              <Input
+                placeholder="Caută client..."
+                value={clientsSearch}
+                onChange={(e) => setClientsSearch(e.target.value)}
+                className="w-full"
+              />
+              <div className="flex flex-wrap gap-1 mb-2">
+                {filter.value && Array.isArray(filter.value) && filter.value.length > 0 ? (
+                  filter.value.map((val) => {
+                    const option = filter.options?.find((opt) => opt.value === val)
+                    return (
+                      <Badge key={val} variant="secondary" className="flex items-center gap-1">
+                        {option?.label || val}
+                        <X
+                          className="h-3 w-3 cursor-pointer"
+                          onClick={() =>
+                            handleFilterChange(
+                              filter.id,
+                              filter.value.filter((v: string) => v !== val),
+                            )
+                          }
+                        />
+                      </Badge>
+                    )
+                  })
+                ) : (
+                  <span className="text-sm text-muted-foreground">Nicio selecție</span>
+                )}
+              </div>
+              <ScrollArea className="h-40 rounded-md border">
+                <div className="p-2 space-y-2">
+                  {filteredOptions.map((option) => (
+                    <div key={option.value} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`${filter.id}-${option.value}`}
+                        checked={
+                          filter.value && Array.isArray(filter.value)
+                            ? filter.value.includes(option.value)
+                            : false
+                        }
+                        onCheckedChange={(checked) => {
+                          const currentValues = Array.isArray(filter.value) ? filter.value : []
+                          if (checked) {
+                            handleFilterChange(filter.id, [...currentValues, option.value])
+                          } else {
+                            handleFilterChange(
+                              filter.id,
+                              currentValues.filter((val) => val !== option.value),
+                            )
+                          }
+                        }}
+                      />
+                      <Label htmlFor={`${filter.id}-${option.value}`}>{option.label}</Label>
+                    </div>
+                  ))}
+                  {filteredOptions.length === 0 && (
+                    <div className="text-xs text-muted-foreground px-1">Niciun client găsit</div>
+                  )}
                 </div>
               </ScrollArea>
             </div>

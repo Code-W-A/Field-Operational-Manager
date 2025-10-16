@@ -83,6 +83,7 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
   // State for equipment selection and data
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClientId, setSelectedClientId] = useState<string>("all-clients")
+  const [selectedLocationName, setSelectedLocationName] = useState<string>("all-locations")
   const [equipmentList, setEquipmentList] = useState<Equipment[]>([])
   const [selectedEquipmentId, setSelectedEquipmentId] = useState<string>("")
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
@@ -159,18 +160,19 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
     loadClients()
   }, [])
 
-  // Update equipment list when client is selected
+  // Update equipment list when client or location is selected
   useEffect(() => {
-    if (selectedClientId && selectedClientId !== "all-clients") {
-      const clientEquipment = equipmentList.filter((eq) => eq.clientId === selectedClientId)
-      setEquipmentList(clientEquipment)
-      setSelectedEquipmentId("")
-    } else {
-      // If "all clients" is selected, reset to all equipment
+    const rebuildEquipmentList = () => {
       const allEquipment: Equipment[] = []
       clients.forEach((client) => {
+        // Filter by selected client (if any)
+        if (selectedClientId !== "all-clients" && client.id !== selectedClientId) return
         if (client.locatii) {
           client.locatii.forEach((location) => {
+            // Filter by selected location (if any)
+            if (selectedClientId !== "all-clients" && selectedLocationName !== "all-locations") {
+              if ((location.nume || "") !== selectedLocationName) return
+            }
             if (location.echipamente) {
               location.echipamente.forEach((equipment) => {
                 allEquipment.push({
@@ -190,7 +192,11 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
       })
       setEquipmentList(allEquipment)
     }
-  }, [selectedClientId, clients])
+
+    rebuildEquipmentList()
+    // Reset equipment selection when filters change
+    setSelectedEquipmentId("")
+  }, [selectedClientId, selectedLocationName, clients])
 
   // Update date range based on selection
   useEffect(() => {
@@ -508,7 +514,15 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
               <label htmlFor="client" className="text-sm font-medium">
                 Client (opțional)
               </label>
-              <Select value={selectedClientId} onValueChange={setSelectedClientId}>
+              <Select
+                value={selectedClientId}
+                onValueChange={(val) => {
+                  setSelectedClientId(val)
+                  // Reset location when client changes
+                  setSelectedLocationName("all-locations")
+                  setSelectedEquipmentId("")
+                }}
+              >
                 <SelectTrigger id="client" disabled={loading}>
                   <SelectValue placeholder="Toți clienții" />
                 </SelectTrigger>
@@ -522,6 +536,39 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Location selection (optional, depends on client) */}
+            {selectedClientId !== "all-clients" &&
+              (() => {
+                const currentClient = clients.find((c) => c.id === selectedClientId)
+                const locatii = currentClient?.locatii || []
+                return locatii.length > 0 ? (
+                  <div className="space-y-2">
+                    <label htmlFor="location" className="text-sm font-medium">
+                      Locație (opțional)
+                    </label>
+                    <Select
+                      value={selectedLocationName}
+                      onValueChange={(val) => {
+                        setSelectedLocationName(val)
+                        setSelectedEquipmentId("")
+                      }}
+                    >
+                      <SelectTrigger id="location" disabled={loading}>
+                        <SelectValue placeholder="Selectați locația (opțional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all-locations">Toate locațiile</SelectItem>
+                        {locatii.map((loc, idx) => (
+                          <SelectItem key={`${idx}-${loc.nume}`} value={loc.nume}>
+                            {loc.nume}{loc.adresa ? ` — ${loc.adresa}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null
+              })()}
 
             {/* Equipment selection */}
             <div className="space-y-2">

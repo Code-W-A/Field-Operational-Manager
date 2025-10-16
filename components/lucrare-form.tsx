@@ -158,6 +158,8 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     const [clientSearchTerm, setClientSearchTerm] = useState("")
     const [filteredClients, setFilteredClients] = useState<Client[]>([])
     const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false)
+    const [clientActiveIndex, setClientActiveIndex] = useState<number>(-1)
+    const clientListRef = useRef<HTMLDivElement>(null)
     const [formModified, setFormModified] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [showCloseAlert, setShowCloseAlert] = useState(false)
@@ -397,13 +399,33 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           setFilteredClients(clienti)
         } else {
           const searchTermLower = clientSearchTerm.toLowerCase()
-          const filtered = clienti.filter((client) => client.nume.toLowerCase().includes(searchTermLower))
+          const normalized = (s?: string) => String(s || "").toLowerCase()
+          const filtered = clienti.filter((client) => {
+            // match pe nume client
+            if (normalized(client.nume).includes(searchTermLower)) return true
+            // match pe locații (nume/adresă)
+            const locs = Array.isArray(client.locatii) ? client.locatii : []
+            return locs.some((loc: any) => normalized(loc?.nume).includes(searchTermLower) || normalized(loc?.adresa).includes(searchTermLower))
+          })
           setFilteredClients(filtered)
         }
       } else {
         setFilteredClients([])
       }
+      // Resetăm indexul activ când se modifică lista sau termenul de căutare
+      setClientActiveIndex(-1)
     }, [clientSearchTerm, clienti])
+
+    // Scroll către elementul activ din listă pentru vizibilitate
+    useEffect(() => {
+      if (clientActiveIndex < 0) return
+      const container = clientListRef.current
+      if (!container) return
+      const el = container.querySelector(`[data-index="${clientActiveIndex}"]`) as HTMLElement | null
+      if (el && typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView({ block: 'nearest' })
+      }
+    }, [clientActiveIndex])
 
     // Încărcăm tehnicienii direct din Firestore
     useEffect(() => {
@@ -1599,6 +1621,14 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                       role="combobox"
                       aria-expanded={isClientDropdownOpen}
                       className={`w-full justify-between ${hasError("client") ? errorStyle : ""}`}
+                      onKeyDown={(e) => {
+                        // Deschidem și inițializăm navigarea cu tastatura
+                        if ((e.key === 'ArrowDown' || e.key === 'Enter') && !isClientDropdownOpen) {
+                          e.preventDefault()
+                          setIsClientDropdownOpen(true)
+                          setClientActiveIndex(filteredClients.length > 0 ? 0 : -1)
+                        }
+                      }}
                     >
                       {formData.client || "Selectați clientul"}
                       <span className="ml-2 opacity-50">▼</span>
@@ -1611,29 +1641,73 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                         value={clientSearchTerm}
                         onChange={(e) => setClientSearchTerm(e.target.value)}
                         className="mb-2"
+                        onKeyDown={(e) => {
+                          if (e.key === 'ArrowDown') {
+                            e.preventDefault()
+                            if (filteredClients.length === 0) return
+                            setClientActiveIndex((prev) => {
+                              const next = (prev + 1) % filteredClients.length
+                              return next
+                            })
+                          } else if (e.key === 'ArrowUp') {
+                            e.preventDefault()
+                            if (filteredClients.length === 0) return
+                            setClientActiveIndex((prev) => {
+                              const next = prev <= 0 ? filteredClients.length - 1 : prev - 1
+                              return next
+                            })
+                          } else if (e.key === 'Enter') {
+                            e.preventDefault()
+                            const idx = clientActiveIndex >= 0 ? clientActiveIndex : (filteredClients.length > 0 ? 0 : -1)
+                            if (idx >= 0) {
+                              const client = filteredClients[idx]
+                              handleClientChange(client.nume)
+                              setIsClientDropdownOpen(false)
+                              setClientSearchTerm("")
+                              setClientActiveIndex(-1)
+                            }
+                          } else if (e.key === 'Escape') {
+                            e.preventDefault()
+                            setIsClientDropdownOpen(false)
+                          }
+                        }}
                       />
-                      <div className="max-h-[200px] overflow-y-auto">
+                      <div ref={clientListRef} className="max-h-[200px] overflow-y-auto">
                         {loadingClienti ? (
                           <div className="flex items-center justify-center p-4">
                             <Loader2 className="h-4 w-4 animate-spin mr-2" />
                             <span>Se încarcă clienții...</span>
                           </div>
                         ) : filteredClients.length > 0 ? (
-                          filteredClients.map((client) => (
+                          filteredClients.map((client, index) => {
+                            const norm = (s?: string) => String(s || '').toLowerCase()
+                            const term = clientSearchTerm.toLowerCase()
+                            const matchedLocation = Array.isArray((client as any).locatii)
+                              ? (client as any).locatii.find((loc: any) => norm(loc?.nume).includes(term) || norm(loc?.adresa).includes(term))
+                              : undefined
+                            return (
                             <div
                               key={client.id}
-                              className={`px-2 py-1 cursor-pointer hover:bg-gray-100 rounded ${
-                                formData.client === client.nume ? "bg-blue-50 text-blue-600" : ""
+                              data-index={index}
+                              className={`px-2 py-1 cursor-pointer rounded ${
+                                formData.client === client.nume ? "bg-blue-50 text-blue-600" : (clientActiveIndex === index ? "bg-gray-100" : "hover:bg-gray-100")
                               }`}
                               onClick={() => {
                                 handleClientChange(client.nume)
                                 setIsClientDropdownOpen(false)
                                 setClientSearchTerm("")
                               }}
+                              onMouseEnter={() => setClientActiveIndex(index)}
                             >
-                              {client.nume}
+                              <div className="flex flex-col">
+                                <span>{client.nume}</span>
+                                {matchedLocation && (
+                                  <span className="text-xs text-muted-foreground">locație: {matchedLocation.nume || matchedLocation.adresa}</span>
+                                )}
+                              </div>
                             </div>
-                          ))
+                            )
+                          })
                         ) : (
                           <div className="p-2 text-center text-sm text-muted-foreground">
                             {clientSearchTerm ? "Nu s-au găsit clienți" : "Nu există clienți disponibili"}

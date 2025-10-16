@@ -681,7 +681,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     return (
       <DashboardShell>
         <DashboardHeader heading="Lucrare negăsită" text="Lucrarea nu a fost găsită în sistem" />
-        <Button onClick={() => router.push("/dashboard/lucrari")}>
+        <Button onClick={() => router.push(userData?.role === "client" ? "/portal" : "/dashboard/lucrari")}>
           <ChevronLeft className="mr-2 h-4 w-4" /> Înapoi la lucrări
         </Button>
       </DashboardShell>
@@ -731,7 +731,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         // text={`Client: ${lucrare.client}`}
       >
         <div className="flex flex-col sm:flex-row gap-2">
-          <Button variant="outline" onClick={() => router.push(fromArhivate ? "/dashboard/arhivate" : "/dashboard/lucrari")}>
+          <Button variant="outline" onClick={() => router.push(userData?.role === "client" ? "/portal" : (fromArhivate ? "/dashboard/arhivate" : "/dashboard/lucrari"))}>
             <ChevronLeft className="mr-2 h-4 w-4" /> Înapoi
           </Button>
           <Button 
@@ -1347,7 +1347,27 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                     </div>
                   )}
 
-               
+                  {/* Notă internă – fallback dacă nu există raport (vizibilă pentru non-clienți) */}
+                  {role !== "client" && !(lucrare.raportGenerat && lucrare.numarRaport) && (lucrare.descriere || lucrare.notaInternaTehnician) && (
+                    <div className="mt-4">
+                      <p className="text-base font-semibold mb-2">Notă internă:</p>
+                      <div className="space-y-1">
+                        {lucrare.descriere && (
+                          <div>
+                            <span className="font-semibold text-base mr-2">Dispecer:</span>
+                            <span className="text-base text-gray-600">{lucrare.descriere}</span>
+                          </div>
+                        )}
+                        {lucrare.notaInternaTehnician && (
+                          <div>
+                            <span className="font-semibold text-base mr-2">Tehnician:</span>
+                            <span className="text-base text-gray-600">{lucrare.notaInternaTehnician}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                 </div>
 
                 {/* Separator după secțiunile de detalii */}
@@ -1358,7 +1378,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   <div className="mt-2">
               
                     {/* Afișare Notă internă: Dispecer/Tehnician */}
-                    {(lucrare.descriere || lucrare.notaInternaTehnician) && (
+                    {role !== "client" && (lucrare.descriere || lucrare.notaInternaTehnician) && (
                       <div className="mt-4">
                         <p className="text-base font-semibold mb-2">Notă internă:</p>
                         <div className="space-y-1">
@@ -1453,7 +1473,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
             <Card>
               <CardHeader>
                 <CardTitle>Informații client</CardTitle>
-                <CardDescription className="text-foreground font-semibold">{lucrare.client}</CardDescription>
+                <CardDescription className="text-base text-gray-600">{lucrare.client}</CardDescription>
               </CardHeader>
               <CardContent>
              
@@ -1568,14 +1588,18 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       </div>
                     </div>
 
-                    {!lucrare.preluatDispecer && (
+                    {(!lucrare.preluatDispecer || lucrare.statusLucrare === "Arhivată") && (
                       <div className="flex items-start gap-3 text-sm bg-gradient-to-r from-amber-50 to-orange-50 text-amber-800 border-l-4 border-amber-400 rounded-r-lg px-4 py-3 shadow-sm mb-4">
                         <div className="flex-shrink-0">
                           <AlertCircle className="h-4 w-4 text-amber-500" />
                         </div>
                         <div className="flex-1">
                           <p className="font-medium text-amber-900">Editor indisponibil</p>
-                          <p className="text-amber-700 mt-1">Lucrarea trebuie preluată de dispecer/admin pentru a edita oferta.</p>
+                          <p className="text-amber-700 mt-1">
+                            {lucrare.statusLucrare === "Arhivată"
+                              ? "Lucrarea este arhivată. Editorul de ofertă nu este disponibil."
+                              : "Lucrarea trebuie preluată de dispecer/admin pentru a edita oferta."}
+                          </p>
                         </div>
                       </div>
                     )}
@@ -1620,20 +1644,24 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
                         {/* Editor ofertă - buton dedesubt */}
                         <div className="space-y-2">
-                          <Label className={`text-sm font-medium ${!lucrare.preluatDispecer || !lucrare.necesitaOferta ? 'text-gray-500' : 'text-blue-800'}`}>Editor ofertă</Label>
+                          <Label className={`text-sm font-medium ${!lucrare.preluatDispecer || !lucrare.necesitaOferta || lucrare.statusLucrare === 'Arhivată' ? 'text-gray-500' : 'text-blue-800'}`}>Editor ofertă</Label>
                           <div>
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => {
+                                if (lucrare.statusLucrare === "Arhivată") {
+                                  toast({ title: 'Editor indisponibil', description: 'Editorul de ofertă nu este disponibil pentru lucrări arhivate.', variant: 'destructive' })
+                                  return
+                                }
                                 if (!lucrare.preluatDispecer) {
                                   toast({ title: 'Editor indisponibil', description: 'Lucrarea trebuie preluată de dispecer/admin înainte de editarea ofertei.', variant: 'destructive' })
                                   return
                                 }
                                 setIsOfferEditorOpen(true)
                               }}
-                              disabled={isUpdating || !lucrare.preluatDispecer || !lucrare.necesitaOferta}
-                              className={!lucrare.preluatDispecer || !lucrare.necesitaOferta ? 'bg-gray-100 text-gray-500 border-gray-300 hover:bg-gray-100 hover:text-gray-500 cursor-not-allowed' : ''}
+                              disabled={isUpdating || !lucrare.preluatDispecer || !lucrare.necesitaOferta || lucrare.statusLucrare === 'Arhivată'}
+                              className={!lucrare.preluatDispecer || !lucrare.necesitaOferta || lucrare.statusLucrare === 'Arhivată' ? 'bg-gray-100 text-gray-500 border-gray-300 hover:bg-gray-100 hover:text-gray-500 cursor-not-allowed' : ''}
                             >
                               Deschide editor
                             </Button>
@@ -1716,7 +1744,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                               })()}
                             </div>
                           )}
-                          {(lucrare as any)?.acceptedOfferSnapshot && (
+                          {(lucrare as any)?.acceptedOfferSnapshot && lucrare.statusLucrare !== 'Arhivată' && (
                             <div className="mt-2">
                               <Button
                                 variant="secondary"
@@ -1787,7 +1815,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 )}
 
                 {/* Offer editor dialog - disponibil doar după preluare de către dispecer/admin */}
-                {lucrare && role !== "tehnician" && lucrare.preluatDispecer && (
+                {lucrare && role !== "tehnician" && lucrare.preluatDispecer && lucrare.statusLucrare !== 'Arhivată' && (
                   <OfferEditorDialog
                     lucrareId={lucrare.id!}
                     open={isOfferEditorOpen}

@@ -247,6 +247,13 @@ export default function Clienti() {
 
     return [
       {
+        id: "clienti",
+        label: "Clienți",
+        type: "multiselect" as const,
+        options: clienti.map((c) => ({ value: String(c.id || ""), label: String(c.nume || "") })),
+        value: [] as string[],
+      },
+      {
         id: "numarLucrari",
         label: "Număr lucrări",
         type: "multiselect" as const,
@@ -269,6 +276,11 @@ export default function Clienti() {
           }
 
           switch (filter.id) {
+            case "clienti":
+              if (Array.isArray(filter.value)) {
+                return filter.value.includes(item.id)
+              }
+              return true
             case "numarLucrari":
               // For multiselect filters
               if (Array.isArray(filter.value)) {

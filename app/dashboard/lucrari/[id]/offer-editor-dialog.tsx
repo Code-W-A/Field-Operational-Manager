@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle, XCircle } from "lucide-react"
 import { ProductTableForm, type ProductItem } from "@/components/product-table-form"
-import { updateLucrare, getLucrareById, getClientById } from "@/lib/firebase/firestore"
+import { updateLucrare, getLucrareById, getClientById, addUserLogEntry } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import { toast } from "@/hooks/use-toast"
 // Recipient selection temporarily disabled; show read-only info instead
@@ -469,6 +469,15 @@ useEffect(() => {
       setStatusOferta("OFERTAT")
       setCanSendOffer(false)
       toast({ title: 'Ofertă trimisă', description: `S-a trimis oferta la: ${recipient}` })
+      // log non‑blocking în colecția loguri
+      void addUserLogEntry({
+        utilizator: userData?.displayName || userData?.email || "Utilizator",
+        utilizatorId: userData?.uid || "system",
+        actiune: "Trimitere ofertă",
+        detalii: `Lucrare: ${String(currentWork?.numarRaport || lucrareId)}; Către: ${recipient}; Versiune: ${String(currentSnapshot.savedAt)}`,
+        tip: "Informație",
+        categorie: "Email",
+      })
   
       // curăță draft
       try { if (typeof window !== 'undefined') localStorage.removeItem(draftStorageKey) } catch {}
@@ -476,6 +485,15 @@ useEffect(() => {
       console.warn('Trimitere ofertă eșuată', e)
       const msg = e instanceof Error ? e.message : 'Nu s-a putut trimite emailul.'
       toast({ title: 'Eroare trimitere', description: msg, variant: 'destructive' })
+      // log non‑blocking eroare trimitere
+      void addUserLogEntry({
+        utilizator: userData?.displayName || userData?.email || "Utilizator",
+        utilizatorId: userData?.uid || "system",
+        actiune: "Trimitere ofertă eșuată",
+        detalii: `Lucrare: ${String(currentWork?.numarRaport || lucrareId)}; Motiv: ${msg}`,
+        tip: "Eroare",
+        categorie: "Email",
+      })
     } finally {
       setSaving(false)
     }

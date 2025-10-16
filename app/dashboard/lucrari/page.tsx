@@ -167,7 +167,7 @@ export default function Lucrari() {
   const { loadSettings, saveFilters, saveColumnVisibility, saveSorting, saveSearchText } = useTablePersistence("lucrari")
 
   // State pentru sorting persistent
-  const [tableSorting, setTableSorting] = useState([{ id: "updatedAt", desc: true }])
+  const [tableSorting, setTableSorting] = useState([{ id: "nrLucrareDisplay", desc: true }])
 
   // Încărcăm setările salvate la inițializare
   useEffect(() => {
@@ -1594,6 +1594,19 @@ export default function Lucrari() {
       header: "Număr lucrare",
       enableHiding: false,
       enableFiltering: false,
+      sortingFn: (rowA: any, rowB: any) => {
+        // Extragem numărul efectiv din câmpurile posibile și îl convertim la număr
+        const getNumericNr = (row: any) => {
+          const base: any = row.original.nrLucrare || row.original.numarRaport || "0"
+          // Elimină orice prefix non-numeric și păstrează doar cifrele
+          const digits = String(base).replace(/[^0-9]/g, "")
+          // Tratează șirurile zero-padded corect numeric
+          return Number(digits || 0)
+        }
+        const a = getNumericNr(rowA)
+        const b = getNumericNr(rowB)
+        return a - b
+      },
       cell: ({ row }) => {
         const base = row.original.nrLucrare || row.original.numarRaport || "-"
         const offerCount = Number((row.original as any)?.offerSendCount || 0)
@@ -2377,7 +2390,7 @@ export default function Lucrari() {
             <DataTable
               columns={columns}
               data={filteredData}
-            defaultSort={{ id: "updatedAt", desc: true }}
+            defaultSort={{ id: "nrLucrareDisplay", desc: true }}
             sorting={tableSorting}
             onSortingChange={handleSortingChange}
               onRowClick={(lucrare) => handleViewDetails(lucrare)}

@@ -28,8 +28,10 @@ export default function Login() {
 
   useEffect(() => {
     if (!loading && user) {
-      // Redirect technicians to /dashboard/lucrari, others to /dashboard
-      if (userData?.role === "tehnician") {
+      // Redirect by role
+      if (userData?.role === "client") {
+        router.push("/portal")
+      } else if (userData?.role === "tehnician") {
         router.push("/dashboard/lucrari")
       } else {
         router.push("/dashboard")
@@ -58,8 +60,10 @@ export default function Login() {
         const mockUser = users.find((u) => u.email === email)
         if (mockUser && (password === "password" || password === "123456")) {
           setCurrentUser(mockUser)
-          // Redirect technicians to /dashboard/lucrari, others to /dashboard
-          if (mockUser.role === "tehnician") {
+          // Redirect by role
+          if (mockUser.role === "client") {
+            router.push("/portal")
+          } else if (mockUser.role === "tehnician") {
             router.push("/dashboard/lucrari")
           } else {
             router.push("/dashboard")
