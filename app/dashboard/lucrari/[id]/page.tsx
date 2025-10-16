@@ -1473,7 +1473,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
             <Card>
               <CardHeader>
                 <CardTitle>Informații client</CardTitle>
-                <CardDescription className="text-base text-gray-600">{lucrare.client}</CardDescription>
+                <CardDescription className="text-base font-semibold text-gray-600">{lucrare.client}</CardDescription>
               </CardHeader>
               <CardContent>
              
