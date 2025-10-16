@@ -6,6 +6,7 @@ import { db } from "@/lib/firebase/config"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { format, differenceInMinutes, isValid } from "date-fns"
@@ -84,6 +85,8 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClientId, setSelectedClientId] = useState<string>("all-clients")
   const [selectedLocationName, setSelectedLocationName] = useState<string>("all-locations")
+  const [clientSearch, setClientSearch] = useState<string>("")
+  const [locationSearch, setLocationSearch] = useState<string>("")
   const [equipmentList, setEquipmentList] = useState<Equipment[]>([])
   const [selectedEquipmentId, setSelectedEquipmentId] = useState<string>("")
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
@@ -197,6 +200,15 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
     // Reset equipment selection when filters change
     setSelectedEquipmentId("")
   }, [selectedClientId, selectedLocationName, clients])
+
+  // Reset searches on selection change
+  useEffect(() => {
+    setClientSearch("")
+    setLocationSearch("")
+  }, [selectedClientId])
+  useEffect(() => {
+    setLocationSearch("")
+  }, [selectedLocationName])
 
   // Update date range based on selection
   useEffect(() => {
@@ -527,8 +539,18 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
                   <SelectValue placeholder="Toți clienții" />
                 </SelectTrigger>
                 <SelectContent>
+                  <div className="p-2">
+                    <Input
+                      placeholder="Caută client..."
+                      value={clientSearch}
+                      onChange={(e) => setClientSearch(e.target.value)}
+                      className="mb-2"
+                    />
+                  </div>
                   <SelectItem value="all-clients">Toți clienții</SelectItem>
-                  {clients.map((client) => (
+                  {clients
+                    .filter((c) => c.nume.toLowerCase().includes(clientSearch.toLowerCase()))
+                    .map((client) => (
                     <SelectItem key={client.id} value={client.id}>
                       {client.nume}
                     </SelectItem>
@@ -558,8 +580,24 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
                         <SelectValue placeholder="Selectați locația (opțional)" />
                       </SelectTrigger>
                       <SelectContent>
+                        <div className="p-2">
+                          <Input
+                            placeholder="Caută locație..."
+                            value={locationSearch}
+                            onChange={(e) => setLocationSearch(e.target.value)}
+                            className="mb-2"
+                          />
+                        </div>
                         <SelectItem value="all-locations">Toate locațiile</SelectItem>
-                        {locatii.map((loc, idx) => (
+                        {locatii
+                          .filter((loc) => {
+                            const term = locationSearch.toLowerCase()
+                            return (
+                              (loc.nume || "").toLowerCase().includes(term) ||
+                              (loc as any).adresa?.toLowerCase?.().includes(term)
+                            )
+                          })
+                          .map((loc, idx) => (
                           <SelectItem key={`${idx}-${loc.nume}`} value={loc.nume}>
                             {loc.nume}{loc.adresa ? ` — ${loc.adresa}` : ""}
                           </SelectItem>
