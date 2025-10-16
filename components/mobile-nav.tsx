@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -10,11 +11,13 @@ import { Menu } from "lucide-react"
 // Adăugăm importul pentru Cog
 import { ClipboardList, Users, Settings, FileText, Home, LogOut, BarChart3, StickyNote, Archive } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
+import { signOut } from "@/lib/firebase/auth"
 
 export function MobileNav({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   const [open, setOpen] = React.useState(false)
   const pathname = usePathname()
   const { userData } = useAuth()
+  const router = useRouter()
 
   // Verificăm dacă utilizatorul are rolul de admin
   const isAdmin = userData?.role === "admin"
@@ -177,14 +180,22 @@ export function MobileNav({ className, ...props }: React.HTMLAttributes<HTMLDivE
           )}
         </nav>
         <div className="border-t px-4 py-4">
-          <Link
-            href="/login"
-            onClick={() => setOpen(false)}
-            className="flex items-center gap-2 rounded-md px-3 py-3 text-sm font-medium transition-colors hover:bg-muted"
+          <button
+            onClick={async () => {
+              try {
+                await signOut()
+              } catch (e) {
+                // ignore and continue navigation
+              } finally {
+                setOpen(false)
+                router.push("/login")
+              }
+            }}
+            className="w-full text-left flex items-center gap-2 rounded-md px-3 py-3 text-sm font-medium transition-colors hover:bg-muted"
           >
             <LogOut className="h-5 w-5" />
             <span>Deconectare</span>
-          </Link>
+          </button>
         </div>
       </SheetContent>
     </Sheet>
