@@ -544,6 +544,10 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
                       placeholder="Caută client..."
                       value={clientSearch}
                       onChange={(e) => setClientSearch(e.target.value)}
+                      onKeyDown={(e) => {
+                        // Previne typeahead-ul implicit al Select-ului (să nu "sară" în listă)
+                        e.stopPropagation()
+                      }}
                       className="mb-2"
                     />
                   </div>
@@ -585,6 +589,10 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
                             placeholder="Caută locație..."
                             value={locationSearch}
                             onChange={(e) => setLocationSearch(e.target.value)}
+                            onKeyDown={(e) => {
+                              // Previne typeahead-ul implicit al Select-ului (să nu "sară" în listă)
+                              e.stopPropagation()
+                            }}
                             className="mb-2"
                           />
                         </div>
