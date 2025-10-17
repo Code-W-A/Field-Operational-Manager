@@ -166,8 +166,9 @@ export default function Lucrari() {
   // Persistența tabelului
   const { loadSettings, saveFilters, saveColumnVisibility, saveSorting, saveSearchText } = useTablePersistence("lucrari")
 
-  // State pentru sorting persistent
-  const [tableSorting, setTableSorting] = useState([{ id: "nrLucrareDisplay", desc: true }])
+  // State pentru sorting (folosit intern de DataTable prin defaultSort). Nu mai controlăm sorting-ul din exterior
+  // pentru a permite sortarea liberă pe toate coloanele.
+  const [tableSorting] = useState([{ id: "nrLucrareDisplay", desc: true }])
 
   // Încărcăm setările salvate la inițializare
   useEffect(() => {
@@ -175,9 +176,7 @@ export default function Lucrari() {
     if (savedSettings.activeFilters) {
       setActiveFilters(savedSettings.activeFilters)
     }
-    if (savedSettings.sorting) {
-      setTableSorting(savedSettings.sorting)
-    }
+    // Nu mai restaurăm sortarea salvată pentru a nu bloca sortarea altor coloane.
     if (savedSettings.searchText) {
       setSearchText(savedSettings.searchText)
     }
@@ -210,11 +209,7 @@ export default function Lucrari() {
 
 
 
-  // Handler pentru schimbarea sortării
-  const handleSortingChange = (newSorting: { id: string; desc: boolean }[]) => {
-    setTableSorting(newSorting)
-    saveSorting(newSorting)
-  }
+  // Nu mai controlăm sorting-ul în mod extern aici. DataTable se ocupă intern de sortare pe baza defaultSort.
 
   // Handler pentru schimbarea search text-ului
   const handleSearchChange = (value: string) => {
@@ -700,11 +695,17 @@ export default function Lucrari() {
     localStorage.setItem("cardsPageSize_lucrari", value)
   }
 
-  // Calculăm datele pentru paginația cards
+  // Calculăm datele pentru paginația cards (ordonate implicit după număr lucrare desc)
   const paginatedCardsData = useMemo(() => {
+    const getNumericNr = (item: any) => {
+      const base: any = item.nrLucrare || item.numarRaport || "0"
+      const digits = String(base).replace(/[^0-9]/g, "")
+      return Number(digits || 0)
+    }
+    const sortedByNrDesc = [...filteredData].sort((a: any, b: any) => getNumericNr(b) - getNumericNr(a))
     const startIndex = (cardsCurrentPage - 1) * cardsPageSize
     const endIndex = startIndex + cardsPageSize
-    return filteredData.slice(startIndex, endIndex)
+    return sortedByNrDesc.slice(startIndex, endIndex)
   }, [filteredData, cardsCurrentPage, cardsPageSize])
 
   const totalCardsPages = Math.ceil(filteredData.length / cardsPageSize)
@@ -2387,12 +2388,10 @@ export default function Lucrari() {
             </AlertDescription>
           </Alert>
         ) : activeTab === "tabel" ? (
-            <DataTable
+      <DataTable
               columns={columns}
               data={filteredData}
             defaultSort={{ id: "nrLucrareDisplay", desc: true }}
-            sorting={tableSorting}
-            onSortingChange={handleSortingChange}
               onRowClick={(lucrare) => handleViewDetails(lucrare)}
               table={tableInstance}
               setTable={setTableInstance}
