@@ -690,10 +690,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
   const isCompletedWithReport = lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true
   
-  // Funcție pentru a verifica dacă lucrarea necesită reintervenție
+  // Condiții NOI pentru reintervenție: raport generat + lucrare preluată
   const needsReintervention = (lucrare: any) => {
-    // Reintervenția este disponibilă doar pentru lucrări cu status finalizare "NEFINALIZAT"
-    return lucrare.statusFinalizareInterventie === "NEFINALIZAT"
+    return Boolean(lucrare?.raportGenerat === true && lucrare?.preluatDispecer === true)
   }
   
   // Funcție pentru a gestiona reintervenția - deschide dialogul de motive
