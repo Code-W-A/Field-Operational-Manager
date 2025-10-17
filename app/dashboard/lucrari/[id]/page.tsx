@@ -1574,8 +1574,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       </div>
     </div>
   )}
-                {/* Setări ofertă – disponibile pentru admin/dispecer indiferent de preluare sau status */}
-                {(role === "admin" || role === "dispecer") && (
+                {/* Setări ofertă – ascunse integral dacă lucrarea este arhivată */}
+                {(role === "admin" || role === "dispecer") && lucrare.statusLucrare !== "Arhivată" && (
                   <div className="p-4 border rounded-md bg-blue-50 border-blue-200 mb-4">
                     {/* Header cu titlu */}
                     <div className="flex items-center justify-between mb-3">
