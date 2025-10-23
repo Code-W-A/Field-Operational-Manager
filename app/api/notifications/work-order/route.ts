@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import nodemailer from "nodemailer"
+import { logEmailEvent, updateEmailEvent } from "@/lib/firebase/firestore"
 import { logDebug, logInfo, logWarning, logError } from "@/lib/utils/logging-service"
 import path from "path"
 import fs from "fs"
@@ -106,6 +107,7 @@ export async function POST(request: NextRequest) {
     logInfo("Received work order notification request", { requestId }, { category: "api", context: logContext })
 
     let data = await request.json()
+    const requestBody = data
 
     // Validate and sanitize email addresses
     data = await validateEmails(data)
@@ -413,6 +415,19 @@ export async function POST(request: NextRequest) {
             )
 
             console.log(`[WORK-ORDER-API] [${requestId}] Trimitere email către tehnician...`)
+            // log queued
+            let evId: string | null = null
+            try {
+              evId = await logEmailEvent({
+                type: "TECH_NOTIFY",
+                lucrareId: (requestBody as any)?.workOrderId,
+                to: [String(tech.email || "")],
+                subject: String(mailOptions.subject || ""),
+                status: "queued",
+                provider: "smtp",
+              })
+            } catch {}
+
             const info = await transporter.sendMail(mailOptions)
 
             console.log(`[WORK-ORDER-API] [${requestId}] Email trimis cu succes către tehnician!`)
@@ -430,6 +445,7 @@ export async function POST(request: NextRequest) {
             )
 
             technicianEmails.push({ name: tech.name, email: tech.email, success: true, messageId: info.messageId })
+            try { if (evId) await updateEmailEvent(evId, { status: "sent", messageId: info.messageId }) } catch {}
           } catch (error: any) {
             console.error(
               `[WORK-ORDER-API] [${requestId}] EROARE la trimiterea email-ului către tehnician ${tech.name}:`,

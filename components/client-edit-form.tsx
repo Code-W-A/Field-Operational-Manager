@@ -1114,11 +1114,16 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
               </label>
               <Input
                 id="garantieLuni"
-                type="number"
-                min="1"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 placeholder="12"
                 value={echipamentFormData.garantieLuni || ""}
-                onChange={handleEchipamentInputChange}
+                onChange={(e) => {
+                  const onlyDigits = e.target.value.replace(/\D+/g, "")
+                  handleEchipamentInputChange({ ...e, target: { ...e.target, value: onlyDigits, id: "garantieLuni" } } as any)
+                }}
+                onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
               />
               <p className="text-xs text-muted-foreground">
                 Perioada de garanție în luni (implicit 12 luni dacă nu se completează)

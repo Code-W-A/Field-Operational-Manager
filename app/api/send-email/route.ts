@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import nodemailer from "nodemailer"
+import { logEmailEvent, updateEmailEvent, updateLucrare } from "@/lib/firebase/firestore"
 import path from "path"
 
 export async function POST(request: NextRequest) {
@@ -80,8 +81,40 @@ export async function POST(request: NextRequest) {
       ],
     }
 
+    // Înregistrăm eveniment QUEUED
+    let emailEventId: string | null = null
+    try {
+      emailEventId = await logEmailEvent({
+        type: "REPORT",
+        lucrareId: (formData.get("lucrareId") as string) || undefined,
+        clientId: (formData.get("clientId") as string) || undefined,
+        to: [to],
+        subject,
+        status: "queued",
+        provider: "smtp",
+      })
+    } catch {}
+
     // Trimitem emailul
-    await transporter.sendMail(mailOptions)
+    const info = await transporter.sendMail(mailOptions)
+
+    // Actualizăm evenimentul la SENT
+    try {
+      if (emailEventId) {
+        await updateEmailEvent(emailEventId, { status: "sent", messageId: info.messageId })
+      }
+      const lucrareId = (formData.get("lucrareId") as string) || undefined
+      if (lucrareId) {
+        await updateLucrare(lucrareId, {
+          lastReportEmail: {
+            sentAt: new Date().toISOString(),
+            to: [to],
+            status: "sent",
+            messageId: info.messageId,
+          },
+        } as any, undefined, undefined, true)
+      }
+    } catch {}
 
     // TODO: Add logging when admin permissions are properly configured
     console.log(`Email sent successfully to: ${to}`)
@@ -89,6 +122,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Eroare la trimiterea emailului:", error)
+    try {
+      const lucrareId = (await request.formData()).get("lucrareId") as string | null
+      if (lucrareId) {
+        await updateLucrare(lucrareId, {
+          lastReportEmail: {
+            sentAt: new Date().toISOString(),
+            to: [(await request.formData()).get("to") as string],
+            status: "failed",
+          },
+        } as any, undefined, undefined, true)
+      }
+    } catch {}
 
     return NextResponse.json({ error: "A aparut o eroare la trimiterea emailului" }, { status: 500 })
   }

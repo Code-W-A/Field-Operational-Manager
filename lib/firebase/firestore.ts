@@ -47,6 +47,8 @@ export interface Lucrare {
   contractNumber?: string
   contractType?: string
   defectReclamat?: string
+  // Text suplimentar specific reintervenției (doar pentru lucrări create ca reintervenție)
+  textReinterventie?: string
   // Câmpuri noi pentru verificarea echipamentului
   equipmentVerified?: boolean
   equipmentVerifiedAt?: string
@@ -125,6 +127,9 @@ export interface Lucrare {
     numeTehnician?: string
     numeBeneficiar?: string
     dataGenerare: string // când a fost generat prima dată
+    // Feedback client înghețat în snapshot
+    clientRating?: number
+    clientReview?: string
   }
   // Flag pentru a indica că datele sunt blocate
   raportDataLocked?: boolean
@@ -190,11 +195,60 @@ export interface Lucrare {
     dataReinterventie?: string        // Data când s-a decis reintervenția
     decisaDe?: string                 // Cine a decis reintervenția (admin/dispecer)
   }
+  // CÂMP NOU: Blochează editarea unei lucrări după ce a generat reintervenții
+  lockedAfterReintervention?: boolean
   // CÂMPURI NOI PENTRU NOTIFICATION TRACKING - BACKWARD COMPATIBLE
   notificationRead?: boolean          // Backward compatibility: dacă notificarea a fost citită (general)
   notificationReadBy?: string[]       // Array cu ID-urile utilizatorilor care au citit notificarea
   // CÂMP NOU: Notă internă a tehnicianului (nu apare în raportul final)
   notaInternaTehnician?: string
+  // Feedback client – rating (1..5) și recenzie text
+  clientRating?: number
+  clientReview?: string
+  // Email statuses (denormalized quick view)
+  lastReportEmail?: {
+    sentAt?: any
+    to?: string[]
+    status?: "queued" | "sent" | "failed" | "bounced" | "delivered"
+    messageId?: string
+  }
+  lastOfferEmail?: {
+    sentAt?: any
+    to?: string[]
+    status?: "queued" | "sent" | "failed" | "bounced" | "delivered"
+    messageId?: string
+  }
+}
+
+// Email events tracking
+export interface EmailEvent {
+  id?: string
+  type: "REPORT" | "OFFER" | "GENERIC" | "TECH_NOTIFY"
+  lucrareId?: string
+  clientId?: string
+  to: string[]
+  subject?: string
+  status: "queued" | "sent" | "failed" | "bounced" | "delivered"
+  messageId?: string
+  error?: string
+  provider?: string
+  meta?: any
+  createdAt?: Timestamp
+  updatedAt?: Timestamp
+}
+
+export async function logEmailEvent(event: Omit<EmailEvent, "createdAt" | "updatedAt" | "id">): Promise<string> {
+  const ref = await addDoc(collection(db, "emailEvents"), {
+    ...event,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+  return ref.id
+}
+
+export async function updateEmailEvent(id: string, updates: Partial<EmailEvent>): Promise<void> {
+  const ref = doc(db, "emailEvents", id)
+  await updateDoc(ref, { ...updates, updatedAt: serverTimestamp() })
 }
 
 export interface Client {

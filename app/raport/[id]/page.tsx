@@ -124,6 +124,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
             constatareLaLocatie: data.constatareLaLocatie || "",
             descriereInterventie: data.descriereInterventie || "",
             defectReclamat: data.defectReclamat || "",
+            textReinterventie: (data as any).textReinterventie || "",
             descriere: data.descriere || "",
             persoanaContact: data.persoanaContact || "",
             products: data.products || [],
@@ -1907,6 +1908,16 @@ FOM by NRG`,
                   <h3 className="font-medium text-gray-500">Defect Reclamat</h3>
                   <p>{lucrare?.defectReclamat || "Nu a fost specificat"}</p>
                 </div>
+
+                {lucrare?.textReinterventie && (
+                  <>
+                    <Separator />
+                    <div>
+                      <h3 className="font-medium text-gray-500">Text reintervenție</h3>
+                      <p className="whitespace-pre-line">{lucrare?.textReinterventie}</p>
+                    </div>
+                  </>
+                )}
 
                 <Separator />
 

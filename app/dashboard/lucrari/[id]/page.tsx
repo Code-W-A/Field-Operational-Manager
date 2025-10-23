@@ -690,9 +690,14 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
   const isCompletedWithReport = lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true
   
-  // Condiții NOI pentru reintervenție: raport generat + lucrare preluată
+  // Condiții pentru reintervenție: raport generat + lucrare preluată + fără reintervenții existente + nelockată
   const needsReintervention = (lucrare: any) => {
-    return Boolean(lucrare?.raportGenerat === true && lucrare?.preluatDispecer === true)
+    return Boolean(
+      lucrare?.raportGenerat === true &&
+      lucrare?.preluatDispecer === true &&
+      !lucrare?.lockedAfterReintervention &&
+      (Array.isArray(reinterventii) ? reinterventii.length === 0 : true)
+    )
   }
   
   // Funcție pentru a gestiona reintervenția - deschide dialogul de motive
@@ -704,11 +709,12 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   }
 
   // Funcție pentru a continua cu reintervenția după selectarea motivelor
-  const handleReinterventionAfterReasons = () => {
+  const handleReinterventionAfterReasons = (textReinterventie?: string) => {
     if (!lucrare) return
     
     // Redirecționăm către pagina principală cu parametru pentru reintervenție
-    router.push(`/dashboard/lucrari?reintervention=${lucrare.id}`)
+    const extra = textReinterventie ? `&textReinterventie=${encodeURIComponent(textReinterventie)}` : ""
+    router.push(`/dashboard/lucrari?reintervention=${lucrare.id}${extra}`)
   }
 
   return (
@@ -869,7 +875,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
             </Button>
           )}
 
-          {(role === "admin" || role === "dispecer") && (
+          {(role === "admin" || role === "dispecer") && !lucrare?.lockedAfterReintervention && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="outline" size="icon" onClick={handleEdit}>
@@ -877,6 +883,18 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Editează</TooltipContent>
+            </Tooltip>
+          )}
+          {(role === "admin" || role === "dispecer") && lucrare?.lockedAfterReintervention && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button variant="outline" size="icon" disabled>
+                    <Lock className="h-4 w-4" />
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Lucrarea este blocată după reintervenție</TooltipContent>
             </Tooltip>
           )}
           {role === "admin" && (
@@ -1138,6 +1156,27 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   </div>
                 )}
 
+                {/* Feedback client (vizibil pentru admin/dispecer) */}
+                {(isAdminOrDispatcher) && (() => {
+                  const rating = (lucrare as any)?.raportSnapshot?.clientRating ?? (lucrare as any)?.clientRating
+                  const review = (lucrare as any)?.raportSnapshot?.clientReview ?? (lucrare as any)?.clientReview
+                  if (!rating && !review) return null
+                  const stars = typeof rating === 'number' ? Math.max(1, Math.min(5, Math.round(rating))) : null
+                  return (
+                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md mb-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-medium text-yellow-800">Feedback client</span>
+                        {stars ? (
+                          <span className="text-yellow-600">{'★'.repeat(stars)}{'☆'.repeat(5 - stars)} ({stars}/5)</span>
+                        ) : null}
+                      </div>
+                      {review ? (
+                        <div className="text-sm text-yellow-900 whitespace-pre-line">{String(review)}</div>
+                      ) : null}
+                    </div>
+                  )
+                })()}
+
                 {/* Afișăm reintervențiile derivate dacă există */}
                 {reinterventii.length > 0 && (
                   <div className="p-3 bg-blue-50 border border-blue-200 rounded-md mb-4">
@@ -1154,13 +1193,16 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         <p className="text-xs text-blue-600">Se încarcă reintervențiile...</p>
                       ) : (
                         <div className="grid gap-2">
-                          {reinterventii.map((reinterventie) => (
+                          {reinterventii.map((reinterventie, index) => (
                             <div
                               key={reinterventie.id}
                               className="flex items-center justify-between p-2 bg-white border border-blue-200 rounded"
                             >
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 text-sm">
+                                  <Badge variant="secondary" className="text-xs bg-blue-50 text-blue-700">
+                                    Reintervenție #{index + 1}
+                                  </Badge>
                                   <Badge 
                                     variant="outline" 
                                     className="text-xs bg-blue-100 text-blue-800 border-blue-300 rounded-md"
@@ -1183,6 +1225,11 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                     {reinterventie.reinterventieMotiv.necesitaPieseSuplimentare && "Piese suplimentare"}
                                   </div>
                                 )}
+                          {reinterventie.defectReclamat && (
+                            <div className="text-xs text-gray-700 mt-1">
+                              Defect reclamat: <span className="font-medium">{reinterventie.defectReclamat}</span>
+                            </div>
+                          )}
                               </div>
                               <Button
                                 variant="outline"
@@ -1203,6 +1250,32 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
                 <Separator />
                 <div className="space-y-4">
+                {/* Email status card */}
+                {(lucrare?.lastReportEmail || lucrare?.lastOfferEmail) && (
+                  <div className="p-3 border rounded-md bg-white">
+                    <p className="text-sm font-semibold mb-2">Email status</p>
+                    {lucrare?.lastReportEmail && (
+                      <div className="text-sm flex flex-wrap gap-2 items-center mb-1">
+                        <Badge variant="outline">Raport</Badge>
+                        <span>Status: {lucrare.lastReportEmail.status || '-'}</span>
+                        {lucrare.lastReportEmail.sentAt && <span>• {String(lucrare.lastReportEmail.sentAt)}</span>}
+                        {Array.isArray(lucrare.lastReportEmail.to) && lucrare.lastReportEmail.to.length > 0 && (
+                          <span>• către {lucrare.lastReportEmail.to.join(', ')}</span>
+                        )}
+                      </div>
+                    )}
+                    {lucrare?.lastOfferEmail && (
+                      <div className="text-sm flex flex-wrap gap-2 items-center">
+                        <Badge variant="outline">Ofertă</Badge>
+                        <span>Status: {lucrare.lastOfferEmail.status || '-'}</span>
+                        {lucrare.lastOfferEmail.sentAt && <span>• {String(lucrare.lastOfferEmail.sentAt)}</span>}
+                        {Array.isArray(lucrare.lastOfferEmail.to) && lucrare.lastOfferEmail.to.length > 0 && (
+                          <span>• către {lucrare.lastOfferEmail.to.join(', ')}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {/* Rând cu: Locație | Persoană contact (locație) | Echipament */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
                   {/* Locație */}
@@ -1297,6 +1370,12 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                           <span className="text-blue-600">{lucrare.echipamentModel}</span>
                         </p>
                       )}
+                      {lucrare.textReinterventie && (
+                        <p className="text-sm">
+                          <span className="font-medium text-blue-600">Text reintervenție:</span>{" "}
+                          <span className="text-blue-600">{lucrare.textReinterventie}</span>
+                        </p>
+                      )}
                       {lucrare.statusEchipament && (
                         <p className="text-sm flex items-center mt-2">
                           <span className="font-medium mr-2">Status:</span>
@@ -1329,6 +1408,14 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                     <p className="text-base font-semibold mb-2">Defect reclamat:</p>
                     <p className="text-base text-gray-600">{lucrare.defectReclamat || "Nu a fost specificat"}</p>
                   </div>
+
+                  {/* Text reintervenție – doar dacă lucrarea este reintervenție și are text */}
+                  {lucrare.tipLucrare === "Reintervenție" && lucrare.textReinterventie && (
+                    <div>
+                      <p className="text-base font-semibold mb-2">Text reintervenție:</p>
+                      <p className="text-base text-gray-600">{lucrare.textReinterventie}</p>
+                    </div>
+                  )}
 
                   {/* Constatare la locație */}
                   {lucrare.constatareLaLocatie && (

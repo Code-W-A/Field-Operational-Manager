@@ -203,11 +203,14 @@ const handleNumberChange = (
                     <td className="px-2 py-2 align-top w-32">
                       <Input
                         id={`price-${p.id}`}
-                        type="number"
-                        min="0"
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         value={p.price === 0 ? "" : String(p.price)}
-                        onChange={handleNumberChange(p.id, "price")}
+                        onChange={(e) => {
+                          const norm = e.target.value.replace(",", ".").replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1")
+                          handleNumberChange(p.id, "price")({ ...e, target: { ...e.target, value: norm } } as any)
+                        }}
+                        onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
                         disabled={disabled}
                         className="text-right text-xs"
                       onFocus={(e) => { lastFocusedFieldIdRef.current = e.currentTarget.id }}
@@ -216,11 +219,15 @@ const handleNumberChange = (
                     <td className="px-2 py-2 align-top w-24">
                       <Input
                         id={`quantity-${p.id}`}
-                        type="number"
-                        min="1"
-                        step="1"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={p.quantity === 0 ? "" : String(p.quantity)}
-                        onChange={handleNumberChange(p.id, "quantity")}
+                        onChange={(e) => {
+                          const onlyDigits = e.target.value.replace(/\D+/g, "")
+                          handleNumberChange(p.id, "quantity")({ ...e, target: { ...e.target, value: onlyDigits } } as any)
+                        }}
+                        onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
                         disabled={disabled}
                         className="text-right text-xs"
                       onFocus={(e) => { lastFocusedFieldIdRef.current = e.currentTarget.id }}

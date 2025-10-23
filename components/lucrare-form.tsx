@@ -78,6 +78,7 @@ interface Lucrare {
 // În componenta LucrareForm, actualizăm interfața LucrareFormProps pentru a include contractType
 interface LucrareFormProps {
   isEdit?: boolean
+  isReintervention?: boolean
   dataEmiterii: Date | undefined
   setDataEmiterii: (date: Date | undefined) => void
   dataInterventie: Date | undefined
@@ -123,6 +124,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
   (
     {
       isEdit = false,
+      isReintervention = false,
       dataEmiterii,
       setDataEmiterii,
       dataInterventie,
@@ -462,6 +464,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
     // Modificăm funcția handleClientChange pentru a reseta echipamentul când se schimbă clientul
     const handleClientChange = async (value: string) => {
+      if (isReintervention) return // înghețat la reintervenție
       // Găsim clientul selectat
       const client = clienti.find((c) => c.nume === value)
 
@@ -511,6 +514,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
     // Modificăm funcția handleLocationChange pentru a încărca echipamentele disponibile pentru locația selectată
     const handleLocationChange = (value: string) => {
+      if (isReintervention) return // înghețat la reintervenție
       if (!selectedClient) {
         console.error("Nu există un client selectat")
         return
@@ -550,6 +554,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     // Adăugăm funcție pentru selectarea echipamentului
     // Înlocuim funcția handleEquipmentSelect existentă cu această versiune actualizată:
     const handleEquipmentSelect = (equipmentId: string, equipment: Echipament) => {
+      if (isReintervention) return // înghețat la reintervenție
       console.log("Echipament selectat în LucrareForm:", equipment)
 
       // Actualizăm toate câmpurile relevante
@@ -1614,13 +1619,14 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             </label>
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
-                <Popover open={isClientDropdownOpen} onOpenChange={setIsClientDropdownOpen}>
+                <Popover open={isClientDropdownOpen && !isReintervention} onOpenChange={setIsClientDropdownOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
                       role="combobox"
                       aria-expanded={isClientDropdownOpen}
-                      className={`w-full justify-between ${hasError("client") ? errorStyle : ""}`}
+                      className={`w-full justify-between ${hasError("client") ? errorStyle : ""} ${isReintervention ? 'opacity-60 cursor-not-allowed' : ''}`}
+                      disabled={isReintervention}
                       onKeyDown={(e) => {
                         // Deschidem și inițializăm navigarea cu tastatura
                         if ((e.key === 'ArrowDown' || e.key === 'Enter') && !isClientDropdownOpen) {
@@ -1717,7 +1723,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                     </div>
                   </PopoverContent>
                 </Popover>
-                <Button variant="outline" size="icon" onClick={() => setIsAddClientDialogOpen(true)}>
+                <Button variant="outline" size="icon" onClick={() => setIsAddClientDialogOpen(true)} disabled={isReintervention}>
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
@@ -1737,8 +1743,8 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 Locație *
               </label>
               <div className="flex gap-2">
-                <Select value={formData.locatie} onValueChange={handleLocatieSelect}>
-                  <SelectTrigger id="locatie" className={hasError("locatie") ? errorStyle : ""}>
+                <Select value={formData.locatie} onValueChange={handleLocatieSelect} disabled={isReintervention}>
+                  <SelectTrigger id="locatie" className={`${hasError("locatie") ? errorStyle : ""} ${isReintervention ? 'opacity-60 cursor-not-allowed' : ''}`}>
                     <SelectValue placeholder="Selectați locația" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1755,6 +1761,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                     variant="outline"
                     size="icon"
                     onClick={handleAddLocationToClient}
+                    disabled={isReintervention}
                     title="Adaugă locație nouă la client"
                     className="shrink-0"
                   >
@@ -1779,7 +1786,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
               equipments={availableEquipments}
               value={formData.echipamentId || formData.echipamentCod}
               onSelect={handleEquipmentSelect}
-              disabled={!formData.locatie}
+              disabled={!formData.locatie || isReintervention}
               placeholder={formData.locatie ? "Selectați echipamentul" : "Selectați mai întâi o locație"}
               emptyMessage={
                 formData.locatie ? "Nu există echipamente pentru această locație" : "Selectați mai întâi o locație"

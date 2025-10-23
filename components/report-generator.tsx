@@ -35,6 +35,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
   const [isGen, setIsGen] = useState(false)
   const [hasGenerated, setHasGenerated] = useState(false)
   const [products, setProducts] = useState<Product[]>([])
+  const [clientRating, setClientRating] = useState<number | null>(null)
+  const [clientReview, setClientReview] = useState<string>("")
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null)
   const [logoLoaded, setLogoLoaded] = useState(false)
   const [logoError, setLogoError] = useState(false)
@@ -44,6 +46,17 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
     if (lucrare?.products) {
       setProducts(lucrare.products)
     }
+    // Preload feedback dacă există în snapshot sau la nivel de document
+    try {
+      const snapRating = (lucrare as any)?.raportSnapshot?.clientRating
+      const snapReview = (lucrare as any)?.raportSnapshot?.clientReview
+      const docRating = (lucrare as any)?.clientRating
+      const docReview = (lucrare as any)?.clientReview
+      const r = typeof snapRating === 'number' ? snapRating : (typeof docRating === 'number' ? docRating : null)
+      setClientRating(r ?? null)
+      const rv = typeof snapReview === 'string' && snapReview.trim().length ? snapReview : (typeof docReview === 'string' ? docReview : '')
+      setClientReview(rv || "")
+    } catch {}
   }, [lucrare])
 
   // Preload the logo image as data URL (fallback included)
@@ -201,7 +214,9 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           semnaturaBeneficiar: lucrare.semnaturaBeneficiar,
           numeTehnician: lucrare.numeTehnician,
           numeBeneficiar: lucrare.numeBeneficiar,
-          dataGenerare: now.toISOString()
+          dataGenerare: now.toISOString(),
+          clientRating: clientRating ?? undefined,
+          clientReview: clientReview?.trim() ? clientReview.trim() : undefined
         }
         
         console.log("📸 SNAPSHOT CREAT:", {
@@ -720,6 +735,25 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       addSig(lucrareForPDF.semnaturaTehnician, M)
       addSig(lucrareForPDF.semnaturaBeneficiar, M + W / 2)
 
+      // CLIENT FEEDBACK (Rating + Review) – imediat după semnături
+      currentY += signH + 8
+      checkPageBreak(20)
+      doc.setFontSize(10).setFont("helvetica", "bold").text("Feedback client", M, currentY)
+      currentY += 5
+      doc.setFontSize(9).setFont("helvetica", "normal")
+      const rVal = (lucrareForPDF as any)?.raportSnapshot?.clientRating ?? (lucrareForPDF as any)?.clientRating
+      const rvText = (lucrareForPDF as any)?.raportSnapshot?.clientReview ?? (lucrareForPDF as any)?.clientReview
+      if (typeof rVal === 'number') {
+        const stars = Math.max(1, Math.min(5, Math.round(rVal)))
+        const starText = '★'.repeat(stars) + '☆'.repeat(5 - stars)
+        doc.text(`Rating: ${starText} (${stars}/5)`, M, currentY)
+        currentY += 5
+      }
+      if (rvText && String(rvText).trim().length) {
+        const lines = doc.splitTextToSize(String(rvText), W)
+        lines.forEach((ln: string) => { doc.text(ln, M, currentY); currentY += 4 })
+      }
+
       // FOOTER
       doc
         .setFontSize(7)
@@ -752,6 +786,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
               dataPlecare: lucrareForPDF.dataPlecare,
               oraPlecare: lucrareForPDF.oraPlecare,
               durataInterventie: lucrareForPDF.durataInterventie,
+              clientRating: typeof clientRating === 'number' ? Math.max(1, Math.min(5, clientRating)) : undefined,
+              clientReview: clientReview?.trim() ? clientReview.trim() : undefined,
             }
             
             // Adăugăm și sincronizăm numerele dacă există
@@ -855,6 +891,31 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         </div>
       )}
       <ProductTableForm products={products} onProductsChange={setProducts} />
+
+      {/* Client rating & review (imediat după zona de semnături în PDF, dar pentru UI aici înainte de generare) */}
+      <div className="space-y-2">
+        <div className="text-sm font-medium">Feedback client (opțional)</div>
+        <div className="flex items-center gap-1">
+          {[1,2,3,4,5].map((idx) => (
+            <button
+              key={idx}
+              type="button"
+              className={`text-xl leading-none ${((clientRating ?? 0) >= idx) ? 'text-yellow-500' : 'text-gray-300'}`}
+              onClick={() => setClientRating(idx)}
+              aria-label={`Setează rating ${idx}`}
+            >
+              ★
+            </button>
+          ))}
+          {clientRating ? <span className="ml-2 text-sm text-gray-600">{clientRating}/5</span> : null}
+        </div>
+        <textarea
+          placeholder="Scrieți recenzia (max. 1000 caractere)"
+          value={clientReview}
+          onChange={(e) => setClientReview(e.target.value.slice(0, 1000))}
+          className="w-full border rounded p-2 text-sm min-h-[80px]"
+        />
+      </div>
       <div className="flex justify-center mt-6">
         <Button ref={ref} onClick={generatePDF} disabled={isGen} className="gap-2">
           <Download className="h-4 w-4" />

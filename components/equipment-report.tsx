@@ -1159,6 +1159,12 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
                               <p className="text-sm">{order.defectReclamat}</p>
                             </div>
                           )}
+                          {order.textReinterventie && (
+                            <div>
+                              <p className="text-sm font-medium text-muted-foreground">Text reintervenție:</p>
+                              <p className="text-sm">{order.textReinterventie}</p>
+                            </div>
+                          )}
                           {order.descriereInterventie && (
                             <div>
                               <p className="text-sm font-medium text-muted-foreground">Descriere intervenție:</p>

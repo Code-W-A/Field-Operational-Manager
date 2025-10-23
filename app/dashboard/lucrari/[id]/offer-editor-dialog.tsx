@@ -334,10 +334,15 @@ useEffect(() => {
       const subtotalNoVat = (products || []).reduce((s: number, p: any) => s + (Number(p.quantity)||0)*(Number(p.price)||0), 0)
       const totalNoVat = subtotalNoVat * (1 - (Number(adjustmentPercent)||0)/100)
   
-      // HTML email cu butoane compatibile Yahoo
+      // HTML email cu text introductiv, listă, tabel și butoane
+      const bullets = (products || []).map((p: any) => `<li>${p?.name || ''}${p?.quantity ? ` — ${Number(p.quantity)} buc.` : ''}${p?.price ? ` @ ${Number(p.price).toFixed(2)} lei` : ''}</li>`).join('')
       const html = `
         <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0b1220"> 
           <h2 style="margin:0 0 12px;color:#0f56b3">Ofertă lucrarea ${currentWork?.numarRaport || currentWork?.id}</h2>
+
+          <p style="margin:8px 0 6px;color:#0b1220">În vederea finalizării lucrării ${currentWork?.numarRaport || currentWork?.id} am constatat că sunt necesare următoarele echipamente și servicii:</p>
+          <ul style="margin:6px 0 12px;padding-left:18px">${bullets || '<li>-</li>'}</ul>
+
           <table style="border-collapse:collapse;width:100%;margin-top:8px;font-size:14px">
             <thead>
               <tr style="background:#f8fafc">
@@ -356,10 +361,10 @@ useEffect(() => {
               </tr>
             </tfoot>
           </table>
-  
-          <p style="margin:12px 0 6px;color:#64748b">
-            Acest link este valabil 30 de zile de la primirea emailului. După confirmare, linkurile devin inactive.
-          </p>
+
+          <p style="margin:12px 0 6px;color:#0b1220">Vă rugăm să ne transmiteți poziția dvs. față de oferta de mai sus prin apăsarea butonului „acceptă/refuză”.</p>
+
+          <p style="margin:10px 0 6px;color:#64748b">Link-ul este valabil 30 de zile de la primirea emailului. După acceptare/refuzare, linkurile devin inactive.</p>
   
           <!-- Butoane -->
           <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-top:12px">
@@ -399,6 +404,8 @@ useEffect(() => {
               </span> 
             </div> 
           </div>
+
+          <div style="margin-top:14px;font-size:11px;color:#6b7280">Acesta este un mesaj automat emis de FOM by NRG. Nu răspundeți la acest e-mail; această căsuță de e-mail nu este supravegheată de nicio persoană. Pentru neclarități sau alte detalii vă rugăm să contactați persoana atribuită contului dvs.</div>
         </div>`
   
       // atașament PDF ofertă pentru client
@@ -550,11 +557,15 @@ useEffect(() => {
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">TVA (%)</label>
                   <input
-                    type="number"
-                    step="1"
-                    min="0"
-                    value={vatPercent}
-                    onChange={(e) => setVatPercent(Number(e.target.value) || 0)}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={String(vatPercent)}
+                    onChange={(e) => {
+                      const onlyDigits = e.target.value.replace(/\D+/g, "")
+                      setVatPercent(Number(onlyDigits || 0))
+                    }}
+                    onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
                     className="w-full border rounded px-2 py-1 text-sm"
                     disabled={effectiveDisabled}
                   />

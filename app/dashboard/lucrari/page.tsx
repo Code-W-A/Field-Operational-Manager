@@ -1443,10 +1443,12 @@ export default function Lucrari() {
       // Precompletăm formularul cu datele din lucrarea originală
       const prefilledData = {
         tipLucrare: WORK_TYPES.RE_INTERVENTION,
-        tehnicieni: originalLucrare.tehnicieni || [],
+        // Pentru reintervenție pornim fără tehnicieni atribuiți
+        tehnicieni: [],
         client: originalLucrare.client || "",
         locatie: originalLucrare.locatie || "",
         echipament: originalLucrare.echipament || "",
+        echipamentModel: (originalLucrare as any)?.echipamentModel || "",
         descriere: originalLucrare.descriere || "",
         persoanaContact: originalLucrare.persoanaContact || "",
         telefon: originalLucrare.telefon || "",
@@ -1455,7 +1457,9 @@ export default function Lucrari() {
         contract: originalLucrare.contract || "",
         contractNumber: originalLucrare.contractNumber || "",
         contractType: originalLucrare.contractType || "",
-        defectReclamat: originalLucrare.defectReclamat || "",
+        // IMPORTANT: pentru reintervenție nu preluăm defectul reclamat, acesta trebuie introdus specific pentru noua reintervenție
+        defectReclamat: "",
+        textReinterventie: (typeof window !== 'undefined') ? (new URLSearchParams(window.location.search).get('textReinterventie') || "") : "",
         persoaneContact: originalLucrare.persoaneContact || [],
         echipamentId: originalLucrare.echipamentId || "",
         echipamentCod: originalLucrare.echipamentCod || "",
@@ -1529,6 +1533,7 @@ export default function Lucrari() {
 
   // Funcție pentru a verifica dacă o lucrare necesită reatribuire (bazat pe status finalizare intervenție)
   const needsReassignment = useCallback((lucrare: any) => {
+    if (lucrare.lockedAfterReintervention) return false
     // Reatribuirea este disponibilă doar pentru lucrări cu status finalizare "NEFINALIZAT"
     return lucrare.statusFinalizareInterventie === "NEFINALIZAT"
   }, [])
@@ -1705,7 +1710,7 @@ export default function Lucrari() {
     },
     {
       accessorKey: "dataInterventie",
-      header: "Data solicitată intervenție",
+      header: "Data executie",
       enableHiding: true,
       enableFiltering: true,
       sortingFn: (rowA: any, rowB: any, columnId: any) => {
@@ -1788,6 +1793,9 @@ export default function Lucrari() {
             return (
               <div>
             <div className="font-medium">{row.original.locatie}</div>
+            {row.original.echipament && (
+              <div className="text-sm text-gray-600">Echipament: {row.original.echipament}</div>
+            )}
             {row.original.echipamentCod && (
               <div className="text-sm text-gray-500">Cod: {row.original.echipamentCod}</div>
             )}
@@ -2015,42 +2023,7 @@ export default function Lucrari() {
                 <TooltipContent>Reintervenție</TooltipContent>
               </Tooltip>
             )}
-            {/* Buton de arhivare pentru admin și dispecer - doar pentru lucrări finalizate */}
-            {(userData?.role === "admin" || userData?.role === "dispecer") && row.original.statusLucrare === "Finalizat" && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8 text-gray-600 border-gray-200 hover:bg-gray-50"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (window.confirm("Sigur doriți să arhivați această lucrare? Lucrarea va fi mutată în secțiunea Arhivate.")) {
-                        updateLucrare(row.original.id, { statusLucrare: "Arhivată" })
-                          .then(() => {
-                            toast({
-                              title: "Succes",
-                              description: "Lucrarea a fost arhivată cu succes.",
-                            })
-                          })
-                          .catch((error) => {
-                            console.error("Eroare la arhivare:", error)
-                            toast({
-                              title: "Eroare",
-                              description: "Nu s-a putut arhiva lucrarea.",
-                              variant: "destructive",
-                            })
-                          })
-                      }
-                    }}
-                    aria-label="Arhivează lucrarea"
-                  >
-                    <Archive className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Arhivează</TooltipContent>
-              </Tooltip>
-            )}
+            {/* Arhivarea este disponibilă doar în pagina de detalii lucrare */}
             {userData?.role === "admin" && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -2142,6 +2115,7 @@ export default function Lucrari() {
                     <span className="text-blue-800 font-medium">
                       Re-intervenție: Acest formular este precompletat cu datele din lucrarea originală pentru{" "}
                       <strong>{formData.originalWorkOrderInfo || originalWorkOrderId}</strong>
+                      <span className="ml-2 text-xs text-blue-700">(Câmpurile client/locație/echipament sunt înghețate)</span>
                     </span>
                   </div>
                 </div>
@@ -2160,6 +2134,8 @@ export default function Lucrari() {
                 handleCustomChange={handleCustomChange}
               fieldErrors={fieldErrors}
               setFieldErrors={setFieldErrors}
+              // Flag către formular pentru a îngheța câmpurile moștenite în reintervenție
+              isReintervention={isReassignment}
               />
               <DialogFooter className="flex-col gap-2 sm:flex-row">
                 <Button variant="outline" onClick={handleCloseAddDialog}>
@@ -2289,10 +2265,15 @@ export default function Lucrari() {
             </div>
             <div className="flex items-center gap-2">
               <Input
-                type="number"
-                min="1"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 value={reportNumberInput}
-                onChange={(e) => setReportNumberInput(e.target.value)}
+                onChange={(e) => {
+                  const onlyDigits = e.target.value.replace(/\D+/g, "")
+                  setReportNumberInput(onlyDigits)
+                }}
+                onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
                 className="w-24 h-8 text-sm"
                 placeholder="Nr."
                 disabled={isLoadingReportNumber || isSavingReportNumber}
@@ -2453,10 +2434,13 @@ export default function Lucrari() {
                             {String(lucrare.nrLucrare || lucrare.numarRaport || "-")}{Number((lucrare as any)?.offerSendCount || 0) > 0 ? `-${Number((lucrare as any)?.offerSendCount || 0)}` : ""}
                           </Badge>
                         </h3>
-                        <p className="text-sm text-muted-foreground">
-                        Locatie: {lucrare.locatie}
-                             
-                        </p>
+                        <p className="text-sm text-muted-foreground">Locație: {lucrare.locatie}</p>
+                        {(lucrare.echipament || (lucrare as any).echipamentModel || lucrare.echipamentCod) && (
+                          <p className="text-xs text-gray-600">
+                            Echipament: {lucrare.echipament || (lucrare as any).echipamentModel || "-"}
+                            {lucrare.echipamentCod ? ` (cod: ${lucrare.echipamentCod})` : ""}
+                          </p>
+                        )}
                       </div>
                       <Badge className={getWorkStatusClass(lucrare.statusLucrare)}>{lucrare.statusLucrare}</Badge>
                     </div>
@@ -2493,8 +2477,21 @@ export default function Lucrari() {
                           <span className="text-sm font-medium text-muted-foreground">Data emiterii:</span>
                           <span className="text-sm">{lucrare.dataEmiterii}</span>
                         </div>
+                        {(lucrare.lastReportEmail || lucrare.lastOfferEmail) && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium text-muted-foreground">Email:</span>
+                            <div className="flex gap-2">
+                              {lucrare.lastReportEmail && (
+                                <Badge variant="outline" className={`${(lucrare.lastReportEmail.status||'')==='sent' ? 'border-green-300 text-green-700' : 'border-gray-300 text-gray-700'}`}>Raport: {lucrare.lastReportEmail.status}</Badge>
+                              )}
+                              {lucrare.lastOfferEmail && (
+                                <Badge variant="outline" className={`${(lucrare.lastOfferEmail.status||'')==='sent' ? 'border-blue-300 text-blue-700' : 'border-gray-300 text-gray-700'}`}>Ofertă: {lucrare.lastOfferEmail.status}</Badge>
+                              )}
+                            </div>
+                          </div>
+                        )}
                         <div className="flex justify-between">
-                          <span className="text-sm font-medium text-muted-foreground">Data solicitată:</span>
+                          <span className="text-sm font-medium text-muted-foreground">Data executie:</span>
                           <span className="text-sm">{lucrare.dataInterventie}</span>
                         </div>
                         <div>
@@ -2607,7 +2604,7 @@ export default function Lucrari() {
                                 >
                                   <Eye className="mr-2 h-4 w-4" /> Vizualizează
                                 </DropdownMenuItem>
-                                {!isTechnician && (
+                                {!isTechnician && !lucrare.lockedAfterReintervention && (
                                   <DropdownMenuItem
                                     onClick={(e) => {
                                       e.stopPropagation()
@@ -2625,45 +2622,8 @@ export default function Lucrari() {
                                 >
                                   <FileText className="mr-2 h-4 w-4" /> Generează Raport
                                 </DropdownMenuItem>
-                                {/* Opțiune de reatribuire pentru dispeceri/admini când lucrarea are situații critice */}
-                                {!isTechnician && needsReassignment(lucrare) && (
-                                  <DropdownMenuItem
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setSelectedLucrareForReintervention(lucrare)
-                                      setIsReinterventionReasonDialogOpen(true)
-                                    }}
-                                  >
-                                    <RefreshCw className="mr-2 h-4 w-4" /> Reintervenție
-                                  </DropdownMenuItem>
-                                )}
-                                {/* Opțiune de arhivare pentru admin și dispecer - doar pentru lucrări finalizate */}
-                                {(userData?.role === "admin" || userData?.role === "dispecer") && lucrare.statusLucrare === "Finalizat" && (
-                                  <DropdownMenuItem
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      if (window.confirm("Sigur doriți să arhivați această lucrare? Lucrarea va fi mutată în secțiunea Arhivate.")) {
-                                        updateLucrare(lucrare.id, { statusLucrare: "Arhivată" })
-                                          .then(() => {
-                                            toast({
-                                              title: "Succes",
-                                              description: "Lucrarea a fost arhivată cu succes.",
-                                            })
-                                          })
-                                          .catch((error) => {
-                                            console.error("Eroare la arhivare:", error)
-                                            toast({
-                                              title: "Eroare",
-                                              description: "Nu s-a putut arhiva lucrarea.",
-                                              variant: "destructive",
-                                            })
-                                          })
-                                      }
-                                    }}
-                                  >
-                                    <Archive className="mr-2 h-4 w-4" /> Arhivează
-                                  </DropdownMenuItem>
-                                )}
+                                {/* Reintervenția se inițiază doar din pagina de detalii lucrare */}
+                                {/* Arhivarea este disponibilă doar în pagina de detalii lucrare */}
                                 {userData?.role === "admin" && (
                                   <DropdownMenuItem
                                     className="text-red-600"

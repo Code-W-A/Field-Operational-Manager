@@ -9,7 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
+import { Button } from "@/components/ui/button"
+import { ArrowUpDown, ArrowUp, ArrowDown, LayoutGrid, Table as TableIcon, Calendar, MapPin } from "lucide-react"
 import Link from "next/link"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { UserNav } from "@/components/user-nav"
 import { useTablePersistence } from "@/hooks/use-table-persistence"
 
@@ -23,6 +26,9 @@ export default function ClientPortalPage() {
   const [locationFilter, setLocationFilter] = useState<string>("all")
   const [clientFilter, setClientFilter] = useState<string>("all")
   const [clients, setClients] = useState<any[]>([])
+  const [sortField, setSortField] = useState<string>("dataInterventie")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
+  const [viewMode, setViewMode] = useState<"cards" | "table">("cards")
 
   // Persist filters/search for client portal
   const { loadSettings, saveFilters, saveSearchText } = useTablePersistence("portal")
@@ -39,6 +45,9 @@ export default function ClientPortalPage() {
     const a = getFilterVal("activeOnly"); if (typeof a === "boolean") setActiveOnly(a)
     const l = getFilterVal("location"); if (typeof l === "string") setLocationFilter(l)
     const c = getFilterVal("client"); if (typeof c === "string") setClientFilter(c)
+    const sf = getFilterVal("sortField"); if (typeof sf === "string") setSortField(sf)
+    const sd = getFilterVal("sortDirection"); if (sd === "asc" || sd === "desc") setSortDirection(sd)
+    const vm = getFilterVal("viewMode"); if (vm === "cards" || vm === "table") setViewMode(vm)
   }, [loadSettings])
 
   // Save filters whenever they change
@@ -48,8 +57,11 @@ export default function ClientPortalPage() {
       { id: "activeOnly", value: activeOnly },
       { id: "location", value: locationFilter },
       { id: "client", value: clientFilter },
+      { id: "sortField", value: sortField },
+      { id: "sortDirection", value: sortDirection },
+      { id: "viewMode", value: viewMode },
     ])
-  }, [statusFilter, activeOnly, locationFilter, clientFilter, saveFilters])
+  }, [statusFilter, activeOnly, locationFilter, clientFilter, sortField, sortDirection, viewMode, saveFilters])
 
   // Save search text whenever it changes
   useEffect(() => {
@@ -119,6 +131,46 @@ export default function ClientPortalPage() {
     })
   }, [items, statusFilter, clientFilter, locationFilter, search, activeOnly, clients])
 
+  const visibleSorted = useMemo(() => {
+    const asDate = (v: any): number => {
+      if (!v) return 0
+      try {
+        if (v?.toDate) return v.toDate().getTime()
+        return new Date(v).getTime() || 0
+      } catch { return 0 }
+    }
+    const list = [...visible]
+    const mult = sortDirection === "asc" ? 1 : -1
+    switch (sortField) {
+      case "dataInterventie":
+        return list.sort((a: any, b: any) => mult * (asDate(a.dataInterventie) - asDate(b.dataInterventie)))
+      case "statusLucrare":
+        return list.sort((a: any, b: any) => mult * String(a.statusLucrare||"").localeCompare(String(b.statusLucrare||""), "ro", { sensitivity: "base" }))
+      case "client":
+        return list.sort((a: any, b: any) => mult * String(a.client||"").localeCompare(String(b.client||""), "ro", { sensitivity: "base" }))
+      case "locatie":
+        return list.sort((a: any, b: any) => mult * String(a.locatie||"").localeCompare(String(b.locatie||""), "ro", { sensitivity: "base" }))
+      case "tipLucrare":
+        return list.sort((a: any, b: any) => mult * String(a.tipLucrare||"").localeCompare(String(b.tipLucrare||""), "ro", { sensitivity: "base" }))
+      default:
+        return list.sort((a: any, b: any) => mult * (asDate(a.dataInterventie) - asDate(b.dataInterventie)))
+    }
+  }, [visible, sortField, sortDirection])
+
+  const toggleSortDirection = () => {
+    setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))
+  }
+
+  const formatDate = (dateStr: any) => {
+    if (!dateStr) return "-"
+    try {
+      const d = dateStr?.toDate ? dateStr.toDate() : new Date(dateStr)
+      return d.toLocaleDateString('ro-RO', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    } catch {
+      return String(dateStr)
+    }
+  }
+
   // Compute filter options for clients and their locations based on access
   const clientAccess: Array<{ clientId: string; locationNames: string[] }> = ((userData as any)?.clientAccess || [])
   const allowedClientIds = new Set(clientAccess.map((e) => e.clientId))
@@ -163,7 +215,8 @@ export default function ClientPortalPage() {
 
       <div className="p-4 mx-auto max-w-7xl">
         <h1 className="text-xl font-semibold mb-4">Lucrările mele</h1>
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4">
+      <div className="space-y-3 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         <Input placeholder="Caută client/locație/tip" value={search} onChange={(e) => setSearch(e.target.value)} />
         <Select value={clientFilter} onValueChange={setClientFilter}>
           <SelectTrigger>
@@ -191,12 +244,67 @@ export default function ClientPortalPage() {
           <span className="text-sm text-muted-foreground">Doar active</span>
           <Switch checked={activeOnly} onCheckedChange={setActiveOnly} />
         </div>
+        </div>
+        <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg border">
+          <span className="text-sm font-medium text-muted-foreground">Sortare:</span>
+          <Select value={sortField} onValueChange={setSortField}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="dataInterventie">Dată intervenție</SelectItem>
+            <SelectItem value="statusLucrare">Status</SelectItem>
+            <SelectItem value="client">Client</SelectItem>
+            <SelectItem value="locatie">Locație</SelectItem>
+            <SelectItem value="tipLucrare">Tip lucrare</SelectItem>
+          </SelectContent>
+        </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleSortDirection}
+            className="gap-2"
+          >
+            {sortDirection === "asc" ? (
+              <>
+                <ArrowUp className="h-4 w-4" />
+                Crescător
+              </>
+            ) : (
+              <>
+                <ArrowDown className="h-4 w-4" />
+                Descrescător
+              </>
+            )}
+          </Button>
+          <div className="flex items-center gap-2 ml-auto">
+            <Button
+              variant={viewMode === "cards" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setViewMode("cards")}
+              className="gap-2"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "table" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setViewMode("table")}
+              className="gap-2"
+            >
+              <TableIcon className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="text-sm text-muted-foreground">
+            {visibleSorted.length} {visibleSorted.length === 1 ? "lucrare" : "lucrări"}
+          </div>
+        </div>
       </div>
       {loading ? (
         <div>Se încarcă...</div>
-      ) : (
+      ) : viewMode === "cards" ? (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {visible.map((w) => (
+          {visibleSorted.map((w) => (
             <Card key={w.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => window.location.href = `/portal/${w.id}`}>
               <CardContent className="p-6 space-y-4">
                 <div className="space-y-2">
@@ -207,10 +315,7 @@ export default function ClientPortalPage() {
                     )})()}
                   </div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
+                    <MapPin className="h-4 w-4" />
                     {w.locatie}
                   </div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -218,6 +323,10 @@ export default function ClientPortalPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                     {w.tipLucrare}
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Calendar className="h-4 w-4" />
+                    {formatDate(w.dataInterventie)}
                   </div>
                 </div>
                 
@@ -270,7 +379,86 @@ export default function ClientPortalPage() {
               </CardContent>
             </Card>
           ))}
-          {!visible.length && <div className="text-sm text-muted-foreground">Nu există lucrări disponibile.</div>}
+          {!visibleSorted.length && <div className="text-sm text-muted-foreground">Nu există lucrări disponibile.</div>}
+        </div>
+      ) : (
+        <div className="border rounded-lg">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Client</TableHead>
+                <TableHead>Locație</TableHead>
+                <TableHead>Tip lucrare</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Dată intervenție</TableHead>
+                <TableHead>Documente</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {visibleSorted.map((w) => {
+                const b = getStatusBadge(w.statusLucrare)
+                return (
+                  <TableRow 
+                    key={w.id} 
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => window.location.href = `/portal/${w.id}`}
+                  >
+                    <TableCell className="font-medium">{w.client}</TableCell>
+                    <TableCell>{w.locatie}</TableCell>
+                    <TableCell>{w.tipLucrare}</TableCell>
+                    <TableCell>
+                      <Badge className={b.className}>{b.label}</Badge>
+                    </TableCell>
+                    <TableCell>{formatDate(w.dataInterventie)}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        {w.raportSnapshot?.url && (
+                          <Link 
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium hover:bg-blue-100 transition-colors" 
+                            href={w.raportSnapshot.url}
+                            onClick={(e) => e.stopPropagation()}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Raport
+                          </Link>
+                        )}
+                        {w.facturaDocument?.url && (
+                          <Link 
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 rounded text-xs font-medium hover:bg-green-100 transition-colors" 
+                            href={w.facturaDocument.url}
+                            onClick={(e) => e.stopPropagation()}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Factură
+                          </Link>
+                        )}
+                        {w.ofertaDocument?.url && (
+                          <Link 
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-700 rounded text-xs font-medium hover:bg-purple-100 transition-colors" 
+                            href={w.ofertaDocument.url}
+                            onClick={(e) => e.stopPropagation()}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Ofertă
+                          </Link>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+              {!visibleSorted.length && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
+                    Nu există lucrări disponibile.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </div>
       )}
       </div>

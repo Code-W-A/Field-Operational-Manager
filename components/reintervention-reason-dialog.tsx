@@ -15,7 +15,7 @@ interface ReinterventionReasonDialogProps {
   isOpen: boolean
   onClose: () => void
   lucrareId: string
-  onSuccess: () => void
+  onSuccess: (textReinterventie?: string) => void
   className?: string
 }
 
@@ -39,6 +39,7 @@ export function ReinterventionReasonDialog({
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { userData } = useAuth()
+  const [textReinterventie, setTextReinterventie] = useState("")
 
   const handleReasonChange = (reason: keyof ReinterventionReasons, checked: boolean) => {
     setReasons(prev => ({
@@ -70,7 +71,7 @@ export function ReinterventionReasonDialog({
         decisaDe: userData?.displayName || "Administrator necunoscut"
       }
 
-      await updateLucrare(lucrareId, { reinterventieMotiv })
+      await updateLucrare(lucrareId, { reinterventieMotiv, lockedAfterReintervention: true })
 
       toast({
         title: "Motive înregistrate",
@@ -81,7 +82,7 @@ export function ReinterventionReasonDialog({
       
       // Call the success callback to continue with reintervention flow
       if (onSuccess) {
-        onSuccess()
+        onSuccess(textReinterventie || "")
       }
     } catch (error) {
       console.error("Eroare la salvarea motivelor reintervenției:", error)
@@ -101,6 +102,7 @@ export function ReinterventionReasonDialog({
       necesitaTimpSuplimentar: false,
       necesitaPieseSuplimentare: false
     })
+    setTextReinterventie("")
     onClose()
   }
 
@@ -187,6 +189,19 @@ export function ReinterventionReasonDialog({
                 
               </div>
             </div>
+          </div>
+
+          {/* Text reintervenție (opțional) */}
+          <div className="space-y-2">
+            <Label htmlFor="text-reinterventie" className="text-sm font-medium">Text reintervenție</Label>
+            <textarea
+              id="text-reinterventie"
+              className="w-full border rounded px-2 py-2 text-sm min-h-[80px]"
+              placeholder="Detaliați problema constatată pentru reintervenție..."
+              value={textReinterventie}
+              onChange={(e) => setTextReinterventie(e.target.value)}
+              disabled={isSubmitting}
+            />
           </div>
 
           {hasSelectedReasons && (

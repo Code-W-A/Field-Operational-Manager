@@ -43,7 +43,7 @@ export default function Dashboard() {
       // Tehnicienii văd doar lucrările la care sunt asignați și care sunt active
       return toateLucrarile.filter(
         (lucrare) =>
-          lucrare.tehnicieni.includes(userData.displayName) &&
+          lucrare.tehnicieni.includes(userData.displayName || "") &&
           (lucrare.statusLucrare.toLowerCase() === WORK_STATUS.WAITING.toLowerCase() ||
             lucrare.statusLucrare.toLowerCase() === WORK_STATUS.IN_PROGRESS.toLowerCase()),
       )
@@ -116,7 +116,7 @@ export default function Dashboard() {
 
       const clientiNoi = clienti.filter((client) => {
         if (!client.createdAt) return false
-        const createdAtDate = client.createdAt.toDate ? client.createdAt.toDate() : new Date(client.createdAt)
+        const createdAtDate = (client.createdAt as any)?.toDate ? (client.createdAt as any).toDate() : new Date(client.createdAt as any)
         return createdAtDate > oneWeekAgo
       }).length
 
@@ -157,46 +157,62 @@ export default function Dashboard() {
   const isLoading = loadingStats
 
   // Funcție pentru a obține lucrările recente pentru afișare în taburi
+  const parseDateTime = (value?: string): Date | null => {
+    try {
+      if (!value) return null
+      // Acceptă formate: "dd.MM.yyyy" sau "dd.MM.yyyy HH:mm"
+      const [datePart, timePart = "00:00"] = value.split(" ")
+      const [dd, mm, yyyy] = datePart.split(".")
+      const [HH, MM] = timePart.split(":")
+      const d = new Date(Number(yyyy), Number(mm) - 1, Number(dd), Number(HH), Number(MM))
+      return isNaN(d.getTime()) ? null : d
+    } catch {
+      return null
+    }
+  }
+
   const getLucrariRecente = () => {
     // Dacă utilizatorul este tehnician, filtrăm lucrările la care este alocat
-    if (role === "tehnician" && userData?.displayName) {
-      return [...lucrari]
-        .filter((l) => l.tehnicieni.includes(userData.displayName!))
-        .sort((a, b) => {
-          const dateA = a.dataEmiterii.split(".").reverse().join("")
-          const dateB = b.dataEmiterii.split(".").reverse().join("")
-          return dateB.localeCompare(dateA)
-        })
-        .slice(0, 5)
-    }
+    const now = new Date()
+    const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000)
 
-    // Pentru admin și dispecer, afișăm toate lucrările
-    return [...lucrari]
+    const source = role === "tehnician" && userData?.displayName
+      ? lucrari.filter((l) => l.tehnicieni.includes(userData.displayName!))
+      : lucrari
+
+    return source
+      .filter((l) => {
+        const de = parseDateTime(l.dataEmiterii)
+        return !!de && de >= cutoff
+      })
       .sort((a, b) => {
-        const dateA = a.dataEmiterii.split(".").reverse().join("")
-        const dateB = b.dataEmiterii.split(".").reverse().join("")
-        return dateB.localeCompare(dateA)
+        const aDate = parseDateTime(a.dataEmiterii)?.getTime() || 0
+        const bDate = parseDateTime(b.dataEmiterii)?.getTime() || 0
+        return bDate - aDate
       })
       .slice(0, 5)
   }
 
   // Modificăm și funcțiile pentru lucrările în așteptare și în curs
   const getLucrariAsteptare = () => {
-    // Filtrăm lucrările în așteptare
+    // Afișăm lucrări care NU sunt "În lucru" și NU sunt "Finalizat" (în așteptare sau listate)
     const filteredLucrari =
       role === "tehnician" && userData?.displayName
-        ? lucrari.filter(
-            (l) =>
-              l.statusLucrare.toLowerCase() === WORK_STATUS.WAITING.toLowerCase() &&
-              l.tehnicieni.includes(userData.displayName!),
-          )
-        : lucrari.filter((l) => l.statusLucrare.toLowerCase() === WORK_STATUS.WAITING.toLowerCase())
+        ? lucrari.filter((l) => {
+            const st = l.statusLucrare.toLowerCase()
+            return ![WORK_STATUS.IN_PROGRESS.toLowerCase(), WORK_STATUS.COMPLETED.toLowerCase()].includes(st) &&
+              l.tehnicieni.includes(userData.displayName!)
+          })
+        : lucrari.filter((l) => {
+            const st = l.statusLucrare.toLowerCase()
+            return ![WORK_STATUS.IN_PROGRESS.toLowerCase(), WORK_STATUS.COMPLETED.toLowerCase()].includes(st)
+          })
 
     return filteredLucrari.slice(0, 5)
   }
 
   const getLucrariInCurs = () => {
-    // Filtrăm lucrările în curs
+    // Filtrăm lucrările în curs (doar status "În lucru")
     const filteredLucrari =
       role === "tehnician" && userData?.displayName
         ? lucrari.filter(
@@ -314,22 +330,30 @@ export default function Dashboard() {
                 <CardContent>
                   <div className="space-y-2">
                     {getLucrariRecente().map((lucrare) => (
-                      <div key={lucrare.id} className="flex items-center justify-between rounded-lg border p-3">
-                        <div>
-                          <p className="font-medium">{lucrare.tipLucrare}</p>
-                          <p className="text-sm text-gray-500">Client: {lucrare.client}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div
-                            className={`h-2 w-2 rounded-full ${
-                              lucrare.statusLucrare.toLowerCase() === "în așteptare"
-                                ? "bg-yellow-500"
-                                : lucrare.statusLucrare.toLowerCase() === "în curs"
+                      <div key={lucrare.id} className="rounded-lg border p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{lucrare.tipLucrare}</p>
+                            <p className="text-sm text-gray-500 truncate">Client: {lucrare.client}</p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <div
+                              className={`h-2 w-2 rounded-full ${
+                                lucrare.statusLucrare.toLowerCase() === WORK_STATUS.WAITING.toLowerCase()
+                                  ? "bg-yellow-500"
+                                  : lucrare.statusLucrare.toLowerCase() === WORK_STATUS.IN_PROGRESS.toLowerCase()
                                   ? "bg-blue-500"
                                   : "bg-green-500"
-                            }`}
-                          ></div>
-                          <span className="text-sm">{lucrare.statusLucrare}</span>
+                              }`}
+                            ></div>
+                            <span className="text-sm">{lucrare.statusLucrare}</span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 text-sm text-gray-600">
+                          <div className="truncate">Locație: <span className="font-medium">{lucrare.locatie || '-'}</span></div>
+                          <div className="truncate">Echipament: <span className="font-medium">{lucrare.echipament || (lucrare as any).echipamentModel || '-'}</span></div>
+                          <div className="truncate">Tip lucrare: <span className="font-medium">{lucrare.tipLucrare || '-'}</span></div>
+                          <div className="truncate">Data intervenției: <span className="font-medium">{lucrare.dataInterventie || '-'}</span></div>
                         </div>
                       </div>
                     ))}
@@ -349,14 +373,22 @@ export default function Dashboard() {
                 <CardContent>
                   <div className="space-y-2">
                     {getLucrariAsteptare().map((lucrare) => (
-                      <div key={lucrare.id} className="flex items-center justify-between rounded-lg border p-3">
-                        <div>
-                          <p className="font-medium">{lucrare.tipLucrare}</p>
-                          <p className="text-sm text-gray-500">Client: {lucrare.client}</p>
+                      <div key={lucrare.id} className="rounded-lg border p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{lucrare.tipLucrare}</p>
+                            <p className="text-sm text-gray-500 truncate">Client: {lucrare.client}</p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <div className="h-2 w-2 rounded-full bg-yellow-500"></div>
+                            <span className="text-sm">În așteptare</span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <div className="h-2 w-2 rounded-full bg-yellow-500"></div>
-                          <span className="text-sm">În așteptare</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 text-sm text-gray-600">
+                          <div className="truncate">Locație: <span className="font-medium">{lucrare.locatie || '-'}</span></div>
+                          <div className="truncate">Echipament: <span className="font-medium">{lucrare.echipament || (lucrare as any).echipamentModel || '-'}</span></div>
+                          <div className="truncate">Tip lucrare: <span className="font-medium">{lucrare.tipLucrare || '-'}</span></div>
+                          <div className="truncate">Data intervenției: <span className="font-medium">{lucrare.dataInterventie || '-'}</span></div>
                         </div>
                       </div>
                     ))}
@@ -376,14 +408,22 @@ export default function Dashboard() {
                 <CardContent>
                   <div className="space-y-2">
                     {getLucrariInCurs().map((lucrare) => (
-                      <div key={lucrare.id} className="flex items-center justify-between rounded-lg border p-3">
-                        <div>
-                          <p className="font-medium">{lucrare.tipLucrare}</p>
-                          <p className="text-sm text-gray-500">Client: {lucrare.client}</p>
+                      <div key={lucrare.id} className="rounded-lg border p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{lucrare.tipLucrare}</p>
+                            <p className="text-sm text-gray-500 truncate">Client: {lucrare.client}</p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+                            <span className="text-sm">În curs</span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <div className="h-2 w-2 rounded-full bg-blue-500"></div>
-                          <span className="text-sm">În curs</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 text-sm text-gray-600">
+                          <div className="truncate">Locație: <span className="font-medium">{lucrare.locatie || '-'}</span></div>
+                          <div className="truncate">Echipament: <span className="font-medium">{lucrare.echipament || (lucrare as any).echipamentModel || '-'}</span></div>
+                          <div className="truncate">Tip lucrare: <span className="font-medium">{lucrare.tipLucrare || '-'}</span></div>
+                          <div className="truncate">Data intervenției: <span className="font-medium">{lucrare.dataInterventie || '-'}</span></div>
                         </div>
                       </div>
                     ))}

@@ -20,7 +20,8 @@ import {
   FileText,
   Search,
   Filter,
-  X
+  X,
+  Wrench
 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { collection, query, where, orderBy, getDocs } from "firebase/firestore"
@@ -457,6 +458,22 @@ export default function LucrariArhivate() {
       ),
     },
     {
+      accessorKey: "echipament",
+      header: "Echipament",
+      enableSorting: true,
+      enableHiding: true,
+      cell: ({ row }: { row: any }) => (
+        <div className="max-w-[220px] truncate">
+          <div className="font-medium">
+            {row.original.echipament || row.original.echipamentModel || "-"}
+          </div>
+          {row.original.echipamentCod && (
+            <div className="text-xs text-gray-500">Cod: {row.original.echipamentCod}</div>
+          )}
+        </div>
+      ),
+    },
+    {
       accessorKey: "locatie",
       header: "Locație",
       enableSorting: true,
@@ -858,6 +875,13 @@ export default function LucrariArhivate() {
                         <div className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-gray-400" />
                           <span className="truncate">{lucrare.tipLucrare}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Wrench className="h-4 w-4 text-gray-400" />
+                          <span className="truncate">
+                            {lucrare.echipament || lucrare.echipamentModel || "-"}
+                        
+                          </span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Calendar className="h-4 w-4 text-gray-400" />
