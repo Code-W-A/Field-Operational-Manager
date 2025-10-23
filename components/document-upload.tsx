@@ -39,13 +39,15 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
   
   // Verificăm dacă lucrarea a fost preluată (condiție pentru upload)
   const isWorkPickedUp = lucrare.preluatDispecer === true
+  // Lucrare blocată după reintervenție
+  const isLocked = Boolean(lucrare?.lockedAfterReintervention)
   
   // Verificăm dacă oferta este necesară (condiție pentru upload ofertă)
   const needsOffer = lucrare.necesitaOferta === true
   
   // Condiții pentru afișarea upload-ului: afișăm cât timp nu există o factură
-  const shouldShowFacturaUpload = !lucrare.facturaDocument
-  const shouldShowOfertaUpload = lucrare.statusOferta === "OFERTAT"
+  const shouldShowFacturaUpload = !lucrare.facturaDocument && !isLocked
+  const shouldShowOfertaUpload = (lucrare.statusOferta === "OFERTAT") && !isLocked
 
   // Eliminăm câmpurile manuale pentru număr și dată; data/ora încărcării se salvează automat
   const formatRoDateTime = (isoString: string) => {
@@ -383,17 +385,17 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
                     type="file"
                     onChange={handleFacturaUpload}
                     className="hidden"
-                    disabled={!isWorkPickedUp || isUploading.factura || isArchived || lucrare.statusFacturare === "Nu se facturează"}
+                    disabled={!isWorkPickedUp || isUploading.factura || isArchived || lucrare.statusFacturare === "Nu se facturează" || isLocked}
                   />
                   <Button
                     onClick={() => facturaInputRef.current?.click()}
-                    disabled={!isWorkPickedUp || isUploading.factura || isArchived || lucrare.statusFacturare === "Nu se facturează"}
+                    disabled={!isWorkPickedUp || isUploading.factura || isArchived || lucrare.statusFacturare === "Nu se facturează" || isLocked}
                     variant="outline"
                     size="sm"
                     className="w-full sm:w-auto"
                   >
                     <Upload className="h-4 w-4 mr-2" />
-                    {isArchived ? "Indisponibil pentru lucrări arhivate" : (isUploading.factura ? "Se încarcă..." : "Încarcă factură")}
+                    {isLocked ? "Indisponibil pentru lucrări blocate" : (isArchived ? "Indisponibil pentru lucrări arhivate" : (isUploading.factura ? "Se încarcă..." : "Încarcă factură"))}
                   </Button>
                 </div>
               )}
@@ -464,7 +466,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
         </div>
 
         {/* Secțiunea pentru ofertă - ascunsă complet când hideOfertaUpload este activ */}
-        {!hideOfertaUpload && (
+        {!hideOfertaUpload && !isLocked && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h4 className="text-sm font-medium">Ofertă</h4>

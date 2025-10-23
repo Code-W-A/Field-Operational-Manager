@@ -1775,7 +1775,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                 }
                                 setIsOfferEditorOpen(true)
                               }}
-                              disabled={isUpdating || !lucrare.preluatDispecer || !lucrare.necesitaOferta || lucrare.statusLucrare === 'Arhivată'}
+                              disabled={isUpdating || !lucrare.preluatDispecer || !lucrare.necesitaOferta || lucrare.statusLucrare === 'Arhivată' || lucrare.lockedAfterReintervention}
                               className={!lucrare.preluatDispecer || !lucrare.necesitaOferta || lucrare.statusLucrare === 'Arhivată' ? 'bg-gray-100 text-gray-500 border-gray-300 hover:bg-gray-100 hover:text-gray-500 cursor-not-allowed' : ''}
                             >
                               Deschide editor
@@ -1930,7 +1930,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 )}
 
                 {/* Offer editor dialog - disponibil doar după preluare de către dispecer/admin */}
-                {lucrare && role !== "tehnician" && lucrare.preluatDispecer && lucrare.statusLucrare !== 'Arhivată' && (
+                {lucrare && role !== "tehnician" && lucrare.preluatDispecer && lucrare.statusLucrare !== 'Arhivată' && !lucrare.lockedAfterReintervention && (
                   <OfferEditorDialog
                     lucrareId={lucrare.id!}
                     open={isOfferEditorOpen}
