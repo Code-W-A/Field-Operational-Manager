@@ -360,7 +360,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
                     size="sm"
                     variant="outline"
                     onClick={() => handleDeleteDocument('factura')}
-                    disabled={!isWorkPickedUp}
+                    disabled={!isWorkPickedUp || isLocked}
                     className="w-full sm:w-auto"
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
@@ -405,7 +405,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
                 {lucrare.statusFacturare !== "Nu se facturează" ? (
                   <Button
                     variant="outline"
-                    disabled={!isWorkPickedUp || isArchived}
+                    disabled={!isWorkPickedUp || isArchived || isLocked}
                     onClick={async () => {
                       try {
                         await updateLucrare(lucrareId, { statusFacturare: "Nu se facturează" } as any)
@@ -432,6 +432,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
                         setMotivTemp(lucrare?.motivNefacturare || "")
                         setIsMotivDialogOpen(true)
                       }}
+                      disabled={isLocked || isArchived}
                     >
                       <AlertCircle className="h-4 w-4 mr-2 text-gray-600" />
                       Setează motiv
@@ -448,6 +449,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
                         }
                       }}
                       className="w-full sm:w-auto"
+                      disabled={isLocked || isArchived}
                     >
                       Revocă 'Nu se facturează'
                     </Button>
