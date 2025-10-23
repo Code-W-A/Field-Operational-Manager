@@ -62,6 +62,8 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   // Add name states for signers
   const [numeTehnician, setNumeTehnician] = useState("")
   const [numeBeneficiar, setNumeBeneficiar] = useState("")
+  const [clientRating, setClientRating] = useState<number | null>(null)
+  const [clientReview, setClientReview] = useState<string>("")
 
   // State-uri pentru editarea manuală a timpului de plecare
   const [isEditingDepartureTime, setIsEditingDepartureTime] = useState(false)
@@ -287,6 +289,18 @@ export default function RaportPage({ params }: { params: { id: string } }) {
             sourceTehnician: processedData.raportSnapshot?.numeTehnician ? "snapshot" : "date principale",
             sourceBeneficiar: processedData.raportSnapshot?.numeBeneficiar ? "snapshot" : "date principale"
           })
+
+          // Preload feedback client (din snapshot sau document)
+          try {
+            const snapRating = (processedData as any)?.raportSnapshot?.clientRating
+            const snapReview = (processedData as any)?.raportSnapshot?.clientReview
+            const docRating = (processedData as any)?.clientRating
+            const docReview = (processedData as any)?.clientReview
+            const r = typeof snapRating === 'number' ? snapRating : (typeof docRating === 'number' ? docRating : null)
+            setClientRating(r ?? null)
+            const rv = typeof snapReview === 'string' && snapReview.trim().length ? snapReview : (typeof docReview === 'string' ? docReview : '')
+            setClientReview(rv || "")
+          } catch {}
         } else {
           setError("Lucrarea nu a fost găsită")
         }
@@ -626,6 +640,8 @@ FOM by NRG`,
         numeBeneficiar,
         products,
         emailDestinatar: manualEmails,
+        clientRating: typeof clientRating === 'number' ? Math.max(1, Math.min(5, clientRating)) : undefined,
+        clientReview: clientReview?.trim() ? clientReview.trim() : undefined,
         // NU setăm raportGenerat: true aici - va fi setat de ReportGenerator
         statusLucrare: "Finalizat",
         updatedAt: serverTimestamp(),
@@ -2030,6 +2046,71 @@ FOM by NRG`,
                   </div>
                 </div>
 
+                {/* Feedback client – secțiune separată după semnături */}
+                <Separator />
+                
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1 h-6 bg-blue-600 rounded-full"></div>
+                    <h3 className="text-base font-semibold text-gray-700">Feedback Client</h3>
+                    <span className="text-xs text-gray-500 ml-auto">(opțional)</span>
+                  </div>
+                  
+                  <div className="p-4 rounded-lg border-2 border-gray-200 bg-gradient-to-br from-white to-gray-50 space-y-4">
+                    <div>
+                      <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                        Evaluare serviciu
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        {[1,2,3,4,5].map((idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            className={`text-3xl leading-none transition-all duration-150 transform hover:scale-110 ${
+                              ((clientRating ?? 0) >= idx) 
+                                ? 'text-yellow-400 drop-shadow-md' 
+                                : 'text-gray-300 hover:text-gray-400'
+                            } ${(isSubmitting || lucrare?.raportDataLocked) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                            onClick={() => !isSubmitting && !lucrare?.raportDataLocked && setClientRating(idx)}
+                            disabled={isSubmitting || lucrare?.raportDataLocked}
+                            aria-label={`Setează rating ${idx}`}
+                          >
+                            ★
+                          </button>
+                        ))}
+                        {clientRating && (
+                          <span className="ml-3 px-3 py-1 bg-blue-100 text-blue-700 text-sm font-medium rounded-full">
+                            {clientRating}/5
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="clientReview" className="text-sm font-medium text-gray-700 mb-2 block">
+                        Comentarii și sugestii
+                      </Label>
+                      <Textarea
+                        id="clientReview"
+                        placeholder="Vă rugăm să ne spuneți cum a fost experiența dumneavoastră cu serviciul nostru..."
+                        value={clientReview}
+                        onChange={(e) => setClientReview(e.target.value.slice(0, 1000))}
+                        disabled={isSubmitting || lucrare?.raportDataLocked}
+                        className="resize-none focus:ring-2 focus:ring-blue-500 border-gray-300"
+                        rows={4}
+                      />
+                      <div className="flex justify-between items-center mt-1">
+                        <p className="text-xs text-gray-500">
+                          Feedback-ul dumneavoastră ne ajută să îmbunătățim serviciile
+                        </p>
+                        <span className="text-xs text-gray-400">
+                          {clientReview.length}/1000
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Adăugăm câmpul pentru email */}
                 <div className="space-y-2">
               <div className="flex items-center gap-2">
@@ -2049,7 +2130,7 @@ FOM by NRG`,
                 disabled={isSubmitting || !useManualRecipients}
                   />
                   <p className="text-xs text-muted-foreground">
-                Implicit se trimite către emailurile de locație din client. Bifați „Destinatari multipli pt raport” pentru a adăuga și alte adrese.
+                Implicit se trimite către emailurile de locație din client. Bifați „Destinatari multipli pt raport" pentru a adăuga și alte adrese.
                   </p>
                 </div>
 
