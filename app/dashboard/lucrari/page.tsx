@@ -1534,8 +1534,8 @@ export default function Lucrari() {
   // Funcție pentru a verifica dacă o lucrare necesită reatribuire (bazat pe status finalizare intervenție)
   const needsReassignment = useCallback((lucrare: any) => {
     if (lucrare.lockedAfterReintervention) return false
-    // Reatribuirea este disponibilă doar pentru lucrări cu status finalizare "NEFINALIZAT"
-    return lucrare.statusFinalizareInterventie === "NEFINALIZAT"
+    // Reatribuirea nu mai depinde de statusul NEFINALIZAT
+    return false
   }, [])
 
   const handleApplyFilters = (filters) => {
@@ -2216,7 +2216,7 @@ export default function Lucrari() {
         <div className="flex flex-wrap gap-2">
           <div className="flex items-center">
             <div className="w-4 h-4 mr-1 bg-red-100 border border-red-500 border-l-4 rounded"></div>
-            <span className="text-xs">Situații critice (NEFINALIZAT / Echipament nefuncțional / Status ofertă: DA)</span>
+            <span className="text-xs">Situații critice (Echipament nefuncțional / Status ofertă: DA)</span>
           </div>
           <div className="flex items-center">
             <div className="w-4 h-4 mr-1 bg-gray-50 border border-gray-200 rounded"></div>

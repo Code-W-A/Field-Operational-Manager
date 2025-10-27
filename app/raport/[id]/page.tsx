@@ -640,10 +640,11 @@ FOM by NRG`,
         numeBeneficiar,
         products,
         emailDestinatar: manualEmails,
-        clientRating: typeof clientRating === 'number' ? Math.max(1, Math.min(5, clientRating)) : undefined,
-        clientReview: clientReview?.trim() ? clientReview.trim() : undefined,
+        ...(typeof clientRating === 'number' ? { clientRating: Math.max(1, Math.min(5, clientRating)) } : {}),
+        ...(clientReview?.trim() ? { clientReview: clientReview.trim() } : {}),
         // NU setăm raportGenerat: true aici - va fi setat de ReportGenerator
         statusLucrare: "Finalizat",
+        statusFinalizareInterventie: "FINALIZAT",
         updatedAt: serverTimestamp(),
         preluatDispecer: false,
       }

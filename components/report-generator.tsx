@@ -215,8 +215,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           numeTehnician: lucrare.numeTehnician,
           numeBeneficiar: lucrare.numeBeneficiar,
           dataGenerare: now.toISOString(),
-          clientRating: clientRating ?? undefined,
-          clientReview: clientReview?.trim() ? clientReview.trim() : undefined
+          ...(typeof clientRating === 'number' ? { clientRating: Math.max(1, Math.min(5, clientRating)) } : {}),
+          ...(clientReview?.trim() ? { clientReview: clientReview.trim() } : {})
         }
         
         console.log("📸 SNAPSHOT CREAT:", {
@@ -786,8 +786,9 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
               dataPlecare: lucrareForPDF.dataPlecare,
               oraPlecare: lucrareForPDF.oraPlecare,
               durataInterventie: lucrareForPDF.durataInterventie,
-              clientRating: typeof clientRating === 'number' ? Math.max(1, Math.min(5, clientRating)) : undefined,
-              clientReview: clientReview?.trim() ? clientReview.trim() : undefined,
+              statusFinalizareInterventie: "FINALIZAT",
+              ...(typeof clientRating === 'number' ? { clientRating: Math.max(1, Math.min(5, clientRating)) } : {}),
+              ...(clientReview?.trim() ? { clientReview: clientReview.trim() } : {}),
             }
             
             // Adăugăm și sincronizăm numerele dacă există

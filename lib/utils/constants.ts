@@ -135,17 +135,12 @@ export function getWorkStatusRowClass(lucrare: any): string {
   }
 
   // PRIORITATE MAXIMĂ: Rânduri roșii pentru condițiile critice
-  // 1. Status finalizare intervenție = NEFINALIZAT (dar nu pentru lucrări cu statusLucrare = "Finalizat")
-  if (lucrare.statusFinalizareInterventie === "NEFINALIZAT" && lucrare.statusLucrare !== "Finalizat") {
-    return "bg-red-100 border-l-4 border-red-500"
-  }
-
-  // 2. Echipament nefuncțional
+  // 1. Echipament nefuncțional
   if (lucrare.statusEchipament === "Nefuncțional") {
     return "bg-red-100 border-l-4 border-red-500"
   }
 
-  // 3. Necesită ofertă (nou logic cu statusOferta cu fallback la necesitaOferta)
+  // 2. Necesită ofertă (nou logic cu statusOferta cu fallback la necesitaOferta)
   if (lucrare.statusOferta === "DA" || (lucrare.statusOferta === undefined && lucrare.necesitaOferta === true)) {
     return "bg-red-100 border-l-4 border-red-500"
   }

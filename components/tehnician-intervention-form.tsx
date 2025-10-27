@@ -114,10 +114,7 @@ export function TehnicianInterventionForm({
   // Verificăm dacă lucrarea este de tip "Intervenție în garanție"
   const isWarrantyWork = initialData.tipLucrare === "Intervenție în garanție"
 
-  // State pentru status finalizare intervenție
-  const [statusFinalizareInterventie, setStatusFinalizareInterventie] = useState<"FINALIZAT" | "NEFINALIZAT">(
-    initialData.statusFinalizareInterventie || "NEFINALIZAT"
-  )
+  // Eliminat: status finalizare intervenție este setat automat la generarea raportului
 
   // State pentru confirmarea garanției de către tehnician  
   const [tehnicianConfirmaGarantie, setTehnicianConfirmaGarantie] = useState<boolean>(
@@ -177,7 +174,6 @@ export function TehnicianInterventionForm({
         statusEchipament,
         necesitaOferta,
         comentariiOferta: necesitaOferta ? comentariiOferta : "", // Clear comments if necesitaOferta is false
-        statusFinalizareInterventie,
         imaginiDefecte: allImages, // Includem toate imaginile (existente + noi)
         notaInternaTehnician,
       }
@@ -257,7 +253,6 @@ export function TehnicianInterventionForm({
         statusEchipament,
         necesitaOferta,
         comentariiOferta: necesitaOferta ? comentariiOferta : "", // Clear comments if necesitaOferta is false
-        statusFinalizareInterventie,
         imaginiDefecte: allImages, // Includem toate imaginile (existente + noi)
         notaInternaTehnician,
       }
@@ -477,21 +472,7 @@ export function TehnicianInterventionForm({
 
 
 
-            <div className="space-y-2">
-              <Label htmlFor="statusFinalizareInterventie">Status finalizare intervenție</Label>
-              <Select value={statusFinalizareInterventie} onValueChange={(value) => setStatusFinalizareInterventie(value as "FINALIZAT" | "NEFINALIZAT")} disabled={formDisabled}>
-                <SelectTrigger id="statusFinalizareInterventie" className={formDisabled ? "opacity-70 cursor-not-allowed" : ""}>
-                  <SelectValue placeholder="Selectați statusul finalizării intervenției" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="FINALIZAT">FINALIZAT</SelectItem>
-                  <SelectItem value="NEFINALIZAT">NEFINALIZAT</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Acest status determină culoarea rândului în lista de lucrări și nu apare în raport.
-              </p>
-            </div>
+            {/* Eliminat: dropdown pentru status finalizare intervenție */}
 
             {/* Secțiunea pentru informațiile de garanție */}
             {isWarrantyWork && (
