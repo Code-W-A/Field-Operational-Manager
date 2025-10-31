@@ -341,7 +341,7 @@ useEffect(() => {
           <h2 style="margin:0 0 12px;color:#0f56b3">Ofertă lucrarea ${currentWork?.numarRaport || currentWork?.id}</h2>
 
           <p style="margin:8px 0 6px;color:#0b1220">În vederea finalizării lucrării ${currentWork?.numarRaport || currentWork?.id} am constatat că sunt necesare următoarele echipamente și servicii:</p>
-          <ul style="margin:6px 0 12px;padding-left:18px">${bullets || '<li>-</li>'}</ul>
+ 
 
           <table style="border-collapse:collapse;width:100%;margin-top:8px;font-size:14px">
             <thead>

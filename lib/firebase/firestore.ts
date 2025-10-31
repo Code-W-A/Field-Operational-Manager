@@ -47,6 +47,8 @@ export interface Lucrare {
   contractNumber?: string
   contractType?: string
   defectReclamat?: string
+  // Istoric defecte reclamate: [original, RE1, RE2, ...]
+  defectReclamatHistory?: string[]
   // Text suplimentar specific reintervenției (doar pentru lucrări create ca reintervenție)
   textReinterventie?: string
   // Câmpuri noi pentru verificarea echipamentului

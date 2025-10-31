@@ -195,8 +195,11 @@ export default function ClientPortalPage() {
     if (s.includes("anulat")) {
       return { label: "Anulat", className: "bg-red-100 text-red-700" }
     }
-    if (s.includes("finalizat") || s.includes("arhivat")) {
-      return { label: "Finalizată", className: "bg-emerald-100 text-emerald-700" }
+    if (s.includes("arhivat")) {
+      return { label: "Arhivată", className: "bg-gray-100 text-gray-700" }
+    }
+    if (s.includes("finalizat")) {
+      return { label: "Raport generat", className: "bg-emerald-100 text-emerald-700" }
     }
     return { label: "Activ", className: "bg-blue-100 text-blue-700" }
   }

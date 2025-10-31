@@ -70,6 +70,7 @@ interface Lucrare {
   contract?: string
   contractNumber?: string
   defectReclamat?: string
+  defectReclamatHistory?: string[]
   persoaneContact?: PersoanaContact[]
   echipamentId?: string
   echipamentCod?: string
@@ -98,6 +99,7 @@ interface LucrareFormProps {
     contractNumber?: string
     contractType?: string // Adăugăm tipul contractului
     defectReclamat?: string
+    defectReclamatHistory?: string[]
     persoaneContact?: PersoanaContact[]
     echipamentId?: string
     echipamentCod?: string
@@ -1306,6 +1308,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           contract: formData.contract,
           contractNumber: formData.contractNumber,
           defectReclamat: formData.defectReclamat,
+          defectReclamatHistory: formData.defectReclamatHistory,
           // Include all contact persons from the selected location
           persoaneContact: formData.persoaneContact || persoaneContact,
           echipamentId: formData.echipamentId,
@@ -1814,8 +1817,12 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             <label htmlFor="tipLucrare" className="text-sm font-medium">
               Tip Intervenție *
             </label>
-            <Select value={formData.tipLucrare} onValueChange={(value) => handleSelectChange("tipLucrare", value)}>
-              <SelectTrigger id="tipLucrare" className={hasError("tipLucrare") ? errorStyle : ""}>
+            <Select 
+              value={formData.tipLucrare} 
+              onValueChange={(value) => { if (isReintervention) return; handleSelectChange("tipLucrare", value) }}
+              disabled={isReintervention}
+            >
+              <SelectTrigger id="tipLucrare" className={`${hasError("tipLucrare") ? errorStyle : ""} ${isReintervention ? 'opacity-60 cursor-not-allowed' : ''}`}>
                 <SelectValue placeholder="Selectați tipul intervenției" />
               </SelectTrigger>
               <SelectContent>
@@ -1989,15 +1996,34 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
           {/* 8. Defect reclamat */}
           <div className="space-y-2">
+            {/* Istoric defecte reclamat (read-only) */}
+            {Array.isArray(formData.defectReclamatHistory) && formData.defectReclamatHistory.length > 0 && (
+              <div className="p-3 border rounded-md bg-gray-50">
+                <p className="text-sm font-medium mb-2">Istoric defecte reclamate</p>
+                <div className="space-y-1">
+                  {formData.defectReclamatHistory.map((val, idx) => (
+                    <div key={idx} className="text-sm">
+                      <span className="font-medium">
+                        {idx === 0 ? "Defect reclamat original" : `Defect reclamat RE${idx}`}: 
+                      </span>{" "}
+                      <span className="text-gray-700">{val}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <label htmlFor="defectReclamat" className="text-sm font-medium">
-              Defect reclamat
+              {isReintervention
+                ? `Defect reclamat RE${Math.max(1, (formData.defectReclamatHistory?.length || 0))}`
+                : "Defect reclamat"}
             </label>
             <Textarea
               id="defectReclamat"
               placeholder="Introduceți defectul reclamat de client"
               value={formData.defectReclamat || ""}
               onChange={handleInputChange}
-              className="min-h-[80px] resize-y"
+              className={`min-h-[80px] resize-y ${isReintervention ? 'ring-1 ring-blue-200' : ''}`}
             />
           </div>
 
@@ -2132,7 +2158,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 Status Lucrare
               </label>
               <div className="flex items-center h-10 px-3 py-2 text-sm border rounded-md bg-muted/50">
-                <Badge className={getWorkStatusClass(formData.statusLucrare)}>{formData.statusLucrare}</Badge>
+                <Badge className={getWorkStatusClass(formData.statusLucrare)}>{formData.statusLucrare === "Finalizat" ? "Raport generat" : formData.statusLucrare}</Badge>
                 <span className="ml-2 text-xs text-muted-foreground">Status automatizat</span>
               </div>
               <p className="text-xs text-muted-foreground">

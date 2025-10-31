@@ -320,7 +320,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                   Informații Generale Lucrare
                 </CardTitle>
                 <Badge className={getWorkStatusClass(lucrare.statusLucrare)}>
-                  {lucrare.statusLucrare}
+                  {lucrare.statusLucrare === "Finalizat" ? "Raport generat" : lucrare.statusLucrare}
                 </Badge>
               </div>
             </CardHeader>

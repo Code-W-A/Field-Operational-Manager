@@ -154,28 +154,6 @@ export default function LucrariArhivate() {
       }),
     )
 
-    // Extragem toți clienții unici
-    const clienti = Array.from(new Set(lucrariArhivate.map((lucrare) => lucrare.client))).map((client) => ({
-      value: client,
-      label: client,
-    }))
-
-    // Extragem toate locațiile unice
-    const locatii = Array.from(new Set(lucrariArhivate.map((lucrare) => lucrare.locatie)))
-      .filter(Boolean)
-      .map((locatie) => ({
-        value: locatie,
-        label: locatie,
-      }))
-
-    // Extragem toate statusurile de facturare unice
-    const statusuriFacturare = Array.from(new Set(lucrariArhivate.map((lucrare) => lucrare.statusFacturare))).map(
-      (status) => ({
-        value: status,
-        label: status,
-      }),
-    )
-
     // Extragem toate statusurile de echipament unice
     const statusuriEchipament = Array.from(
       new Set(lucrariArhivate.map((lucrare) => lucrare.statusEchipament || "Nedefinit")),
@@ -184,87 +162,65 @@ export default function LucrariArhivate() {
       label: status === "Nedefinit" ? "Nedefinit" : status,
     }))
 
-         return [
-       {
-         id: "dataEmiterii",
-         label: "Data emiterii",
-         type: "dateRange" as const,
-         value: null,
-       },
-       {
-         id: "dataInterventie",
-         label: "Data intervenție",
-         type: "dateRange" as const,
-         value: null,
-       },
-       {
-         id: "archivedAt",
-         label: "Data arhivării",
-         type: "dateRange" as const,
-         value: null,
-       },
-             {
-         id: "tipLucrare",
-         label: "Tip lucrare",
-         type: "multiselect" as const,
-         options: tipuriLucrare,
-         value: [],
-       },
-       {
-         id: "tehnicieni",
-         label: "Tehnicieni",
-         type: "multiselect" as const,
-         options: tehnicieniOptions,
-         value: [],
-       },
-       {
-         id: "client",
-         label: "Client",
-         type: "multiselect" as const,
-         options: clienti,
-         value: [],
-       },
-       {
-         id: "locatie",
-         label: "Locație",
-         type: "multiselect" as const,
-         options: locatii,
-         value: [],
-       },
-       {
-         id: "statusFacturare",
-         label: "Status facturare",
-         type: "multiselect" as const,
-         options: statusuriFacturare,
-         value: [],
-       },
-       {
-         id: "statusEchipament",
-         label: "Status echipament",
-         type: "multiselect" as const,
-         options: statusuriEchipament,
-         value: [],
-       },
-       {
-         id: "numarRaport",
-         label: "Cu număr raport",
-         type: "multiselect" as const, 
-         options: [
-           { value: "cu_numar", label: "Cu număr raport" },
-           { value: "fara_numar", label: "Fără număr raport" },
-         ],
-         value: [],
-       },
-       {
-         id: "necesitaOferta",
-         label: "Necesită ofertă",
-         type: "multiselect" as const,
-         options: [
-           { value: "da", label: "Da" },
-           { value: "nu", label: "Nu" },
-         ],
-         value: [],
-       },
+    // Structură filtre conform cerințelor: Client, Locație, Echipament, Date, Tip lucrare, Tehnicieni, Status echipament
+    return [
+      {
+        id: "client",
+        label: "Client",
+        type: "text" as const,
+        value: "",
+      },
+      {
+        id: "locatie",
+        label: "Locație",
+        type: "text" as const,
+        value: "",
+      },
+      {
+        id: "echipament",
+        label: "Echipament",
+        type: "text" as const,
+        value: "",
+      },
+      {
+        id: "dataEmiterii",
+        label: "Data emiterii",
+        type: "dateRange" as const,
+        value: null,
+      },
+      {
+        id: "dataInterventie",
+        label: "Data intervenție",
+        type: "dateRange" as const,
+        value: null,
+      },
+      {
+        id: "archivedAt",
+        label: "Data arhivării",
+        type: "dateRange" as const,
+        value: null,
+      },
+      {
+        id: "tipLucrare",
+        label: "Tip lucrare",
+        type: "multiselect" as const,
+        options: tipuriLucrare,
+        value: [],
+      },
+      {
+        id: "tehnicieni",
+        label: "Tehnicieni",
+        type: "multiselect" as const,
+        options: tehnicieniOptions,
+        value: [],
+      },
+      {
+        id: "statusEchipament",
+        label: "Status echipament",
+        type: "multiselect" as const,
+        options: statusuriEchipament,
+        value: [],
+      },
     ]
   }, [lucrariArhivate])
 
@@ -282,14 +238,31 @@ export default function LucrariArhivate() {
 
           switch (filter.id) {
             case "dataEmiterii":
-            case "dataInterventie":
-              if (filter.value?.start && filter.value?.end) {
-                const itemDate = new Date((item as any)[filter.id])
-                const startDate = new Date(filter.value.start)
-                const endDate = new Date(filter.value.end)
-                return itemDate >= startDate && itemDate <= endDate
+            case "dataInterventie": {
+              const startVal = (filter.value && (filter.value.start || filter.value.from)) || undefined
+              const endVal = (filter.value && (filter.value.end || filter.value.to)) || undefined
+              if (!startVal || !endVal) return true
+
+              const parseDate = (v: any) => {
+                try {
+                  const d = new Date(v)
+                  return isNaN(d.getTime()) ? null : d
+                } catch {
+                  return null
+                }
               }
-              return true
+
+              const startDate = parseDate(startVal)
+              const endDate = parseDate(endVal)
+              if (!startDate || !endDate) return true
+
+              startDate.setHours(0, 0, 0, 0)
+              endDate.setHours(23, 59, 59, 999)
+
+              const itemDate = (item as any)[filter.id] ? new Date((item as any)[filter.id]) : null
+              if (!itemDate || isNaN(itemDate.getTime?.() || (itemDate as any))) return false
+              return itemDate >= startDate && itemDate <= endDate
+            }
 
             case "archivedAt": {
               const startVal = (filter.value && (filter.value.start || filter.value.from)) || undefined
@@ -321,6 +294,36 @@ export default function LucrariArhivate() {
               return itemDate >= startDate && itemDate <= endDate
             }
 
+            // Text filters cu căutare în detalii
+            case "client": {
+              const q = norm(filter.value)
+              if (!q) return true
+              const hay = [
+                norm(item.client),
+                norm((item as any).persoanaContact),
+                norm((item as any).telefon),
+                norm((item as any).clientInfo?.nume),
+                norm((item as any).clientInfo?.adresa),
+              ].join(" ")
+              return hay.includes(q)
+            }
+            case "locatie": {
+              const q = norm(filter.value)
+              if (!q) return true
+              const hay = [norm((item as any).locatie)].join(" ")
+              return hay.includes(q)
+            }
+            case "echipament": {
+              const q = norm(filter.value)
+              if (!q) return true
+              const hay = [
+                norm((item as any).echipament),
+                norm((item as any).echipamentModel),
+                norm((item as any).echipamentCod),
+              ].join(" ")
+              return hay.includes(q)
+            }
+
             case "tehnicieni": {
               const vals = normArr(Array.isArray(filter.value) ? filter.value : [])
               if (!vals.length) return true
@@ -328,34 +331,15 @@ export default function LucrariArhivate() {
               return vals.some((t) => itemTech.includes(t))
             }
 
-                         case "tipLucrare":
-             case "client":
-             case "locatie":
-             case "statusFacturare":
-             case "statusEchipament": {
+            case "tipLucrare":
+            case "statusEchipament": {
                const vals = normArr(Array.isArray(filter.value) ? filter.value : [])
                if (!vals.length) return true
                const target = norm((item as any)[filter.id] || "Nedefinit")
                return vals.includes(target)
              }
 
-            case "numarRaport":
-              if (filter.value.includes("cu_numar")) {
-                return item.numarRaport && item.numarRaport.trim() !== ""
-              }
-              if (filter.value.includes("fara_numar")) {
-                return !item.numarRaport || item.numarRaport.trim() === ""
-              }
-              return true
-
-            case "necesitaOferta":
-              if (filter.value.includes("da")) {
-                return item.necesitaOferta === true
-              }
-              if (filter.value.includes("nu")) {
-                return item.necesitaOferta === false
-              }
-              return true
+            // Filtre eliminate din noua structură sunt ignorate
 
             default:
               return true
@@ -865,7 +849,7 @@ export default function LucrariArhivate() {
                           </CardDescription>
                         </div>
                         <Badge className={getWorkStatusClass(lucrare.statusLucrare)}>
-                          {lucrare.statusLucrare}
+                          {lucrare.statusLucrare === "Finalizat" ? "Raport generat" : lucrare.statusLucrare}
                         </Badge>
                       </div>
                     </CardHeader>

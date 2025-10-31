@@ -1432,10 +1432,30 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 <Separator className="my-4" />
                 
                 <div className="space-y-4">
-                  {/* Defect reclamat */}
+                  {/* Defecte reclamate (istoric + curent) */}
                   <div>
-                    <p className="text-base font-semibold mb-2">Defect reclamat:</p>
-                    <p className="text-base text-gray-600">{lucrare.defectReclamat || "Nu a fost specificat"}</p>
+                    <p className="text-base font-semibold mb-2">Defecte reclamate:</p>
+                    {/* Istoric dacă există */}
+                    {Array.isArray((lucrare as any).defectReclamatHistory) && (lucrare as any).defectReclamatHistory.length > 0 ? (
+                      <div className="space-y-1 mb-2">
+                        {(lucrare as any).defectReclamatHistory.map((val: string, idx: number) => (
+                          <div key={idx} className="text-sm text-gray-700">
+                            <span className="font-medium">
+                              {idx === 0 ? "Defect reclamat original" : `Defect reclamat RE${idx}`}:
+                            </span>{" "}
+                            <span>{val}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {/* Curent (evidențiat) */}
+                    <div className="text-base">
+                      <span className="font-semibold mr-1">{(Array.isArray((lucrare as any).defectReclamatHistory) && (lucrare as any).defectReclamatHistory.length > 0) ? `Defect reclamat RE${(lucrare as any).defectReclamatHistory.length}` : "Defect reclamat"}:</span>
+                      <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-800">
+                        {lucrare.defectReclamat || "Nu a fost specificat"}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Text reintervenție – doar dacă lucrarea este reintervenție și are text */}
@@ -1652,7 +1672,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 w-full">
         <div className="flex flex-col">
           <span className="text-xs text-muted-foreground">Lucrare:</span>
-          <span className="mt-0.5"><Badge className="rounded-md">{lucrare.statusLucrare}</Badge></span>
+          <span className="mt-0.5"><Badge className="rounded-md">{lucrare.statusLucrare === "Finalizat" ? "Raport generat" : lucrare.statusLucrare}</Badge></span>
         </div>
         <div className="flex flex-col">
           <span className="text-xs text-muted-foreground">Preluare:</span>

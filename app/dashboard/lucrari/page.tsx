@@ -1459,6 +1459,11 @@ export default function Lucrari() {
         contractType: originalLucrare.contractType || "",
         // IMPORTANT: pentru reintervenție nu preluăm defectul reclamat, acesta trebuie introdus specific pentru noua reintervenție
         defectReclamat: "",
+        // Construim istoricul defectelor: [original, RE1, RE2, ...]
+        defectReclamatHistory: [
+          ...((Array.isArray(originalLucrare.defectReclamatHistory) ? originalLucrare.defectReclamatHistory : []).filter(Boolean)),
+          ...(originalLucrare.defectReclamat ? [String(originalLucrare.defectReclamat)] : [])
+        ],
         textReinterventie: (typeof window !== 'undefined') ? (new URLSearchParams(window.location.search).get('textReinterventie') || "") : "",
         persoaneContact: originalLucrare.persoaneContact || [],
         echipamentId: originalLucrare.echipamentId || "",
@@ -1823,7 +1828,7 @@ export default function Lucrari() {
       enableHiding: true,
       enableFiltering: true,
       cell: ({ row }) => (
-        <Badge className={getWorkStatusClass(row.original.statusLucrare)}>{row.original.statusLucrare}</Badge>
+        <Badge className={getWorkStatusClass(row.original.statusLucrare)}>{row.original.statusLucrare === "Finalizat" ? "Raport generat" : row.original.statusLucrare}</Badge>
       ),
     },
     {
@@ -2232,7 +2237,7 @@ export default function Lucrari() {
           </div>
           <div className="flex items-center">
             <div className="w-4 h-4 mr-1 bg-green-50 border border-green-200 rounded"></div>
-            <span className="text-xs">Finalizat</span>
+            <span className="text-xs">Raport generat</span>
           </div>
           <div className="flex items-center">
             <div className="w-4 h-4 mr-1 bg-orange-50 border border-orange-200 rounded"></div>
@@ -2442,7 +2447,7 @@ export default function Lucrari() {
                           </p>
                         )}
                       </div>
-                      <Badge className={getWorkStatusClass(lucrare.statusLucrare)}>{lucrare.statusLucrare}</Badge>
+                      <Badge className={getWorkStatusClass(lucrare.statusLucrare)}>{lucrare.statusLucrare === "Finalizat" ? "Raport generat" : lucrare.statusLucrare}</Badge>
                     </div>
                     <div className="p-4">
                       {lucrare.statusLucrare === WORK_STATUS.POSTPONED && !lucrare.preluatDispecer && (

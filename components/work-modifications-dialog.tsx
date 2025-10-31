@@ -204,7 +204,7 @@ export function WorkModificationsDialog({ isOpen, onClose }: WorkModificationsDi
                                     "bg-gray-100 text-gray-800"
                                   )}
                                 >
-                                  {modification.statusLucrare}
+                                  {modification.statusLucrare === "Finalizat" ? "Raport generat" : modification.statusLucrare}
                                 </Badge>
                               )}
                               {modification.priority === 'high' && (
