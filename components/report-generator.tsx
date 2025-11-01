@@ -24,7 +24,7 @@ const normalize = (text = "") =>
   )
 
 // A4 portrait: 210×297 mm
-const M = 15 // page margin
+const M = 10 // page margin (reduced from 15mm to 10mm for more content space)
 const W = 210 - 2 * M // content width
 const BOX_RADIUS = 2 // 2 mm rounded corners
 const STROKE = 0.3 // line width (pt)
@@ -322,9 +322,57 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const PH = doc.internal.pageSize.getHeight()
       let currentY = M
 
+      // Funcție pentru desenarea footer-ului pe pagina curentă
+      const drawFooter = () => {
+        // FOOTER cu separator și 3 coloane (la fel ca la ofertă)
+        const footerSepY = PH - 28
+        doc.setDrawColor(209, 213, 219) // gri deschis
+        doc.setLineWidth(0.2)
+        doc.line(M, footerSepY, M + W, footerSepY)
+        
+        let footerY = footerSepY + 5
+        doc.setFontSize(8)
+        doc.setTextColor(41, 72, 143) // albastru vibrant ca la ofertă
+        
+        const footerColW = W / 3 - 4
+        const footerColX = [M, M + W / 3, M + (2 * W) / 3]
+        
+        const footerLeft = [
+          "NRG Access Systems SRL",
+          "Rezervelor Nr 70,",
+          "Chiajna, Ilfov",
+          "C.I.F. RO34272913",
+        ]
+        const footerMid = [
+          "Telefon: +40 371 49 44 99",
+          "E-mail: office@nrg-access.ro",
+          "Website: www.nrg-access.ro",
+        ]
+        const footerRight = [
+          "IBAN RO79BTRL RON CRT 0294 5948 01",
+          "Banca Transilvania Sucursala Aviatiei",
+        ]
+        
+        const renderFooterColumn = (items: string[], x: number) => {
+          let yy = footerY
+          items.forEach((t) => {
+            const lines = doc.splitTextToSize(t, footerColW)
+            lines.forEach((ln: string) => {
+              doc.text(ln, x, yy)
+              yy += 4
+            })
+          })
+        }
+        
+        renderFooterColumn(footerLeft, footerColX[0])
+        renderFooterColumn(footerMid, footerColX[1])
+        renderFooterColumn(footerRight, footerColX[2])
+      }
+
       // Helper: add new page if required
       const checkPageBreak = (needed: number) => {
-        if (currentY + needed > PH - M - 20) { // Lăsăm 20mm pentru footer
+        if (currentY + needed > PH - M - 30) { // Lăsăm 30mm pentru footer (footer începe la PH-28)
+          drawFooter() // Desenăm footer-ul pe pagina curentă înainte de a trece la următoarea
           doc.addPage()
           currentY = M
         }
@@ -359,7 +407,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         }
       }
       
-      currentY += titleBarHeight + 12
+      currentY += titleBarHeight + 6 // Redus de la 12 la 6
 
       // SECȚIUNEA PRESTATOR ȘI BENEFICIAR
       const leftColX = M
@@ -406,7 +454,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       })
       
       const maxLines = Math.max(prestatorLines.length, beneficiarLines.length)
-      currentY += 6 + (maxLines * lineH) + 6
+      currentY += 6 + (maxLines * lineH) + 3 // Redus de la 6 la 3
 
       // SECȚIUNE CRONOLOGIE cu fundal albastru ca în imagine
       const chronoBarHeight = 7
@@ -526,7 +574,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       doc.text(plecareData && plecareOra ? `${normalize(plecareData)}, ${plecareOra}` : "", M + chronoColW * 2 + 2, currentY + 9)
       doc.text(durataText, M + chronoColW * 3 + 2, currentY + 9)
       
-      currentY += chronoTableH + 5
+      currentY += chronoTableH + 3 // Redus de la 5 la 3
 
       // SECȚIUNE DETALII LOCAȚIE ȘI ECHIPAMENT
       const detailsBarHeight = 7
@@ -561,7 +609,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const echipamentText = lucrareForPDF.echipament || ""
       doc.text(normalize(echipamentText), M + detailsColW + 2, currentY + 9)
       
-      currentY += detailsTableH + 5
+      currentY += detailsTableH + 3 // Redus de la 5 la 3
 
       // SECȚIUNE DETALII DESPRE INTERVENȚIE
       const interventionBarHeight = 7
@@ -591,14 +639,14 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         doc.setFont("helvetica", "normal").setFontSize(8).setTextColor(30, 30, 30)
         textLines.forEach((l: string, li: number) => doc.text(l, M + 2, currentY + 4 + (li + 1) * lineHeight))
         
-        currentY += boxHeight + 3
+        currentY += boxHeight + 2 // Redus de la 3 la 2
       }
 
       addTextSection("Defect reclamat", lucrareForPDF.defectReclamat)
       addTextSection("Constatare la locatie", lucrareForPDF.constatareLaLocatie)
       addTextSection("Descriere interventie", lucrareForPDF.descriereInterventie)
       
-      currentY += 8
+      currentY += 4 // Redus de la 8 la 4
 
       // Use the products from the snapshot if available, otherwise fallback to current products
       const productsToUse = (lucrareForPDF.raportSnapshot?.products && lucrareForPDF.raportSnapshot.products.length > 0)
@@ -734,11 +782,12 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         currentY += rowHeight + verticalPad + 3
         
         doc.setTextColor(0, 0, 0)
-        currentY += 8
+        currentY += 4 // Redus de la 8 la 4
       }
 
       // SEMNĂTURI - 2 coloane cu linie subliniere
-      checkPageBreak(40)
+      // Verificăm dacă avem spațiu pentru semnături (35mm) + spacing (8mm) = 43mm
+      checkPageBreak(45) // Redus de la 50 la 45mm pentru a permite semnăturile să rămână pe prima pagină mai des
       
       const signBoxW = W / 2 - 2
       const signBoxH = 35
@@ -791,51 +840,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       
       currentY += signBoxH + 8
 
-      // FOOTER cu separator și 3 coloane (la fel ca la ofertă)
-      // Footer separator line
-      const footerSepY = PH - 28
-      doc.setDrawColor(209, 213, 219) // gri deschis
-      doc.setLineWidth(0.2)
-      doc.line(M, footerSepY, M + W, footerSepY)
-      
-      // Footer company info and bank details laid out in three equal columns with wrapping
-      let footerY = footerSepY + 5
-      doc.setFontSize(8)
-      doc.setTextColor(41, 72, 143) // albastru vibrant ca la ofertă
-      
-      const footerColW = W / 3 - 4
-      const footerColX = [M, M + W / 3, M + (2 * W) / 3]
-      
-      const footerLeft = [
-        "NRG Access Systems SRL",
-        "Rezervelor Nr 70,",
-        "Chiajna, Ilfov",
-        "C.I.F. RO34272913",
-      ]
-      const footerMid = [
-        "Telefon: +40 371 49 44 99",
-        "E-mail: office@nrg-access.ro",
-        "Website: www.nrg-access.ro",
-      ]
-      const footerRight = [
-        "IBAN RO79BTRL RON CRT 0294 5948 01",
-        "Banca Transilvania Sucursala Aviatiei",
-      ]
-      
-      const renderFooterColumn = (items: string[], x: number) => {
-        let yy = footerY
-        items.forEach((t) => {
-          const lines = doc.splitTextToSize(t, footerColW)
-          lines.forEach((ln: string) => {
-            doc.text(ln, x, yy)
-            yy += 4
-          })
-        })
-      }
-      
-      renderFooterColumn(footerLeft, footerColX[0])
-      renderFooterColumn(footerMid, footerColX[1])
-      renderFooterColumn(footerRight, footerColX[2])
+      // Desenăm footer-ul pe ultima pagină
+      drawFooter()
 
       const blob = doc.output("blob")
 
