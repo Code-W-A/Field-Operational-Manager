@@ -47,6 +47,7 @@ import { ContractDisplay } from "@/components/contract-display"
 import { QRCodeScanner } from "@/components/qr-code-scanner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { formatDate, formatTime, calculateDuration } from "@/lib/utils/time-format"
+import { EquipmentQRCode } from "@/components/equipment-qr-code"
 // Adăugăm importurile pentru calculul garanției
 import { getWarrantyDisplayInfo } from "@/lib/utils/warranty-calculator"
 import type { Echipament } from "@/lib/firebase/firestore"
@@ -1388,10 +1389,23 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                     </p>
                     <div className="space-y-1">
                       {role !== "tehnician" && lucrare.echipamentCod && (
-                        <p className="text-sm">
-                          <span className="font-medium text-blue-600">Cod:</span>{" "}
+                        <div className="text-sm flex items-center gap-2">
+                          <span className="font-medium text-blue-600">Cod:</span>
                           <span className="text-blue-600">{lucrare.echipamentCod}</span>
-                        </p>
+                          <EquipmentQRCode
+                            equipment={{
+                              id: lucrare.id || "",
+                              cod: lucrare.echipamentCod,
+                              nume: lucrare.echipament || "Echipament necunoscut",
+                              model: lucrare.echipamentModel || "",
+                            }}
+                            clientName={lucrare.client}
+                            locationName={lucrare.locatie}
+                            showLabel={false}
+                            useSimpleFormat={true}
+                            className="h-7 w-7 p-0"
+                          />
+                        </div>
                       )}
                       {lucrare.echipamentModel && (
                         <p className="text-sm">

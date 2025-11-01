@@ -6,8 +6,9 @@ import { useState, useEffect } from "react"
 import { QRCodeSVG } from "qrcode.react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Printer, QrCode } from "lucide-react"
+import { Printer, QrCode, Share2 } from "lucide-react"
 import type { Echipament } from "@/lib/firebase/firestore"
+import { useToast } from "@/hooks/use-toast"
 
 /**
  * Componentă mai compactă pentru generarea şi tipărirea QR‐code‑ului unui echipament.
@@ -35,6 +36,7 @@ export function EquipmentQRCode({
 }: EquipmentQRCodeProps) {
   const [open, setOpen] = useState(false)
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const { toast } = useToast()
 
   // Obținem URL-ul complet al noului logo
   useEffect(() => {
@@ -123,6 +125,88 @@ export function EquipmentQRCode({
       clientValueFontSize,
       locationValueFontSize,
       codeValueFontSize
+    }
+  }
+
+  // Funcție pentru convertirea SVG-ului QR code în PNG
+  const convertQRToImage = async (): Promise<Blob | null> => {
+    const qrElem = document.getElementById("equipment-qr-code")
+    if (!qrElem) return null
+
+    const svgElem = qrElem.querySelector("svg")
+    if (!svgElem) return null
+
+    const svgData = new XMLSerializer().serializeToString(svgElem)
+    const canvas = document.createElement("canvas")
+    const ctx = canvas.getContext("2d")
+    const img = new Image()
+
+    return new Promise((resolve) => {
+      img.onload = () => {
+        canvas.width = img.width
+        canvas.height = img.height
+        ctx?.drawImage(img, 0, 0)
+        canvas.toBlob((blob) => {
+          resolve(blob)
+        }, "image/png")
+      }
+      img.onerror = () => resolve(null)
+      img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)))
+    })
+  }
+
+  // Funcție pentru share
+  const handleShare = async () => {
+    try {
+      const blob = await convertQRToImage()
+      
+      if (!blob) {
+        toast({
+          title: "Eroare",
+          description: "Nu s-a putut genera imaginea QR code",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const fileName = `QR_${equipment.cod}_${clientName.replace(/\s+/g, "_")}.png`
+      const file = new File([blob], fileName, { type: "image/png" })
+
+      // Verificăm dacă dispozitivul suportă Web Share API cu fișiere
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: `QR Code - ${equipment.nume}`,
+          text: `QR Code pentru echipament: ${equipment.cod}\nClient: ${clientName}\nLocație: ${locationName}`,
+          files: [file],
+        })
+        
+        toast({
+          title: "Succes",
+          description: "QR code partajat cu succes",
+        })
+      } else {
+        // Fallback: Descărcăm imaginea
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = fileName
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        
+        toast({
+          title: "Descărcat",
+          description: "QR code descărcat cu succes",
+        })
+      }
+    } catch (error) {
+      console.error("Eroare la share:", error)
+      toast({
+        title: "Eroare",
+        description: "Nu s-a putut partaja QR code-ul",
+        variant: "destructive",
+      })
     }
   }
 
@@ -287,7 +371,11 @@ export function EquipmentQRCode({
             </div>
           </div>
 
-          <DialogFooter className="flex justify-center">
+          <DialogFooter className="flex justify-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleShare} type="button">
+              <Share2 className="mr-2 h-4 w-4" />
+              Share
+            </Button>
             <Button variant="outline" size="sm" onClick={handlePrint} type="button">
               <Printer className="mr-2 h-4 w-4" />
               Printează
