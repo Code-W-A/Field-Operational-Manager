@@ -452,7 +452,13 @@ useEffect(() => {
           })
 
           const base64 = await blobToBase64(blob)
-          attachmentData = [{ filename: `oferta_${String(currentWork?.numarRaport || currentWork?.id)}.pdf`, content: base64, encoding: 'base64', contentType: 'application/pdf' }]
+          attachmentData = [{ 
+            filename: `oferta_${String(currentWork?.numarRaport || currentWork?.id)}.pdf`, 
+            content: base64, 
+            encoding: 'base64', 
+            contentType: 'application/pdf',
+            lucrareId: lucrareId // pentru logging în emailEvents
+          }]
         }
       } catch {}
 

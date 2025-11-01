@@ -79,6 +79,14 @@ Echipa de interventie`,
       formData.append("message", message)
       formData.append("senderName", `Echipa de interventie - ${lucrare.tehnicieni?.join(", ")}`)
 
+      // Add IDs for logging in emailEvents
+      if (lucrare.id) {
+        formData.append("lucrareId", lucrare.id)
+      }
+      if (lucrare.clientInfo?.id) {
+        formData.append("clientId", lucrare.clientInfo.id)
+      }
+
       // Adăugăm PDF-ul ca fișier
       const pdfFile = new File([pdfBlob], `Raport_Interventie_${lucrare.id}.pdf`, { type: "application/pdf" })
       formData.append("pdfFile", pdfFile)

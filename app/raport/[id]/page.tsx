@@ -527,6 +527,12 @@ FOM by NRG`,
             )
             formData.append("senderName", `FOM by NRG - ${updatedLucrare.tehnicieni?.join(", ") || "Tehnician"}`)
 
+            // Add IDs for logging in emailEvents
+            formData.append("lucrareId", updatedLucrare.id || params.id)
+            if (updatedLucrare.clientInfo?.id) {
+              formData.append("clientId", updatedLucrare.clientInfo.id)
+            }
+
             // Add PDF as file
             const pdfFile = new File([pdfBlob], `Raport_Interventie_${updatedLucrare.id || params.id}.pdf`, {
               type: "application/pdf",

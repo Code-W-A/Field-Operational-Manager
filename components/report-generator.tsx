@@ -324,150 +324,103 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 
       // Helper: add new page if required
       const checkPageBreak = (needed: number) => {
-        if (currentY + needed > PH - M) {
+        if (currentY + needed > PH - M - 20) { // Lăsăm 20mm pentru footer
           doc.addPage()
           currentY = M
         }
       }
 
-      // Helper: draw a labelled box (no fixed rows)
-      const drawBox = (title: string, lines: string[], boxWidth: number, x: number, titleBold = true) => {
-        const lineHeight = 5
-        const textWidth = boxWidth - 6 // Leave 3px margin on each side
-        
-        // Set font before calculating text size
-        doc.setFontSize(8).setFont("helvetica", "normal")
-        
-        // Split each line into multiple lines if text is too long
-        const allTextLines: string[] = []
-        lines.forEach(line => {
-          const splitLines = doc.splitTextToSize(line, textWidth)
-          allTextLines.push(...splitLines)
-        })
-        
-        // Calculate dynamic height based on actual content
-        const boxHeight = Math.max(28, allTextLines.length * lineHeight + 12) // Minimum height 28
-        checkPageBreak(boxHeight + 5)
-
-        doc.setDrawColor(60, 60, 60).setFillColor(LIGHT_GRAY, LIGHT_GRAY, LIGHT_GRAY).setLineWidth(STROKE)
-        ;(doc as any).roundedRect(x, currentY, boxWidth, boxHeight, BOX_RADIUS, BOX_RADIUS, "FD")
-
-        doc
-          .setFontSize(10)
-          .setFont("helvetica", titleBold ? "bold" : "normal")
-          .setTextColor(40)
-          .text(title, x + boxWidth / 2, currentY + 6, { align: "center" })
-
-        doc.setFontSize(8).setFont("helvetica", "normal").setTextColor(20)
-        allTextLines.forEach((txt, i) => {
-          const yy = currentY + 10 + i * lineHeight
-          doc.text(txt, x + 3, yy)
-          // Removed line drawing for text fields
-        })
-        
-        return boxHeight // Return the calculated height
-      }
-
-      // HEADER
-      const logoArea = 40
-      const boxW = (W - logoArea) / 2
-
-      // REPORT NUMBER - Top right corner
-      if (lucrareForPDF.numarRaport) {
-        const reportDate = lucrareForPDF.raportSnapshot?.dataGenerare 
-                  ? (() => {
-            const date = new Date(lucrareForPDF.raportSnapshot.dataGenerare)
-            const day = date.getDate().toString().padStart(2, "0")
-            const month = (date.getMonth() + 1).toString().padStart(2, "0")
-            const year = date.getFullYear()
-            return `${day}.${month}.${year}`
-          })()
-        : (() => {
-            const date = new Date()
-            const day = date.getDate().toString().padStart(2, "0")
-            const month = (date.getMonth() + 1).toString().padStart(2, "0")
-            const year = date.getFullYear()
-            return `${day}.${month}.${year}`
-          })()
-        
-        const reportText = `Nr. raport ${lucrareForPDF.numarRaport} din data ${reportDate}`
-        
-        doc.setFontSize(8)
-          .setFont("helvetica", "bold")
-          .setTextColor(60, 60, 60)
-        
-        // Position in top-right corner with proper margins
-        const textWidth = doc.getTextWidth(reportText)
-        const rightMargin = M + W - textWidth - 5 // 5mm from right edge
-        const topPosition = currentY + 3 // 3mm from current Y position
-        
-        doc.text(reportText, rightMargin, topPosition)
-        
-        // Add some space after report number
-        currentY += 8
-      }
-
-      const prestatorHeight = drawBox(
-        "PRESTATOR",
-        [
-          "SC. NRG Access Systems S.R.L.",
-          "CUI: RO43272913",
-          "R.C.: J40/991/2015",
-          "Chiajna, Ilfov",
-          "Banca Transilvania",
-          "RO79BTRL RON CRT 0294 5948 01",
-        ],
-        boxW,
-        M,
-      )
-
-      const clientInfo = lucrareForPDF.clientInfo || {}
-      const beneficiarHeight = drawBox(
-        "BENEFICIAR",
-        [
-          normalize(lucrareForPDF.client || "-"),
-          `CUI: ${normalize(clientInfo.cui || "-")}`,
-          `R.C.: ${normalize(clientInfo.rc || "-")}`,
-          `Adresa: ${normalize(clientInfo.adresa || "-")}`,
-          `Locatie interventie: ${normalize(lucrareForPDF.locatie || "-")}`,
-        ],
-        boxW,
-        M + boxW + logoArea,
-      )
-
-      // Use the maximum height of both boxes
-      const maxBoxHeight = Math.max(prestatorHeight, beneficiarHeight)
-
-      // LOGO placeholder - centered vertically with the tallest box
-      doc.setDrawColor(60, 60, 60).setLineWidth(STROKE)
-      ;(doc as any).roundedRect(M + boxW + 2, currentY + 3, logoArea - 4, maxBoxHeight - 6, 1.5, 1.5, "S")
+      // HEADER cu design nou inspirat din imagine
+      
+      // TITLE BAR CU FUNDAL ALBASTRU
+      const titleBarHeight = 16 // mai înalt pentru logo-ul mai mare
+      const titleBarColor = [73, 100, 155] // #49649b - exact ca la ofertă
+      doc.setFillColor(titleBarColor[0], titleBarColor[1], titleBarColor[2])
+      doc.rect(M, currentY, W, titleBarHeight, "F")
+      
+      // TITLU în stânga cu padding
+      const reportNumber = lucrareForPDF.numarRaport ? String(lucrareForPDF.numarRaport).padStart(6, '0') : "000000"
+      doc.setFontSize(12)
+        .setFont("helvetica", "bold")
+        .setTextColor(255, 255, 255)
+        .text("Raport de interventie nr. #" + reportNumber, M + 4, currentY + (titleBarHeight / 2) + 1)
+      
+      // LOGO în dreapta sus (mai mare, proporții corecte ca la ofertă)
       if (logoLoaded && logoDataUrl) {
         try {
-          doc.addImage(logoDataUrl, "PNG", M + boxW + 4, currentY + 5, logoArea - 8, maxBoxHeight - 10)
+          const logoW = 24
+          const logoH = 18 // proporții corecte ca la ofertă
+          doc.addImage(logoDataUrl, "PNG", M + W - logoW - 4, currentY + (titleBarHeight - logoH) / 2, logoW, logoH)
         } catch {
-          doc
-            .setFontSize(14)
+          doc.setFontSize(10)
             .setFont("helvetica", "bold")
-            .text("NRG", M + boxW + logoArea / 2, currentY + maxBoxHeight / 2, { align: "center" })
+            .setTextColor(255, 255, 255)
+            .text("NRG", M + W - 5, currentY + titleBarHeight / 2 + 1, { align: "right" })
         }
       }
+      
+      currentY += titleBarHeight + 12
 
-      currentY += maxBoxHeight + 20
-
-      // TITLE
-      doc
-        .setFontSize(16)
+      // SECȚIUNEA PRESTATOR ȘI BENEFICIAR
+      const leftColX = M
+      const rightColX = M + W / 2 + 2
+      const colWidth = W / 2 - 2
+      
+      // Prestator și Beneficiar (fără fundal și chenar, ca la ofertă)
+      const lineH = 5
+      
+      // Prestator (stânga)
+      doc.setFontSize(9)
         .setFont("helvetica", "bold")
-        .text("RAPORT DE INTERVENTIE", PW / 2, currentY, { align: "center" })
-      currentY += 15
+        .setTextColor(0, 0, 0)
+        .text("Prestator", leftColX, currentY)
+      
+      doc.setFontSize(9)
+        .setFont("helvetica", "normal")
+      
+      const prestatorLines = [
+        "NRG Access Systems SRL",
+        "RO34272913",
+        "Rezervelor 70, Chiajna, Ilfov"
+      ]
+      
+      prestatorLines.forEach((line, i) => {
+        doc.text(normalize(line), leftColX, currentY + 6 + (i * lineH))
+      })
+      
+      // Beneficiar (dreapta, aliniat la dreapta)
+      doc.setFont("helvetica", "bold")
+        .text("Beneficiar", M + W, currentY, { align: "right" })
+      
+      doc.setFont("helvetica", "normal")
+      
+      const clientInfo = lucrareForPDF.clientInfo || {}
+      const beneficiarLines = [
+        lucrareForPDF.client || "-",
+        clientInfo.cui ? `RO${clientInfo.cui}` : "-",
+        clientInfo.adresa || "-",
+      ]
+      
+      beneficiarLines.forEach((line, i) => {
+        doc.text(normalize(line), M + W, currentY + 6 + (i * lineH), { align: "right" })
+      })
+      
+      const maxLines = Math.max(prestatorLines.length, beneficiarLines.length)
+      currentY += 6 + (maxLines * lineH) + 6
 
-      // META
-      doc.setFontSize(9).setFont("helvetica", "normal")
-      const [d, t] = (lucrareForPDF.dataInterventie || " - -").split(" ")
-      doc.text(`Data: ${normalize(d)}`, M, currentY)
+      // SECȚIUNE CRONOLOGIE cu fundal albastru ca în imagine
+      const chronoBarHeight = 7
+      doc.setFillColor(titleBarColor[0], titleBarColor[1], titleBarColor[2])
+      doc.rect(M, currentY, W, chronoBarHeight, "F")
+      
+      doc.setFontSize(9)
+        .setFont("helvetica", "bold")
+        .setTextColor(255, 255, 255)
+        .text("Cronologie", M + 2, currentY + 5)
+      
+      currentY += chronoBarHeight + 2
 
       // Folosim datele de sosire și plecare dacă există
-      // DEBUGGING PENTRU TIMPI CORUPȚI ÎN PDF
       console.log("🖨️ DEBUGGING PDF - Verificare timpi:", {
         timpSosire: lucrareForPDF.timpSosire,
         timpPlecare: lucrareForPDF.timpPlecare,
@@ -499,10 +452,11 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       }
       
       // Extragem datele și orele pentru afișare formatată
-      const sosireData = lucrareForPDF.dataSosire || (lucrareForPDF.timpSosire ? formatDate(new Date(lucrareForPDF.timpSosire)) : "-")
-      const sosireOra = lucrareForPDF.oraSosire || (lucrareForPDF.timpSosire ? formatTime(new Date(lucrareForPDF.timpSosire)) : "-")
-      const plecareData = lucrareForPDF.dataPlecare || (lucrareForPDF.timpPlecare ? formatDate(new Date(lucrareForPDF.timpPlecare)) : "-")
-      const plecareOra = lucrareForPDF.oraPlecare || (lucrareForPDF.timpPlecare ? formatTime(new Date(lucrareForPDF.timpPlecare)) : "-")
+      const [emitereData] = (lucrareForPDF.dataInterventie || " - ").split(" ")
+      const sosireData = lucrareForPDF.dataSosire || (lucrareForPDF.timpSosire ? formatDate(new Date(lucrareForPDF.timpSosire)) : "")
+      const sosireOra = lucrareForPDF.oraSosire || (lucrareForPDF.timpSosire ? formatTime(new Date(lucrareForPDF.timpSosire)) : "")
+      const plecareData = lucrareForPDF.dataPlecare || (lucrareForPDF.timpPlecare ? formatDate(new Date(lucrareForPDF.timpPlecare)) : "")
+      const plecareOra = lucrareForPDF.oraPlecare || (lucrareForPDF.timpPlecare ? formatTime(new Date(lucrareForPDF.timpPlecare)) : "")
       
       console.log("🖨️ PDF - Date formatate pentru afișare:", {
         sosireData,
@@ -511,12 +465,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         plecareOra
       })
 
-      doc.text(`Sosire: ${sosireData}, ${sosireOra}`, M + 70, currentY)
-      doc.text(`Plecare: ${plecareData}, ${plecareOra}`, M + 120, currentY)
-      currentY += 10
-
       // Calculăm și afișăm durata intervenției în ore și minute
-      let durataText = "-"
+      let durataText = ""
       if (lucrareForPDF.timpSosire && lucrareForPDF.timpPlecare) {
         const sosireTime = new Date(lucrareForPDF.timpSosire)
         const plecareTime = new Date(lucrareForPDF.timpPlecare)
@@ -551,62 +501,104 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         }
       }
       console.log("🖨️ PDF - Durata finală pentru afișare:", durataText)
-      doc.text(`Durata: ${durataText}`, M, currentY)
-      currentY += 6
+      
+      // Tabel cronologie - 4 coloane (fără fundal și border)
+      const chronoTableH = 12
+      const chronoColW = W / 4
+      
+      // Header labels (fără fundal)
+      doc.setFontSize(7)
+        .setFont("helvetica", "bold")
+        .setTextColor(50, 50, 50)
+      
+      doc.text("Emis la:", M + chronoColW * 0 + 2, currentY + 4)
+      doc.text("Timp sosire:", M + chronoColW * 1 + 2, currentY + 4)
+      doc.text("Timp plecare:", M + chronoColW * 2 + 2, currentY + 4)
+      doc.text("Durata:", M + chronoColW * 3 + 2, currentY + 4)
+      
+      // Valori
+      doc.setFontSize(8)
+        .setFont("helvetica", "normal")
+        .setTextColor(30, 30, 30)
+      
+      doc.text(normalize(emitereData || "-"), M + chronoColW * 0 + 2, currentY + 9)
+      doc.text(sosireData && sosireOra ? `${normalize(sosireData)}, ${sosireOra}` : "", M + chronoColW * 1 + 2, currentY + 9)
+      doc.text(plecareData && plecareOra ? `${normalize(plecareData)}, ${plecareOra}` : "", M + chronoColW * 2 + 2, currentY + 9)
+      doc.text(durataText, M + chronoColW * 3 + 2, currentY + 9)
+      
+      currentY += chronoTableH + 5
 
-      // EQUIPMENT - chenar dinamic fără titlu
-      if (lucrareForPDF.echipament || lucrareForPDF.echipamentCod) {
-        const equipmentText = `ECHIPAMENT: ${normalize(lucrareForPDF.echipament || "Nespecificat")}${lucrareForPDF.echipamentCod ? ` (Cod: ${normalize(lucrareForPDF.echipamentCod)})` : ""}`
-        
-        // Configurăm fontul pentru calculul înălțimii
-        doc.setFontSize(8).setFont("helvetica", "normal")
-        
-        // Calculăm înălțimea necesară pentru text
-        const textWidth = W - 6 // Lăsăm 3px margine pe fiecare parte
-        const textLines = doc.splitTextToSize(equipmentText, textWidth)
-        const lineHeight = 5
-        const boxHeight = textLines.length * lineHeight + 6 // 3px padding sus și 3px jos
-        
-        // Verificăm dacă avem nevoie de o pagină nouă
-        checkPageBreak(boxHeight + 5)
-        
-        // Desenăm chenarul
-        doc.setDrawColor(60, 60, 60).setFillColor(LIGHT_GRAY, LIGHT_GRAY, LIGHT_GRAY).setLineWidth(STROKE)
-        ;(doc as any).roundedRect(M, currentY, W, boxHeight, BOX_RADIUS, BOX_RADIUS, "FD")
-        
-        // Adăugăm textul în chenar
-        doc.setFontSize(8).setFont("helvetica", "normal").setTextColor(20)
-        textLines.forEach((line: string, i: number) => {
-          const yPosition = currentY + 4.5 + i * lineHeight // 4.5px padding de sus pentru distanță optimă de border
-          doc.text(line, M + 3, yPosition)
-        })
-        
-        currentY += boxHeight + 5
-      }
+      // SECȚIUNE DETALII LOCAȚIE ȘI ECHIPAMENT
+      const detailsBarHeight = 7
+      doc.setFillColor(titleBarColor[0], titleBarColor[1], titleBarColor[2])
+      doc.rect(M, currentY, W, detailsBarHeight, "F")
+      
+      doc.setFontSize(9)
+        .setFont("helvetica", "bold")
+        .setTextColor(255, 255, 255)
+        .text("Detalii locatie si echipament", M + 2, currentY + 5)
+      
+      currentY += detailsBarHeight + 2
+      
+      // Tabel 2 coloane - Locație și Echipament (fără fundal și border)
+      const detailsColW = W / 2
+      const detailsTableH = 12
+      
+      // Labels (fără fundal)
+      doc.setFontSize(7)
+        .setFont("helvetica", "bold")
+        .setTextColor(50, 50, 50)
+      
+      doc.text("Locatie:", M + 2, currentY + 4)
+      doc.text("Echipament:", M + detailsColW + 2, currentY + 4)
+      
+      // Valori
+      doc.setFontSize(8)
+        .setFont("helvetica", "normal")
+        .setTextColor(30, 30, 30)
+      
+      doc.text(normalize(lucrareForPDF.locatie || ""), M + 2, currentY + 9)
+      const echipamentText = lucrareForPDF.echipament || ""
+      doc.text(normalize(echipamentText), M + detailsColW + 2, currentY + 9)
+      
+      currentY += detailsTableH + 5
 
-      // Dynamic text blocks helper (no fixed 5 lines)
-      const addTextBlock = (label: string, text?: string) => {
+      // SECȚIUNE DETALII DESPRE INTERVENȚIE
+      const interventionBarHeight = 7
+      doc.setFillColor(titleBarColor[0], titleBarColor[1], titleBarColor[2])
+      doc.rect(M, currentY, W, interventionBarHeight, "F")
+      
+      doc.setFontSize(9)
+        .setFont("helvetica", "bold")
+        .setTextColor(255, 255, 255)
+        .text("Detalii despre interventie", M + 2, currentY + 5)
+      
+      currentY += interventionBarHeight + 2
+
+      // Helper pentru câmpuri de text cu înălțime dinamică (fără fundal și border)
+      const addTextSection = (label: string, text?: string) => {
         if (!text?.trim()) return
-        doc.setFont("helvetica", "bold").setFontSize(10)
-        doc.text(label, M, currentY)
-        currentY += 4
-
-        const textLines = doc.splitTextToSize(normalize(text), W - 4)
+        
+        doc.setFontSize(8).setFont("helvetica", "bold").setTextColor(50, 50, 50)
+        doc.text(`${label}:`, M + 2, currentY + 4)
+        
+        const textLines = doc.splitTextToSize(normalize(text), W - 6)
         const lineHeight = 4
-        const boxHeight = textLines.length * lineHeight + 4
+        const boxHeight = Math.max(textLines.length * lineHeight + 6, 12)
 
         checkPageBreak(boxHeight + 5)
-        doc.setDrawColor(150, 150, 150).rect(M, currentY, W, boxHeight, "S")
 
-        // Removed horizontal guide lines for text fields
-
-        doc.setFont("helvetica", "normal").setFontSize(8)
-        textLines.forEach((l: string, li: number) => doc.text(l, M + 2, currentY + lineHeight + li * lineHeight))
-        currentY += boxHeight + 6
+        doc.setFont("helvetica", "normal").setFontSize(8).setTextColor(30, 30, 30)
+        textLines.forEach((l: string, li: number) => doc.text(l, M + 2, currentY + 4 + (li + 1) * lineHeight))
+        
+        currentY += boxHeight + 3
       }
 
-      addTextBlock("Constatare la locatie:", lucrareForPDF.constatareLaLocatie)
-      addTextBlock("Descriere interventie:", lucrareForPDF.descriereInterventie)
+      addTextSection("Defect reclamat", lucrareForPDF.defectReclamat)
+      addTextSection("Constatare la locatie", lucrareForPDF.constatareLaLocatie)
+      addTextSection("Descriere interventie", lucrareForPDF.descriereInterventie)
+      
+      currentY += 8
 
       // Use the products from the snapshot if available, otherwise fallback to current products
       const productsToUse = (lucrareForPDF.raportSnapshot?.products && lucrareForPDF.raportSnapshot.products.length > 0)
@@ -615,7 +607,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           ? lucrareForPDF.products
           : products
 
-      // PRODUCT TABLE (shown only if there are products)
+      // SECȚIUNE SERVICII ȘI PIESE (tabel produse)
       if (productsToUse && productsToUse.length > 0) {
         // Normalize products to a consistent shape to avoid missing name/fields from legacy keys
         const normalizedProducts = productsToUse.map((p: any) => {
@@ -627,138 +619,223 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         })
         
         checkPageBreak(15)
-        doc.setFillColor(DARK_GRAY, DARK_GRAY, DARK_GRAY).rect(M, currentY, W, 8, "FD")
-        doc
-          .setFontSize(10)
+        
+        // Bară albastră pentru "Servicii si piese"
+        const productsBarHeight = 7
+        doc.setFillColor(titleBarColor[0], titleBarColor[1], titleBarColor[2])
+        doc.rect(M, currentY, W, productsBarHeight, "F")
+        
+        doc.setFontSize(9)
           .setFont("helvetica", "bold")
-          .text("DEVIZ ESTIMATIV", PW / 2, currentY + 5, { align: "center" })
-        currentY += 8
+          .setTextColor(255, 255, 255)
+          .text("Servicii si piese", M + 2, currentY + 5)
+        
+        currentY += productsBarHeight + 2
 
-        const colWidths = [W * 0.08, W * 0.47, W * 0.1, W * 0.1, W * 0.125, W * 0.125]
-        const colPos = [M]
+        // Design tabel similar cu cel de la ofertă
+        const headers = ["Servicii/Piese", "Cantitate", "Pret unitar", "Suma liniei"]
+        const colWidths = [W - 20 - 24 - 28, 20, 24, 28]
+        const colPos: number[] = [M]
         for (let i = 0; i < colWidths.length; i++) colPos.push(colPos[i] + colWidths[i])
-        const headers = ["#", "Produs", "UM", "Cant.", "Preț", "Total"]
 
         const drawTableHeader = () => {
-          doc.setFillColor(LIGHT_GRAY, LIGHT_GRAY, LIGHT_GRAY).rect(M, currentY, W, 7, "FD")
-          doc.setFontSize(8).setFont("helvetica", "bold")
+          // Column header cu text albastru (ca la ofertă), fără fundal
+          doc.setTextColor(73, 100, 155) // #49649b
+          doc.setFont("helvetica", "bold").setFontSize(10)
+          
           headers.forEach((h, i) => {
-            doc.text(h, colPos[i] + colWidths[i] / 2, currentY + 5, { align: "center" })
+            if (i === 0) {
+              // Prima coloană aliniat stânga
+              doc.text(h, colPos[i] + 2, currentY + 5)
+            } else {
+              // Coloane numerice aliniate dreapta
+              doc.text(h, colPos[i] + colWidths[i] - 1, currentY + 5, { align: "right" })
+            }
           })
-          for (let i = 0; i <= colWidths.length; i++) doc.line(colPos[i], currentY, colPos[i], currentY + 7)
-          doc.line(M, currentY + 7, M + W, currentY + 7)
+          
           currentY += 7
+          
+          // Linie separator deasupra primului rând (ca la ofertă)
+          doc.setDrawColor(209, 213, 219).setLineWidth(0.2)
+          doc.line(M, currentY, M + W, currentY)
+          
+          doc.setTextColor(0) // reset la negru pentru body
         }
 
         drawTableHeader()
 
-        normalizedProducts.forEach((product, index) => {
+        normalizedProducts.forEach((product) => {
           const nameText = product.name && String(product.name).trim().length > 0 ? product.name : "—"
-          const nameLines = doc.splitTextToSize(normalize(nameText), colWidths[1] - 4)
-          const rowHeight = nameLines.length * 4 + 2
-          if (currentY + rowHeight > PH - M) {
-            doc.addPage()
-            currentY = M
-            drawTableHeader()
-          }
+          const nameLines = doc.splitTextToSize(normalize(nameText), colWidths[0] - 2)
+          const rowHeight = Math.max(nameLines.length * 4.5 + 2, 6)
+          
+          checkPageBreak(rowHeight)
 
-          // zebra
-          if (index % 2) {
-            doc.setFillColor(248, 248, 248).rect(M, currentY, W, rowHeight, "F")
-          }
-
-          doc.setDrawColor(180, 180, 180).setLineWidth(0.2)
-          for (let i = 0; i <= colWidths.length; i++) doc.line(colPos[i], currentY, colPos[i], currentY + rowHeight)
-          doc.line(M, currentY + rowHeight, M + W, currentY + rowHeight)
-
-          doc.setFontSize(8).setFont("helvetica", "normal")
-          doc.text((index + 1).toString(), colPos[0] + colWidths[0] / 2, currentY + 4, { align: "center" })
-          nameLines.forEach((l: string, li: number) => doc.text(l, colPos[1] + 2, currentY + 4 + li * 4))
-          doc.text(product.um || "-", colPos[2] + colWidths[2] / 2, currentY + 4, { align: "center" })
-          doc.text((product.quantity || 0).toString(), colPos[3] + colWidths[3] / 2, currentY + 4, { align: "center" })
-          doc.text((product.price || 0).toFixed(2), colPos[4] + colWidths[4] / 2, currentY + 4, { align: "center" })
+          doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(0, 0, 0)
+          
+          // Denumire
+          nameLines.forEach((l: string, li: number) => doc.text(l, colPos[0] + 2, currentY + 5 + li * 4.5))
+          
+          // Cantitate
+          doc.text(String(product.quantity || 0), colPos[1] + colWidths[1] - 1, currentY + 5, { align: "right" })
+          
+          // Preț unitar
+          doc.text(`${(product.price || 0).toLocaleString("ro-RO")}`, colPos[2] + colWidths[2] - 1, currentY + 5, { align: "right" })
+          
+          // Total
           const tot = (product.quantity || 0) * (product.price || 0)
-          doc.text(tot.toFixed(2), colPos[5] + colWidths[5] / 2, currentY + 4, { align: "center" })
+          doc.text(`${tot.toLocaleString("ro-RO")}`, colPos[3] + colWidths[3] - 1, currentY + 5, { align: "right" })
 
           currentY += rowHeight
+          
+          // Row separator (ca la ofertă)
+          doc.setDrawColor(209, 213, 219).setLineWidth(0.2)
+          doc.line(M, currentY, M + W, currentY)
         })
 
-        // TOTALS
-        checkPageBreak(30)
-        currentY += 10
-        const subtotal = normalizedProducts.reduce((s, p) => s + (p.quantity || 0) * (p.price || 0), 0)
-        // Use offerVAT if a positive number was set; otherwise default to 21%
-        const rawOfferVat = (lucrareForPDF as any)?.offerVAT
-        const total = subtotal
-        const labelX = PW - 70
-        const valX = PW - 20
-        doc.setFontSize(9).setFont("helvetica", "bold").text("Total fara TVA:", labelX, currentY, { align: "right" })
-        doc.setFont("helvetica", "normal").text(`${subtotal.toFixed(2)} RON`, valX, currentY, { align: "right" })
+        // TOTALS cu fundal albastru deschis (ca la ofertă)
         currentY += 6
-        // TVA și total cu TVA eliminate din PDF
-        doc.setFont("helvetica", "bold").text("Total:", labelX, currentY, { align: "right" })
-        doc.setFont("helvetica", "normal").text(`${total.toFixed(2)} RON`, valX, currentY, { align: "right" })
-        doc.setDrawColor(150, 150, 150).line(labelX - 40, currentY + 3, valX + 5, currentY + 3)
-        currentY += 15
+        
+        const subtotal = normalizedProducts.reduce((s, p) => s + (p.quantity || 0) * (p.price || 0), 0)
+        const adj = 5 // ajustare default 5%
+        const total = subtotal * (1 - adj / 100)
+        
+        const rowHeight = 5
+        const verticalPad = 1
+        const bandHeight = (rowHeight * 3) + (verticalPad * 2)
+        
+        checkPageBreak(bandHeight + 5)
+        
+        // Draw blue band (ca la ofertă)
+        doc.setFillColor(220, 227, 240) // very light blue tint
+        doc.rect(M, currentY, W, bandHeight, "F")
+        
+        // Start text with top padding
+        currentY += verticalPad + 3
+        
+        const valueX = M + W - 5 // values aligned at right edge
+        const labelColonX = M + W - 45 // position for colons
+        
+        // Subtotal
+        doc.setTextColor(0, 0, 0).setFont("helvetica", "normal").setFontSize(9)
+        doc.text("Subtotal:", labelColonX, currentY, { align: "right" })
+        doc.text(`${subtotal.toLocaleString("ro-RO")}`, valueX, currentY, { align: "right" })
+        currentY += rowHeight
+        
+        // Ajustare
+        doc.text("Ajustare:", labelColonX, currentY, { align: "right" })
+        doc.text(`${adj}%`, valueX, currentY, { align: "right" })
+        currentY += rowHeight
+        
+        // Total lei fara TVA (bold)
+        doc.setFont("helvetica", "bold").setFontSize(10)
+        doc.text("Total insumat LEI fara TVA:", labelColonX, currentY, { align: "right" })
+        doc.text(`${total.toLocaleString("ro-RO")}`, valueX, currentY, { align: "right" })
+        currentY += rowHeight + verticalPad + 3
+        
+        doc.setTextColor(0, 0, 0)
+        currentY += 8
       }
 
-      // SIGNATURES
+      // SEMNĂTURI - 2 coloane cu linie subliniere
       checkPageBreak(40)
-      doc.setFontSize(9).setFont("helvetica", "bold")
-      doc.text("Tehnician:", M, currentY)
-      doc.text("Beneficiar:", M + W / 2, currentY)
-      currentY += 5
-      doc.setFont("helvetica", "normal")
-      // Folosim numele semnatarilor dacă sunt disponibile, altfel valorile implicite
+      
+      const signBoxW = W / 2 - 2
+      const signBoxH = 35
+      
+      // Secțiunea tehnician
+      doc.setFontSize(8).setFont("helvetica", "normal").setTextColor(0, 0, 0)
+      doc.text("Nume si semnatura tehnician", M + 2, currentY + 4)
+      
+      // Linie subliniere aproape de text
+      doc.setDrawColor(0, 0, 0).setLineWidth(0.3)
+      doc.line(M + 2, currentY + 5, M + signBoxW - 2, currentY + 5)
+      
       const numeTehnician = normalize(lucrareForPDF.numeTehnician || lucrareForPDF.tehnicieni?.join(", ") || "")
-      const numeBeneficiar = normalize(lucrareForPDF.numeBeneficiar || lucrareForPDF.persoanaContact || "")
-      doc.text(numeTehnician, M, currentY)
-      doc.text(numeBeneficiar, M + W / 2, currentY)
-      currentY += 5
-
-      const signW = W / 2 - 10
-      const signH = 25
-      const addSig = (data: string | undefined, x: number) => {
-        if (data) {
-          try {
-            doc.addImage(data, "PNG", x, currentY, signW, signH)
-            return
-          } catch (e) {
-            console.error("Error adding signature image:", e)
-          }
+      if (numeTehnician) {
+        doc.setFont("helvetica", "bold")
+        doc.text(numeTehnician, M + 2, currentY + 10)
+      }
+      
+      // Semnătură tehnician
+      if (lucrareForPDF.semnaturaTehnician) {
+        try {
+          doc.addImage(lucrareForPDF.semnaturaTehnician, "PNG", M + 2, currentY + 14, signBoxW - 4, 18)
+        } catch (e) {
+          console.error("Error adding tech signature:", e)
         }
-        doc
-          .setFontSize(8)
-          .setFont("helvetica", "italic")
-          .text("Semnatura lipsa", x + signW / 2, currentY + signH / 2, { align: "center" })
       }
-      addSig(lucrareForPDF.semnaturaTehnician, M)
-      addSig(lucrareForPDF.semnaturaBeneficiar, M + W / 2)
+      
+      // Secțiunea beneficiar
+      doc.setFontSize(8).setFont("helvetica", "normal").setTextColor(0, 0, 0)
+      doc.text("Nume si semnatura beneficiar", M + signBoxW + 6, currentY + 4)
+      
+      // Linie subliniere aproape de text
+      doc.setDrawColor(0, 0, 0).setLineWidth(0.3)
+      doc.line(M + signBoxW + 6, currentY + 5, M + W - 2, currentY + 5)
+      
+      const numeBeneficiar = normalize(lucrareForPDF.numeBeneficiar || lucrareForPDF.persoanaContact || "")
+      if (numeBeneficiar) {
+        doc.setFont("helvetica", "bold")
+        doc.text(numeBeneficiar, M + signBoxW + 6, currentY + 10)
+      }
+      
+      // Semnătură beneficiar
+      if (lucrareForPDF.semnaturaBeneficiar) {
+        try {
+          doc.addImage(lucrareForPDF.semnaturaBeneficiar, "PNG", M + signBoxW + 6, currentY + 14, signBoxW - 4, 18)
+        } catch (e) {
+          console.error("Error adding client signature:", e)
+        }
+      }
+      
+      currentY += signBoxH + 8
 
-      // CLIENT FEEDBACK (Rating + Review) – imediat după semnături
-      currentY += signH + 8
-      checkPageBreak(20)
-      doc.setFontSize(10).setFont("helvetica", "bold").text("Feedback client", M, currentY)
-      currentY += 5
-      doc.setFontSize(9).setFont("helvetica", "normal")
-      const rVal = (lucrareForPDF as any)?.raportSnapshot?.clientRating ?? (lucrareForPDF as any)?.clientRating
-      const rvText = (lucrareForPDF as any)?.raportSnapshot?.clientReview ?? (lucrareForPDF as any)?.clientReview
-      if (typeof rVal === 'number') {
-        const stars = Math.max(1, Math.min(5, Math.round(rVal)))
-        const starText = '★'.repeat(stars) + '☆'.repeat(5 - stars)
-        doc.text(`Rating: ${starText} (${stars}/5)`, M, currentY)
-        currentY += 5
+      // FOOTER cu separator și 3 coloane (la fel ca la ofertă)
+      // Footer separator line
+      const footerSepY = PH - 28
+      doc.setDrawColor(209, 213, 219) // gri deschis
+      doc.setLineWidth(0.2)
+      doc.line(M, footerSepY, M + W, footerSepY)
+      
+      // Footer company info and bank details laid out in three equal columns with wrapping
+      let footerY = footerSepY + 5
+      doc.setFontSize(8)
+      doc.setTextColor(41, 72, 143) // albastru vibrant ca la ofertă
+      
+      const footerColW = W / 3 - 4
+      const footerColX = [M, M + W / 3, M + (2 * W) / 3]
+      
+      const footerLeft = [
+        "NRG Access Systems SRL",
+        "Rezervelor Nr 70,",
+        "Chiajna, Ilfov",
+        "C.I.F. RO34272913",
+      ]
+      const footerMid = [
+        "Telefon: +40 371 49 44 99",
+        "E-mail: office@nrg-access.ro",
+        "Website: www.nrg-access.ro",
+      ]
+      const footerRight = [
+        "IBAN RO79BTRL RON CRT 0294 5948 01",
+        "Banca Transilvania Sucursala Aviatiei",
+      ]
+      
+      const renderFooterColumn = (items: string[], x: number) => {
+        let yy = footerY
+        items.forEach((t) => {
+          const lines = doc.splitTextToSize(t, footerColW)
+          lines.forEach((ln: string) => {
+            doc.text(ln, x, yy)
+            yy += 4
+          })
+        })
       }
-      if (rvText && String(rvText).trim().length) {
-        const lines = doc.splitTextToSize(String(rvText), W)
-        lines.forEach((ln: string) => { doc.text(ln, M, currentY); currentY += 4 })
-      }
-
-      // FOOTER
-      doc
-        .setFontSize(7)
-        .setFont("helvetica", "normal")
-        .text("Document generat automat • Field Operational Manager", PW / 2, PH - M, { align: "center" })
+      
+      renderFooterColumn(footerLeft, footerColX[0])
+      renderFooterColumn(footerMid, footerColX[1])
+      renderFooterColumn(footerRight, footerColX[2])
 
       const blob = doc.output("blob")
 
