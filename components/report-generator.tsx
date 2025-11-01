@@ -745,12 +745,11 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         currentY += 6
         
         const subtotal = normalizedProducts.reduce((s, p) => s + (p.quantity || 0) * (p.price || 0), 0)
-        const adj = 5 // ajustare default 5%
-        const total = subtotal * (1 - adj / 100)
+        const total = subtotal // fără ajustare
         
         const rowHeight = 5
         const verticalPad = 1
-        const bandHeight = (rowHeight * 3) + (verticalPad * 2)
+        const bandHeight = (rowHeight * 2) + (verticalPad * 2) // doar 2 rânduri (Subtotal + Total)
         
         checkPageBreak(bandHeight + 5)
         
@@ -770,14 +769,9 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         doc.text(`${subtotal.toLocaleString("ro-RO")}`, valueX, currentY, { align: "right" })
         currentY += rowHeight
         
-        // Ajustare
-        doc.text("Ajustare:", labelColonX, currentY, { align: "right" })
-        doc.text(`${adj}%`, valueX, currentY, { align: "right" })
-        currentY += rowHeight
-        
-        // Total lei fara TVA (bold)
+        // Total lei fara TVA (bold) - fără ajustare
         doc.setFont("helvetica", "bold").setFontSize(10)
-        doc.text("Total insumat LEI fara TVA:", labelColonX, currentY, { align: "right" })
+        doc.text("Total LEI fara TVA:", labelColonX, currentY, { align: "right" })
         doc.text(`${total.toLocaleString("ro-RO")}`, valueX, currentY, { align: "right" })
         currentY += rowHeight + verticalPad + 3
         
