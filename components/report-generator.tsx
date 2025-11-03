@@ -270,6 +270,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
             semnaturaBeneficiar: lucrare.raportSnapshot.semnaturaBeneficiar,
             numeTehnician: lucrare.raportSnapshot.numeTehnician,
             numeBeneficiar: lucrare.raportSnapshot.numeBeneficiar,
+            // Include imaginile adăugate de tehnician (nu sunt în snapshotul vechi)
+            imaginiDefecte: (lucrare as any).imaginiDefecte || (lucrare.raportSnapshot as any)?.imaginiDefecte || [],
             // Păstrăm numărul raportului din obiectul principal (nu se stochează în snapshot)
             numarRaport: lucrare.numarRaport
           }
@@ -326,8 +328,9 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const drawFooter = () => {
         // FOOTER cu separator și 3 coloane (la fel ca la ofertă)
         const footerSepY = PH - 28
-        doc.setDrawColor(209, 213, 219) // gri deschis
-        doc.setLineWidth(0.2)
+        // Separator footer – negru, bine definit
+        doc.setDrawColor(0, 0, 0)
+        doc.setLineWidth(0.3)
         doc.line(M, footerSepY, M + W, footerSepY)
         
         let footerY = footerSepY + 5
@@ -382,12 +385,18 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       
       // TITLE BAR CU FUNDAL ALBASTRU
       const titleBarHeight = 16 // mai înalt pentru logo-ul mai mare
-      const titleBarColor = [73, 100, 155] // #49649b - exact ca la ofertă
+      const titleBarColor = [73, 100, 155] // #49649b - header principal (titlul paginii)
+      // Paletă pentru secțiunile de conținut (conform modelului):
+      const sectionBarBg = [220, 230, 244] // #DCE6F4
+      const sectionTitleColor = [74, 118, 184] // #4A76B8
       doc.setFillColor(titleBarColor[0], titleBarColor[1], titleBarColor[2])
       doc.rect(M, currentY, W, titleBarHeight, "F")
       
       // TITLU în stânga cu padding
-      const reportNumber = lucrareForPDF.numarRaport ? String(lucrareForPDF.numarRaport).padStart(6, '0') : "000000"
+      // Normalizăm numărul pentru a evita dublarea caracterului '#'
+      const rawReportNum = lucrareForPDF.numarRaport ? String(lucrareForPDF.numarRaport) : ""
+      const sanitizedReportNum = rawReportNum.replace(/^#\s*/, "")
+      const reportNumber = sanitizedReportNum ? sanitizedReportNum.padStart(6, '0') : "000000"
       doc.setFontSize(12)
         .setFont("helvetica", "bold")
         .setTextColor(255, 255, 255)
@@ -456,14 +465,17 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const maxLines = Math.max(prestatorLines.length, beneficiarLines.length)
       currentY += 6 + (maxLines * lineH) + 3 // Redus de la 6 la 3
 
-      // SECȚIUNE CRONOLOGIE cu fundal albastru ca în imagine
+      // SECȚIUNE CRONOLOGIE – fundal deschis și titlu albastru (#4A76B8 / #DCE6F4)
       const chronoBarHeight = 7
-      doc.setFillColor(titleBarColor[0], titleBarColor[1], titleBarColor[2])
+      doc.setFillColor(sectionBarBg[0], sectionBarBg[1], sectionBarBg[2])
       doc.rect(M, currentY, W, chronoBarHeight, "F")
-      
+      // Linie de delimitare neagră, bine definită, la baza barei
+      doc.setDrawColor(0, 0, 0).setLineWidth(0.4)
+      doc.line(M, currentY + chronoBarHeight, M + W, currentY + chronoBarHeight)
+
       doc.setFontSize(9)
         .setFont("helvetica", "bold")
-        .setTextColor(255, 255, 255)
+        .setTextColor(sectionTitleColor[0], sectionTitleColor[1], sectionTitleColor[2])
         .text("Cronologie", M + 2, currentY + 5)
       
       currentY += chronoBarHeight + 2
@@ -554,8 +566,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const chronoTableH = 12
       const chronoColW = W / 4
       
-      // Header labels (fără fundal)
-      doc.setFontSize(7)
+      // Header labels (fără fundal) – font la fel ca etichetele de text (8)
+      doc.setFontSize(8)
         .setFont("helvetica", "bold")
         .setTextColor(50, 50, 50)
       
@@ -576,14 +588,17 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       
       currentY += chronoTableH + 3 // Redus de la 5 la 3
 
-      // SECȚIUNE DETALII LOCAȚIE ȘI ECHIPAMENT
+      // SECȚIUNE DETALII LOCAȚIE ȘI ECHIPAMENT – stil nou
       const detailsBarHeight = 7
-      doc.setFillColor(titleBarColor[0], titleBarColor[1], titleBarColor[2])
+      doc.setFillColor(sectionBarBg[0], sectionBarBg[1], sectionBarBg[2])
       doc.rect(M, currentY, W, detailsBarHeight, "F")
-      
+      // Linie de delimitare neagră la baza secțiunii
+      doc.setDrawColor(0, 0, 0).setLineWidth(0.4)
+      doc.line(M, currentY + detailsBarHeight, M + W, currentY + detailsBarHeight)
+
       doc.setFontSize(9)
         .setFont("helvetica", "bold")
-        .setTextColor(255, 255, 255)
+        .setTextColor(sectionTitleColor[0], sectionTitleColor[1], sectionTitleColor[2])
         .text("Detalii locatie si echipament", M + 2, currentY + 5)
       
       currentY += detailsBarHeight + 2
@@ -592,8 +607,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const detailsColW = W / 2
       const detailsTableH = 12
       
-      // Labels (fără fundal)
-      doc.setFontSize(7)
+      // Labels (fără fundal) – font 8 (identic cu "Defect reclamat" etc.)
+      doc.setFontSize(8)
         .setFont("helvetica", "bold")
         .setTextColor(50, 50, 50)
       
@@ -611,14 +626,17 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       
       currentY += detailsTableH + 3 // Redus de la 5 la 3
 
-      // SECȚIUNE DETALII DESPRE INTERVENȚIE
+      // SECȚIUNE DETALII DESPRE INTERVENȚIE – stil nou
       const interventionBarHeight = 7
-      doc.setFillColor(titleBarColor[0], titleBarColor[1], titleBarColor[2])
+      doc.setFillColor(sectionBarBg[0], sectionBarBg[1], sectionBarBg[2])
       doc.rect(M, currentY, W, interventionBarHeight, "F")
-      
+      // Linie de delimitare neagră la baza secțiunii
+      doc.setDrawColor(0, 0, 0).setLineWidth(0.4)
+      doc.line(M, currentY + interventionBarHeight, M + W, currentY + interventionBarHeight)
+
       doc.setFontSize(9)
         .setFont("helvetica", "bold")
-        .setTextColor(255, 255, 255)
+        .setTextColor(sectionTitleColor[0], sectionTitleColor[1], sectionTitleColor[2])
         .text("Detalii despre interventie", M + 2, currentY + 5)
       
       currentY += interventionBarHeight + 2
@@ -668,17 +686,24 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         
         checkPageBreak(15)
         
-        // Bară albastră pentru "Servicii si piese"
+        // Bară pentru "Servicii si piese" – stil nou
         const productsBarHeight = 7
-        doc.setFillColor(titleBarColor[0], titleBarColor[1], titleBarColor[2])
+        doc.setFillColor(sectionBarBg[0], sectionBarBg[1], sectionBarBg[2])
         doc.rect(M, currentY, W, productsBarHeight, "F")
-        
+        // Linie de delimitare neagră la baza secțiunii
+        doc.setDrawColor(0, 0, 0).setLineWidth(0.4)
+        doc.line(M, currentY + productsBarHeight, M + W, currentY + productsBarHeight)
+
         doc.setFontSize(9)
           .setFont("helvetica", "bold")
-          .setTextColor(255, 255, 255)
+          .setTextColor(sectionTitleColor[0], sectionTitleColor[1], sectionTitleColor[2])
           .text("Servicii si piese", M + 2, currentY + 5)
         
-        currentY += productsBarHeight + 2
+        currentY += productsBarHeight
+        // Linie groasă deasupra tabelului (ca în imagine)
+        doc.setDrawColor(0, 0, 0).setLineWidth(0.6)
+        doc.line(M, currentY, M + W, currentY)
+        currentY += 2
 
         // Design tabel similar cu cel de la ofertă
         const headers = ["Servicii/Piese", "Cantitate", "Pret unitar", "Suma liniei"]
@@ -687,8 +712,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         for (let i = 0; i < colWidths.length; i++) colPos.push(colPos[i] + colWidths[i])
 
         const drawTableHeader = () => {
-          // Column header cu text albastru (ca la ofertă), fără fundal
-          doc.setTextColor(73, 100, 155) // #49649b
+          // Header coloane – text negru, fără fundal, aliniere ca în imagine
+          doc.setTextColor(0, 0, 0)
           doc.setFont("helvetica", "bold").setFontSize(10)
           
           headers.forEach((h, i) => {
@@ -702,11 +727,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           })
           
           currentY += 7
-          
-          // Linie separator deasupra primului rând (ca la ofertă)
-          doc.setDrawColor(209, 213, 219).setLineWidth(0.2)
-          doc.line(M, currentY, M + W, currentY)
-          
+          // Nu desenăm o linie imediat după header; prima linie va fi după primul rând
           doc.setTextColor(0) // reset la negru pentru body
         }
 
@@ -736,8 +757,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 
           currentY += rowHeight
           
-          // Row separator (ca la ofertă)
-          doc.setDrawColor(209, 213, 219).setLineWidth(0.2)
+          // Linie separator între rânduri – negru, bine definit
+          doc.setDrawColor(0, 0, 0).setLineWidth(0.4)
           doc.line(M, currentY, M + W, currentY)
         })
 
@@ -779,60 +800,155 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         currentY += 4 // Redus de la 8 la 4
       }
 
-      // SEMNĂTURI - 2 coloane cu linie subliniere
-      // Verificăm dacă avem spațiu pentru semnături (35mm) + spacing (8mm) = 43mm
-      checkPageBreak(45) // Redus de la 50 la 45mm pentru a permite semnăturile să rămână pe prima pagină mai des
+      // SECȚIUNE ATAȘAMENTE - dezactivată temporar
+      const includeAttachments = false
+      const imaginiDefecte = includeAttachments ? (lucrareForPDF.imaginiDefecte || []) : []
+      if (includeAttachments && imaginiDefecte.length > 0) {
+        currentY += 8
+        checkPageBreak(20)
+        
+        // Titlu secțiune – cu fundal deschis și titlu albastru
+        const attachBarH = 7
+        doc.setFillColor(sectionBarBg[0], sectionBarBg[1], sectionBarBg[2])
+        doc.rect(M, currentY, W, attachBarH, "F")
+        // Linie de delimitare neagră la baza secțiunii
+        doc.setDrawColor(0, 0, 0).setLineWidth(0.4)
+        doc.line(M, currentY + attachBarH, M + W, currentY + attachBarH)
+        doc.setTextColor(sectionTitleColor[0], sectionTitleColor[1], sectionTitleColor[2])
+        doc.setFont("helvetica", "bold").setFontSize(9)
+        doc.text(normalize("Atasamente"), M + 2, currentY + 5)
+        currentY += attachBarH + 2
+        
+        // Calculăm dimensiunile imaginilor
+        const imagesPerRow = 4
+        const imageGap = 2
+        const imageWidth = (W - (imageGap * (imagesPerRow - 1))) / imagesPerRow
+        const imageHeight = imageWidth * 0.75 // aspect ratio 4:3
+        
+        // Încărcăm și adăugăm imaginile
+        let imageIndex = 0
+        for (const img of imaginiDefecte) {
+          try {
+            checkPageBreak(imageHeight + 10)
+            
+            // Calculăm poziția X pentru imagine
+            const col = imageIndex % imagesPerRow
+            const xPos = M + col * (imageWidth + imageGap)
+            
+            // Dacă este prima imagine a unui rând nou
+            if (col === 0 && imageIndex > 0) {
+              currentY += imageHeight + imageGap + 2
+            }
+            
+            // Adăugăm imaginea
+            if (img.url) {
+              // Frame pentru imagine
+              // Border negru, bine definit pentru fiecare imagine atașată
+              doc.setDrawColor(0, 0, 0)
+              doc.setLineWidth(0.3)
+              doc.rect(xPos, currentY, imageWidth, imageHeight)
+              
+              // Încărcăm imaginea
+              const response = await fetch(img.url)
+              const blob = await response.blob()
+              const reader = new FileReader()
+              const dataUrl: string = await new Promise((resolve) => {
+                reader.onload = () => resolve(reader.result as string)
+                reader.readAsDataURL(blob)
+              })
+              
+              // Adăugăm imaginea în PDF
+              const fmt = (blob.type && blob.type.toLowerCase().includes("png")) ? "PNG" : "JPEG"
+              doc.addImage(dataUrl, fmt as any, xPos + 0.5, currentY + 0.5, imageWidth - 1, imageHeight - 1)
+            }
+            
+            imageIndex++
+          } catch (error) {
+            console.error("Error loading image:", error)
+            // Continuăm cu următoarea imagine
+          }
+        }
+        
+        // Ajustăm currentY după ultimul rând de imagini
+        const lastRowCount = imageIndex % imagesPerRow || imagesPerRow
+        currentY += imageHeight + 8
+      }
+
+      // SEMNĂTURI - tehnician stânga, beneficiar dreapta distanțat
+      checkPageBreak(40)
       
-      const signBoxW = W / 2 - 2
-      const signBoxH = 35
+      currentY += 8 // Spațiu între atașamente și semnături
       
-      // Secțiunea tehnician
+      const signatureHeight = 30 // Redus de la 35
+      const signatureImageHeight = 14 // Redus de la 18
+      
+      // Secțiunea tehnician (partea stângă)
+      const techSectionWidth = W * 0.45 // 45% din lățime
+      
       doc.setFontSize(8).setFont("helvetica", "normal").setTextColor(0, 0, 0)
-      doc.text("Nume si semnatura tehnician", M + 2, currentY + 4)
+      const techLabelText = "Nume si semnatura tehnician"
+      doc.text(techLabelText, M + 2, currentY + 4)
       
-      // Linie subliniere aproape de text
+      // Linie subliniere DOAR cât textul
+      const techLabelWidth = doc.getTextWidth(techLabelText)
       doc.setDrawColor(0, 0, 0).setLineWidth(0.3)
-      doc.line(M + 2, currentY + 5, M + signBoxW - 2, currentY + 5)
+      doc.line(M + 2, currentY + 5, M + 2 + techLabelWidth, currentY + 5)
       
       const numeTehnician = normalize(lucrareForPDF.numeTehnician || lucrareForPDF.tehnicieni?.join(", ") || "")
       if (numeTehnician) {
         doc.setFont("helvetica", "bold")
         doc.text(numeTehnician, M + 2, currentY + 10)
+        
+        // Linie subliniere DOAR cât numele
+        const numeWidth = doc.getTextWidth(numeTehnician)
+        doc.setDrawColor(0, 0, 0).setLineWidth(0.2)
+        doc.line(M + 2, currentY + 11, M + 2 + numeWidth, currentY + 11)
       }
       
-      // Semnătură tehnician
+      // Semnătură tehnician (mai mică)
       if (lucrareForPDF.semnaturaTehnician) {
         try {
-          doc.addImage(lucrareForPDF.semnaturaTehnician, "PNG", M + 2, currentY + 14, signBoxW - 4, 18)
+          doc.addImage(lucrareForPDF.semnaturaTehnician, "PNG", M + 2, currentY + 13, techSectionWidth - 4, signatureImageHeight)
         } catch (e) {
           console.error("Error adding tech signature:", e)
         }
       }
       
-      // Secțiunea beneficiar
+      // Secțiunea beneficiar (partea dreaptă) – text aliniat la dreapta
+      const benefSectionStart = M + W * 0.55 // stânga secțiunii drepte
+      const benefSectionWidth = W * 0.45 // lățimea secțiunii drepte
+
+      const rightEdge = M + W - 2 // marginea dreaptă de referință (cu mic padding)
       doc.setFontSize(8).setFont("helvetica", "normal").setTextColor(0, 0, 0)
-      doc.text("Nume si semnatura beneficiar", M + signBoxW + 6, currentY + 4)
-      
-      // Linie subliniere aproape de text
+      const benefLabelText = "Nume si semnatura beneficiar"
+      // text aliniat la dreapta
+      doc.text(benefLabelText, rightEdge, currentY + 4, { align: "right" } as any)
+      // Linie subliniere de la dreapta spre stânga, exact cât textul
+      const benefLabelWidth = doc.getTextWidth(benefLabelText)
       doc.setDrawColor(0, 0, 0).setLineWidth(0.3)
-      doc.line(M + signBoxW + 6, currentY + 5, M + W - 2, currentY + 5)
-      
+      doc.line(rightEdge - benefLabelWidth, currentY + 5, rightEdge, currentY + 5)
+
       const numeBeneficiar = normalize(lucrareForPDF.numeBeneficiar || lucrareForPDF.persoanaContact || "")
       if (numeBeneficiar) {
         doc.setFont("helvetica", "bold")
-        doc.text(numeBeneficiar, M + signBoxW + 6, currentY + 10)
+        doc.text(numeBeneficiar, rightEdge, currentY + 10, { align: "right" } as any)
+        const numeWidth = doc.getTextWidth(numeBeneficiar)
+        doc.setDrawColor(0, 0, 0).setLineWidth(0.2)
+        doc.line(rightEdge - numeWidth, currentY + 11, rightEdge, currentY + 11)
       }
-      
-      // Semnătură beneficiar
+
+      // Semnătură beneficiar: menținem în secțiunea dreaptă, ancorată la marginea dreaptă
       if (lucrareForPDF.semnaturaBeneficiar) {
         try {
-          doc.addImage(lucrareForPDF.semnaturaBeneficiar, "PNG", M + signBoxW + 6, currentY + 14, signBoxW - 4, 18)
+          const imgWidth = benefSectionWidth - 4
+          const imgX = rightEdge - imgWidth // aliniere la dreapta
+          doc.addImage(lucrareForPDF.semnaturaBeneficiar, "PNG", imgX, currentY + 13, imgWidth, signatureImageHeight)
         } catch (e) {
           console.error("Error adding client signature:", e)
         }
       }
       
-      currentY += signBoxH + 8
+      currentY += signatureHeight + 8
 
       // Desenăm footer-ul pe ultima pagină
       drawFooter()

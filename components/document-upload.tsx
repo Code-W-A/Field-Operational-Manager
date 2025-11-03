@@ -12,6 +12,7 @@ import { deleteField } from "firebase/firestore"
 import { toast } from "@/components/ui/use-toast"
 import { Upload, FileText, Download, Trash2, AlertCircle, Check, Eye } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
+import { ReportGenerator } from "@/components/report-generator"
 
 interface DocumentUploadProps {
   lucrareId: string
@@ -33,6 +34,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
   const isArchived = lucrare?.statusLucrare === "Arhivată"
   const facturaInputRef = useRef<HTMLInputElement>(null)
   const ofertaInputRef = useRef<HTMLInputElement>(null)
+  const reportGeneratorRef = useRef<HTMLButtonElement>(null)
 
   // Verificăm permisiunile (doar admin și dispecer)
   const hasPermission = userData?.role === "admin" || userData?.role === "dispecer"
@@ -86,6 +88,14 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
     } catch (e) {
       window.open(url, '_blank')
     }
+  }
+
+  // Primește blob-ul PDF și forțează descărcarea cu un nume sugestiv
+  const handleReportGenerate = (blob: Blob) => {
+    const url = URL.createObjectURL(blob)
+    const fileName = `Raport_${lucrare?.nrLucrare || lucrare?.numarRaport || lucrareId}.pdf`
+    triggerDownload(url, fileName)
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
   }
 
   // Funcție pentru validarea fișierului (fără restricții)
@@ -253,13 +263,19 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
           <CardDescription>Descărcați documentele disponibile</CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Generator ascuns pentru raport – permite descărcare directă fără navigare */}
+          <div className="hidden">
+            <ReportGenerator lucrare={lucrare as any} onGenerate={handleReportGenerate} ref={reportGeneratorRef} />
+          </div>
           <div className="grid gap-3">
             {lucrare.raportGenerat && (
               <a
                 className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer"
-                href={`/raport/${lucrareId}`}
-                target="_blank"
-                rel="noopener noreferrer"
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault()
+                  reportGeneratorRef.current?.click()
+                }}
               >
                 <div className="p-2 bg-blue-100 rounded">
                   <FileText className="h-5 w-5 text-blue-600" />
@@ -306,7 +322,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
               <div className="text-center py-6 text-muted-foreground text-sm">Nu există documente disponibile</div>
             )}
           </div>
-        </CardContent>
+      </CardContent>
       </Card>
     )
   }
@@ -326,6 +342,10 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Generator ascuns pentru raport – permite descărcare directă fără navigare */}
+        <div className="hidden">
+          <ReportGenerator lucrare={lucrare as any} onGenerate={handleReportGenerate} ref={reportGeneratorRef} />
+        </div>
         {/* Verificăm dacă lucrarea a fost preluată */}
         {!isWorkPickedUp && (
           <Alert>

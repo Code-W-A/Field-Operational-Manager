@@ -1371,7 +1371,7 @@ export default function Lucrari() {
   }
 
   const handleGenerateReport = useCallback(
-    (lucrare) => {
+    async (lucrare) => {
       // Pentru tehnician: dacă lucrarea e finalizată nepreluată sau amânată nepreluată, blocăm generarea raportului
       if (isTechnician && (isCompletedWithReportNotPickedUp(lucrare) || isPostponedNotPickedUp(lucrare))) {
         toast({
@@ -1394,8 +1394,30 @@ export default function Lucrari() {
         return
       }
 
-      // Redirecționăm către pagina de raport cu ID-ul corect
-      router.push(`/raport/${lucrare.id}`)
+      // Dacă raportul nu este generat, mergem la pagina de raport pentru completare
+      if (!lucrare.raportGenerat) {
+        router.push(`/raport/${lucrare.id}`)
+        return
+      }
+
+      // Dacă raportul este deja generat, descărcăm direct PDF-ul
+      // Deschidem pagina de raport într-un iframe ascuns și trigger-uim download-ul automat
+      const downloadUrl = `/raport/${lucrare.id}?autoDownload=true`
+      
+      // Cream un link temporar pentru download
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.target = '_blank'
+      link.rel = 'noopener noreferrer'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      toast({
+        title: "Descărcare raport",
+        description: "Raportul se va descărca automat...",
+        variant: "default",
+      })
     },
     [router, isTechnician, isCompletedWithReportNotPickedUp],
   )

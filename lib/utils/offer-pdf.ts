@@ -132,7 +132,7 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   y += 6
 
   // Products table
-  const headers = ["Servicii/Piese", "Cantitate", "Pret unitar", "Suma liniei"]
+  const headers = ["Denumire", "Cantitate", "Pret unitar", "Suma liniei"]
   const colW = [W - 20 - 24 - 28, 20, 24, 28]
   const xPos: number[] = [M]
   for (let i = 0; i < colW.length; i++) xPos.push(xPos[i] + colW[i])

@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
@@ -29,7 +29,11 @@ export default function RaportPage({ params }: { params: { id: string } }) {
   const SIG_MIN_WIDTH = 360 // px - lățimea minimă pentru semnături
 
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { userData } = useAuth()
+  
+  // Detectăm dacă trebuie să descărcăm automat raportul
+  const autoDownload = searchParams.get('autoDownload') === 'true'
 
   // Check if user is dispatcher/admin accessing a finalized report
   const isDispatcherOrAdmin = userData?.role === "dispecer" || userData?.role === "admin"
@@ -341,6 +345,24 @@ export default function RaportPage({ params }: { params: { id: string } }) {
       reportGeneratorRef.current.click()
     }
   }, [updatedLucrare])
+
+  // Effect pentru descărcare automată când se deschide pagina cu autoDownload=true
+  useEffect(() => {
+    if (autoDownload && !loading && lucrare && lucrare.raportGenerat && reportGeneratorRef.current) {
+      // Trigger descărcare automată după un delay mic pentru a permite încărcarea completă
+      const timer = setTimeout(() => {
+        console.log("🔽 Trigger descărcare automată raport...")
+        reportGeneratorRef.current?.click()
+        
+        // Închidem tab-ul după un delay (opțional)
+        setTimeout(() => {
+          window.close()
+        }, 1000)
+      }, 500)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [autoDownload, loading, lucrare, lucrare?.raportGenerat])
 
   const clearTechSignature = useCallback(() => {
     if (techSignatureRef.current) {

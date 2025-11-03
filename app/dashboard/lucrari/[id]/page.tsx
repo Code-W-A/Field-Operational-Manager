@@ -354,7 +354,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     router.push(`/dashboard/lucrari?edit=${lucrare.id}`)
   }, [router, lucrare])
 
-  // Modificăm funcția handleGenerateReport pentru a naviga către pagina de raport
+  // Modificăm funcția handleGenerateReport pentru a descărca direct raportul dacă este generat
   const handleGenerateReport = useCallback(() => {
     if (!lucrare?.id) {
       console.error("ID-ul lucrării lipsește:", lucrare)
@@ -366,8 +366,31 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       return
     }
 
-    router.push(`/raport/${lucrare.id}`)
-  }, [router, lucrare])
+    // Dacă raportul nu este generat, mergem la pagina de raport pentru completare
+    if (!lucrare.raportGenerat) {
+      router.push(`/raport/${lucrare.id}`)
+      return
+    }
+
+    // Dacă raportul este deja generat, descărcăm direct PDF-ul
+    // Deschidem pagina de raport într-un tab nou și trigger-uim download-ul automat
+    const downloadUrl = `/raport/${lucrare.id}?autoDownload=true`
+    
+    // Cream un link temporar pentru download
+    const link = document.createElement('a')
+    link.href = downloadUrl
+    link.target = '_blank'
+    link.rel = 'noopener noreferrer'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    
+    toast({
+      title: "Descărcare raport",
+      description: "Raportul se va descărca automat...",
+      variant: "default",
+    })
+  }, [router, lucrare, toast])
 
   // Funcție pentru a reîncărca datele lucrării
   const refreshLucrare = useStableCallback(async (preserveActiveTab = false) => {
