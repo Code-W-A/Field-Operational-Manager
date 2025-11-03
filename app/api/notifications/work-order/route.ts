@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import nodemailer from "nodemailer"
-import { logEmailEvent, updateEmailEvent } from "@/lib/firebase/firestore"
+import { logEmailEvent, updateEmailEvent, addUserLogEntry } from "@/lib/firebase/firestore"
 import { logDebug, logInfo, logWarning, logError } from "@/lib/utils/logging-service"
 import path from "path"
 import fs from "fs"
@@ -37,9 +37,15 @@ function isValidEmail(email: string): boolean {
 }
 
 // Funcție de logging sigură care nu va întrerupe execuția API-ului
-async function safeAddLog(action: string, details: string, type = "Informație", category = "Email") {
+async function safeAddLog(action: string, details: string, type: "Informație" | "Avertisment" | "Eroare" = "Informație", category = "Email") {
   try {
-    // Folosim doar console.log pentru a evita erorile de permisiuni Firestore
+    // Salvăm în Firebase folosind addUserLogEntry
+    await addUserLogEntry({
+      actiune: action,
+      detalii: details,
+      tip: type,
+      categorie: category,
+    })
     console.log(`[SAFE-LOG] [${action}] [${type}] [${category}] ${details}`)
   } catch (error) {
     // Doar logăm eroarea local, fără a o propaga

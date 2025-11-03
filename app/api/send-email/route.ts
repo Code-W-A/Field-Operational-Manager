@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import nodemailer from "nodemailer"
-import { logEmailEvent, updateEmailEvent, updateLucrare } from "@/lib/firebase/firestore"
+import { logEmailEvent, updateEmailEvent, updateLucrare, addUserLogEntry } from "@/lib/firebase/firestore"
 import path from "path"
 
 export async function POST(request: NextRequest) {
@@ -93,7 +93,17 @@ export async function POST(request: NextRequest) {
         status: "queued",
         provider: "smtp",
       })
-    } catch {}
+      
+      // Log in colecția logs pentru vizualizare în EmailLogViewer
+      await addUserLogEntry({
+        actiune: "Trimitere Email Raport",
+        detalii: `Email în coadă: "${subject}" către ${to}`,
+        tip: "Informație",
+        categorie: "Email",
+      })
+    } catch (error) {
+      console.error("Eroare la logging eveniment email queued:", error)
+    }
 
     // Trimitem emailul
     const info = await transporter.sendMail(mailOptions)
@@ -114,27 +124,64 @@ export async function POST(request: NextRequest) {
           },
         } as any, undefined, undefined, true)
       }
-    } catch {}
+      
+      // Log succes în colecția logs
+      await addUserLogEntry({
+        actiune: "Email Raport Trimis",
+        detalii: `Email trimis cu succes: "${subject}" către ${to}\nMessageID: ${info.messageId}`,
+        tip: "Informație",
+        categorie: "Email",
+      })
+    } catch (error) {
+      console.error("Eroare la logging eveniment email sent:", error)
+    }
 
     // TODO: Add logging when admin permissions are properly configured
     console.log(`Email sent successfully to: ${to}`)
 
     return NextResponse.json({ success: true })
-  } catch (error) {
+  } catch (error: any) {
     console.error("Eroare la trimiterea emailului:", error)
+    
+    // Extract form data for logging (request body can only be read once)
+    let errorTo = "unknown"
+    let errorSubject = "unknown"
+    let errorLucrareId: string | null = null
+    
     try {
-      const lucrareId = (await request.formData()).get("lucrareId") as string | null
-      if (lucrareId) {
-        await updateLucrare(lucrareId, {
+      const formData = await request.formData()
+      errorTo = (formData.get("to") as string) || "unknown"
+      errorSubject = (formData.get("subject") as string) || "unknown"
+      errorLucrareId = (formData.get("lucrareId") as string) || null
+      
+      if (errorLucrareId) {
+        await updateLucrare(errorLucrareId, {
           lastReportEmail: {
             sentAt: new Date().toISOString(),
-            to: [(await request.formData()).get("to") as string],
+            to: [errorTo],
             status: "failed",
           },
         } as any, undefined, undefined, true)
       }
-    } catch {}
+    } catch (parseError) {
+      console.error("Eroare la parsarea formData pentru logging:", parseError)
+    }
+    
+    // Log eroare în colecția logs
+    try {
+      await addUserLogEntry({
+        actiune: "Eroare Trimitere Email Raport",
+        detalii: `Eroare la trimiterea email: "${errorSubject}" către ${errorTo}\nEroare: ${error.message || error}\nStack: ${error.stack || 'N/A'}`,
+        tip: "Eroare",
+        categorie: "Email",
+      })
+    } catch (logError) {
+      console.error("Eroare la logging eveniment email failed:", logError)
+    }
 
-    return NextResponse.json({ error: "A aparut o eroare la trimiterea emailului" }, { status: 500 })
+    return NextResponse.json({ 
+      error: "A aparut o eroare la trimiterea emailului",
+      details: error.message 
+    }, { status: 500 })
   }
 }

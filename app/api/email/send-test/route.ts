@@ -1,11 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server"
 import nodemailer from "nodemailer"
-import { addLog } from "@/lib/firebase/firestore"
+import { addUserLogEntry } from "@/lib/firebase/firestore"
 
 export async function POST(request: NextRequest) {
+  let errorRecipient = "unknown"
   try {
     const data = await request.json()
     const { recipient, subject = "Test Email", message = "Acesta este un email de test." } = data
+    errorRecipient = recipient || "unknown"
 
     if (!recipient) {
       return NextResponse.json({ error: "Adresa de email a destinatarului este obligatorie" }, { status: 400 })
@@ -13,7 +15,12 @@ export async function POST(request: NextRequest) {
 
     // Log the test attempt
     try {
-      await addLog("Test email", `Încercare trimitere email de test către ${recipient}`, "Informație", "Email")
+      await addUserLogEntry({
+        actiune: "Test Email",
+        detalii: `Încercare trimitere email de test către ${recipient}`,
+        tip: "Informație",
+        categorie: "Email",
+      })
     } catch (logError) {
       console.error("[Email Test] Failed to log test attempt:", logError)
     }
@@ -62,7 +69,12 @@ export async function POST(request: NextRequest) {
 
     // Log the success
     try {
-      await addLog("Test email", `Email de test trimis cu succes către ${recipient}`, "Informație", "Email")
+      await addUserLogEntry({
+        actiune: "Test Email Trimis",
+        detalii: `Email de test trimis cu succes către ${recipient}\nMessageID: ${info.messageId}`,
+        tip: "Informație",
+        categorie: "Email",
+      })
     } catch (logError) {
       console.error("[Email Test] Failed to log success:", logError)
     }
@@ -77,7 +89,12 @@ export async function POST(request: NextRequest) {
 
     // Log the error
     try {
-      await addLog("Test email", `Eroare la trimiterea email-ului de test: ${error.message}`, "Eroare", "Email")
+      await addUserLogEntry({
+        actiune: "Eroare Test Email",
+        detalii: `Eroare la trimiterea email-ului de test către ${errorRecipient}\nEroare: ${error.message}\nStack: ${error.stack || 'N/A'}`,
+        tip: "Eroare",
+        categorie: "Email",
+      })
     } catch (logError) {
       console.error("[Email Test] Failed to log error:", logError)
     }

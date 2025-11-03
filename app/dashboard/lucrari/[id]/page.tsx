@@ -740,12 +740,14 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           <Button variant="outline" onClick={() => router.push(userData?.role === "client" ? "/portal" : (fromArhivate ? "/dashboard/arhivate" : "/dashboard/lucrari"))}>
             <ChevronLeft className="mr-2 h-4 w-4" /> Înapoi
           </Button>
-          <Button 
-            onClick={handleGenerateReport}
-            disabled={role === "tehnician" && !equipmentVerified}
-          >
-            <FileText className="mr-2 h-4 w-4" /> Generează raport
-          </Button>
+          {role !== "client" && (
+            <Button 
+              onClick={handleGenerateReport}
+              disabled={role === "tehnician" && !equipmentVerified}
+            >
+              <FileText className="mr-2 h-4 w-4" /> Generează raport
+            </Button>
+          )}
 
           {lucrare.statusLucrare === WORK_STATUS.ARCHIVED && role === "admin" && (
             <Button

@@ -241,7 +241,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
     }
   }
 
-  // Dacă utilizatorul este client (fără permisiuni de upload), afișăm doar descărcări pentru factură/ofertă
+  // Dacă utilizatorul este client (fără permisiuni de upload), afișăm doar descărcări pentru factură/ofertă/raport
   if (!hasPermission) {
     return (
       <Card>
@@ -254,6 +254,22 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
         </CardHeader>
         <CardContent>
           <div className="grid gap-3">
+            {lucrare.raportGenerat && (
+              <a
+                className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer"
+                href={`/raport/${lucrareId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <div className="p-2 bg-blue-100 rounded">
+                  <FileText className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <div className="font-medium">Raport</div>
+                  <div className="text-sm text-muted-foreground">Descarcă raportul</div>
+                </div>
+              </a>
+            )}
             {lucrare.facturaDocument?.url && (
               <a
                 className="flex items-center gap-3 p-3 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
@@ -286,7 +302,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
                 </div>
               </a>
             )}
-            {!lucrare.facturaDocument?.url && !lucrare.ofertaDocument?.url && (
+            {!lucrare.raportGenerat && !lucrare.facturaDocument?.url && !lucrare.ofertaDocument?.url && (
               <div className="text-center py-6 text-muted-foreground text-sm">Nu există documente disponibile</div>
             )}
           </div>

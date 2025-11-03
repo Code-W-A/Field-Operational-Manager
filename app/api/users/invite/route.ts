@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import nodemailer from "nodemailer"
-import { logEmailEvent, updateEmailEvent, updateLucrare } from "@/lib/firebase/firestore"
+import { logEmailEvent, updateEmailEvent, updateLucrare, addUserLogEntry } from "@/lib/firebase/firestore"
 
 export async function POST(request: Request) {
   try {
@@ -30,7 +30,17 @@ export async function POST(request: Request) {
         status: "queued",
         provider: "smtp",
       })
-    } catch {}
+      
+      // Log în colecția logs pentru vizualizare în EmailLogViewer
+      await addUserLogEntry({
+        actiune: "Invitație Portal Client",
+        detalii: `Email invitație în coadă: "${subject || 'Invitație acces Portal Client – FOM'}" către ${(to as string[]).join(', ')}`,
+        tip: "Informație",
+        categorie: "Email",
+      })
+    } catch (error) {
+      console.error("Eroare la logging eveniment email queued:", error)
+    }
 
     const info = await transporter.sendMail({
       from: `Field Operational Manager <${process.env.EMAIL_USER || "fom@nrg-acces.ro"}>`,
@@ -60,25 +70,60 @@ export async function POST(request: Request) {
           }
         } as any, undefined, undefined, true)
       }
-    } catch {}
+      
+      // Log succes în colecția logs
+      await addUserLogEntry({
+        actiune: "Invitație Portal Client Trimisă",
+        detalii: `Email invitație trimis cu succes: "${subject || 'Invitație acces Portal Client – FOM'}" către ${(to as string[]).join(', ')}\nMessageID: ${info.messageId}`,
+        tip: "Informație",
+        categorie: "Email",
+      })
+    } catch (error) {
+      console.error("Eroare la logging eveniment email sent:", error)
+    }
 
     return NextResponse.json({ success: true })
-  } catch (e) {
+  } catch (e: any) {
     console.error("Invite email error", e)
+    
+    let errorTo: string[] = []
+    let errorSubject = "unknown"
+    
     try {
       const body = await request.json().catch(() => ({}))
+      errorTo = Array.isArray(body?.to) ? body.to : []
+      errorSubject = body?.subject || "Invitație acces Portal Client – FOM"
+      
       const lucrareId = (Array.isArray((body?.attachments as any)) && (body?.attachments as any)[0]?.lucrareId) || undefined
       if (lucrareId) {
         await updateLucrare(lucrareId, {
           lastOfferEmail: {
             sentAt: new Date().toISOString(),
-            to: Array.isArray(body?.to) ? body.to : [],
+            to: errorTo,
             status: "failed",
           }
         } as any, undefined, undefined, true)
       }
-    } catch {}
-    return NextResponse.json({ error: "Eroare trimitere invitație" }, { status: 500 })
+    } catch (parseError) {
+      console.error("Eroare la parsarea body pentru logging:", parseError)
+    }
+    
+    // Log eroare în colecția logs
+    try {
+      await addUserLogEntry({
+        actiune: "Eroare Invitație Portal Client",
+        detalii: `Eroare la trimiterea invitație: "${errorSubject}" către ${errorTo.join(', ')}\nEroare: ${e.message || e}\nStack: ${e.stack || 'N/A'}`,
+        tip: "Eroare",
+        categorie: "Email",
+      })
+    } catch (logError) {
+      console.error("Eroare la logging eveniment email failed:", logError)
+    }
+    
+    return NextResponse.json({ 
+      error: "Eroare trimitere invitație",
+      details: e.message 
+    }, { status: 500 })
   }
 }
 

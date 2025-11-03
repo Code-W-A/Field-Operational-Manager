@@ -9,9 +9,9 @@ import { Badge } from "@/components/ui/badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { format } from "date-fns"
 import { ro } from "date-fns/locale"
-import { CalendarIcon, Loader2, Plus, Phone, Mail, Users, LightbulbIcon } from "lucide-react"
+import { CalendarIcon, Loader2, Plus, Phone, Mail, Users, LightbulbIcon, AlertCircle } from "lucide-react"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
-import { orderBy, where, query, collection, onSnapshot } from "firebase/firestore"
+import { orderBy, where, query, collection, onSnapshot, getDocs } from "firebase/firestore"
 import type { Client, PersoanaContact, Locatie, Echipament } from "@/lib/firebase/firestore"
 import { getClienti, getClientById } from "@/lib/firebase/firestore"
 import { db } from "@/lib/firebase/config"
@@ -28,6 +28,7 @@ import { TimeSelector } from "./time-selector"
 // Import our new CustomDatePicker component
 import { CustomDatePicker } from "./custom-date-picker"
 import { Card } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 // Înlocuim importul pentru componenta EquipmentSelect cu CustomEquipmentSelect
 import { CustomEquipmentSelect } from "@/components/custom-equipment-select"
 import { Input } from "@/components/ui/input"
@@ -216,6 +217,10 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     // State pentru editarea echipamentului din cardul de garanție
     const [isEditEquipmentDialogOpen, setIsEditEquipmentDialogOpen] = useState(false)
     const [equipmentToEdit, setEquipmentToEdit] = useState<{ equipment: Echipament; locationIndex: number; equipmentIndex: number } | null>(null)
+
+    // State pentru validarea echipamentelor duplicate
+    const [existingWorkOnEquipment, setExistingWorkOnEquipment] = useState<any[]>([])
+    const [checkingEquipment, setCheckingEquipment] = useState(false)
 
     // Expose methods to parent component via ref
     useImperativeHandle(ref, () => ({
@@ -536,6 +541,11 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           handleCustomChange("echipamentId", "")
           handleCustomChange("echipamentCod", "")
         }
+        
+        // Resetăm și lista de lucrări existente
+        setExistingWorkOnEquipment([])
+        setSelectedEquipment(null)
+        setWarrantyInfo(null)
       }
 
       // Actualizăm echipamentele disponibile
@@ -553,9 +563,67 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       setSelectedLocatie(selectedLocation || null)
     }
 
+    // Funcție pentru verificarea lucrărilor existente pe echipament
+    const checkExistingWorkOrders = async (equipmentId: string, equipmentCod: string) => {
+      if (isEdit) return // Nu verificăm la editare, doar la creare
+      
+      setCheckingEquipment(true)
+      try {
+        // Statusi care indică o lucrare activă
+        const activeStatuses = [
+          "Listată",
+          "Atribuită", 
+          "În lucru",
+          "În așteptare",
+          "Amânată",
+          "Programată"
+        ]
+        
+        // Query pentru lucrări cu acest echipament
+        const lucrariQuery = query(
+          collection(db, "lucrari"),
+          where("echipamentId", "==", equipmentId)
+        )
+        
+        const snapshot = await getDocs(lucrariQuery)
+        const existingWorks = snapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .filter((work: any) => 
+            activeStatuses.some(status => 
+              work.statusLucrare?.toLowerCase().includes(status.toLowerCase())
+            )
+          )
+        
+        // Încercăm și după cod dacă nu găsim după ID
+        if (existingWorks.length === 0 && equipmentCod) {
+          const lucrariByCodQuery = query(
+            collection(db, "lucrari"),
+            where("echipamentCod", "==", equipmentCod)
+          )
+          
+          const codSnapshot = await getDocs(lucrariByCodQuery)
+          const worksByCod = codSnapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .filter((work: any) => 
+              activeStatuses.some(status => 
+                work.statusLucrare?.toLowerCase().includes(status.toLowerCase())
+              )
+            )
+          
+          existingWorks.push(...worksByCod)
+        }
+        
+        setExistingWorkOnEquipment(existingWorks)
+      } catch (error) {
+        console.error("Eroare la verificarea lucrărilor existente:", error)
+      } finally {
+        setCheckingEquipment(false)
+      }
+    }
+
     // Adăugăm funcție pentru selectarea echipamentului
     // Înlocuim funcția handleEquipmentSelect existentă cu această versiune actualizată:
-    const handleEquipmentSelect = (equipmentId: string, equipment: Echipament) => {
+    const handleEquipmentSelect = async (equipmentId: string, equipment: Echipament) => {
       if (isReintervention) return // înghețat la reintervenție
       console.log("Echipament selectat în LucrareForm:", equipment)
 
@@ -573,6 +641,9 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
       // Setăm echipamentul selectat și calculăm garanția
       setSelectedEquipment(equipment)
+      
+      // Verificăm dacă există lucrări active pe acest echipament
+      await checkExistingWorkOrders(equipmentId, equipment.cod)
       
       // Calculăm informațiile de garanție pentru echipamentul selectat
       if (formData.tipLucrare === "Intervenție în garanție") {
@@ -1274,6 +1345,17 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         return
       }
 
+      // Verificăm dacă există lucrări active pe echipamentul selectat
+      if (!isEdit && existingWorkOnEquipment.length > 0) {
+        setError("Nu puteți crea o lucrare nouă pe acest echipament. Există deja lucrări active pe acest echipament.")
+        toast({
+          title: "Eroare",
+          description: "Nu puteți crea o lucrare nouă pe acest echipament. Există deja lucrări active pe acest echipament.",
+          variant: "destructive",
+        })
+        return
+      }
+
       setIsSubmitting(true)
 
       try {
@@ -1809,6 +1891,41 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
               <p className="text-xs text-green-600">
                 {availableEquipments.length} echipamente disponibile pentru această locație
               </p>
+            )}
+            
+            {/* Avertisment pentru lucrări active existente */}
+            {!isEdit && existingWorkOnEquipment.length > 0 && (
+              <Alert variant="destructive" className="mt-3">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <div className="space-y-2">
+                    <p className="font-semibold">
+                      ⚠️ ATENȚIE: Există {existingWorkOnEquipment.length} lucrare{existingWorkOnEquipment.length > 1 ? 'i' : ''} activă pe acest echipament!
+                    </p>
+                    <p className="text-sm">
+                      Nu puteți crea o lucrare nouă pe acest echipament până când lucrările active nu sunt finalizate.
+                    </p>
+                    <div className="space-y-1 mt-2">
+                      <p className="text-sm font-medium">Lucrări active:</p>
+                      {existingWorkOnEquipment.map((work: any, index: number) => (
+                        <div key={work.id || index} className="text-sm bg-white/50 p-2 rounded border border-red-200">
+                          <p><strong>Status:</strong> {work.statusLucrare || 'N/A'}</p>
+                          <p><strong>Data:</strong> {work.dataInterventie || 'N/A'}</p>
+                          <p><strong>Tehnician:</strong> {Array.isArray(work.tehnicieni) ? work.tehnicieni.join(', ') : 'N/A'}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+            
+            {/* Loading indicator pentru verificarea echipamentelor */}
+            {checkingEquipment && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Verificăm echipamentul...</span>
+              </div>
             )}
           </div>
 

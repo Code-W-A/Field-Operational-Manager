@@ -227,17 +227,32 @@ export default function PortalWorkDetail() {
     }
   }
 
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return "N/A"
+  const formatDate = (dateStr: any) => {
+    if (!dateStr) return "-"
     try {
-      const date = new Date(dateStr)
-      return date.toLocaleDateString("ro-RO", { 
-        day: "2-digit", 
-        month: "2-digit", 
-        year: "numeric" 
-      })
+      // Gestionăm Firestore Timestamp
+      let d: Date
+      if (dateStr?.toDate && typeof dateStr.toDate === 'function') {
+        d = dateStr.toDate()
+      } else if (dateStr instanceof Date) {
+        d = dateStr
+      } else {
+        // Încercăm să convertim string-ul în dată
+        d = new Date(dateStr)
+      }
+      
+      // Verificăm dacă data este validă
+      if (isNaN(d.getTime())) {
+        return "-"
+      }
+      
+      // Formatăm în DD.MM.YYYY
+      const day = d.getDate().toString().padStart(2, '0')
+      const month = (d.getMonth() + 1).toString().padStart(2, '0')
+      const year = d.getFullYear()
+      return `${day}.${month}.${year}`
     } catch {
-      return "N/A"
+      return "-"
     }
   }
 
