@@ -9,10 +9,12 @@ import { WORK_STATUS } from "@/lib/utils/constants"
 import { useAuth } from "@/contexts/AuthContext"
 import { serverTimestamp } from "firebase/firestore"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { canArchiveLucrare } from "@/lib/utils/archive-validation"
 
 interface ArchiveButtonProps {
   lucrareId: string
   lucrareStatus: string
+  lucrareData?: any // Adăugăm datele complete ale lucrării pentru validare
   size?: "sm" | "default" | "lg"
   variant?: "default" | "outline" | "ghost"
   showLabel?: boolean
@@ -23,6 +25,7 @@ interface ArchiveButtonProps {
 export function ArchiveButton({
   lucrareId,
   lucrareStatus,
+  lucrareData,
   size = "sm",
   variant = "outline",
   showLabel = false,
@@ -37,9 +40,18 @@ export function ArchiveButton({
     return null
   }
 
+  // Verificăm regulile de arhivare
+  const archiveValidation = lucrareData ? canArchiveLucrare(lucrareData) : { canArchive: true }
+  const canArchive = archiveValidation.canArchive
+  const archiveReason = archiveValidation.reason || "Arhivează lucrarea finalizată"
+
   const handleArchive = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
+
+    if (!canArchive) {
+      return
+    }
 
     const confirmMessage = "Sigur doriți să arhivați această lucrare? Lucrarea va fi mutată în secțiunea Arhivate."
     
@@ -80,7 +92,7 @@ export function ArchiveButton({
       variant={variant}
       size={size}
       onClick={handleArchive}
-      disabled={isArchiving}
+      disabled={!canArchive || isArchiving}
       className={`text-gray-600 border-gray-200 hover:bg-gray-50 ${className}`}
     >
       <Archive className={`${showLabel ? "mr-2" : ""} h-4 w-4`} />
@@ -99,7 +111,7 @@ export function ArchiveButton({
           {ButtonComponent}
         </TooltipTrigger>
         <TooltipContent>
-          {isArchiving ? "Se arhivează..." : "Arhivează lucrarea finalizată"}
+          {isArchiving ? "Se arhivează..." : archiveReason}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

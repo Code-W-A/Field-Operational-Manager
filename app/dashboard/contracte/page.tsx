@@ -58,6 +58,7 @@ interface Contract {
   number: string
   type?: string // Adăugăm câmpul pentru tipul contractului
   clientId?: string // Adăugăm câmpul pentru clientul asignat
+  locatie?: string // Adăugăm câmpul pentru locația la care se aplică contractul
   createdAt: any
 }
 
@@ -80,6 +81,8 @@ export default function ContractsPage() {
   const [newContractNumber, setNewContractNumber] = useState("")
   const [newContractType, setNewContractType] = useState("Abonament") // Adăugăm starea pentru tipul contractului
   const [newContractClientId, setNewContractClientId] = useState("UNASSIGNED") // Adăugăm starea pentru clientul asignat
+  const [newContractLocatie, setNewContractLocatie] = useState("") // Adăugăm starea pentru locația contractului
+  const [clientLocations, setClientLocations] = useState<string[]>([]) // Locațiile clientului selectat
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -292,6 +295,30 @@ export default function ContractsPage() {
       },
     },
     {
+      accessorKey: "locatie",
+      header: "Locație",
+      enableHiding: true,
+      enableSorting: true,
+      enableFiltering: true,
+      cell: ({ row }) => {
+        const locatie = row.original.locatie
+        
+        if (!locatie) {
+          return (
+            <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200">
+              Nespecificată
+            </Badge>
+          )
+        }
+        
+        return (
+          <div className="text-sm">
+            {locatie}
+          </div>
+        )
+      },
+    },
+    {
       accessorKey: "createdAt",
       header: "Data Adăugării",
       enableHiding: true,
@@ -399,6 +426,34 @@ export default function ContractsPage() {
     fetchData()
   }, [])
 
+  // Încărcăm locațiile când se schimbă clientul selectat
+  useEffect(() => {
+    const loadClientLocations = async () => {
+      if (!newContractClientId || newContractClientId === "UNASSIGNED") {
+        setClientLocations([])
+        setNewContractLocatie("")
+        return
+      }
+
+      try {
+        const clientsList = await getClienti()
+        const selectedClient = clientsList.find(c => c.id === newContractClientId)
+        
+        if (selectedClient && selectedClient.locatii) {
+          const locationNames = selectedClient.locatii.map(loc => loc.nume)
+          setClientLocations(locationNames)
+        } else {
+          setClientLocations([])
+        }
+      } catch (error) {
+        console.error("Eroare la încărcarea locațiilor:", error)
+        setClientLocations([])
+      }
+    }
+
+    loadClientLocations()
+  }, [newContractClientId])
+
   // Funcție pentru adăugarea unui contract nou
   const handleAddContract = async () => {
     if (!newContractName || !newContractNumber || !newContractType) {
@@ -441,6 +496,11 @@ export default function ContractsPage() {
       // Adăugăm clientId doar dacă este selectat și nu este "UNASSIGNED"
       if (newContractClientId && newContractClientId !== "UNASSIGNED") {
         contractData.clientId = newContractClientId
+        
+        // Adăugăm locația dacă este selectată
+        if (newContractLocatie) {
+          contractData.locatie = newContractLocatie
+        }
       }
 
       const docRef = await addDoc(collection(db, "contracts"), contractData)
@@ -457,6 +517,8 @@ export default function ContractsPage() {
       setNewContractNumber("")
       setNewContractType("Abonament")
       setNewContractClientId("UNASSIGNED")
+      setNewContractLocatie("")
+      setClientLocations([])
       setIsAddDialogOpen(false)
 
       toast({
@@ -515,8 +577,16 @@ export default function ContractsPage() {
       // Gestionăm clientId - poate fi null pentru neasignat
       if (newContractClientId && newContractClientId !== "UNASSIGNED") {
         updateData.clientId = newContractClientId
+        
+        // Gestionăm locația
+        if (newContractLocatie) {
+          updateData.locatie = newContractLocatie
+        } else {
+          updateData.locatie = null
+        }
       } else {
         updateData.clientId = null
+        updateData.locatie = null
       }
 
       await updateDoc(contractRef, updateData)
@@ -541,6 +611,8 @@ export default function ContractsPage() {
       setNewContractNumber("")
       setNewContractType("Abonament")
       setNewContractClientId("UNASSIGNED")
+      setNewContractLocatie("")
+      setClientLocations([])
       setSelectedContract(null)
       setIsEditDialogOpen(false)
 
@@ -598,6 +670,7 @@ export default function ContractsPage() {
     setNewContractNumber(contract.number)
     setNewContractType(contract.type || "Abonament") // Setăm tipul contractului sau valoarea implicită
     setNewContractClientId(contract.clientId || "UNASSIGNED") // Setăm clientul asignat
+    setNewContractLocatie(contract.locatie || "") // Setăm locația contractului
     setIsEditDialogOpen(true)
   }
 
@@ -622,7 +695,7 @@ export default function ContractsPage() {
   // Function to check if we should show the close confirmation dialog
   const handleCloseDialog = (dialogType: "add" | "edit" | "delete") => {
     // For contracts, we'll check if the form fields have values
-    if (dialogType === "add" && (newContractName || newContractNumber || (newContractClientId && newContractClientId !== "UNASSIGNED"))) {
+    if (dialogType === "add" && (newContractName || newContractNumber || newContractLocatie || (newContractClientId && newContractClientId !== "UNASSIGNED"))) {
       setActiveDialog(dialogType)
       setShowCloseAlert(true)
     } else if (
@@ -630,6 +703,7 @@ export default function ContractsPage() {
       (newContractName !== selectedContract?.name ||
         newContractNumber !== selectedContract?.number ||
         newContractType !== selectedContract?.type ||
+        newContractLocatie !== (selectedContract?.locatie || "") ||
         newContractClientId !== (selectedContract?.clientId || "UNASSIGNED"))
     ) {
       setActiveDialog(dialogType)
@@ -651,6 +725,8 @@ export default function ContractsPage() {
     setNewContractNumber("")
     setNewContractType("Abonament")
     setNewContractClientId("UNASSIGNED")
+    setNewContractLocatie("")
+    setClientLocations([])
     setSelectedContract(null)
 
     // Close the active dialog
@@ -775,6 +851,24 @@ export default function ContractsPage() {
                 placeholder="Selectați clientul sau lăsați neasignat"
               />
             </div>
+            {clientLocations.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="contractLocatie">Locație (Obligatoriu pentru contracte cu client)</Label>
+                <Select value={newContractLocatie} onValueChange={setNewContractLocatie}>
+                  <SelectTrigger id="contractLocatie">
+                    <SelectValue placeholder="Selectați locația pentru acest contract" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clientLocations.map((locatie) => (
+                      <SelectItem key={locatie} value={locatie}>
+                        {locatie}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500">Contractul va fi valabil doar pentru această locație</p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => handleCloseDialog("add")}>
@@ -851,6 +945,24 @@ export default function ContractsPage() {
                 placeholder="Selectați clientul sau lăsați neasignat"
               />
             </div>
+            {clientLocations.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="editContractLocatie">Locație (Obligatoriu pentru contracte cu client)</Label>
+                <Select value={newContractLocatie} onValueChange={setNewContractLocatie}>
+                  <SelectTrigger id="editContractLocatie">
+                    <SelectValue placeholder="Selectați locația pentru acest contract" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clientLocations.map((locatie) => (
+                      <SelectItem key={locatie} value={locatie}>
+                        {locatie}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500">Contractul va fi valabil doar pentru această locație</p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => handleCloseDialog("edit")}>

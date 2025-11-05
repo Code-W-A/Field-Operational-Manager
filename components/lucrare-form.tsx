@@ -11,7 +11,7 @@ import { format } from "date-fns"
 import { ro } from "date-fns/locale"
 import { CalendarIcon, Loader2, Plus, Phone, Mail, Users, LightbulbIcon, AlertCircle } from "lucide-react"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
-import { orderBy, where, query, collection, onSnapshot, getDocs } from "firebase/firestore"
+import { orderBy, where, query, collection, onSnapshot, getDocs, getDoc, doc } from "firebase/firestore"
 import type { Client, PersoanaContact, Locatie, Echipament } from "@/lib/firebase/firestore"
 import { getClienti, getClientById } from "@/lib/firebase/firestore"
 import { db } from "@/lib/firebase/config"
@@ -1354,6 +1354,37 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           variant: "destructive",
         })
         return
+      }
+
+      // Verificăm dacă locația lucrării corespunde cu locația contractului (dacă este lucrare cu contract)
+      if (formData.contract && formData.tipLucrare === "Intervenție în contract") {
+        try {
+          const contractDoc = await getDoc(doc(db, "contracts", formData.contract))
+          if (contractDoc.exists()) {
+            const contractData = contractDoc.data()
+            const contractLocation = contractData.locatie
+            
+            // Dacă contractul are o locație specificată, verificăm că locația lucrării este aceeași
+            if (contractLocation && contractLocation !== formData.locatie) {
+              setError(`Contractul selectat este valid doar pentru locația "${contractLocation}". Lucrarea are setată locația "${formData.locatie}".`)
+              toast({
+                title: "Eroare - Locație incorectă",
+                description: `Contractul selectat este valid doar pentru locația "${contractLocation}". Nu puteți crea o lucrare cu acest contract pentru o altă locație.`,
+                variant: "destructive",
+              })
+              return
+            }
+          }
+        } catch (error) {
+          console.error("Eroare la verificarea contractului:", error)
+          setError("Nu s-a putut verifica contractul. Vă rugăm să încercați din nou.")
+          toast({
+            title: "Eroare",
+            description: "Nu s-a putut verifica contractul.",
+            variant: "destructive",
+          })
+          return
+        }
       }
 
       setIsSubmitting(true)

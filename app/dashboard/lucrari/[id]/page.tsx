@@ -57,6 +57,7 @@ import { ModificationBanner } from "@/components/modification-banner"
 import { useModificationDetails } from "@/hooks/use-modification-details"
 import { db } from "@/lib/firebase/config"
 import { collection, query, where, getDocs } from "firebase/firestore"
+import { canArchiveLucrare } from "@/lib/utils/archive-validation"
 
 // Funcție utilitar pentru a extrage CUI-ul indiferent de cum este salvat
 const extractCUI = (client: any) => {
@@ -815,19 +816,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
           {/* Buton pentru arhivare - doar pentru admin/dispecer și lucrări finalizate, cu condiții de activare */}
           {isAdminOrDispatcher && lucrare.statusLucrare === "Finalizat" && (() => {
-            const hasInvoiceDoc = Boolean((lucrare as any)?.facturaDocument)
-            const noInvoicingSelected = (lucrare.statusFacturare === "Nu se facturează")
-            const hasNoInvoiceReason = Boolean((lucrare as any)?.motivNefacturare && String((lucrare as any)?.motivNefacturare).trim().length > 0)
-            const isPickedUp = lucrare.preluatDispecer === true
-            // Allow archive only if picked up, and either invoice exists OR (no-invoice selected WITH reason)
-            const canArchive = isPickedUp && (hasInvoiceDoc || (noInvoicingSelected && hasNoInvoiceReason))
-            const archiveReason = !isPickedUp
-              ? "Necesită preluare de dispecer înainte de arhivare"
-              : (!hasInvoiceDoc && !noInvoicingSelected)
-                ? "Încărcați factura sau marcați 'Nu se facturează' pentru a arhiva"
-                : (noInvoicingSelected && !hasNoInvoiceReason)
-                  ? "Completați motivul pentru 'Nu se facturează' pentru a arhiva"
-                  : "Arhivează lucrarea finalizată"
+            const archiveValidation = canArchiveLucrare(lucrare)
+            const canArchive = archiveValidation.canArchive
+            const archiveReason = archiveValidation.reason || "Arhivează lucrarea finalizată"
 
             return (
             <TooltipProvider>
@@ -1783,13 +1774,14 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       <div className="flex flex-wrap gap-8">
                         {/* Necesită ofertă - switch dedesubt */}
                         <div className="space-y-2">
-                          <Label htmlFor="necesitaOfertaSwitch" className={`text-sm font-medium ${!lucrare.preluatDispecer ? 'text-gray-500' : 'text-blue-800'}`}>Necesită ofertă</Label>
+                          <Label htmlFor="necesitaOfertaSwitch" className={`text-sm font-medium ${!lucrare.preluatDispecer && role !== 'admin' ? 'text-gray-500' : 'text-blue-800'}`}>Necesită ofertă</Label>
                           <div>
                             <Switch
                               id="necesitaOfertaSwitch"
                               checked={Boolean(lucrare.necesitaOferta)}
                               onCheckedChange={async (checked) => {
-                                if (!lucrare.preluatDispecer) {
+                                // Adminul poate modifica indiferent de preluare
+                                if (!lucrare.preluatDispecer && role !== 'admin') {
                                   toast({ title: 'Acțiune indisponibilă', description: 'Lucrarea trebuie preluată de dispecer/admin pentru a modifica setările ofertei.', variant: 'destructive' })
                                   return
                                 }
@@ -1810,8 +1802,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                   setIsUpdating(false)
                                 }
                               }}
-                              disabled={isUpdating || !lucrare.preluatDispecer}
-                              className={!lucrare.preluatDispecer ? 'opacity-50' : ''}
+                              disabled={isUpdating || (!lucrare.preluatDispecer && role !== 'admin')}
+                              className={!lucrare.preluatDispecer && role !== 'admin' ? 'opacity-50' : ''}
                             />
                           </div>
                         </div>

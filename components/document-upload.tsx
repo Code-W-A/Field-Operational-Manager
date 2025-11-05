@@ -13,6 +13,7 @@ import { toast } from "@/components/ui/use-toast"
 import { Upload, FileText, Download, Trash2, AlertCircle, Check, Eye } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { ReportGenerator } from "@/components/report-generator"
+import { NoInvoiceReasonDialog } from "@/components/no-invoice-reason-dialog"
 
 interface DocumentUploadProps {
   lucrareId: string
@@ -27,6 +28,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
     factura: false,
     oferta: false,
   })
+  const [isNoInvoiceReasonDialogOpen, setIsNoInvoiceReasonDialogOpen] = useState(false)
   const [isMotivDialogOpen, setIsMotivDialogOpen] = useState(false)
   const [motivTemp, setMotivTemp] = useState(lucrare?.motivNefacturare || "")
   
@@ -442,15 +444,9 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
                   <Button
                     variant="outline"
                     disabled={!isWorkPickedUp || isArchived || isLocked}
-                    onClick={async () => {
-                      try {
-                        await updateLucrare(lucrareId, { statusFacturare: "Nu se facturează" } as any)
-                        onLucrareUpdate({ ...lucrare, statusFacturare: "Nu se facturează" })
-                        setMotivTemp(lucrare?.motivNefacturare || "")
-                        setIsMotivDialogOpen(true)
-                      } catch (e) {
-                        toast({ title: "Eroare", description: "Nu s-a putut seta 'Nu se facturează'", variant: "destructive" })
-                      }
+                    onClick={() => {
+                      // Deschidem dialogul pentru selectarea motivului ÎNAINTE de a schimba statusul
+                      setIsNoInvoiceReasonDialogOpen(true)
                     }}
                     size="sm"
                     className="w-full sm:w-auto bg-gray-100 text-gray-800 hover:bg-gray-200 border border-gray-300"
@@ -628,6 +624,49 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Dialog pentru selectarea motivului de nefacturare (cu opțiuni predefinite) */}
+        <NoInvoiceReasonDialog
+          isOpen={isNoInvoiceReasonDialogOpen}
+          onClose={() => setIsNoInvoiceReasonDialogOpen(false)}
+          onConfirm={async (reason) => {
+            try {
+              // Setăm statusul și motivul împreună
+              await updateLucrare(lucrareId, {
+                statusFacturare: "Nu se facturează",
+                motivNefacturare: reason
+              } as any)
+              
+              onLucrareUpdate({
+                ...lucrare,
+                statusFacturare: "Nu se facturează",
+                motivNefacturare: reason
+              })
+              
+              toast({
+                title: "Succes",
+                description: "Statusul de facturare a fost actualizat cu motivul selectat."
+              })
+              
+              setIsNoInvoiceReasonDialogOpen(false)
+            } catch (e) {
+              console.error("Eroare la setarea 'Nu se facturează':", e)
+              toast({
+                title: "Eroare",
+                description: "Nu s-a putut actualiza statusul de facturare.",
+                variant: "destructive"
+              })
+            }
+          }}
+          onCancel={() => {
+            // Dacă anulează, nu facem nimic și închidem dialogul
+            setIsNoInvoiceReasonDialogOpen(false)
+            toast({
+              title: "Anulat",
+              description: "Nu s-au făcut modificări."
+            })
+          }}
+        />
       </CardContent>
     </Card>
   )

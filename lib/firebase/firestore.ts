@@ -298,6 +298,7 @@ export interface Contract {
   valoare: number
   moneda: string
   clientId?: string
+  locatie?: string  // Numele locației la care se aplică contractul
 }
 
 export interface Locatie {

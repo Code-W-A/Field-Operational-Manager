@@ -24,7 +24,7 @@ const normalize = (text = "") =>
   )
 
 // A4 portrait: 210×297 mm
-const M = 10 // page margin (reduced from 15mm to 10mm for more content space)
+const M = 7 // page margin (reduced for more content space)
 const W = 210 - 2 * M // content width
 const BOX_RADIUS = 2 // 2 mm rounded corners
 const STROKE = 0.3 // line width (pt)
@@ -334,7 +334,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         doc.line(M, footerSepY, M + W, footerSepY)
         
         let footerY = footerSepY + 5
-        doc.setFontSize(8)
+        doc.setFontSize(7)
+        doc.setFont("helvetica", "normal")
         doc.setTextColor(41, 72, 143) // albastru vibrant ca la ofertă
         
         const footerColW = W / 3 - 4
@@ -397,7 +398,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const rawReportNum = lucrareForPDF.numarRaport ? String(lucrareForPDF.numarRaport) : ""
       const sanitizedReportNum = rawReportNum.replace(/^#\s*/, "")
       const reportNumber = sanitizedReportNum ? sanitizedReportNum.padStart(6, '0') : "000000"
-      doc.setFontSize(12)
+      doc.setFontSize(13)
         .setFont("helvetica", "bold")
         .setTextColor(255, 255, 255)
         .text("Raport de interventie nr. #" + reportNumber, M + 4, currentY + (titleBarHeight / 2) + 1)
@@ -409,7 +410,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           const logoH = 18 // proporții corecte ca la ofertă
           doc.addImage(logoDataUrl, "PNG", M + W - logoW - 4, currentY + (titleBarHeight - logoH) / 2, logoW, logoH)
         } catch {
-          doc.setFontSize(10)
+          doc.setFontSize(11)
             .setFont("helvetica", "bold")
             .setTextColor(255, 255, 255)
             .text("NRG", M + W - 5, currentY + titleBarHeight / 2 + 1, { align: "right" })
@@ -427,12 +428,12 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const lineH = 5
       
       // Prestator (stânga)
-      doc.setFontSize(9)
+      doc.setFontSize(10)
         .setFont("helvetica", "bold")
         .setTextColor(0, 0, 0)
         .text("Prestator", leftColX, currentY)
       
-      doc.setFontSize(9)
+      doc.setFontSize(10)
         .setFont("helvetica", "normal")
       
       const prestatorLines = [
@@ -463,20 +464,20 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       })
       
       const maxLines = Math.max(prestatorLines.length, beneficiarLines.length)
-      currentY += 6 + (maxLines * lineH) + 3 // Redus de la 6 la 3
+      currentY += 6 + (maxLines * lineH) + 8 // Adăugat spațiu suplimentar între Prestator/Beneficiar și secțiunea următoare
 
       // SECȚIUNE CRONOLOGIE – fundal deschis și titlu albastru (#4A76B8 / #DCE6F4)
-      const chronoBarHeight = 7
+      const chronoBarHeight = 5
       doc.setFillColor(sectionBarBg[0], sectionBarBg[1], sectionBarBg[2])
       doc.rect(M, currentY, W, chronoBarHeight, "F")
       // Linie de delimitare neagră, bine definită, la baza barei
       doc.setDrawColor(0, 0, 0).setLineWidth(0.4)
       doc.line(M, currentY + chronoBarHeight, M + W, currentY + chronoBarHeight)
 
-      doc.setFontSize(9)
+      doc.setFontSize(10)
         .setFont("helvetica", "bold")
         .setTextColor(sectionTitleColor[0], sectionTitleColor[1], sectionTitleColor[2])
-        .text("Cronologie", M + 2, currentY + 5)
+        .text("Cronologie", M + 2, currentY + 4)
       
       currentY += chronoBarHeight + 2
 
@@ -566,8 +567,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const chronoTableH = 12
       const chronoColW = W / 4
       
-      // Header labels (fără fundal) – font la fel ca etichetele de text (8)
-      doc.setFontSize(8)
+      // Header labels (fără fundal) – font la fel ca etichetele de text (9)
+      doc.setFontSize(9)
         .setFont("helvetica", "bold")
         .setTextColor(50, 50, 50)
       
@@ -577,29 +578,29 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       doc.text("Durata:", M + chronoColW * 3 + 2, currentY + 4)
       
       // Valori
-      doc.setFontSize(8)
+      doc.setFontSize(9)
         .setFont("helvetica", "normal")
         .setTextColor(30, 30, 30)
       
       doc.text(normalize(emitereData || "-"), M + chronoColW * 0 + 2, currentY + 9)
-      doc.text(sosireData && sosireOra ? `${normalize(sosireData)}, ${sosireOra}` : "", M + chronoColW * 1 + 2, currentY + 9)
-      doc.text(plecareData && plecareOra ? `${normalize(plecareData)}, ${plecareOra}` : "", M + chronoColW * 2 + 2, currentY + 9)
+      doc.text(sosireOra || "", M + chronoColW * 1 + 2, currentY + 9)
+      doc.text(plecareOra || "", M + chronoColW * 2 + 2, currentY + 9)
       doc.text(durataText, M + chronoColW * 3 + 2, currentY + 9)
       
       currentY += chronoTableH + 3 // Redus de la 5 la 3
 
       // SECȚIUNE DETALII LOCAȚIE ȘI ECHIPAMENT – stil nou
-      const detailsBarHeight = 7
+      const detailsBarHeight = 5
       doc.setFillColor(sectionBarBg[0], sectionBarBg[1], sectionBarBg[2])
       doc.rect(M, currentY, W, detailsBarHeight, "F")
       // Linie de delimitare neagră la baza secțiunii
       doc.setDrawColor(0, 0, 0).setLineWidth(0.4)
       doc.line(M, currentY + detailsBarHeight, M + W, currentY + detailsBarHeight)
 
-      doc.setFontSize(9)
+      doc.setFontSize(10)
         .setFont("helvetica", "bold")
         .setTextColor(sectionTitleColor[0], sectionTitleColor[1], sectionTitleColor[2])
-        .text("Detalii locatie si echipament", M + 2, currentY + 5)
+        .text("Detalii locatie si echipament", M + 2, currentY + 4)
       
       currentY += detailsBarHeight + 2
       
@@ -607,8 +608,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const detailsColW = W / 2
       const detailsTableH = 12
       
-      // Labels (fără fundal) – font 8 (identic cu "Defect reclamat" etc.)
-      doc.setFontSize(8)
+      // Labels (fără fundal) – font 9 (identic cu "Defect reclamat" etc.)
+      doc.setFontSize(9)
         .setFont("helvetica", "bold")
         .setTextColor(50, 50, 50)
       
@@ -616,7 +617,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       doc.text("Echipament:", M + detailsColW + 2, currentY + 4)
       
       // Valori
-      doc.setFontSize(8)
+      doc.setFontSize(9)
         .setFont("helvetica", "normal")
         .setTextColor(30, 30, 30)
       
@@ -627,17 +628,17 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       currentY += detailsTableH + 3 // Redus de la 5 la 3
 
       // SECȚIUNE DETALII DESPRE INTERVENȚIE – stil nou
-      const interventionBarHeight = 7
+      const interventionBarHeight = 5
       doc.setFillColor(sectionBarBg[0], sectionBarBg[1], sectionBarBg[2])
       doc.rect(M, currentY, W, interventionBarHeight, "F")
       // Linie de delimitare neagră la baza secțiunii
       doc.setDrawColor(0, 0, 0).setLineWidth(0.4)
       doc.line(M, currentY + interventionBarHeight, M + W, currentY + interventionBarHeight)
 
-      doc.setFontSize(9)
+      doc.setFontSize(10)
         .setFont("helvetica", "bold")
         .setTextColor(sectionTitleColor[0], sectionTitleColor[1], sectionTitleColor[2])
-        .text("Detalii despre interventie", M + 2, currentY + 5)
+        .text("Detalii despre interventie", M + 2, currentY + 4)
       
       currentY += interventionBarHeight + 2
 
@@ -645,7 +646,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const addTextSection = (label: string, text?: string) => {
         if (!text?.trim()) return
         
-        doc.setFontSize(8).setFont("helvetica", "bold").setTextColor(50, 50, 50)
+        doc.setFontSize(9).setFont("helvetica", "bold").setTextColor(50, 50, 50)
         doc.text(`${label}:`, M + 2, currentY + 4)
         
         const textLines = doc.splitTextToSize(normalize(text), W - 6)
@@ -654,7 +655,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 
         checkPageBreak(boxHeight + 5)
 
-        doc.setFont("helvetica", "normal").setFontSize(8).setTextColor(30, 30, 30)
+        doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(30, 30, 30)
         textLines.forEach((l: string, li: number) => doc.text(l, M + 2, currentY + 4 + (li + 1) * lineHeight))
         
         currentY += boxHeight + 2 // Redus de la 3 la 2
@@ -664,7 +665,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       addTextSection("Constatare la locatie", lucrareForPDF.constatareLaLocatie)
       addTextSection("Descriere interventie", lucrareForPDF.descriereInterventie)
       
-      currentY += 4 // Redus de la 8 la 4
+      currentY += 6 // Padding inferior pentru secțiunea "Detalii despre interventie"
 
       // Use the products from the snapshot if available, otherwise fallback to current products
       const productsToUse = (lucrareForPDF.raportSnapshot?.products && lucrareForPDF.raportSnapshot.products.length > 0)
@@ -694,7 +695,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         doc.setDrawColor(0, 0, 0).setLineWidth(0.4)
         doc.line(M, currentY + productsBarHeight, M + W, currentY + productsBarHeight)
 
-        doc.setFontSize(9)
+        doc.setFontSize(10)
           .setFont("helvetica", "bold")
           .setTextColor(sectionTitleColor[0], sectionTitleColor[1], sectionTitleColor[2])
           .text("Servicii si piese", M + 2, currentY + 5)
@@ -714,7 +715,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         const drawTableHeader = () => {
           // Header coloane – text negru, fără fundal, aliniere ca în imagine
           doc.setTextColor(0, 0, 0)
-          doc.setFont("helvetica", "bold").setFontSize(10)
+          doc.setFont("helvetica", "bold").setFontSize(11)
           
           headers.forEach((h, i) => {
             if (i === 0) {
@@ -740,7 +741,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           
           checkPageBreak(rowHeight)
 
-          doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(0, 0, 0)
+          doc.setFont("helvetica", "normal").setFontSize(10).setTextColor(0, 0, 0)
           
           // Denumire
           nameLines.forEach((l: string, li: number) => doc.text(l, colPos[0] + 2, currentY + 5 + li * 4.5))
@@ -785,13 +786,13 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         const labelColonX = M + W - 45 // position for colons
         
         // Subtotal
-        doc.setTextColor(0, 0, 0).setFont("helvetica", "normal").setFontSize(9)
+        doc.setTextColor(0, 0, 0).setFont("helvetica", "normal").setFontSize(10)
         doc.text("Subtotal:", labelColonX, currentY, { align: "right" })
         doc.text(`${subtotal.toLocaleString("ro-RO")}`, valueX, currentY, { align: "right" })
         currentY += rowHeight
         
         // Total lei fara TVA (bold) - fără ajustare
-        doc.setFont("helvetica", "bold").setFontSize(10)
+        doc.setFont("helvetica", "bold").setFontSize(11)
         doc.text("Total LEI fara TVA:", labelColonX, currentY, { align: "right" })
         doc.text(`${total.toLocaleString("ro-RO")}`, valueX, currentY, { align: "right" })
         currentY += rowHeight + verticalPad + 3
@@ -815,7 +816,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         doc.setDrawColor(0, 0, 0).setLineWidth(0.4)
         doc.line(M, currentY + attachBarH, M + W, currentY + attachBarH)
         doc.setTextColor(sectionTitleColor[0], sectionTitleColor[1], sectionTitleColor[2])
-        doc.setFont("helvetica", "bold").setFontSize(9)
+        doc.setFont("helvetica", "bold").setFontSize(10)
         doc.text(normalize("Atasamente"), M + 2, currentY + 5)
         currentY += attachBarH + 2
         
@@ -885,7 +886,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // Secțiunea tehnician (partea stângă)
       const techSectionWidth = W * 0.45 // 45% din lățime
       
-      doc.setFontSize(8).setFont("helvetica", "normal").setTextColor(0, 0, 0)
+      doc.setFontSize(9).setFont("helvetica", "normal").setTextColor(0, 0, 0)
       const techLabelText = "Nume si semnatura tehnician"
       doc.text(techLabelText, M + 2, currentY + 4)
       
@@ -919,7 +920,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const benefSectionWidth = W * 0.45 // lățimea secțiunii drepte
 
       const rightEdge = M + W - 2 // marginea dreaptă de referință (cu mic padding)
-      doc.setFontSize(8).setFont("helvetica", "normal").setTextColor(0, 0, 0)
+      doc.setFontSize(9).setFont("helvetica", "normal").setTextColor(0, 0, 0)
       const benefLabelText = "Nume si semnatura beneficiar"
       // text aliniat la dreapta
       doc.text(benefLabelText, rightEdge, currentY + 4, { align: "right" } as any)

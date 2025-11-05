@@ -35,6 +35,32 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await pdfFile.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
+    // Build absolute base URL for links (env then headers)
+    const envBase = process.env.NEXT_PUBLIC_APP_URL
+    const proto = request.headers.get("x-forwarded-proto") || "https"
+    const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || ""
+    const headerBase = host ? `${proto}://${host}` : ""
+    const rawBase = envBase || headerBase
+    const base = rawBase && !rawBase.startsWith("http://") && !rawBase.startsWith("https://")
+      ? `https://${rawBase}`
+      : rawBase
+
+    // Extract lucrareId for feedback links (optional)
+    const lucrareId = (formData.get("lucrareId") as string) || ""
+    const reviewBaseUrl = lucrareId ? `${base}/review/${encodeURIComponent(lucrareId)}` : ""
+    const starsRow = lucrareId
+      ? `<p style="margin:16px 0;font-size:14px;line-height:1.6;">
+          <strong>Acorda recenzie pentru tehnician:</strong>
+          <span style="margin-left:6px; font-size:18px;">
+            <a href="${reviewBaseUrl}?r=1" style="text-decoration:none">★</a>
+            <a href="${reviewBaseUrl}?r=2" style="text-decoration:none">★</a>
+            <a href="${reviewBaseUrl}?r=3" style="text-decoration:none">★</a>
+            <a href="${reviewBaseUrl}?r=4" style="text-decoration:none">★</a>
+            <a href="${reviewBaseUrl}?r=5" style="text-decoration:none">★</a>
+          </span>
+        </p>`
+      : ""
+
     // Get the logo path
     const logoPath = path.join(process.cwd(), "public", "nrglogo.png")
 
@@ -47,6 +73,7 @@ export async function POST(request: NextRequest) {
         <h2 style="color: #0f56b3;">Raport de Interventie</h2>
         <p>${message || "Va transmitem atasat raportul de interventie."}</p>
         <p>Raportul este atasat in format PDF.</p>
+        ${starsRow}
         <hr style="border: 1px solid #eee; margin: 20px 0;" />
         <p style="color: #666; font-size: 12px;">Acest email a fost generat automat. Va rugam sa nu raspundeti la acest email.</p>
       </div>
