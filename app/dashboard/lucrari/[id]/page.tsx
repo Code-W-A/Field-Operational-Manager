@@ -1774,14 +1774,14 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       <div className="flex flex-wrap gap-8">
                         {/* Necesită ofertă - switch dedesubt */}
                         <div className="space-y-2">
-                          <Label htmlFor="necesitaOfertaSwitch" className={`text-sm font-medium ${!lucrare.preluatDispecer && role !== 'admin' ? 'text-gray-500' : 'text-blue-800'}`}>Necesită ofertă</Label>
+                          <Label htmlFor="necesitaOfertaSwitch" className={`text-sm font-medium ${!lucrare.preluatDispecer && !isAdminOrDispatcher ? 'text-gray-500' : 'text-blue-800'}`}>Necesită ofertă</Label>
                           <div>
                             <Switch
                               id="necesitaOfertaSwitch"
                               checked={Boolean(lucrare.necesitaOferta)}
                               onCheckedChange={async (checked) => {
-                                // Adminul poate modifica indiferent de preluare
-                                if (!lucrare.preluatDispecer && role !== 'admin') {
+                                // Admin și dispecer pot modifica indiferent de preluare
+                                if (!lucrare.preluatDispecer && !isAdminOrDispatcher) {
                                   toast({ title: 'Acțiune indisponibilă', description: 'Lucrarea trebuie preluată de dispecer/admin pentru a modifica setările ofertei.', variant: 'destructive' })
                                   return
                                 }
@@ -1802,8 +1802,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                   setIsUpdating(false)
                                 }
                               }}
-                              disabled={isUpdating || (!lucrare.preluatDispecer && role !== 'admin')}
-                              className={!lucrare.preluatDispecer && role !== 'admin' ? 'opacity-50' : ''}
+                              disabled={isUpdating || (!lucrare.preluatDispecer && !isAdminOrDispatcher)}
+                              className={!lucrare.preluatDispecer && !isAdminOrDispatcher ? 'opacity-50' : ''}
                             />
                           </div>
                         </div>

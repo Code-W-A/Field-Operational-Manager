@@ -49,16 +49,18 @@ export async function POST(request: NextRequest) {
     const lucrareId = (formData.get("lucrareId") as string) || ""
     const reviewBaseUrl = lucrareId ? `${base}/review/${encodeURIComponent(lucrareId)}` : ""
     const starsRow = lucrareId
-      ? `<p style="margin:16px 0;font-size:14px;line-height:1.6;">
-          <strong>Acorda recenzie pentru tehnician:</strong>
-          <span style="margin-left:6px; font-size:18px;">
-            <a href="${reviewBaseUrl}?r=1" style="text-decoration:none">★</a>
-            <a href="${reviewBaseUrl}?r=2" style="text-decoration:none">★</a>
-            <a href="${reviewBaseUrl}?r=3" style="text-decoration:none">★</a>
-            <a href="${reviewBaseUrl}?r=4" style="text-decoration:none">★</a>
-            <a href="${reviewBaseUrl}?r=5" style="text-decoration:none">★</a>
-          </span>
-        </p>`
+      ? `<div style="margin:16px 0;">
+          <p style="margin:0 0 8px 0;font-size:14px;line-height:1.6;">
+            <strong>Acordă recenzie pentru tehnician:</strong>
+          </p>
+          <div style="white-space:nowrap;">
+            <a href="${reviewBaseUrl}?r=1" style="text-decoration:none;color:#FFA500;font-size:32px;margin-right:4px;display:inline-block;">☆</a>
+            <a href="${reviewBaseUrl}?r=2" style="text-decoration:none;color:#FFA500;font-size:32px;margin-right:4px;display:inline-block;">☆</a>
+            <a href="${reviewBaseUrl}?r=3" style="text-decoration:none;color:#FFA500;font-size:32px;margin-right:4px;display:inline-block;">☆</a>
+            <a href="${reviewBaseUrl}?r=4" style="text-decoration:none;color:#FFA500;font-size:32px;margin-right:4px;display:inline-block;">☆</a>
+            <a href="${reviewBaseUrl}?r=5" style="text-decoration:none;color:#FFA500;font-size:32px;display:inline-block;">☆</a>
+          </div>
+        </div>`
       : ""
 
     // Get the logo path

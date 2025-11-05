@@ -2329,7 +2329,10 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
               </Button>
             )} */}
             {onSubmit && (
-              <Button onClick={handleSubmit} disabled={isSubmitting}>
+              <Button 
+                onClick={handleSubmit} 
+                disabled={isSubmitting || (!isEdit && existingWorkOnEquipment.length > 0)}
+              >
                 {isSubmitting ? (
                   <>
                     <span className="mr-2">⏳</span>
