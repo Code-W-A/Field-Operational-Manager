@@ -72,7 +72,7 @@ export default function Dashboard() {
 
   return (
     <DashboardShell>
-      <DashboardHeader heading="Status Lucrări" text="Vizualizare rapidă a stării lucrărilor active" />
+      <DashboardHeader heading="Tablu de bord" text="" />
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 gap-3">
         <StatusBox title="Întârziate" count={buckets.intarziate.length}>
@@ -108,7 +108,7 @@ export default function Dashboard() {
       </div>
 
       <div className="mt-8">
-        <h3 className="text-lg font-semibold mb-3">Status încărcare personal</h3>
+        {/* <h3 className="text-lg font-semibold mb-3">Status încărcare personal</h3> */}
         <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${Math.max(1, (personal.technicians?.length || 0) + 1)}, minmax(220px, 1fr))` }}>
           <StatusBox title="Dispecer" count={personal.dispatcher.items.length}> 
             {personal.dispatcher.items.map(bubble("bg-blue-600"))}
