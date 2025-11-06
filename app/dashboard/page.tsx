@@ -38,9 +38,9 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent className="overflow-hidden">
                 <div className="space-y-2">
-                  <Skeleton className="h-12 w-36 rounded-full" />
-                  <Skeleton className="h-12 w-36 rounded-full" />
-                  <Skeleton className="h-12 w-36 rounded-full" />
+                  <Skeleton className="h-12 w-36 rounded-lg" />
+                  <Skeleton className="h-12 w-36 rounded-lg" />
+                  <Skeleton className="h-12 w-36 rounded-lg" />
                 </div>
               </CardContent>
             </Card>
@@ -58,8 +58,8 @@ export default function Dashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    <Skeleton className="h-12 w-36 rounded-full" />
-                    <Skeleton className="h-12 w-36 rounded-full" />
+                    <Skeleton className="h-12 w-36 rounded-lg" />
+                    <Skeleton className="h-12 w-36 rounded-lg" />
                   </div>
                 </CardContent>
               </Card>
@@ -75,34 +75,34 @@ export default function Dashboard() {
       <DashboardHeader heading="Status Lucrări" text="Vizualizare rapidă a stării lucrărilor active" />
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 gap-3">
-        <StatusBox title="Întârziate" footer={`Total lucrari: ${buckets.intarziate.length}`}>
+        <StatusBox title="Întârziate" count={buckets.intarziate.length}>
           {buckets.intarziate.map(bubble("bg-red-600"))}
         </StatusBox>
-        <StatusBox title="Amânate" footer={`Total lucrari: ${buckets.amanate.length}`}>
+        <StatusBox title="Amânate" count={buckets.amanate.length}>
           {buckets.amanate.map(bubble("bg-violet-600"))}
         </StatusBox>
-        <StatusBox title="Listate" footer={`Total lucrari: ${buckets.listate.length}`}>
+        <StatusBox title="Listate" count={buckets.listate.length}>
           {buckets.listate.map(bubble("bg-gray-600"))}
         </StatusBox>
-        <StatusBox title="Nepreluate" footer={`Total lucrari: ${buckets.nepreluate.length}`}>
+        <StatusBox title="Nepreluate" count={buckets.nepreluate.length}>
           {buckets.nepreluate.map(bubble("bg-orange-600"))}
         </StatusBox>
-        <StatusBox title="Nefacturate" footer={`Total lucrari: ${buckets.nefacturate.length}`}>
+        <StatusBox title="Nefacturate" count={buckets.nefacturate.length}>
           {buckets.nefacturate.map(bubble("bg-rose-600"))}
         </StatusBox>
-        <StatusBox title="Necesită ofertă" footer={`Total lucrari: ${buckets.necesitaOferta.length}`}>
+        <StatusBox title="Necesită ofertă" count={buckets.necesitaOferta.length}>
           {buckets.necesitaOferta.map(bubble("bg-sky-600"))}
         </StatusBox>
-        <StatusBox title="Ofertate (în așteptare)" footer={`Total lucrari: ${buckets.ofertate.length}`}>
+        <StatusBox title="Ofertate (în așteptare)" count={buckets.ofertate.length}>
           {buckets.ofertate.map(bubble("bg-indigo-600"))}
         </StatusBox>
-        <StatusBox title="Status oferte (acceptate)" footer={`Total lucrari: ${buckets.statusOferteAcceptate.length}`}>
+        <StatusBox title="Status oferte (acceptate)" count={buckets.statusOferteAcceptate.length}>
           {buckets.statusOferteAcceptate.map(bubble("bg-green-600"))}
         </StatusBox>
-        <StatusBox title="Status oferte (refuzate)" footer={`Total lucrari: ${buckets.statusOferteRefuzate.length}`}>
+        <StatusBox title="Status oferte (refuzate)" count={buckets.statusOferteRefuzate.length}>
           {buckets.statusOferteRefuzate.map(bubble("bg-red-700"))}
         </StatusBox>
-        <StatusBox title="Stare echipament" footer={`Total lucrari: ${buckets.equipmentStatus.length}`}>
+        <StatusBox title="Stare echipament" count={buckets.equipmentStatus.length}>
           {buckets.equipmentStatus.map(bubble("bg-amber-600"))}
         </StatusBox>
       </div>
@@ -110,11 +110,11 @@ export default function Dashboard() {
       <div className="mt-8">
         <h3 className="text-lg font-semibold mb-3">Status încărcare personal</h3>
         <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${Math.max(1, (personal.technicians?.length || 0) + 1)}, minmax(220px, 1fr))` }}>
-          <StatusBox title="Dispecer" footer={`Total lucrari: ${personal.dispatcher.items.length}`}> 
+          <StatusBox title="Dispecer" count={personal.dispatcher.items.length}> 
             {personal.dispatcher.items.map(bubble("bg-blue-600"))}
           </StatusBox>
           {personal.technicians.map((col) => (
-            <StatusBox key={col.name} title={col.name} footer={`Total lucrari: ${col.items.length}`}>
+            <StatusBox key={col.name} title={col.name} count={col.items.length}>
               {col.items.map(bubble("bg-gray-700"))}
             </StatusBox>
           ))}

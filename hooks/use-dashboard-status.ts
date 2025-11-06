@@ -70,7 +70,7 @@ function eqInsensitive(a?: string, ...candidates: string[]): boolean {
   return candidates.some((y) => x === String(y || "").toLowerCase())
 }
 
-function buildBubble(l: any): DashboardBubbleItem {
+function buildBubble(l: any): DashboardBubbleItem & { createdAt?: Date } {
   const equipmentLabel = l.echipament || l.echipamentModel || l.echipamentCod || "-"
   return {
     id: String(l.id),
@@ -78,7 +78,16 @@ function buildBubble(l: any): DashboardBubbleItem {
     equipmentLabel: String(equipmentLabel),
     client: l.client,
     nrLucrare: l.nrLucrare || l.numarRaport,
+    createdAt: toDate(l.createdAt) || undefined,
   }
+}
+
+function sortByOldest(items: DashboardBubbleItem[]): DashboardBubbleItem[] {
+  return items.sort((a, b) => {
+    const dateA = (a as any).createdAt || new Date(0)
+    const dateB = (b as any).createdAt || new Date(0)
+    return dateA.getTime() - dateB.getTime()
+  })
 }
 
 export function useDashboardStatus() {
@@ -194,6 +203,18 @@ export function useDashboardStatus() {
       if (["nefunctional", "nefunctionale", "partial", "partial functionale"].includes(se)) res.equipmentStatus.push(bubble)
     }
 
+    // Sortăm toate bucket-urile după cel mai vechi (crescător după createdAt)
+    res.intarziate = sortByOldest(res.intarziate)
+    res.amanate = sortByOldest(res.amanate)
+    res.listate = sortByOldest(res.listate)
+    res.nepreluate = sortByOldest(res.nepreluate)
+    res.nefacturate = sortByOldest(res.nefacturate)
+    res.necesitaOferta = sortByOldest(res.necesitaOferta)
+    res.ofertate = sortByOldest(res.ofertate)
+    res.statusOferteAcceptate = sortByOldest(res.statusOferteAcceptate)
+    res.statusOferteRefuzate = sortByOldest(res.statusOferteRefuzate)
+    res.equipmentStatus = sortByOldest(res.equipmentStatus)
+
     return res
   }, [activeLucrari, modificariAtribuire, startOfToday])
 
@@ -201,14 +222,18 @@ export function useDashboardStatus() {
     const dispatcherName = userData?.displayName || userData?.email || ""
     const active = activeLucrari || []
 
-    const dispatcherItems = active
-      .filter((l: any) => l.preluatDe === dispatcherName)
-      .map(buildBubble)
+    const dispatcherItems = sortByOldest(
+      active
+        .filter((l: any) => l.preluatDe === dispatcherName)
+        .map(buildBubble)
+    )
 
     const techUsers = (users || []).filter((u: any) => u.role === "tehnician")
     const technicians = techUsers.map((u: any) => {
       const name = u.displayName || u.email || "Tehnician"
-      const items = active.filter((l) => Array.isArray(l.tehnicieni) && l.tehnicieni.includes(name)).map(buildBubble)
+      const items = sortByOldest(
+        active.filter((l) => Array.isArray(l.tehnicieni) && l.tehnicieni.includes(name)).map(buildBubble)
+      )
       return { name, items }
     }).filter((c: any) => c.items.length > 0)
 

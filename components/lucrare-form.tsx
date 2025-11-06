@@ -1931,7 +1931,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 <AlertDescription>
                   <div className="space-y-2">
                     <p className="font-semibold">
-                      ⚠️ ATENȚIE: Există {existingWorkOnEquipment.length} lucrare{existingWorkOnEquipment.length > 1 ? 'i' : ''} activă pe acest echipament!
+                      ⚠️ ATENȚIE: Există {existingWorkOnEquipment.length} {existingWorkOnEquipment.length === 1 ? 'lucrare activă' : 'lucrări active'} pe acest echipament!
                     </p>
                     <p className="text-sm">
                       Nu puteți crea o lucrare nouă pe acest echipament până când lucrările active nu sunt finalizate.

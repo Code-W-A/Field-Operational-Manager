@@ -46,7 +46,7 @@ import { useStableCallback } from "@/lib/utils/hooks"
 import { ContractDisplay } from "@/components/contract-display"
 import { QRCodeScanner } from "@/components/qr-code-scanner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { formatDate, formatTime, calculateDuration } from "@/lib/utils/time-format"
+import { formatDate, formatTime } from "@/lib/utils/time-format"
 import { EquipmentQRCode } from "@/components/equipment-qr-code"
 // Adăugăm importurile pentru calculul garanției
 import { getWarrantyDisplayInfo } from "@/lib/utils/warranty-calculator"
@@ -62,6 +62,71 @@ import { canArchiveLucrare } from "@/lib/utils/archive-validation"
 // Funcție utilitar pentru a extrage CUI-ul indiferent de cum este salvat
 const extractCUI = (client: any) => {
   return client?.cif || "N/A"
+}
+
+// Funcție pentru calcularea corectă a duratei intervenției
+const calculateInterventionDuration = (lucrare: any): string => {
+  // Încercăm să găsim durata din câmpul salvat
+  const savedDuration = lucrare?.durataInterventie;
+  
+  if (savedDuration) {
+    return savedDuration;
+  }
+  
+  // Dacă nu avem durata salvată, încercăm să o calculăm din timpii existenți
+  const timpSosire = lucrare?.timpSosire;
+  const timpPlecare = lucrare?.timpPlecare;
+  
+  if (timpSosire && timpPlecare) {
+    try {
+      // Calculăm durata în timp real
+      const startTime = new Date(timpSosire);
+      const endTime = new Date(timpPlecare);
+      
+      // VERIFICARE PENTRU TIMPI CORUPȚI
+      const currentYear = new Date().getFullYear();
+      const isStartInFuture = startTime.getFullYear() > currentYear;
+      const isEndInFuture = endTime.getFullYear() > currentYear;
+      
+      if (isStartInFuture || isEndInFuture) {
+        console.error("🚨 TIMPI CORUPȚI DETECTAȚI:", {
+          timpSosire: startTime.toLocaleString('ro-RO'),
+          timpPlecare: endTime.toLocaleString('ro-RO'),
+          isStartInFuture,
+          isEndInFuture
+        });
+        return "EROARE - Timpi corupți";
+      }
+      
+      const diffMs = endTime.getTime() - startTime.getTime();
+      
+      if (diffMs > 0) {
+        const diffHours = diffMs / (1000 * 60 * 60);
+        
+        // Logare pentru durate foarte lungi (doar informativ)
+        if (diffHours > 72) {
+          console.log("ℹ️ DURATĂ LUNGĂ DETECTATĂ:", {
+            timpSosire: startTime.toLocaleString('ro-RO'),
+            timpPlecare: endTime.toLocaleString('ro-RO'),
+            durataOre: Math.round(diffHours),
+            durataZile: Math.round(diffHours / 24)
+          });
+        }
+        
+        const diffMinutes = Math.floor(diffMs / 60000);
+        const hours = Math.floor(diffMinutes / 60);
+        const minutes = diffMinutes % 60;
+        return `${hours}h ${minutes}m`;
+      } else if (diffMs < 0) {
+        return "EROARE - Timpul de plecare este înainte de sosire";
+      }
+    } catch (e) {
+      console.error("Eroare la calculul duratei:", e);
+      return "EROARE - Calcul invalid";
+    }
+  }
+  
+  return "N/A";
 }
 
 export default function LucrarePage({ params }: { params: Promise<{ id: string }> }) {
@@ -1056,7 +1121,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   {lucrare.timpSosire && lucrare.timpPlecare && (
                     <div className="flex flex-col min-w-[120px]">
                       <div className="text-xs font-medium text-muted-foreground">Durata intervenție:</div>
-                      <div className="text-gray-900 whitespace-nowrap">{lucrare.durataInterventie || calculateDuration(lucrare.timpSosire, lucrare.timpPlecare)}</div>
+                      <div className="text-gray-900 whitespace-nowrap">{calculateInterventionDuration(lucrare)}</div>
                     </div>
                   )}
                 </div>

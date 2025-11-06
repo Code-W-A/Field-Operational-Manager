@@ -6,18 +6,27 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 
 export interface StatusBoxProps {
   title: string
+  count?: number
   colorClass?: string
   footer?: string
   children?: React.ReactNode
   heightClass?: string
 }
 
-export function StatusBox({ title, colorClass, footer, children, heightClass = "h-64" }: StatusBoxProps) {
+export function StatusBox({ title, count, colorClass, footer, children, heightClass = "h-64" }: StatusBoxProps) {
   return (
     <Card className="overflow-hidden">
       <CardHeader className="py-3">
         <CardTitle className="text-base truncate">
-          <span className="truncate">{title}</span>
+          <div className="flex items-center gap-2">
+            <span className="truncate">{title}</span>
+            {count !== undefined && (
+              <>
+                <span className="text-gray-300">|</span>
+                <span className="font-semibold text-base">{count}</span>
+              </>
+            )}
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent className="overflow-hidden">
