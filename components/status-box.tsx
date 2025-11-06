@@ -18,7 +18,7 @@ export function StatusBox({ title, count, colorClass, footer, children, heightCl
     <Card className="overflow-hidden">
       <CardHeader className="py-3">
         <CardTitle className="text-base truncate">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
             <span className="truncate">{title}</span>
             {count !== undefined && (
               <>
