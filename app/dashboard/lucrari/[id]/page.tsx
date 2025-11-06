@@ -883,7 +883,23 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           {isAdminOrDispatcher && lucrare.statusLucrare === "Finalizat" && (() => {
             const archiveValidation = canArchiveLucrare(lucrare)
             const canArchive = archiveValidation.canArchive
-            const archiveReason = archiveValidation.reason || "Arhivează lucrarea finalizată"
+            
+            // Tooltip diferit în funcție de starea butonului
+            const tooltipContent = !canArchive 
+              ? (
+                  <div className="max-w-xs">
+                    <p className="font-semibold mb-2">Nu se poate arhiva încă</p>
+                    <ul className="text-sm list-disc pl-4 space-y-1">
+                      <li>{archiveValidation.reason}</li>
+                    </ul>
+                  </div>
+                )
+              : (
+                  <div className="max-w-xs">
+                    <p className="font-semibold mb-2">Gata de arhivare</p>
+                    <p className="text-sm">Toate condițiile sunt îndeplinite. Click pentru a arhiva lucrarea.</p>
+                  </div>
+                )
 
             return (
             <TooltipProvider>
@@ -911,7 +927,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                     Arhivează
                   </Button>
                 </TooltipTrigger>
-                  <TooltipContent>{archiveReason}</TooltipContent>
+                  <TooltipContent className="max-w-sm">
+                    {tooltipContent}
+                  </TooltipContent>
               </Tooltip>
             </TooltipProvider>
             )
