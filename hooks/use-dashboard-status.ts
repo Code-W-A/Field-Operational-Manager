@@ -13,6 +13,7 @@ export interface DashboardBubbleItem {
   equipmentLabel: string
   client?: string
   nrLucrare?: string
+  offerStatus?: "accept" | "reject"
 }
 
 export interface DashboardBuckets {
@@ -23,8 +24,7 @@ export interface DashboardBuckets {
   nefacturate: DashboardBubbleItem[]
   necesitaOferta: DashboardBubbleItem[]
   ofertate: DashboardBubbleItem[]
-  statusOferteAcceptate: DashboardBubbleItem[]
-  statusOferteRefuzate: DashboardBubbleItem[]
+  statusOferte: DashboardBubbleItem[]
   equipmentStatus: DashboardBubbleItem[]
 }
 
@@ -70,7 +70,7 @@ function eqInsensitive(a?: string, ...candidates: string[]): boolean {
   return candidates.some((y) => x === String(y || "").toLowerCase())
 }
 
-function buildBubble(l: any): DashboardBubbleItem & { createdAt?: Date } {
+function buildBubble(l: any, offerStatus?: "accept" | "reject"): DashboardBubbleItem & { createdAt?: Date } {
   const equipmentLabel = l.echipament || l.echipamentModel || l.echipamentCod || "-"
   return {
     id: String(l.id),
@@ -79,6 +79,7 @@ function buildBubble(l: any): DashboardBubbleItem & { createdAt?: Date } {
     client: l.client,
     nrLucrare: l.nrLucrare || l.numarRaport,
     createdAt: toDate(l.createdAt) || undefined,
+    offerStatus: offerStatus,
   }
 }
 
@@ -136,8 +137,7 @@ export function useDashboardStatus() {
       nefacturate: [],
       necesitaOferta: [],
       ofertate: [],
-      statusOferteAcceptate: [],
-      statusOferteRefuzate: [],
+      statusOferte: [],
       equipmentStatus: [],
     }
 
@@ -193,10 +193,14 @@ export function useDashboardStatus() {
       const hasOffer = ((l as any).offerVersions && (l as any).offerVersions.length > 0) || (l as any).offerTotal
       if (hasOffer && !(l as any).offerResponse) res.ofertate.push(bubble)
 
-      // Status oferte (acceptate/refuzate)
+      // Status oferte (acceptate/refuzate) - combinate într-o singură listă
       const resp = (l as any).offerResponse
-      if (resp?.status === "accept") res.statusOferteAcceptate.push(bubble)
-      if (resp?.status === "reject") res.statusOferteRefuzate.push(bubble)
+      if (resp?.status === "accept") {
+        res.statusOferte.push(buildBubble(l, "accept"))
+      }
+      if (resp?.status === "reject") {
+        res.statusOferte.push(buildBubble(l, "reject"))
+      }
 
       // Stare echipament
       const se = String((l as any).statusEchipament || "").toLowerCase()
@@ -211,8 +215,7 @@ export function useDashboardStatus() {
     res.nefacturate = sortByOldest(res.nefacturate)
     res.necesitaOferta = sortByOldest(res.necesitaOferta)
     res.ofertate = sortByOldest(res.ofertate)
-    res.statusOferteAcceptate = sortByOldest(res.statusOferteAcceptate)
-    res.statusOferteRefuzate = sortByOldest(res.statusOferteRefuzate)
+    res.statusOferte = sortByOldest(res.statusOferte)
     res.equipmentStatus = sortByOldest(res.equipmentStatus)
 
     return res

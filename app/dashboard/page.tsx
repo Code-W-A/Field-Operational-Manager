@@ -24,14 +24,29 @@ export default function Dashboard() {
     />
   )
 
+  // Bubble cu culoare dinamică în funcție de offerStatus
+  const offerBubble = (it: any) => {
+    const color = it.offerStatus === "accept" ? "bg-green-600" : "bg-red-700"
+    return (
+      <WorkBubble
+        key={it.id}
+        title={it.locatie}
+        subtitle={it.equipmentLabel}
+        colorClass={color}
+        onClick={() => router.push(`/dashboard/lucrari/${it.id}`)}
+        className="mb-2"
+      />
+    )
+  }
+
   if (loading) {
     return (
       <DashboardShell>
         <DashboardHeader heading="Status Lucrări" text="Vizualizare rapidă a stării lucrărilor active" />
         
         {/* Skeleton pentru status boxes */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 gap-3">
-          {Array.from({ length: 10 }).map((_, i) => (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9 gap-3">
+          {Array.from({ length: 9 }).map((_, i) => (
             <Card key={i} className="overflow-hidden">
               <CardHeader className="py-3">
                 <Skeleton className="h-5 w-24" />
@@ -74,7 +89,7 @@ export default function Dashboard() {
     <DashboardShell>
       <DashboardHeader heading="Tablu de bord" text="" />
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9 gap-3">
         <StatusBox title="Întârziate" count={buckets.intarziate.length}>
           {buckets.intarziate.map(bubble("bg-red-600"))}
         </StatusBox>
@@ -96,11 +111,8 @@ export default function Dashboard() {
         <StatusBox title="Ofertate (în așteptare)" count={buckets.ofertate.length}>
           {buckets.ofertate.map(bubble("bg-indigo-600"))}
         </StatusBox>
-        <StatusBox title="Status oferte (acceptate)" count={buckets.statusOferteAcceptate.length}>
-          {buckets.statusOferteAcceptate.map(bubble("bg-green-600"))}
-        </StatusBox>
-        <StatusBox title="Status oferte (refuzate)" count={buckets.statusOferteRefuzate.length}>
-          {buckets.statusOferteRefuzate.map(bubble("bg-red-700"))}
+        <StatusBox title="Status oferte" count={buckets.statusOferte.length}>
+          {buckets.statusOferte.map(offerBubble)}
         </StatusBox>
         <StatusBox title="Stare echipament" count={buckets.equipmentStatus.length}>
           {buckets.equipmentStatus.map(bubble("bg-amber-600"))}
