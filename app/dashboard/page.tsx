@@ -13,12 +13,42 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { LucrareForm } from "@/components/lucrare-form"
+import { addLucrare, getNextReportNumber } from "@/lib/firebase/firestore"
+import { toast } from "@/components/ui/use-toast"
+import { format } from "date-fns"
 
 export default function Dashboard() {
   const router = useRouter()
   const { buckets, personal, loading } = useDashboardStatus()
   const { userData } = useAuth()
   const isTechnician = userData?.role === "tehnician"
+  
+  // State pentru dialogul de adăugare lucrare
+  const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false)
+  const [dataEmiterii, setDataEmiterii] = React.useState<Date | undefined>(new Date())
+  const [dataInterventie, setDataInterventie] = React.useState<Date | undefined>(new Date())
+  const [formData, setFormData] = React.useState({
+    tipLucrare: "",
+    tehnicieni: [],
+    client: "",
+    locatie: "",
+    descriere: "",
+    persoanaContact: "",
+    telefon: "",
+    statusLucrare: "Listată",
+    statusFacturare: "Nefacturat",
+    contract: "",
+    contractNumber: "",
+    contractType: "",
+    defectReclamat: "",
+    echipament: "",
+    echipamentId: "",
+    echipamentCod: "",
+    persoaneContact: [],
+  })
+  const [fieldErrors, setFieldErrors] = React.useState([])
   
   // Forțează re-render la fiecare 5 secunde pentru metrici bazate pe timp
   const [tick, setTick] = React.useState(0)
@@ -29,6 +59,137 @@ export default function Dashboard() {
     
     return () => clearInterval(interval)
   }, [])
+
+  // Actualizăm data emiterii și data intervenției la momentul deschiderii dialogului
+  React.useEffect(() => {
+    if (isAddDialogOpen) {
+      setDataEmiterii(new Date())
+      setDataInterventie(new Date())
+    }
+  }, [isAddDialogOpen])
+
+  // Funcții pentru manipularea formularului
+  const handleInputChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { id, value } = e.target
+    setFormData(prev => ({ ...prev, [id]: value }))
+  }, [])
+
+  const handleSelectChange = React.useCallback((id: string, value: string) => {
+    setFormData(prev => ({ ...prev, [id]: value }))
+  }, [])
+
+  const handleTehnicieniChange = React.useCallback((value: string) => {
+    setFormData(prev => {
+      const isAlready = prev.tehnicieni.includes(value)
+      const newTehnicieni = isAlready
+        ? prev.tehnicieni.filter(t => t !== value)
+        : [...prev.tehnicieni, value]
+      const newStatus = newTehnicieni.length > 0 ? "Atribuită" : "Listată"
+      return { ...prev, tehnicieni: newTehnicieni, statusLucrare: newStatus }
+    })
+  }, [])
+
+  const handleCustomChange = React.useCallback((field: string, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }, [])
+
+  const handleCloseAddDialog = React.useCallback(() => {
+    setIsAddDialogOpen(false)
+    setFormData({
+      tipLucrare: "",
+      tehnicieni: [],
+      client: "",
+      locatie: "",
+      echipament: "",
+      descriere: "",
+      persoanaContact: "",
+      telefon: "",
+      statusLucrare: "Listată",
+      statusFacturare: "Nefacturat",
+      contract: "",
+      contractNumber: "",
+      contractType: "",
+      defectReclamat: "",
+      persoaneContact: [],
+      echipamentId: "",
+      echipamentCod: "",
+    })
+    setFieldErrors([])
+  }, [])
+
+  const validateForm = () => {
+    const errors = []
+
+    if (!dataEmiterii) errors.push("dataEmiterii")
+    if (!dataInterventie) errors.push("dataInterventie")
+    if (!formData.tipLucrare) errors.push("tipLucrare")
+    if (!formData.client) errors.push("client")
+
+    // Validăm câmpul contract doar dacă tipul lucrării este "Intervenție în contract"
+    if (formData.tipLucrare === "Intervenție în contract" && !formData.contract) {
+      errors.push("contract")
+    }
+
+    setFieldErrors(errors)
+
+    return errors.length === 0
+  }
+
+  const handleSubmit = async () => {
+    try {
+      if (!validateForm()) {
+        toast({
+          title: "Eroare",
+          description: "Vă rugăm să completați toate câmpurile obligatorii",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Setăm automat statusul lucrării în funcție de prezența tehnicienilor
+      const statusLucrare = (formData.tehnicieni && formData.tehnicieni.length > 0) ? "Atribuită" : "Listată"
+
+      const newLucrare = {
+        dataEmiterii: format(dataEmiterii, "dd.MM.yyyy HH:mm"),
+        dataInterventie: format(dataInterventie, "dd.MM.yyyy HH:mm"),
+        ...formData,
+        statusLucrare: statusLucrare,
+      }
+
+      // Generăm număr de lucrare din sistemul centralizat
+      let nrLucrareGenerated = ""
+      try {
+        nrLucrareGenerated = await getNextReportNumber()
+      } catch (e) {
+        // fallback simplu: ultimele 6 cifre din timestamp
+        const fallback = `#${Date.now().toString().slice(-6)}`
+        nrLucrareGenerated = fallback
+      }
+
+      // Adăugăm lucrarea în Firestore cu nrLucrare
+      await addLucrare({
+        ...newLucrare,
+        nrLucrare: nrLucrareGenerated,
+        createdBy: userData?.uid || "",
+        createdByName: userData?.displayName || userData?.email || "Utilizator necunoscut",
+      })
+
+      // Reset form și închidere dialog
+      handleCloseAddDialog()
+      
+      toast({
+        title: "Succes",
+        description: "Lucrarea a fost adăugată cu succes.",
+      })
+    } catch (error) {
+      console.error("Eroare la adăugarea lucrării:", error)
+      toast({
+        title: "Eroare",
+        description: "A apărut o eroare la adăugarea lucrării.",
+        variant: "destructive",
+      })
+    }
+  }
 
   const statusBubble = (color: string) => (it: any) => (
     <WorkBubbleStatus
@@ -117,12 +278,42 @@ export default function Dashboard() {
     <DashboardShell>
       <DashboardHeader heading="Tablu de bord" text="">
         {!isTechnician && (
-          <Button 
-            className="bg-blue-600 hover:bg-blue-700"
-            onClick={() => router.push("/dashboard/lucrari/new")}
+          <Dialog
+            open={isAddDialogOpen}
+            onOpenChange={(open) => {
+              if (!open) {
+                handleCloseAddDialog()
+              } else {
+                setIsAddDialogOpen(open)
+              }
+            }}
           >
-            <Plus className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Adaugă</span> Lucrare
-          </Button>
+            <DialogTrigger asChild>
+              <Button className="bg-blue-600 hover:bg-blue-700">
+                <Plus className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Adaugă</span> Lucrare
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Adaugă Lucrare Nouă</DialogTitle>
+              </DialogHeader>
+              
+              <LucrareForm
+                dataEmiterii={dataEmiterii}
+                setDataEmiterii={setDataEmiterii}
+                dataInterventie={dataInterventie}
+                setDataInterventie={setDataInterventie}
+                formData={formData}
+                handleInputChange={handleInputChange}
+                handleSelectChange={handleSelectChange}
+                handleTehnicieniChange={handleTehnicieniChange}
+                handleCustomChange={handleCustomChange}
+                onSubmit={handleSubmit}
+                onCancel={handleCloseAddDialog}
+                fieldErrors={fieldErrors}
+              />
+            </DialogContent>
+          </Dialog>
         )}
       </DashboardHeader>
 
