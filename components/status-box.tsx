@@ -36,9 +36,9 @@ export function StatusBox({ title, count, colorClass, footer, children, heightCl
           </div>
         </CardTitle>
       </CardHeader>
-      <CardContent className="overflow-hidden">
+      <CardContent className="overflow-hidden px-4">
         <ScrollArea className={`${heightClass} w-full`}>
-          <div className="space-y-2 pr-4">{children}</div>
+          <div className="space-y-2 pr-4 w-full">{children}</div>
         </ScrollArea>
         {footer && (
           <div className="pt-3 text-center border-t mt-3">

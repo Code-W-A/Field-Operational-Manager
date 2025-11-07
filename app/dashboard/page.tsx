@@ -9,10 +9,15 @@ import { WorkBubble } from "@/components/work-bubble"
 import { useDashboardStatus } from "@/hooks/use-dashboard-status"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Plus } from "lucide-react"
+import { useAuth } from "@/contexts/AuthContext"
 
 export default function Dashboard() {
   const router = useRouter()
   const { buckets, personal, loading } = useDashboardStatus()
+  const { userData } = useAuth()
+  const isTechnician = userData?.role === "tehnician"
   
   // Forțează re-render la fiecare 5 secunde pentru metrici bazate pe timp
   const [tick, setTick] = React.useState(0)
@@ -100,7 +105,16 @@ export default function Dashboard() {
 
   return (
     <DashboardShell>
-      <DashboardHeader heading="Tablu de bord" text="" />
+      <DashboardHeader heading="Tablu de bord" text="">
+        {!isTechnician && (
+          <Button 
+            className="bg-blue-600 hover:bg-blue-700"
+            onClick={() => router.push("/dashboard/lucrari/new")}
+          >
+            <Plus className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Adaugă</span> Lucrare
+          </Button>
+        )}
+      </DashboardHeader>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9 gap-3">
         <StatusBox title="Întârziate" count={buckets.intarziate.length}>

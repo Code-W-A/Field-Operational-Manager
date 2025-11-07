@@ -13,7 +13,9 @@ export interface WorkBubbleProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 export function WorkBubble({ title, subtitle, colorClass = "bg-slate-600", onClick, maxWidth = "lg", className, ...props }: WorkBubbleProps) {
-  const maxWidthClass = maxWidth === "sm" ? "max-w-32" : maxWidth === "md" ? "max-w-40" : "max-w-48"
+  // Dacă nu este specificat maxWidth sau este "lg", folosim w-full pentru a ocupa tot spațiul disponibil
+  // Pentru "sm" și "md" păstrăm limitele pentru consistență
+  const widthClass = maxWidth === "sm" ? "w-full max-w-full" : maxWidth === "md" ? "w-full max-w-full" : "w-full"
   
   return (
     <TooltipProvider>
@@ -30,8 +32,8 @@ export function WorkBubble({ title, subtitle, colorClass = "bg-slate-600", onCli
               }
             }}
             className={cn(
-              "group w-auto cursor-pointer rounded-lg border px-3 py-1.5 text-left transition-colors overflow-hidden",
-              maxWidthClass,
+              "group cursor-pointer rounded-lg border px-3 py-1.5 text-left transition-colors overflow-hidden",
+              widthClass,
               "hover:shadow-sm active:scale-[0.99]",
               colorClass ? `border-transparent text-white ${colorClass}` : "border-gray-200 bg-gray-50",
               className,
