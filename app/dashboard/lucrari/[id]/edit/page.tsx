@@ -47,6 +47,29 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
     }
   }, [userData, router, toast])
 
+  // Verificăm dacă lucrarea este finalizată și blochez editarea
+  useEffect(() => {
+    const checkLucrareStatus = async () => {
+      try {
+        const lucrare = await getLucrareById(id)
+        if (lucrare && lucrare.statusLucrare === "Finalizat") {
+          toast({
+            title: "Editare blocată",
+            description: "Lucrările finalizate nu pot fi editate.",
+            variant: "destructive",
+          })
+          router.push(`/dashboard/lucrari/${id}`)
+        }
+      } catch (error) {
+        console.error("Eroare la verificarea statusului lucrării:", error)
+      }
+    }
+    
+    if (id) {
+      checkLucrareStatus()
+    }
+  }, [id, router, toast])
+
   const [loading, setLoading] = useState(true)
   const [dataEmiterii, setDataEmiterii] = useState<Date | undefined>(undefined)
   const [dataInterventie, setDataInterventie] = useState<Date | undefined>(undefined)

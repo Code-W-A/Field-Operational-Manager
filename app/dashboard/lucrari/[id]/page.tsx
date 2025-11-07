@@ -37,7 +37,8 @@ import {
   Mail,
 } from "lucide-react"
 import { getLucrareById, deleteLucrare, updateLucrare, getClienti } from "@/lib/firebase/firestore"
-import { WORK_STATUS } from "@/lib/utils/constants"
+import { WORK_STATUS, WORK_STATUS_OPTIONS } from "@/lib/utils/constants"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TehnicianInterventionForm } from "@/components/tehnician-intervention-form"
 import { DocumentUpload } from "@/components/document-upload"
 import { ImageDefectViewer } from "@/components/image-defect-viewer"
@@ -772,8 +773,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     return (
       <DashboardShell>
         <DashboardHeader heading="Lucrare negăsită" text="Lucrarea nu a fost găsită în sistem" />
-        <Button onClick={() => router.push(userData?.role === "client" ? "/portal" : "/dashboard/lucrari")}>
-          <ChevronLeft className="mr-2 h-4 w-4" /> Înapoi la lucrări
+        <Button onClick={() => router.back()}>
+          <ChevronLeft className="mr-2 h-4 w-4" /> Înapoi
         </Button>
       </DashboardShell>
     )
@@ -827,7 +828,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         // text={`Client: ${lucrare.client}`}
       >
         <div className="flex flex-col sm:flex-row gap-2">
-          <Button variant="outline" onClick={() => router.push(userData?.role === "client" ? "/portal" : (fromArhivate ? "/dashboard/arhivate" : "/dashboard/lucrari"))}>
+          <Button variant="outline" onClick={() => router.back()}>
             <ChevronLeft className="mr-2 h-4 w-4" /> Înapoi
           </Button>
           {role !== "client" && (
@@ -1006,7 +1007,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
             </Button>
           )}
 
-          {(role === "admin" || role === "dispecer") && !lucrare?.lockedAfterReintervention && (
+          {(role === "admin" || role === "dispecer") && !lucrare?.lockedAfterReintervention && lucrare.statusLucrare !== "Finalizat" && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="outline" size="icon" onClick={handleEdit}>
@@ -1016,7 +1017,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               <TooltipContent>Editează</TooltipContent>
             </Tooltip>
           )}
-          {(role === "admin" || role === "dispecer") && lucrare?.lockedAfterReintervention && (
+          {(role === "admin" || role === "dispecer") && (lucrare?.lockedAfterReintervention || lucrare.statusLucrare === "Finalizat") && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <span>
@@ -1025,7 +1026,11 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   </Button>
                 </span>
               </TooltipTrigger>
-              <TooltipContent>Lucrarea este blocată după reintervenție</TooltipContent>
+              <TooltipContent>
+                {lucrare.statusLucrare === "Finalizat" 
+                  ? "Lucrarea finalizată nu poate fi editată"
+                  : "Lucrarea este blocată după reintervenție"}
+              </TooltipContent>
             </Tooltip>
           )}
           {role === "admin" && (
@@ -1816,7 +1821,49 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 w-full">
         <div className="flex flex-col">
           <span className="text-xs text-muted-foreground">Lucrare:</span>
-          <span className="mt-0.5"><Badge className="rounded-md">{lucrare.statusLucrare === "Finalizat" ? "Raport generat" : lucrare.statusLucrare}</Badge></span>
+          {role === "admin" ? (
+            <Select
+              value={lucrare.statusLucrare}
+              onValueChange={async (newStatus) => {
+                try {
+                  setIsUpdating(true)
+                  await updateLucrare(paramsId, { statusLucrare: newStatus })
+                  toast({ 
+                    title: "Succes", 
+                    description: `Statusul lucrării a fost schimbat în "${newStatus}"` 
+                  })
+                  await fetchLucrare()
+                } catch (error) {
+                  console.error("Eroare la actualizarea statusului:", error)
+                  toast({ 
+                    title: "Eroare", 
+                    description: "Nu s-a putut actualiza statusul lucrării", 
+                    variant: "destructive" 
+                  })
+                } finally {
+                  setIsUpdating(false)
+                }
+              }}
+              disabled={isUpdating}
+            >
+              <SelectTrigger className="w-[180px] mt-0.5">
+                <SelectValue placeholder="Selectează status" />
+              </SelectTrigger>
+              <SelectContent>
+                {WORK_STATUS_OPTIONS.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {status === "Finalizat" ? "Raport generat" : status}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <span className="mt-0.5">
+              <Badge className="rounded-md">
+                {lucrare.statusLucrare === "Finalizat" ? "Raport generat" : lucrare.statusLucrare}
+              </Badge>
+            </span>
+          )}
         </div>
         <div className="flex flex-col">
           <span className="text-xs text-muted-foreground">Preluare:</span>

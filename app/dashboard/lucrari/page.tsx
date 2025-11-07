@@ -1993,7 +1993,7 @@ export default function Lucrari() {
         // Normal actions for non-technicians or non-completed work orders
         return (
           <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-            {!isTechnician && (
+            {!isTechnician && row.original.statusLucrare !== "Finalizat" && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
