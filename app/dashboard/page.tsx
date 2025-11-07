@@ -24,7 +24,7 @@ export default function Dashboard() {
     return () => clearInterval(interval)
   }, [])
 
-  const bubble = (color: string) => (it: any) => (
+  const bubble = (color: string, maxWidth: "sm" | "md" | "lg" = "lg") => (it: any) => (
     <WorkBubble
       key={it.id}
       title={it.locatie}
@@ -32,11 +32,12 @@ export default function Dashboard() {
       colorClass={color}
       onClick={() => router.push(`/dashboard/lucrari/${it.id}`)}
       className="mb-2"
+      maxWidth={maxWidth}
     />
   )
 
   // Bubble cu culoare dinamică în funcție de offerStatus
-  const offerBubble = (it: any) => {
+  const offerBubble = (maxWidth: "sm" | "md" | "lg" = "lg") => (it: any) => {
     const color = it.offerStatus === "accept" ? "bg-green-600" : "bg-red-700"
     return (
       <WorkBubble
@@ -46,6 +47,7 @@ export default function Dashboard() {
         colorClass={color}
         onClick={() => router.push(`/dashboard/lucrari/${it.id}`)}
         className="mb-2"
+        maxWidth={maxWidth}
       />
     )
   }
@@ -102,31 +104,31 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9 gap-3">
         <StatusBox title="Întârziate" count={buckets.intarziate.length}>
-          {buckets.intarziate.map(bubble("bg-red-600"))}
+          {buckets.intarziate.map(bubble("bg-red-600", "sm"))}
         </StatusBox>
         <StatusBox title="Amânate" count={buckets.amanate.length}>
-          {buckets.amanate.map(bubble("bg-violet-600"))}
+          {buckets.amanate.map(bubble("bg-violet-600", "sm"))}
         </StatusBox>
         <StatusBox title="Listate" count={buckets.listate.length}>
-          {buckets.listate.map(bubble("bg-gray-600"))}
+          {buckets.listate.map(bubble("bg-gray-600", "sm"))}
         </StatusBox>
         <StatusBox title="Nepreluate" count={buckets.nepreluate.length}>
-          {buckets.nepreluate.map(bubble("bg-orange-600"))}
+          {buckets.nepreluate.map(bubble("bg-orange-600", "sm"))}
         </StatusBox>
         <StatusBox title="Nefacturate" count={buckets.nefacturate.length}>
-          {buckets.nefacturate.map(bubble("bg-rose-600"))}
+          {buckets.nefacturate.map(bubble("bg-rose-600", "sm"))}
         </StatusBox>
         <StatusBox title="Necesită ofertă" count={buckets.necesitaOferta.length}>
-          {buckets.necesitaOferta.map(bubble("bg-sky-600"))}
+          {buckets.necesitaOferta.map(bubble("bg-sky-600", "sm"))}
         </StatusBox>
         <StatusBox title="Ofertate (în așteptare)" count={buckets.ofertate.length}>
-          {buckets.ofertate.map(bubble("bg-indigo-600"))}
+          {buckets.ofertate.map(bubble("bg-indigo-600", "sm"))}
         </StatusBox>
         <StatusBox title="Status oferte" count={buckets.statusOferte.length}>
-          {buckets.statusOferte.map(offerBubble)}
+          {buckets.statusOferte.map(offerBubble("sm"))}
         </StatusBox>
         <StatusBox title="Stare echipament" count={buckets.equipmentStatus.length}>
-          {buckets.equipmentStatus.map(bubble("bg-amber-600"))}
+          {buckets.equipmentStatus.map(bubble("bg-amber-600", "sm"))}
         </StatusBox>
       </div>
 
