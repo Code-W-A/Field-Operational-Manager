@@ -4,21 +4,14 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
-export interface WorkBubbleProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface WorkBubbleAssignedProps extends React.HTMLAttributes<HTMLDivElement> {
   title?: string
   subtitle?: string
   colorClass?: string
   onClick?: () => void
-  maxWidth?: "sm" | "md" | "lg" | "full"
 }
 
-export function WorkBubble({ title, subtitle, colorClass = "bg-slate-600", onClick, maxWidth = "full", className, ...props }: WorkBubbleProps) {
-  const widthClass = 
-    maxWidth === "sm" ? "max-w-32" : 
-    maxWidth === "md" ? "max-w-40" : 
-    maxWidth === "lg" ? "max-w-48" : 
-    "w-full"
-  
+export function WorkBubbleAssigned({ title, subtitle, colorClass = "bg-slate-600", onClick, className, ...props }: WorkBubbleAssignedProps) {
   return (
     <TooltipProvider>
       <Tooltip>
@@ -34,8 +27,8 @@ export function WorkBubble({ title, subtitle, colorClass = "bg-slate-600", onCli
               }
             }}
             className={cn(
-              "group cursor-pointer rounded-lg border px-3 py-1.5 text-left transition-colors overflow-hidden",
-              widthClass,
+              // Fill the available width inside each personal column with more space on the right
+              "group cursor-pointer rounded-lg border px-3 py-1.5 text-left transition-colors overflow-hidden w-[calc(100%-5px)] ml-1.5 mr-0",
               "hover:shadow-sm active:scale-[0.99]",
               colorClass ? `border-transparent text-white ${colorClass}` : "border-gray-200 bg-gray-50",
               className,

@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { StatusBox } from "@/components/status-box"
-import { WorkBubble } from "@/components/work-bubble"
+import { WorkBubbleStatus } from "@/components/work-bubble-status"
+import { WorkBubbleAssigned } from "@/components/work-bubble-assigned"
 import { useDashboardStatus } from "@/hooks/use-dashboard-status"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
@@ -29,30 +30,39 @@ export default function Dashboard() {
     return () => clearInterval(interval)
   }, [])
 
-  const bubble = (color: string, maxWidth: "sm" | "md" | "lg" = "lg") => (it: any) => (
-    <WorkBubble
+  const statusBubble = (color: string) => (it: any) => (
+    <WorkBubbleStatus
       key={it.id}
       title={it.locatie}
       subtitle={it.equipmentLabel}
       colorClass={color}
       onClick={() => router.push(`/dashboard/lucrari/${it.id}`)}
       className="mb-2"
-      maxWidth={maxWidth}
+    />
+  )
+
+  const assignedBubble = (color: string) => (it: any) => (
+    <WorkBubbleAssigned
+      key={it.id}
+      title={it.locatie}
+      subtitle={it.equipmentLabel}
+      colorClass={color}
+      onClick={() => router.push(`/dashboard/lucrari/${it.id}`)}
+      className="mb-2"
     />
   )
 
   // Bubble cu culoare dinamică în funcție de offerStatus
-  const offerBubble = (maxWidth: "sm" | "md" | "lg" = "lg") => (it: any) => {
+  const offerStatusBubble = () => (it: any) => {
     const color = it.offerStatus === "accept" ? "bg-green-600" : "bg-red-700"
     return (
-      <WorkBubble
+      <WorkBubbleStatus
         key={it.id}
         title={it.locatie}
         subtitle={it.equipmentLabel}
         colorClass={color}
         onClick={() => router.push(`/dashboard/lucrari/${it.id}`)}
         className="mb-2"
-        maxWidth={maxWidth}
       />
     )
   }
@@ -118,31 +128,31 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9 gap-3">
         <StatusBox title="Întârziate" count={buckets.intarziate.length}>
-          {buckets.intarziate.map(bubble("bg-red-600", "sm"))}
+          {buckets.intarziate.map(statusBubble("bg-red-600"))}
         </StatusBox>
         <StatusBox title="Amânate" count={buckets.amanate.length}>
-          {buckets.amanate.map(bubble("bg-violet-600", "sm"))}
+          {buckets.amanate.map(statusBubble("bg-violet-600"))}
         </StatusBox>
         <StatusBox title="Listate" count={buckets.listate.length}>
-          {buckets.listate.map(bubble("bg-gray-600", "sm"))}
+          {buckets.listate.map(statusBubble("bg-gray-600"))}
         </StatusBox>
         <StatusBox title="Nepreluate" count={buckets.nepreluate.length}>
-          {buckets.nepreluate.map(bubble("bg-orange-600", "sm"))}
+          {buckets.nepreluate.map(statusBubble("bg-orange-600"))}
         </StatusBox>
         <StatusBox title="Nefacturate" count={buckets.nefacturate.length}>
-          {buckets.nefacturate.map(bubble("bg-rose-600", "sm"))}
+          {buckets.nefacturate.map(statusBubble("bg-rose-600"))}
         </StatusBox>
         <StatusBox title="Necesită ofertă" count={buckets.necesitaOferta.length}>
-          {buckets.necesitaOferta.map(bubble("bg-sky-600", "sm"))}
+          {buckets.necesitaOferta.map(statusBubble("bg-sky-600"))}
         </StatusBox>
         <StatusBox title="Ofertate (în așteptare)" count={buckets.ofertate.length}>
-          {buckets.ofertate.map(bubble("bg-indigo-600", "sm"))}
+          {buckets.ofertate.map(statusBubble("bg-indigo-600"))}
         </StatusBox>
         <StatusBox title="Status oferte" count={buckets.statusOferte.length}>
-          {buckets.statusOferte.map(offerBubble("sm"))}
+          {buckets.statusOferte.map(offerStatusBubble())}
         </StatusBox>
         <StatusBox title="Stare echipament" count={buckets.equipmentStatus.length}>
-          {buckets.equipmentStatus.map(bubble("bg-amber-600", "sm"))}
+          {buckets.equipmentStatus.map(statusBubble("bg-amber-600"))}
         </StatusBox>
       </div>
 
@@ -150,11 +160,11 @@ export default function Dashboard() {
         {/* <h3 className="text-lg font-semibold mb-3">Status încărcare personal</h3> */}
         <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${Math.max(1, (personal.technicians?.length || 0) + 1)}, minmax(220px, 1fr))` }}>
           <StatusBox title="Dispecer" count={personal.dispatcher.items.length}> 
-            {personal.dispatcher.items.map(bubble("bg-blue-600"))}
+            {personal.dispatcher.items.map(assignedBubble("bg-blue-600"))}
           </StatusBox>
           {personal.technicians.map((col) => (
             <StatusBox key={col.name} title={col.name} count={col.items.length}>
-              {col.items.map(bubble("bg-gray-700"))}
+              {col.items.map(assignedBubble("bg-gray-700"))}
             </StatusBox>
           ))}
         </div>
