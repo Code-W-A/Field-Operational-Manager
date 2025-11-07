@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import { useRouter } from "next/navigation"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { DashboardHeader } from "@/components/dashboard-header"
@@ -12,6 +13,16 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 export default function Dashboard() {
   const router = useRouter()
   const { buckets, personal, loading } = useDashboardStatus()
+  
+  // Forțează re-render la fiecare 5 secunde pentru metrici bazate pe timp
+  const [tick, setTick] = React.useState(0)
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setTick(prev => prev + 1)
+    }, 5000) // 5 secunde
+    
+    return () => clearInterval(interval)
+  }, [])
 
   const bubble = (color: string) => (it: any) => (
     <WorkBubble

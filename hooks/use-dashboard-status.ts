@@ -235,7 +235,23 @@ export function useDashboardStatus() {
     const technicians = techUsers.map((u: any) => {
       const name = u.displayName || u.email || "Tehnician"
       const items = sortByOldest(
-        active.filter((l) => Array.isArray(l.tehnicieni) && l.tehnicieni.includes(name)).map(buildBubble)
+        active.filter((l) => {
+          const isAssignedToTechnician = Array.isArray(l.tehnicieni) && l.tehnicieni.includes(name)
+          
+          if (!isAssignedToTechnician) return false
+          
+          // Aplicăm aceleași reguli ca pentru vizualizarea tehnicianului pe telefon
+          const isFinalized = l.statusLucrare === "Finalizat"
+          const hasReportGenerated = l.raportGenerat === true
+          const isPickedUpByDispatcher = (l as any).preluatDispecer === true
+          const isCompletedWithReportAndPickedUp = isFinalized && hasReportGenerated && isPickedUpByDispatcher
+          
+          const isPostponed = eqInsensitive(l.statusLucrare, WORK_STATUS.POSTPONED)
+          
+          // NU afișa lucrările finalizate cu raport și preluate
+          // NU afișa lucrările amânate și preluate
+          return !isCompletedWithReportAndPickedUp && !(isPostponed && isPickedUpByDispatcher)
+        }).map(buildBubble)
       )
       return { name, items }
     }).filter((c: any) => c.items.length > 0)

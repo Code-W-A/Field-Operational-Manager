@@ -14,6 +14,7 @@ import { DownloadHistory } from "@/components/download-history"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/components/ui/use-toast"
 import {
@@ -902,36 +903,66 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 )
 
             return (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="text-gray-600 border-gray-200 hover:bg-gray-50"
+            <div className="relative inline-block">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="text-gray-600 border-gray-200 hover:bg-gray-50"
                       disabled={!canArchive}
-                    onClick={async () => {
+                      onClick={async () => {
                         if (!canArchive) return
-                      if (window.confirm("Sigur doriți să arhivați această lucrare? Lucrarea va fi mutată în secțiunea Arhivate.")) {
-                        try {
-                          await updateLucrare(paramsId, { statusLucrare: WORK_STATUS.ARCHIVED })
+                        if (window.confirm("Sigur doriți să arhivați această lucrare? Lucrarea va fi mutată în secțiunea Arhivate.")) {
+                          try {
+                            await updateLucrare(paramsId, { statusLucrare: WORK_STATUS.ARCHIVED })
                             toast({ title: "Succes", description: "Lucrarea a fost arhivată cu succes." })
-                          router.push("/dashboard/lucrari")
-                        } catch (error) {
-                          console.error("Eroare la arhivare:", error)
+                            router.push("/dashboard/lucrari")
+                          } catch (error) {
+                            console.error("Eroare la arhivare:", error)
                             toast({ title: "Eroare", description: "Nu s-a putut arhiva lucrarea.", variant: "destructive" })
+                          }
                         }
-                      }
-                    }}
-                  >
-                    <Archive className="mr-2 h-4 w-4" />
-                    Arhivează
-                  </Button>
-                </TooltipTrigger>
+                      }}
+                    >
+                      <Archive className="mr-2 h-4 w-4" />
+                      Arhivează
+                    </Button>
+                  </TooltipTrigger>
                   <TooltipContent className="max-w-sm">
                     {tooltipContent}
                   </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+                </Tooltip>
+              </TooltipProvider>
+              
+              {/* Info icon pentru motivele de ne-arhivare */}
+              {!canArchive && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-blue-500 hover:bg-blue-600 text-white flex items-center justify-center shadow-md transition-colors z-10"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Info className="h-3 w-3" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80" align="end">
+                    <div className="space-y-2">
+                      <h4 className="font-semibold text-sm text-gray-900">
+                        De ce nu se poate arhiva încă?
+                      </h4>
+                      <Separator />
+                      <div className="text-sm text-gray-700">
+                        <p className="flex items-start gap-2">
+                          <AlertCircle className="h-4 w-4 mt-0.5 text-orange-500 flex-shrink-0" />
+                          <span>{archiveValidation.reason}</span>
+                        </p>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
             )
           })()}
 
