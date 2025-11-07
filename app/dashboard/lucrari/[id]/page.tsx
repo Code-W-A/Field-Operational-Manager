@@ -1828,11 +1828,20 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 try {
                   setIsUpdating(true)
                   await updateLucrare(paramsId, { statusLucrare: newStatus })
+                  
+                  // Actualizăm imediat starea locală pentru feedback vizual instant
+                  setLucrare(prev => prev ? { ...prev, statusLucrare: newStatus } : null)
+                  
                   toast({ 
                     title: "Succes", 
                     description: `Statusul lucrării a fost schimbat în "${newStatus}"` 
                   })
-                  await fetchLucrare()
+                  
+                  // Reîncarcăm datele complete din baza de date pentru sincronizare
+                  const updatedData = await getLucrareById(paramsId)
+                  if (updatedData) {
+                    setLucrare(updatedData)
+                  }
                 } catch (error) {
                   console.error("Eroare la actualizarea statusului:", error)
                   toast({ 
