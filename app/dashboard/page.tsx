@@ -290,8 +290,8 @@ export default function Dashboard() {
           >
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700">
-                <Plus className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Adaugă</span> Lucrare
-              </Button>
+            <Plus className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Adaugă</span> Lucrare
+          </Button>
             </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
@@ -317,7 +317,7 @@ export default function Dashboard() {
         )}
       </DashboardHeader>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9 gap-3 min-w-0">
         <StatusBox title="Întârziate" count={buckets.intarziate.length}>
           {buckets.intarziate.map(statusBubble("bg-red-600"))}
         </StatusBox>

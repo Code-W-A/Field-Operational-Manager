@@ -14,16 +14,16 @@ export interface StatusBoxProps {
   heightClass?: string
 }
 
-export function StatusBox({ title, count, colorClass, footer, children, heightClass = "h-[375px]" }: StatusBoxProps) {
+export function StatusBox({ title, count, colorClass, footer, children, heightClass = "h-[625px]" }: StatusBoxProps) {
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="py-3 px-4">
-        <CardTitle className="text-base">
-          <div className="flex items-start justify-between w-full gap-2">
+    <Card className="flex flex-col h-full min-w-0 overflow-hidden">
+      <CardHeader className="py-3 px-4 flex-shrink-0 min-w-0 overflow-hidden">
+        <CardTitle className="text-base min-w-0">
+          <div className="flex items-start justify-between w-full gap-2 min-w-0">
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="truncate flex-1 cursor-help">{title}</span>
+                  <span className="truncate flex-1 cursor-help min-w-0 block">{title}</span>
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>{title}</p>
@@ -36,12 +36,26 @@ export function StatusBox({ title, count, colorClass, footer, children, heightCl
           </div>
         </CardTitle>
       </CardHeader>
-      <CardContent className="overflow-hidden">
-        <ScrollArea className={`${heightClass} w-full`}>
-          <div className="space-y-2 pr-6">{children}</div>
+      <CardContent className="p-3 pt-0 flex-1 min-h-0 min-w-0 overflow-hidden flex flex-col">
+        <ScrollArea className={`${heightClass} w-full flex-1 min-w-0`}>
+          <div 
+            className="w-full min-w-0"
+            style={{
+              minWidth: 0,
+              maxWidth: "100%",
+              boxSizing: "border-box",
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+              paddingRight: "16px",
+              paddingLeft: "0px",
+            }}
+          >
+            {children}
+          </div>
         </ScrollArea>
         {footer && (
-          <div className="pt-3 text-center border-t mt-3">
+          <div className="pt-3 text-center border-t mt-3 flex-shrink-0">
             <span className="text-sm font-bold text-foreground">{footer}</span>
           </div>
         )}
@@ -49,5 +63,3 @@ export function StatusBox({ title, count, colorClass, footer, children, heightCl
     </Card>
   )
 }
-
-

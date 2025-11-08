@@ -14,7 +14,17 @@ const ScrollArea = React.forwardRef<
     className={cn("relative overflow-hidden", className)}
     {...props}
   >
-    <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit]">
+    <ScrollAreaPrimitive.Viewport 
+      className="h-full w-full rounded-[inherit] min-w-0"
+      style={{
+        overflowX: "hidden",
+        overflowY: "auto",
+        boxSizing: "border-box",
+        paddingRight: "0px",
+        minWidth: 0,
+        maxWidth: "100%",
+      }}
+    >
       {children}
     </ScrollAreaPrimitive.Viewport>
     <ScrollBar />
