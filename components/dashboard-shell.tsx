@@ -18,8 +18,8 @@ export function DashboardShell({ children, className }: DashboardShellProps) {
   const { userData } = useAuth()
 
   return (
-    <div className="flex flex-col min-h-screen w-full">
-      <header className="sticky top-0 z-40 border-b bg-background">
+    <div className="flex flex-col h-screen w-full overflow-hidden">
+      <header className="flex-shrink-0 z-40 border-b bg-background">
         <div className="w-full flex h-16 items-center justify-between py-4 px-6">
           <div className="flex items-center gap-2">
             <MobileNav className="md:hidden" />
@@ -30,8 +30,8 @@ export function DashboardShell({ children, className }: DashboardShellProps) {
           </div>
         </div>
       </header>
-      <main className="flex-1 w-full overflow-auto">
-        <div className="w-full py-6 md:py-8 px-6 sm:px-8 lg:px-10">{children}</div>
+      <main className="flex-1 w-full overflow-auto min-h-0">
+        <div className="w-full h-full min-h-0 flex flex-col px-6 sm:px-8 lg:px-10 py-4">{children}</div>
       </main>
       
       {/* Debug component for auto logout - only visible to admin/dispatcher in development */}

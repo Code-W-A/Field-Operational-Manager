@@ -14,7 +14,7 @@ export interface StatusBoxProps {
   heightClass?: string
 }
 
-export function StatusBox({ title, count, colorClass, footer, children, heightClass = "h-[625px]" }: StatusBoxProps) {
+export function StatusBox({ title, count, colorClass, footer, children, heightClass = "h-full" }: StatusBoxProps) {
   return (
     <Card className="flex flex-col h-full min-w-0 overflow-hidden">
       <CardHeader className="py-3 px-4 flex-shrink-0 min-w-0 overflow-hidden">

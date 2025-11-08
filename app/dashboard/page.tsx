@@ -316,48 +316,54 @@ export default function Dashboard() {
           </Dialog>
         )}
       </DashboardHeader>
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9 gap-3 min-w-0">
-        <StatusBox title="Întârziate" count={buckets.intarziate.length}>
-          {buckets.intarziate.map(statusBubble("bg-red-600"))}
-        </StatusBox>
-        <StatusBox title="Amânate" count={buckets.amanate.length}>
-          {buckets.amanate.map(statusBubble("bg-violet-600"))}
-        </StatusBox>
-        <StatusBox title="Listate" count={buckets.listate.length}>
-          {buckets.listate.map(statusBubble("bg-gray-600"))}
-        </StatusBox>
-        <StatusBox title="Nepreluate" count={buckets.nepreluate.length}>
-          {buckets.nepreluate.map(statusBubble("bg-orange-600"))}
-        </StatusBox>
-        <StatusBox title="Nefacturate" count={buckets.nefacturate.length}>
-          {buckets.nefacturate.map(statusBubble("bg-rose-600"))}
-        </StatusBox>
-        <StatusBox title="Necesită ofertă" count={buckets.necesitaOferta.length}>
-          {buckets.necesitaOferta.map(statusBubble("bg-sky-600"))}
-        </StatusBox>
-        <StatusBox title="Ofertate (în așteptare)" count={buckets.ofertate.length}>
-          {buckets.ofertate.map(statusBubble("bg-indigo-600"))}
-        </StatusBox>
-        <StatusBox title="Status oferte" count={buckets.statusOferte.length}>
-          {buckets.statusOferte.map(offerStatusBubble())}
-        </StatusBox>
-        <StatusBox title="Stare echipament" count={buckets.equipmentStatus.length}>
-          {buckets.equipmentStatus.map(statusBubble("bg-amber-600"))}
-        </StatusBox>
-      </div>
-
-      <div className="mt-8">
-        {/* <h3 className="text-lg font-semibold mb-3">Status încărcare personal</h3> */}
-        <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${Math.max(1, (personal.technicians?.length || 0) + 1)}, minmax(220px, 1fr))` }}>
-          <StatusBox title="Dispecer" count={personal.dispatcher.items.length}> 
-            {personal.dispatcher.items.map(assignedBubble("bg-blue-600"))}
-          </StatusBox>
-          {personal.technicians.map((col) => (
-            <StatusBox key={col.name} title={col.name} count={col.items.length}>
-              {col.items.map(assignedBubble("bg-gray-700"))}
+      
+      <div className="flex flex-col h-full min-h-0 gap-4">
+        {/* Prima secțiune: Statusuri (50% din înălțime) */}
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9 gap-3 h-full min-w-0">
+            <StatusBox title="Întârziate" count={buckets.intarziate.length}>
+              {buckets.intarziate.map(statusBubble("bg-red-600"))}
             </StatusBox>
-          ))}
+            <StatusBox title="Amânate" count={buckets.amanate.length}>
+              {buckets.amanate.map(statusBubble("bg-violet-600"))}
+            </StatusBox>
+            <StatusBox title="Listate" count={buckets.listate.length}>
+              {buckets.listate.map(statusBubble("bg-gray-600"))}
+            </StatusBox>
+            <StatusBox title="Nepreluate" count={buckets.nepreluate.length}>
+              {buckets.nepreluate.map(statusBubble("bg-orange-600"))}
+            </StatusBox>
+            <StatusBox title="Nefacturate" count={buckets.nefacturate.length}>
+              {buckets.nefacturate.map(statusBubble("bg-rose-600"))}
+            </StatusBox>
+            <StatusBox title="Necesită ofertă" count={buckets.necesitaOferta.length}>
+              {buckets.necesitaOferta.map(statusBubble("bg-sky-600"))}
+            </StatusBox>
+            <StatusBox title="Ofertate (în așteptare)" count={buckets.ofertate.length}>
+              {buckets.ofertate.map(statusBubble("bg-indigo-600"))}
+            </StatusBox>
+            <StatusBox title="Status oferte" count={buckets.statusOferte.length}>
+              {buckets.statusOferte.map(offerStatusBubble())}
+            </StatusBox>
+            <StatusBox title="Stare echipament" count={buckets.equipmentStatus.length}>
+              {buckets.equipmentStatus.map(statusBubble("bg-amber-600"))}
+            </StatusBox>
+          </div>
+        </div>
+      
+        {/* A doua secțiune: Personal/Atribuiri (50% din înălțime) */}
+        <div className="flex-1 min-h-0 overflow-hidden">
+          {/* <h3 className="text-lg font-semibold mb-3">Status încărcare personal</h3> */}
+          <div className="grid gap-4 h-full" style={{ gridTemplateColumns: `repeat(${Math.max(1, (personal.technicians?.length || 0) + 1)}, minmax(220px, 1fr))` }}>
+            <StatusBox title="Dispecer" count={personal.dispatcher.items.length}> 
+              {personal.dispatcher.items.map(assignedBubble("bg-blue-600"))}
+            </StatusBox>
+            {personal.technicians.map((col) => (
+              <StatusBox key={col.name} title={col.name} count={col.items.length}>
+                {col.items.map(assignedBubble("bg-gray-700"))}
+              </StatusBox>
+            ))}
+          </div>
         </div>
       </div>
     </DashboardShell>
