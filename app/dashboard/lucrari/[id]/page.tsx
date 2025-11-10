@@ -1149,6 +1149,37 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
             
                   </div>
                 </div>
+
+                {/* Documentație echipament (vizibilă pentru tehnicieni) */}
+                {role === "tehnician" && lucrare?.echipamentCod && clientData?.locatii && (
+                  <div className="mt-4">
+                    <p className="text-base font-semibold mb-2">Documentație echipament:</p>
+                    {(() => {
+                      try {
+                        const loc = (clientData.locatii || []).find((l: any) => l?.nume === lucrare?.locatie || l?.adresa === lucrare?.clientInfo?.locationAddress)
+                        const eq = loc?.echipamente?.find((e: any) => e?.cod === lucrare?.echipamentCod)
+                        const docs = eq?.documentatie || []
+                        if (!docs.length) {
+                          return <div className="text-sm text-muted-foreground">Nu există documentație disponibilă.</div>
+                        }
+                        return (
+                          <ul className="text-sm space-y-1">
+                            {docs.map((d: any, i: number) => (
+                              <li key={i} className="flex items-center justify-between gap-2">
+                                <a href={d.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+                                  {d.fileName}
+                                </a>
+                                <span className="text-xs text-muted-foreground">{new Date(d.uploadedAt).toLocaleDateString("ro-RO")}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )
+                      } catch {
+                        return <div className="text-sm text-muted-foreground">Nu există documentație disponibilă.</div>
+                      }
+                    })()}
+                  </div>
+                )}
               </CardHeader>
               <CardContent>
                 <div className="text-sm flex flex-wrap items-start gap-x-3 gap-y-2 mt-2">

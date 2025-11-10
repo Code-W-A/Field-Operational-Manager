@@ -349,7 +349,7 @@ export default function SetariPage() {
               }
             }}
           >
-            {multiSelectMode ? "Gata selectarea" : "Selectare multiplă"}
+            {multiSelectMode ? "Deselectează" : "Selectare multiplă"}
           </Button>
         </div>
       </DashboardHeader>

@@ -28,6 +28,7 @@ import { formatDate } from "@/lib/utils/time-format"
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
 import { useAuth } from "@/contexts/AuthContext"
+import { uploadFile } from "@/lib/firebase/storage"
 import { toast } from "@/components/ui/use-toast"
 // Import AlertDialog components
 import {
@@ -102,10 +103,13 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
     dataInstalare: "",
     ultimaInterventie: "",
     observatii: "",
+    documentatie: [],
   })
   const [echipamentFormErrors, setEchipamentFormErrors] = useState<string[]>([])
   const [isCheckingCode, setIsCheckingCode] = useState(false)
   const [isCodeUnique, setIsCodeUnique] = useState(true)
+  const [isUploadingDocs, setIsUploadingDocs] = useState(false)
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
   
   // State pentru confirmarea închiderii dialog-ului de echipament
   const [showEchipamentCloseAlert, setShowEchipamentCloseAlert] = useState(false)
@@ -262,6 +266,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
       dataInstalare: "",
       ultimaInterventie: "",
       observatii: "",
+      documentatie: [],
     })
     setEchipamentFormErrors([])
     setIsCodeUnique(true)
@@ -284,7 +289,10 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
       serie: "",
     }
 
-    setEchipamentFormData({ ...echipament })
+    setEchipamentFormData({ 
+      ...echipament,
+      documentatie: echipament.documentatie || []
+    })
     setEchipamentFormErrors([])
     setIsCodeUnique(true)
     setIsEchipamentDialogOpen(true)
@@ -309,7 +317,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
 
   // Update the handleSaveEchipament function to use the new validation rule
   // Funcție pentru salvarea echipamentului
-  const handleSaveEchipament = () => {
+  const handleSaveEchipament = async () => {
     // Validăm datele echipamentului
     const errors: string[] = []
 
@@ -332,6 +340,55 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
 
     if (selectedLocatieIndex === null) return
 
+    // Pregătim documentația finală (existentă + nouă)
+    let finalDocumentatie = [...((echipamentFormData as any).documentatie || [])]
+
+    // Încărcăm fișierele pending în Firebase Storage
+    if (pendingFiles.length > 0) {
+      setIsUploadingDocs(true)
+      try {
+        if (!client?.id) {
+          toast({ title: "Nu există ID client pentru încărcare", variant: "destructive" })
+          setIsUploadingDocs(false)
+          return
+        }
+
+        const uploads: Array<{ url: string; fileName: string; uploadedAt: string; uploadedBy: string }> = []
+        for (const f of pendingFiles) {
+          const safeName = f.name.replace(/\s+/g, "_")
+          const path = `clienti/${client.id}/echipamente/${echipamentFormData.cod}/docs/${Date.now()}-${safeName}`
+          const up = await uploadFile(f, path)
+          uploads.push({
+            url: up.url,
+            fileName: up.fileName,
+            uploadedAt: new Date().toISOString(),
+            uploadedBy: userData?.displayName || userData?.email || "Utilizator",
+          })
+        }
+
+        // Adăugăm noile documente la cele existente
+        finalDocumentatie = [...finalDocumentatie, ...uploads]
+        
+        // Actualizăm state-ul pentru UI
+        setEchipamentFormData((prev: any) => ({
+          ...prev,
+          documentatie: finalDocumentatie,
+        }))
+
+        // Resetăm pending files
+        setPendingFiles([])
+        
+        toast({ title: `Încărcate ${uploads.length} fișier${uploads.length > 1 ? 'e' : ''} PDF` })
+      } catch (err) {
+        console.error("Eroare la încărcarea documentației:", err)
+        toast({ title: "Eroare la încărcare documentație", variant: "destructive" })
+        setIsUploadingDocs(false)
+        return
+      } finally {
+        setIsUploadingDocs(false)
+      }
+    }
+
     const updatedLocatii = [...locatii]
 
     // Ne asigurăm că locația are array-ul de echipamente inițializat
@@ -339,20 +396,32 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
       updatedLocatii[selectedLocatieIndex].echipamente = []
     }
 
+    // Pregătim datele echipamentului cu documentația finală
+    const echipamentData = {
+      ...echipamentFormData,
+      documentatie: finalDocumentatie,
+    }
+
     // Adăugăm sau actualizăm echipamentul
     if (selectedEchipamentIndex !== null) {
       // Editare echipament existent
       updatedLocatii[selectedLocatieIndex].echipamente![selectedEchipamentIndex] = {
-        ...echipamentFormData,
+        ...echipamentData,
         id: updatedLocatii[selectedLocatieIndex].echipamente![selectedEchipamentIndex].id,
       }
     } else {
       // Adăugare echipament nou
       updatedLocatii[selectedLocatieIndex].echipamente!.push({
-        ...echipamentFormData,
+        ...echipamentData,
         id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       })
     }
+
+    console.log("📦 Salvare echipament cu documentație:", {
+      cod: echipamentFormData.cod,
+      documentatieCount: finalDocumentatie.length,
+      documentatie: finalDocumentatie
+    })
 
     setLocatii(updatedLocatii)
     setIsEchipamentDialogOpen(false)
@@ -409,6 +478,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
       dataInstalare: "",
       ultimaInterventie: "",
       observatii: "",
+      documentatie: [],
     } as any)
     setInitialEchipamentState({
       nume: "",
@@ -418,11 +488,14 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
       dataInstalare: "",
       ultimaInterventie: "",
       observatii: "",
+      documentatie: [],
     } as any)
     setEchipamentFormModified(false)
     setEchipamentFormErrors([])
     setSelectedLocatieIndex(null)
     setSelectedEchipamentIndex(null)
+    setIsUploadingDocs(false)
+    setPendingFiles([])
   }
 
   // Update the checkCodeUniqueness function to use the new validation rule
@@ -530,6 +603,16 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
           persoaneContact: locatie.persoaneContact.filter((contact) => contact.nume && contact.telefon),
           echipamente: (locatie.echipamente || []).filter((e) => e.nume && e.cod),
         }))
+
+      console.log("💾 Salvare client cu locații și echipamente:", {
+        locatiiCount: filteredLocatii.length,
+        echipamente: filteredLocatii.flatMap(l => l.echipamente || []).map(e => ({
+          cod: e.cod,
+          nume: e.nume,
+          documentatieCount: (e as any).documentatie?.length || 0,
+          documentatie: (e as any).documentatie
+        }))
+      })
 
       // Folosim prima persoană de contact din prima locație ca persoană de contact principală pentru compatibilitate
       const primaryContact =
@@ -973,7 +1056,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
           }
         }}
       >
-        <DialogContent className="sm:max-w-[500px] w-[95%] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[900px] w-[95%] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {selectedEchipamentIndex !== null ? "Editare Echipament" : "Adăugare Echipament Nou"}
@@ -985,7 +1068,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-3 py-3 overflow-y-auto">
+          <div className="grid gap-4 py-3 overflow-y-auto">
             {selectedEchipamentIndex !== null && !isAdmin && (
               <Alert variant="default" className="mt-2 bg-yellow-50 border-yellow-200 text-yellow-800">
                 <AlertTriangle className="h-4 w-4" />
@@ -1039,7 +1122,8 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {/* Rând 1: Model și Serie */}
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <div className="space-y-1">
                 <label htmlFor="model" className="text-sm font-medium">
                   Model
@@ -1065,7 +1149,8 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {/* Rând 2: Data Instalare și Ultima Intervenție */}
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <div className="space-y-1">
                 <label htmlFor="dataInstalare" className="text-sm font-medium">
                   Data Instalării
@@ -1081,53 +1166,132 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
               </div>
 
               <div className="space-y-1">
-                <label htmlFor="ultimaInterventie" className="text-sm font-medium">
-                  Ultima Intervenție
+                <label htmlFor="garantieLuni" className="text-sm font-medium">
+                  Garanție (luni)
                 </label>
                 <Input
-                  id="ultimaInterventie"
-                  type="date"
-                  value={echipamentFormData.ultimaInterventie || ""}
-                  onChange={handleEchipamentInputChange}
-                  lang="ro"
-                  placeholder="dd/mm/yyyy"
+                  id="garantieLuni"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  placeholder="12"
+                  value={echipamentFormData.garantieLuni || ""}
+                  onChange={(e) => {
+                    const onlyDigits = e.target.value.replace(/\D+/g, "")
+                    handleEchipamentInputChange({ ...e, target: { ...e.target, value: onlyDigits, id: "garantieLuni" } } as any)
+                  }}
+                  onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
                 />
               </div>
             </div>
 
-            <div className="space-y-1">
-              <label htmlFor="observatii" className="text-sm font-medium">
-                Observații
-              </label>
-              <Textarea
-                id="observatii"
-                placeholder="Observații despre echipament"
-                value={echipamentFormData.observatii || ""}
-                onChange={handleEchipamentInputChange}
-                rows={2}
-              />
-            </div>
+            {/* Rând 3: Observații și Documentație pe 2 coloane */}
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {/* Coloana 1: Observații */}
+              <div className="space-y-1">
+                <label htmlFor="observatii" className="text-sm font-medium">
+                  Observații
+                </label>
+                <Textarea
+                  id="observatii"
+                  placeholder="Observații despre echipament"
+                  value={echipamentFormData.observatii || ""}
+                  onChange={handleEchipamentInputChange}
+                  rows={6}
+                  className="resize-none"
+                />
+              </div>
 
-            <div className="space-y-1">
-              <label htmlFor="garantieLuni" className="text-sm font-medium">
-                Garanție (luni)
-              </label>
-              <Input
-                id="garantieLuni"
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                placeholder="12"
-                value={echipamentFormData.garantieLuni || ""}
-                onChange={(e) => {
-                  const onlyDigits = e.target.value.replace(/\D+/g, "")
-                  handleEchipamentInputChange({ ...e, target: { ...e.target, value: onlyDigits, id: "garantieLuni" } } as any)
-                }}
-                onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
-              />
-              <p className="text-xs text-muted-foreground">
-                Perioada de garanție în luni (implicit 12 luni dacă nu se completează)
-              </p>
+              {/* Coloana 2: Documentație */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Documentație (PDF) – vizibil tehnicienilor</label>
+                <input
+                  key={`doc-upload-${pendingFiles.length}-${(echipamentFormData as any)?.documentatie?.length || 0}`}
+                  type="file"
+                  accept="application/pdf"
+                  multiple
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || [])
+                    if (files.length > 0) {
+                      setPendingFiles((prev) => [...prev, ...files])
+                      toast({ 
+                        title: `${files.length} fișier${files.length > 1 ? 'e' : ''} selectat${files.length > 1 ? 'e' : ''}`, 
+                        description: "Se vor încărca la salvare"
+                      })
+                    }
+                  }}
+                  className="block w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-md file:border file:bg-muted file:hover:bg-muted/70 file:cursor-pointer"
+                />
+                
+                {/* Afișare fișiere deja încărcate (din DB) */}
+                {(echipamentFormData as any)?.documentatie?.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-gray-700">Documentație existentă:</p>
+                    <div className="rounded-md border p-3 max-h-[120px] overflow-y-auto bg-green-50 border-green-200">
+                      <ul className="text-sm space-y-2">
+                        {(echipamentFormData as any).documentatie.map((d: any, idx: number) => (
+                          <li key={idx} className="flex items-center justify-between gap-2 p-2 bg-white rounded border">
+                            <a href={d.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline truncate flex-1">
+                              {d.fileName}
+                            </a>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setEchipamentFormData((prev: any) => ({
+                                  ...prev,
+                                  documentatie: (prev.documentatie || []).filter((_: any, i: number) => i !== idx),
+                                }))
+                                toast({ title: "Document șters", description: "Documentul a fost șters din listă." })
+                              }}
+                              className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 shrink-0"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
+                {/* Afișare fișiere selectate (pending upload) */}
+                {pendingFiles.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-gray-700">Fișiere selectate (se vor încărca la salvare):</p>
+                    <div className="rounded-md border p-3 max-h-[120px] overflow-y-auto bg-yellow-50 border-yellow-200">
+                      <ul className="text-sm space-y-2">
+                        {pendingFiles.map((file, idx) => (
+                          <li key={idx} className="flex items-center justify-between gap-2 p-2 bg-white rounded border border-yellow-300">
+                            <span className="truncate flex-1 text-gray-700">{file.name}</span>
+                            <span className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setPendingFiles((prev) => prev.filter((_, i) => i !== idx))
+                                toast({ title: "Fișier eliminat", description: "Fișierul a fost eliminat din selecție." })
+                              }}
+                              className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 shrink-0"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
+                {/* Mesaj când nu există nimic */}
+                {!pendingFiles.length && !(echipamentFormData as any)?.documentatie?.length && (
+                  <div className="text-xs text-muted-foreground text-center py-6 border rounded-md bg-gray-50">
+                    Nu există documentație
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1136,6 +1300,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
               type="button"
               variant="outline"
               onClick={handleCloseEchipamentDialog}
+              disabled={isUploadingDocs}
               className="w-full sm:w-auto"
             >
               Anulează
@@ -1148,11 +1313,16 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
                 !echipamentFormData.nume ||
                 !echipamentFormData.cod ||
                 !isCodeUnique ||
-                isCheckingCode
+                isCheckingCode ||
+                isUploadingDocs
               }
               className="w-full sm:w-auto"
             >
-              {isCheckingCode ? (
+              {isUploadingDocs ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se încarcă documentația...
+                </>
+              ) : isCheckingCode ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verificare...
                 </>

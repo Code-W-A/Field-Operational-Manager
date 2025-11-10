@@ -291,6 +291,13 @@ export interface Echipament {
   dataInstalare?: string   // Alias pentru backward compatibility
   garantieLuni?: number    // Numărul de luni de garanție (implicit 12)
   observatii?: string      // Observații despre echipament
+  // Documentație tehnică PDF atașată echipamentului (vizibilă pentru tehnicieni)
+  documentatie?: Array<{
+    url: string
+    fileName: string
+    uploadedAt: string
+    uploadedBy: string
+  }>
 }
 
 export interface Contract {
