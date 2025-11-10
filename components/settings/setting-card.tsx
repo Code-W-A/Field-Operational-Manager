@@ -1,0 +1,251 @@
+"use client"
+
+import { useState } from "react"
+import { MoreVertical, Folder, FileText, Star, Copy, History, Trash2, Plus, GripVertical } from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import type { Setting } from "@/types/settings"
+import { cn } from "@/lib/utils"
+
+interface SettingCardProps {
+  setting: Setting
+  onNavigate?: (setting: Setting) => void
+  onEdit?: (setting: Setting) => void
+  onDelete?: (setting: Setting) => void
+  onDuplicate?: (setting: Setting, deepClone: boolean) => void
+  onToggleFavorite?: (setting: Setting) => void
+  onViewHistory?: (setting: Setting) => void
+  onAddChild?: (parentSetting: Setting) => void
+  dragHandleProps?: any
+  selected?: boolean
+  onToggleSelect?: (setting: Setting) => void
+  showCheckbox?: boolean
+}
+
+export function SettingCard({
+  setting,
+  onNavigate,
+  onEdit,
+  onDelete,
+  onDuplicate,
+  onToggleFavorite,
+  onViewHistory,
+  onAddChild,
+  dragHandleProps,
+  selected = false,
+  onToggleSelect,
+  showCheckbox = false,
+}: SettingCardProps) {
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false)
+
+  const handleCardClick = () => {
+    // Allow navigation for both categories and variables
+    if (onNavigate) {
+      onNavigate(setting)
+    }
+  }
+
+  const handleDelete = () => {
+    setShowDeleteDialog(false)
+    onDelete?.(setting)
+  }
+
+  return (
+    <>
+      <Card
+        className={cn(
+          "relative transition-all hover:shadow-lg hover:border-primary/50 cursor-pointer group border-2",
+          setting.favorite && "ring-2 ring-yellow-400/50"
+        )}
+      >
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-start gap-2 flex-1 min-w-0" onClick={handleCardClick}>
+              {dragHandleProps && (
+                <div {...dragHandleProps} className="cursor-grab active:cursor-grabbing mt-1">
+                  <GripVertical className="h-4 w-4 text-muted-foreground" />
+                </div>
+              )}
+              {showCheckbox && (
+                <div
+                  className="mt-1"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                  }}
+                >
+                  <Checkbox
+                    checked={selected}
+                    onCheckedChange={() => onToggleSelect?.(setting)}
+                    aria-label="Selectează setarea"
+                  />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="p-1.5 rounded-md bg-muted/40">
+                    <Folder className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  </div>
+                  <CardTitle className="text-base font-semibold truncate">{setting.name}</CardTitle>
+                </div>
+                {setting.description && (
+                  <CardDescription className="text-sm line-clamp-2 ml-9">{setting.description}</CardDescription>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {setting.favorite && <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />}
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {onAddChild && (
+                    <>
+                      <DropdownMenuItem onClick={() => onAddChild(setting)}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Adaugă subsetare
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+                  {onEdit && (
+                    <DropdownMenuItem onClick={() => onEdit(setting)}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      Editează
+                    </DropdownMenuItem>
+                  )}
+                  {onDuplicate && (
+                    <DropdownMenuItem onClick={() => setShowDuplicateDialog(true)}>
+                      <Copy className="mr-2 h-4 w-4" />
+                      Duplică
+                    </DropdownMenuItem>
+                  )}
+                  {onToggleFavorite && (
+                    <DropdownMenuItem onClick={() => onToggleFavorite(setting)}>
+                      <Star className="mr-2 h-4 w-4" />
+                      {setting.favorite ? "Elimină din favorite" : "Adaugă la favorite"}
+                    </DropdownMenuItem>
+                  )}
+                  {onViewHistory && (
+                    <DropdownMenuItem onClick={() => onViewHistory(setting)}>
+                      <History className="mr-2 h-4 w-4" />
+                      Istoric
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  {onDelete && (
+                    <DropdownMenuItem onClick={() => setShowDeleteDialog(true)} className="text-red-600">
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Șterge
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="pt-0" onClick={handleCardClick}>
+          <div className="flex flex-wrap items-center gap-2">
+            {setting.type === "variable" && setting.valueType && (
+              <Badge variant="outline" className="text-xs">
+                <span className="capitalize">{setting.valueType}</span>
+              </Badge>
+            )}
+            {setting.type === "variable" && setting.value !== undefined && (
+              <div className="flex items-center gap-1 px-2 py-1 bg-muted/50 rounded text-xs font-mono truncate max-w-[200px]">
+                {typeof setting.value === "object" ? JSON.stringify(setting.value) : String(setting.value)}
+              </div>
+            )}
+            {setting.inheritedFrom && (
+              <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">
+                🔗 Moștenit
+              </Badge>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmare ștergere</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ești sigur că vrei să ștergi "{setting.name}"?
+              {setting.type === "category" && (
+                <span className="block mt-2 font-semibold text-red-600">
+                  Atenție: Toate subsetările vor fi șterse de asemenea!
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Anulează</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+              Șterge
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Duplicare setare</AlertDialogTitle>
+            <AlertDialogDescription>
+              Vrei să duplici și subsetările acestui element?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex gap-2 sm:justify-end">
+            <AlertDialogCancel>Anulează</AlertDialogCancel>
+            {onDuplicate && (
+              <>
+                <AlertDialogAction
+                  onClick={() => {
+                    setShowDuplicateDialog(false)
+                    onDuplicate(setting, false)
+                  }}
+                >
+                  Doar setarea
+                </AlertDialogAction>
+                <AlertDialogAction
+                  onClick={() => {
+                    setShowDuplicateDialog(false)
+                    onDuplicate(setting, true)
+                  }}
+                >
+                  Cu subsetări
+                </AlertDialogAction>
+              </>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  )
+}
+

@@ -816,9 +816,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         heading={
           <span className="flex items-center gap-2">
             Lucrare: 
-            {lucrare.numarRaport && (
+            {lucrare.nrLucrare && (
               <Badge className="bg-purple-100 text-purple-800 border border-purple-200 hover:bg-purple-100 text-base font-semibold px-3 py-1 rounded-md">
-                {lucrare.numarRaport}
+                {lucrare.nrLucrare}
               </Badge>
             )}
             {" - "}

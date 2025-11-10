@@ -18,6 +18,7 @@ import {
   FileCodeIcon as FileContract,
   StickyNote,
   Archive,
+  Sliders,
 } from "lucide-react"
 
 // Actualizăm componenta MainNav pentru a include iconițele și logo-ul FOM
@@ -148,6 +149,18 @@ export function MainNav({ className, ...props }: React.HTMLAttributes<HTMLElemen
             >
               <FileText className="h-4 w-4" />
               <span>Loguri</span>
+            </Link>
+            <Link
+              href="/dashboard/setari"
+              className={cn(
+                "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
+                pathname === "/dashboard/setari" || pathname.startsWith("/dashboard/setari/")
+                  ? "text-primary"
+                  : "text-muted-foreground",
+              )}
+            >
+              <Sliders className="h-4 w-4" />
+              <span>Setări</span>
             </Link>
           </>
         )}

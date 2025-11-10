@@ -262,8 +262,17 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
     <TooltipProvider>
       <DashboardShell>
         <DashboardHeader
-          heading="Detalii Lucrare Arhivată"
-          text={`ID Baza de Date: ${params.id} • Status: ${lucrare.statusLucrare}`}
+          heading={
+            <span className="flex items-center gap-2">
+              Detalii Lucrare Arhivată
+              {lucrare.nrLucrare && (
+                <Badge className="bg-purple-100 text-purple-800 border border-purple-200 hover:bg-purple-100 text-base font-semibold px-3 py-1 rounded-md">
+                  {lucrare.nrLucrare}
+                </Badge>
+              )}
+            </span>
+          }
+          text={`Status: ${lucrare.statusLucrare}`}
         >
           <div className="flex items-center space-x-2">
             {lucrare.raportGenerat && (
@@ -1105,10 +1114,10 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                     Generat
                   </Badge>
                 </div>
-                {lucrare.numarRaport && (
+                {lucrare.nrLucrare && (
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-500">Număr Raport:</span>
-                    <span className="text-sm font-mono">{lucrare.numarRaport}</span>
+                    <span className="text-sm text-gray-500">Număr Lucrare:</span>
+                    <span className="text-sm font-mono">{lucrare.nrLucrare}</span>
                   </div>
                 )}
                 {lucrare.raportDataLocked && (

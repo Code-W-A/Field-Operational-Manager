@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Menu } from "lucide-react"
 // Adăugăm importul pentru Cog
-import { ClipboardList, Users, Settings, FileText, Home, LogOut, BarChart3, StickyNote, Archive } from "lucide-react"
+import { ClipboardList, Users, Settings, FileText, Home, LogOut, BarChart3, StickyNote, Archive, Sliders } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { signOut } from "@/lib/firebase/auth"
 
@@ -160,6 +160,19 @@ export function MobileNav({ className, ...props }: React.HTMLAttributes<HTMLDivE
                   >
                     <FileText className="h-5 w-5" />
                     <span>Loguri</span>
+                  </Link>
+                  <Link
+                    href="/dashboard/setari"
+                    onClick={() => setOpen(false)}
+                    className={cn(
+                      "flex items-center gap-2 rounded-md px-3 py-3 text-sm font-medium transition-colors",
+                      pathname === "/dashboard/setari" || pathname.startsWith("/dashboard/setari/")
+                        ? "bg-blue-100 text-blue-900"
+                        : "hover:bg-muted",
+                    )}
+                  >
+                    <Sliders className="h-5 w-5" />
+                    <span>Setări</span>
                   </Link>
                 </>
               )}

@@ -13,6 +13,14 @@ import { DataTable } from "@/components/data-table/data-table"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { toast } from "@/components/ui/use-toast"
+import { Trash2, CheckSquare, Square } from "lucide-react"
+import { deleteLogsBefore, deleteLogsByIds } from "@/lib/firebase/firestore"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { EmailEvent } from "@/lib/firebase/firestore"
 import { UniversalSearch } from "@/components/universal-search"
 import { ColumnSelectionButton } from "@/components/column-selection-button"
@@ -20,6 +28,7 @@ import { ColumnSelectionModal } from "@/components/column-selection-modal"
 import { FilterButton } from "@/components/filter-button"
 import { FilterModal, type FilterOption } from "@/components/filter-modal"
 import { useTablePersistence } from "@/hooks/use-table-persistence"
+import { LogDetailsDialog } from "@/components/log-details-dialog"
 
 export default function Loguri() {
   const [activeTab, setActiveTab] = useState("tabel")
@@ -38,6 +47,29 @@ export default function Loguri() {
   const [columnOptions, setColumnOptions] = useState<any[]>([])
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
   const [activeFilters, setActiveFilters] = useState<FilterOption[]>([])
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [deleteMode, setDeleteMode] = useState<"days" | "months" | "beforeDate">("days")
+  const [deleteDays, setDeleteDays] = useState<number>(30)
+  const [deleteMonths, setDeleteMonths] = useState<number>(6)
+  const [deleteBeforeDate, setDeleteBeforeDate] = useState<string>("")
+  const [deleting, setDeleting] = useState(false)
+  const [selectedLog, setSelectedLog] = useState<any>(null)
+  const [isLogDetailsOpen, setIsLogDetailsOpen] = useState(false)
+  const [selectedLogIds, setSelectedLogIds] = useState<Set<string>>(new Set())
+  const [pageSize, setPageSize] = useState<number>(50)
+  const [currentPage, setCurrentPage] = useState<number>(1)
+
+  // Helpers pentru fallback parsing din detalii
+  const extractLucrareId = useCallback((detalii?: string): string | undefined => {
+    if (!detalii) return undefined
+    const m = /ID:\s*([A-Za-z0-9_-]+)/.exec(detalii)
+    return m ? m[1] : undefined
+  }, [])
+  const extractClientFromDetalii = useCallback((detalii?: string): string | undefined => {
+    if (!detalii) return undefined
+    const m = /client:\s*([^;]+)/i.exec(detalii)
+    return m ? m[1].trim() : undefined
+  }, [])
 
   // Persistența tabelului
   const { loadSettings, saveFilters, saveColumnVisibility, saveSorting, saveSearchText } = useTablePersistence("loguri")
@@ -205,6 +237,17 @@ export default function Loguri() {
       label: utilizator,
     }))
 
+    const actiuneOptions = Array.from(new Set(logs.map((log) => (log as any).actiune))).map((v) => ({
+      value: v,
+      label: v,
+    }))
+
+    const clientValues = logs.map((log) => (log as any).client || extractClientFromDetalii((log as any).detalii)).filter(Boolean)
+    const clientOptions = Array.from(new Set(clientValues as string[])).map((v) => ({ value: v, label: v }))
+
+    const locatieValues = logs.map((log) => (log as any).locatie).filter(Boolean)
+    const locatieOptions = Array.from(new Set(locatieValues as string[])).map((v) => ({ value: v, label: v }))
+
     return [
       {
         id: "timestamp",
@@ -233,8 +276,53 @@ export default function Loguri() {
         options: utilizatorOptions,
         value: [],
       },
+      {
+        id: "actiune",
+        label: "Acțiune",
+        type: "multiselect",
+        options: actiuneOptions,
+        value: [],
+      },
+      {
+        id: "lucrareId",
+        label: "Lucrare ID",
+        type: "text",
+        value: "",
+      },
+      {
+        id: "nrLucrare",
+        label: "Număr lucrare",
+        type: "text",
+        value: "",
+      },
+      {
+        id: "client",
+        label: "Client",
+        type: "multiselect",
+        options: clientOptions,
+        value: [],
+      },
+      {
+        id: "locatie",
+        label: "Locație",
+        type: "multiselect",
+        options: locatieOptions,
+        value: [],
+      },
+      {
+        id: "detaliiContains",
+        label: "Detalii conțin",
+        type: "text",
+        value: "",
+      },
+      {
+        id: "hasLucrare",
+        label: "Doar loguri cu lucrare",
+        type: "checkbox",
+        value: false,
+      },
     ]
-  }, [logs])
+  }, [logs, extractClientFromDetalii])
 
   // Apply active filters
   const applyFilters = useCallback(
@@ -279,11 +367,52 @@ export default function Loguri() {
             case "tip":
             case "categorie":
             case "utilizator":
+            case "actiune":
               // For multiselect filters
               if (Array.isArray(filter.value)) {
                 return filter.value.includes((item as any)[filter.id as string])
               }
               return true
+
+            case "lucrareId": {
+              const val = String(filter.value).toLowerCase()
+              const lId = (item as any).lucrareId || extractLucrareId((item as any).detalii)
+              return lId ? String(lId).toLowerCase().includes(val) : false
+            }
+
+            case "nrLucrare": {
+              const val = String(filter.value).toLowerCase()
+              const nr = (item as any).nrLucrare
+              return nr ? String(nr).toLowerCase().includes(val) : false
+            }
+
+            case "client": {
+              if (Array.isArray(filter.value)) {
+                const client = (item as any).client || extractClientFromDetalii((item as any).detalii)
+                return client ? filter.value.includes(String(client)) : false
+              }
+              return true
+            }
+
+            case "locatie": {
+              if (Array.isArray(filter.value)) {
+                const loc = (item as any).locatie
+                return loc ? filter.value.includes(String(loc)) : false
+              }
+              return true
+            }
+
+            case "detaliiContains": {
+              const q = String(filter.value).toLowerCase()
+              return ((item as any).detalii ? String((item as any).detalii).toLowerCase().includes(q) : false)
+            }
+
+            case "hasLucrare": {
+              const checked = !!filter.value
+              if (!checked) return true
+              const lId = (item as any).lucrareId || extractLucrareId((item as any).detalii)
+              return !!lId
+            }
 
             default:
               return true
@@ -291,7 +420,7 @@ export default function Loguri() {
         })
       })
     },
-    [activeFilters],
+    [activeFilters, extractLucrareId, extractClientFromDetalii],
   )
 
   // Apply manual filtering based on search text and active filters
@@ -385,6 +514,73 @@ export default function Loguri() {
   const handleResetFilters = () => {
     setActiveFilters([])
     saveFilters([]) // Salvăm lista goală în localStorage
+  }
+
+  // Multi-selection handlers
+  const toggleLogSelection = (logId: string) => {
+    setSelectedLogIds((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(logId)) {
+        newSet.delete(logId)
+      } else {
+        newSet.add(logId)
+      }
+      return newSet
+    })
+  }
+
+  const toggleSelectAllOnPage = () => {
+    const pageLogIds = paginatedLogs.map((log) => log.id)
+    const allSelected = pageLogIds.every((id) => selectedLogIds.has(id))
+    
+    setSelectedLogIds((prev) => {
+      const newSet = new Set(prev)
+      if (allSelected) {
+        // Deselect all on page
+        pageLogIds.forEach((id) => newSet.delete(id))
+      } else {
+        // Select all on page
+        pageLogIds.forEach((id) => newSet.add(id))
+      }
+      return newSet
+    })
+  }
+
+  const handleDeleteSelected = async () => {
+    if (selectedLogIds.size === 0) return
+    
+    const confirmMsg = `Sigur doriți să ștergeți ${selectedLogIds.size} log${selectedLogIds.size > 1 ? 'uri' : ''}? Acțiune ireversibilă.`
+    if (!confirm(confirmMsg)) return
+
+    try {
+      setDeleting(true)
+      const idsArray = Array.from(selectedLogIds)
+      const deletedCount = await deleteLogsByIds(idsArray)
+      
+      toast({
+        title: "Loguri șterse",
+        description: `${deletedCount} loguri au fost șterse cu succes.`,
+      })
+      
+      // Reîncarcă datele
+      const logsQuery = query(collection(db, "logs"), orderBy("timestamp", "desc"))
+      const querySnapshot = await getDocs(logsQuery)
+      const logsData: any[] = []
+      querySnapshot.forEach((doc) => {
+        logsData.push({ id: doc.id, ...doc.data() } as any)
+      })
+      setLogs(logsData)
+      setSelectedLogIds(new Set())
+    } catch (error) {
+      console.error("Eroare la ștergerea logurilor:", error)
+      toast({
+        title: "Eroare",
+        description: "Nu s-au putut șterge logurile selectate.",
+        variant: "destructive",
+      })
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const getTipColor = (tip: string) => {
@@ -482,13 +678,85 @@ export default function Loguri() {
     )
   }
 
+  // Pagination logic
+  const paginatedLogs = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize
+    const endIndex = startIndex + pageSize
+    return filteredData.slice(startIndex, endIndex)
+  }, [filteredData, currentPage, pageSize])
+
+  const totalPages = useMemo(() => {
+    return Math.ceil(filteredData.length / pageSize)
+  }, [filteredData.length, pageSize])
+
+  // Reset to page 1 when filters/search changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchText, activeFilters])
+
   // Definim coloanele pentru DataTable
   const columns = [
+    {
+      id: "select",
+      header: () => (
+        <div className="flex items-center justify-center">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation()
+              toggleSelectAllOnPage()
+            }}
+            className="h-8 w-8 p-0"
+          >
+            {paginatedLogs.length > 0 && paginatedLogs.every((log) => selectedLogIds.has(log.id)) ? (
+              <CheckSquare className="h-4 w-4" />
+            ) : (
+              <Square className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+      ),
+      cell: ({ row }: any) => (
+        <div className="flex items-center justify-center">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation()
+              toggleLogSelection(row.original.id)
+            }}
+            className="h-8 w-8 p-0"
+          >
+            {selectedLogIds.has(row.original.id) ? (
+              <CheckSquare className="h-4 w-4" />
+            ) : (
+              <Square className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+      ),
+      enableSorting: false,
+      enableHiding: false,
+    },
     {
       accessorKey: "timestamp",
       header: "Timestamp",
       enableFiltering: true,
       cell: ({ row }: any) => <span className="font-mono text-sm">{formatDate(row.original.timestamp)}</span>,
+    },
+    {
+      accessorKey: "lucrare",
+      header: "Lucrare",
+      enableFiltering: true,
+      cell: ({ row }: any) => {
+        const lId = row.original.lucrareId || undefined
+        const nr = row.original.nrLucrare
+        if (lId && nr) {
+          return <a className="text-blue-600 hover:underline font-mono" href={`/dashboard/lucrari/${lId}`}>{nr}</a>
+        }
+        return <span className="text-muted-foreground">—</span>
+      },
     },
     {
       accessorKey: "utilizator",
@@ -515,6 +783,22 @@ export default function Loguri() {
     {
       accessorKey: "categorie",
       header: "Categorie",
+      enableFiltering: true,
+    },
+    {
+      accessorKey: "client",
+      header: "Client",
+      enableFiltering: true,
+      cell: ({ row }: any) => {
+        const val = row.original.client
+        if (val) return <span>{val}</span>
+        const m = /client:\s*([^;]+)/i.exec(row.original.detalii || "")
+        return <span>{m ? m[1].trim() : "—"}</span>
+      },
+    },
+    {
+      accessorKey: "locatie",
+      header: "Locație",
       enableFiltering: true,
     },
   ]
@@ -553,7 +837,121 @@ export default function Loguri() {
               onClick={() => setIsColumnModalOpen(true)}
               hiddenColumnsCount={columnOptions.filter((col) => !col.isVisible).length}
             />
+            <Button variant="destructive" onClick={() => setIsDeleteDialogOpen(true)}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Șterge loguri
+            </Button>
           </div>
+        </div>
+
+        {/* Selection actions and page size */}
+        {selectedLogIds.size > 0 && (
+          <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-md p-3">
+            <span className="text-sm font-medium text-blue-900">
+              {selectedLogIds.size} log{selectedLogIds.size > 1 ? 'uri' : ''} selectat{selectedLogIds.size > 1 ? 'e' : ''}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedLogIds(new Set())}
+              >
+                Deselectează tot
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDeleteSelected}
+                disabled={deleting}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                {deleting ? "Se șterge..." : "Șterge selectate"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Afișare:</span>
+            <Select value={String(pageSize)} onValueChange={(val) => { setPageSize(Number(val)); setCurrentPage(1); }}>
+              <SelectTrigger className="w-[100px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="25">25</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+                <SelectItem value="200">200</SelectItem>
+                <SelectItem value="500">500</SelectItem>
+              </SelectContent>
+            </Select>
+            <span className="text-sm text-muted-foreground">per pagină ({filteredData.length} total)</span>
+          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                className="h-8"
+              >
+                Prima
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="h-8"
+              >
+                ‹
+              </Button>
+              {(() => {
+                const maxButtons = 5
+                let start = Math.max(1, currentPage - Math.floor(maxButtons / 2))
+                let end = Math.min(totalPages, start + maxButtons - 1)
+                if (end - start + 1 < maxButtons) {
+                  start = Math.max(1, end - maxButtons + 1)
+                }
+                const pages = []
+                for (let i = start; i <= end; i++) {
+                  pages.push(
+                    <Button
+                      key={i}
+                      variant={currentPage === i ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setCurrentPage(i)}
+                      className="h-8 w-8 p-0"
+                    >
+                      {i}
+                    </Button>
+                  )
+                }
+                return pages
+              })()}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="h-8"
+              >
+                ›
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+                className="h-8"
+              >
+                Ultima
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Modal de filtrare */}
@@ -565,6 +963,97 @@ export default function Loguri() {
           onApplyFilters={handleApplyFilters}
           onResetFilters={handleResetFilters}
         />
+
+        {/* Dialog ștergere loguri */}
+        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Ștergere loguri</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Atenție: acțiune ireversibilă. Se vor șterge definitiv logurile mai vechi decât perioada aleasă.
+              </p>
+              <div className="space-y-2">
+                <Label>Mod</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button variant={deleteMode === "days" ? "default" : "outline"} onClick={() => setDeleteMode("days")}>
+                    Zile
+                  </Button>
+                  <Button variant={deleteMode === "months" ? "default" : "outline"} onClick={() => setDeleteMode("months")}>
+                    Luni
+                  </Button>
+                  <Button variant={deleteMode === "beforeDate" ? "default" : "outline"} onClick={() => setDeleteMode("beforeDate")}>
+                    Până la dată
+                  </Button>
+                </div>
+              </div>
+              {deleteMode === "days" && (
+                <div className="space-y-2">
+                  <Label>Șterge logurile mai vechi de (zile)</Label>
+                  <Input type="number" min={1} value={deleteDays} onChange={(e) => setDeleteDays(Number(e.target.value || 0))} />
+                </div>
+              )}
+              {deleteMode === "months" && (
+                <div className="space-y-2">
+                  <Label>Șterge logurile mai vechi de (luni)</Label>
+                  <Input type="number" min={1} value={deleteMonths} onChange={(e) => setDeleteMonths(Number(e.target.value || 0))} />
+                </div>
+              )}
+              {deleteMode === "beforeDate" && (
+                <div className="space-y-2">
+                  <Label>Șterge logurile cu data anterioară lui</Label>
+                  <Input type="date" value={deleteBeforeDate} onChange={(e) => setDeleteBeforeDate(e.target.value)} />
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={deleting}>
+                Anulează
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={deleting || (deleteMode === "beforeDate" && !deleteBeforeDate)}
+                onClick={async () => {
+                  try {
+                    setDeleting(true)
+                    // calculează cutoff
+                    let cutoff = new Date()
+                    if (deleteMode === "days") {
+                      const d = new Date()
+                      d.setDate(d.getDate() - Math.max(1, deleteDays))
+                      cutoff = d
+                    } else if (deleteMode === "months") {
+                      const d = new Date()
+                      d.setMonth(d.getMonth() - Math.max(1, deleteMonths))
+                      cutoff = d
+                    } else if (deleteMode === "beforeDate") {
+                      cutoff = new Date(deleteBeforeDate)
+                      cutoff.setHours(23,59,59,999)
+                    }
+                    const deleted = await deleteLogsBefore(cutoff)
+                    toast({ title: "Șters", description: `Au fost șterse ${deleted} loguri.` })
+                    setIsDeleteDialogOpen(false)
+                    // reîncarcă datele
+                    const logsQuery = query(collection(db, "logs"), orderBy("timestamp", "desc"))
+                    const querySnapshot = await getDocs(logsQuery)
+                    const logsData: any[] = []
+                    querySnapshot.forEach((doc) => logsData.push({ id: doc.id, ...doc.data() } as any))
+                    setLogs(logsData)
+                    setFilteredData(logsData)
+                  } catch (e) {
+                    console.error(e)
+                    toast({ title: "Eroare", description: "Nu s-au putut șterge logurile.", variant: "destructive" })
+                  } finally {
+                    setDeleting(false)
+                  }
+                }}
+              >
+                {deleting ? "Se șterge..." : "Șterge"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Modal de selecție coloane */}
         <ColumnSelectionModal
@@ -590,18 +1079,46 @@ export default function Loguri() {
         ) : activeTab === "tabel" ? (
           <DataTable
             columns={columns}
-            data={filteredData}
+            data={paginatedLogs}
             defaultSort={{ id: "timestamp", desc: true }}
             table={table}
             setTable={setTable}
             showFilters={false}
             persistenceKey="loguri"
+            onRowClick={(row: any) => {
+              setSelectedLog(row.original)
+              setIsLogDetailsOpen(true)
+            }}
           />
         ) : (
           <div className="grid gap-4 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3 w-full overflow-auto">
-            {filteredData.map((log) => (
-              <Card key={log.id}>
+            {paginatedLogs.map((log) => (
+              <Card 
+                key={log.id} 
+                className={`cursor-pointer hover:shadow-md transition-shadow relative ${selectedLogIds.has(log.id) ? 'ring-2 ring-blue-500' : ''}`}
+                onClick={() => {
+                  setSelectedLog(log)
+                  setIsLogDetailsOpen(true)
+                }}
+              >
                 <CardContent className="p-4">
+                  <div className="absolute top-2 left-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleLogSelection(log.id)
+                      }}
+                      className="h-6 w-6 p-0"
+                    >
+                      {selectedLogIds.has(log.id) ? (
+                        <CheckSquare className="h-4 w-4 text-blue-600" />
+                      ) : (
+                        <Square className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
                   <div className="flex justify-between items-start mb-3">
                     <div>
                       <p className="font-mono text-sm text-muted-foreground">{formatDate(log.timestamp)}</p>
@@ -631,13 +1148,14 @@ export default function Loguri() {
                 </CardContent>
               </Card>
             ))}
-            {filteredData.length === 0 && (
+            {paginatedLogs.length === 0 && (
               <div className="col-span-full text-center py-10">
                 <p className="text-muted-foreground">Nu există loguri care să corespundă criteriilor de căutare.</p>
               </div>
             )}
           </div>
         )}
+
           </TabsContent>
 
           <TabsContent value="emailuri">
@@ -683,6 +1201,16 @@ export default function Loguri() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Log Details Dialog */}
+      <LogDetailsDialog 
+        log={selectedLog}
+        isOpen={isLogDetailsOpen}
+        onClose={() => {
+          setIsLogDetailsOpen(false)
+          setSelectedLog(null)
+        }}
+      />
     </DashboardShell>
   )
 }

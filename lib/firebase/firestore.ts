@@ -12,9 +12,13 @@ import {
   orderBy,
   serverTimestamp,
   getCountFromServer,
+  writeBatch,
+  limit,
+  startAfter,
 } from "firebase/firestore"
 import { db } from "./firebase"
 import { trackLucrareUpdate } from "@/lib/utils/work-modifications-tracker"
+import { getLucrareTitle } from "@/lib/utils/work-modifications-tracker"
 
 export interface PersoanaContact {
   id?: string
@@ -329,6 +333,20 @@ export async function addUserLogEntry(params: {
   detalii: string
   tip?: "Informație" | "Avertisment" | "Eroare"
   categorie?: string
+  // context opțional despre lucrare (backward-compatible)
+  lucrareId?: string
+  nrLucrare?: string
+  lucrareTitlu?: string
+  client?: string
+  locatie?: string
+  // Câmpuri suplimentare pentru evenimente critice de business
+  entityType?: string // "Lucrare", "Client", "Echipament", "Utilizator", etc.
+  entityId?: string
+  actionOutcome?: "success" | "fail"
+  errorMessage?: string
+  before?: any // Date înainte de modificare (JSON)
+  after?: any // Date după modificare (JSON)
+  metadata?: any // Alte metadate relevante (JSON)
 }) {
   try {
     const { serverTimestamp, addDoc, collection } = await import("firebase/firestore")
@@ -356,6 +374,20 @@ export async function addUserLogEntry(params: {
       detalii: params.detalii,
       tip: params.tip || "Informație",
       categorie: params.categorie || "Sistem",
+      // câmpuri opționale pentru context lucrare
+      lucrareId: params.lucrareId,
+      nrLucrare: params.nrLucrare,
+      lucrareTitlu: params.lucrareTitlu,
+      client: params.client,
+      locatie: params.locatie,
+      // Câmpuri suplimentare pentru evenimente critice
+      entityType: params.entityType,
+      entityId: params.entityId,
+      actionOutcome: params.actionOutcome,
+      errorMessage: params.errorMessage,
+      before: params.before,
+      after: params.after,
+      metadata: params.metadata,
     })
   } catch (e) {
     // nu blocăm acțiunea principală
@@ -656,7 +688,7 @@ export const addLucrare = async (lucrare: Lucrare) => {
   lucrare.createdAt = serverTimestamp() as Timestamp
   lucrare.updatedAt = serverTimestamp() as Timestamp
   const docRef = await addDoc(lucrariCollection, lucrare)
-  // Log non‑blocking
+  // Log non‑blocking cu date complete
   void addUserLogEntry({
     utilizator: (lucrare as any).createdByName || (lucrare as any).createdBy || "Sistem",
     utilizatorId: (lucrare as any).createdBy || "system",
@@ -664,6 +696,23 @@ export const addLucrare = async (lucrare: Lucrare) => {
     detalii: `ID: ${docRef.id}; client: ${lucrare.client}; tip: ${lucrare.tipLucrare}; dataInterventie: ${lucrare.dataInterventie || '-'}`,
     tip: "Informație",
     categorie: "Lucrări",
+    lucrareId: docRef.id,
+    nrLucrare: (lucrare as any).nrLucrare,
+    lucrareTitlu: getLucrareTitle({ ...lucrare, id: docRef.id }),
+    client: (lucrare as any).client,
+    locatie: (lucrare as any).locatie,
+    entityType: "Lucrare",
+    entityId: docRef.id,
+    actionOutcome: "success",
+    after: {
+      tipLucrare: lucrare.tipLucrare,
+      statusLucrare: lucrare.statusLucrare,
+      statusFacturare: lucrare.statusFacturare,
+      tehnicieni: lucrare.tehnicieni,
+      dataInterventie: lucrare.dataInterventie,
+      client: lucrare.client,
+      locatie: lucrare.locatie,
+    },
   })
   return {
     id: docRef.id,
@@ -756,6 +805,17 @@ export const updateLucrare = async (
       const utilizator = modifiedByName || "Sistem"
       const utilizatorId = modifiedBy || "system"
       const detalii = changedFields.length ? changedFields.join("; ") : "Actualizare fără câmpuri esențiale modificate"
+      
+      // Build before/after for critical fields
+      const before: any = {}
+      const after: any = {}
+      whitelist.forEach((key) => {
+        if (key in lucrare) {
+          before[String(key)] = (oldLucrareData as any)[key]
+          after[String(key)] = (lucrare as any)[key]
+        }
+      })
+      
       void addUserLogEntry({
         utilizator,
         utilizatorId,
@@ -763,6 +823,16 @@ export const updateLucrare = async (
         detalii,
         tip: "Informație",
         categorie: "Lucrări",
+        lucrareId: id,
+        nrLucrare: (lucrare as any)?.nrLucrare ?? (oldLucrareData as any)?.nrLucrare,
+        lucrareTitlu: getLucrareTitle({ ...(oldLucrareData as any), ...lucrare, id }),
+        client: (lucrare as any)?.client ?? (oldLucrareData as any)?.client,
+        locatie: (lucrare as any)?.locatie ?? (oldLucrareData as any)?.locatie,
+        entityType: "Lucrare",
+        entityId: id,
+        actionOutcome: "success",
+        before: Object.keys(before).length > 0 ? before : undefined,
+        after: Object.keys(after).length > 0 ? after : undefined,
       })
     } catch (e) {
       console.warn("Log diff failed (non-blocking):", e)
@@ -778,8 +848,16 @@ export const updateLucrare = async (
 // Delete a work order
 export const deleteLucrare = async (id: string) => {
   const lucrareDoc = doc(db, "lucrari", id)
+  // Încearcă să citești date minime pentru context în log
+  let oldData: any = null
+  try {
+    const snap = await getDoc(lucrareDoc)
+    if (snap.exists()) oldData = { id: snap.id, ...snap.data() }
+  } catch {
+    // ignore
+  }
   await deleteDoc(lucrareDoc)
-  // Log non‑blocking
+  // Log non‑blocking cu date complete
   void addUserLogEntry({
     utilizator: "Sistem",
     utilizatorId: "system",
@@ -787,6 +865,22 @@ export const deleteLucrare = async (id: string) => {
     detalii: `ID: ${id}`,
     tip: "Avertisment",
     categorie: "Lucrări",
+    lucrareId: id,
+    nrLucrare: oldData?.nrLucrare,
+    lucrareTitlu: oldData ? getLucrareTitle(oldData) : undefined,
+    client: oldData?.client,
+    locatie: oldData?.locatie,
+    entityType: "Lucrare",
+    entityId: id,
+    actionOutcome: "success",
+    before: oldData ? {
+      tipLucrare: oldData.tipLucrare,
+      statusLucrare: oldData.statusLucrare,
+      statusFacturare: oldData.statusFacturare,
+      client: oldData.client,
+      locatie: oldData.locatie,
+      tehnicieni: oldData.tehnicieni,
+    } : undefined,
   })
   return id
 }
@@ -831,6 +925,72 @@ export const addLog = async (log: Log) => {
     id: docRef.id,
     ...log,
   }
+}
+
+/**
+ * Șterge loguri cu timestamp <= cutoffDate, în batch-uri, returnând numărul șters.
+ * Atenție: Operațiune potențial costisitoare - folosiți perioade rezonabile.
+ */
+export const deleteLogsBefore = async (cutoffDate: Date): Promise<number> => {
+  let totalDeleted = 0
+  const logsCollection = collection(db, "logs")
+  let lastDocRef: any = null
+  const pageSize = 300
+
+  while (true) {
+    const qParts: any[] = [
+      where("timestamp", "<=", cutoffDate),
+      orderBy("timestamp", "asc"),
+      limit(pageSize),
+    ]
+    if (lastDocRef) {
+      qParts.push(startAfter(lastDocRef))
+    }
+    const q = query(logsCollection, ...qParts)
+    const snapshot = await getDocs(q)
+    if (snapshot.empty) break
+
+    const batch = writeBatch(db)
+    snapshot.docs.forEach((d) => {
+      batch.delete(d.ref)
+    })
+    await batch.commit()
+
+    totalDeleted += snapshot.docs.length
+    lastDocRef = snapshot.docs[snapshot.docs.length - 1]
+
+    // Dacă am luat mai puțin decât pageSize, probabil am terminat
+    if (snapshot.docs.length < pageSize) break
+  }
+  return totalDeleted
+}
+
+/**
+ * Șterge loguri specifice după ID-uri, în batch-uri.
+ * Returnează numărul de loguri șterse efectiv.
+ */
+export const deleteLogsByIds = async (logIds: string[]): Promise<number> => {
+  if (logIds.length === 0) return 0
+  
+  const logsCollection = collection(db, "logs")
+  const batchSize = 500 // Firestore allows max 500 operations per batch
+  let totalDeleted = 0
+
+  // Split into chunks of batchSize
+  for (let i = 0; i < logIds.length; i += batchSize) {
+    const chunk = logIds.slice(i, i + batchSize)
+    const batch = writeBatch(db)
+    
+    chunk.forEach((id) => {
+      const docRef = doc(logsCollection, id)
+      batch.delete(docRef)
+    })
+    
+    await batch.commit()
+    totalDeleted += chunk.length
+  }
+  
+  return totalDeleted
 }
 
 // Efficiently count documents in a collection (no full read)
