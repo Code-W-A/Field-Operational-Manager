@@ -24,6 +24,7 @@ export default function OfferActionPage() {
   const [generating, setGenerating] = useState<boolean>(false)
   const [downloading, setDownloading] = useState<boolean>(false)
   const [reason, setReason] = useState<string>("")
+  const [errorDetails, setErrorDetails] = useState<any>(null)
 
   useEffect(() => {
     const run = async () => {
@@ -33,59 +34,37 @@ export default function OfferActionPage() {
           setMessage("Link invalid. Contactați operatorul.")
           return
         }
-        const ref = doc(db, "lucrari", id)
-        const snap = await getDoc(ref)
-        if (!snap.exists()) {
-          setState("invalid")
-          setMessage("Lucrarea nu există.")
-          return
-        }
-        const data: any = snap.data()
-        if (!data.offerActionToken || data.offerActionToken !== token) {
-          setState("invalid")
-          setMessage("Link invalid sau utilizat.")
-          return
-        }
-        if (data.offerActionUsedAt) {
-          setState("used")
-          setMessage("Oferta a fost deja acceptată sau refuzată. Contactați operatorul.")
-          return
-        }
-        const exp = data.offerActionExpiresAt?.toDate ? data.offerActionExpiresAt.toDate() : new Date(data.offerActionExpiresAt)
-        if (exp && Date.now() > exp.getTime()) {
-          setState("expired")
-          setMessage("Link expirat. Contactați operatorul pentru o ofertă nouă.")
-          return
-        }
         if (action === "reject") {
           // Așteptăm motivul refuzului înainte de a înregistra răspunsul
-          setState("loading")
-          setState("success") // reset any previous error
-          setState("loading")
-          setState("invalid") // noop to trigger rerender if needed
-          setState("loading")
-          setState("success")
-          setState("loading")
-          setState("invalid")
-          setState("loading")
-          setState("success")
-          // In final, setăm un nou state dedicat pentru formular
           setState("await_reason" as any)
           setMessage("Vă rugăm să indicați motivul refuzului.")
           return
         }
 
-        await updateDoc(ref, {
-          statusOferta: action === "accept" ? "OFERTAT" : "DA", // păstrăm logica internă existentă; ajustați după nevoie
-          offerResponse: {
-            status: action,
-            at: new Date(),
-          },
-          offerActionUsedAt: new Date(),
-          // Dacă avem un snapshot stocat la trimitere, îl marcăm ca acceptat
-          acceptedOfferSnapshot: action === "accept" ? (data as any)?.offerActionSnapshot || null : (data as any)?.acceptedOfferSnapshot || null,
-          offerActionVersionSavedAt: action === "accept" ? (data as any)?.offerActionSnapshot?.savedAt || (data as any)?.offerActionVersionSavedAt || null : (data as any)?.offerActionVersionSavedAt || null,
+        // Procesează pe server pentru fiabilitate maximă
+        const resp = await fetch("/api/offer/respond", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lucrareId: id, token, action }),
         })
+        const json = await resp.json()
+        if (!resp.ok || json.status !== "success") {
+          if (json.status === "expired") {
+            setState("expired"); setMessage("Link expirat. Contactați operatorul pentru o ofertă nouă."); return
+          }
+          if (json.status === "used") {
+            setState("used"); setMessage("Oferta a fost deja acceptată sau refuzată. Contactați operatorul."); return
+          }
+          if (json.status === "invalid") {
+            setState("invalid"); setMessage("Link invalid. Contactați operatorul."); return
+          }
+          throw new Error(json?.message || "Eroare la procesare pe server")
+        }
+
+        // Continuăm cu pașii opționali (email/PDF) non-blocanți
+        const ref = doc(db, "lucrari", id)
+        const snap = await getDoc(ref)
+        const data: any = snap.exists() ? snap.data() : null
         // Helper: return ONLY the email for the exact contact of the work's location
         const resolveRecipientEmailForLocation = (client: any, work: any): string | null => {
           const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(e || "")
@@ -217,6 +196,23 @@ export default function OfferActionPage() {
         console.error(e)
         setState("error")
         setMessage("A apărut o eroare. Încercați mai târziu sau contactați operatorul.")
+        try {
+          const err: any = e
+          setErrorDetails({
+            context: {
+              action,
+              workId: id,
+              hasToken: Boolean(token),
+              time: new Date().toISOString(),
+            },
+            error: {
+              message: String(err?.message || err),
+              code: err?.code || undefined,
+              name: err?.name || undefined,
+              stack: typeof err?.stack === "string" ? err.stack : undefined,
+            },
+          })
+        } catch {}
       }
     }
     run()
@@ -225,43 +221,28 @@ export default function OfferActionPage() {
   const submitReject = async () => {
     try {
       setState("loading")
-      const ref = doc(db, "lucrari", id)
-      const snap = await getDoc(ref)
-      if (!snap.exists()) {
-        setState("invalid")
-        setMessage("Lucrarea nu există.")
-        return
-      }
-      const data: any = snap.data()
-      if (!data.offerActionToken || data.offerActionToken !== token) {
-        setState("invalid")
-        setMessage("Link invalid sau utilizat.")
-        return
-      }
-      if (data.offerActionUsedAt) {
-        setState("used")
-        setMessage("Oferta a fost deja acceptată sau refuzată. Contactați operatorul.")
-        return
-      }
-      const exp = data.offerActionExpiresAt?.toDate ? data.offerActionExpiresAt.toDate() : new Date(data.offerActionExpiresAt)
-      if (exp && Date.now() > exp.getTime()) {
-        setState("expired")
-        setMessage("Link expirat. Contactați operatorul pentru o ofertă nouă.")
-        return
-      }
-
-      await updateDoc(ref, {
-        statusOferta: "DA", // păstrăm logica internă existentă; ajustați după nevoie
-        offerResponse: {
-          status: "reject",
-          at: new Date(),
-          reason: reason || "",
-        },
-        offerActionUsedAt: new Date(),
+      const resp = await fetch("/api/offer/respond", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lucrareId: id, token, action: "reject", reason }),
       })
+      const json = await resp.json()
+      if (!resp.ok || json.status !== "success") {
+        if (json.status === "expired") {
+          setState("expired"); setMessage("Link expirat. Contactați operatorul pentru o ofertă nouă."); return
+        }
+        if (json.status === "used") {
+          setState("used"); setMessage("Oferta a fost deja acceptată sau refuzată. Contactați operatorul."); return
+        }
+        if (json.status === "invalid") {
+          setState("invalid"); setMessage("Link invalid. Contactați operatorul."); return
+        }
+        throw new Error(json?.message || "Eroare la procesare pe server")
+      }
 
       // Trimite emailul de confirmare (secțiunea existentă reutilizată)
       try {
+        const ref = doc(db, "lucrari", id)
         const freshSnap = await getDoc(ref)
         const fresh = freshSnap.exists() ? (freshSnap.data() as any) : null
         if (fresh) {
@@ -316,6 +297,23 @@ export default function OfferActionPage() {
       console.error(e)
       setState("error")
       setMessage("A apărut o eroare. Încercați mai târziu sau contactați operatorul.")
+      try {
+        const err: any = e
+        setErrorDetails({
+          context: {
+            action: "reject",
+            workId: id,
+            hasToken: Boolean(token),
+            time: new Date().toISOString(),
+          },
+          error: {
+            message: String(err?.message || err),
+            code: err?.code || undefined,
+            name: err?.name || undefined,
+            stack: typeof err?.stack === "string" ? err.stack : undefined,
+          },
+        })
+      } catch {}
     }
   }
 
@@ -418,6 +416,41 @@ export default function OfferActionPage() {
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{message}</AlertDescription>
             </Alert>
+          )}
+          {(state === "error" || state === "expired" || state === "used" || state === "invalid") && id && token && (
+            <div className="flex flex-wrap gap-2 justify-between items-center">
+              <Button variant="outline" onClick={() => window.location.reload()}>Reîncearcă</Button>
+              <Button
+                onClick={async () => {
+                  try {
+                    const resp = await fetch("/api/offer/reissue", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ lucrareId: id, token }),
+                    })
+                    const json = await resp.json()
+                    if (!resp.ok || !json?.acceptUrl || !json?.rejectUrl) {
+                      throw new Error(json?.error || "Nu s-a putut reemite link-ul.")
+                    }
+                    const target = action === "reject" ? json.rejectUrl : json.acceptUrl
+                    window.location.href = target
+                  } catch (e) {
+                    console.error(e)
+                    alert("Nu s-a putut reemite link-ul. Contactați operatorul.")
+                  }
+                }}
+              >
+                Solicită link nou
+              </Button>
+            </div>
+          )}
+          {state === "error" && errorDetails && (
+            <div className="rounded-md border bg-muted/30 p-3">
+              <div className="text-xs font-medium mb-1">Detalii tehnice eroare (pentru suport)</div>
+              <pre className="text-xs overflow-auto max-h-48 whitespace-pre-wrap">
+{JSON.stringify(errorDetails, null, 2)}
+              </pre>
+            </div>
           )}
           <div className="pt-2">
             <Button asChild variant="outline">
