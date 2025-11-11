@@ -53,6 +53,8 @@ import { INVOICE_STATUS_OPTIONS, WORK_TYPE_OPTIONS } from "@/lib/utils/constants
 import { getWorkStatusClass } from "@/lib/utils/status-classes"
 // Adăugăm importurile pentru calcularea garanției
 import { calculateWarranty, getWarrantyDisplayInfo, updateWorkOrderWarrantyInfo } from "@/lib/utils/warranty-calculator"
+import { DynamicDialogFields } from "@/components/DynamicDialogFields"
+import { useTargetList } from "@/hooks/use-settings"
 
 // Define the Lucrare type
 interface Lucrare {
@@ -104,6 +106,7 @@ interface LucrareFormProps {
     persoaneContact?: PersoanaContact[]
     echipamentId?: string
     echipamentCod?: string
+    customFields?: Record<string, any>
   }
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void
   handleSelectChange: (id: string, value: string) => void
@@ -169,6 +172,9 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [showCloseAlert, setShowCloseAlert] = useState(false)
     const equipmentSelectRef = useRef<any>(null)
+
+    // Dinamic: tipuri de lucrare din setări (works.create.workTypes)
+    const { items: dynamicWorkTypes } = useTargetList("works.create.workTypes")
 
     // Track initial form state
     const [initialFormState, setInitialFormState] = useState({
@@ -1960,6 +1966,20 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             )}
           </div>
 
+          {/* Setări dinamice (legate la dialogul Lucrare Nouă) */}
+          <div className="space-y-2">
+            <DynamicDialogFields
+              targetId="dialogs.work.new"
+              values={(formData as any)?.customFields}
+              onChange={(fieldKey, value) => {
+                if (handleCustomChange) {
+                  const next = { ...(formData as any)?.customFields, [fieldKey]: value }
+                  handleCustomChange("customFields", next)
+                }
+              }}
+            />
+          </div>
+
           {/* 5. Tipul de intervenție */}
           <div className="space-y-2">
             <label htmlFor="tipLucrare" className="text-sm font-medium">
@@ -1974,7 +1994,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 <SelectValue placeholder="Selectați tipul intervenției" />
               </SelectTrigger>
               <SelectContent>
-                {WORK_TYPE_OPTIONS.map((option) => (
+                {(dynamicWorkTypes && dynamicWorkTypes.length ? dynamicWorkTypes.map((it) => it.name) : WORK_TYPE_OPTIONS).map((option) => (
                   <SelectItem key={option} value={option}>
                     {option}
                   </SelectItem>

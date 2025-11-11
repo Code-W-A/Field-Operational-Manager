@@ -27,6 +27,7 @@ import { addUserLogEntry } from "@/lib/firebase/firestore"
 import { Plus, Pencil, Trash2, Loader2, AlertCircle, MoreHorizontal, FileText } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { toast } from "@/components/ui/use-toast"
+import { DynamicDialogFields } from "@/components/DynamicDialogFields"
 import { format } from "date-fns"
 import { ro } from "date-fns/locale"
 import {
@@ -82,6 +83,7 @@ export default function ContractsPage() {
   const [newContractType, setNewContractType] = useState("Abonament") // Adăugăm starea pentru tipul contractului
   const [newContractClientId, setNewContractClientId] = useState("UNASSIGNED") // Adăugăm starea pentru clientul asignat
   const [newContractLocatie, setNewContractLocatie] = useState("") // Adăugăm starea pentru locația contractului
+  const [newContract, setNewContract] = useState<any>({})
   const [clientLocations, setClientLocations] = useState<string[]>([]) // Locațiile clientului selectat
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -491,6 +493,7 @@ export default function ContractsPage() {
         number: newContractNumber,
         type: newContractType,
         createdAt: serverTimestamp(),
+        ...(newContract?.customFields ? { customFields: newContract.customFields } : {}),
       }
 
       // Adăugăm clientId doar dacă este selectat și nu este "UNASSIGNED"
@@ -572,6 +575,7 @@ export default function ContractsPage() {
         number: newContractNumber,
         type: newContractType,
         updatedAt: serverTimestamp(),
+        ...(newContract?.customFields ? { customFields: newContract.customFields } : {}),
       }
 
       // Gestionăm clientId - poate fi null pentru neasignat
@@ -779,6 +783,17 @@ export default function ContractsPage() {
               {/* EnhancedFilterSystem se va randa cu propriul său buton de filtrare */}
               {table && <EnhancedFilterSystem table={table} persistenceKey="contracte" />}
             </div>
+            {/* Câmpuri dinamice din setări (legate la Dialog: Contract Nou) - reuse same target for edit */}
+            <DynamicDialogFields
+              targetId="dialogs.contract.new"
+              values={(newContract as any)?.customFields}
+              onChange={(fieldKey, value) => {
+                setNewContract((prev: any) => ({
+                  ...(prev || {}),
+                  customFields: { ...((prev as any)?.customFields || {}), [fieldKey]: value },
+                }))
+              }}
+            />
           </div>
           
           {/* Tabelul de contracte */}
@@ -869,6 +884,17 @@ export default function ContractsPage() {
                 <p className="text-xs text-gray-500">Contractul va fi valabil doar pentru această locație</p>
               </div>
             )}
+            {/* Câmpuri dinamice din setări (legate la Dialog: Contract Nou) */}
+            <DynamicDialogFields
+              targetId="dialogs.contract.new"
+              values={(newContract as any)?.customFields}
+              onChange={(fieldKey, value) => {
+                setNewContract((prev: any) => ({
+                  ...(prev || {}),
+                  customFields: { ...((prev as any)?.customFields || {}), [fieldKey]: value },
+                }))
+              }}
+            />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => handleCloseDialog("add")}>

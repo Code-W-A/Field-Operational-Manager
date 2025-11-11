@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, Loader2, Plus, Trash2, MapPin, Wrench, AlertTriangle } from "lucide-react"
 import { addClient, type PersoanaContact, type Locatie, type Echipament } from "@/lib/firebase/firestore"
+import { uploadFile } from "@/lib/firebase/storage"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
@@ -40,6 +41,7 @@ import {
 import { collection, query, where, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { toast } from "@/components/ui/use-toast"
+import { DynamicDialogFields } from "@/components/DynamicDialogFields"
 
 interface ClientFormProps {
   onSuccess?: (clientName: string) => void
@@ -119,10 +121,15 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
     dataInstalare: "",
     ultimaInterventie: "",
     observatii: "",
+    dynamicSettings: {} as any,
   })
   const [echipamentFormErrors, setEchipamentFormErrors] = useState<string[]>([])
   const [isCheckingCode, setIsCheckingCode] = useState(false)
   const [isCodeUnique, setIsCodeUnique] = useState(true)
+  const [isUploadingDocs, setIsUploadingDocs] = useState(false)
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
+  // Stocăm fișierele selectate (neîncărcate) per echipament (cheie = id echipament)
+  const [pendingDocsByEquip, setPendingDocsByEquip] = useState<Record<string, File[]>>({})
   
   // State pentru confirmarea închiderii dialog-ului de echipament
   const [showEchipamentCloseAlert, setShowEchipamentCloseAlert] = useState(false)
@@ -135,6 +142,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
     dataInstalare: "",
     ultimaInterventie: "",
     observatii: "",
+    dynamicSettings: {} as any,
   })
 
   // Use the useUnsavedChanges hook
@@ -329,9 +337,11 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
       dataInstalare: "",
       ultimaInterventie: "",
       observatii: "",
+      dynamicSettings: {} as any,
     })
     setEchipamentFormErrors([])
     setIsCodeUnique(true)
+    setPendingFiles([])
     setIsEchipamentDialogOpen(true)
   }
 
@@ -354,9 +364,10 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
       observatii: "",
     }
 
-    setEchipamentFormData({ ...echipament })
+    setEchipamentFormData({ ...echipament, dynamicSettings: (echipament as any).dynamicSettings || {} })
     setEchipamentFormErrors([])
     setIsCodeUnique(true)
+    setPendingFiles([])
     setIsEchipamentDialogOpen(true)
   }
 
@@ -379,7 +390,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
 
   // Update the handleSaveEchipament function to use the new validation rule
   // Funcție pentru salvarea echipamentului
-  const handleSaveEchipament = () => {
+  const handleSaveEchipament = async () => {
     // Validăm datele echipamentului
     const errors: string[] = []
 
@@ -409,23 +420,34 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
       updatedLocatii[selectedLocatieIndex].echipamente = []
     }
 
+    // Nu încărcăm aici. Doar stocăm fișierele selectate pentru a fi încărcate la salvarea clientului.
+    const equipmentToSave: any = { ...echipamentFormData }
+
     // Adăugăm sau actualizăm echipamentul
     if (selectedEchipamentIndex !== null) {
       // Editare echipament existent
+      const existingId = updatedLocatii[selectedLocatieIndex].echipamente![selectedEchipamentIndex].id
       updatedLocatii[selectedLocatieIndex].echipamente![selectedEchipamentIndex] = {
-        ...echipamentFormData,
-        id: updatedLocatii[selectedLocatieIndex].echipamente![selectedEchipamentIndex].id,
+        ...equipmentToSave,
+        id: existingId,
+      }
+      // Stocăm fișierele pending pe id-ul echipamentului
+      if (existingId) {
+        setPendingDocsByEquip((prev) => ({ ...prev, [existingId]: [...pendingFiles] }))
       }
     } else {
       // Adăugare echipament nou
+      const generatedId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       updatedLocatii[selectedLocatieIndex].echipamente!.push({
-        ...echipamentFormData,
-        id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        ...equipmentToSave,
+        id: generatedId,
       })
+      setPendingDocsByEquip((prev) => ({ ...prev, [generatedId]: [...pendingFiles] }))
     }
 
     setLocatii(updatedLocatii)
     setIsEchipamentDialogOpen(false)
+    setPendingFiles([])
   }
 
   // Funcție pentru ștergerea unui echipament
@@ -473,6 +495,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
       dataInstalare: "",
       ultimaInterventie: "",
       observatii: "",
+      dynamicSettings: {} as any,
     })
     setInitialEchipamentState({
       nume: "",
@@ -482,6 +505,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
       dataInstalare: "",
       ultimaInterventie: "",
       observatii: "",
+      dynamicSettings: {} as any,
     })
     setEchipamentFormModified(false)
     setEchipamentFormErrors([])
@@ -603,8 +627,48 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
         locatii: filteredLocatii,
       }
 
-      const clientId = await addClient(newClient)
+      // 1) Creăm clientul minimal pentru a obține ID
+      const created = await addClient(newClient as any)
+      const clientId = (created as any)?.id
       console.log("Client adăugat cu ID:", clientId)
+
+      // 2) Încărcăm documentația pentru fiecare echipament care are pending docs
+      try {
+        setIsSubmitting(true)
+        const updatedLocatiiForDocs = [...filteredLocatii]
+        for (let i = 0; i < updatedLocatiiForDocs.length; i++) {
+          const loc = updatedLocatiiForDocs[i]
+          const newEquipList: any[] = []
+          for (const eq of (loc.echipamente || [])) {
+            const pending = pendingDocsByEquip[eq.id || ""] || []
+            if (pending.length === 0) {
+              newEquipList.push(eq)
+              continue
+            }
+            const uploads = await Promise.all(
+              pending.map(async (f) => {
+                const safeCod = String(eq.cod || "no-cod")
+                const path = `clienti/${clientId}/echipamente/${safeCod}/docs/${Date.now()}-${f.name}`
+                const { url, fileName } = await uploadFile(f, path)
+                return {
+                  url,
+                  fileName,
+                  uploadedAt: new Date().toISOString(),
+                  uploadedBy: formData?.nume || "Formular client",
+                }
+              })
+            )
+            const finalDocs = Array.isArray(eq.documentatie) ? [...eq.documentatie, ...uploads] : uploads
+            newEquipList.push({ ...eq, documentatie: finalDocs })
+          }
+          updatedLocatiiForDocs[i] = { ...loc, echipamente: newEquipList }
+        }
+        // 3) Persistăm documentația încărcată în client
+        const { updateClient } = await import("@/lib/firebase/firestore")
+        await updateClient(clientId, { locatii: updatedLocatiiForDocs } as any)
+      } catch (e) {
+        console.error("Eroare la upload documentație echipamente:", e)
+      }
 
       // Reset form modified state after successful submission
       setFormModified(false) // Reset form modified state after successful submission
@@ -719,6 +783,20 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
           placeholder="Introduceți adresa sediului"
           value={formData.adresa}
           onChange={handleInputChange}
+        />
+      </div>
+
+      {/* Setări dinamice (legate la dialogul Client Nou) */}
+      <div className="pt-2">
+        <DynamicDialogFields
+          targetId="dialogs.client.new"
+          values={(formData as any)?.customFields}
+          onChange={(fieldKey, value) =>
+            setFormData((prev: any) => ({
+              ...prev,
+              customFields: { ...(prev?.customFields || {}), [fieldKey]: value },
+            }))
+          }
         />
       </div>
 
@@ -1035,7 +1113,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
           }
         }}
       >
-        <DialogContent className="sm:max-w-[500px] w-[95%] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[900px] w-[95%] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {selectedEchipamentIndex !== null ? "Editare Echipament" : "Adăugare Echipament Nou"}
@@ -1047,7 +1125,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-3 py-3 overflow-y-auto">
+          <div className="grid gap-4 py-3 overflow-y-auto">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <label htmlFor="nume" className="text-sm font-medium">
@@ -1132,19 +1210,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
                 />
               </div>
 
-              <div className="space-y-1">
-                <label htmlFor="ultimaInterventie" className="text-sm font-medium">
-                  Ultima Intervenție
-                </label>
-                <Input
-                  id="ultimaInterventie"
-                  type="date"
-                  value={echipamentFormData.ultimaInterventie || ""}
-                  onChange={handleEchipamentInputChange}
-                  lang="ro"
-                  placeholder="dd/mm/yyyy"
-                />
-              </div>
+           
             </div>
 
             <div className="space-y-1">
@@ -1178,7 +1244,98 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
                 placeholder="Observații despre echipament"
                 value={echipamentFormData.observatii || ""}
                 onChange={handleEchipamentInputChange}
-                rows={2}
+                rows={6}
+                className="resize-none"
+              />
+            </div>
+
+            {/* Documentație (selectare + preview; upload la salvarea echipamentului) */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Documentație (PDF) – vizibil tehnicienilor</label>
+              <input
+                type="file"
+                accept="application/pdf"
+                multiple
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || [])
+                  if (files.length > 0) {
+                    toast({ 
+                      title: `${files.length} fișier${files.length > 1 ? 'e' : ''} selectat${files.length > 1 ? 'e' : ''}`, 
+                      description: "Se vor încărca la salvarea echipamentului"
+                    })
+                    setPendingFiles((prev) => [...prev, ...files])
+                  }
+                }}
+                className="block w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-md file:border file:bg-muted file:hover:bg-muted/70 file:cursor-pointer"
+              />
+              {(echipamentFormData as any)?.documentatie?.length ? (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-gray-700">Documentație existentă:</p>
+                  <div className="rounded-md border p-3 max-h-[120px] overflow-y-auto bg-green-50 border-green-200">
+                    <ul className="text-sm space-y-2">
+                      {(echipamentFormData as any).documentatie.map((d: any, idx: number) => (
+                        <li key={idx} className="flex items-center justify-between gap-2 p-2 bg-white rounded border">
+                          <span className="truncate flex-1 text-gray-700">{d.fileName}</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setEchipamentFormData((prev: any) => ({
+                                ...prev,
+                                documentatie: (prev.documentatie || []).filter((_: any, i: number) => i !== idx),
+                              }))
+                            }}
+                            className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 shrink-0"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xs text-muted-foreground text-center py-6 border rounded-md bg-gray-50">
+                  Nu există documentație
+                </div>
+              )}
+              {pendingFiles.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-gray-700">Fișiere selectate (se vor încărca la salvare):</p>
+                  <div className="rounded-md border p-3 max-h-[120px] overflow-y-auto bg-yellow-50 border-yellow-200">
+                    <ul className="text-sm space-y-2">
+                      {pendingFiles.map((file, idx) => (
+                        <li key={idx} className="flex items-center justify-between gap-2 p-2 bg-white rounded border border-yellow-300">
+                          <span className="truncate flex-1 text-gray-700">{file.name}</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setPendingFiles((prev) => prev.filter((_, i) => i !== idx))}
+                            className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 shrink-0"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Setări dinamice (legate la dialog) */}
+            <div className="pt-1">
+              <DynamicDialogFields
+                targetId="dialogs.equipment.new"
+                values={(echipamentFormData as any)?.dynamicSettings}
+                onChange={(fieldKey, value) =>
+                  setEchipamentFormData((prev: any) => ({
+                    ...prev,
+                    dynamicSettings: { ...(prev?.dynamicSettings || {}), [fieldKey]: value },
+                  }))
+                }
               />
             </div>
           </div>
@@ -1200,11 +1357,16 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
                 !echipamentFormData.nume ||
                 !echipamentFormData.cod ||
                 !isCodeUnique ||
-                isCheckingCode
+                isCheckingCode ||
+                isUploadingDocs
               }
               className="w-full sm:w-auto"
             >
-              {isCheckingCode ? (
+              {isUploadingDocs ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se încarcă documentația...
+                </>
+              ) : isCheckingCode ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verificare...
                 </>

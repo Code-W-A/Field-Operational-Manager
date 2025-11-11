@@ -27,6 +27,7 @@ import { formatDate } from "@/lib/utils/time-format"
 // Import the unsaved changes hook and dialog
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
+import { DynamicDialogFields } from "@/components/DynamicDialogFields"
 import { useAuth } from "@/contexts/AuthContext"
 import { uploadFile } from "@/lib/firebase/storage"
 import { toast } from "@/components/ui/use-toast"
@@ -61,6 +62,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
     telefon: client.telefon || "",
     reprezentantFirma: client.reprezentantFirma || "",
     functieReprezentant: (client as any).functieReprezentant || "",
+    customFields: (client as any).customFields || {},
   })
 
   // Add state for close alert dialog - IMPORTANT: default to true for testing
@@ -104,6 +106,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
     ultimaInterventie: "",
     observatii: "",
     documentatie: [],
+    dynamicSettings: {},
   })
   const [echipamentFormErrors, setEchipamentFormErrors] = useState<string[]>([])
   const [isCheckingCode, setIsCheckingCode] = useState(false)
@@ -267,6 +270,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
       ultimaInterventie: "",
       observatii: "",
       documentatie: [],
+      dynamicSettings: {},
     })
     setEchipamentFormErrors([])
     setIsCodeUnique(true)
@@ -291,7 +295,8 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
 
     setEchipamentFormData({ 
       ...echipament,
-      documentatie: echipament.documentatie || []
+      documentatie: echipament.documentatie || [],
+      dynamicSettings: (echipament as any).dynamicSettings || {}
     })
     setEchipamentFormErrors([])
     setIsCodeUnique(true)
@@ -479,6 +484,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
       ultimaInterventie: "",
       observatii: "",
       documentatie: [],
+      dynamicSettings: {},
     } as any)
     setInitialEchipamentState({
       nume: "",
@@ -626,6 +632,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
         regCom: formData.regCom || (client as any).regCom || "",
         // Nu setăm persoanaContact la nivel de client (schema folosește persoaneContact/locatii)
         locatii: filteredLocatii,
+        ...(formData?.customFields ? { customFields: (formData as any).customFields } : {}),
       })
 
       // Update the initial state to match current state after successful save
@@ -722,6 +729,20 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
           placeholder="Introduceți adresa sediului"
           value={formData.adresa}
           onChange={handleInputChange}
+        />
+      </div>
+
+      {/* Setări dinamice (legate la Dialog: Client Nou) */}
+      <div className="pt-2">
+        <DynamicDialogFields
+          targetId="dialogs.client.new"
+          values={(formData as any)?.customFields}
+          onChange={(fieldKey, value) =>
+            setFormData((prev: any) => ({
+              ...prev,
+              customFields: { ...(prev?.customFields || {}), [fieldKey]: value },
+            }))
+          }
         />
       </div>
 
@@ -1292,6 +1313,20 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Setări dinamice (legate la dialog) */}
+            <div className="pt-2">
+              <DynamicDialogFields
+                targetId="dialogs.equipment.new"
+                values={(echipamentFormData as any)?.dynamicSettings}
+                onChange={(fieldKey, value) =>
+                  setEchipamentFormData((prev: any) => ({
+                    ...prev,
+                    dynamicSettings: { ...(prev?.dynamicSettings || {}), [fieldKey]: value },
+                  }))
+                }
+              />
             </div>
           </div>
 

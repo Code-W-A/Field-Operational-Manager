@@ -211,29 +211,53 @@ export function SettingCard({
               Selectează unde vrei să fie folosit acest element ca listă sau valoare în aplicație.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="max-h-[300px] overflow-y-auto space-y-2">
-            {SETTINGS_TARGETS.map((t) => {
-              const checked = selectedTargets.includes(t.id)
-              return (
-                <label key={t.id} className="flex items-start gap-3 p-2 rounded border hover:bg-muted/40 cursor-pointer">
-                  <Checkbox
-                    checked={checked}
-                    onCheckedChange={(val) => {
-                      const v = Boolean(val)
-                      setSelectedTargets((prev) => {
-                        if (v) return prev.includes(t.id) ? prev : [...prev, t.id]
-                        return prev.filter((x) => x !== t.id)
-                      })
-                    }}
-                    className="mt-0.5"
-                  />
-                  <div className="flex-1">
-                    <div className="text-sm font-medium">{t.label}</div>
-                    <div className="text-xs text-muted-foreground capitalize">Tip: {t.kind}</div>
-                  </div>
-                </label>
-              )
-            })}
+          <div className="max-h-[360px] overflow-y-auto space-y-3">
+            {Object.entries(
+              SETTINGS_TARGETS
+                .filter((t) => t.id.startsWith("dialogs.")) // afișăm doar țintele la nivel de dialog
+                .reduce<Record<string, typeof SETTINGS_TARGETS>>((acc, t) => {
+                const [rawGroup, rawLeaf] = String(t.label || "").split("→")
+                const group = (rawGroup || "Altele").trim()
+                const leaf = (rawLeaf || t.label).trim()
+                const entry = { ...t, label: leaf }
+                if (!acc[group]) acc[group] = []
+                acc[group].push(entry)
+                return acc
+              }, {})
+            ).sort(([a], [b]) => a.localeCompare(b, "ro", { sensitivity: "base" })).map(([group, items]) => (
+              <div key={group} className="border rounded-md">
+                <div className="px-3 py-2 text-xs font-semibold text-muted-foreground bg-muted/40">
+                  {group}
+                </div>
+                <div className="p-2 space-y-2">
+                  {items.map((t) => {
+                    const checked = selectedTargets.includes(t.id)
+                    return (
+                      <label
+                        key={t.id}
+                        className="flex items-start gap-3 p-2 rounded border hover:bg-muted/40 cursor-pointer"
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(val) => {
+                            const v = Boolean(val)
+                            setSelectedTargets((prev) => {
+                              if (v) return prev.includes(t.id) ? prev : [...prev, t.id]
+                              return prev.filter((x) => x !== t.id)
+                            })
+                          }}
+                          className="mt-0.5"
+                        />
+                        <div className="flex-1">
+                          <div className="text-sm font-medium">{t.label}</div>
+                          <div className="text-xs text-muted-foreground capitalize">Tip: {t.kind}</div>
+                        </div>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Anulează</AlertDialogCancel>

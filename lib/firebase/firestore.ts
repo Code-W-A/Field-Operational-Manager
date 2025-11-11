@@ -286,6 +286,8 @@ export interface Echipament {
   status?: string
   clientId?: string
   ultimaInterventie?: string
+  // Setări dinamice asociate echipamentului (populate automat din Setări → Formular Echipament)
+  dynamicSettings?: Record<string, any>
   // CÂMPURI NOI PENTRU GARANȚIE - BACKWARD COMPATIBLE
   dataInstalarii?: string  // Data instalării echipamentului (format DD.MM.YYYY)
   dataInstalare?: string   // Alias pentru backward compatibility

@@ -21,6 +21,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { DynamicDialogFields } from "@/components/DynamicDialogFields"
 
 // Schema de validare pentru formular
 const formSchema = z.object({
@@ -273,6 +274,17 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
     <div className="space-y-6">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className={`py-0 ${form.watch("role") === "client" ? "grid grid-cols-1 lg:grid-cols-2 gap-6" : "grid gap-6"}`}>
+          {/* Câmpuri dinamice (legate la Dialog: Utilizator Nou) */}
+          <div className="lg:col-span-2">
+            <DynamicDialogFields
+              targetId="dialogs.user.new"
+              values={(user as any)?.customFields}
+              onChange={(fieldKey, value) => {
+                ;(user as any).customFields = { ...((user as any)?.customFields || {}), [fieldKey]: value }
+                setFormModified(true)
+              }}
+            />
+          </div>
           {/* Coloana stângă - informații de bază */}
           <div className="space-y-6">
           <FormField

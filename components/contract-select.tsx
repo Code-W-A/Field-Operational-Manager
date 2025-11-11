@@ -21,6 +21,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog"
+import { useTargetList } from "@/hooks/use-settings"
 
 // Modificăm interfața pentru a include proprietatea type
 interface ContractSelectProps {
@@ -43,6 +44,8 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchTerm, setSearchTerm] = useState("") // Adăugăm starea pentru căutare
   const searchInputRef = useRef<HTMLInputElement>(null) // Referință pentru input
+  // Tipuri contract dinamice (din setări)
+  const { items: contractTypeOptions } = useTargetList("contracts.create.types")
 
   // Add close confirmation states
   const [showCloseAlert, setShowCloseAlert] = useState(false)
@@ -388,8 +391,18 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
                   <SelectValue placeholder="Selectați tipul contractului" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Abonament">Abonament</SelectItem>
-                  <SelectItem value="Cu plată la intervenție">Cu plată la intervenție</SelectItem>
+                  {contractTypeOptions?.length ? (
+                    contractTypeOptions.map((opt) => (
+                      <SelectItem key={opt.id} value={opt.name}>
+                        {opt.name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <>
+                      <SelectItem value="Abonament">Abonament</SelectItem>
+                      <SelectItem value="Cu plată la intervenție">Cu plată la intervenție</SelectItem>
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>

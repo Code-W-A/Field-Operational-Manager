@@ -183,6 +183,33 @@ export const SETTINGS_TARGETS: SettingsTarget[] = [
     label: "UI → Afișează funcții beta",
     kind: "flag",
   },
+  
+  // Dialog-level generic targets (bind any top-level setting to these to auto-render dropdowns)
+  {
+    id: "dialogs.equipment.new",
+    label: "Dialog: Echipament Nou",
+    kind: "list",
+  },
+  {
+    id: "dialogs.work.new",
+    label: "Dialog: Lucrare Nouă",
+    kind: "list",
+  },
+  {
+    id: "dialogs.client.new",
+    label: "Dialog: Client Nou",
+    kind: "list",
+  },
+  {
+    id: "dialogs.user.new",
+    label: "Dialog: Utilizator Nou",
+    kind: "list",
+  },
+  {
+    id: "dialogs.contract.new",
+    label: "Dialog: Contract Nou",
+    kind: "list",
+  },
 ]
 
 

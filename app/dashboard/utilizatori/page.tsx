@@ -53,9 +53,12 @@ import {
 import { MultiSelect } from "@/components/ui/multi-select"
 import { Dialog as UiDialog, DialogContent as UiDialogContent, DialogHeader as UiDialogHeader, DialogTitle as UiDialogTitle, DialogFooter as UiDialogFooter } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
+import { DynamicDialogFields } from "@/components/DynamicDialogFields"
+import { useTargetList } from "@/hooks/use-settings"
 
 export default function Utilizatori() {
   const { userData: currentUser } = useAuth()
+  const { items: dynamicUserRoles } = useTargetList("users.create.roles")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<UserData | null>(null)
@@ -925,15 +928,34 @@ export default function Utilizatori() {
                   <label htmlFor="role" className="text-sm font-medium">
                     Rol
                   </label>
+                  {/* Dinamic din setări: users.create.roles, cu fallback la lista fixă */}
+                  {/* eslint-disable-next-line @typescript-eslint/no-unused-vars */}
+                  {/* import la începutul fișierului */}
+                  {/* import { useTargetList } from "@/hooks/use-settings" */}
+                  {(() => {
+                    // Hook inline pentru a evita refactorări mari; rămâne simplu
+                    // Notă: în React, hook-urile trebuie apelate la top-level; mutăm efectiv sus importul și apelul înainte de return
+                    return null
+                  })()}
                   <Select value={formData.role} onValueChange={handleSelectChange}>
                     <SelectTrigger id="role">
                       <SelectValue placeholder="Selectați rolul" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="admin">Administrator</SelectItem>
-                      <SelectItem value="dispecer">Dispecer</SelectItem>
-                      <SelectItem value="tehnician">Tehnician</SelectItem>
-                      <SelectItem value="client">Client</SelectItem>
+                      {dynamicUserRoles?.length ? (
+                        dynamicUserRoles.map((it) => (
+                          <SelectItem key={it.id} value={it.name}>
+                            {it.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <>
+                          <SelectItem value="admin">Administrator</SelectItem>
+                          <SelectItem value="dispecer">Dispecer</SelectItem>
+                          <SelectItem value="tehnician">Tehnician</SelectItem>
+                          <SelectItem value="client">Client</SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1144,6 +1166,20 @@ export default function Utilizatori() {
                   </div>
                 </div>
               )}
+
+              {/* Câmpuri dinamice din setări (legate la Dialog: Utilizator Nou) */}
+              <div className="col-span-1 lg:col-span-2">
+                <DynamicDialogFields
+                  targetId="dialogs.user.new"
+                  values={(formData as any)?.customFields}
+                  onChange={(fieldKey, value) =>
+                    setFormData((prev: any) => ({
+                      ...prev,
+                      customFields: { ...(prev?.customFields || {}), [fieldKey]: value },
+                    }))
+                  }
+                />
+              </div>
             </div>
             <DialogFooter className="flex-col gap-2 sm:flex-row">
               <Button variant="outline" onClick={handleCloseAddDialog}>

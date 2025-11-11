@@ -10,7 +10,7 @@ import { updateLucrare, getLucrareById, getClientById, addUserLogEntry } from "@
 import { useAuth } from "@/contexts/AuthContext"
 import { toast } from "@/hooks/use-toast"
 // Recipient selection temporarily disabled; show read-only info instead
-import { useTargetValue } from "@/hooks/use-settings"
+import { useTargetList, useTargetValue } from "@/hooks/use-settings"
 
 interface OfferEditorDialogProps {
   lucrareId: string
@@ -54,6 +54,10 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
   const [termsDelivery, setTermsDelivery] = useState<string>("")
   const [termsInstallation, setTermsInstallation] = useState<string>("")
   const { value: offerValidityDays } = useTargetValue<number>("offer.validityDays")
+  const { items: paymentTermOptions } = useTargetList("offer.paymentTermsOptions")
+  const { items: deliveryTermOptions } = useTargetList("offer.deliveryTermsOptions")
+  const { items: installationTermOptions } = useTargetList("offer.installationTermsOptions")
+  const { value: defaultVatPercentSetting } = useTargetValue<number>("offer.defaultVatPercent")
 
 useEffect(() => {
   // Actualizăm mereu baseline-ul din props
@@ -105,7 +109,9 @@ useEffect(() => {
       } catch {}
       {
         const rawVat = (current as any)?.offerVAT
-        const nextVat = (typeof rawVat === 'number' && rawVat > 0) ? Number(rawVat) : 21
+        const nextVat = (typeof rawVat === 'number' && rawVat > 0)
+          ? Number(rawVat)
+          : (typeof defaultVatPercentSetting === 'number' && defaultVatPercentSetting >= 0 ? Number(defaultVatPercentSetting) : 21)
         setVatPercent(nextVat)
         const rawAdj = (current as any)?.offerAdjustmentPercent
         const nextAdj = (typeof rawAdj === 'number') ? Number(rawAdj) : 0
@@ -125,7 +131,7 @@ useEffect(() => {
       } catch {}
     }
     if (open) void load()
-  }, [open, lucrareId])
+  }, [open, lucrareId, defaultVatPercentSetting])
 
   // no manual recipient selection; display-only suggestion handled via suggestedRecipient
 
@@ -538,6 +544,22 @@ useEffect(() => {
                     disabled={effectiveDisabled}
                     placeholder="ex: 100% în avans"
                   />
+                  {!!paymentTermOptions?.length && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {paymentTermOptions.map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          className="text-[11px] px-2 py-0.5 rounded border hover:bg-muted"
+                          onClick={() => setTermsPayment(opt.name)}
+                          disabled={effectiveDisabled}
+                          title="Insert from setări"
+                        >
+                          {opt.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">Termen de livrare</label>
@@ -549,6 +571,22 @@ useEffect(() => {
                     disabled={effectiveDisabled}
                     placeholder="ex: 30 zile lucrătoare de la plată"
                   />
+                  {!!deliveryTermOptions?.length && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {deliveryTermOptions.map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          className="text-[11px] px-2 py-0.5 rounded border hover:bg-muted"
+                          onClick={() => setTermsDelivery(opt.name)}
+                          disabled={effectiveDisabled}
+                          title="Insert from setări"
+                        >
+                          {opt.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">Termen de instalare</label>
@@ -560,6 +598,22 @@ useEffect(() => {
                     disabled={effectiveDisabled}
                     placeholder="ex: 1-2 zile lucrătoare de la livrare"
                   />
+                  {!!installationTermOptions?.length && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {installationTermOptions.map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          className="text-[11px] px-2 py-0.5 rounded border hover:bg-muted"
+                          onClick={() => setTermsInstallation(opt.name)}
+                          disabled={effectiveDisabled}
+                          title="Insert from setări"
+                        >
+                          {opt.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
