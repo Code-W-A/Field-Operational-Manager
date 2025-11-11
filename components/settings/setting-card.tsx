@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { MoreVertical, Folder, FileText, Star, Copy, History, Trash2, Plus, GripVertical } from "lucide-react"
+import { MoreVertical, Folder, FileText, Star, Copy, History, Trash2, Plus, GripVertical, Link2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -25,6 +25,10 @@ import {
 } from "@/components/ui/alert-dialog"
 import type { Setting } from "@/types/settings"
 import { cn } from "@/lib/utils"
+import { SETTINGS_TARGETS } from "@/lib/settings/targets"
+import { useAuth } from "@/contexts/AuthContext"
+import { updateSetting } from "@/lib/firebase/settings"
+import { toast } from "@/hooks/use-toast"
 
 interface SettingCardProps {
   setting: Setting
@@ -57,6 +61,9 @@ export function SettingCard({
 }: SettingCardProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false)
+  const [showBindDialog, setShowBindDialog] = useState(false)
+  const [selectedTargets, setSelectedTargets] = useState<string[]>(Array.isArray(setting.assignedTargets) ? setting.assignedTargets : [])
+  const { userData } = useAuth()
 
   const handleCardClick = () => {
     // Allow navigation for both categories and variables
@@ -123,6 +130,11 @@ export function SettingCard({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setShowBindDialog(true)}>
+                    <Link2 className="mr-2 h-4 w-4" />
+                    Leagă la…
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   {onAddChild && (
                     <>
                       <DropdownMenuItem onClick={() => onAddChild(setting)}>
@@ -189,6 +201,62 @@ export function SettingCard({
           </div>
         </CardContent>
       </Card>
+
+      {/* Bind targets dialog */}
+      <AlertDialog open={showBindDialog} onOpenChange={setShowBindDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leagă setarea de dialoguri/aplicație</AlertDialogTitle>
+            <AlertDialogDescription>
+              Selectează unde vrei să fie folosit acest element ca listă sau valoare în aplicație.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="max-h-[300px] overflow-y-auto space-y-2">
+            {SETTINGS_TARGETS.map((t) => {
+              const checked = selectedTargets.includes(t.id)
+              return (
+                <label key={t.id} className="flex items-start gap-3 p-2 rounded border hover:bg-muted/40 cursor-pointer">
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={(val) => {
+                      const v = Boolean(val)
+                      setSelectedTargets((prev) => {
+                        if (v) return prev.includes(t.id) ? prev : [...prev, t.id]
+                        return prev.filter((x) => x !== t.id)
+                      })
+                    }}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{t.label}</div>
+                    <div className="text-xs text-muted-foreground capitalize">Tip: {t.kind}</div>
+                  </div>
+                </label>
+              )
+            })}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Anulează</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                try {
+                  await updateSetting(
+                    setting.id,
+                    { assignedTargets: selectedTargets },
+                    userData?.uid || "",
+                    userData?.displayName || "Utilizator"
+                  )
+                  toast({ title: "Legături salvate" })
+                } catch (e) {
+                  toast({ title: "Eroare la salvare legături", variant: "destructive" })
+                }
+              }}
+            >
+              Salvează
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>

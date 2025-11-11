@@ -10,6 +10,7 @@ import { updateLucrare, getLucrareById, getClientById, addUserLogEntry } from "@
 import { useAuth } from "@/contexts/AuthContext"
 import { toast } from "@/hooks/use-toast"
 // Recipient selection temporarily disabled; show read-only info instead
+import { useTargetValue } from "@/hooks/use-settings"
 
 interface OfferEditorDialogProps {
   lucrareId: string
@@ -52,6 +53,7 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
   const [termsPayment, setTermsPayment] = useState<string>("")
   const [termsDelivery, setTermsDelivery] = useState<string>("")
   const [termsInstallation, setTermsInstallation] = useState<string>("")
+  const { value: offerValidityDays } = useTargetValue<number>("offer.validityDays")
 
 useEffect(() => {
   // Actualizăm mereu baseline-ul din props
@@ -364,7 +366,7 @@ useEffect(() => {
 
           <p style="margin:12px 0 6px;color:#0b1220">Vă rugăm să ne transmiteți poziția dvs. față de oferta de mai sus prin apăsarea butonului „acceptă/refuză”.</p>
 
-          <p style="margin:10px 0 6px;color:#64748b">Link-ul este valabil 30 de zile de la primirea emailului. După acceptare/refuzare, linkurile devin inactive.</p>
+          <p style="margin:10px 0 6px;color:#64748b">Link-ul este valabil ${String(offerValidityDays ?? 30)} de zile de la primirea emailului. După acceptare/refuzare, linkurile devin inactive.</p>
   
           <!-- Butoane -->
           <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-top:12px">

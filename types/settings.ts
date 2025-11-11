@@ -19,6 +19,7 @@ export interface Setting {
   hidden: boolean
   favorite: boolean
   inheritedFrom?: string // ID părinte de la care moștenește valoarea
+  assignedTargets?: string[] // target-uri din aplicație la care e legată setarea (doar nivel 1 de obicei)
   createdAt: Timestamp
   createdBy: string
   updatedAt: Timestamp
@@ -45,6 +46,7 @@ export interface CreateSettingData {
   value?: any
   parentId: string | null
   inheritedFrom?: string
+  assignedTargets?: string[]
 }
 
 export interface UpdateSettingData {
@@ -56,6 +58,7 @@ export interface UpdateSettingData {
   favorite?: boolean
   order?: number
   inheritedFrom?: string
+  assignedTargets?: string[]
 }
 
 export interface BulkCreateData {

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
@@ -10,6 +10,7 @@ import { RefreshCw, AlertTriangle, Clock, Package, Wrench } from "lucide-react"
 import { updateLucrare } from "@/lib/firebase/firestore"
 import { toast } from "@/components/ui/use-toast"
 import { useAuth } from "@/contexts/AuthContext"
+import { useTargetList } from "@/hooks/use-settings"
 
 interface ReinterventionReasonDialogProps {
   isOpen: boolean
@@ -40,6 +41,16 @@ export function ReinterventionReasonDialog({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { userData } = useAuth()
   const [textReinterventie, setTextReinterventie] = useState("")
+  const { items: dynamicReasons, loading: loadingReasons } = useTargetList("works.create.reinterventionReasons")
+  const dynamicLabels = useMemo(() => (dynamicReasons || []).map((r) => r.name), [dynamicReasons])
+  const [dynSelection, setDynSelection] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    // initialize selection for dynamic labels
+    const next: Record<string, boolean> = {}
+    dynamicLabels.forEach((lbl) => { next[lbl] = false })
+    setDynSelection(next)
+  }, [dynamicLabels.join("|")])
 
   const handleReasonChange = (reason: keyof ReinterventionReasons, checked: boolean) => {
     setReasons(prev => ({
@@ -48,7 +59,7 @@ export function ReinterventionReasonDialog({
     }))
   }
 
-  const hasSelectedReasons = Object.values(reasons).some(reason => reason)
+  const hasSelectedReasons = Object.values(reasons).some(Boolean) || Object.values(dynSelection).some(Boolean)
 
   const handleConfirm = async () => {
     if (!hasSelectedReasons) {
@@ -63,10 +74,12 @@ export function ReinterventionReasonDialog({
     setIsSubmitting(true)
 
     try {
+      const selectedDynamic = Object.entries(dynSelection).filter(([_, v]) => v).map(([k]) => k)
       const reinterventieMotiv = {
         remediereNeconforma: reasons.remediereNeconforma,
         necesitaTimpSuplimentar: reasons.necesitaTimpSuplimentar,
         necesitaPieseSuplimentare: reasons.necesitaPieseSuplimentare,
+        motive: selectedDynamic, // motive dinamice din setări
         dataReinterventie: new Date().toLocaleString('ro-RO'),
         decisaDe: userData?.displayName || "Administrator necunoscut"
       }
@@ -129,6 +142,32 @@ export function ReinterventionReasonDialog({
             </AlertDescription>
           </Alert>
 
+          {/* Dynamic reasons from settings (if configured) */}
+          {dynamicLabels.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Motive configurate din Setări</div>
+              <div className="space-y-2">
+                {dynamicLabels.map((label) => (
+                  <div key={label} className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+                    <Checkbox
+                      id={`dyn-${label}`}
+                      checked={Boolean(dynSelection[label])}
+                      onCheckedChange={(checked) => setDynSelection((prev) => ({ ...prev, [label]: Boolean(checked) }))}
+                      disabled={isSubmitting || loadingReasons}
+                      className="mt-0.5"
+                    />
+                    <div className="flex-1">
+                      <Label htmlFor={`dyn-${label}`} className="flex items-center gap-2 font-medium cursor-pointer">
+                        {label}
+                      </Label>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Legacy fixed reasons (kept as fallback and backward compatibility) */}
           <div className="space-y-4">
             <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
               <Checkbox

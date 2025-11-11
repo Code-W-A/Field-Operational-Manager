@@ -104,6 +104,7 @@ export async function createSetting(
     order,
     hidden: false,
     favorite: false,
+    assignedTargets: Array.isArray(data.assignedTargets) ? data.assignedTargets : [],
     createdAt: serverTimestamp(),
     createdBy: userId,
     updatedAt: serverTimestamp(),
@@ -507,6 +508,25 @@ export function subscribeToSettings(
     
     // Sort by order on client side
     settings.sort((a, b) => (a.order || 0) - (b.order || 0))
+    callback(settings)
+  })
+}
+
+// Subscribe to settings that are bound to a target (top-level usually)
+export function subscribeToSettingsByTarget(
+  targetId: string,
+  callback: (settings: Setting[]) => void
+): () => void {
+  const q = query(
+    collection(db, "settings"),
+    where("assignedTargets", "array-contains", targetId)
+  )
+
+  return onSnapshot(q, (snapshot) => {
+    const settings = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Setting[]
     callback(settings)
   })
 }

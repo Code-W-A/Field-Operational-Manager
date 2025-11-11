@@ -1313,6 +1313,16 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                           </div>
                         )}
                       </div>
+                      {/* Motive dinamice din Setări */}
+                      {Array.isArray(lucrare.reinterventieMotiv.motive) && lucrare.reinterventieMotiv.motive.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {lucrare.reinterventieMotiv.motive.map((m: string, idx: number) => (
+                            <span key={`${m}-${idx}`} className="px-2 py-0.5 text-xs rounded-full bg-orange-100 text-orange-800 border border-orange-200">
+                              {m}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       {lucrare.reinterventieMotiv.dataReinterventie && (
                         <div className="flex flex-col sm:flex-row sm:justify-between text-xs text-orange-600 mt-3 pt-2 border-t border-orange-200">
                           <span>Reintervenție decisă pe: {lucrare.reinterventieMotiv.dataReinterventie}</span>
