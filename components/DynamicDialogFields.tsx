@@ -69,13 +69,19 @@ export function DynamicDialogFields({ targetId, values, onChange, className = ""
 
   if (!visibleParents.length) return null
 
+  // Determinăm dacă avem un singur element pentru a-l face full-width
+  const isSingleElement = visibleParents.length === 1
+
   return (
     <div className={className}>
       <div className="mb-2">
         <Label className="text-xs text-muted-foreground">Câmpuri din setări (legate de acest dialog)</Label>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {visibleParents.map((p) => {
+      <div className={cn(
+        "grid gap-3",
+        isSingleElement ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"
+      )}>
+        {visibleParents.map((p, index) => {
           const children = childrenByParent[p.id] || []
           const options = children
             .map((c) => c?.name || "")
