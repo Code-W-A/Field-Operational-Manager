@@ -45,6 +45,7 @@ import {
   getPredefinedSettingValue, 
   updatePredefinedSettingValue 
 } from "@/lib/firebase/predefined-settings"
+import { getCurrentReportNumber, updateReportNumber } from "@/lib/firebase/firestore"
 import {
   DndContext,
   closestCenter,
@@ -128,13 +129,20 @@ export default function SetariPage() {
   const [savingPredefined, setSavingPredefined] = useState(false)
   const [loadingPredefined, setLoadingPredefined] = useState(true)
 
+  // Report number management state
+  const [currentReportNumber, setCurrentReportNumber] = useState<number>(1)
+  const [reportNumberInput, setReportNumberInput] = useState<string>("1")
+  const [isLoadingReportNumber, setIsLoadingReportNumber] = useState(false)
+  const [isSavingReportNumber, setIsSavingReportNumber] = useState(false)
+
   // Load settings
   const { settings, loading } = useSettings(currentParentId)
 
-  // Load predefined settings
+  // Load predefined settings and report number
   useEffect(() => {
     const loadPredefinedSettings = async () => {
       setLoadingPredefined(true)
+      setIsLoadingReportNumber(true)
       try {
         await ensurePredefinedSettings()
         const loadedValues: Record<string, any> = {}
@@ -143,10 +151,21 @@ export default function SetariPage() {
           loadedValues[setting.id] = value
         }
         setPredefinedValues(loadedValues)
+
+        // Load current report number
+        const current = await getCurrentReportNumber()
+        setCurrentReportNumber(current)
+        setReportNumberInput(current.toString())
       } catch (error) {
-        console.error("Eroare la încărcarea setărilor predefinite:", error)
+        console.error("Eroare la încărcarea setărilor:", error)
+        toast({
+          title: "Eroare",
+          description: "Nu s-au putut încărca toate setările.",
+          variant: "destructive",
+        })
       } finally {
         setLoadingPredefined(false)
+        setIsLoadingReportNumber(false)
       }
     }
     loadPredefinedSettings()
@@ -364,6 +383,40 @@ export default function SetariPage() {
     }
   }
 
+  // Handle report number save
+  const handleSaveReportNumber = async () => {
+    const newNumber = parseInt(reportNumberInput, 10)
+    
+    if (isNaN(newNumber) || newNumber < 1) {
+      toast({
+        title: "Eroare validare",
+        description: "Vă rugăm să introduceți un număr valid mai mare decât 0.",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    setIsSavingReportNumber(true)
+    try {
+      await updateReportNumber(newNumber)
+      setCurrentReportNumber(newNumber)
+      
+      toast({
+        title: "Număr actualizat",
+        description: `Următorul raport va avea numărul #${newNumber.toString().padStart(6, '0')}.`,
+      })
+    } catch (error) {
+      console.error("Eroare la actualizarea numărului de raport:", error)
+      toast({
+        title: "Eroare",
+        description: "Nu s-a putut actualiza numărul de raport.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSavingReportNumber(false)
+    }
+  }
+
   return (
     <DashboardShell>
       <DashboardHeader heading="Setări" text="">
@@ -482,6 +535,86 @@ export default function SetariPage() {
                   </Card>
                 ))
               )}
+
+              {/* Management numerotare rapoarte */}
+              <Card className="bg-green-50/50 border-green-200">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    Management numerotare rapoarte
+                    <span className="text-xs font-normal text-muted-foreground bg-green-100 px-2 py-0.5 rounded">
+                      Sistem
+                    </span>
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Gestionează numărul automat al rapoartelor generate. Modificarea afectează doar rapoartele noi.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="space-y-3">
+                    {/* Afișare număr curent */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Următorul număr de raport:</span>
+                      {isLoadingReportNumber ? (
+                        <div className="flex items-center gap-2">
+                          <RefreshCw className="h-3 w-3 animate-spin text-green-600" />
+                          <span className="text-xs text-green-600">Se încarcă...</span>
+                        </div>
+                      ) : (
+                        <span className="text-sm font-bold text-green-900 bg-green-100 px-2 py-1 rounded border border-green-300">
+                          #{currentReportNumber.toString().padStart(6, '0')}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Input și butoane */}
+                    <div className="flex gap-2 items-end">
+                      <div className="flex-1">
+                        <Label htmlFor="report-number-input" className="text-xs text-muted-foreground">
+                          Setează număr nou
+                        </Label>
+                        <Input
+                          id="report-number-input"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={reportNumberInput}
+                          onChange={(e) => {
+                            const onlyDigits = e.target.value.replace(/\D+/g, "")
+                            setReportNumberInput(onlyDigits)
+                          }}
+                          onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                          placeholder="Număr"
+                          disabled={isLoadingReportNumber || isSavingReportNumber}
+                          className="mt-1"
+                        />
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveReportNumber}
+                        disabled={isLoadingReportNumber || isSavingReportNumber}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        {isSavingReportNumber ? (
+                          <>
+                            <RefreshCw className="h-3 w-3 animate-spin mr-1" />
+                            Se salvează...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="h-4 w-4 mr-2" />
+                            Actualizează
+                          </>
+                        )}
+                      </Button>
+                    </div>
+
+                    {/* Informație suplimentară */}
+                    <p className="text-xs text-green-700 bg-green-50 p-2 rounded border border-green-200">
+                      <strong>Important:</strong> Rapoartele existente își păstrează numerele originale. Această modificare afectează doar rapoartele generate după salvare.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
 
             {/* Tab Content: Variabile (Setări Dinamice) */}
