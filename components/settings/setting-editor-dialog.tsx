@@ -187,9 +187,10 @@ export function SettingEditorDialog({
             />
           </div>
 
-          {/* Câmpuri opționale */}
-          <div className="border-t pt-4 mt-4">
-            <h3 className="text-sm font-medium mb-3 text-muted-foreground">Câmpuri suplimentare (opționale)</h3>
+          {/* Câmpuri opționale - DOAR pentru sub-setări (când parentId există) */}
+          {parentId && (
+            <div className="border-t pt-4 mt-4">
+              <h3 className="text-sm font-medium mb-3 text-muted-foreground">Câmpuri suplimentare (opționale)</h3>
             
             {/* Valoare numerică */}
             <div className="space-y-2 mb-4">
@@ -304,7 +305,8 @@ export function SettingEditorDialog({
               )}
               <p className="text-xs text-muted-foreground">PDF, DOC, XLS, etc. până la 10MB</p>
             </div>
-          </div>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
