@@ -115,7 +115,7 @@ export function ContractPricingDialog({ open, onOpenChange, pricing, onSave, cus
           <DialogHeader>
             <DialogTitle>Prețuri Contract</DialogTitle>
             <DialogDescription>
-              Setați prețurile pentru fiecare tip de serviciu. Prețurile sunt în RON.
+              Setați prețurile pentru fiecare tip de serviciu.
             </DialogDescription>
           </DialogHeader>
 

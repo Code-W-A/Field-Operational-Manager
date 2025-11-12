@@ -397,7 +397,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
                     size="sm"
                     variant="outline"
                     onClick={() => handleDeleteDocument('factura')}
-                    disabled={!isWorkPickedUp || isLocked}
+                    disabled={!isWorkPickedUp || isArchived}
                     className="w-full sm:w-auto"
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
@@ -442,7 +442,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
                 {lucrare.statusFacturare !== "Nu se facturează" ? (
                   <Button
                     variant="outline"
-                    disabled={!isWorkPickedUp || isArchived || isLocked}
+                    disabled={!isWorkPickedUp || isArchived}
                     onClick={() => {
                       // Deschidem dialogul pentru selectarea motivului ÎNAINTE de a schimba statusul
                       setIsNoInvoiceReasonDialogOpen(true)
@@ -463,7 +463,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
                         setMotivTemp(lucrare?.motivNefacturare || "")
                         setIsMotivDialogOpen(true)
                       }}
-                      disabled={isLocked || isArchived}
+                      disabled={isArchived}
                     >
                       <AlertCircle className="h-4 w-4 mr-2 text-gray-600" />
                       Setează motiv
@@ -480,7 +480,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
                         }
                       }}
                       className="w-full sm:w-auto"
-                      disabled={isLocked || isArchived}
+                      disabled={isArchived}
                     >
                       Revocă 'Nu se facturează'
                     </Button>
@@ -499,7 +499,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
         </div>
 
         {/* Secțiunea pentru ofertă - ascunsă complet când hideOfertaUpload este activ */}
-        {!hideOfertaUpload && !isLocked && (
+        {!hideOfertaUpload && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h4 className="text-sm font-medium">Ofertă</h4>

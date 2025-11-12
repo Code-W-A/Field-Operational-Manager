@@ -58,6 +58,7 @@ import { ContractPricingDialog } from "@/components/contract-pricing-dialog"
 import { useTargetList, useTargetValue } from "@/hooks/use-settings"
 import { subscribeToSettingsByTarget, subscribeToSettings } from "@/lib/firebase/settings"
 import type { Setting } from "@/types/settings"
+import { getPredefinedSettingValue } from "@/lib/firebase/predefined-settings"
 
 interface Contract {
   id: string
@@ -117,7 +118,19 @@ export default function ContractsPage() {
   
   // Hooks pentru setări
   const { items: recurrenceUnits } = useTargetList("contracts.create.recurrenceUnits")
-  const defaultDaysBeforeWork = useTargetValue("contracts.create.defaultDaysBeforeWork")
+  
+  // State pentru setarea predefinită de zile înainte
+  const [defaultDaysBeforeWork, setDefaultDaysBeforeWork] = useState<number>(10)
+  
+  // Încarcă setarea predefinită la mount
+  useEffect(() => {
+    const loadDefaultDays = async () => {
+      const days = await getPredefinedSettingValue("contracts_default_days_before_work")
+      setDefaultDaysBeforeWork(days || 10)
+      setNewContractDaysBeforeWork(days || 10)
+    }
+    loadDefaultDays()
+  }, [])
 
   const [showCloseAlert, setShowCloseAlert] = useState(false)
   const [activeDialog, setActiveDialog] = useState<"add" | "edit" | "delete" | null>(null)

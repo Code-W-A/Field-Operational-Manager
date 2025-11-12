@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { Plus, Search, List, Grid3x3, Folder } from "lucide-react"
+import { useState, useMemo, useEffect } from "react"
+import { Plus, Search, List, Grid3x3, Folder, Settings, Save, RefreshCw } from "lucide-react"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import { Label } from "@/components/ui/label"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +39,12 @@ import { SettingCard } from "@/components/settings/setting-card"
 import { SettingRow } from "@/components/settings/setting-row"
 import { SettingEditorDialog } from "@/components/settings/setting-editor-dialog"
 import { SettingHistoryDialog } from "@/components/settings/setting-history-dialog"
+import { 
+  PREDEFINED_SETTINGS, 
+  ensurePredefinedSettings, 
+  getPredefinedSettingValue, 
+  updatePredefinedSettingValue 
+} from "@/lib/firebase/predefined-settings"
 import {
   DndContext,
   closestCenter,
@@ -106,6 +114,7 @@ export default function SetariPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [multiSelectMode, setMultiSelectMode] = useState(false)
+  const [activeTab, setActiveTab] = useState<"sistem" | "variabile">("variabile")
 
   // Dialog state
   const [editorOpen, setEditorOpen] = useState(false)
@@ -114,8 +123,34 @@ export default function SetariPage() {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historySetting, setHistorySetting] = useState<Setting | null>(null)
 
+  // Predefined settings state
+  const [predefinedValues, setPredefinedValues] = useState<Record<string, any>>({})
+  const [savingPredefined, setSavingPredefined] = useState(false)
+  const [loadingPredefined, setLoadingPredefined] = useState(true)
+
   // Load settings
   const { settings, loading } = useSettings(currentParentId)
+
+  // Load predefined settings
+  useEffect(() => {
+    const loadPredefinedSettings = async () => {
+      setLoadingPredefined(true)
+      try {
+        await ensurePredefinedSettings()
+        const loadedValues: Record<string, any> = {}
+        for (const setting of PREDEFINED_SETTINGS) {
+          const value = await getPredefinedSettingValue(setting.id)
+          loadedValues[setting.id] = value
+        }
+        setPredefinedValues(loadedValues)
+      } catch (error) {
+        console.error("Eroare la încărcarea setărilor predefinite:", error)
+      } finally {
+        setLoadingPredefined(false)
+      }
+    }
+    loadPredefinedSettings()
+  }, [])
 
   // Access control: only admin can view this page
   if (userData && userData.role !== "admin") {
@@ -332,33 +367,152 @@ export default function SetariPage() {
   return (
     <DashboardShell>
       <DashboardHeader heading="Setări" text="">
-        <div className="flex items-center gap-2">
-          <Button onClick={handleCreate} size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Element nou
-          </Button>
-          <Button
-            variant={multiSelectMode ? "default" : "outline"}
-            size="sm"
-            onClick={() => {
-              if (multiSelectMode) {
-                clearSelection()
-                setMultiSelectMode(false)
-              } else {
-                setMultiSelectMode(true)
-              }
-            }}
-          >
-            {multiSelectMode ? "Deselectează" : "Selectare multiplă"}
-          </Button>
-        </div>
       </DashboardHeader>
 
       <div className="space-y-6 pb-16">
-        {/* Breadcrumbs */}
-        <SettingsBreadcrumbs currentPath={navigationPath} onNavigate={handleNavigateToParent} />
+        {/* Tabs pentru Setări Sistem și Variabile - Afișate doar la root level */}
+        {!currentParentId ? (
+          <Tabs value={activeTab} onValueChange={(value: any) => setActiveTab(value)} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="sistem" className="flex items-center gap-2">
+                <Settings className="h-4 w-4" />
+                Setări Sistem
+              </TabsTrigger>
+              <TabsTrigger value="variabile" className="flex items-center gap-2">
+                <Folder className="h-4 w-4" />
+                Variabile
+              </TabsTrigger>
+            </TabsList>
 
-        {/* Bulk actions bar */}
+            {/* Tab Content: Setări Sistem */}
+            <TabsContent value="sistem" className="mt-6 space-y-3">
+              {loadingPredefined ? (
+                <Card>
+                  <CardContent className="py-12">
+                    <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span>Se încarcă setările sistem...</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                PREDEFINED_SETTINGS.map((setting) => (
+                  <Card key={setting.id} className="bg-blue-50/50 border-blue-200">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-medium flex items-center gap-2">
+                        {setting.name}
+                        <span className="text-xs font-normal text-muted-foreground bg-blue-100 px-2 py-0.5 rounded">
+                          Sistem
+                        </span>
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        {setting.description}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="flex gap-2 items-end">
+                        <div className="flex-1">
+                          <Label htmlFor={setting.id} className="text-xs text-muted-foreground">
+                            Valoare {setting.valueType === "number" && "numerică"}
+                          </Label>
+                          <Input
+                            id={setting.id}
+                            type={setting.valueType === "number" ? "number" : "text"}
+                            value={predefinedValues[setting.id] ?? setting.defaultValue}
+                            onChange={(e) => {
+                              const newValue =
+                                setting.valueType === "number"
+                                  ? parseFloat(e.target.value) || 0
+                                  : e.target.value
+                              setPredefinedValues((prev) => ({
+                                ...prev,
+                                [setting.id]: newValue,
+                              }))
+                            }}
+                            disabled={loadingPredefined}
+                            className="mt-1"
+                          />
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const s = PREDEFINED_SETTINGS.find((ps) => ps.id === setting.id)
+                            if (s) {
+                              setPredefinedValues((prev) => ({
+                                ...prev,
+                                [setting.id]: s.defaultValue,
+                              }))
+                            }
+                          }}
+                          disabled={savingPredefined || loadingPredefined}
+                          title="Resetează la valoarea implicită"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={async () => {
+                            setSavingPredefined(true)
+                            try {
+                              await updatePredefinedSettingValue(setting.id, predefinedValues[setting.id])
+                              toast({
+                                title: "Salvat",
+                                description: "Setarea sistem a fost actualizată cu succes.",
+                              })
+                            } catch (error) {
+                              console.error("Eroare la salvarea setării:", error)
+                              toast({
+                                title: "Eroare",
+                                description: "Nu s-a putut salva setarea.",
+                                variant: "destructive",
+                              })
+                            } finally {
+                              setSavingPredefined(false)
+                            }
+                          }}
+                          disabled={savingPredefined || loadingPredefined}
+                        >
+                          <Save className="h-4 w-4 mr-2" />
+                          Salvează
+                        </Button>
+                      </div>
+                  
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </TabsContent>
+
+            {/* Tab Content: Variabile (Setări Dinamice) */}
+            <TabsContent value="variabile" className="mt-6">
+              <div className="space-y-6">
+                {/* Breadcrumbs și butoane acțiune */}
+                <div className="flex items-center justify-between">
+                  <SettingsBreadcrumbs currentPath={navigationPath} onNavigate={handleNavigateToParent} />
+                  <div className="flex items-center gap-2">
+                    <Button onClick={handleCreate} size="sm">
+                      <Plus className="mr-2 h-4 w-4" />
+                      Element nou
+                    </Button>
+                    <Button
+                      variant={multiSelectMode ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => {
+                        if (multiSelectMode) {
+                          clearSelection()
+                          setMultiSelectMode(false)
+                        } else {
+                          setMultiSelectMode(true)
+                        }
+                      }}
+                    >
+                      {multiSelectMode ? "Deselectează" : "Selectare multiplă"}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Bulk actions bar */}
         {multiSelectMode && (
           <div className="flex items-center justify-between p-3 rounded-md bg-muted/40 border">
             <div className="text-sm">
@@ -534,6 +688,216 @@ export default function SetariPage() {
               )}
             </SortableContext>
           </DndContext>
+        )}
+              </div>
+            </TabsContent>
+          </Tabs>
+        ) : (
+          // When navigating into a subcategory (currentParentId exists), show only the variables view without tabs
+          <div className="space-y-6">
+            {/* Breadcrumbs și butoane acțiune */}
+            <div className="flex items-center justify-between">
+              <SettingsBreadcrumbs currentPath={navigationPath} onNavigate={handleNavigateToParent} />
+              <div className="flex items-center gap-2">
+                <Button onClick={handleCreate} size="sm">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Element nou
+                </Button>
+                <Button
+                  variant={multiSelectMode ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    if (multiSelectMode) {
+                      clearSelection()
+                      setMultiSelectMode(false)
+                    } else {
+                      setMultiSelectMode(true)
+                    }
+                  }}
+                >
+                  {multiSelectMode ? "Deselectează" : "Selectare multiplă"}
+                </Button>
+              </div>
+            </div>
+
+            {/* Bulk actions bar */}
+            {multiSelectMode && (
+              <div className="flex items-center justify-between p-3 rounded-md bg-muted/40 border">
+                <div className="text-sm">
+                  Selectate: <span className="font-medium">{selectedIds.size}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={selectAll}>
+                    Selectează toate
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={clearSelection}>
+                    Deselectează
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={() => setBulkDeleteOpen(true)}>
+                    Șterge selectate
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <Separator />
+
+            {/* Filters */}
+            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+              <div className="flex flex-1 gap-2 w-full sm:w-auto">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Caută setări..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={filterFavorite ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilterFavorite(!filterFavorite)}
+                >
+                  Favorite
+                </Button>
+                <ToggleGroup type="single" value={viewMode} onValueChange={(val: any) => val && setViewMode(val)}>
+                  <ToggleGroupItem value="grid" aria-label="Grid view">
+                    <Grid3x3 className="h-4 w-4" />
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="list" aria-label="List view">
+                    <List className="h-4 w-4" />
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+            </div>
+
+            {/* Content */}
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-16 space-y-4">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                <p className="text-muted-foreground">Se încarcă setările...</p>
+              </div>
+            ) : filteredSettings.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="flex flex-col items-center justify-center py-16 space-y-4">
+                  {searchQuery || filterFavorite ? (
+                    <>
+                      <div className="p-4 rounded-full bg-muted">
+                        <Search className="h-8 w-8 text-muted-foreground" />
+                      </div>
+                      <div className="text-center space-y-2">
+                        <h3 className="text-lg font-semibold">Niciun rezultat</h3>
+                        <p className="text-muted-foreground max-w-md">
+                          Nu s-au găsit elemente care să corespundă criteriilor de căutare. 
+                          Încearcă să modifici filtrele aplicate.
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setSearchQuery("")
+                          setFilterFavorite(false)
+                        }}
+                      >
+                        Resetează filtrele
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="p-4 rounded-full bg-primary/10">
+                        <Folder className="h-8 w-8 text-primary" />
+                      </div>
+                      <div className="text-center space-y-2">
+                        <h3 className="text-lg font-semibold">Nicio setare încă</h3>
+                        <p className="text-muted-foreground max-w-md">
+                          Începe prin a crea prima setare. 
+                          Construiește structura cu setări și subsetări.
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button onClick={handleCreate}>
+                          <Plus className="mr-2 h-4 w-4" />
+                          Creează primul element
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={filteredSettings.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+                  {viewMode === "grid" ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {filteredSettings.map((setting) => (
+                        <SortableSettingCard
+                          key={setting.id}
+                          setting={setting}
+                          selected={isSelected(setting.id)}
+                          onToggleSelect={toggleSelect}
+                          showCheckbox={multiSelectMode}
+                          onNavigate={handleNavigate}
+                          onEdit={handleEdit}
+                          onDelete={handleDelete}
+                          onDuplicate={handleDuplicate}
+                          onToggleFavorite={handleToggleFavorite}
+                          onViewHistory={handleViewHistory}
+                          onAddChild={handleAddChild}
+                        />
+                      ))}
+                      {/* Add new card shortcut at the end (right of the last card) */}
+                      <Card
+                        className="border-dashed hover:border-primary/60 hover:bg-primary/5 transition cursor-pointer flex items-center justify-center"
+                        onClick={handleCreate}
+                      >
+                        <CardContent className="flex items-center justify-center py-10">
+                          <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                            <div className="p-2 rounded-full bg-muted">
+                              <Plus className="h-5 w-5" />
+                            </div>
+                            <span className="text-sm font-medium">Adaugă setare</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {filteredSettings.map((setting) => (
+                        <SortableSettingRow
+                          key={`row-${setting.id}`}
+                          setting={setting}
+                          selected={isSelected(setting.id)}
+                          onToggleSelect={toggleSelect}
+                          showCheckbox={multiSelectMode}
+                          onNavigate={handleNavigate}
+                          onEdit={handleEdit}
+                          onDelete={handleDelete}
+                          onDuplicate={handleDuplicate}
+                          onToggleFavorite={handleToggleFavorite}
+                          onViewHistory={handleViewHistory}
+                          onAddChild={handleAddChild}
+                        />
+                      ))}
+                      {/* Add new row shortcut at the end of the list */}
+                      <div
+                        className="w-full rounded-md border border-dashed bg-background hover:bg-muted/30 transition-all px-3 py-3 flex items-center justify-center cursor-pointer"
+                        onClick={handleCreate}
+                      >
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Plus className="h-4 w-4" />
+                          <span className="text-sm font-medium">Adaugă setare</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </SortableContext>
+              </DndContext>
+            )}
+          </div>
         )}
       </div>
 
