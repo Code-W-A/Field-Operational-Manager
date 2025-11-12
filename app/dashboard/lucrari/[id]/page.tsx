@@ -60,6 +60,7 @@ import { useModificationDetails } from "@/hooks/use-modification-details"
 import { db } from "@/lib/firebase/config"
 import { collection, query, where, getDocs } from "firebase/firestore"
 import { canArchiveLucrare } from "@/lib/utils/archive-validation"
+import { deleteField } from "firebase/firestore"
 
 // Funcție utilitar pentru a extrage CUI-ul indiferent de cum este salvat
 const extractCUI = (client: any) => {
@@ -881,10 +882,21 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
             </Button>
           )}
 
-          {/* Buton pentru arhivare - doar pentru admin/dispecer și lucrări finalizate, cu condiții de activare */}
-          {isAdminOrDispatcher && lucrare.statusLucrare === "Finalizat" && (() => {
+          {/* Buton pentru arhivare - vizibil întotdeauna pentru admin/dispecer, disabled când nu sunt îndeplinite condițiile */}
+          {isAdminOrDispatcher && (() => {
+            const isFinalized = lucrare.statusLucrare === "Finalizat"
             const archiveValidation = canArchiveLucrare(lucrare)
-            const canArchive = archiveValidation.canArchive
+            
+            // Butonul este enabled doar dacă statusul este "Finalizat" ȘI toate condițiile sunt îndeplinite
+            const canArchive = isFinalized && archiveValidation.canArchive
+            
+            // Determină motivul pentru care nu se poate arhiva
+            let disableReason = ""
+            if (!isFinalized) {
+              disableReason = "Lucrarea trebuie să fie în status 'Finalizat' pentru a putea fi arhivată"
+            } else if (!archiveValidation.canArchive) {
+              disableReason = archiveValidation.reason || "Nu se poate arhiva încă"
+            }
             
             // Tooltip diferit în funcție de starea butonului
             const tooltipContent = !canArchive 
@@ -892,7 +904,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   <div className="max-w-xs">
                     <p className="font-semibold mb-2">Nu se poate arhiva încă</p>
                     <ul className="text-sm list-disc pl-4 space-y-1">
-                      <li>{archiveValidation.reason}</li>
+                      <li>{disableReason}</li>
                     </ul>
                   </div>
                 )
@@ -956,7 +968,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       <div className="text-sm text-gray-700">
                         <p className="flex items-start gap-2">
                           <AlertCircle className="h-4 w-4 mt-0.5 text-orange-500 flex-shrink-0" />
-                          <span>{archiveValidation.reason}</span>
+                          <span>{disableReason}</span>
                         </p>
                       </div>
                     </div>
@@ -1985,14 +1997,29 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       <div className="flex flex-wrap gap-8">
                         {/* Necesită ofertă - switch dedesubt */}
                         <div className="space-y-2">
-                          <Label htmlFor="necesitaOfertaSwitch" className={`text-sm font-medium ${!lucrare.preluatDispecer && !isAdminOrDispatcher ? 'text-gray-500' : 'text-blue-800'}`}>Necesită ofertă</Label>
+                          <Label htmlFor="necesitaOfertaSwitch" className={`text-sm font-medium ${(!lucrare.preluatDispecer && !isAdminOrDispatcher) ? 'text-gray-500' : 'text-blue-800'}`}>Necesită ofertă</Label>
                           <div>
                             <Switch
                               id="necesitaOfertaSwitch"
                               checked={Boolean(lucrare.necesitaOferta)}
                               onCheckedChange={async (checked) => {
-                                // Admin și dispecer pot modifica indiferent de preluare
-                                if (!lucrare.preluatDispecer && !isAdminOrDispatcher) {
+                                try {
+                                  console.log("[OfertaSwitch] toggle attempt", {
+                                    checked,
+                                    lucrareId: lucrare?.id,
+                                    preluatDispecer: lucrare?.preluatDispecer,
+                                    role,
+                                    isAdminOrDispatcher,
+                                    lockedAfterReintervention: (lucrare as any)?.lockedAfterReintervention,
+                                    statusLucrare: lucrare?.statusLucrare,
+                                    currentNecesitaOferta: Boolean(lucrare?.necesitaOferta),
+                                  })
+                                } catch (e) {
+                                  // ignore
+                                }
+                                // Doar non-admin/dispecer sunt blocați dacă lucrarea nu e preluată
+                                if (!isAdminOrDispatcher && !lucrare.preluatDispecer) {
+                                  console.warn("[OfertaSwitch] blocked: non-admin/dispecer and not picked up")
                                   toast({ title: 'Acțiune indisponibilă', description: 'Lucrarea trebuie preluată de dispecer/admin pentru a modifica setările ofertei.', variant: 'destructive' })
                                   return
                                 }
@@ -2001,20 +2028,22 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                   const updateData: any = { necesitaOferta: checked }
                                   if (!checked) {
                                     updateData.comentariiOferta = ""
-                                    updateData.statusOferta = undefined
+                                    updateData.statusOferta = deleteField() as any
                                   }
+                                  console.log("[OfertaSwitch] calling updateLucrare with", updateData)
                                   await updateLucrare(lucrare.id!, updateData)
                                   setLucrare(prev => prev ? { ...prev, ...updateData } : null)
+                                  console.log("[OfertaSwitch] update success")
                                   toast({ title: "Actualizat", description: "Setarea 'Necesită ofertă' a fost actualizată." })
                                 } catch (error) {
-                                  console.error("Eroare la actualizarea necesitaOferta:", error)
-                                  toast({ title: "Eroare", description: "Nu s-a putut actualiza setarea.", variant: "destructive" })
+                                  console.error("[OfertaSwitch] error updating necesitaOferta:", error)
+                                  toast({ title: "Eroare", description: "Nu s-a putut actualiza setarea.", variant: 'destructive' })
                                 } finally {
                                   setIsUpdating(false)
                                 }
                               }}
-                              disabled={isUpdating || (!lucrare.preluatDispecer && !isAdminOrDispatcher)}
-                              className={!lucrare.preluatDispecer && !isAdminOrDispatcher ? 'opacity-50' : ''}
+                              disabled={isUpdating ? true : false}
+                              className={!isAdminOrDispatcher && !lucrare.preluatDispecer ? 'opacity-50' : ''}
                             />
                           </div>
                         </div>

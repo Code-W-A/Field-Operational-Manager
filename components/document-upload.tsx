@@ -50,7 +50,8 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
   const needsOffer = lucrare.necesitaOferta === true
   
   // Condiții pentru afișarea upload-ului: afișăm cât timp nu există o factură
-  const shouldShowFacturaUpload = !lucrare.facturaDocument && !isLocked
+  // Permitem upload factură chiar dacă lucrarea este blocată după reintervenție
+  const shouldShowFacturaUpload = !lucrare.facturaDocument
   const shouldShowOfertaUpload = (lucrare.statusOferta === "OFERTAT") && !isLocked
 
   // Eliminăm câmpurile manuale pentru număr și dată; data/ora încărcării se salvează automat
@@ -423,17 +424,17 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
                     type="file"
                     onChange={handleFacturaUpload}
                     className="hidden"
-                    disabled={!isWorkPickedUp || isUploading.factura || isArchived || lucrare.statusFacturare === "Nu se facturează" || isLocked}
+                    disabled={!isWorkPickedUp || isUploading.factura || isArchived || lucrare.statusFacturare === "Nu se facturează"}
                   />
                   <Button
                     onClick={() => facturaInputRef.current?.click()}
-                    disabled={!isWorkPickedUp || isUploading.factura || isArchived || lucrare.statusFacturare === "Nu se facturează" || isLocked}
+                    disabled={!isWorkPickedUp || isUploading.factura || isArchived || lucrare.statusFacturare === "Nu se facturează"}
                     variant="outline"
                     size="sm"
                     className="w-full sm:w-auto"
                   >
                     <Upload className="h-4 w-4 mr-2" />
-                    {isLocked ? "Indisponibil pentru lucrări blocate" : (isArchived ? "Indisponibil pentru lucrări arhivate" : (isUploading.factura ? "Se încarcă..." : "Încarcă factură"))}
+                    {isArchived ? "Indisponibil pentru lucrări arhivate" : (isUploading.factura ? "Se încarcă..." : "Încarcă factură")}
                   </Button>
                 </div>
               )}

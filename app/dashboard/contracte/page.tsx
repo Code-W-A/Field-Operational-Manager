@@ -21,10 +21,11 @@ import {
   deleteDoc,
   serverTimestamp,
   addDoc,
+  getDoc,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { addUserLogEntry } from "@/lib/firebase/firestore"
-import { Plus, Pencil, Trash2, Loader2, AlertCircle, MoreHorizontal, FileText } from "lucide-react"
+import { Plus, Pencil, Trash2, Loader2, AlertCircle, MoreHorizontal, FileText, DollarSign } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { toast } from "@/components/ui/use-toast"
 import { DynamicDialogFields } from "@/components/DynamicDialogFields"
@@ -50,16 +51,32 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useTablePersistence } from "@/hooks/use-table-persistence"
 import { UniversalSearch } from "@/components/universal-search"
-import { getClienti, isContractAvailableForClient, validateContractAssignment } from "@/lib/firebase/firestore"
+import { getClienti, isContractAvailableForClient, validateContractAssignment, type Echipament, type Locatie } from "@/lib/firebase/firestore"
 import { ClientSelectButton } from "@/components/client-select-button"
+import { MultiSelect, type Option } from "@/components/ui/multi-select"
+import { ContractPricingDialog } from "@/components/contract-pricing-dialog"
+import { useTargetList, useTargetValue } from "@/hooks/use-settings"
+import { subscribeToSettingsByTarget, subscribeToSettings } from "@/lib/firebase/settings"
+import type { Setting } from "@/types/settings"
 
 interface Contract {
   id: string
   name: string
   number: string
-  type?: string // Adăugăm câmpul pentru tipul contractului
-  clientId?: string // Adăugăm câmpul pentru clientul asignat
-  locatie?: string // Adăugăm câmpul pentru locația la care se aplică contractul
+  type?: string // Legacy field
+  clientId?: string
+  locationId?: string
+  locationName?: string
+  equipmentIds?: string[]
+  startDate?: string
+  recurrenceInterval?: number
+  recurrenceUnit?: 'zile' | 'luni'
+  recurrenceDayOfMonth?: number
+  daysBeforeWork?: number
+  pricing?: Record<string, number>
+  lastAutoWorkGenerated?: string
+  locatie?: string // Legacy field
+  customFields?: Record<string, any> // Câmpuri dinamice din setări
   createdAt: any
 }
 
@@ -80,16 +97,33 @@ export default function ContractsPage() {
 
   const [newContractName, setNewContractName] = useState("")
   const [newContractNumber, setNewContractNumber] = useState("")
-  const [newContractType, setNewContractType] = useState("Abonament") // Adăugăm starea pentru tipul contractului
-  const [newContractClientId, setNewContractClientId] = useState("UNASSIGNED") // Adăugăm starea pentru clientul asignat
-  const [newContractLocatie, setNewContractLocatie] = useState("") // Adăugăm starea pentru locația contractului
+  const [newContractClientId, setNewContractClientId] = useState("UNASSIGNED")
+  const [newContractLocationId, setNewContractLocationId] = useState("")
+  const [newContractLocationName, setNewContractLocationName] = useState("")
+  const [newContractEquipmentIds, setNewContractEquipmentIds] = useState<string[]>([])
+  const [newContractStartDate, setNewContractStartDate] = useState<string>("")
+  const [newContractRecurrenceInterval, setNewContractRecurrenceInterval] = useState<number>(90)
+  const [newContractRecurrenceUnit, setNewContractRecurrenceUnit] = useState<'zile' | 'luni'>('zile')
+  const [newContractRecurrenceDayOfMonth, setNewContractRecurrenceDayOfMonth] = useState<number>(1)
+  const [newContractDaysBeforeWork, setNewContractDaysBeforeWork] = useState<number>(10)
+  const [newContractPricing, setNewContractPricing] = useState<Record<string, number>>({})
+  const [isPricingDialogOpen, setIsPricingDialogOpen] = useState(false)
   const [newContract, setNewContract] = useState<any>({})
-  const [clientLocations, setClientLocations] = useState<string[]>([]) // Locațiile clientului selectat
+  const [clientLocations, setClientLocations] = useState<Locatie[]>([])
+  const [clientEquipments, setClientEquipments] = useState<Echipament[]>([])
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  
+  // Hooks pentru setări
+  const { items: recurrenceUnits } = useTargetList("contracts.create.recurrenceUnits")
+  const defaultDaysBeforeWork = useTargetValue("contracts.create.defaultDaysBeforeWork")
 
   const [showCloseAlert, setShowCloseAlert] = useState(false)
   const [activeDialog, setActiveDialog] = useState<"add" | "edit" | "delete" | null>(null)
+
+  // State pentru câmpurile dinamice din setări
+  const [dynamicFieldsParents, setDynamicFieldsParents] = useState<Setting[]>([])
+  const [dynamicFieldsChildren, setDynamicFieldsChildren] = useState<Record<string, Setting[]>>({})
 
   // State pentru tabelul avansat
   const [table, setTable] = useState<any>(null)
@@ -129,6 +163,36 @@ export default function ContractsPage() {
       setSearchText(savedSettings.searchText)
     }
   }, [loadSettings])
+
+  // Încărcăm câmpurile dinamice din setări pentru contracte
+  useEffect(() => {
+    const unsubscribeRefs: Record<string, () => void> = {}
+    
+    const unsubParents = subscribeToSettingsByTarget("dialogs.contract.new", (parents) => {
+      setDynamicFieldsParents(parents)
+      
+      // Cleanup previous subscriptions
+      Object.values(unsubscribeRefs).forEach((unsub) => unsub())
+      const newUnsubRefs: Record<string, () => void> = {}
+      
+      // Subscribe to children for each parent
+      parents.forEach((parent) => {
+        newUnsubRefs[parent.id] = subscribeToSettings(parent.id, (children) => {
+          setDynamicFieldsChildren((prev) => ({
+            ...prev,
+            [parent.id]: children,
+          }))
+        })
+      })
+      
+      Object.assign(unsubscribeRefs, newUnsubRefs)
+    })
+    
+    return () => {
+      unsubParents()
+      Object.values(unsubscribeRefs).forEach((unsub) => unsub())
+    }
+  }, [])
 
   // Populăm opțiunile pentru coloane când tabelul este disponibil
   useEffect(() => {
@@ -192,14 +256,29 @@ export default function ContractsPage() {
       const sortConfig = tableSorting[0] // Luăm prima sortare
       const { id: sortKey, desc } = sortConfig
 
-      let aValue = a[sortKey as keyof Contract]
-      let bValue = b[sortKey as keyof Contract]
+      let aValue: any
+      let bValue: any
+
+      // Verificăm dacă sortKey este pentru câmpuri nested (customFields.xxx)
+      if (sortKey.startsWith('customFields.')) {
+        const fieldId = sortKey.replace('customFields.', '')
+        aValue = (a as any).customFields?.[fieldId]
+        bValue = (b as any).customFields?.[fieldId]
+      } else {
+        aValue = a[sortKey as keyof Contract]
+        bValue = b[sortKey as keyof Contract]
+      }
 
       // Tratăm cazul special pentru date
       if (sortKey === "createdAt") {
         aValue = aValue?.toDate ? aValue.toDate() : new Date(aValue || 0)
         bValue = bValue?.toDate ? bValue.toDate() : new Date(bValue || 0)
       }
+
+      // Tratăm valorile null/undefined
+      if (aValue == null && bValue == null) return 0
+      if (aValue == null) return desc ? -1 : 1
+      if (bValue == null) return desc ? 1 : -1
 
       // Comparare
       if (aValue < bValue) return desc ? 1 : -1
@@ -229,6 +308,48 @@ export default function ContractsPage() {
 
   // Persistența filtrelor este acum gestionată automat de EnhancedFilterSystem
 
+  // Generăm coloanele dinamice bazate pe câmpurile din setări
+  const dynamicColumns = useMemo(() => {
+    const cols: ColumnDef<Contract>[] = []
+    
+    dynamicFieldsParents.forEach((parent) => {
+      const children = dynamicFieldsChildren[parent.id] || []
+      const options = children.map((c) => c.name).filter((n) => n && n.trim().length > 0)
+      
+      if (options.length > 0) {
+        cols.push({
+          id: `customFields.${parent.id}`,
+          // Folosim accessorFn pentru câmpuri nested
+          accessorFn: (row) => (row as any).customFields?.[parent.id] || null,
+          header: parent.name,
+          enableHiding: true,
+          enableSorting: true,
+          enableFiltering: true,
+          cell: ({ row }) => {
+            const value = (row.original as any).customFields?.[parent.id]
+            if (!value) return <span className="text-gray-400">-</span>
+            return (
+              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                {value}
+              </Badge>
+            )
+          },
+          // Funcție personalizată pentru filtrare
+          filterFn: (row, columnId, filterValue) => {
+            const value = (row.original as any).customFields?.[parent.id]
+            if (!filterValue || filterValue.length === 0) return true
+            if (Array.isArray(filterValue)) {
+              return filterValue.includes(value)
+            }
+            return value === filterValue
+          },
+        })
+      }
+    })
+    
+    return cols
+  }, [dynamicFieldsParents, dynamicFieldsChildren])
+
   // Definim coloanele pentru tabelul de contracte
   const columns: ColumnDef<Contract>[] = useMemo(() => [
     {
@@ -256,20 +377,58 @@ export default function ContractsPage() {
       ),
     },
     {
-      accessorKey: "type",
-      header: "Tip Contract",
+      accessorKey: "equipmentIds",
+      header: "Echipamente",
       enableHiding: true,
-      enableSorting: true,
-      enableFiltering: true,
-      cell: ({ row }) => (
-        <Badge variant="outline" className={
-          row.original.type === "Abonament" 
-            ? "bg-blue-50 text-blue-700 border-blue-200" 
-            : "bg-green-50 text-green-700 border-green-200"
-        }>
-          {row.original.type || "Nespecificat"}
-        </Badge>
-      ),
+      enableSorting: false,
+      enableFiltering: false,
+      cell: ({ row }) => {
+        const equipmentCount = row.original.equipmentIds?.length || 0
+        
+        if (equipmentCount === 0) {
+          return (
+            <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200">
+              Niciun echipament
+            </Badge>
+          )
+        }
+        
+        return (
+          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+            {equipmentCount} {equipmentCount === 1 ? "echipament" : "echipamente"}
+          </Badge>
+        )
+      },
+    },
+    {
+      accessorKey: "recurrenceInterval",
+      header: "Recurență",
+      enableHiding: true,
+      enableSorting: false,
+      enableFiltering: false,
+      cell: ({ row }) => {
+        const interval = row.original.recurrenceInterval
+        const unit = row.original.recurrenceUnit
+        const dayOfMonth = row.original.recurrenceDayOfMonth
+        
+        if (!interval) {
+          return (
+            <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200">
+              Fără recurență
+            </Badge>
+          )
+        }
+        
+        const displayText = unit === 'luni' && dayOfMonth 
+          ? `${interval} ${unit} (ziua ${dayOfMonth})`
+          : `${interval} ${unit}`
+        
+        return (
+          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+            {displayText}
+          </Badge>
+        )
+      },
     },
     {
       accessorKey: "clientId",
@@ -345,6 +504,8 @@ export default function ContractsPage() {
         }
       },
     },
+    // Inserăm coloanele dinamice înainte de acțiuni
+    ...dynamicColumns,
     {
       id: "actions",
       header: "Acțiuni",
@@ -382,7 +543,7 @@ export default function ContractsPage() {
         </div>
       ),
     },
-  ], [clients])
+  ], [clients, dynamicColumns])
 
   // Încărcăm contractele și clienții din Firestore
   useEffect(() => {
@@ -433,7 +594,10 @@ export default function ContractsPage() {
     const loadClientLocations = async () => {
       if (!newContractClientId || newContractClientId === "UNASSIGNED") {
         setClientLocations([])
-        setNewContractLocatie("")
+        setClientEquipments([])
+        setNewContractLocationId("")
+        setNewContractLocationName("")
+        setNewContractEquipmentIds([])
         return
       }
 
@@ -442,8 +606,7 @@ export default function ContractsPage() {
         const selectedClient = clientsList.find(c => c.id === newContractClientId)
         
         if (selectedClient && selectedClient.locatii) {
-          const locationNames = selectedClient.locatii.map(loc => loc.nume)
-          setClientLocations(locationNames)
+          setClientLocations(selectedClient.locatii)
         } else {
           setClientLocations([])
         }
@@ -456,12 +619,38 @@ export default function ContractsPage() {
     loadClientLocations()
   }, [newContractClientId])
 
+  // Încărcăm echipamentele când se schimbă locația selectată
+  useEffect(() => {
+    if (!newContractLocationId) {
+      setClientEquipments([])
+      setNewContractEquipmentIds([])
+      return
+    }
+
+    const selectedLocation = clientLocations.find(loc => loc.nume === newContractLocationId)
+    if (selectedLocation && selectedLocation.echipamente) {
+      setClientEquipments(selectedLocation.echipamente)
+    } else {
+      setClientEquipments([])
+    }
+  }, [newContractLocationId, clientLocations])
+
+  // Inițializare valoare default pentru daysBeforeWork
+  useEffect(() => {
+    if (defaultDaysBeforeWork && !isEditDialogOpen) {
+      const defaultValue = parseInt(defaultDaysBeforeWork as string, 10)
+      if (!isNaN(defaultValue)) {
+        setNewContractDaysBeforeWork(defaultValue)
+      }
+    }
+  }, [defaultDaysBeforeWork, isEditDialogOpen])
+
   // Funcție pentru adăugarea unui contract nou
   const handleAddContract = async () => {
-    if (!newContractName || !newContractNumber || !newContractType) {
+    if (!newContractName || !newContractNumber) {
       toast({
         title: "Eroare",
-        description: "Vă rugăm să completați toate câmpurile",
+        description: "Vă rugăm să completați toate câmpurile obligatorii",
         variant: "destructive",
       })
       return
@@ -491,7 +680,6 @@ export default function ContractsPage() {
       const contractData: any = {
         name: newContractName,
         number: newContractNumber,
-        type: newContractType,
         createdAt: serverTimestamp(),
         ...(newContract?.customFields ? { customFields: newContract.customFields } : {}),
       }
@@ -500,10 +688,35 @@ export default function ContractsPage() {
       if (newContractClientId && newContractClientId !== "UNASSIGNED") {
         contractData.clientId = newContractClientId
         
-        // Adăugăm locația dacă este selectată
-        if (newContractLocatie) {
-          contractData.locatie = newContractLocatie
+        // Adăugăm locația și echipamentele dacă sunt selectate
+        if (newContractLocationId) {
+          contractData.locationId = newContractLocationId
+          contractData.locationName = newContractLocationName
         }
+        
+        if (newContractEquipmentIds.length > 0) {
+          contractData.equipmentIds = newContractEquipmentIds
+        }
+      }
+
+      // Adăugăm recurență dacă este setată
+      if (newContractRecurrenceInterval && newContractRecurrenceInterval > 0) {
+        // Adăugăm data de început (obligatorie pentru recurență)
+        if (newContractStartDate) {
+          contractData.startDate = newContractStartDate
+        }
+        contractData.recurrenceInterval = newContractRecurrenceInterval
+        contractData.recurrenceUnit = newContractRecurrenceUnit
+        contractData.daysBeforeWork = newContractDaysBeforeWork
+        // Adăugăm ziua din lună doar pentru recurență lunară
+        if (newContractRecurrenceUnit === 'luni') {
+          contractData.recurrenceDayOfMonth = newContractRecurrenceDayOfMonth
+        }
+      }
+
+      // Adăugăm prețurile dacă sunt setate
+      if (Object.keys(newContractPricing).length > 0) {
+        contractData.pricing = newContractPricing
       }
 
       const docRef = await addDoc(collection(db, "contracts"), contractData)
@@ -511,17 +724,23 @@ export default function ContractsPage() {
       // Log non-blocking
       void addUserLogEntry({
         actiune: "Creare contract",
-        detalii: `ID: ${docRef.id}; nume: ${contractData.name}; număr: ${contractData.number}; tip: ${contractData.type}${contractData.clientId ? `; clientId: ${contractData.clientId}` : ""}`,
+        detalii: `ID: ${docRef.id}; nume: ${contractData.name}; număr: ${contractData.number}${contractData.clientId ? `; clientId: ${contractData.clientId}` : ""}`,
         categorie: "Contracte",
       })
 
       // Resetăm formularul și închidem dialogul
       setNewContractName("")
       setNewContractNumber("")
-      setNewContractType("Abonament")
       setNewContractClientId("UNASSIGNED")
-      setNewContractLocatie("")
+      setNewContractLocationId("")
+      setNewContractLocationName("")
+      setNewContractEquipmentIds([])
+      setNewContractRecurrenceInterval(90)
+      setNewContractRecurrenceUnit("zile")
+      setNewContractDaysBeforeWork(10)
+      setNewContractPricing({})
       setClientLocations([])
+      setClientEquipments([])
       setIsAddDialogOpen(false)
 
       toast({
@@ -538,10 +757,10 @@ export default function ContractsPage() {
 
   // Funcție pentru editarea unui contract
   const handleEditContract = async () => {
-    if (!selectedContract || !newContractName || !newContractNumber || !newContractType) {
+    if (!selectedContract || !newContractName || !newContractNumber) {
       toast({
         title: "Eroare",
-        description: "Vă rugăm să completați toate câmpurile",
+        description: "Vă rugăm să completați toate câmpurile obligatorii",
         variant: "destructive",
       })
       return
@@ -573,7 +792,6 @@ export default function ContractsPage() {
       const updateData: any = {
         name: newContractName,
         number: newContractNumber,
-        type: newContractType,
         updatedAt: serverTimestamp(),
         ...(newContract?.customFields ? { customFields: newContract.customFields } : {}),
       }
@@ -582,15 +800,57 @@ export default function ContractsPage() {
       if (newContractClientId && newContractClientId !== "UNASSIGNED") {
         updateData.clientId = newContractClientId
         
-        // Gestionăm locația
-        if (newContractLocatie) {
-          updateData.locatie = newContractLocatie
+        // Gestionăm locația și echipamentele
+        if (newContractLocationId) {
+          updateData.locationId = newContractLocationId
+          updateData.locationName = newContractLocationName
         } else {
-          updateData.locatie = null
+          updateData.locationId = null
+          updateData.locationName = null
+        }
+        
+        if (newContractEquipmentIds.length > 0) {
+          updateData.equipmentIds = newContractEquipmentIds
+        } else {
+          updateData.equipmentIds = []
         }
       } else {
         updateData.clientId = null
-        updateData.locatie = null
+        updateData.locationId = null
+        updateData.locationName = null
+        updateData.equipmentIds = []
+      }
+
+      // Gestionăm recurența
+      if (newContractRecurrenceInterval && newContractRecurrenceInterval > 0) {
+        // Adăugăm data de început
+        if (newContractStartDate) {
+          updateData.startDate = newContractStartDate
+        } else {
+          updateData.startDate = null
+        }
+        updateData.recurrenceInterval = newContractRecurrenceInterval
+        updateData.recurrenceUnit = newContractRecurrenceUnit
+        updateData.daysBeforeWork = newContractDaysBeforeWork
+        // Adăugăm ziua din lună doar pentru recurență lunară
+        if (newContractRecurrenceUnit === 'luni') {
+          updateData.recurrenceDayOfMonth = newContractRecurrenceDayOfMonth
+        } else {
+          updateData.recurrenceDayOfMonth = null
+        }
+      } else {
+        updateData.startDate = null
+        updateData.recurrenceInterval = null
+        updateData.recurrenceUnit = null
+        updateData.recurrenceDayOfMonth = null
+        updateData.daysBeforeWork = null
+      }
+
+      // Gestionăm prețurile
+      if (Object.keys(newContractPricing).length > 0) {
+        updateData.pricing = newContractPricing
+      } else {
+        updateData.pricing = {}
       }
 
       await updateDoc(contractRef, updateData)
@@ -599,7 +859,6 @@ export default function ContractsPage() {
       const changes: string[] = []
       if (selectedContract.name !== newContractName) changes.push(`name: "${selectedContract.name}" → "${newContractName}"`)
       if (selectedContract.number !== newContractNumber) changes.push(`number: "${selectedContract.number}" → "${newContractNumber}"`)
-      if ((selectedContract.type || "Abonament") !== newContractType) changes.push(`type: "${selectedContract.type || "Abonament"}" → "${newContractType}"`)
       const oldClient = selectedContract.clientId || "UNASSIGNED"
       const newClient = newContractClientId && newContractClientId !== "UNASSIGNED" ? newContractClientId : "UNASSIGNED"
       if (oldClient !== newClient) changes.push(`clientId: "${oldClient}" → "${newClient}"`)
@@ -613,10 +872,16 @@ export default function ContractsPage() {
       // Resetăm formularul și închidem dialogul
       setNewContractName("")
       setNewContractNumber("")
-      setNewContractType("Abonament")
       setNewContractClientId("UNASSIGNED")
-      setNewContractLocatie("")
+      setNewContractLocationId("")
+      setNewContractLocationName("")
+      setNewContractEquipmentIds([])
+      setNewContractRecurrenceInterval(90)
+      setNewContractRecurrenceUnit("zile")
+      setNewContractDaysBeforeWork(10)
+      setNewContractPricing({})
       setClientLocations([])
+      setClientEquipments([])
       setSelectedContract(null)
       setIsEditDialogOpen(false)
 
@@ -668,13 +933,43 @@ export default function ContractsPage() {
   }
 
   // Funcție pentru deschiderea dialogului de editare
-  const openEditDialog = (contract: Contract) => {
+  const openEditDialog = async (contract: Contract) => {
     setSelectedContract(contract)
     setNewContractName(contract.name)
     setNewContractNumber(contract.number)
-    setNewContractType(contract.type || "Abonament") // Setăm tipul contractului sau valoarea implicită
-    setNewContractClientId(contract.clientId || "UNASSIGNED") // Setăm clientul asignat
-    setNewContractLocatie(contract.locatie || "") // Setăm locația contractului
+    setNewContractClientId(contract.clientId || "UNASSIGNED")
+    setNewContractLocationId(contract.locationId || "")
+    setNewContractLocationName(contract.locationName || "")
+    setNewContractEquipmentIds(contract.equipmentIds || [])
+    setNewContractStartDate(contract.startDate || "")
+    setNewContractRecurrenceInterval(contract.recurrenceInterval || 90)
+    setNewContractRecurrenceUnit(contract.recurrenceUnit || "zile")
+    setNewContractRecurrenceDayOfMonth(contract.recurrenceDayOfMonth || 1)
+    setNewContractDaysBeforeWork(contract.daysBeforeWork || 10)
+    setNewContractPricing(contract.pricing || {})
+    
+    // Încărcăm locațiile și echipamentele clientului dacă există un client asignat
+    if (contract.clientId) {
+      try {
+        const clientsList = await getClienti()
+        const selectedClient = clientsList.find(c => c.id === contract.clientId)
+        
+        if (selectedClient && selectedClient.locatii) {
+          setClientLocations(selectedClient.locatii)
+          
+          // Încărcăm echipamentele pentru locația selectată
+          if (contract.locationId) {
+            const selectedLocation = selectedClient.locatii.find(loc => loc.nume === contract.locationId)
+            if (selectedLocation && selectedLocation.echipamente) {
+              setClientEquipments(selectedLocation.echipamente)
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Eroare la încărcarea datelor clientului:", error)
+      }
+    }
+    
     setIsEditDialogOpen(true)
   }
 
@@ -699,15 +994,20 @@ export default function ContractsPage() {
   // Function to check if we should show the close confirmation dialog
   const handleCloseDialog = (dialogType: "add" | "edit" | "delete") => {
     // For contracts, we'll check if the form fields have values
-    if (dialogType === "add" && (newContractName || newContractNumber || newContractLocatie || (newContractClientId && newContractClientId !== "UNASSIGNED"))) {
+    if (dialogType === "add" && (newContractName || newContractNumber || newContractLocationId || newContractEquipmentIds.length > 0 || (newContractClientId && newContractClientId !== "UNASSIGNED"))) {
       setActiveDialog(dialogType)
       setShowCloseAlert(true)
     } else if (
       dialogType === "edit" &&
       (newContractName !== selectedContract?.name ||
         newContractNumber !== selectedContract?.number ||
-        newContractType !== selectedContract?.type ||
-        newContractLocatie !== (selectedContract?.locatie || "") ||
+        newContractLocationId !== (selectedContract?.locationId || "") ||
+        JSON.stringify(newContractEquipmentIds) !== JSON.stringify(selectedContract?.equipmentIds || []) ||
+        newContractStartDate !== (selectedContract?.startDate || "") ||
+        newContractRecurrenceInterval !== (selectedContract?.recurrenceInterval || 90) ||
+        newContractRecurrenceUnit !== (selectedContract?.recurrenceUnit || "zile") ||
+        newContractRecurrenceDayOfMonth !== (selectedContract?.recurrenceDayOfMonth || 1) ||
+        newContractDaysBeforeWork !== (selectedContract?.daysBeforeWork || 10) ||
         newContractClientId !== (selectedContract?.clientId || "UNASSIGNED"))
     ) {
       setActiveDialog(dialogType)
@@ -727,10 +1027,18 @@ export default function ContractsPage() {
     // Reset form fields
     setNewContractName("")
     setNewContractNumber("")
-    setNewContractType("Abonament")
     setNewContractClientId("UNASSIGNED")
-    setNewContractLocatie("")
+    setNewContractLocationId("")
+    setNewContractLocationName("")
+    setNewContractEquipmentIds([])
+    setNewContractStartDate("")
+    setNewContractRecurrenceInterval(90)
+    setNewContractRecurrenceUnit("zile")
+    setNewContractRecurrenceDayOfMonth(1)
+    setNewContractDaysBeforeWork(10)
+    setNewContractPricing({})
     setClientLocations([])
+    setClientEquipments([])
     setSelectedContract(null)
 
     // Close the active dialog
@@ -771,7 +1079,7 @@ export default function ContractsPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Layout pentru căutare și filtrare ca pe pagina de clienți */}
+          {/* Layout pentru căutare și filtrare */}
           <div className="flex flex-col sm:flex-row gap-2">
             <UniversalSearch 
               onSearch={handleSearchChange} 
@@ -779,21 +1087,8 @@ export default function ContractsPage() {
               className="flex-1"
               placeholder="Căutare contracte..."
             />
-            <div className="flex gap-2">
-              {/* EnhancedFilterSystem se va randa cu propriul său buton de filtrare */}
-              {table && <EnhancedFilterSystem table={table} persistenceKey="contracte" />}
-            </div>
-            {/* Câmpuri dinamice din setări (legate la Dialog: Contract Nou) - reuse same target for edit */}
-            <DynamicDialogFields
-              targetId="dialogs.contract.new"
-              values={(newContract as any)?.customFields}
-              onChange={(fieldKey, value) => {
-                setNewContract((prev: any) => ({
-                  ...(prev || {}),
-                  customFields: { ...((prev as any)?.customFields || {}), [fieldKey]: value },
-                }))
-              }}
-            />
+            {/* EnhancedFilterSystem se va randa cu propriul său buton de filtrare */}
+            {table && <EnhancedFilterSystem table={table} persistenceKey="contracte" />}
           </div>
           
           {/* Tabelul de contracte */}
@@ -822,68 +1117,202 @@ export default function ContractsPage() {
           }
         }}
       >
-        <DialogContent className="w-[calc(100%-2rem)] max-w-[400px]">
+        <DialogContent className="w-[calc(100%-2rem)] max-w-[900px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Adaugă Contract Nou</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="contractName">Nume Contract</Label>
-              <Input
-                id="contractName"
-                value={newContractName}
-                onChange={(e) => setNewContractName(e.target.value)}
-                placeholder="Introduceți numele contractului"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="contractNumber">Număr Contract</Label>
-              <Input
-                id="contractNumber"
-                value={newContractNumber}
-                onChange={(e) => setNewContractNumber(e.target.value)}
-                placeholder="Introduceți numărul contractului"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="contractType">Tip Contract</Label>
-              <Select value={newContractType} onValueChange={setNewContractType}>
-                <SelectTrigger id="contractType">
-                  <SelectValue placeholder="Selectați tipul contractului" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Abonament">Abonament</SelectItem>
-                  <SelectItem value="Cu plată la intervenție">Cu plată la intervenție</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="contractClient">Client Asignat (Opțional)</Label>
-              <ClientSelectButton
-                clients={clients}
-                value={newContractClientId}
-                onValueChange={setNewContractClientId}
-                placeholder="Selectați clientul sau lăsați neasignat"
-              />
-            </div>
-            {clientLocations.length > 0 && (
+            {/* Rândul 1: Nume și Număr Contract pe 2 coloane */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="contractLocatie">Locație (Obligatoriu pentru contracte cu client)</Label>
-                <Select value={newContractLocatie} onValueChange={setNewContractLocatie}>
-                  <SelectTrigger id="contractLocatie">
-                    <SelectValue placeholder="Selectați locația pentru acest contract" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clientLocations.map((locatie) => (
-                      <SelectItem key={locatie} value={locatie}>
-                        {locatie}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-gray-500">Contractul va fi valabil doar pentru această locație</p>
+                <Label htmlFor="contractName">Nume Contract *</Label>
+                <Input
+                  id="contractName"
+                  value={newContractName}
+                  onChange={(e) => setNewContractName(e.target.value)}
+                  placeholder="Introduceți numele contractului"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="contractNumber">Număr Contract *</Label>
+                <Input
+                  id="contractNumber"
+                  value={newContractNumber}
+                  onChange={(e) => setNewContractNumber(e.target.value)}
+                  placeholder="Introduceți numărul contractului"
+                />
+              </div>
+            </div>
+
+            {/* Rândul 2: Client și Locație */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="contractClient">Client Asignat (Opțional)</Label>
+                <ClientSelectButton
+                  clients={clients}
+                  value={newContractClientId}
+                  onValueChange={setNewContractClientId}
+                  placeholder="Selectați clientul sau lăsați neasignat"
+                />
+              </div>
+              {clientLocations.length > 0 && (
+                <div className="space-y-2">
+                  <Label htmlFor="contractLocatie">Locație</Label>
+                  <Select value={newContractLocationId} onValueChange={(value) => {
+                    setNewContractLocationId(value)
+                    setNewContractLocationName(value)
+                  }}>
+                    <SelectTrigger id="contractLocatie">
+                      <SelectValue placeholder="Selectați locația pentru acest contract" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clientLocations.map((locatie) => (
+                        <SelectItem key={locatie.nume} value={locatie.nume}>
+                          {locatie.nume}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500">Selectați locația pentru care se aplică contractul</p>
+                </div>
+              )}
+            </div>
+
+            {/* Echipamente - full width */}
+            {newContractLocationId && clientEquipments.length > 0 && (
+              <div className="space-y-2">
+                <Label>Echipamente</Label>
+                <MultiSelect
+                  options={clientEquipments.map((eq) => ({
+                    label: `${eq.nume} (${eq.cod})`,
+                    value: eq.id || eq.cod,
+                  }))}
+                  selected={newContractEquipmentIds}
+                  onChange={setNewContractEquipmentIds}
+                  placeholder="Selectați echipamentele"
+                  emptyText="Nu există echipamente la această locație"
+                />
               </div>
             )}
+
+            {/* Recurența Reviziilor - 2 coloane */}
+            <div className="space-y-2 border-t pt-4">
+              <Label className="text-base font-semibold">Recurența Reviziilor</Label>
+              
+              {/* Data de început */}
+              <div className="space-y-2">
+                <Label htmlFor="startDate">Data de început (Prima revizie)</Label>
+                <Input
+                  id="startDate"
+                  type="date"
+                  value={newContractStartDate}
+                  onChange={(e) => setNewContractStartDate(e.target.value)}
+                  placeholder="Selectați data"
+                />
+                <p className="text-xs text-gray-500">
+                  Data primei revizii sau data de referință pentru calculul recurenței
+                </p>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="recurrenceInterval">Interval</Label>
+                  <Input
+                    id="recurrenceInterval"
+                    type="number"
+                    min="1"
+                    value={newContractRecurrenceInterval}
+                    onChange={(e) => setNewContractRecurrenceInterval(parseInt(e.target.value) || 90)}
+                    placeholder="90"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="recurrenceUnit">Unitate</Label>
+                  <Select value={newContractRecurrenceUnit} onValueChange={(value: 'zile' | 'luni') => setNewContractRecurrenceUnit(value)}>
+                    <SelectTrigger id="recurrenceUnit">
+                      <SelectValue placeholder="Selectați unitatea" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {recurrenceUnits && recurrenceUnits.length > 0 ? (
+                        recurrenceUnits.map((unit) => (
+                          <SelectItem key={unit.id} value={unit.name}>
+                            {unit.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <>
+                          <SelectItem value="zile">zile</SelectItem>
+                          <SelectItem value="luni">luni</SelectItem>
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              {/* Ziua din lună - doar pentru recurență lunară */}
+              {newContractRecurrenceUnit === 'luni' && (
+                <div className="space-y-2 mt-4">
+                  <Label htmlFor="recurrenceDayOfMonth">Ziua din lună</Label>
+                  <Select 
+                    value={newContractRecurrenceDayOfMonth.toString()} 
+                    onValueChange={(value) => setNewContractRecurrenceDayOfMonth(parseInt(value))}
+                  >
+                    <SelectTrigger id="recurrenceDayOfMonth">
+                      <SelectValue placeholder="Selectați ziua" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[200px]">
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                        <SelectItem key={day} value={day.toString()}>
+                          {day}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500">
+                    Revizia va fi programată în această zi a lunii
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Rândul pentru Zile înainte și Prețuri */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="daysBeforeWork">Zile înainte</Label>
+                <Input
+                  id="daysBeforeWork"
+                  type="number"
+                  min="1"
+                  value={newContractDaysBeforeWork}
+                  onChange={(e) => setNewContractDaysBeforeWork(parseInt(e.target.value) || 10)}
+                  placeholder="10"
+                />
+                <p className="text-xs text-gray-500">
+                  X zile înainte de data programată pentru revizie
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Prețuri Contract</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsPricingDialogOpen(true)}
+                  className="w-full justify-between"
+                >
+                  <span className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4" />
+                    Setează Prețurile
+                  </span>
+                  {Object.keys(newContractPricing).length > 0 && (
+                    <Badge variant="secondary">
+                      {Object.keys(newContractPricing).length} prețuri setate
+                    </Badge>
+                  )}
+                </Button>
+              </div>
+            </div>
+
             {/* Câmpuri dinamice din setări (legate la Dialog: Contract Nou) */}
             <DynamicDialogFields
               targetId="dialogs.contract.new"
@@ -902,7 +1331,7 @@ export default function ContractsPage() {
             </Button>
             <Button
               onClick={handleAddContract}
-              disabled={isSubmitting || !newContractName || !newContractNumber || !newContractType}
+              disabled={isSubmitting || !newContractName || !newContractNumber}
             >
               {isSubmitting ? (
                 <>
@@ -927,68 +1356,201 @@ export default function ContractsPage() {
           }
         }}
       >
-        <DialogContent className="w-[calc(100%-2rem)] max-w-[400px]">
+        <DialogContent className="w-[calc(100%-2rem)] max-w-[900px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editează Contract</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="editContractName">Nume Contract</Label>
-              <Input
-                id="editContractName"
-                value={newContractName}
-                onChange={(e) => setNewContractName(e.target.value)}
-                placeholder="Introduceți numele contractului"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="editContractNumber">Număr Contract</Label>
-              <Input
-                id="editContractNumber"
-                value={newContractNumber}
-                onChange={(e) => setNewContractNumber(e.target.value)}
-                placeholder="Introduceți numărul contractului"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="editContractType">Tip Contract</Label>
-              <Select value={newContractType} onValueChange={setNewContractType}>
-                <SelectTrigger id="editContractType">
-                  <SelectValue placeholder="Selectați tipul contractului" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Abonament">Abonament</SelectItem>
-                  <SelectItem value="Cu plată la intervenție">Cu plată la intervenție</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="editContractClient">Client Asignat (Opțional)</Label>
-              <ClientSelectButton
-                clients={clients}
-                value={newContractClientId}
-                onValueChange={setNewContractClientId}
-                placeholder="Selectați clientul sau lăsați neasignat"
-              />
-            </div>
-            {clientLocations.length > 0 && (
+            {/* Rândul 1: Nume și Număr Contract pe 2 coloane */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="editContractLocatie">Locație (Obligatoriu pentru contracte cu client)</Label>
-                <Select value={newContractLocatie} onValueChange={setNewContractLocatie}>
-                  <SelectTrigger id="editContractLocatie">
-                    <SelectValue placeholder="Selectați locația pentru acest contract" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clientLocations.map((locatie) => (
-                      <SelectItem key={locatie} value={locatie}>
-                        {locatie}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-gray-500">Contractul va fi valabil doar pentru această locație</p>
+                <Label htmlFor="editContractName">Nume Contract *</Label>
+                <Input
+                  id="editContractName"
+                  value={newContractName}
+                  onChange={(e) => setNewContractName(e.target.value)}
+                  placeholder="Introduceți numele contractului"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editContractNumber">Număr Contract *</Label>
+                <Input
+                  id="editContractNumber"
+                  value={newContractNumber}
+                  onChange={(e) => setNewContractNumber(e.target.value)}
+                  placeholder="Introduceți numărul contractului"
+                />
+              </div>
+            </div>
+
+            {/* Rândul 2: Client și Locație */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="editContractClient">Client Asignat (Opțional)</Label>
+                <ClientSelectButton
+                  clients={clients}
+                  value={newContractClientId}
+                  onValueChange={setNewContractClientId}
+                  placeholder="Selectați clientul sau lăsați neasignat"
+                />
+              </div>
+              {clientLocations.length > 0 && (
+                <div className="space-y-2">
+                  <Label htmlFor="editContractLocatie">Locație</Label>
+                  <Select value={newContractLocationId} onValueChange={(value) => {
+                    setNewContractLocationId(value)
+                    setNewContractLocationName(value)
+                  }}>
+                    <SelectTrigger id="editContractLocatie">
+                      <SelectValue placeholder="Selectați locația pentru acest contract" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clientLocations.map((locatie) => (
+                        <SelectItem key={locatie.nume} value={locatie.nume}>
+                          {locatie.nume}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500">Selectați locația pentru care se aplică contractul</p>
+                </div>
+              )}
+            </div>
+
+            {/* Echipamente - full width */}
+            {newContractLocationId && clientEquipments.length > 0 && (
+              <div className="space-y-2">
+                <Label>Echipamente</Label>
+                <MultiSelect
+                  options={clientEquipments.map((eq) => ({
+                    label: `${eq.nume} (${eq.cod})`,
+                    value: eq.id || eq.cod,
+                  }))}
+                  selected={newContractEquipmentIds}
+                  onChange={setNewContractEquipmentIds}
+                  placeholder="Selectați echipamentele"
+                  emptyText="Nu există echipamente la această locație"
+                />
               </div>
             )}
+
+            {/* Recurența Reviziilor - 2 coloane */}
+            <div className="space-y-2 border-t pt-4">
+              <Label className="text-base font-semibold">Recurența Reviziilor</Label>
+              
+              {/* Data de început */}
+              <div className="space-y-2">
+                <Label htmlFor="editStartDate">Data de început (Prima revizie)</Label>
+                <Input
+                  id="editStartDate"
+                  type="date"
+                  value={newContractStartDate}
+                  onChange={(e) => setNewContractStartDate(e.target.value)}
+                  placeholder="Selectați data"
+                />
+                <p className="text-xs text-gray-500">
+                  Data primei revizii sau data de referință pentru calculul recurenței
+                </p>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="editRecurrenceInterval">Interval</Label>
+                  <Input
+                    id="editRecurrenceInterval"
+                    type="number"
+                    min="1"
+                    value={newContractRecurrenceInterval}
+                    onChange={(e) => setNewContractRecurrenceInterval(parseInt(e.target.value) || 90)}
+                    placeholder="90"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editRecurrenceUnit">Unitate</Label>
+                  <Select value={newContractRecurrenceUnit} onValueChange={(value: 'zile' | 'luni') => setNewContractRecurrenceUnit(value)}>
+                    <SelectTrigger id="editRecurrenceUnit">
+                      <SelectValue placeholder="Selectați unitatea" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {recurrenceUnits && recurrenceUnits.length > 0 ? (
+                        recurrenceUnits.map((unit) => (
+                          <SelectItem key={unit.id} value={unit.name}>
+                            {unit.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <>
+                          <SelectItem value="zile">zile</SelectItem>
+                          <SelectItem value="luni">luni</SelectItem>
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              {/* Ziua din lună - doar pentru recurență lunară */}
+              {newContractRecurrenceUnit === 'luni' && (
+                <div className="space-y-2 mt-4">
+                  <Label htmlFor="editRecurrenceDayOfMonth">Ziua din lună</Label>
+                  <Select 
+                    value={newContractRecurrenceDayOfMonth.toString()} 
+                    onValueChange={(value) => setNewContractRecurrenceDayOfMonth(parseInt(value))}
+                  >
+                    <SelectTrigger id="editRecurrenceDayOfMonth">
+                      <SelectValue placeholder="Selectați ziua" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[200px]">
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                        <SelectItem key={day} value={day.toString()}>
+                          {day}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500">
+                    Revizia va fi programată în această zi a lunii
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Rândul pentru Zile înainte și Prețuri */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="editDaysBeforeWork">Zile înainte</Label>
+                <Input
+                  id="editDaysBeforeWork"
+                  type="number"
+                  min="1"
+                  value={newContractDaysBeforeWork}
+                  onChange={(e) => setNewContractDaysBeforeWork(parseInt(e.target.value) || 10)}
+                  placeholder="10"
+                />
+                <p className="text-xs text-gray-500">
+                  X zile înainte de data programată pentru revizie
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Prețuri Contract</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsPricingDialogOpen(true)}
+                  className="w-full justify-between"
+                >
+                  <span className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4" />
+                    Setează Prețurile
+                  </span>
+                  {Object.keys(newContractPricing).length > 0 && (
+                    <Badge variant="secondary">
+                      {Object.keys(newContractPricing).length} prețuri setate
+                    </Badge>
+                  )}
+                </Button>
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => handleCloseDialog("edit")}>
@@ -996,7 +1558,7 @@ export default function ContractsPage() {
             </Button>
             <Button
               onClick={handleEditContract}
-              disabled={isSubmitting || !newContractName || !newContractNumber || !newContractType}
+              disabled={isSubmitting || !newContractName || !newContractNumber}
             >
               {isSubmitting ? (
                 <>
@@ -1063,6 +1625,14 @@ export default function ContractsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog pentru prețuri */}
+      <ContractPricingDialog
+        open={isPricingDialogOpen}
+        onOpenChange={setIsPricingDialogOpen}
+        pricing={newContractPricing}
+        onSave={setNewContractPricing}
+      />
     </DashboardShell>
     </TooltipProvider>
   )

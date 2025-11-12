@@ -23,6 +23,7 @@ import { doc, updateDoc, serverTimestamp, collection, query, where, getDocs } fr
 import { db } from "@/lib/firebase/config"
 import { calculateDuration } from "@/lib/utils/time-format"
 import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export default function RaportPage({ params }: { params: { id: string } }) {
   const SIG_HEIGHT = 160 // px – lasă-l fix
@@ -275,7 +276,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
                 processedData.tehnicieni.includes(userData.displayName)) {
               defaultNumeTehnician = userData.displayName
             } else if (processedData.tehnicieni && processedData.tehnicieni.length > 0) {
-              // Fallback la primul tehnician din listă
+              // Folosim primul tehnician din listă ca valoare default pentru dropdown
               defaultNumeTehnician = processedData.tehnicieni[0]
             }
           }
@@ -2011,14 +2012,33 @@ FOM by NRG`,
                     <h3 className="font-medium text-gray-500">Semnătură Tehnician</h3>
                     <div className="space-y-2">
                       <Label htmlFor="numeTehnician">Nume și prenume tehnician</Label>
-                      <Input
-                        id="numeTehnician"
-                        type="text"
-                        placeholder="Numele complet al tehnicianului"
-                        value={numeTehnician}
-                        onChange={(e) => setNumeTehnician(e.target.value)}
-                        disabled={isSubmitting || lucrare?.raportDataLocked}
-                      />
+                      {lucrare?.tehnicieni && lucrare.tehnicieni.length > 0 ? (
+                        <Select
+                          value={numeTehnician}
+                          onValueChange={(value) => setNumeTehnician(value)}
+                          disabled={isSubmitting || lucrare?.raportDataLocked}
+                        >
+                          <SelectTrigger id="numeTehnician">
+                            <SelectValue placeholder="Selectează tehnicianul care semnează" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {lucrare.tehnicieni.map((tech: string, idx: number) => (
+                              <SelectItem key={idx} value={tech}>
+                                {tech}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          id="numeTehnician"
+                          type="text"
+                          placeholder="Numele complet al tehnicianului"
+                          value={numeTehnician}
+                          onChange={(e) => setNumeTehnician(e.target.value)}
+                          disabled={isSubmitting || lucrare?.raportDataLocked}
+                        />
+                      )}
                     </div>
                     <div className="rounded-md border border-gray-300 bg-white p-2">
                       <SignatureCanvas

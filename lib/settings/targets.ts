@@ -154,6 +154,21 @@ export const SETTINGS_TARGETS: SettingsTarget[] = [
     label: "Formular Contract → Modele plată",
     kind: "list",
   },
+  {
+    id: "contracts.create.serviceTypes",
+    label: "Formular Contract → Tipuri servicii (pentru prețuri)",
+    kind: "list",
+  },
+  {
+    id: "contracts.create.defaultDaysBeforeWork",
+    label: "Formular Contract → Zile înainte implicit (X zile)",
+    kind: "value",
+  },
+  {
+    id: "contracts.create.recurrenceUnits",
+    label: "Formular Contract → Unități recurență",
+    kind: "list",
+  },
 
   // Utilizatori
   {

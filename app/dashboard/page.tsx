@@ -228,6 +228,32 @@ export default function Dashboard() {
     )
   }
 
+  // Bubble cu culoare dinamică în funcție de statusul echipamentului
+  const equipmentStatusBubble = () => (it: any) => {
+    let color = "bg-gray-600" // Culoare default
+    
+    // Determinăm culoarea în funcție de statusul echipamentului
+    const status = String(it.equipmentStatus || "").toLowerCase()
+    if (status.includes("funcțional") && !status.includes("parțial")) {
+      color = "bg-green-600" // Verde pentru Funcțional
+    } else if (status.includes("parțial")) {
+      color = "bg-yellow-600" // Galben pentru Parțial funcțional
+    } else if (status.includes("nefuncțional")) {
+      color = "bg-red-600" // Roșu pentru Nefuncțional
+    }
+    
+    return (
+      <WorkBubbleStatus
+        key={it.id}
+        title={it.locatie}
+        subtitle={it.equipmentLabel}
+        colorClass={color}
+        onClick={() => router.push(`/dashboard/lucrari/${it.id}`)}
+        className="mb-2"
+      />
+    )
+  }
+
   if (loading) {
     return (
       <DashboardShell>
@@ -346,7 +372,7 @@ export default function Dashboard() {
               {buckets.statusOferte.map(offerStatusBubble())}
             </StatusBox>
             <StatusBox title="Stare echipament" count={buckets.equipmentStatus.length}>
-              {buckets.equipmentStatus.map(statusBubble("bg-amber-600"))}
+              {buckets.equipmentStatus.map(equipmentStatusBubble())}
             </StatusBox>
           </div>
         </div>

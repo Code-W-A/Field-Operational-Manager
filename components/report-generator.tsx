@@ -895,7 +895,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       doc.setDrawColor(0, 0, 0).setLineWidth(0.3)
       doc.line(M + 2, currentY + 5, M + 2 + techLabelWidth, currentY + 5)
       
-      const numeTehnician = normalize(lucrareForPDF.numeTehnician || lucrareForPDF.tehnicieni?.join(", ") || "")
+      const numeTehnician = normalize(lucrareForPDF.numeTehnician || "")
       if (numeTehnician) {
         doc.setFont("helvetica", "bold")
         doc.text(numeTehnician, M + 2, currentY + 10)

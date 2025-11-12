@@ -304,14 +304,39 @@ export interface Echipament {
 
 export interface Contract {
   id?: string
-  numar: string
-  dataIncepere: string
-  dataExpirare: string
-  tip: string
-  valoare: number
-  moneda: string
+  name: string
+  number: string
   clientId?: string
-  locatie?: string  // Numele locației la care se aplică contractul
+  locationId?: string  // ID-ul locației selectate
+  locationName?: string  // Numele locației (pentru compatibilitate)
+  equipmentIds?: string[]  // Array de ID-uri echipamente selectate
+  
+  // Recurență revizii
+  startDate?: string  // Data de început/referință pentru recurență (ISO string)
+  recurrenceInterval?: number  // Valoarea intervalului (ex: 90)
+  recurrenceUnit?: 'zile' | 'luni'  // Unitatea (zile sau luni)
+  recurrenceDayOfMonth?: number  // Ziua din lună (1-31) - doar pentru recurență lunară
+  daysBeforeWork?: number  // X zile înainte de data programată
+  
+  // Prețuri per tip serviciu
+  pricing?: {
+    [serviceType: string]: number  // ex: { "Revizie": 500, "Intervenție": 300 }
+  }
+  
+  // Ultima dată când s-a generat o lucrare automată
+  lastAutoWorkGenerated?: string
+  
+  // Câmpuri legacy pentru compatibilitate retroactivă
+  numar?: string  // Alias pentru number
+  tip?: string  // Păstrat pentru compatibilitate
+  valoare?: number
+  moneda?: string
+  dataIncepere?: string
+  dataExpirare?: string
+  locatie?: string  // Alias pentru locationName
+  
+  createdAt?: any
+  updatedAt?: any
 }
 
 export interface Locatie {

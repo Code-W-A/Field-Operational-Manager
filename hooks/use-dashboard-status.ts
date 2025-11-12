@@ -14,6 +14,7 @@ export interface DashboardBubbleItem {
   client?: string
   nrLucrare?: string
   offerStatus?: "accept" | "reject"
+  equipmentStatus?: string
   // Câmpuri pentru sortare specifică
   sortDate?: Date
   createdAt?: Date
@@ -73,7 +74,7 @@ function eqInsensitive(a?: string, ...candidates: string[]): boolean {
   return candidates.some((y) => x === String(y || "").toLowerCase())
 }
 
-function buildBubble(l: any, offerStatus?: "accept" | "reject", sortDate?: Date): DashboardBubbleItem {
+function buildBubble(l: any, offerStatus?: "accept" | "reject", sortDate?: Date, equipmentStatus?: string): DashboardBubbleItem {
   const equipmentLabel = l.echipament || l.echipamentModel || l.echipamentCod || "-"
   return {
     id: String(l.id),
@@ -84,6 +85,7 @@ function buildBubble(l: any, offerStatus?: "accept" | "reject", sortDate?: Date)
     createdAt: toDate(l.createdAt) || undefined,
     sortDate: sortDate,
     offerStatus: offerStatus,
+    equipmentStatus: equipmentStatus,
   }
 }
 
@@ -239,9 +241,10 @@ export function useDashboardStatus() {
       }
 
       // Stare echipament - sortate după data generării raportului
-      const se = String((l as any).statusEchipament || "").toLowerCase()
-      if (["nefunctional", "nefunctionale", "partial", "partial functionale"].includes(se)) {
-        res.equipmentStatus.push(buildBubble(l, undefined, toDate(l.createdAt) || undefined))
+      // Include toate lucrările cu statusEchipament setat (Funcțional, Parțial funcțional, Nefuncțional)
+      const statusEchipament = (l as any).statusEchipament
+      if (statusEchipament && String(statusEchipament).trim().length > 0) {
+        res.equipmentStatus.push(buildBubble(l, undefined, toDate(l.createdAt) || undefined, statusEchipament))
       }
     }
 

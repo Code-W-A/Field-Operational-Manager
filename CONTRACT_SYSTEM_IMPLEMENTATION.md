@@ -1,0 +1,388 @@
+# Implementare Sistem Modern de Contracte
+
+## Rezumat Implementare
+
+Am implementat un sistem complet de gestionare a contractelor cu selecție echipamente, recurență revizii, prețuri personalizabile și auto-generare lucrări.
+
+## Modificări Efectuate
+
+### 1. Setări Noi (lib/settings/targets.ts)
+
+Adăugate 3 setări noi pentru contracte:
+- **contracts.create.serviceTypes** (list) - Tipuri servicii pentru prețuri (ex: Revizie, Intervenție, Urgență)
+- **contracts.create.defaultDaysBeforeWork** (value) - Valoare default pentru "X zile înainte" (ex: 10)
+- **contracts.create.recurrenceUnits** (list) - Unități pentru recurență (Zile, Luni)
+
+### 2. Actualizare Schemă Contract (lib/firebase/firestore.ts)
+
+Interfața `Contract` actualizată cu:
+```typescript
+{
+  name: string
+  number: string
+  clientId?: string
+  locationId?: string           // ID-ul locației selectate
+  locationName?: string          // Numele locației
+  equipmentIds?: string[]        // Array de ID-uri echipamente
+  
+  // Recurență revizii
+  startDate?: string             // Data de început/referință (ISO string)
+  recurrenceInterval?: number    // Ex: 90
+  recurrenceUnit?: 'zile' | 'luni'
+  recurrenceDayOfMonth?: number  // Ziua din lună (1-31) - doar pentru recurență lunară
+  daysBeforeWork?: number        // X zile înainte (ex: 10)
+  
+  // Prețuri per tip serviciu
+  pricing?: {
+    [serviceType: string]: number  // Ex: {"Revizie": 500}
+  }
+  
+  lastAutoWorkGenerated?: string  // Data ultimei generări automate
+}
+```
+
+### 3. Componentă Multi-Select (components/ui/multi-select.tsx)
+
+Componentă existentă utilizată pentru selecție multiplă echipamente:
+- Search functionality integrată
+- Checkbox-uri pentru fiecare opțiune
+- Badge-uri pentru afișarea selecțiilor
+- Select all / Deselect all
+
+### 4. Dialog Prețuri (components/contract-pricing-dialog.tsx)
+
+Componentă nouă pentru gestionarea prețurilor:
+- Lista tipuri servicii din setări
+- Input numeric pentru fiecare tip serviciu
+- Buton "Resetează la prețurile de contract"
+- Validare modificări nesalvate
+- Prețuri în RON
+
+### 5. Pagină Contracte (app/dashboard/contracte/page.tsx)
+
+**Eliminări:**
+- Câmpul "Tip Contract" eliminat complet
+
+**Adăugări în Dialog Add/Edit:**
+
+1. **Selecție Client** (existent, păstrat)
+
+2. **Dropdown Locație**
+   - Afișat după selectarea clientului
+   - Dropdown cu locațiile clientului
+   - Obligatoriu dacă se selectează echipamente
+
+3. **Multi-Select Echipamente**
+   - Afișat după selectarea locației
+   - Search functionality pentru căutare rapidă
+   - Selecție multiplă cu checkbox-uri
+   - Badge-uri pentru selecțiile active
+
+4. **Recurența Reviziilor**
+   - **Data de început (Prima revizie)** - Date picker
+     - Data primei revizii sau data de referință pentru calculul recurenței
+     - Obligatorie dacă se setează recurență
+     - Recurența se calculează pornind de la această dată
+   - Input numeric pentru interval (ex: 90)
+   - Dropdown pentru unitate (Zile/Luni)
+   - **Ziua din lună** - Afișat doar când unitatea este "Luni"
+     - Dropdown cu zilele 1-31
+     - Permite setarea recurenței într-o zi specifică a lunii (ex: la fiecare 3 luni, în ziua 15)
+   - Layout în 2 coloane pentru interval și unitate
+   - Valori default: 90 zile
+
+5. **X Zile Înainte**
+   - Input numeric
+   - Preluat automat din setări (default: 10)
+   - Editabil în formular
+   - Explicație: "Lucrările se vor crea automat cu X zile înainte de data programată"
+
+6. **Buton Prețuri**
+   - Deschide `ContractPricingDialog`
+   - Badge cu număr de prețuri setate
+   - Icon DollarSign pentru vizibilitate
+
+**Modificări Tabel:**
+- Coloana "Tip Contract" eliminată
+- Coloană nouă "Echipamente" - afișează număr echipamente
+- Coloană nouă "Recurență" - afișează interval și unitate
+  - Dacă recurența este lunară și are ziua setată: "3 luni (ziua 15)"
+  - Altfel: "90 zile"
+- Badge-uri colorate pentru diferite statusuri
+
+### 6. Firebase Functions (firebase-functions/)
+
+**Structură creată:**
+```
+firebase-functions/
+├── src/
+│   └── index.ts         # Funcția scheduled
+├── package.json         # Dependencies
+├── tsconfig.json        # TypeScript config
+├── .gitignore          # Git ignore
+└── README.md           # Documentație
+```
+
+**Funcție: generateScheduledWorks**
+- Rulează automat la 8:00, 13:00, 17:00 (Europe/Bucharest)
+- Verifică toate contractele cu recurență
+- Calculează data următoarei revizii
+- Creează lucrări neatribuite cu X zile înainte
+- Marchează contractele procesate (lastAutoWorkGenerated)
+- Logging complet pentru monitoring
+
+**Logica de Generare:**
+1. Găsește contracte cu `recurrenceInterval` != null
+2. Pentru fiecare contract:
+   - Calculează `nextReviewDate` bazat pe recurență
+   - Calculează `generateDate` = nextReviewDate - daysBeforeWork
+   - Dacă today >= generateDate și nu a fost deja generat:
+     - Pentru fiecare echipament din contract:
+       - Creează lucrare cu status "Planificat"
+       - Tehnicieni: [] (neatribuită)
+       - Marcaj: autoGenerated: true
+   - Actualizează contract.lastAutoWorkGenerated
+
+## Cum să Folosești
+
+### 1. Configurare Setări
+
+Mergi la **Setări** și configurează:
+
+**Tipuri Servicii (pentru prețuri):**
+- Adaugă: Revizie, Intervenție, Urgență, etc.
+
+**Zile Înainte (default):**
+- Setează: 10 (sau valoarea dorită)
+
+**Unități Recurență:**
+- Adaugă: zile, luni
+
+### 2. Creare Contract
+
+1. Accesează **Dashboard → Contracte**
+2. Click pe **"Adaugă Contract"**
+3. Completează:
+   - **Nume Contract** *
+   - **Număr Contract** *
+   - **Client** (opțional, dar recomandat pentru recurență)
+   
+4. Dacă ai selectat un client:
+   - **Selectează Locația**
+   - **Selectează Echipamentele** (multiple)
+   
+5. **Configurează Recurența:**
+   - **Data de început**: Selectează data primei revizii (ex: 15.01.2025)
+     - Aceasta va fi data de referință pentru toate reviziile următoare
+   - Interval: 90 (exemplu) sau 3 pentru luni
+   - Unitate: zile sau luni
+   - **Ziua din lună**: (doar dacă ai selectat "luni")
+     - Selectează ziua dorită (1-31)
+     - Ex: Pentru recurență "3 luni, ziua 15" → revizia va fi programată în fiecare 3 luni, pe 15
+   - Zile înainte: 10 (se preiau automat din setări)
+   
+   **Exemplu complet:**
+   - Data început: 15.02.2025
+   - Interval: 3
+   - Unitate: luni
+   - Ziua din lună: 15
+   - Zile înainte: 10
+   - **Rezultat**: Prima revizie va fi pe 15.02.2025, următoarea pe 15.05.2025, apoi 15.08.2025, etc.
+   - Lucrările se vor genera automat cu 10 zile înainte (5.02, 5.05, 5.08, etc.)
+
+6. **Setează Prețurile:**
+   - Click pe "Setează Prețurile"
+   - Completează prețul pentru fiecare tip serviciu
+   - Salvează
+
+7. Click **"Adaugă"**
+
+### 3. Editare Contract
+
+1. Click pe iconul **Edit** (creion) lângă contract
+2. Modifică câmpurile dorite
+3. Toate echipamentele și setările anterioare sunt preîncărcate
+4. Salvează modificările
+
+### 4. Deploy Firebase Functions
+
+```bash
+cd firebase-functions
+npm install
+npm run build
+npm run deploy
+```
+
+**Sau deploy cu Firebase CLI:**
+```bash
+firebase deploy --only functions:generateScheduledWorks
+```
+
+### 5. Monitoring Lucrări Auto-Generate
+
+**Verifică logurile:**
+```bash
+cd firebase-functions
+npm run logs
+```
+
+**În dashboard:**
+- Mergi la **Lucrări**
+- Lucrările auto-generate au:
+  - Status: "Planificat"
+  - Tehnicieni: [] (neatribuite)
+  - CreatedBy: "system"
+  - Campo `autoGenerated: true`
+
+## Exemple de Utilizare
+
+### Exemplu 1: Contract Revizie Trimestrială
+
+**Configurare:**
+- Client: ABC Company
+- Locație: Sediu Central
+- Echipamente: 5 echipamente selectate
+- Recurență: 90 zile
+- Zile înainte: 10
+- Prețuri: Revizie: 500 RON
+
+**Rezultat:**
+- La fiecare 90 de zile, cu 10 zile înainte, se vor crea automat 5 lucrări (câte una pentru fiecare echipament)
+- Lucrările vor avea data intervenției peste 10 zile
+- Status: "Planificat", neatribuite
+
+### Exemplu 2: Contract Revizie Anuală
+
+**Configurare:**
+- Client: XYZ Industries
+- Locație: Fabrică
+- Echipamente: 10 echipamente
+- Recurență: 12 luni
+- Zile înainte: 14
+- Prețuri: Revizie: 800 RON, Intervenție: 400 RON
+
+**Rezultat:**
+- La fiecare 12 luni, cu 14 zile înainte, se vor crea 10 lucrări
+- Sistemul ține evidența ultimei generări pentru a evita duplicatele
+
+## Testing
+
+### Test Manual - Creare Contract
+
+1. ✅ Crează un contract nou cu toate câmpurile
+2. ✅ Verifică că se salvează corect în Firestore
+3. ✅ Verifică că echipamentele apar în lista selectată
+4. ✅ Verifică că prețurile se salvează
+
+### Test Manual - Editare Contract
+
+1. ✅ Deschide un contract existent
+2. ✅ Verifică că toate câmpurile sunt preîncărcate
+3. ✅ Modifică echipamentele selectate
+4. ✅ Modifică recurența
+5. ✅ Verifică că modificările se salvează
+
+### Test Manual - Dialog Prețuri
+
+1. ✅ Deschide dialogul de prețuri
+2. ✅ Setează prețuri pentru diferite servicii
+3. ✅ Verifică badge-ul cu număr de prețuri setate
+4. ✅ Testează butonul "Resetează"
+
+### Test Firebase Function (Local)
+
+```bash
+cd firebase-functions
+npm run serve
+```
+
+Apoi testează manual funcția sau așteaptă ora programată.
+
+### Test Firebase Function (Production)
+
+După deploy, monitorizează la orele 8:00, 13:00, 17:00:
+```bash
+firebase functions:log --only generateScheduledWorks
+```
+
+## Backward Compatibility
+
+Contractele vechi rămân funcționale:
+- Câmpurile noi sunt opționale
+- Câmpurile legacy (`tip`, `locatie`, etc.) sunt păstrate
+- Sistemul detectează automat ce format folosește fiecare contract
+
+## Troubleshooting
+
+### Echipamentele nu apar
+
+**Cauză:** Locația nu a fost selectată sau locația nu are echipamente
+
+**Soluție:** 
+1. Verifică că ai selectat clientul
+2. Selectează o locație
+3. Verifică că locația are echipamente în baza de date
+
+### Prețurile nu se salvează
+
+**Cauză:** Dialogul a fost închis fără salvare
+
+**Soluție:** 
+1. Asigură-te că apeși "Salvează Prețuri" în dialog
+2. Apoi salvează contractul
+
+### Lucrările nu se generează automat
+
+**Cauză:** Firebase Function nu este deployed sau are erori
+
+**Soluție:**
+1. Verifică deployment: `firebase functions:list`
+2. Verifică logurile: `npm run logs`
+3. Verifică că există contracte cu recurență în DB
+4. Verifică că data de generare a fost atinsă
+
+### Lucrări duplicate
+
+**Cauză:** Eroare în actualizarea `lastAutoWorkGenerated`
+
+**Soluție:**
+1. Verifică logurile pentru erori
+2. Asigură-te că funcția nu rulează în paralel
+3. Verifică permisiunile Firestore pentru funcție
+
+## Îmbunătățiri Viitoare (Opțional)
+
+1. **Notificări Email**
+   - Trimite email când se creează lucrări automate
+   - Notifică administratorii
+
+2. **Dashboard Statistici**
+   - Vizualizare lucrări auto-generate
+   - Grafice recurență contracte
+
+3. **Configurare Recurență Complexă**
+   - Zile specifice din lună
+   - Săptămâni specifice
+
+4. **Export Contracte**
+   - Export PDF cu toate detaliile
+   - Include prețuri și echipamente
+
+5. **Istoric Prețuri**
+   - Salvează istoric modificări prețuri
+   - Compare prețuri în timp
+
+## Suport
+
+Pentru probleme sau întrebări:
+1. Verifică acest document
+2. Verifică README.md din firebase-functions/
+3. Verifică logurile Firebase
+4. Contactează echipa de development
+
+---
+
+**Implementat:** Noiembrie 2025  
+**Versiune:** 1.0  
+**Status:** Production Ready ✅
+
