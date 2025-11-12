@@ -588,6 +588,29 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       doc.text(durataText, M + chronoColW * 3 + 2, currentY + 9)
       
       currentY += chronoTableH + 3 // Redus de la 5 la 3
+      
+      // SECȚIUNE TEHNICIENI PARTICIPANȚI
+      if (lucrareForPDF.tehnicieni && Array.isArray(lucrareForPDF.tehnicieni) && lucrareForPDF.tehnicieni.length > 0) {
+        checkPageBreak(15)
+        
+        doc.setFontSize(9)
+          .setFont("helvetica", "bold")
+          .setTextColor(50, 50, 50)
+        
+        doc.text("Tehnicieni participanti:", M + 2, currentY + 4)
+        
+        // Afișăm tehnicienii separați prin virgulă
+        const tehnicienList = normalize(lucrareForPDF.tehnicieni.join(", "))
+        doc.setFontSize(9)
+          .setFont("helvetica", "normal")
+          .setTextColor(30, 30, 30)
+        
+        const tehnicienLines = doc.splitTextToSize(tehnicienList, W - 4)
+        doc.text(tehnicienLines, M + 2, currentY + 9)
+        
+        const tehnicienLinesCount = Array.isArray(tehnicienLines) ? tehnicienLines.length : 1
+        currentY += 9 + (tehnicienLinesCount * 4) + 3
+      }
 
       // SECȚIUNE DETALII LOCAȚIE ȘI ECHIPAMENT – stil nou
       const detailsBarHeight = 5
