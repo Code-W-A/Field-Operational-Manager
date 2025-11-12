@@ -43,16 +43,14 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
   
   // Verificăm dacă lucrarea a fost preluată (condiție pentru upload)
   const isWorkPickedUp = lucrare.preluatDispecer === true
-  // Lucrare blocată după reintervenție
-  const isLocked = Boolean(lucrare?.lockedAfterReintervention)
   
   // Verificăm dacă oferta este necesară (condiție pentru upload ofertă)
   const needsOffer = lucrare.necesitaOferta === true
   
-  // Condiții pentru afișarea upload-ului: afișăm cât timp nu există o factură
-  // Permitem upload factură chiar dacă lucrarea este blocată după reintervenție
+  // Condiții pentru afișarea upload-ului: afișăm cât timp nu există documentul respectiv
+  // Permitem upload factură și ofertă chiar dacă lucrarea este blocată după reintervenție
   const shouldShowFacturaUpload = !lucrare.facturaDocument
-  const shouldShowOfertaUpload = (lucrare.statusOferta === "OFERTAT") && !isLocked
+  const shouldShowOfertaUpload = (lucrare.statusOferta === "OFERTAT")
 
   // Eliminăm câmpurile manuale pentru număr și dată; data/ora încărcării se salvează automat
   const formatRoDateTime = (isoString: string) => {

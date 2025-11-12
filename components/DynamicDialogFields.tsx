@@ -14,8 +14,9 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
-import { ChevronsUpDown, Check } from "lucide-react"
+import { ChevronsUpDown, Check, Image as ImageIcon, FileText, ExternalLink } from "lucide-react"
 import { cn } from "@/lib/utils"
+import Image from "next/image"
 
 interface DynamicDialogFieldsProps {
   targetId: string
@@ -75,7 +76,8 @@ export function DynamicDialogFields({ targetId, values, onChange, className = ""
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {visibleParents.map((p) => {
-          const options = (childrenByParent[p.id] || [])
+          const children = childrenByParent[p.id] || []
+          const options = children
             .map((c) => c?.name || "")
             .filter((s) => String(s || "").trim().length > 0)
           if (!options.length) return null
@@ -88,6 +90,7 @@ export function DynamicDialogFields({ targetId, values, onChange, className = ""
               label={p.name}
               value={String(current || "")}
               options={options}
+              children={children}
               onChange={(val) => onChange(p.id, val)}
             />
           )
@@ -102,16 +105,21 @@ function FieldWithSearch({
   label,
   value,
   options,
+  children,
   onChange,
 }: {
   id: string
   label: string
   value: string
   options: string[]
+  children: Setting[]
   onChange: (val: string) => void
 }) {
   const [open, setOpen] = useState(false)
   const selectedLabel = value && options.includes(value) ? value : ""
+  
+  // Găsim setarea selectată pentru a afișa datele suplimentare
+  const selectedSetting = children.find((c) => c.name === value)
 
   return (
     <div className="space-y-1">
@@ -157,6 +165,70 @@ function FieldWithSearch({
           </Command>
         </PopoverContent>
       </Popover>
+
+      {/* Afișăm datele suplimentare pentru opțiunea selectată */}
+      {selectedSetting && (
+        <div className="mt-2 space-y-2 p-3 bg-muted/30 rounded-md border">
+          {/* Valoare numerică */}
+          {selectedSetting.numericValue !== undefined && selectedSetting.numericValue !== null && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Valoare:</span>
+              <span className="font-semibold">{selectedSetting.numericValue}</span>
+            </div>
+          )}
+
+          {/* Imagine */}
+          {selectedSetting.imageUrl && (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <ImageIcon className="h-4 w-4" />
+                <span>Imagine asociată</span>
+              </div>
+              <div className="relative w-full h-32 rounded border overflow-hidden bg-white">
+                <Image
+                  src={selectedSetting.imageUrl}
+                  alt={selectedSetting.fileName || "Imagine"}
+                  fill
+                  className="object-contain"
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="w-full"
+                onClick={() => window.open(selectedSetting.imageUrl, '_blank')}
+              >
+                <ExternalLink className="h-3 w-3 mr-2" />
+                Deschide imaginea
+              </Button>
+            </div>
+          )}
+
+          {/* Document */}
+          {selectedSetting.documentUrl && !selectedSetting.imageUrl && (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-sm">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground truncate flex-1">
+                  {selectedSetting.fileName || "Document atașat"}
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => window.open(selectedSetting.documentUrl, '_blank')}
+              >
+                <ExternalLink className="h-3 w-3 mr-2" />
+                Deschide documentul
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

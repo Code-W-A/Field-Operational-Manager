@@ -17,18 +17,24 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { DynamicDialogFields } from "@/components/DynamicDialogFields"
+import { Separator } from "@/components/ui/separator"
 
 interface ContractPricingDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   pricing: Record<string, number>
   onSave: (pricing: Record<string, number>) => void
+  customFields?: Record<string, any>
+  onCustomFieldsChange?: (fields: Record<string, any>) => void
 }
 
-export function ContractPricingDialog({ open, onOpenChange, pricing, onSave }: ContractPricingDialogProps) {
+export function ContractPricingDialog({ open, onOpenChange, pricing, onSave, customFields = {}, onCustomFieldsChange }: ContractPricingDialogProps) {
   const [localPricing, setLocalPricing] = useState<Record<string, number>>({})
   const [showCloseAlert, setShowCloseAlert] = useState(false)
   const [initialPricing, setInitialPricing] = useState<Record<string, number>>({})
+  const [localCustomFields, setLocalCustomFields] = useState<Record<string, any>>({})
+  const [initialCustomFields, setInitialCustomFields] = useState<Record<string, any>>({})
 
   // Preia tipurile de servicii din setări
   const { items: serviceTypes } = useTargetList("contracts.create.serviceTypes")
@@ -38,12 +44,15 @@ export function ContractPricingDialog({ open, onOpenChange, pricing, onSave }: C
     if (open) {
       setLocalPricing({ ...pricing })
       setInitialPricing({ ...pricing })
+      setLocalCustomFields({ ...customFields })
+      setInitialCustomFields({ ...customFields })
     }
-  }, [open, pricing])
+  }, [open, pricing, customFields])
 
   // Verifică dacă există modificări nesalvate
   const hasUnsavedChanges = () => {
-    return JSON.stringify(localPricing) !== JSON.stringify(initialPricing)
+    return JSON.stringify(localPricing) !== JSON.stringify(initialPricing) ||
+           JSON.stringify(localCustomFields) !== JSON.stringify(initialCustomFields)
   }
 
   // Handler pentru schimbarea prețului
@@ -64,9 +73,12 @@ export function ContractPricingDialog({ open, onOpenChange, pricing, onSave }: C
     setLocalPricing(resetPricing)
   }
 
-  // Salvează prețurile
+  // Salvează prețurile și câmpurile custom
   const handleSave = () => {
     onSave(localPricing)
+    if (onCustomFieldsChange) {
+      onCustomFieldsChange(localCustomFields)
+    }
     onOpenChange(false)
   }
 
@@ -108,7 +120,7 @@ export function ContractPricingDialog({ open, onOpenChange, pricing, onSave }: C
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            {serviceTypes && serviceTypes.length > 0 ? (
+            {serviceTypes && serviceTypes.length > 0 && (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {serviceTypes.map((service) => (
@@ -146,14 +158,22 @@ export function ContractPricingDialog({ open, onOpenChange, pricing, onSave }: C
                   </p>
                 </div>
               </>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <p>Nu există tipuri de servicii definite în setări.</p>
-                <p className="text-sm mt-2">
-                  Mergeți la Setări → Formular Contract → Tipuri servicii pentru a adăuga tipuri de servicii.
-                </p>
-              </div>
             )}
+
+            {/* Separator între prețuri și câmpuri dinamice */}
+            <Separator className="my-4" />
+
+            {/* Câmpuri dinamice din setări (legate la Dialog: Prețuri Contract) */}
+            <DynamicDialogFields
+              targetId="dialogs.contract.pricing"
+              values={localCustomFields}
+              onChange={(fieldKey, value) => {
+                setLocalCustomFields((prev) => ({
+                  ...prev,
+                  [fieldKey]: value,
+                }))
+              }}
+            />
           </div>
 
           <DialogFooter className="flex-col gap-2 sm:flex-row">

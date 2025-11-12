@@ -107,6 +107,7 @@ export default function ContractsPage() {
   const [newContractRecurrenceDayOfMonth, setNewContractRecurrenceDayOfMonth] = useState<number>(1)
   const [newContractDaysBeforeWork, setNewContractDaysBeforeWork] = useState<number>(10)
   const [newContractPricing, setNewContractPricing] = useState<Record<string, number>>({})
+  const [newContractPricingCustomFields, setNewContractPricingCustomFields] = useState<Record<string, any>>({})
   const [isPricingDialogOpen, setIsPricingDialogOpen] = useState(false)
   const [newContract, setNewContract] = useState<any>({})
   const [clientLocations, setClientLocations] = useState<Locatie[]>([])
@@ -1632,6 +1633,8 @@ export default function ContractsPage() {
         onOpenChange={setIsPricingDialogOpen}
         pricing={newContractPricing}
         onSave={setNewContractPricing}
+        customFields={newContractPricingCustomFields}
+        onCustomFieldsChange={setNewContractPricingCustomFields}
       />
     </DashboardShell>
     </TooltipProvider>
