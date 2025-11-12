@@ -545,9 +545,7 @@ export default function SetariPage() {
                       Sistem
                     </span>
                   </CardTitle>
-                  <CardDescription className="text-xs">
-                    Gestionează numărul automat al rapoartelor generate. Modificarea afectează doar rapoartele noi.
-                  </CardDescription>
+             
                 </CardHeader>
                 <CardContent className="pt-0">
                   <div className="space-y-3">
@@ -608,10 +606,7 @@ export default function SetariPage() {
                       </Button>
                     </div>
 
-                    {/* Informație suplimentară */}
-                    <p className="text-xs text-green-700 bg-green-50 p-2 rounded border border-green-200">
-                      <strong>Important:</strong> Rapoartele existente își păstrează numerele originale. Această modificare afectează doar rapoartele generate după salvare.
-                    </p>
+              
                   </div>
                 </CardContent>
               </Card>
