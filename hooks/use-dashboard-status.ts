@@ -3,7 +3,7 @@
 import { useMemo, useEffect, useState } from "react"
 import { Timestamp, where, orderBy, limit } from "firebase/firestore"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
-import { WORK_STATUS } from "@/lib/utils/constants"
+import { WORK_STATUS, EQUIPMENT_STATUS } from "@/lib/utils/constants"
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 
@@ -241,9 +241,15 @@ export function useDashboardStatus() {
       }
 
       // Stare echipament - sortate după data generării raportului
-      // Include toate lucrările cu statusEchipament setat (Funcțional, Parțial funcțional, Nefuncțional)
+      // Include doar Parțial funcțional și Nefuncțional (exclude Funcțional)
       const statusEchipament = (l as any).statusEchipament
-      if (statusEchipament && String(statusEchipament).trim().length > 0) {
+      if (
+        eqInsensitive(
+          statusEchipament,
+          EQUIPMENT_STATUS.NON_FUNCTIONAL,
+          EQUIPMENT_STATUS.PARTIALLY_FUNCTIONAL
+        )
+      ) {
         res.equipmentStatus.push(buildBubble(l, undefined, toDate(l.createdAt) || undefined, statusEchipament))
       }
     }

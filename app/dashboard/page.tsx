@@ -230,18 +230,14 @@ export default function Dashboard() {
 
   // Bubble cu culoare dinamică în funcție de statusul echipamentului
   const equipmentStatusBubble = () => (it: any) => {
-    let color = "bg-gray-600" // Culoare default
-    
-    // Determinăm culoarea în funcție de statusul echipamentului
+    // Determinăm culoarea strict pentru Parțial funcțional (galben) și Nefuncțional (roșu).
+    // Orice alt status (inclusiv Funcțional) NU se afișează în acest box.
     const status = String(it.equipmentStatus || "").toLowerCase()
-    if (status.includes("funcțional") && !status.includes("parțial")) {
-      color = "bg-green-600" // Verde pentru Funcțional
-    } else if (status.includes("parțial")) {
-      color = "bg-yellow-600" // Galben pentru Parțial funcțional
-    } else if (status.includes("nefuncțional")) {
-      color = "bg-red-600" // Roșu pentru Nefuncțional
-    }
-    
+    const isPartial = status.includes("parțial") || status.includes("partial")
+    const isNonFunctional = status.includes("nefuncțional") || status.includes("nefunctional")
+    const color = isPartial ? "bg-yellow-600" : isNonFunctional ? "bg-red-600" : ""
+    if (!color) return null
+
     return (
       <WorkBubbleStatus
         key={it.id}
