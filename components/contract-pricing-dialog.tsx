@@ -188,81 +188,6 @@ export function ContractPricingDialog({ open, onOpenChange, pricing, onSave, cus
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            {serviceTypes && serviceTypes.length > 0 && (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {serviceTypes.map((service) => (
-                    <div key={service.id} className="space-y-2">
-                      <Label htmlFor={`price-${service.id}`} className="flex items-center gap-2">
-                        <DollarSign className="h-4 w-4 text-muted-foreground" />
-                        {service.name}
-                      </Label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          id={`price-${service.id}`}
-                          type="text"
-                          inputMode="decimal"
-                          value={
-                            localPricing[service.name] === undefined
-                              ? (pricing?.[service.name] !== undefined ? String(pricing[service.name]) : "")
-                              : String(localPricing[service.name] ?? "")
-                          }
-                          onChange={(e) => {
-                            // dacă a fost marcat pentru ștergere, reactivăm intrarea
-                            if (removedKeys.has(service.name)) {
-                              setRemovedKeys((prev) => {
-                                const next = new Set(prev)
-                                next.delete(service.name)
-                                return next
-                              })
-                            }
-                            handlePriceChange(service.name, e.target.value)
-                          }}
-                          placeholder="0.00"
-                          className="font-mono"
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          title="Șterge prețul"
-                          onClick={() => {
-                            setLocalPricing((prev) => {
-                              const next = { ...prev }
-                              delete (next as any)[service.name]
-                              return next
-                            })
-                            setRemovedKeys((prev) => new Set(prev).add(service.name))
-                          }}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="pt-4 border-t">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleReset}
-                    className="w-full"
-                  >
-                    <RotateCcw className="h-4 w-4 mr-2" />
-                    Resetează la prețurile de contract (0)
-                  </Button>
-                  <p className="text-xs text-muted-foreground mt-2 text-center">
-                    Resetarea va seta toate prețurile la 0
-                  </p>
-                </div>
-              </>
-            )}
-
-            {/* Separator între prețuri și câmpuri dinamice */}
-            <Separator className="my-4" />
-
-            {/* Câmpuri dinamice din setări (legate la Dialog: Prețuri Contract) */}
             <DynamicDialogFields
               targetId="dialogs.contract.pricing"
               values={localCustomFields}
@@ -286,23 +211,133 @@ export function ContractPricingDialog({ open, onOpenChange, pricing, onSave, cus
                   [key]: String(price),
                 }))
               }}
-              enableNumericEdit
-              onSelectedSettingNumericChange={(_fieldKey, parentName, setting, newValue) => {
-                if (!setting) return
-                const serviceName = resolveServiceNameFromSelection(parentName, String(setting.name || ""))
-                const key = serviceName || String(setting.name || "")
-                setLocalPricing((prev) => ({
-                  ...prev,
-                  [key]: newValue === null ? "" : String(newValue),
-                }))
-              }}
+              enableNumericEdit={false}
               filterChild={(child, parentName) => {
                 const key = resolveServiceNameFromSelection(parentName, String(child.name || "")) || String(child.name || "")
                 const hasLocal = (localPricing as any)?.[key] !== undefined && String((localPricing as any)?.[key] ?? "").length > 0
                 const hasInitial = (pricing as any)?.[key] !== undefined && String((pricing as any)?.[key] ?? "").length > 0
                 return !(hasLocal || hasInitial)
               }}
+              hideNumericDisplay
             />
+
+            {(() => {
+              // Now show the full list of price inputs (custom-added first, then known service types not duplicated)
+              const knownNames = (serviceTypes || []).map((s: any) => String(s.name || ""))
+              const otherKeys = Object.keys(localPricing || {}).filter((k) => !knownNames.includes(k))
+              return (
+                <>
+                  {otherKeys.length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {otherKeys.map((name) => (
+                        <div key={name} className="space-y-2">
+                          <Label className="flex items-center gap-2">
+                            <DollarSign className="h-4 w-4 text-muted-foreground" />
+                            {name}
+                          </Label>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="text"
+                              inputMode="decimal"
+                              value={String((localPricing as any)?.[name] ?? "")}
+                              onChange={(e) => handlePriceChange(name, e.target.value)}
+                              placeholder="0.00"
+                              className="font-mono"
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              title="Șterge prețul"
+                              onClick={() => {
+                                setLocalPricing((prev) => {
+                                  const next = { ...prev }
+                                  delete (next as any)[name]
+                                  return next
+                                })
+                                setRemovedKeys((prev) => new Set(prev).add(name))
+                              }}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {serviceTypes && serviceTypes.length > 0 && (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {serviceTypes.map((service) => (
+                          <div key={service.id} className="space-y-2">
+                            <Label htmlFor={`price-${service.id}`} className="flex items-center gap-2">
+                              <DollarSign className="h-4 w-4 text-muted-foreground" />
+                              {service.name}
+                            </Label>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                id={`price-${service.id}`}
+                                type="text"
+                                inputMode="decimal"
+                                value={
+                                  localPricing[service.name] === undefined
+                                    ? (pricing?.[service.name] !== undefined ? String(pricing[service.name]) : "")
+                                    : String(localPricing[service.name] ?? "")
+                                }
+                                onChange={(e) => {
+                                  if (removedKeys.has(service.name)) {
+                                    setRemovedKeys((prev) => {
+                                      const next = new Set(prev)
+                                      next.delete(service.name)
+                                      return next
+                                    })
+                                  }
+                                  handlePriceChange(service.name, e.target.value)
+                                }}
+                                placeholder="0.00"
+                                className="font-mono"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                title="Șterge prețul"
+                                onClick={() => {
+                                  setLocalPricing((prev) => {
+                                    const next = { ...prev }
+                                    delete (next as any)[service.name]
+                                    return next
+                                  })
+                                  setRemovedKeys((prev) => new Set(prev).add(service.name))
+                                }}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="pt-4 border-t">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleReset}
+                          className="w-full"
+                        >
+                          <RotateCcw className="h-4 w-4 mr-2" />
+                          Resetează la prețurile de contract (0)
+                        </Button>
+                        <p className="text-xs text-muted-foreground mt-2 text-center">
+                          Resetarea va seta toate prețurile la 0
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </>
+              )
+            })()}
           </div>
 
           <DialogFooter className="flex-col gap-2 sm:flex-row">

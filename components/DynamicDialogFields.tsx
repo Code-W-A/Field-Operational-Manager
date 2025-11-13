@@ -28,9 +28,10 @@ interface DynamicDialogFieldsProps {
   enableNumericEdit?: boolean
   onSelectedSettingNumericChange?: (fieldKey: string, parentName: string, setting: Setting | undefined, newValue: number | null) => void
   filterChild?: (child: Setting, parentName: string) => boolean
+  hideNumericDisplay?: boolean
 }
 
-export function DynamicDialogFields({ targetId, values, onChange, className = "", onSettingSelected, enableNumericEdit = false, onSelectedSettingNumericChange, filterChild }: DynamicDialogFieldsProps) {
+export function DynamicDialogFields({ targetId, values, onChange, className = "", onSettingSelected, enableNumericEdit = false, onSelectedSettingNumericChange, filterChild, hideNumericDisplay = false }: DynamicDialogFieldsProps) {
   const [parents, setParents] = useState<Setting[]>([])
   const [childrenByParent, setChildrenByParent] = useState<Record<string, Setting[]>>({})
   const childUnsubsRef = useRef<Record<string, () => void>>({})
@@ -88,12 +89,19 @@ export function DynamicDialogFields({ targetId, values, onChange, className = ""
       )}>
         {visibleParents.map((p, index) => {
           const children = childrenByParent[p.id] || []
-          const filteredChildren = filterChild ? children.filter((c) => filterChild(c, p.name)) : children
+          const current = values?.[p.id] ?? ""
+          // Aplica filtrarea dar păstrează opțiunea selectată curent dacă există
+          const filteredChildrenBase = filterChild ? children.filter((c) => filterChild(c, p.name)) : children
+          const filteredChildren = filteredChildrenBase.some((c) => String(c.name || "") === String(current || ""))
+            ? filteredChildrenBase
+            : [
+                ...filteredChildrenBase,
+                ...children.filter((c) => String(c.name || "") === String(current || "")),
+              ]
           const options = filteredChildren
             .map((c) => c?.name || "")
             .filter((s) => String(s || "").trim().length > 0)
           if (!options.length) return null
-          const current = values?.[p.id] ?? ""
           const [open, setOpen] = [undefined, undefined] as unknown as [boolean, (o: boolean) => void] // satisfy TS in map
           return (
             <FieldWithSearch
@@ -107,6 +115,7 @@ export function DynamicDialogFields({ targetId, values, onChange, className = ""
               onSettingSelected={(setting) => onSettingSelected && onSettingSelected(p.id, setting, p.name)}
               enableNumericEdit={enableNumericEdit}
               onSelectedSettingNumericChange={(setting, newValue) => onSelectedSettingNumericChange && onSelectedSettingNumericChange(p.id, p.name, setting, newValue)}
+              hideNumericDisplay={hideNumericDisplay}
             />
           )
         })}
@@ -125,6 +134,7 @@ function FieldWithSearch({
   onSettingSelected,
   enableNumericEdit,
   onSelectedSettingNumericChange,
+  hideNumericDisplay,
 }: {
   id: string
   label: string
@@ -135,6 +145,7 @@ function FieldWithSearch({
   onSettingSelected?: (setting: Setting | undefined, parentName: string) => void
   enableNumericEdit?: boolean
   onSelectedSettingNumericChange?: (setting: Setting | undefined, newValue: number | null) => void
+  hideNumericDisplay?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const selectedLabel = value && options.includes(value) ? value : ""
@@ -200,14 +211,18 @@ function FieldWithSearch({
       {selectedSetting && (
         <div className="mt-2 space-y-2 p-3 bg-muted/30 rounded-md border">
           {/* Valoare numerică */}
-          {(selectedSetting.numericValue !== undefined && selectedSetting.numericValue !== null) && !enableNumericEdit && (
+          {(selectedSetting.numericValue !== undefined && selectedSetting.numericValue !== null) && !enableNumericEdit && !hideNumericDisplay && (
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Valoare:</span>
               <span className="font-semibold">{selectedSetting.numericValue}</span>
             </div>
           )}
-          {(enableNumericEdit) && (
+          {(enableNumericEdit && !hideNumericDisplay) && (
             <div className="space-y-1">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Valoare:</span>
+                <span className="font-semibold">{numericText !== "" ? numericText : (selectedSetting.numericValue ?? "")}</span>
+              </div>
               <Label className="text-xs text-muted-foreground">Valoare</Label>
               <Input
                 type="text"
