@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useTargetList } from "@/hooks/use-settings"
-import { RotateCcw, DollarSign } from "lucide-react"
+import { RotateCcw, DollarSign, X } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,24 +30,57 @@ interface ContractPricingDialogProps {
 }
 
 export function ContractPricingDialog({ open, onOpenChange, pricing, onSave, customFields = {}, onCustomFieldsChange }: ContractPricingDialogProps) {
-  const [localPricing, setLocalPricing] = useState<Record<string, number>>({})
+  const [localPricing, setLocalPricing] = useState<Record<string, number | string>>({})
   const [showCloseAlert, setShowCloseAlert] = useState(false)
   const [initialPricing, setInitialPricing] = useState<Record<string, number>>({})
   const [localCustomFields, setLocalCustomFields] = useState<Record<string, any>>({})
   const [initialCustomFields, setInitialCustomFields] = useState<Record<string, any>>({})
+  const [didInit, setDidInit] = useState(false)
+  const [removedKeys, setRemovedKeys] = useState<Set<string>>(new Set())
 
   // Preia tipurile de servicii din setări
   const { items: serviceTypes } = useTargetList("contracts.create.serviceTypes")
 
-  // Inițializează prețurile locale când se deschide dialogul
+  function resolveServiceNameFromSelection(parentName: string, selectedChildName: string): string | null {
+    const candidates = (serviceTypes || []).map((s: any) => String(s.name || "").trim())
+    const norm = (s: string) => s.toLowerCase().trim()
+    const p = norm(parentName)
+    const c = norm(selectedChildName)
+
+    // exact match on parent
+    const exactParent = candidates.find((n) => norm(n) === p)
+    if (exactParent) return exactParent
+
+    // exact match on child selected name
+    const exactChild = candidates.find((n) => norm(n) === c)
+    if (exactChild) return exactChild
+
+    // substring matches
+    const subParent = candidates.find((n) => p.includes(norm(n)) || norm(n).includes(p))
+    if (subParent) return subParent
+    const subChild = candidates.find((n) => c.includes(norm(n)) || norm(n).includes(c))
+    if (subChild) return subChild
+
+    // fallback: if single service type exists
+    if (candidates.length === 1) return candidates[0]
+    return null
+  }
+
+  // Inițializează prețurile locale doar la deschiderea dialogului,
+  // pentru a nu suprascrie editările când props se schimbă cât timp e deschis
   useEffect(() => {
-    if (open) {
+    if (open && !didInit) {
       setLocalPricing({ ...pricing })
       setInitialPricing({ ...pricing })
       setLocalCustomFields({ ...customFields })
       setInitialCustomFields({ ...customFields })
+      setDidInit(true)
+      setRemovedKeys(new Set())
     }
-  }, [open, pricing, customFields])
+    if (!open) {
+      setDidInit(false)
+    }
+  }, [open])
 
   // Verifică dacă există modificări nesalvate
   const hasUnsavedChanges = () => {
@@ -57,10 +90,24 @@ export function ContractPricingDialog({ open, onOpenChange, pricing, onSave, cus
 
   // Handler pentru schimbarea prețului
   const handlePriceChange = (serviceType: string, value: string) => {
-    const numericValue = value === "" ? 0 : parseFloat(value)
+    const normalized = value.replace(",", ".")
+    // Permite editare temporar: string gol, "-", ".", "-."
+    if (normalized === "" || normalized === "-" || normalized === "." || normalized === "-.") {
+      setLocalPricing((prev) => ({ ...prev, [serviceType]: normalized }))
+      return
+    }
+
+    // Permite doar cifre și un singur punct
+    const valid = /^-?\d*(?:\.\d*)?$/.test(normalized)
+    if (!valid) {
+      // Ignoră caractere invalide (nu actualiza)
+      setLocalPricing((prev) => ({ ...prev, [serviceType]: prev[serviceType] ?? "" }))
+      return
+    }
+
     setLocalPricing((prev) => ({
       ...prev,
-      [serviceType]: isNaN(numericValue) ? 0 : numericValue,
+      [serviceType]: normalized,
     }))
   }
 
@@ -75,7 +122,28 @@ export function ContractPricingDialog({ open, onOpenChange, pricing, onSave, cus
 
   // Salvează prețurile și câmpurile custom
   const handleSave = () => {
-    onSave(localPricing)
+    // Transformă valorile în numere valide pentru onSave
+    const parsed: Record<string, number> = {}
+    const serviceNames: string[] = (serviceTypes && serviceTypes.length > 0)
+      ? serviceTypes.map((s) => s.name)
+      : Array.from(new Set([
+          ...Object.keys(localPricing || {}),
+          ...Object.keys(pricing || {}),
+        ]))
+
+    serviceNames.forEach((name) => {
+      if (removedKeys.has(name)) {
+        return
+      }
+      const raw = (localPricing as any)?.[name]
+      const fallback = (pricing as any)?.[name]
+      const str = raw === undefined ? (fallback !== undefined ? String(fallback) : "") : String(raw)
+      const normalized = str.replace(",", ".")
+      const num = normalized.trim() === "" || normalized === "-" || normalized === "." || normalized === "-." ? 0 : parseFloat(normalized)
+      parsed[name] = isNaN(num) ? 0 : num
+    })
+
+    onSave(parsed)
     if (onCustomFieldsChange) {
       onCustomFieldsChange(localCustomFields)
     }
@@ -129,16 +197,47 @@ export function ContractPricingDialog({ open, onOpenChange, pricing, onSave, cus
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
                         {service.name}
                       </Label>
-                      <Input
-                        id={`price-${service.id}`}
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={localPricing[service.name] || 0}
-                        onChange={(e) => handlePriceChange(service.name, e.target.value)}
-                        placeholder="0.00"
-                        className="font-mono"
-                      />
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id={`price-${service.id}`}
+                          type="text"
+                          inputMode="decimal"
+                          value={
+                            localPricing[service.name] === undefined
+                              ? (pricing?.[service.name] !== undefined ? String(pricing[service.name]) : "")
+                              : String(localPricing[service.name] ?? "")
+                          }
+                          onChange={(e) => {
+                            // dacă a fost marcat pentru ștergere, reactivăm intrarea
+                            if (removedKeys.has(service.name)) {
+                              setRemovedKeys((prev) => {
+                                const next = new Set(prev)
+                                next.delete(service.name)
+                                return next
+                              })
+                            }
+                            handlePriceChange(service.name, e.target.value)
+                          }}
+                          placeholder="0.00"
+                          className="font-mono"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          title="Șterge prețul"
+                          onClick={() => {
+                            setLocalPricing((prev) => {
+                              const next = { ...prev }
+                              delete (next as any)[service.name]
+                              return next
+                            })
+                            setRemovedKeys((prev) => new Set(prev).add(service.name))
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -173,6 +272,36 @@ export function ContractPricingDialog({ open, onOpenChange, pricing, onSave, cus
                   [fieldKey]: value,
                 }))
               }}
+              onSettingSelected={(_fieldKey, setting, parentName) => {
+                // Când selectăm o opțiune din dropdown-ul legat din setări,
+                // dacă numele părintelui coincide cu un tip de serviciu,
+                // actualizăm prețul acelui serviciu cu numericValue (dacă există)
+                if (!setting) return
+                const serviceName = resolveServiceNameFromSelection(parentName, String(setting.name || ""))
+                const price = setting.numericValue
+                if (price === undefined || price === null) return
+                const key = serviceName || String(setting.name || "")
+                setLocalPricing((prev) => ({
+                  ...prev,
+                  [key]: String(price),
+                }))
+              }}
+              enableNumericEdit
+              onSelectedSettingNumericChange={(_fieldKey, parentName, setting, newValue) => {
+                if (!setting) return
+                const serviceName = resolveServiceNameFromSelection(parentName, String(setting.name || ""))
+                const key = serviceName || String(setting.name || "")
+                setLocalPricing((prev) => ({
+                  ...prev,
+                  [key]: newValue === null ? "" : String(newValue),
+                }))
+              }}
+              filterChild={(child, parentName) => {
+                const key = resolveServiceNameFromSelection(parentName, String(child.name || "")) || String(child.name || "")
+                const hasLocal = (localPricing as any)?.[key] !== undefined && String((localPricing as any)?.[key] ?? "").length > 0
+                const hasInitial = (pricing as any)?.[key] !== undefined && String((pricing as any)?.[key] ?? "").length > 0
+                return !(hasLocal || hasInitial)
+              }}
             />
           </div>
 
@@ -189,9 +318,8 @@ export function ContractPricingDialog({ open, onOpenChange, pricing, onSave, cus
               type="button"
               onClick={handleSave}
               className="w-full sm:w-auto"
-              disabled={!serviceTypes || serviceTypes.length === 0}
             >
-              Salvează Prețuri
+              Adauga pretul
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -199,20 +327,20 @@ export function ContractPricingDialog({ open, onOpenChange, pricing, onSave, cus
 
       {/* Alert Dialog pentru confirmarea închiderii */}
       <AlertDialog open={showCloseAlert} onOpenChange={setShowCloseAlert}>
-        <AlertDialogContent className="w-[calc(100%-2rem)] max-w-[400px]">
+        <AlertDialogContent className="w-[calc(100%-2rem)] max-w-[500px]">
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmați închiderea</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-left">Confirmați închiderea</AlertDialogTitle>
+            <AlertDialogDescription className="text-left whitespace-normal break-words">
               Aveți modificări nesalvate la prețuri. Sunteți sigur că doriți să închideți formularul? Toate modificările vor fi pierdute.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
-            <AlertDialogCancel onClick={cancelClose} className="w-full sm:w-auto">
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
+            <AlertDialogCancel onClick={cancelClose} className="w-full sm:w-auto whitespace-normal">
               Nu, rămân în formular
             </AlertDialogCancel>
             <AlertDialogAction 
               onClick={confirmClose} 
-              className="bg-red-600 hover:bg-red-700 w-full sm:w-auto"
+              className="bg-red-600 hover:bg-red-700 w-full sm:w-auto whitespace-normal"
             >
               Da, închide fără salvare
             </AlertDialogAction>

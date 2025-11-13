@@ -470,13 +470,25 @@ export default function SetariPage() {
                           </Label>
                           <Input
                             id={setting.id}
-                            type={setting.valueType === "number" ? "number" : "text"}
-                            value={predefinedValues[setting.id] ?? setting.defaultValue}
+                            type="text"
+                            inputMode={setting.valueType === "number" ? "numeric" : undefined}
+                            value={
+                              setting.valueType === "number"
+                                ? String(predefinedValues[setting.id] ?? setting.defaultValue ?? "")
+                                : (predefinedValues[setting.id] ?? setting.defaultValue ?? "")
+                            }
                             onChange={(e) => {
-                              const newValue =
-                                setting.valueType === "number"
-                                  ? parseFloat(e.target.value) || 0
-                                  : e.target.value
+                              const inputValue = e.target.value
+                              let newValue
+                              
+                              if (setting.valueType === "number") {
+                                // Permite valoare goală și filtrează doar cifrele
+                                const onlyDigits = inputValue.replace(/\D+/g, "")
+                                newValue = onlyDigits
+                              } else {
+                                newValue = inputValue
+                              }
+                              
                               setPredefinedValues((prev) => ({
                                 ...prev,
                                 [setting.id]: newValue,
@@ -508,7 +520,28 @@ export default function SetariPage() {
                           onClick={async () => {
                             setSavingPredefined(true)
                             try {
-                              await updatePredefinedSettingValue(setting.id, predefinedValues[setting.id])
+                              let valueToSave = predefinedValues[setting.id]
+                              
+                              // Validare pentru valori numerice
+                              if (setting.valueType === "number") {
+                                const parsed = typeof valueToSave === "string" 
+                                  ? parseFloat(valueToSave) 
+                                  : valueToSave
+                                
+                                if (isNaN(parsed) || valueToSave === "" || valueToSave === "-") {
+                                  toast({
+                                    title: "Eroare validare",
+                                    description: "Vă rugăm să introduceți o valoare numerică validă.",
+                                    variant: "destructive",
+                                  })
+                                  setSavingPredefined(false)
+                                  return
+                                }
+                                
+                                valueToSave = parsed
+                              }
+                              
+                              await updatePredefinedSettingValue(setting.id, valueToSave)
                               toast({
                                 title: "Salvat",
                                 description: "Setarea sistem a fost actualizată cu succes.",

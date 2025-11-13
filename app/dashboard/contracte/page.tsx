@@ -1316,7 +1316,7 @@ export default function ContractsPage() {
                 >
                   <span className="flex items-center gap-2">
                     <DollarSign className="h-4 w-4" />
-                    Setează Prețurile
+                    Adauga pret
                   </span>
                   {Object.keys(newContractPricing).length > 0 && (
                     <Badge variant="secondary">
@@ -1324,6 +1324,33 @@ export default function ContractsPage() {
                     </Badge>
                   )}
                 </Button>
+                {Object.keys(newContractPricing).length > 0 && (
+                  <div className="text-xs text-muted-foreground mt-1 flex flex-wrap gap-1">
+                    {Object.entries(newContractPricing).map(([name, value]) => (
+                      <span
+                        key={name}
+                        className="inline-flex items-center gap-1 rounded border px-2 py-0.5 bg-muted"
+                      >
+                        <span>{name}:</span>
+                        <span className="font-mono">{Number(value).toFixed(2)}</span>
+                        <button
+                          type="button"
+                          className="ml-1 text-muted-foreground hover:text-foreground"
+                          title="Șterge prețul"
+                          onClick={() => {
+                            setNewContractPricing((prev) => {
+                              const next = { ...prev }
+                              delete (next as any)[name]
+                              return next
+                            })
+                          }}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1555,7 +1582,7 @@ export default function ContractsPage() {
                 >
                   <span className="flex items-center gap-2">
                     <DollarSign className="h-4 w-4" />
-                    Setează Prețurile
+                    Adauga pret
                   </span>
                   {Object.keys(newContractPricing).length > 0 && (
                     <Badge variant="secondary">
@@ -1563,6 +1590,33 @@ export default function ContractsPage() {
                     </Badge>
                   )}
                 </Button>
+                {Object.keys(newContractPricing).length > 0 && (
+                  <div className="text-xs text-muted-foreground mt-1 flex flex-wrap gap-1">
+                    {Object.entries(newContractPricing).map(([name, value]) => (
+                      <span
+                        key={name}
+                        className="inline-flex items-center gap-1 rounded border px-2 py-0.5 bg-muted"
+                      >
+                        <span>{name}:</span>
+                        <span className="font-mono">{Number(value).toFixed(2)}</span>
+                        <button
+                          type="button"
+                          className="ml-1 text-muted-foreground hover:text-foreground"
+                          title="Șterge prețul"
+                          onClick={() => {
+                            setNewContractPricing((prev) => {
+                              const next = { ...prev }
+                              delete (next as any)[name]
+                              return next
+                            })
+                          }}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>

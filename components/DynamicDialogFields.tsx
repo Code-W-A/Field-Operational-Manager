@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import type { Setting } from "@/types/settings"
 import { subscribeToSettings, subscribeToSettingsByTarget } from "@/lib/firebase/settings"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
 import {
@@ -23,9 +24,13 @@ interface DynamicDialogFieldsProps {
   values: Record<string, any> | undefined
   onChange: (fieldKey: string, value: any) => void
   className?: string
+  onSettingSelected?: (fieldKey: string, setting: Setting | undefined, parentName: string) => void
+  enableNumericEdit?: boolean
+  onSelectedSettingNumericChange?: (fieldKey: string, parentName: string, setting: Setting | undefined, newValue: number | null) => void
+  filterChild?: (child: Setting, parentName: string) => boolean
 }
 
-export function DynamicDialogFields({ targetId, values, onChange, className = "" }: DynamicDialogFieldsProps) {
+export function DynamicDialogFields({ targetId, values, onChange, className = "", onSettingSelected, enableNumericEdit = false, onSelectedSettingNumericChange, filterChild }: DynamicDialogFieldsProps) {
   const [parents, setParents] = useState<Setting[]>([])
   const [childrenByParent, setChildrenByParent] = useState<Record<string, Setting[]>>({})
   const childUnsubsRef = useRef<Record<string, () => void>>({})
@@ -83,7 +88,8 @@ export function DynamicDialogFields({ targetId, values, onChange, className = ""
       )}>
         {visibleParents.map((p, index) => {
           const children = childrenByParent[p.id] || []
-          const options = children
+          const filteredChildren = filterChild ? children.filter((c) => filterChild(c, p.name)) : children
+          const options = filteredChildren
             .map((c) => c?.name || "")
             .filter((s) => String(s || "").trim().length > 0)
           if (!options.length) return null
@@ -96,8 +102,11 @@ export function DynamicDialogFields({ targetId, values, onChange, className = ""
               label={p.name}
               value={String(current || "")}
               options={options}
-              children={children}
+              children={filteredChildren}
               onChange={(val) => onChange(p.id, val)}
+              onSettingSelected={(setting) => onSettingSelected && onSettingSelected(p.id, setting, p.name)}
+              enableNumericEdit={enableNumericEdit}
+              onSelectedSettingNumericChange={(setting, newValue) => onSelectedSettingNumericChange && onSelectedSettingNumericChange(p.id, p.name, setting, newValue)}
             />
           )
         })}
@@ -113,6 +122,9 @@ function FieldWithSearch({
   options,
   children,
   onChange,
+  onSettingSelected,
+  enableNumericEdit,
+  onSelectedSettingNumericChange,
 }: {
   id: string
   label: string
@@ -120,12 +132,22 @@ function FieldWithSearch({
   options: string[]
   children: Setting[]
   onChange: (val: string) => void
+  onSettingSelected?: (setting: Setting | undefined, parentName: string) => void
+  enableNumericEdit?: boolean
+  onSelectedSettingNumericChange?: (setting: Setting | undefined, newValue: number | null) => void
 }) {
   const [open, setOpen] = useState(false)
   const selectedLabel = value && options.includes(value) ? value : ""
   
   // Găsim setarea selectată pentru a afișa datele suplimentare
   const selectedSetting = children.find((c) => c.name === value)
+  const [numericText, setNumericText] = useState<string>(selectedSetting?.numericValue !== undefined && selectedSetting?.numericValue !== null ? String(selectedSetting.numericValue) : "")
+
+  // Sincronizează câmpul numeric când se schimbă selecția
+  useEffect(() => {
+    const initial = selectedSetting?.numericValue
+    setNumericText(initial !== undefined && initial !== null ? String(initial) : "")
+  }, [selectedSetting?.id])
 
   return (
     <div className="space-y-1">
@@ -158,6 +180,8 @@ function FieldWithSearch({
                     value={opt}
                     onSelect={() => {
                       onChange(opt)
+                      const sel = children.find((c) => c.name === opt)
+                      onSettingSelected && onSettingSelected(sel, label)
                       setOpen(false)
                     }}
                     className="whitespace-nowrap"
@@ -176,10 +200,40 @@ function FieldWithSearch({
       {selectedSetting && (
         <div className="mt-2 space-y-2 p-3 bg-muted/30 rounded-md border">
           {/* Valoare numerică */}
-          {selectedSetting.numericValue !== undefined && selectedSetting.numericValue !== null && (
+          {(selectedSetting.numericValue !== undefined && selectedSetting.numericValue !== null) && !enableNumericEdit && (
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Valoare:</span>
               <span className="font-semibold">{selectedSetting.numericValue}</span>
+            </div>
+          )}
+          {(enableNumericEdit) && (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Valoare</Label>
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={numericText}
+                onChange={(e) => {
+                  const txt = e.target.value
+                  setNumericText(txt)
+                  if (!onSelectedSettingNumericChange) return
+                  if (txt.trim() === "") {
+                    onSelectedSettingNumericChange(selectedSetting, null)
+                    return
+                  }
+                  const normalized = txt.replace(",", ".")
+                  const valid = /^-?\d*(?:\.\d*)?$/.test(normalized)
+                  if (!valid) return
+                  const num = parseFloat(normalized)
+                  if (isNaN(num)) {
+                    onSelectedSettingNumericChange(selectedSetting, null)
+                  } else {
+                    onSelectedSettingNumericChange(selectedSetting, num)
+                  }
+                }}
+                placeholder="0.00"
+                className="font-mono"
+              />
             </div>
           )}
 
