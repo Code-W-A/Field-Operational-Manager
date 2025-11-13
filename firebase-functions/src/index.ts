@@ -188,3 +188,155 @@ export const generateScheduledWorks = functions
     }
   })
 
+// HTTPS callable pentru a declanșa manual aceeași logică
+export const runGenerateScheduledWorks = functions
+  .region('europe-west1')
+  .https.onCall(async (data, context) => {
+    const db = admin.firestore()
+    const now = new Date()
+
+    // Optional: permite doar utilizatori autentificați
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Necesită autentificare.')
+    }
+
+    try {
+      const targetContractId: string | undefined = data?.contractId
+      let contractsProcessed = 0
+      let worksCreated = 0
+
+      const processOne = async (contractId: string, contract: any) => {
+        // Verificăm dacă are datele necesare
+        if (!contract.recurrenceInterval || !contract.recurrenceUnit || !contract.equipmentIds || contract.equipmentIds.length === 0) {
+          console.log(`Contract ${contractId} missing required data, skipping`)
+          return
+        }
+
+        contractsProcessed++
+
+        // Calculează data următoarei revizii (identic cu scheduled)
+        let nextReviewDate: Date
+        if (contract.lastAutoWorkGenerated) {
+          const lastGenerated = new Date(contract.lastAutoWorkGenerated)
+          if (contract.recurrenceUnit === 'luni') {
+            nextReviewDate = new Date(lastGenerated)
+            nextReviewDate.setMonth(nextReviewDate.getMonth() + contract.recurrenceInterval)
+            if (contract.recurrenceDayOfMonth && contract.recurrenceDayOfMonth >= 1 && contract.recurrenceDayOfMonth <= 31) {
+              nextReviewDate.setDate(Math.min(contract.recurrenceDayOfMonth, new Date(nextReviewDate.getFullYear(), nextReviewDate.getMonth() + 1, 0).getDate()))
+            }
+          } else {
+            nextReviewDate = new Date(lastGenerated)
+            nextReviewDate.setDate(nextReviewDate.getDate() + contract.recurrenceInterval)
+          }
+        } else {
+          const startDate = contract.startDate ? new Date(contract.startDate) : new Date(now)
+          if (contract.recurrenceUnit === 'luni') {
+            nextReviewDate = new Date(startDate)
+            if (!contract.startDate) {
+              nextReviewDate.setMonth(nextReviewDate.getMonth() + contract.recurrenceInterval)
+            }
+            if (contract.recurrenceDayOfMonth && contract.recurrenceDayOfMonth >= 1 && contract.recurrenceDayOfMonth <= 31) {
+              nextReviewDate.setDate(Math.min(contract.recurrenceDayOfMonth, new Date(nextReviewDate.getFullYear(), nextReviewDate.getMonth() + 1, 0).getDate()))
+            }
+          } else {
+            nextReviewDate = new Date(startDate)
+            if (!contract.startDate) {
+              nextReviewDate.setDate(nextReviewDate.getDate() + contract.recurrenceInterval)
+            }
+          }
+        }
+
+        const daysBeforeWork = contract.daysBeforeWork || 10
+        const generateDate = new Date(nextReviewDate)
+        generateDate.setDate(generateDate.getDate() - daysBeforeWork)
+
+        if (now >= generateDate && (!contract.lastAutoWorkGenerated || new Date(contract.lastAutoWorkGenerated) < generateDate)) {
+          if (!contract.clientId) {
+            console.log(`Contract ${contractId} has no client, skipping`)
+            return
+          }
+
+          const clientDoc = await db.collection('clienti').doc(contract.clientId).get()
+          if (!clientDoc.exists) {
+            console.log(`Client ${contract.clientId} not found for contract ${contractId}, skipping`)
+            return
+          }
+          const client = clientDoc.data()!
+
+          let location: any = null
+          if (contract.locationName && client.locatii) {
+            location = client.locatii.find((loc: any) => loc.nume === contract.locationName)
+          }
+          if (!location) {
+            console.log(`Location not found for contract ${contractId}, skipping`)
+            return
+          }
+
+          for (const equipmentId of contract.equipmentIds) {
+            const equipment = location.echipamente?.find((eq: any) => (eq.id === equipmentId || eq.cod === equipmentId))
+            if (!equipment) {
+              console.log(`Equipment ${equipmentId} not found in location, skipping`)
+              continue
+            }
+            const primaryContact = location.persoaneContact && location.persoaneContact.length > 0
+              ? location.persoaneContact[0]
+              : { nume: '', telefon: '', email: '' }
+            const workData = {
+              client: client.nume,
+              clientId: contract.clientId,
+              persoanaContact: primaryContact.nume || '',
+              telefon: primaryContact.telefon || client.telefon || '',
+              dataEmiterii: admin.firestore.Timestamp.now(),
+              dataInterventie: admin.firestore.Timestamp.fromDate(nextReviewDate),
+              tipLucrare: 'Revizie',
+              locatie: location.nume,
+              echipament: equipment.nume,
+              echipamentCod: equipment.cod,
+              echipamentModel: equipment.model || '',
+              descriere: `Revizie programată automată pentru echipament ${equipment.nume} (${equipment.cod})`,
+              statusLucrare: 'Planificat',
+              statusFacturare: 'Nefacturat',
+              tehnicieni: [],
+              contract: contract.number,
+              contractNumber: contract.number,
+              contractId: contractId,
+              autoGenerated: true,
+              createdAt: admin.firestore.Timestamp.now(),
+              updatedAt: admin.firestore.Timestamp.now(),
+              createdBy: 'system',
+              createdByName: 'Generare Manuală',
+            }
+            await db.collection('lucrari').add(workData)
+            worksCreated++
+          }
+          await db.collection('contracts').doc(contractId).update({
+            lastAutoWorkGenerated: now.toISOString(),
+            updatedAt: admin.firestore.Timestamp.now(),
+          })
+        } else {
+          console.log(`Contract ${contractId}: not yet time to generate (generateDate: ${generateDate.toISOString()})`)
+        }
+      }
+
+      if (targetContractId) {
+        const doc = await db.collection('contracts').doc(targetContractId).get()
+        if (!doc.exists) {
+          throw new functions.https.HttpsError('not-found', 'Contractul nu există.')
+        }
+        await processOne(doc.id, doc.data())
+      } else {
+        const contractsSnapshot = await db.collection('contracts')
+          .where('recurrenceInterval', '!=', null)
+          .get()
+        for (const contractDoc of contractsSnapshot.docs) {
+          await processOne(contractDoc.id, contractDoc.data())
+        }
+      }
+
+      return { ok: true, contractsProcessed, worksCreated }
+    } catch (err: any) {
+      console.error('Error in runGenerateScheduledWorks:', err)
+      throw new functions.https.HttpsError('internal', err?.message || 'Eroare internă')
+    }
+  })
+

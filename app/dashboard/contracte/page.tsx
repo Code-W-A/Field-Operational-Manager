@@ -22,10 +22,13 @@ import {
   serverTimestamp,
   addDoc,
   getDoc,
+  Timestamp,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { addUserLogEntry } from "@/lib/firebase/firestore"
-import { Plus, Pencil, Trash2, Loader2, AlertCircle, MoreHorizontal, FileText, DollarSign } from "lucide-react"
+import { Plus, Pencil, Trash2, Loader2, AlertCircle, MoreHorizontal, FileText, DollarSign, Zap } from "lucide-react"
+import { getFunctions, httpsCallable } from "firebase/functions"
+import app from "@/lib/firebase/config"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { toast } from "@/components/ui/use-toast"
 import { DynamicDialogFields } from "@/components/DynamicDialogFields"
@@ -110,11 +113,14 @@ export default function ContractsPage() {
   const [newContractPricing, setNewContractPricing] = useState<Record<string, number>>({})
   const [newContractPricingCustomFields, setNewContractPricingCustomFields] = useState<Record<string, any>>({})
   const [isPricingDialogOpen, setIsPricingDialogOpen] = useState(false)
+  const [recurrenceIntervalInput, setRecurrenceIntervalInput] = useState<string>("90")
+  const [daysBeforeWorkInput, setDaysBeforeWorkInput] = useState<string>("10")
   const [newContract, setNewContract] = useState<any>({})
   const [clientLocations, setClientLocations] = useState<Locatie[]>([])
   const [clientEquipments, setClientEquipments] = useState<Echipament[]>([])
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [triggeringContractId, setTriggeringContractId] = useState<string | null>(null)
   
   // Hooks pentru setări
   const { items: recurrenceUnits } = useTargetList("contracts.create.recurrenceUnits")
@@ -128,12 +134,18 @@ export default function ContractsPage() {
       const days = await getPredefinedSettingValue("contracts_default_days_before_work")
       setDefaultDaysBeforeWork(days || 10)
       setNewContractDaysBeforeWork(days || 10)
+      setDaysBeforeWorkInput(String(days || 10))
     }
     loadDefaultDays()
   }, [])
 
   const [showCloseAlert, setShowCloseAlert] = useState(false)
   const [activeDialog, setActiveDialog] = useState<"add" | "edit" | "delete" | null>(null)
+
+  // Sincronizează input-urile text cu valorile numerice inițiale
+  useEffect(() => {
+    setRecurrenceIntervalInput(String(newContractRecurrenceInterval))
+  }, [newContractRecurrenceInterval])
 
   // State pentru câmpurile dinamice din setări
   const [dynamicFieldsParents, setDynamicFieldsParents] = useState<Setting[]>([])
@@ -530,6 +542,40 @@ export default function ContractsPage() {
         <div className="flex items-center justify-end gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 text-amber-600"
+                disabled={triggeringContractId === row.original.id}
+                onClick={async () => {
+                  try {
+                    setTriggeringContractId(row.original.id)
+                    const functions = getFunctions(app, "europe-west1")
+                    const runFn = httpsCallable(functions, "runGenerateScheduledWorks")
+                    const res: any = await runFn({ contractId: row.original.id })
+                    toast({
+                      title: "Generare declanșată",
+                      description: `Procesat: ${res?.data?.contractsProcessed ?? 1}; lucrări create: ${res?.data?.worksCreated ?? 0}`,
+                    })
+                  } catch (err: any) {
+                    console.error("Manual generate error", err)
+                    toast({ title: "Eroare", description: err?.message || "Nu s-a putut declanșa generarea.", variant: "destructive" })
+                  } finally {
+                    setTriggeringContractId(null)
+                  }
+                }}
+              >
+                {triggeringContractId === row.original.id ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Zap className="h-4 w-4" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Generează lucrări (manual)</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
               <Button 
                 variant="outline" 
                 size="icon" 
@@ -557,7 +603,7 @@ export default function ContractsPage() {
         </div>
       ),
     },
-  ], [clients, dynamicColumns])
+  ], [clients, dynamicColumns, triggeringContractId, toast])
 
   // Încărcăm contractele și clienții din Firestore
   useEffect(() => {
@@ -652,10 +698,7 @@ export default function ContractsPage() {
   // Inițializare valoare default pentru daysBeforeWork
   useEffect(() => {
     if (defaultDaysBeforeWork && !isEditDialogOpen) {
-      const defaultValue = parseInt(defaultDaysBeforeWork as string, 10)
-      if (!isNaN(defaultValue)) {
-        setNewContractDaysBeforeWork(defaultValue)
-      }
+      setNewContractDaysBeforeWork(defaultDaysBeforeWork)
     }
   }, [defaultDaysBeforeWork, isEditDialogOpen])
 
@@ -734,6 +777,76 @@ export default function ContractsPage() {
       }
 
       const docRef = await addDoc(collection(db, "contracts"), contractData)
+
+      // Dacă avem recurență și echipamente selectate, creăm lucrările programate în avans
+      if (
+        newContractRecurrenceInterval &&
+        newContractRecurrenceInterval > 0 &&
+        newContractRecurrenceUnit &&
+        (contractData.equipmentIds?.length || 0) > 0 &&
+        newContractClientId &&
+        newContractClientId !== "UNASSIGNED"
+      ) {
+        // Calculează nextReviewDate similar cu funcția programată
+        const now = new Date()
+        let nextReviewDate: Date
+        if (newContractStartDate) {
+          const startDate = new Date(newContractStartDate)
+          if (newContractRecurrenceUnit === 'luni') {
+            nextReviewDate = new Date(startDate)
+          } else {
+            nextReviewDate = new Date(startDate)
+          }
+        } else {
+          // fără startDate: prima revizie pornind de azi
+          nextReviewDate = new Date(now)
+          if (newContractRecurrenceUnit === 'luni') {
+            nextReviewDate.setMonth(nextReviewDate.getMonth() + newContractRecurrenceInterval)
+          } else {
+            nextReviewDate.setDate(nextReviewDate.getDate() + newContractRecurrenceInterval)
+          }
+        }
+
+        // Data de afișare = cu X zile înainte
+        const generateDate = new Date(nextReviewDate)
+        const days = Number.isFinite(newContractDaysBeforeWork) ? newContractDaysBeforeWork : 10
+        generateDate.setDate(generateDate.getDate() - days)
+
+        // Date client și locație
+        const client = clients.find(c => c.id === newContractClientId)
+        const selectedLocation = clientLocations.find(loc => loc.nume === newContractLocationId)
+
+        for (const equipmentId of (contractData.equipmentIds as string[])) {
+          const eq = (selectedLocation?.echipamente || []).find((e: any) => e.id === equipmentId || e.cod === equipmentId)
+          const workData: any = {
+            client: client?.nume || "",
+            clientId: newContractClientId,
+            persoanaContact: "",
+            telefon: "",
+            dataEmiterii: serverTimestamp(),
+            dataInterventie: Timestamp.fromDate(nextReviewDate),
+            tipLucrare: 'Revizie',
+            locatie: newContractLocationId || selectedLocation?.nume || "",
+            echipament: eq?.nume || "",
+            echipamentCod: eq?.cod || equipmentId,
+            echipamentModel: eq?.model || '',
+            descriere: `Revizie programată (contract ${contractData.number}) pentru echipament ${eq?.nume || equipmentId}`,
+            statusLucrare: 'Planificat',
+            statusFacturare: 'Nefacturat',
+            tehnicieni: [],
+            contract: contractData.number,
+            contractNumber: contractData.number,
+            contractId: docRef.id,
+            autoGenerated: true,
+            visibleAt: Timestamp.fromDate(generateDate),
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            createdBy: 'system',
+            createdByName: 'Programare contract',
+          }
+          await addDoc(collection(db, 'lucrari'), workData)
+        }
+      }
 
       // Log non-blocking
       void addUserLogEntry({
@@ -1233,10 +1346,19 @@ export default function ContractsPage() {
                   <Label htmlFor="recurrenceInterval">Interval</Label>
                   <Input
                     id="recurrenceInterval"
-                    type="number"
-                    min="1"
-                    value={newContractRecurrenceInterval}
-                    onChange={(e) => setNewContractRecurrenceInterval(parseInt(e.target.value) || 90)}
+                    type="text"
+                    inputMode="numeric"
+                    value={recurrenceIntervalInput}
+                    onChange={(e) => {
+                      const onlyDigits = e.target.value.replace(/\D+/g, "")
+                      setRecurrenceIntervalInput(onlyDigits)
+                      if (onlyDigits !== "") {
+                        const parsed = parseInt(onlyDigits, 10)
+                        if (!isNaN(parsed)) {
+                          setNewContractRecurrenceInterval(parsed)
+                        }
+                      }
+                    }}
                     placeholder="90"
                   />
                 </div>
@@ -1296,10 +1418,19 @@ export default function ContractsPage() {
                 <Label htmlFor="daysBeforeWork">Zile înainte</Label>
                 <Input
                   id="daysBeforeWork"
-                  type="number"
-                  min="1"
-                  value={newContractDaysBeforeWork}
-                  onChange={(e) => setNewContractDaysBeforeWork(parseInt(e.target.value) || 10)}
+                  type="text"
+                  inputMode="numeric"
+                  value={daysBeforeWorkInput}
+                  onChange={(e) => {
+                    const onlyDigits = e.target.value.replace(/\D+/g, "")
+                    setDaysBeforeWorkInput(onlyDigits)
+                    if (onlyDigits !== "") {
+                      const parsed = parseInt(onlyDigits, 10)
+                      if (!isNaN(parsed)) {
+                        setNewContractDaysBeforeWork(parsed)
+                      }
+                    }
+                  }}
                   placeholder="10"
                 />
                 <p className="text-xs text-gray-500">
@@ -1499,10 +1630,19 @@ export default function ContractsPage() {
                   <Label htmlFor="editRecurrenceInterval">Interval</Label>
                   <Input
                     id="editRecurrenceInterval"
-                    type="number"
-                    min="1"
-                    value={newContractRecurrenceInterval}
-                    onChange={(e) => setNewContractRecurrenceInterval(parseInt(e.target.value) || 90)}
+                    type="text"
+                    inputMode="numeric"
+                    value={recurrenceIntervalInput}
+                    onChange={(e) => {
+                      const onlyDigits = e.target.value.replace(/\D+/g, "")
+                      setRecurrenceIntervalInput(onlyDigits)
+                      if (onlyDigits !== "") {
+                        const parsed = parseInt(onlyDigits, 10)
+                        if (!isNaN(parsed)) {
+                          setNewContractRecurrenceInterval(parsed)
+                        }
+                      }
+                    }}
                     placeholder="90"
                   />
                 </div>
@@ -1562,10 +1702,19 @@ export default function ContractsPage() {
                 <Label htmlFor="editDaysBeforeWork">Zile înainte</Label>
                 <Input
                   id="editDaysBeforeWork"
-                  type="number"
-                  min="1"
-                  value={newContractDaysBeforeWork}
-                  onChange={(e) => setNewContractDaysBeforeWork(parseInt(e.target.value) || 10)}
+                  type="text"
+                  inputMode="numeric"
+                  value={daysBeforeWorkInput}
+                  onChange={(e) => {
+                    const onlyDigits = e.target.value.replace(/\D+/g, "")
+                    setDaysBeforeWorkInput(onlyDigits)
+                    if (onlyDigits !== "") {
+                      const parsed = parseInt(onlyDigits, 10)
+                      if (!isNaN(parsed)) {
+                        setNewContractDaysBeforeWork(parsed)
+                      }
+                    }
+                  }}
                   placeholder="10"
                 />
                 <p className="text-xs text-gray-500">

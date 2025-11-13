@@ -156,6 +156,7 @@ export default function Lucrari() {
   const [showCloseAlert, setShowCloseAlert] = useState(false)
   const addFormRef = useRef<LucrareFormRef>(null)
   const editFormRef = useRef<LucrareFormRef>(null)
+  const assigningNumbersRef = useRef<Set<string>>(new Set())
   
 
   // Persistența tabelului
@@ -199,11 +200,23 @@ export default function Lucrari() {
   ])
 
   // Sortăm lucrările (deja filtrate fără arhivate): prioritizăm lucrările cu updatedAt (modificate recent), apoi cele cu createdAt
+  // Ascundem lucrările programate pentru viitor (visibleAt > now)
   const lucrari = useMemo(() => {
     if (!rawLucrari || rawLucrari.length === 0) return []
     
-    // Nu mai filtrăm aici - sunt deja filtrate în query
-    return [...rawLucrari].sort((a, b) => {
+    const now = new Date()
+    const onlyVisible = rawLucrari.filter((w: any) => {
+      const v = (w as any).visibleAt
+      if (!v) return true
+      try {
+        const dt = typeof v?.toDate === 'function' ? v.toDate() : new Date(v)
+        return dt <= now
+      } catch {
+        return true
+      }
+    })
+
+    return [...onlyVisible].sort((a, b) => {
       // Ambele au updatedAt - sortăm după updatedAt
       if (a.updatedAt && b.updatedAt) {
         return b.updatedAt.toMillis() - a.updatedAt.toMillis()
@@ -2044,6 +2057,46 @@ export default function Lucrari() {
     }
     return getWorkStatusRowClass(row)
   }
+
+  // Alocă număr lucrării când devine vizibilă și nu are încă număr
+  useEffect(() => {
+    const now = new Date()
+    const toAssign = (lucrari as any[]).filter((w: any) => {
+      const hasNumber = Boolean((w as any).nrLucrare || (w as any).nrLucrareDisplay)
+      if (hasNumber) return false
+      const v = (w as any).visibleAt
+      if (!v) return true
+      try {
+        const dt = typeof v?.toDate === 'function' ? v.toDate() : new Date(v)
+        return dt <= now
+      } catch {
+        return true
+      }
+    })
+
+    if (toAssign.length === 0) return
+
+    let cancelled = false
+    const run = async () => {
+      for (const w of toAssign) {
+        const id = (w as any).id
+        if (!id || assigningNumbersRef.current.has(id)) continue
+        assigningNumbersRef.current.add(id)
+        try {
+          const next = await getNextReportNumber()
+          const display = `#${String(next).padStart(6, '0')}`
+          await updateLucrare(id, { nrLucrare: next, nrLucrareDisplay: display })
+        } catch (e) {
+          // noop
+        } finally {
+          assigningNumbersRef.current.delete(id)
+          if (cancelled) break
+        }
+      }
+    }
+    run()
+    return () => { cancelled = true }
+  }, [lucrari])
 
   return (
     <TooltipProvider>
