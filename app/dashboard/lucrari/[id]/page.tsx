@@ -205,91 +205,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     }
   }, [lucrare?.id, loadReinterventii])
 
-  // Închidere lucrare Revizie (parțial sau complet) și re-planificare echipamente rămase
-  const handleCloseRevision = useCallback(async () => {
-    if (!lucrare) return
-    if (lucrare.tipLucrare !== "Revizie") return
-    
-    // Verificăm dacă lucrarea este deja închisă (previne apeluri multiple)
-    if (lucrare.statusLucrare === "Finalizat" || lucrare.statusLucrare === "Parțial efectuată") {
-      toast({
-        title: "Atenție",
-        description: "Lucrarea este deja închisă.",
-        variant: "destructive",
-      })
-      return
-    }
-    
-    try {
-      const all = Array.isArray(lucrare.equipmentIds) ? lucrare.equipmentIds : []
-      const status = (lucrare.revision?.equipmentStatus || {}) as Record<string, string>
-      const remaining = all.filter((id) => status[id] !== "done")
-      const doneCount = all.length - remaining.length
-      
-      // Verificăm dacă deja există o lucrare amânată pentru echipamentele rămase
-      if (remaining.length > 0) {
-        const lucrariCollection = collection(db, "lucrari")
-        const existingQuery = query(
-          lucrariCollection,
-          where("lucrareOriginala", "==", lucrare.id!),
-          where("statusLucrare", "==", WORK_STATUS.POSTPONED),
-          where("tipLucrare", "==", "Revizie")
-        )
-        const existingSnapshot = await getDocs(existingQuery)
-        
-        if (!existingSnapshot.empty) {
-          toast({
-            title: "Atenție",
-            description: "Există deja o lucrare amânată creată pentru această revizie.",
-            variant: "destructive",
-          })
-          return
-        }
-      }
-      
-      // Actualizăm lucrarea curentă
-      await updateLucrare(lucrare.id!, {
-        statusLucrare: remaining.length > 0 ? "Parțial efectuată" : "Finalizat",
-        revision: {
-          ...(lucrare.revision || {}),
-          doneCount,
-        } as any,
-      })
-      
-      // Dacă rămân echipamente, creăm o lucrare nouă amânată
-      if (remaining.length > 0) {
-        await addLucrare({
-          client: lucrare.client,
-          persoanaContact: lucrare.persoanaContact,
-          telefon: lucrare.telefon,
-          dataEmiterii: new Date().toISOString(),
-          dataInterventie: lucrare.dataInterventie,
-          tipLucrare: "Revizie",
-          locatie: lucrare.locatie,
-          descriere: lucrare.descriere || "",
-          statusLucrare: WORK_STATUS.POSTPONED,
-          statusFacturare: lucrare.statusFacturare,
-          tehnicieni: lucrare.tehnicieni || [],
-          equipmentIds: remaining,
-          revision: {
-            ...(lucrare.revision || {}),
-            equipmentStatus: Object.fromEntries(remaining.map((id) => [id, "pending"])),
-            doneCount: 0,
-          } as any,
-          lucrareOriginala: lucrare.id!,
-          mesajReatribuire: "Echipamente rămase din lucrare de revizie (re-planificare automată)",
-        } as any)
-      }
-      toast({
-        title: "Lucrare închisă",
-        description: remaining.length > 0 ? "Lucrarea a fost închisă parțial. Echipamentele rămase au fost re-planificate." : "Lucrarea de revizie a fost închisă.",
-      })
-      router.refresh()
-    } catch (e) {
-      console.error("Eroare la închiderea lucrării:", e)
-      toast({ title: "Eroare", description: "Nu s-a putut închide lucrarea.", variant: "destructive" })
-    }
-  }, [lucrare, router])
+  // Această funcție nu mai este folosită - reviziile se finalizează prin "Generează raport"
+  // Păstrăm funcția pentru compatibilitate dar va fi ștearsă în viitor
 
   // State pentru informațiile de garanție
   const [equipmentData, setEquipmentData] = useState<Echipament | null>(null)
@@ -519,6 +436,22 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         variant: "destructive",
       })
       return
+    }
+
+    // Pentru revizii, verificăm dacă toate echipamentele au fost revizuite
+    if (lucrare.tipLucrare === "Revizie" && Array.isArray(lucrare.equipmentIds)) {
+      const status = (lucrare.revision?.equipmentStatus || {}) as Record<string, string>
+      const all = lucrare.equipmentIds
+      const completed = all.filter((id) => status[id] === "done")
+      
+      if (completed.length < all.length) {
+        toast({
+          title: "Revizie incompletă",
+          description: `Toate echipamentele trebuie revizuite înainte de a genera raportul. (${completed.length}/${all.length} completate)`,
+          variant: "destructive",
+        })
+        return
+      }
     }
 
     // Dacă raportul nu este generat, mergem la pagina de raport pentru completare
@@ -921,7 +854,19 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           {role !== "client" && (
             <Button 
               onClick={handleGenerateReport}
-              disabled={role === "tehnician" && !equipmentVerified}
+              disabled={
+                role === "tehnician" && 
+                (lucrare.tipLucrare === "Revizie" 
+                  ? (() => {
+                      // Pentru revizii: verificăm dacă toate echipamentele sunt completate
+                      if (!Array.isArray(lucrare.equipmentIds)) return true
+                      const status = (lucrare.revision?.equipmentStatus || {}) as Record<string, string>
+                      const completed = lucrare.equipmentIds.filter((id) => status[id] === "done")
+                      return completed.length < lucrare.equipmentIds.length
+                    })()
+                  : !equipmentVerified // Pentru lucrări normale: verificare QR echipament
+                )
+              }
             >
               <FileText className="mr-2 h-4 w-4" /> Generează raport
             </Button>
@@ -1438,16 +1383,15 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       </div>
                     )}
 
-                    {/* Buton închidere - sticky pe mobile pentru acces ușor */}
-                    <div className="mt-4 sm:mt-6 sticky bottom-4 z-10">
-                      <Button 
-                        variant="default" 
-                        onClick={handleCloseRevision}
-                        className="w-full h-14 text-base font-bold rounded-xl shadow-lg bg-slate-800 hover:bg-slate-900"
-                        size="lg"
-                      >
-                        Închide lucrarea
-                      </Button>
+                    {/* Info pentru finalizare revizie */}
+                    <div className="mt-4 sm:mt-6">
+                      <Alert className="bg-blue-50 border-blue-200">
+                        <AlertCircle className="h-4 w-4 text-blue-500" />
+                        <AlertTitle>Finalizare revizie</AlertTitle>
+                        <AlertDescription>
+                          După ce toate echipamentele au fost revizuite, folosește butonul <strong>"Generează raport"</strong> din partea de sus pentru a finaliza lucrarea cu semnătură și raport.
+                        </AlertDescription>
+                      </Alert>
                     </div>
                   </div>
                 )}
