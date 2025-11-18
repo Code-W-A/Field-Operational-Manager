@@ -908,10 +908,13 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           const revSnap = await getDocs(revCol)
           const revisions = revSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))
           for (const rev of revisions) {
-            // Începem o pagină nouă pentru fiecare echipament
-            drawFooter()
-            doc.addPage()
-            currentY = M
+            // Nu mai începem neapărat o pagină nouă; afișăm fișele una sub alta
+            // Lăsăm un mic spațiu între fișe și verificăm că avem loc pentru titlu
+            checkPageBreak(12)
+            if (currentY > M) {
+              currentY += 4
+              checkPageBreak(12)
+            }
             // Titlu
             doc.setFontSize(12).setFont("helvetica", "bold").setTextColor(0, 0, 0)
             doc.text(
@@ -926,13 +929,13 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
             for (const s of sections) {
               checkPageBreak(10)
               doc.setTextColor(74, 118, 184) // albastru secțiune
-              doc.text(normalize(s.title || "-"), M + 2, currentY + 4)
+              doc.text(normalize(s.name || s.title || "Puncte de control"), M + 2, currentY + 4)
               currentY += 6
               // Elemente
               doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(0, 0, 0)
               const items = Array.isArray(s.items) ? s.items : []
               for (const it of items) {
-                const line = `• ${normalize(it.label || "-")} — ${String((it.state || "N/A")).toUpperCase()}${it.obs ? ` (${normalize(it.obs)})` : ""}`
+                const line = `• ${normalize(it.name || it.label || "-")} — ${String((it.state || "N/A")).toUpperCase()}${it.obs ? ` (${normalize(it.obs)})` : ""}`
                 const lines = doc.splitTextToSize(line, W - 6)
                 const height = lines.length * 4.2 + 2
                 checkPageBreak(height + 2)
