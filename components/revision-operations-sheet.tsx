@@ -290,15 +290,18 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, on
     if (!allCompleted) {
       setError("Completați starea pentru toate punctele de control.")
       toast({
-        title: "Formular incomplet",
+        title: "⚠️ Formular incomplet",
         description: "Completați starea pentru toate punctele de control înainte de a salva.",
         variant: "destructive",
+        duration: 6000, // 6 secunde
       })
       return
     }
     setError(null)
     setSaving(true)
     try {
+      console.log("🔄 Începe salvarea reviziei pentru:", { workId, equipmentId, equipmentName })
+      
       // Map back states/obs into sections
       const payloadSections = sections.map((s) => ({
         ...s,
@@ -308,6 +311,8 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, on
           obs: obs[it.id] || "",
         })),
       }))
+      
+      console.log("📝 Pas 1: Salvare document revizie...")
       await upsertRevisionDoc(workId, equipmentId, {
         equipmentId,
         equipmentName,
@@ -317,16 +322,25 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, on
         completedBy: userData?.uid || "unknown",
         qrVerified: verified,
       })
+      console.log("✅ Pas 1 completat: Document revizie salvat")
+      
       // Mark equipment as done in lucrare
+      console.log("📝 Pas 2: Marcare echipament ca done în lucrare...")
       await updateLucrare(workId, {
         revision: {
           equipmentStatus: { [equipmentId]: "done" },
         } as any,
       } as any, userData?.uid, userData?.displayName || userData?.email || "Utilizator")
+      console.log("✅ Pas 2 completat: Echipament marcat ca done")
+      
       // Upload ALL photos (no limit)
+      console.log(`📝 Pas 3: Încărcare ${selectedPhotos.length} fotografii...`)
       for (const f of selectedPhotos) {
+        console.log(`  📸 Încărcare: ${f.name}`)
         await uploadRevisionPhoto(workId, equipmentId, f, userData?.uid || "unknown")
       }
+      console.log("✅ Pas 3 completat: Fotografii încărcate")
+      
       setSelectedPhotos([])
       setPhotoPreviewUrls([])
       
@@ -345,12 +359,22 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, on
       setTimeout(() => {
         router.back()
       }, 1500)
-    } catch (error) {
-      console.error("Eroare la salvarea reviziei:", error)
+    } catch (error: any) {
+      console.error("❌ Eroare la salvarea reviziei:", error)
+      console.error("Stack trace:", error?.stack)
+      console.error("Error details:", {
+        message: error?.message,
+        code: error?.code,
+        name: error?.name,
+        toString: error?.toString?.(),
+      })
+      
+      const errorMessage = error?.message || error?.code || error?.toString() || "Eroare necunoscută"
       toast({
-        title: "Eroare la salvare",
-        description: "Nu s-a putut salva fișa de operațiuni. Încearcă din nou.",
+        title: "❌ Eroare la salvare",
+        description: `Nu s-a putut salva fișa de operațiuni.\n\nDetalii: ${errorMessage}`,
         variant: "destructive",
+        duration: 8000, // 8 secunde
       })
     } finally {
       setSaving(false)
@@ -385,15 +409,18 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, on
       toast({
         title: "💾 Progres salvat",
         description: "Modificările au fost salvate. Poți continua mai târziu.",
+        duration: 3000,
       })
       
       return true
-    } catch (e) {
+    } catch (e: any) {
       console.error("Error saving draft:", e)
+      const errorMessage = e?.message || e?.toString() || "Eroare necunoscută"
       toast({
-        title: "Eroare la salvare",
-        description: "Nu s-a putut salva progresul. Încearcă din nou.",
+        title: "❌ Eroare la salvare progres",
+        description: `Nu s-a putut salva progresul.\n\nDetalii: ${errorMessage}`,
         variant: "destructive",
+        duration: 8000, // 8 secunde
       })
       return false
     } finally {
