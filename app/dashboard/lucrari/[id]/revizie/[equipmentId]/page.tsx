@@ -6,7 +6,7 @@ import { DashboardShell } from "@/components/dashboard-shell"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { RevisionOperationsSheet } from "@/components/revision-operations-sheet"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft } from "lucide-react"
+import { ChevronLeft, Loader2 } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,6 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { getLucrareById, getClienti } from "@/lib/firebase/firestore"
 
 export default function RevisionEquipmentPage() {
   const params = useParams<{ id: string; equipmentId: string }>()
@@ -27,6 +28,33 @@ export default function RevisionEquipmentPage() {
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
   const hasUnsavedChangesRef = useRef(false)
   const saveDraftRef = useRef<(() => Promise<boolean>) | null>(null)
+  const [equipmentName, setEquipmentName] = useState<string>("")
+  const [loading, setLoading] = useState(true)
+
+  // Fetch equipment name from work order and client data
+  useEffect(() => {
+    const fetchEquipmentName = async () => {
+      try {
+        const work = await getLucrareById(workId)
+        if (work) {
+          const clients = await getClienti()
+          const client = clients.find((c: any) => c.nume === work.client)
+          const location = client?.locatii?.find((l: any) => l.nume === work.locatie)
+          const equipment = location?.echipamente?.find(
+            (e: any) => String(e.id) === String(equipmentId)
+          )
+          if (equipment?.denumire) {
+            setEquipmentName(equipment.denumire)
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching equipment name:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchEquipmentName()
+  }, [workId, equipmentId])
 
   const handleBack = () => {
     if (hasUnsavedChangesRef.current) {
@@ -49,6 +77,17 @@ export default function RevisionEquipmentPage() {
     router.back()
   }
 
+  if (loading) {
+    return (
+      <DashboardShell>
+        <div className="flex items-center justify-center py-20 text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin mr-2" />
+          Se încarcă...
+        </div>
+      </DashboardShell>
+    )
+  }
+
   return (
     <DashboardShell>
       {/* Buton Back elegant */}
@@ -68,6 +107,7 @@ export default function RevisionEquipmentPage() {
         <RevisionOperationsSheet 
           workId={workId} 
           equipmentId={equipmentId}
+          equipmentName={equipmentName}
           onUnsavedChanges={(hasChanges) => {
             hasUnsavedChangesRef.current = hasChanges
           }}

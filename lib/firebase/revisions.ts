@@ -74,8 +74,17 @@ export async function upsertRevisionDoc(
   data: Partial<EquipmentRevisionDoc>
 ) {
   const refDoc = doc(db, "lucrari", workId, "revisions", equipmentId)
+  
+  // Remove undefined values (Firestore doesn't accept them)
+  const cleanData: any = {}
+  Object.entries(data).forEach(([key, value]) => {
+    if (value !== undefined) {
+      cleanData[key] = value
+    }
+  })
+  
   const payload: any = {
-    ...data,
+    ...cleanData,
     updatedAt: serverTimestamp(),
   }
   
