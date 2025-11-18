@@ -1119,7 +1119,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       )}
 
       {/* Adăugăm un banner de notificare pentru tehnicieni dacă echipamentul nu a fost verificat */}
-      {role === "tehnician" && !equipmentVerified && lucrare.statusLucrare !== WORK_STATUS.POSTPONED && (
+      {role === "tehnician" && !equipmentVerified && lucrare.statusLucrare !== WORK_STATUS.POSTPONED && lucrare.tipLucrare !== "Revizie" && (
         <Alert variant="default" className="mb-4 bg-yellow-50 border-yellow-200">
           <AlertCircle className="h-4 w-4 text-yellow-500" />
           <AlertTitle>Verificare echipament necesară</AlertTitle>
@@ -1130,8 +1130,19 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         </Alert>
       )}
 
-      {/* Adăugăm un banner de confirmare dacă echipamentul a fost verificat */}
-      {role === "tehnician" && equipmentVerified && lucrare.statusLucrare !== WORK_STATUS.POSTPONED && (
+      {/* Alert special pentru revizii */}
+      {role === "tehnician" && lucrare.tipLucrare === "Revizie" && lucrare.statusLucrare !== WORK_STATUS.POSTPONED && (
+        <Alert variant="default" className="mb-4 bg-blue-50 border-blue-200">
+          <AlertCircle className="h-4 w-4 text-blue-500" />
+          <AlertTitle>Lucrare de revizie</AlertTitle>
+          <AlertDescription>
+            Aceasta este o revizie cu mai multe echipamente. Pentru fiecare echipament din lista de mai jos, deschide fișa de operațiuni, scanează codul QR și completează verificările necesare.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Adăugăm un banner de confirmare dacă echipamentul a fost verificat - doar pentru lucrări normale */}
+      {role === "tehnician" && equipmentVerified && lucrare.statusLucrare !== WORK_STATUS.POSTPONED && lucrare.tipLucrare !== "Revizie" && (
         <Alert variant="default" className="mb-4 bg-green-50 border-green-200">
           <CheckCircle className="h-4 w-4 text-green-500" />
           <AlertTitle>Echipament verificat</AlertTitle>
