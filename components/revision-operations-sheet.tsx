@@ -448,7 +448,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, on
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Fișa de operațiuni – {equipmentName || equipmentId}</CardTitle>
+        <CardTitle>Fișa de operațiuni – {equipmentName || "Echipament"}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* QR validation gate */}

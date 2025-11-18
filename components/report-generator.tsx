@@ -943,41 +943,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
               }
               currentY += 2
             }
-            // Poze (dacă există) – afișăm ca miniaturi 4 pe rând
-            const photos = Array.isArray(rev.photos) ? rev.photos : []
-            if (photos.length > 0) {
-              checkPageBreak(10)
-              doc.setFont("helvetica", "bold").setFontSize(10).setTextColor(0, 0, 0)
-              doc.text("Fotografii", M + 2, currentY + 4)
-              currentY += 6
-              const imagesPerRow = 4
-              const gap = 2
-              const imgW = (W - gap * (imagesPerRow - 1)) / imagesPerRow
-              const imgH = imgW * 0.75
-              let col = 0
-              for (const p of photos) {
-                checkPageBreak(imgH + 6)
-                const x = M + col * (imgW + gap)
-                try {
-                  const response = await fetch(p.url)
-                  const blob = await response.blob()
-                  const reader = new FileReader()
-                  const dataUrl: string = await new Promise((resolve) => {
-                    reader.onload = () => resolve(reader.result as string)
-                    reader.readAsDataURL(blob)
-                  })
-                  doc.setDrawColor(0, 0, 0).setLineWidth(0.2).rect(x, currentY, imgW, imgH)
-                  const fmt = (blob.type && blob.type.toLowerCase().includes("png")) ? "PNG" : "JPEG"
-                  doc.addImage(dataUrl, fmt as any, x + 0.5, currentY + 0.5, imgW - 1, imgH - 1)
-                } catch {}
-                col++
-                if (col === imagesPerRow) {
-                  col = 0
-                  currentY += imgH + gap + 2
-                }
-              }
-              if (col !== 0) currentY += imgH + 4
-            }
+            // NU includem fotografiile pe fișele de operațiuni pentru Revizie (cerință actuală)
           }
         } catch (e) {
           console.warn("Nu s-au putut include fișele de revizie în raport:", e)

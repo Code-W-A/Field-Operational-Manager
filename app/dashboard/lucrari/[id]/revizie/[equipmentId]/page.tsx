@@ -37,15 +37,31 @@ export default function RevisionEquipmentPage() {
       try {
         const work = await getLucrareById(workId)
         if (work) {
+          // 1) Încercăm mai întâi din metadata de revizie (are deja nume/cod)
+          const revList = Array.isArray((work as any)?.revision?.equipment)
+            ? (work as any).revision.equipment
+            : []
+          const byId = revList.find((r: any) => String(r.equipmentId) === String(equipmentId))
+          const byCode = revList.find((r: any) => String(r.equipmentCode) === String(equipmentId))
+          const revMatch = byId || byCode
+          if (revMatch?.equipmentName) {
+            setEquipmentName(revMatch.equipmentName)
+            return
+          }
+
+          // 2) Căutăm în client/locație după id sau cod
           const clients = await getClienti()
           const client = clients.find((c: any) => c.nume === work.client)
           const location = client?.locatii?.find((l: any) => l.nume === work.locatie)
-          const equipment = location?.echipamente?.find(
+          const eqById = location?.echipamente?.find(
             (e: any) => String(e.id) === String(equipmentId)
           )
-          if (equipment?.denumire) {
-            setEquipmentName(equipment.denumire)
-          }
+          const eqByCode = location?.echipamente?.find(
+            (e: any) => String(e.cod) === String(equipmentId)
+          )
+          const eq = eqById || eqByCode
+          const name = eq?.denumire || eq?.nume || eq?.name
+          if (name) setEquipmentName(name)
         }
       } catch (error) {
         console.error("Error fetching equipment name:", error)
