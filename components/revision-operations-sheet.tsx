@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, Save, Image as ImageIcon, Plus, X, Trash2, Edit2, Check } from "lucide-react"
 import { subscribeRevisionChecklist } from "@/lib/revisions/checklist"
-import { getRevisionDoc, upsertRevisionDoc, uploadRevisionPhoto } from "@/lib/firebase/revisions"
+import { getRevisionDoc, subscribeRevisionDoc, upsertRevisionDoc, uploadRevisionPhoto } from "@/lib/firebase/revisions"
 import type { RevisionChecklistSection, RevisionChecklistItem } from "@/types/revision"
 import { useAuth } from "@/contexts/AuthContext"
 import { updateLucrare } from "@/lib/firebase/firestore"
@@ -67,55 +67,65 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, on
   const [dialogItemState, setDialogItemState] = useState<ItemState | undefined>(undefined)
   const [dialogItemObs, setDialogItemObs] = useState("")
 
-  // Load checklist and existing doc
+  // Load checklist and existing doc with real-time updates
   useEffect(() => {
-    const unsub = subscribeRevisionChecklist(async (checklist) => {
-      try {
-        const existing = await getRevisionDoc(workId, equipmentId)
-        let baseSections = (existing?.sections?.length ? existing.sections : checklist.sections) || []
-        
-        // Dacă nu există secțiuni, creăm o secțiune default goală pentru a permite adăugarea manuală
-        if (baseSections.length === 0) {
-          baseSections = [{
-            id: "default-section",
-            name: "Puncte de control generale",
-            title: "Puncte de control generale",
-            items: [],
-            order: 0,
-          }]
-        }
-        
-        setSections(baseSections)
-        if (existing?.sections?.length) {
-          // Restore state/obs
-          const v: Record<string, ItemState> = {}
-          const o: Record<string, string> = {}
-          for (const s of existing.sections) {
-            for (const it of s.items) {
-              // @ts-ignore state may be on item as any
-              if ((it as any).state) v[it.id] = (it as any).state
-              // @ts-ignore obs may be on item as any
-              if ((it as any).obs) o[it.id] = (it as any).obs
-            }
+    let checklistUnsub: (() => void) | null = null
+    let revisionUnsub: (() => void) | null = null
+    
+    // Subscribe to checklist changes
+    checklistUnsub = subscribeRevisionChecklist((checklist) => {
+      // Subscribe to revision doc changes
+      revisionUnsub = subscribeRevisionDoc(workId, equipmentId, (existing) => {
+        try {
+          let baseSections = (existing?.sections?.length ? existing.sections : checklist.sections) || []
+          
+          // Dacă nu există secțiuni, creăm o secțiune default goală pentru a permite adăugarea manuală
+          if (baseSections.length === 0) {
+            baseSections = [{
+              id: "default-section",
+              name: "Puncte de control generale",
+              title: "Puncte de control generale",
+              items: [],
+              order: 0,
+            }]
           }
-          setValues(v)
-          setObs(o)
-          setInitialValues(v)
-          setInitialObs(o)
+          
+          setSections(baseSections)
+          if (existing?.sections?.length) {
+            // Restore state/obs
+            const v: Record<string, ItemState> = {}
+            const o: Record<string, string> = {}
+            for (const s of existing.sections) {
+              for (const it of s.items) {
+                // @ts-ignore state may be on item as any
+                if ((it as any).state) v[it.id] = (it as any).state
+                // @ts-ignore obs may be on item as any
+                if ((it as any).obs) o[it.id] = (it as any).obs
+              }
+            }
+            setValues(v)
+            setObs(o)
+            setInitialValues(v)
+            setInitialObs(o)
+          }
+          
+          // Check if QR was already verified for this equipment (real-time)
+          if (existing?.qrVerified) {
+            setVerified(true)
+          }
+          
+          setLoading(false)
+        } catch (e: any) {
+          setError(e?.message || "Eroare la încărcarea fișei")
+          setLoading(false)
         }
-        
-        // Check if QR was already verified for this equipment
-        if (existing?.qrVerified) {
-          setVerified(true)
-        }
-        
-        setLoading(false)
-      } catch (e: any) {
-        setError(e?.message || "Eroare la încărcarea fișei")
-        setLoading(false)
-      }
+      })
     })
-    return () => unsub()
+    
+    return () => {
+      checklistUnsub?.()
+      revisionUnsub?.()
+    }
   }, [workId, equipmentId])
 
   // Resolve expected QR metadata (client, location, equipment code) for gating

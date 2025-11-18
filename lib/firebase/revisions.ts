@@ -6,6 +6,7 @@ import {
   setDoc,
   updateDoc,
   serverTimestamp,
+  onSnapshot,
 } from "firebase/firestore"
 import { ref, uploadBytes, getDownloadURL, deleteObject, listAll } from "firebase/storage"
 import { db, storage } from "@/lib/firebase/config"
@@ -42,6 +43,25 @@ export async function getRevisionDoc(workId: string, equipmentId: string): Promi
   return { id: snap.id, ...(snap.data() as any) } as EquipmentRevisionDoc
 }
 
+/**
+ * Subscribe to real-time updates for a revision document
+ */
+export function subscribeRevisionDoc(
+  workId: string,
+  equipmentId: string,
+  callback: (doc: EquipmentRevisionDoc | null) => void
+): () => void {
+  const refDoc = doc(db, "lucrari", workId, "revisions", equipmentId)
+  const unsub = onSnapshot(refDoc, (snap) => {
+    if (!snap.exists()) {
+      callback(null)
+    } else {
+      callback({ id: snap.id, ...(snap.data() as any) } as EquipmentRevisionDoc)
+    }
+  })
+  return unsub
+}
+
 export async function listRevisionsForWork(workId: string): Promise<EquipmentRevisionDoc[]> {
   const col = collection(db, "lucrari", workId, "revisions")
   const qs = await getDocs(col)
@@ -54,17 +74,18 @@ export async function upsertRevisionDoc(
   data: Partial<EquipmentRevisionDoc>
 ) {
   const refDoc = doc(db, "lucrari", workId, "revisions", equipmentId)
-  const existing = await getDoc(refDoc)
   const payload: any = {
     ...data,
     updatedAt: serverTimestamp(),
   }
+  
+  // Always use setDoc with merge: true to preserve existing fields
+  const existing = await getDoc(refDoc)
   if (!existing.exists()) {
     payload.createdAt = serverTimestamp()
-    await setDoc(refDoc, payload, { merge: true })
-  } else {
-    await updateDoc(refDoc, payload)
   }
+  
+  await setDoc(refDoc, payload, { merge: true })
 }
 
 export async function uploadRevisionPhoto(
