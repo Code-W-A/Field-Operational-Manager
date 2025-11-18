@@ -1152,13 +1152,15 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           </TabsTrigger>
 
           {/* ------------ 3. Verificare Echipament (100 % pe mobil) ------- */}
-          {role === "tehnician" && !lucrare.raportGenerat && lucrare.statusLucrare !== WORK_STATUS.POSTPONED && (
+          {/* ASCUNS pentru revizii - verificarea se face per echipament în fișa de operațiuni */}
+          {role === "tehnician" && !lucrare.raportGenerat && lucrare.statusLucrare !== WORK_STATUS.POSTPONED && lucrare.tipLucrare !== "Revizie" && (
             <TabsTrigger value="verificare" className="basis-full md:basis-auto text-center whitespace-normal">
               Verificare echipament
             </TabsTrigger>
           )}
           {/* ------------ 2. Intervenție (50 %) --------------------------- */}
-          {role === "tehnician" && !lucrare.raportGenerat && lucrare.statusLucrare !== WORK_STATUS.POSTPONED && (
+          {/* ASCUNS pentru revizii - intervenția se face per echipament în fișa de operațiuni */}
+          {role === "tehnician" && !lucrare.raportGenerat && lucrare.statusLucrare !== WORK_STATUS.POSTPONED && lucrare.tipLucrare !== "Revizie" && (
             <TabsTrigger
               value="interventie"
               disabled={
@@ -1291,7 +1293,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                           const loc = clientData?.locatii?.find((l: any) => l.nume === lucrare.locatie)
                           const eq = loc?.echipamente?.find((e: any) => e.id === eid)
                           
-                          const statusConfig = {
+                          const statusConfigs = {
                             done: {
                               label: "✓ Revizuit",
                               bgClass: "bg-green-50 border-green-300",
@@ -1316,7 +1318,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                               buttonVariant: "default" as const,
                               buttonText: "Începe revizia",
                             },
-                          }[status] || statusConfig.pending
+                          }
+                          
+                          const statusConfig = statusConfigs[status as keyof typeof statusConfigs] || statusConfigs.pending
 
                           return (
                             <div 
@@ -1383,16 +1387,41 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       </div>
                     )}
 
-                    {/* Info pentru finalizare revizie */}
-                    <div className="mt-4 sm:mt-6">
-                      <Alert className="bg-blue-50 border-blue-200">
-                        <AlertCircle className="h-4 w-4 text-blue-500" />
-                        <AlertTitle>Finalizare revizie</AlertTitle>
-                        <AlertDescription>
-                          După ce toate echipamentele au fost revizuite, folosește butonul <strong>"Generează raport"</strong> din partea de sus pentru a finaliza lucrarea cu semnătură și raport.
-                        </AlertDescription>
-                      </Alert>
-                    </div>
+                    {/* Info și buton finalizare revizie - doar pentru tehnicieni */}
+                    {role === "tehnician" && (
+                      <>
+                        <div className="mt-4 sm:mt-6">
+                          <Alert className="bg-blue-50 border-blue-200">
+                            <AlertCircle className="h-4 w-4 text-blue-500" />
+                            <AlertTitle>Finalizare revizie</AlertTitle>
+                            <AlertDescription>
+                              După ce toate echipamentele au fost revizuite, folosește butonul de mai jos pentru a finaliza lucrarea cu semnătură și raport.
+                            </AlertDescription>
+                          </Alert>
+                        </div>
+
+                        {/* Buton Generează raport - sticky la bottom pentru tehnicieni */}
+                        <div className="mt-4 sm:mt-6 sticky bottom-4 z-10">
+                          <Button
+                            onClick={handleGenerateReport}
+                            disabled={
+                              (() => {
+                                // Verificăm dacă toate echipamentele sunt completate
+                                if (!Array.isArray(lucrare.equipmentIds)) return true
+                                const status = (lucrare.revision?.equipmentStatus || {}) as Record<string, string>
+                                const completed = lucrare.equipmentIds.filter((id) => status[id] === "done")
+                                return completed.length < lucrare.equipmentIds.length
+                              })()
+                            }
+                            className="w-full h-14 text-base font-bold rounded-xl shadow-lg bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                            size="lg"
+                          >
+                            <FileText className="mr-2 h-5 w-5" />
+                            Generează raport
+                          </Button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 
