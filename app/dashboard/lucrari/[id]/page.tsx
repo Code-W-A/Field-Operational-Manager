@@ -1304,6 +1304,20 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                           const loc = clientData?.locatii?.find((l: any) => l.nume === lucrare.locatie)
                           const eq = loc?.echipamente?.find((e: any) => e.id === eid)
                           
+                          // Debug logging
+                          if (index === 0) {
+                            console.log("🔍 Debug Revizie QR:", { 
+                              eid, 
+                              hasEq: !!eq,
+                              eq: eq,
+                              role, 
+                              isDispatcherOrAdmin: role === "dispecer" || role === "admin",
+                              shouldShowQR: (role === "dispecer" || role === "admin") && !!eq,
+                              client: lucrare.client,
+                              locatie: lucrare.locatie
+                            })
+                          }
+                          
                           const statusConfigs = {
                             done: {
                               label: "✓ Revizuit",
@@ -1349,8 +1363,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                   </Badge>
                                 </div>
                                 
-                                {/* QR Code Icon - doar pentru dispecer și tehnician */}
-                                {(role === "dispecer" || role === "tehnician") && eq && (
+                                {/* QR Code Icon - doar pentru dispecer și admin */}
+                                {(role === "dispecer" || role === "admin") && eq && (
                                   <div className="flex items-center">
                                     <EquipmentQRCode
                                       equipment={eq}
