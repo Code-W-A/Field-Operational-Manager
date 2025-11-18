@@ -15,6 +15,8 @@ import { useAuth } from "@/contexts/AuthContext"
 import { updateLucrare } from "@/lib/firebase/firestore"
 import { QRCodeScanner } from "@/components/qr-code-scanner"
 import { getLucrareById, getClienti } from "@/lib/firebase/firestore"
+import { useToast } from "@/hooks/use-toast"
+import { useRouter } from "next/navigation"
 import {
   Dialog,
   DialogContent,
@@ -37,6 +39,8 @@ type ItemState = "functional" | "nefunctional"
 
 export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, onUnsavedChanges, onSaveDraftRef }: Props) {
   const { userData } = useAuth()
+  const { toast } = useToast()
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [sections, setSections] = useState<RevisionChecklistSection[]>([])
   const [values, setValues] = useState<Record<string, ItemState | undefined>>({})
@@ -275,6 +279,11 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, on
   const handleSave = async () => {
     if (!allCompleted) {
       setError("Completați starea pentru toate punctele de control.")
+      toast({
+        title: "Formular incomplet",
+        description: "Completați starea pentru toate punctele de control înainte de a salva.",
+        variant: "destructive",
+      })
       return
     }
     setError(null)
@@ -315,6 +324,24 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, on
       setInitialValues({...values})
       setInitialObs({...obs})
       setHasUnsavedChanges(false)
+      
+      // Success toast
+      toast({
+        title: "✅ Revizie salvată cu succes!",
+        description: `Fișa de operațiuni pentru ${equipmentName || "echipament"} a fost completată.`,
+      })
+      
+      // Navigate back to work order after a short delay
+      setTimeout(() => {
+        router.back()
+      }, 1500)
+    } catch (error) {
+      console.error("Eroare la salvarea reviziei:", error)
+      toast({
+        title: "Eroare la salvare",
+        description: "Nu s-a putut salva fișa de operațiuni. Încearcă din nou.",
+        variant: "destructive",
+      })
     } finally {
       setSaving(false)
     }
@@ -345,9 +372,19 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, on
       setInitialObs({...obs})
       setHasUnsavedChanges(false)
       
+      toast({
+        title: "💾 Progres salvat",
+        description: "Modificările au fost salvate. Poți continua mai târziu.",
+      })
+      
       return true
     } catch (e) {
       console.error("Error saving draft:", e)
+      toast({
+        title: "Eroare la salvare",
+        description: "Nu s-a putut salva progresul. Încearcă din nou.",
+        variant: "destructive",
+      })
       return false
     } finally {
       setSaving(false)
