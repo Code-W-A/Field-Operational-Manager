@@ -209,11 +209,44 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const handleCloseRevision = useCallback(async () => {
     if (!lucrare) return
     if (lucrare.tipLucrare !== "Revizie") return
+    
+    // Verificăm dacă lucrarea este deja închisă (previne apeluri multiple)
+    if (lucrare.statusLucrare === "Finalizat" || lucrare.statusLucrare === "Parțial efectuată") {
+      toast({
+        title: "Atenție",
+        description: "Lucrarea este deja închisă.",
+        variant: "destructive",
+      })
+      return
+    }
+    
     try {
       const all = Array.isArray(lucrare.equipmentIds) ? lucrare.equipmentIds : []
       const status = (lucrare.revision?.equipmentStatus || {}) as Record<string, string>
       const remaining = all.filter((id) => status[id] !== "done")
       const doneCount = all.length - remaining.length
+      
+      // Verificăm dacă deja există o lucrare amânată pentru echipamentele rămase
+      if (remaining.length > 0) {
+        const lucrariCollection = collection(db, "lucrari")
+        const existingQuery = query(
+          lucrariCollection,
+          where("lucrareOriginala", "==", lucrare.id!),
+          where("statusLucrare", "==", WORK_STATUS.POSTPONED),
+          where("tipLucrare", "==", "Revizie")
+        )
+        const existingSnapshot = await getDocs(existingQuery)
+        
+        if (!existingSnapshot.empty) {
+          toast({
+            title: "Atenție",
+            description: "Există deja o lucrare amânată creată pentru această revizie.",
+            variant: "destructive",
+          })
+          return
+        }
+      }
+      
       // Actualizăm lucrarea curentă
       await updateLucrare(lucrare.id!, {
         statusLucrare: remaining.length > 0 ? "Parțial efectuată" : "Finalizat",
@@ -222,6 +255,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           doneCount,
         } as any,
       })
+      
       // Dacă rămân echipamente, creăm o lucrare nouă amânată
       if (remaining.length > 0) {
         await addLucrare({
