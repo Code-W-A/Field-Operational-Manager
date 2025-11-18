@@ -1290,98 +1290,108 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   </div>
                 </div>
 
-                {/* Revizie – lista echipamentelor din lucrare */}
+                {/* Revizie – lista echipamentelor din lucrare (optimizat mobile) */}
                 {lucrare.tipLucrare === "Revizie" && (
-                  <div className="mt-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-lg font-semibold">Echipamente în revizie</h3>
-                        {Array.isArray(lucrare.equipmentIds) && lucrare.equipmentIds.length > 0 && (
-                          <Badge variant="secondary" className="text-sm">
-                            {lucrare.equipmentIds.filter((eid: string) => (lucrare.revision?.equipmentStatus || {})[eid] === "done").length} / {lucrare.equipmentIds.length}
+                  <div className="mt-4 sm:mt-6">
+                    {/* Header cu progres - responsive */}
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3 sm:mb-4 bg-slate-50 p-3 rounded-lg">
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-900">Echipamente în revizie</h3>
+                      {Array.isArray(lucrare.equipmentIds) && lucrare.equipmentIds.length > 0 && (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="text-sm font-semibold px-3 py-1">
+                            {lucrare.equipmentIds.filter((eid: string) => (lucrare.revision?.equipmentStatus || {})[eid] === "done").length} / {lucrare.equipmentIds.length} completate
                           </Badge>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
+
                     {Array.isArray(lucrare.equipmentIds) && lucrare.equipmentIds.length > 0 ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {lucrare.equipmentIds.map((eid: string) => {
+                      <div className="space-y-3">
+                        {lucrare.equipmentIds.map((eid: string, index: number) => {
                           const status = (lucrare.revision?.equipmentStatus || {})[eid] || "pending"
                           const loc = clientData?.locatii?.find((l: any) => l.nume === lucrare.locatie)
                           const eq = loc?.echipamente?.find((e: any) => e.id === eid)
                           
                           const statusConfig = {
                             done: {
-                              label: "Revizuit",
-                              icon: "✓",
-                              bgClass: "bg-green-50 border-green-200",
-                              textClass: "text-green-700",
-                              badgeClass: "bg-green-100 text-green-700 border-green-300",
-                              iconClass: "bg-green-500 text-white",
+                              label: "✓ Revizuit",
+                              bgClass: "bg-green-50 border-green-300",
+                              badgeClass: "bg-green-500 text-white",
+                              buttonClass: "bg-green-600 hover:bg-green-700 text-white border-green-600",
+                              buttonVariant: "outline" as const,
+                              buttonText: "Vezi fișa",
                             },
                             in_progress: {
-                              label: "În lucru",
-                              icon: "⋯",
-                              bgClass: "bg-amber-50 border-amber-200",
-                              textClass: "text-amber-700",
-                              badgeClass: "bg-amber-100 text-amber-700 border-amber-300",
-                              iconClass: "bg-amber-500 text-white",
+                              label: "⋯ În lucru",
+                              bgClass: "bg-amber-50 border-amber-300",
+                              badgeClass: "bg-amber-500 text-white",
+                              buttonClass: "bg-amber-600 hover:bg-amber-700 text-white",
+                              buttonVariant: "default" as const,
+                              buttonText: "Continuă",
                             },
                             pending: {
-                              label: "În așteptare",
-                              icon: "○",
-                              bgClass: "bg-gray-50 border-gray-200",
-                              textClass: "text-gray-600",
-                              badgeClass: "bg-gray-100 text-gray-700 border-gray-300",
-                              iconClass: "bg-gray-400 text-white",
+                              label: "○ În așteptare",
+                              bgClass: "bg-white border-gray-300",
+                              badgeClass: "bg-gray-500 text-white",
+                              buttonClass: "bg-blue-600 hover:bg-blue-700 text-white",
+                              buttonVariant: "default" as const,
+                              buttonText: "Începe revizia",
                             },
                           }[status] || statusConfig.pending
 
                           return (
                             <div 
                               key={eid} 
-                              className={`relative p-4 rounded-lg border-2 transition-all hover:shadow-md ${statusConfig.bgClass}`}
+                              className={`relative rounded-xl border-2 overflow-hidden transition-all active:scale-[0.98] ${statusConfig.bgClass}`}
                             >
-                              {/* Icon status în colț */}
-                              <div className={`absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center text-lg font-bold ${statusConfig.iconClass}`}>
-                                {statusConfig.icon}
-                              </div>
-
-                              {/* Informații echipament */}
-                              <div className="pr-10 mb-3">
-                                <h4 className="text-base font-semibold mb-1 text-gray-900">
-                                  {eq?.nume || "Echipament necunoscut"}
-                                </h4>
-                                <div className="flex flex-col gap-1 text-sm text-gray-600">
-                                  {eq?.cod && (
-                                    <span className="font-mono text-xs bg-white px-2 py-0.5 rounded inline-block w-fit">
-                                      {eq.cod}
-                                    </span>
-                                  )}
-                                  {eq?.model && (
-                                    <span className="text-xs">{eq.model}</span>
-                                  )}
-                                  {eq?.producator && (
-                                    <span className="text-xs text-muted-foreground">{eq.producator}</span>
-                                  )}
+                              {/* Header card cu număr și status */}
+                              <div className="flex items-center justify-between p-3 border-b border-current/10 bg-white/50">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-7 h-7 rounded-full bg-slate-700 text-white flex items-center justify-center text-xs font-bold">
+                                    {index + 1}
+                                  </div>
+                                  <Badge className={`${statusConfig.badgeClass} text-xs font-semibold px-2 py-1`}>
+                                    {statusConfig.label}
+                                  </Badge>
                                 </div>
                               </div>
 
-                              {/* Status și acțiune */}
-                              <div className="flex items-center justify-between gap-2 pt-2 border-t border-current/10">
-                                <Badge
-                                  variant="outline"
-                                  className={`${statusConfig.badgeClass} font-medium`}
-                                >
-                                  {statusConfig.label}
-                                </Badge>
+                              {/* Informații echipament - stack vertical pentru mobile */}
+                              <div className="p-4">
+                                <h4 className="text-lg font-bold mb-2 text-gray-900 leading-tight">
+                                  {eq?.nume || "Echipament necunoscut"}
+                                </h4>
+                                
+                                <div className="space-y-1.5 mb-4">
+                                  {eq?.cod && (
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-gray-500 font-medium min-w-[60px]">Cod:</span>
+                                      <span className="font-mono text-sm bg-slate-100 px-2 py-0.5 rounded font-semibold text-slate-700">
+                                        {eq.cod}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {eq?.model && (
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-gray-500 font-medium min-w-[60px]">Model:</span>
+                                      <span className="text-sm text-gray-700">{eq.model}</span>
+                                    </div>
+                                  )}
+                                  {eq?.producator && (
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-gray-500 font-medium min-w-[60px]">Brand:</span>
+                                      <span className="text-sm text-gray-700">{eq.producator}</span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Buton mare pentru touch - full width pe mobile */}
                                 <Button
-                                  size="sm"
-                                  variant={status === "done" ? "outline" : "default"}
                                   onClick={() => router.push(`/dashboard/lucrari/${lucrare.id}/revizie/${eid}`)}
-                                  className="ml-auto"
+                                  className={`w-full h-12 text-base font-semibold rounded-lg ${statusConfig.buttonClass}`}
+                                  size="lg"
                                 >
-                                  {status === "done" ? "Vezi fișa" : "Deschide fișa"}
+                                  {statusConfig.buttonText}
                                 </Button>
                               </div>
                             </div>
@@ -1389,16 +1399,18 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         })}
                       </div>
                     ) : (
-                      <div className="text-center py-8 text-muted-foreground bg-gray-50 rounded-lg border-2 border-dashed">
-                        Nu există echipamente atașate acestei revizii.
+                      <div className="text-center py-12 text-muted-foreground bg-gray-50 rounded-xl border-2 border-dashed">
+                        <p className="text-sm">Nu există echipamente atașate acestei revizii.</p>
                       </div>
                     )}
-                    <div className="mt-6 flex justify-end">
+
+                    {/* Buton închidere - sticky pe mobile pentru acces ușor */}
+                    <div className="mt-4 sm:mt-6 sticky bottom-4 z-10">
                       <Button 
                         variant="default" 
                         onClick={handleCloseRevision}
+                        className="w-full h-14 text-base font-bold rounded-xl shadow-lg bg-slate-800 hover:bg-slate-900"
                         size="lg"
-                        className="px-6"
                       >
                         Închide lucrarea
                       </Button>
