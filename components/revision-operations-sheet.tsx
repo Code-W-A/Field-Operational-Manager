@@ -7,7 +7,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2, Save, Image as ImageIcon, Plus, X, Trash2 } from "lucide-react"
+import { Loader2, Save, Image as ImageIcon, Plus, X, Trash2, Edit2, Check } from "lucide-react"
 import { subscribeRevisionChecklist } from "@/lib/revisions/checklist"
 import { getRevisionDoc, upsertRevisionDoc, uploadRevisionPhoto } from "@/lib/firebase/revisions"
 import type { RevisionChecklistSection, RevisionChecklistItem } from "@/types/revision"
@@ -15,6 +15,15 @@ import { useAuth } from "@/contexts/AuthContext"
 import { updateLucrare } from "@/lib/firebase/firestore"
 import { QRCodeScanner } from "@/components/qr-code-scanner"
 import { getLucrareById, getClienti } from "@/lib/firebase/firestore"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
 
 type Props = {
   workId: string
@@ -40,9 +49,14 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName }: 
   const [expectedLocation, setExpectedLocation] = useState<string | undefined>(undefined)
   const [verified, setVerified] = useState(false)
   const [loadingGate, setLoadingGate] = useState(true)
-  // Manual item addition
-  const [newItemLabel, setNewItemLabel] = useState("")
-  const [addingToSection, setAddingToSection] = useState<string | null>(null)
+  // Dialog states
+  const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [dialogSectionId, setDialogSectionId] = useState<string | null>(null)
+  const [dialogItemId, setDialogItemId] = useState<string | null>(null)
+  const [dialogItemLabel, setDialogItemLabel] = useState("")
+  const [dialogItemState, setDialogItemState] = useState<ItemState | undefined>(undefined)
+  const [dialogItemObs, setDialogItemObs] = useState("")
 
   // Load checklist and existing doc
   useEffect(() => {
@@ -145,36 +159,78 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName }: 
     setPhotoPreviewUrls((prev) => prev.filter((_, i) => i !== index))
   }
 
-  // Add manual item to section
-  const handleAddManualItem = (sectionId: string) => {
-    if (!newItemLabel.trim()) return
+  // Open add dialog
+  const openAddDialog = (sectionId: string) => {
+    setDialogSectionId(sectionId)
+    setDialogItemLabel("")
+    setAddDialogOpen(true)
+  }
+
+  // Open edit dialog
+  const openEditDialog = (sectionId: string, itemId: string) => {
+    setDialogSectionId(sectionId)
+    setDialogItemId(itemId)
+    
+    // Find item label
+    const section = sections.find((s) => s.id === sectionId)
+    const item = section?.items.find((i) => i.id === itemId)
+    
+    setDialogItemLabel(item?.label || item?.name || "")
+    setDialogItemState(values[itemId])
+    setDialogItemObs(obs[itemId] || "")
+    setEditDialogOpen(true)
+  }
+
+  // Save from add dialog
+  const handleSaveAddDialog = () => {
+    if (!dialogItemLabel.trim() || !dialogSectionId) return
     
     const newItem: RevisionChecklistItem = {
       id: `manual-${Date.now()}-${Math.random()}`,
-      name: newItemLabel.trim(),
+      name: dialogItemLabel.trim(),
+      label: dialogItemLabel.trim(),
       order: 999,
     }
     
     setSections((prev) =>
       prev.map((s) =>
-        s.id === sectionId
+        s.id === dialogSectionId
           ? { ...s, items: [...s.items, newItem] }
           : s
       )
     )
     
-    setNewItemLabel("")
-    setAddingToSection(null)
+    setAddDialogOpen(false)
+    setDialogItemLabel("")
+    setDialogSectionId(null)
+  }
+
+  // Save from edit dialog
+  const handleSaveEditDialog = () => {
+    if (!dialogItemId) return
+    
+    // Update state and obs
+    if (dialogItemState) {
+      setValues((prev) => ({ ...prev, [dialogItemId]: dialogItemState }))
+    }
+    setObs((prev) => ({ ...prev, [dialogItemId]: dialogItemObs }))
+    
+    setEditDialogOpen(false)
+    setDialogItemId(null)
+    setDialogItemLabel("")
+    setDialogItemState(undefined)
+    setDialogItemObs("")
   }
 
   // Remove manual item
-  const handleRemoveItem = (sectionId: string, itemId: string) => {
+  const handleRemoveItem = (itemId: string) => {
+    if (!window.confirm("Ștergi acest punct de control?")) return
+    
     setSections((prev) =>
-      prev.map((s) =>
-        s.id === sectionId
-          ? { ...s, items: s.items.filter((i) => i.id !== itemId) }
-          : s
-      )
+      prev.map((s) => ({
+        ...s,
+        items: s.items.filter((i) => i.id !== itemId),
+      }))
     )
     // Clean up state
     setValues((prev) => {
@@ -307,123 +363,98 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName }: 
           </Alert>
         )}
 
-        {/* Disable the sheet UI until verified */}
-        <div className={`overflow-x-auto border rounded-md ${!verified ? "pointer-events-none opacity-60" : ""}`}>
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="text-left p-2 w-2/3">Punct de control</th>
-                <th className="text-left p-2 w-1/6">Stare</th>
-                <th className="text-left p-2 w-1/6">Obs.</th>
-                <th className="text-center p-2 w-12">Acțiuni</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sections.map((section) => (
-                <>
-                  <tr key={section.id} className="border-t bg-muted/30">
-                    <td colSpan={3} className="p-2 font-semibold">
-                      {section.title || section.name}
-                    </td>
-                    <td className="p-2 text-center">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setAddingToSection(section.id)}
-                        className="h-7 w-7 p-0"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </td>
-                  </tr>
-                  {section.items.map((item) => (
-                    <tr key={item.id} className="border-t">
-                      <td className="p-2">{item.label || item.name}</td>
-                      <td className="p-2">
-                        <Select
-                          value={values[item.id] || undefined}
-                          onValueChange={(v: ItemState) =>
-                            setValues((prev) => ({ ...prev, [item.id]: v }))
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Alege" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="functional">Functional</SelectItem>
-                            <SelectItem value="nefunctional">Nefunctional</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </td>
-                      <td className="p-2">
-                        <Textarea
-                          placeholder="Observații"
-                          value={obs[item.id] || ""}
-                          onChange={(e) => setObs((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                          className="min-h-[38px]"
-                        />
-                      </td>
-                      <td className="p-2 text-center">
-                        {item.id.startsWith('manual-') && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRemoveItem(section.id, item.id)}
-                            className="h-7 w-7 p-0 text-red-500 hover:text-red-700"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                  {addingToSection === section.id && (
-                    <tr className="border-t bg-blue-50">
-                      <td className="p-2">
-                        <Input
-                          placeholder="Nume punct de control"
-                          value={newItemLabel}
-                          onChange={(e) => setNewItemLabel(e.target.value)}
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault()
-                              handleAddManualItem(section.id)
-                            }
-                          }}
-                          autoFocus
-                        />
-                      </td>
-                      <td colSpan={2} className="p-2">
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={() => handleAddManualItem(section.id)}
-                          >
-                            Adaugă
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setAddingToSection(null)
-                              setNewItemLabel("")
-                            }}
-                          >
-                            Anulează
-                          </Button>
+        {/* Lista puncte de control - optimizată mobile */}
+        <div className={`space-y-2 ${!verified ? "pointer-events-none opacity-60" : ""}`}>
+          {sections.map((section) => (
+            <div key={section.id} className="border rounded-lg overflow-hidden">
+              {/* Header secțiune */}
+              <div className="flex items-center justify-between bg-slate-100 p-3 border-b">
+                <h3 className="font-semibold text-sm">{section.title || section.name}</h3>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => openAddDialog(section.id)}
+                  className="h-8 w-8 p-0 hover:bg-slate-200"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              
+              {/* Lista items */}
+              <div className="divide-y">
+                {section.items.length === 0 && (
+                  <div className="p-4 text-center text-sm text-muted-foreground">
+                    Apasă + pentru a adăuga puncte de control
+                  </div>
+                )}
+                {section.items.map((item) => {
+                  const itemState = values[item.id]
+                  const hasObs = obs[item.id]?.trim()
+                  const isComplete = Boolean(itemState)
+                  
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => openEditDialog(section.id, item.id)}
+                      className="p-3 hover:bg-slate-50 active:bg-slate-100 cursor-pointer transition-colors"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm font-medium">{item.label || item.name}</span>
+                            {isComplete && (
+                              <Check className="h-4 w-4 text-green-600 flex-shrink-0" />
+                            )}
+                          </div>
+                          
+                          <div className="flex flex-wrap gap-2 text-xs">
+                            {itemState && (
+                              <span className={`px-2 py-0.5 rounded-full font-medium ${
+                                itemState === "functional" 
+                                  ? "bg-green-100 text-green-700" 
+                                  : "bg-red-100 text-red-700"
+                              }`}>
+                                {itemState === "functional" ? "✓ Funcțional" : "✗ Nefuncțional"}
+                              </span>
+                            )}
+                            {!itemState && (
+                              <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                                Necompletat
+                              </span>
+                            )}
+                            {hasObs && (
+                              <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                                💬 Are observații
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </td>
-                      <td></td>
-                    </tr>
-                  )}
-                </>
-              ))}
-            </tbody>
-          </table>
+                        
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {item.id.startsWith('manual-') && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleRemoveItem(item.id)
+                              }}
+                              className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Edit2 className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Galerie fotografii - fără limită */}
@@ -490,6 +521,130 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName }: 
           </Button>
         </div>
       </CardContent>
+
+      {/* Dialog pentru adăugare punct de control */}
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Adaugă punct de control</DialogTitle>
+            <DialogDescription>
+              Adaugă un nou punct de control în această secțiune.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="item-name">Nume punct de control</Label>
+              <Input
+                id="item-name"
+                placeholder="ex: Verificare senzor..."
+                value={dialogItemLabel}
+                onChange={(e) => setDialogItemLabel(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    handleSaveAddDialog()
+                  }
+                }}
+                autoFocus
+                className="text-base"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => setAddDialogOpen(false)}>
+              Anulează
+            </Button>
+            <Button type="button" onClick={handleSaveAddDialog} disabled={!dialogItemLabel.trim()}>
+              Adaugă
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog pentru editare punct de control */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="text-base">{dialogItemLabel}</DialogTitle>
+            <DialogDescription>
+              Completează starea și observațiile pentru acest punct de control.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            {/* Stare */}
+            <div className="grid gap-2">
+              <Label htmlFor="item-state" className="text-base font-semibold">
+                Stare <span className="text-red-500">*</span>
+              </Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={dialogItemState === "functional" ? "default" : "outline"}
+                  onClick={() => setDialogItemState("functional")}
+                  className={`h-14 text-base ${
+                    dialogItemState === "functional" 
+                      ? "bg-green-600 hover:bg-green-700" 
+                      : "hover:bg-green-50 hover:border-green-300"
+                  }`}
+                >
+                  <Check className="h-5 w-5 mr-2" />
+                  Funcțional
+                </Button>
+                <Button
+                  type="button"
+                  variant={dialogItemState === "nefunctional" ? "default" : "outline"}
+                  onClick={() => setDialogItemState("nefunctional")}
+                  className={`h-14 text-base ${
+                    dialogItemState === "nefunctional" 
+                      ? "bg-red-600 hover:bg-red-700" 
+                      : "hover:bg-red-50 hover:border-red-300"
+                  }`}
+                >
+                  <X className="h-5 w-5 mr-2" />
+                  Nefuncțional
+                </Button>
+              </div>
+            </div>
+
+            {/* Observații */}
+            <div className="grid gap-2">
+              <Label htmlFor="item-obs" className="text-base font-semibold">
+                Observații
+              </Label>
+              <Textarea
+                id="item-obs"
+                placeholder="Adaugă observații despre acest punct de control..."
+                value={dialogItemObs}
+                onChange={(e) => setDialogItemObs(e.target.value)}
+                className="min-h-[100px] text-base resize-none"
+                rows={4}
+              />
+              <span className="text-xs text-muted-foreground">
+                Opțional - adaugă detalii dacă este cazul
+              </span>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => setEditDialogOpen(false)}
+              className="flex-1 sm:flex-initial"
+            >
+              Anulează
+            </Button>
+            <Button 
+              type="button" 
+              onClick={handleSaveEditDialog} 
+              disabled={!dialogItemState}
+              className="flex-1 sm:flex-initial"
+            >
+              <Check className="h-4 w-4 mr-2" />
+              Salvează
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }
