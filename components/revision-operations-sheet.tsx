@@ -29,11 +29,13 @@ type Props = {
   workId: string
   equipmentId: string
   equipmentName?: string
+  onUnsavedChanges?: (hasChanges: boolean) => void
+  onSaveDraftRef?: (saveFn: () => Promise<boolean>) => void
 }
 
 type ItemState = "functional" | "nefunctional"
 
-export function RevisionOperationsSheet({ workId, equipmentId, equipmentName }: Props) {
+export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, onUnsavedChanges, onSaveDraftRef }: Props) {
   const { userData } = useAuth()
   const [loading, setLoading] = useState(true)
   const [sections, setSections] = useState<RevisionChecklistSection[]>([])
@@ -49,6 +51,9 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName }: 
   const [expectedLocation, setExpectedLocation] = useState<string | undefined>(undefined)
   const [verified, setVerified] = useState(false)
   const [loadingGate, setLoadingGate] = useState(true)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [initialValues, setInitialValues] = useState<Record<string, ItemState | undefined>>({})
+  const [initialObs, setInitialObs] = useState<Record<string, string>>({})
   // Dialog states
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -91,7 +96,15 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName }: 
           }
           setValues(v)
           setObs(o)
+          setInitialValues(v)
+          setInitialObs(o)
         }
+        
+        // Check if QR was already verified for this equipment
+        if (existing?.qrVerified) {
+          setVerified(true)
+        }
+        
         setLoading(false)
       } catch (e: any) {
         setError(e?.message || "Eroare la încărcarea fișei")
@@ -132,6 +145,20 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName }: 
     const allIds = sections.flatMap((s) => s.items.map((i) => i.id))
     return allIds.length > 0 && allIds.every((id) => values[id])
   }, [sections, values])
+
+  // Detect unsaved changes
+  useEffect(() => {
+    const valuesChanged = JSON.stringify(values) !== JSON.stringify(initialValues)
+    const obsChanged = JSON.stringify(obs) !== JSON.stringify(initialObs)
+    const hasChanges = valuesChanged || obsChanged
+    setHasUnsavedChanges(hasChanges)
+    onUnsavedChanges?.(hasChanges)
+  }, [values, obs, initialValues, initialObs, onUnsavedChanges])
+
+  // Provide save draft function to parent
+  useEffect(() => {
+    onSaveDraftRef?.(handleSaveDraft)
+  }, [onSaveDraftRef])
 
   const overallState: ItemState | undefined = useMemo(() => {
     if (!allCompleted) return undefined
@@ -269,6 +296,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName }: 
         overallState,
         completedAt: new Date().toISOString(),
         completedBy: userData?.uid || "unknown",
+        qrVerified: verified,
       })
       // Mark equipment as done in lucrare
       await updateLucrare(workId, {
@@ -282,6 +310,45 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName }: 
       }
       setSelectedPhotos([])
       setPhotoPreviewUrls([])
+      
+      // Reset unsaved changes flag
+      setInitialValues({...values})
+      setInitialObs({...obs})
+      setHasUnsavedChanges(false)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Save draft (partial save without completion)
+  const handleSaveDraft = async () => {
+    setError(null)
+    setSaving(true)
+    try {
+      const payloadSections = sections.map((s) => ({
+        ...s,
+        items: s.items.map((it) => ({
+          ...it,
+          state: values[it.id],
+          obs: obs[it.id] || "",
+        })),
+      }))
+      await upsertRevisionDoc(workId, equipmentId, {
+        equipmentId,
+        equipmentName,
+        sections: payloadSections,
+        qrVerified: verified,
+      })
+      
+      // Reset unsaved changes flag
+      setInitialValues({...values})
+      setInitialObs({...obs})
+      setHasUnsavedChanges(false)
+      
+      return true
+    } catch (e) {
+      console.error("Error saving draft:", e)
+      return false
     } finally {
       setSaving(false)
     }
@@ -336,7 +403,23 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName }: 
                     expectedLocationName={expectedLocation}
                     expectedClientName={expectedClient}
                     workId={workId}
-                    onVerificationComplete={(ok) => setVerified(Boolean(ok))}
+                    onVerificationComplete={async (ok) => {
+                      if (ok) {
+                        setVerified(true)
+                        // Save QR verification status to revision doc
+                        try {
+                          await upsertRevisionDoc(workId, equipmentId, {
+                            equipmentId,
+                            equipmentName,
+                            qrVerified: true,
+                            qrVerifiedAt: new Date().toISOString(),
+                            qrVerifiedBy: userData?.uid || "unknown",
+                          })
+                        } catch (e) {
+                          console.error("Error saving QR verification:", e)
+                        }
+                      }
+                    }}
                   />
                 </>
               )}

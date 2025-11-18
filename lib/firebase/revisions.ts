@@ -28,6 +28,9 @@ export interface EquipmentRevisionDoc {
   completedAt?: any
   completedBy?: string
   overallState?: "functional" | "nefunctional" | "na"
+  qrVerified?: boolean
+  qrVerifiedAt?: string
+  qrVerifiedBy?: string
   createdAt?: any
   updatedAt?: any
 }
