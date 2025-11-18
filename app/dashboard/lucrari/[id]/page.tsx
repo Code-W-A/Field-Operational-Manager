@@ -1292,39 +1292,96 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
                 {/* Revizie – lista echipamentelor din lucrare */}
                 {lucrare.tipLucrare === "Revizie" && (
-                  <div className="mt-4">
-                    <p className="text-base font-semibold mb-2">Echipamente în revizie</p>
+                  <div className="mt-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-lg font-semibold">Echipamente în revizie</h3>
+                        {Array.isArray(lucrare.equipmentIds) && lucrare.equipmentIds.length > 0 && (
+                          <Badge variant="secondary" className="text-sm">
+                            {lucrare.equipmentIds.filter((eid: string) => (lucrare.revision?.equipmentStatus || {})[eid] === "done").length} / {lucrare.equipmentIds.length}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
                     {Array.isArray(lucrare.equipmentIds) && lucrare.equipmentIds.length > 0 ? (
-                      <div className="space-y-2">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {lucrare.equipmentIds.map((eid: string) => {
                           const status = (lucrare.revision?.equipmentStatus || {})[eid] || "pending"
                           const loc = clientData?.locatii?.find((l: any) => l.nume === lucrare.locatie)
                           const eq = loc?.echipamente?.find((e: any) => e.id === eid)
+                          
+                          const statusConfig = {
+                            done: {
+                              label: "Revizuit",
+                              icon: "✓",
+                              bgClass: "bg-green-50 border-green-200",
+                              textClass: "text-green-700",
+                              badgeClass: "bg-green-100 text-green-700 border-green-300",
+                              iconClass: "bg-green-500 text-white",
+                            },
+                            in_progress: {
+                              label: "În lucru",
+                              icon: "⋯",
+                              bgClass: "bg-amber-50 border-amber-200",
+                              textClass: "text-amber-700",
+                              badgeClass: "bg-amber-100 text-amber-700 border-amber-300",
+                              iconClass: "bg-amber-500 text-white",
+                            },
+                            pending: {
+                              label: "În așteptare",
+                              icon: "○",
+                              bgClass: "bg-gray-50 border-gray-200",
+                              textClass: "text-gray-600",
+                              badgeClass: "bg-gray-100 text-gray-700 border-gray-300",
+                              iconClass: "bg-gray-400 text-white",
+                            },
+                          }[status] || statusConfig.pending
+
                           return (
-                            <div key={eid} className="flex items-center justify-between p-2 border rounded bg-white">
-                              <div className="flex flex-col">
-                                <span className="text-sm font-medium">{eq?.nume || eid}</span>
-                                <span className="text-xs text-muted-foreground">{eq?.cod}{eq?.model ? ` • ${eq.model}` : ""}</span>
+                            <div 
+                              key={eid} 
+                              className={`relative p-4 rounded-lg border-2 transition-all hover:shadow-md ${statusConfig.bgClass}`}
+                            >
+                              {/* Icon status în colț */}
+                              <div className={`absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center text-lg font-bold ${statusConfig.iconClass}`}>
+                                {statusConfig.icon}
                               </div>
-                              <div className="flex items-center gap-2">
+
+                              {/* Informații echipament */}
+                              <div className="pr-10 mb-3">
+                                <h4 className="text-base font-semibold mb-1 text-gray-900">
+                                  {eq?.nume || "Echipament necunoscut"}
+                                </h4>
+                                <div className="flex flex-col gap-1 text-sm text-gray-600">
+                                  {eq?.cod && (
+                                    <span className="font-mono text-xs bg-white px-2 py-0.5 rounded inline-block w-fit">
+                                      {eq.cod}
+                                    </span>
+                                  )}
+                                  {eq?.model && (
+                                    <span className="text-xs">{eq.model}</span>
+                                  )}
+                                  {eq?.producator && (
+                                    <span className="text-xs text-muted-foreground">{eq.producator}</span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Status și acțiune */}
+                              <div className="flex items-center justify-between gap-2 pt-2 border-t border-current/10">
                                 <Badge
                                   variant="outline"
-                                  className={
-                                    status === "done"
-                                      ? "bg-green-50 text-green-700 border-green-300"
-                                      : status === "in_progress"
-                                      ? "bg-amber-50 text-amber-700 border-amber-300"
-                                      : "bg-gray-50 text-gray-700 border-gray-300"
-                                  }
+                                  className={`${statusConfig.badgeClass} font-medium`}
                                 >
-                                  {status === "done" ? "revizuit" : status === "in_progress" ? "în lucru" : "în așteptare"}
+                                  {statusConfig.label}
                                 </Badge>
                                 <Button
                                   size="sm"
-                                  variant="outline"
+                                  variant={status === "done" ? "outline" : "default"}
                                   onClick={() => router.push(`/dashboard/lucrari/${lucrare.id}/revizie/${eid}`)}
+                                  className="ml-auto"
                                 >
-                                  Deschide fișa
+                                  {status === "done" ? "Vezi fișa" : "Deschide fișa"}
                                 </Button>
                               </div>
                             </div>
@@ -1332,10 +1389,17 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         })}
                       </div>
                     ) : (
-                      <div className="text-sm text-muted-foreground">Nu există echipamente atașate acestei revizii.</div>
+                      <div className="text-center py-8 text-muted-foreground bg-gray-50 rounded-lg border-2 border-dashed">
+                        Nu există echipamente atașate acestei revizii.
+                      </div>
                     )}
-                    <div className="mt-3">
-                      <Button variant="default" onClick={handleCloseRevision}>
+                    <div className="mt-6 flex justify-end">
+                      <Button 
+                        variant="default" 
+                        onClick={handleCloseRevision}
+                        size="lg"
+                        className="px-6"
+                      >
                         Închide lucrarea
                       </Button>
                     </div>
