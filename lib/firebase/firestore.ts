@@ -19,6 +19,7 @@ import {
 import { db } from "./firebase"
 import { trackLucrareUpdate } from "@/lib/utils/work-modifications-tracker"
 import { getLucrareTitle } from "@/lib/utils/work-modifications-tracker"
+import type { WorkRevisionMeta } from "@/types/revision"
 
 export interface PersoanaContact {
   id?: string
@@ -225,6 +226,9 @@ export interface Lucrare {
     status?: "queued" | "sent" | "failed" | "bounced" | "delivered"
     messageId?: string
   }
+  // Revizie (multi-echipament)
+  equipmentIds?: string[]           // Lista echipamentelor pentru lucrarea de tip Revizie
+  revision?: WorkRevisionMeta       // Metadate revizie (versiune checklist, progres)
 }
 
 // Email events tracking

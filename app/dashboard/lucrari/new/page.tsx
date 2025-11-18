@@ -15,6 +15,8 @@ import { useAuth } from "@/contexts/AuthContext"
 import { Check, Mail, AlertCircle, RefreshCw } from "lucide-react"
 import { WORK_STATUS, INVOICE_STATUS } from "@/lib/utils/constants"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { getRevisionChecklistOnce } from "@/lib/revisions/checklist"
+import type { WorkRevisionMeta } from "@/types/revision"
 
 export default function NewLucrarePage() {
   const router = useRouter()
@@ -45,6 +47,7 @@ export default function NewLucrarePage() {
     persoaneContact: [] as PersoanaContact[],
     echipamentId: "",
     echipamentCod: "",
+    equipmentIds: [] as string[],
   })
 
   // Efect pentru a citi parametrii din URL și precompletat formularul
@@ -135,6 +138,25 @@ export default function NewLucrarePage() {
         ...formData,
         dataEmiterii: currentDateTime.toISOString(),
         dataInterventie: dataInterventie ? dataInterventie.toISOString() : new Date().toISOString(),
+      }
+      // Revizie: setăm metadatele și lista de echipamente
+      if (formData.tipLucrare === "Revizie") {
+        const checklist = await getRevisionChecklistOnce()
+        const equipmentStatus: Record<string, "pending" | "in_progress" | "done"> = {}
+        for (const eid of formData.equipmentIds || []) {
+          equipmentStatus[eid] = "pending"
+        }
+        const revisionMeta: WorkRevisionMeta = {
+          checklistVersionId: checklist.version,
+          equipmentStatus,
+          doneCount: 0,
+        }
+        newWorkOrderData.revision = revisionMeta
+        newWorkOrderData.equipmentIds = formData.equipmentIds || []
+        // pentru Revizie, nu folosim câmpurile single-echipament
+        newWorkOrderData.echipament = ""
+        newWorkOrderData.echipamentId = ""
+        newWorkOrderData.echipamentCod = ""
       }
 
       // Dacă este re-intervenție, adăugăm câmpurile specifice

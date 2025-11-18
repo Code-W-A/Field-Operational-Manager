@@ -12,6 +12,11 @@ export const SETTINGS_TARGETS: SettingsTarget[] = [
     kind: "list",
   },
   {
+    id: "revisions.checklist.sections",
+    label: "Revizie → Secțiuni fișă (părinți cu puncte ca subsetări)",
+    kind: "list",
+  },
+  {
     id: "works.create.workTypes",
     label: "Formular Lucrare → Tipuri lucrare",
     kind: "list",

@@ -371,6 +371,27 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
       console.log("[WorkOrderNotify] Client email fallback:", clientEmail)
     } catch {}
 
+    // Build revision equipment list if applicable
+    let revisionEquipmentNames: string[] = []
+    try {
+      if (workOrderData.tipLucrare === "Revizie" && Array.isArray(workOrderData.equipmentIds)) {
+        let clientRecord: any | null = null
+        if (clientId) {
+          clientRecord = await getClientById(clientId)
+        } else if (typeof workOrderData.client === "string" && workOrderData.client) {
+          clientRecord = await getClientByName(workOrderData.client)
+        }
+        if (clientRecord) {
+        const loc = (clientRecord?.locatii || []).find((l: any) => l?.nume === workOrderData.locatie)
+        const eqs = Array.isArray(loc?.echipamente) ? loc!.echipamente : []
+        revisionEquipmentNames = (workOrderData.equipmentIds || []).map((id: string) => {
+          const e = eqs.find((x: any) => String(x?.id || "") === String(id))
+          return e?.nume || id
+        })
+        }
+      }
+    } catch {}
+
     const notificationData = {
       client: {
         name: clientName,
@@ -397,6 +418,7 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
         equipment: workOrderData.echipament || "",
         equipmentCode: workOrderData.echipamentCod || "",
         equipmentModel: workOrderData.echipamentModel || "",
+        revisionEquipmentNames,
       },
       workOrderId: workOrderData.id || "", // Asigurăm-ne că ID-ul lucrării este transmis corect
       workOrderNumber: workOrderData.number || workOrderData.id || "",

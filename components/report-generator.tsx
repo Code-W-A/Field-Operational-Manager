@@ -10,6 +10,8 @@ import { toast } from "@/components/ui/use-toast"
 import { ProductTableForm, type Product } from "./product-table-form"
 import { serverTimestamp } from "firebase/firestore"
 import { formatDate, formatTime, calculateDuration } from "@/lib/utils/time-format"
+import { collection, getDocs } from "firebase/firestore"
+import { db } from "@/lib/firebase/config"
 
 interface ReportGeneratorProps {
   lucrare: Lucrare & { products?: Product[] }
@@ -896,6 +898,90 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         // Ajustăm currentY după ultimul rând de imagini
         const lastRowCount = imageIndex % imagesPerRow || imagesPerRow
         currentY += imageHeight + 8
+      }
+
+      // SEMNĂTURI - tehnician stânga, beneficiar dreapta distanțat
+      // Înainte de semnături: pentru lucrările tip Revizie adăugăm câte o pagină pe echipament cu fișa de operațiuni
+      if (lucrareForPDF.tipLucrare === "Revizie" && lucrare.id) {
+        try {
+          const revCol = collection(db, "lucrari", lucrare.id, "revisions")
+          const revSnap = await getDocs(revCol)
+          const revisions = revSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))
+          for (const rev of revisions) {
+            // Începem o pagină nouă pentru fiecare echipament
+            drawFooter()
+            doc.addPage()
+            currentY = M
+            // Titlu
+            doc.setFontSize(12).setFont("helvetica", "bold").setTextColor(0, 0, 0)
+            doc.text(
+              normalize(`Fișa de operațiuni – ${rev.equipmentName || rev.id}`),
+              M + 2,
+              currentY + 6
+            )
+            currentY += 10
+            // Pentru fiecare secțiune afișăm titlul și elementele
+            const sections = Array.isArray(rev.sections) ? rev.sections : []
+            doc.setFont("helvetica", "bold").setFontSize(10)
+            for (const s of sections) {
+              checkPageBreak(10)
+              doc.setTextColor(74, 118, 184) // albastru secțiune
+              doc.text(normalize(s.title || "-"), M + 2, currentY + 4)
+              currentY += 6
+              // Elemente
+              doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(0, 0, 0)
+              const items = Array.isArray(s.items) ? s.items : []
+              for (const it of items) {
+                const line = `• ${normalize(it.label || "-")} — ${String((it.state || "N/A")).toUpperCase()}${it.obs ? ` (${normalize(it.obs)})` : ""}`
+                const lines = doc.splitTextToSize(line, W - 6)
+                const height = lines.length * 4.2 + 2
+                checkPageBreak(height + 2)
+                lines.forEach((ln: string, idx: number) => {
+                  doc.text(ln, M + 4, currentY + 4 + idx * 4.2)
+                })
+                currentY += height
+              }
+              currentY += 2
+            }
+            // Poze (dacă există) – afișăm ca miniaturi 4 pe rând
+            const photos = Array.isArray(rev.photos) ? rev.photos : []
+            if (photos.length > 0) {
+              checkPageBreak(10)
+              doc.setFont("helvetica", "bold").setFontSize(10).setTextColor(0, 0, 0)
+              doc.text("Fotografii", M + 2, currentY + 4)
+              currentY += 6
+              const imagesPerRow = 4
+              const gap = 2
+              const imgW = (W - gap * (imagesPerRow - 1)) / imagesPerRow
+              const imgH = imgW * 0.75
+              let col = 0
+              for (const p of photos) {
+                checkPageBreak(imgH + 6)
+                const x = M + col * (imgW + gap)
+                try {
+                  const response = await fetch(p.url)
+                  const blob = await response.blob()
+                  const reader = new FileReader()
+                  const dataUrl: string = await new Promise((resolve) => {
+                    reader.onload = () => resolve(reader.result as string)
+                    reader.readAsDataURL(blob)
+                  })
+                  doc.setDrawColor(0, 0, 0).setLineWidth(0.2).rect(x, currentY, imgW, imgH)
+                  const fmt = (blob.type && blob.type.toLowerCase().includes("png")) ? "PNG" : "JPEG"
+                  doc.addImage(dataUrl, fmt as any, x + 0.5, currentY + 0.5, imgW - 1, imgH - 1)
+                } catch {}
+                col++
+                if (col === imagesPerRow) {
+                  col = 0
+                  currentY += imgH + gap + 2
+                }
+              }
+              if (col !== 0) currentY += imgH + 4
+            }
+          }
+        } catch (e) {
+          console.warn("Nu s-au putut include fișele de revizie în raport:", e)
+        }
       }
 
       // SEMNĂTURI - tehnician stânga, beneficiar dreapta distanțat

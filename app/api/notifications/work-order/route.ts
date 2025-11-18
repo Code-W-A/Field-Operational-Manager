@@ -283,6 +283,9 @@ export async function POST(request: NextRequest) {
       : '<div style="color: #666; font-style: italic;">Nu sunt tehnicieni asignați</div>';
 
     // Prepare email content for client
+    const revisionEquipmentsHtml = Array.isArray(details?.revisionEquipmentNames) && details.revisionEquipmentNames.length > 0
+      ? `<li><strong>Echipamente revizie:</strong><ul style="margin:6px 0 0 14px;">${details.revisionEquipmentNames.map((n: string) => `<li>${n}</li>`).join("")}</ul></li>`
+      : ""
     const clientWorkOrderInfo = isPostponed
       ? `
       <div style="padding: 10px 12px; border-left: 4px solid #8b5cf6; background:#f5f3ff; border-radius:4px; margin-bottom: 12px;">
@@ -303,7 +306,7 @@ export async function POST(request: NextRequest) {
         <li><strong>Tip lucrare:</strong> ${details?.workType || "N/A"}</li>
         <li><strong>Locație:</strong> ${details?.location || "N/A"}</li>
         <li><strong>Status:</strong> ${details?.status || "N/A"}</li>
-        <li><strong>Echipament:</strong> ${details?.equipment || "N/A"}</li>
+        ${revisionEquipmentsHtml || `<li><strong>Echipament:</strong> ${details?.equipment || "N/A"}</li>`}
       </ul>
     `
 

@@ -36,7 +36,7 @@ import {
   Download,
   Mail,
 } from "lucide-react"
-import { getLucrareById, deleteLucrare, updateLucrare, getClienti } from "@/lib/firebase/firestore"
+import { getLucrareById, deleteLucrare, updateLucrare, getClienti, addLucrare } from "@/lib/firebase/firestore"
 import { WORK_STATUS, WORK_STATUS_OPTIONS } from "@/lib/utils/constants"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TehnicianInterventionForm } from "@/components/tehnician-intervention-form"
@@ -204,6 +204,58 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       loadReinterventii(lucrare.id)
     }
   }, [lucrare?.id, loadReinterventii])
+
+  // Închidere lucrare Revizie (parțial sau complet) și re-planificare echipamente rămase
+  const handleCloseRevision = useCallback(async () => {
+    if (!lucrare) return
+    if (lucrare.tipLucrare !== "Revizie") return
+    try {
+      const all = Array.isArray(lucrare.equipmentIds) ? lucrare.equipmentIds : []
+      const status = (lucrare.revision?.equipmentStatus || {}) as Record<string, string>
+      const remaining = all.filter((id) => status[id] !== "done")
+      const doneCount = all.length - remaining.length
+      // Actualizăm lucrarea curentă
+      await updateLucrare(lucrare.id!, {
+        statusLucrare: remaining.length > 0 ? "Parțial efectuată" : "Finalizat",
+        revision: {
+          ...(lucrare.revision || {}),
+          doneCount,
+        } as any,
+      })
+      // Dacă rămân echipamente, creăm o lucrare nouă amânată
+      if (remaining.length > 0) {
+        await addLucrare({
+          client: lucrare.client,
+          persoanaContact: lucrare.persoanaContact,
+          telefon: lucrare.telefon,
+          dataEmiterii: new Date().toISOString(),
+          dataInterventie: lucrare.dataInterventie,
+          tipLucrare: "Revizie",
+          locatie: lucrare.locatie,
+          descriere: lucrare.descriere || "",
+          statusLucrare: WORK_STATUS.POSTPONED,
+          statusFacturare: lucrare.statusFacturare,
+          tehnicieni: lucrare.tehnicieni || [],
+          equipmentIds: remaining,
+          revision: {
+            ...(lucrare.revision || {}),
+            equipmentStatus: Object.fromEntries(remaining.map((id) => [id, "pending"])),
+            doneCount: 0,
+          } as any,
+          lucrareOriginala: lucrare.id!,
+          mesajReatribuire: "Echipamente rămase din lucrare de revizie (re-planificare automată)",
+        } as any)
+      }
+      toast({
+        title: "Lucrare închisă",
+        description: remaining.length > 0 ? "Lucrarea a fost închisă parțial. Echipamentele rămase au fost re-planificate." : "Lucrarea de revizie a fost închisă.",
+      })
+      router.refresh()
+    } catch (e) {
+      console.error("Eroare la închiderea lucrării:", e)
+      toast({ title: "Eroare", description: "Nu s-a putut închide lucrarea.", variant: "destructive" })
+    }
+  }, [lucrare, router])
 
   // State pentru informațiile de garanție
   const [equipmentData, setEquipmentData] = useState<Echipament | null>(null)
@@ -1237,6 +1289,58 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                     ))}
                   </div>
                 </div>
+
+                {/* Revizie – lista echipamentelor din lucrare */}
+                {lucrare.tipLucrare === "Revizie" && (
+                  <div className="mt-4">
+                    <p className="text-base font-semibold mb-2">Echipamente în revizie</p>
+                    {Array.isArray(lucrare.equipmentIds) && lucrare.equipmentIds.length > 0 ? (
+                      <div className="space-y-2">
+                        {lucrare.equipmentIds.map((eid: string) => {
+                          const status = (lucrare.revision?.equipmentStatus || {})[eid] || "pending"
+                          const loc = clientData?.locatii?.find((l: any) => l.nume === lucrare.locatie)
+                          const eq = loc?.echipamente?.find((e: any) => e.id === eid)
+                          return (
+                            <div key={eid} className="flex items-center justify-between p-2 border rounded bg-white">
+                              <div className="flex flex-col">
+                                <span className="text-sm font-medium">{eq?.nume || eid}</span>
+                                <span className="text-xs text-muted-foreground">{eq?.cod}{eq?.model ? ` • ${eq.model}` : ""}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge
+                                  variant="outline"
+                                  className={
+                                    status === "done"
+                                      ? "bg-green-50 text-green-700 border-green-300"
+                                      : status === "in_progress"
+                                      ? "bg-amber-50 text-amber-700 border-amber-300"
+                                      : "bg-gray-50 text-gray-700 border-gray-300"
+                                  }
+                                >
+                                  {status === "done" ? "revizuit" : status === "in_progress" ? "în lucru" : "în așteptare"}
+                                </Badge>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => router.push(`/dashboard/lucrari/${lucrare.id}/revizie/${eid}`)}
+                                >
+                                  Deschide fișa
+                                </Button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted-foreground">Nu există echipamente atașate acestei revizii.</div>
+                    )}
+                    <div className="mt-3">
+                      <Button variant="default" onClick={handleCloseRevision}>
+                        Închide lucrarea
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Afișăm mesajul de reatribuire dacă există */}
                 {lucrare.mesajReatribuire && (

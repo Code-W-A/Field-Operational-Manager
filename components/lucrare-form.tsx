@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { format } from "date-fns"
 import { ro } from "date-fns/locale"
@@ -107,6 +108,7 @@ interface LucrareFormProps {
     echipamentId?: string
     echipamentCod?: string
     customFields?: Record<string, any>
+    equipmentIds?: string[]
   }
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void
   handleSelectChange: (id: string, value: string) => void
@@ -228,6 +230,26 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     const [existingWorkOnEquipment, setExistingWorkOnEquipment] = useState<any[]>([])
     const [checkingEquipment, setCheckingEquipment] = useState(false)
 
+    // Revizie – filtrare și selecție multi-echipament
+    const [equipSearch, setEquipSearch] = useState("")
+    const selectedRevizieIds = (formData.equipmentIds || []) as string[]
+    const toggleEquipmentId = (id: string) => {
+      if (!handleCustomChange) return
+      const exists = selectedRevizieIds.includes(id)
+      const next = exists ? selectedRevizieIds.filter((x) => x !== id) : [...selectedRevizieIds, id]
+      handleCustomChange("equipmentIds", next)
+    }
+    const toggleAllEquipments = () => {
+      if (!handleCustomChange) return
+      if (!availableEquipments?.length) {
+        handleCustomChange("equipmentIds", [])
+        return
+      }
+      const allIds = availableEquipments.map((e) => e.id!).filter(Boolean)
+      const isAll = allIds.every((id) => selectedRevizieIds.includes(id))
+      handleCustomChange("equipmentIds", isAll ? [] : allIds)
+    }
+
     // Expose methods to parent component via ref
     useImperativeHandle(ref, () => ({
       hasUnsavedChanges: () => formModified,
@@ -238,6 +260,19 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       },
     }))
 
+    // Dacă tipul este Revizie, golim câmpurile de echipament single-select ca să nu conteze
+    useEffect(() => {
+      if (formData.tipLucrare === "Revizie") {
+        if (formData.echipament || formData.echipamentId || formData.echipamentCod) {
+          handleSelectChange("echipament", "")
+          if (handleCustomChange) {
+            handleCustomChange("echipamentId", "")
+            handleCustomChange("echipamentCod", "")
+          }
+        }
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [formData.tipLucrare])
     // Check if form has been modified
     useEffect(() => {
       const currentState = {
@@ -1898,73 +1933,75 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             </div>
           )}
 
-          {/* 4. Echipamentul */}
-          <div className="space-y-2">
-            <label htmlFor="echipament" className="text-sm font-medium">
-              Echipament
-            </label>
-            <CustomEquipmentSelect
-              key={`equipment-select-${availableEquipments.length}-${formData.echipamentCod || formData.echipament}`}
-              equipments={availableEquipments}
-              value={formData.echipamentId || formData.echipamentCod}
-              onSelect={handleEquipmentSelect}
-              disabled={!formData.locatie || isReintervention}
-              placeholder={formData.locatie ? "Selectați echipamentul" : "Selectați mai întâi o locație"}
-              emptyMessage={
-                formData.locatie ? "Nu există echipamente pentru această locație" : "Selectați mai întâi o locație"
-              }
-              fallbackName={formData.echipament}
-            />
-            {availableEquipments.length === 0 && formData.locatie && equipmentsLoaded && (
-              <div>
-                <p className="text-xs text-amber-600">
-                  Nu există echipamente definite pentru această locație. Puteți adăuga echipamente din secțiunea de
-                  gestionare a clientului.
+          {/* 4. Echipamentul – ascundem complet pentru Revizie */}
+          {formData.tipLucrare !== "Revizie" && (
+            <div className="space-y-2">
+              <label htmlFor="echipament" className="text-sm font-medium">
+                Echipament
+              </label>
+              <CustomEquipmentSelect
+                key={`equipment-select-${availableEquipments.length}-${formData.echipamentCod || formData.echipament}`}
+                equipments={availableEquipments}
+                value={formData.echipamentId || formData.echipamentCod}
+                onSelect={handleEquipmentSelect}
+                disabled={!formData.locatie || isReintervention}
+                placeholder={formData.locatie ? "Selectați echipamentul" : "Selectați mai întâi o locație"}
+                emptyMessage={
+                  formData.locatie ? "Nu există echipamente pentru această locație" : "Selectați mai întâi o locație"
+                }
+                fallbackName={formData.echipament}
+              />
+              {availableEquipments.length === 0 && formData.locatie && equipmentsLoaded && (
+                <div>
+                  <p className="text-xs text-amber-600">
+                    Nu există echipamente definite pentru această locație. Puteți adăuga echipamente din secțiunea de
+                    gestionare a clientului.
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">Locație selectată: {formData.locatie}</p>
+                </div>
+              )}
+              {availableEquipments.length > 0 && (
+                <p className="text-xs text-green-600">
+                  {availableEquipments.length} echipamente disponibile pentru această locație
                 </p>
-                <p className="text-xs text-gray-500 mt-1">Locație selectată: {formData.locatie}</p>
-              </div>
-            )}
-            {availableEquipments.length > 0 && (
-              <p className="text-xs text-green-600">
-                {availableEquipments.length} echipamente disponibile pentru această locație
-              </p>
-            )}
-            
-            {/* Avertisment pentru lucrări active existente */}
-            {!isEdit && existingWorkOnEquipment.length > 0 && (
-              <Alert variant="destructive" className="mt-3">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  <div className="space-y-2">
-                    <p className="font-semibold">
-                      ⚠️ ATENȚIE: Există {existingWorkOnEquipment.length} {existingWorkOnEquipment.length === 1 ? 'lucrare activă' : 'lucrări active'} pe acest echipament!
-                    </p>
-                    <p className="text-sm">
-                      Nu puteți crea o lucrare nouă pe acest echipament până când lucrările active nu sunt finalizate.
-                    </p>
-                    <div className="space-y-1 mt-2">
-                      <p className="text-sm font-medium">Lucrări active:</p>
-                      {existingWorkOnEquipment.map((work: any, index: number) => (
-                        <div key={work.id || index} className="text-sm bg-white/50 p-2 rounded border border-red-200">
-                          <p><strong>Status:</strong> {work.statusLucrare || 'N/A'}</p>
-                          <p><strong>Data:</strong> {work.dataInterventie || 'N/A'}</p>
-                          <p><strong>Tehnician:</strong> {Array.isArray(work.tehnicieni) ? work.tehnicieni.join(', ') : 'N/A'}</p>
-                        </div>
-                      ))}
+              )}
+              
+              {/* Avertisment pentru lucrări active existente */}
+              {!isEdit && existingWorkOnEquipment.length > 0 && (
+                <Alert variant="destructive" className="mt-3">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <div className="space-y-2">
+                      <p className="font-semibold">
+                        ⚠️ ATENȚIE: Există {existingWorkOnEquipment.length} {existingWorkOnEquipment.length === 1 ? 'lucrare activă' : 'lucrări active'} pe acest echipament!
+                      </p>
+                      <p className="text-sm">
+                        Nu puteți crea o lucrare nouă pe acest echipament până când lucrările active nu sunt finalizate.
+                      </p>
+                      <div className="space-y-1 mt-2">
+                        <p className="text-sm font-medium">Lucrări active:</p>
+                        {existingWorkOnEquipment.map((work: any, index: number) => (
+                          <div key={work.id || index} className="text-sm bg-white/50 p-2 rounded border border-red-200">
+                            <p><strong>Status:</strong> {work.statusLucrare || 'N/A'}</p>
+                            <p><strong>Data:</strong> {work.dataInterventie || 'N/A'}</p>
+                            <p><strong>Tehnician:</strong> {Array.isArray(work.tehnicieni) ? work.tehnicieni.join(', ') : 'N/A'}</p>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                </AlertDescription>
-              </Alert>
-            )}
-            
-            {/* Loading indicator pentru verificarea echipamentelor */}
-            {checkingEquipment && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Verificăm echipamentul...</span>
-              </div>
-            )}
-          </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              {/* Loading indicator pentru verificarea echipamentelor */}
+              {checkingEquipment && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Verificăm echipamentul...</span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Setări dinamice (legate la dialogul Lucrare Nouă) */}
           <div className="space-y-2">
@@ -2008,6 +2045,72 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
               </p>
             )}
           </div>
+          
+          {/* Revizie: listă echipamente multi-select pentru locația aleasă */}
+          {formData.tipLucrare === "Revizie" && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Echipamente pentru revizie</label>
+              {!formData.locatie ? (
+                <p className="text-xs text-muted-foreground">
+                  Selectați mai întâi o locație pentru a afișa echipamentele disponibile.
+                </p>
+              ) : (
+                <>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Caută după nume sau cod..."
+                      value={equipSearch}
+                      onChange={(e) => setEquipSearch(e.target.value)}
+                    />
+                    <Button type="button" variant="outline" onClick={toggleAllEquipments}>
+                      {availableEquipments.length &&
+                      availableEquipments
+                        .map((e) => e.id!)
+                        .filter(Boolean)
+                        .every((id) => (formData.equipmentIds || []).includes(id))
+                        ? "Deselectează toate"
+                        : "Selectează toate"}
+                    </Button>
+                  </div>
+                  <div className="max-h-56 overflow-auto border rounded-md p-2 bg-muted/30">
+                    {(availableEquipments || [])
+                      .filter((e) => {
+                        const q = equipSearch.trim().toLowerCase()
+                        if (!q) return true
+                        return (
+                          (e.nume || "").toLowerCase().includes(q) ||
+                          (e.cod || "").toLowerCase().includes(q) ||
+                          (e.model || "").toLowerCase().includes(q)
+                        )
+                      })
+                      .map((e) => {
+                        const checked = (formData.equipmentIds || []).includes(e.id || "")
+                        return (
+                          <label key={e.id} className="flex items-center gap-2 p-1 rounded hover:bg-white">
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={() => e.id && toggleEquipmentId(e.id)}
+                            />
+                            <div className="text-sm">
+                              <div className="font-medium">{e.nume}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {e.cod} {e.model ? `• ${e.model}` : ""}
+                              </div>
+                            </div>
+                          </label>
+                        )
+                      })}
+                    {availableEquipments.length === 0 && (
+                      <div className="text-sm text-muted-foreground">Nu există echipamente pentru această locație</div>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Selectate: {(formData.equipmentIds || []).length} / {availableEquipments.length}
+                  </p>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Afișarea informațiilor de garanție pentru "Intervenție în garanție" */}
           {formData.tipLucrare === "Intervenție în garanție" && selectedEquipment && (
@@ -2162,7 +2265,8 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             <p className="text-xs text-muted-foreground">Puteți selecta mai mulți tehnicieni</p>
           </div>
 
-          {/* 8. Defect reclamat */}
+          {/* 8. Defect reclamat (nu este necesar la Revizie) */}
+          {formData.tipLucrare !== "Revizie" && (
           <div className="space-y-2">
             {/* Istoric defecte reclamat (read-only) */}
             {Array.isArray(formData.defectReclamatHistory) && formData.defectReclamatHistory.length > 0 && (
@@ -2194,6 +2298,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
               className={`min-h-[80px] resize-y ${isReintervention ? 'ring-1 ring-blue-200' : ''}`}
             />
           </div>
+          )}
 
           {/* 9. Notă internă */}
           <div className="space-y-2">
