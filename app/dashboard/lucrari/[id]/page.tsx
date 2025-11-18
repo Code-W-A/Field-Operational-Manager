@@ -1348,6 +1348,17 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                     {statusConfig.label}
                                   </Badge>
                                 </div>
+                                
+                                {/* QR Code Icon - doar pentru dispecer și tehnician */}
+                                {(role === "dispecer" || role === "tehnician") && eq && (
+                                  <div className="flex items-center">
+                                    <EquipmentQRCode
+                                      equipment={eq}
+                                      clientName={lucrare.client}
+                                      locationName={lucrare.locatie}
+                                    />
+                                  </div>
+                                )}
                               </div>
 
                               {/* Informații echipament - stack vertical pentru mobile */}
