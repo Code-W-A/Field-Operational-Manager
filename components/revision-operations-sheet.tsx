@@ -248,7 +248,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName }: 
       <CardContent className="space-y-4">
         {/* QR validation gate */}
         {!verified && (
-          <Alert className="bg-yellow-50 border-yellow-300">
+          <Alert className="bg-slate-50 border-slate-300">
             <div className="space-y-4">
               {loadingGate ? (
                 <div className="flex items-center text-sm text-muted-foreground">
@@ -258,17 +258,17 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName }: 
               ) : (
                 <>
                   <div className="space-y-2">
-                    <h3 className="font-semibold text-base text-yellow-900">
+                    <h3 className="font-semibold text-base text-slate-900">
                       🔒 Scanare QR necesară
                     </h3>
-                    <p className="text-sm text-yellow-800">
+                    <p className="text-sm text-slate-700">
                       Pentru a putea completa fișa de operațiuni, trebuie mai întâi să scanați codul QR al echipamentului. 
                       Acest pas asigură că lucrați pe echipamentul corect.
                     </p>
                   </div>
                   
-                  <div className="p-3 bg-white/60 rounded-md border border-yellow-200">
-                    <div className="text-xs text-muted-foreground space-y-1">
+                  <div className="p-3 bg-white rounded-md border border-slate-200 shadow-sm">
+                    <div className="text-xs text-slate-600 space-y-1">
                       <div><strong>Client:</strong> {expectedClient || "—"}</div>
                       <div><strong>Locație:</strong> {expectedLocation || "—"}</div>
                       <div><strong>Cod echipament așteptat:</strong> {expectedCode || "—"}</div>
