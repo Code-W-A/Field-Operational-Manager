@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, Save, Image as ImageIcon, Plus, X, Trash2, Edit2, Check } from "lucide-react"
 import { subscribeRevisionChecklist } from "@/lib/revisions/checklist"
 import { getRevisionDoc, subscribeRevisionDoc, upsertRevisionDoc, uploadRevisionPhoto } from "@/lib/firebase/revisions"
+import type { RevisionPhotoMeta } from "@/lib/firebase/revisions"
 import type { RevisionChecklistSection, RevisionChecklistItem } from "@/types/revision"
 import { useAuth } from "@/contexts/AuthContext"
 import { updateLucrare } from "@/lib/firebase/firestore"
@@ -49,6 +50,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, on
   const [error, setError] = useState<string | null>(null)
   const [selectedPhotos, setSelectedPhotos] = useState<File[]>([])
   const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([])
+  const [existingPhotos, setExistingPhotos] = useState<RevisionPhotoMeta[]>([])
   // QR validation gating
   const [expectedCode, setExpectedCode] = useState<string | undefined>(undefined)
   const [expectedClient, setExpectedClient] = useState<string | undefined>(undefined)
@@ -113,6 +115,9 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, on
           if (existing?.qrVerified) {
             setVerified(true)
           }
+          
+          // Sync existing photos from doc (real-time)
+          setExistingPhotos(Array.isArray(existing?.photos) ? existing.photos : [])
           
           setLoading(false)
         } catch (e: any) {
@@ -324,13 +329,16 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, on
       })
       console.log("✅ Pas 1 completat: Document revizie salvat")
       
-      // Mark equipment as done in lucrare
+      // Mark equipment as done in lucrare (update nested path to avoid overwriting other statuses)
       console.log("📝 Pas 2: Marcare echipament ca done în lucrare...")
-      await updateLucrare(workId, {
-        revision: {
-          equipmentStatus: { [equipmentId]: "done" },
+      await updateLucrare(
+        workId,
+        {
+          [`revision.equipmentStatus.${equipmentId}`]: "done",
         } as any,
-      } as any, userData?.uid, userData?.displayName || userData?.email || "Utilizator")
+        userData?.uid,
+        userData?.displayName || userData?.email || "Utilizator"
+      )
       console.log("✅ Pas 2 completat: Echipament marcat ca done")
       
       // Upload ALL photos (no limit)
@@ -615,53 +623,81 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, on
         </div>
 
         {/* Galerie fotografii - fără limită */}
-        <div className={`space-y-3 ${!verified ? "pointer-events-none opacity-60" : ""}`}>
-          <label className="text-sm font-medium flex items-center gap-2">
+        <div className={`space-y-4 ${!verified ? "pointer-events-none opacity-60" : ""}`}>
+          <div className="flex items-center gap-2 text-sm font-medium">
             <ImageIcon className="h-4 w-4" />
-            Fotografii ({selectedPhotos.length} atașate)
-          </label>
-          
-          {/* Grid cu preview-uri și buton adaugă */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {photoPreviewUrls.map((url, index) => (
-              <div key={index} className="relative group aspect-square rounded-lg overflow-hidden border-2 border-gray-200 bg-gray-50">
-                <img 
-                  src={url} 
-                  alt={`Preview ${index + 1}`}
-                  className="w-full h-full object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleRemovePhoto(index)}
-                  className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-                <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1 text-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  {selectedPhotos[index]?.name}
-                </div>
-              </div>
-            ))}
-            
-            {/* Buton adaugă poză */}
-            <label className="relative aspect-square rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors flex flex-col items-center justify-center gap-2 text-gray-500 hover:text-gray-700">
-              <Plus className="h-8 w-8" />
-              <span className="text-xs font-medium">Adaugă poze</span>
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handlePhotoSelect}
-                className="hidden"
-              />
-            </label>
+            <span>
+              Fotografii: {existingPhotos.length} existente, {selectedPhotos.length} noi
+            </span>
           </div>
-          
-          {selectedPhotos.length > 0 && (
-            <div className="text-xs text-muted-foreground">
-              💡 Tip: Click pe poză pentru a o șterge
+
+          {/* Galerie fotografii existente (salvate) */}
+          {existingPhotos.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-xs text-muted-foreground">Fotografii existente</div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {existingPhotos.map((p, index) => (
+                  <div key={p.path || index} className="relative group aspect-square rounded-lg overflow-hidden border-2 border-gray-200 bg-gray-50">
+                    <img 
+                      src={p.url} 
+                      alt={p.fileName || `Foto ${index + 1}`} 
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1 text-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      {p.fileName || "fotografie"}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
+
+          {/* Grid cu preview-uri pentru fotografiile noi și buton adaugă */}
+          <div className="space-y-2">
+            {photoPreviewUrls.length > 0 && (
+              <div className="text-xs text-muted-foreground">Fotografii noi (nesalvate încă)</div>
+            )}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {photoPreviewUrls.map((url, index) => (
+                <div key={index} className="relative group aspect-square rounded-lg overflow-hidden border-2 border-gray-200 bg-gray-50">
+                  <img 
+                    src={url} 
+                    alt={`Preview ${index + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemovePhoto(index)}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1 text-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    {selectedPhotos[index]?.name}
+                  </div>
+                </div>
+              ))}
+              
+              {/* Buton adaugă poză */}
+              <label className="relative aspect-square rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors flex flex-col items-center justify-center gap-2 text-gray-500 hover:text-gray-700">
+                <Plus className="h-8 w-8" />
+                <span className="text-xs font-medium">Adaugă poze</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handlePhotoSelect}
+                  className="hidden"
+                />
+              </label>
+            </div>
+            
+            {selectedPhotos.length > 0 && (
+              <div className="text-xs text-muted-foreground">
+                💡 Tip: Click pe poză pentru a o șterge
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center justify-between">
