@@ -61,6 +61,7 @@ import { db } from "@/lib/firebase/config"
 import { collection, query, where, getDocs } from "firebase/firestore"
 import { canArchiveLucrare } from "@/lib/utils/archive-validation"
 import { deleteField } from "firebase/firestore"
+import { generateRevisionOperationsPDF, generateRevisionEquipmentPDF } from "@/lib/pdf/revision-operations"
 
 // Funcție utilitar pentru a extrage CUI-ul indiferent de cum este salvat
 const extractCUI = (client: any) => {
@@ -1298,7 +1299,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                     </div>
 
                     {Array.isArray(lucrare.equipmentIds) && lucrare.equipmentIds.length > 0 ? (
-                      <div className="space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {lucrare.equipmentIds.map((eid: string, index: number) => {
                           const status = (lucrare.revision?.equipmentStatus || {})[eid] || "pending"
                           const loc = clientData?.locatii?.find((l: any) => l.nume === lucrare.locatie)
@@ -1412,6 +1413,41 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                 >
                                   {statusConfig.buttonText}
                                 </Button>
+                                
+                                {/* Descărcare fișa de operațiuni pentru acest echipament */}
+                                <div className="mt-2">
+                                  <Button
+                                    variant="outline"
+                                    className="w-full h-10 text-sm font-medium rounded-lg"
+                                    onClick={async () => {
+                                      try {
+                                        if (!lucrare?.id) return
+                                        const blob = await generateRevisionEquipmentPDF(String(lucrare.id), String(eid))
+                                        const url = URL.createObjectURL(blob)
+                                        const a = document.createElement("a")
+                                        a.href = url
+                                        // Construim numele fișierului pe baza numelui echipamentului
+                                        const equipLabel = String(eq?.nume || eq?.name || eq?.model || eid || "Echipament")
+                                        const safeLabel = equipLabel.replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
+                                        a.download = `Fisa_Operatiuni_${safeLabel}.pdf`
+                                        document.body.appendChild(a)
+                                        a.click()
+                                        a.remove()
+                                        URL.revokeObjectURL(url)
+                                      } catch (e) {
+                                        console.error("Eroare la generarea fișei de operațiuni:", e)
+                                        toast({
+                                          title: "Eroare",
+                                          description: "Nu s-a putut genera fișa de operațiuni pentru acest echipament.",
+                                          variant: "destructive",
+                                        })
+                                      }
+                                    }}
+                                  >
+                                    <Download className="mr-2 h-4 w-4" />
+                                    Descarcă fișa (PDF)
+                                  </Button>
+                                </div>
                               </div>
                             </div>
                           )
@@ -2476,16 +2512,22 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 {/* Documente PDF – păstrăm încărcarea pentru facturi; upload ofertă ascuns (se generează automat după acceptare) */}
                 <div className="mt-4">
                   <div className="mt-2 p-3">
+                    <div className="text-sm text-muted-foreground mb-2">
+                      Facturare: Încărcați factura sau marcați „Nu se facturează” și adăugați motivul.
+                    </div>
+
                     <DocumentUpload
                       lucrareId={lucrare.id!}
                       lucrare={lucrare}
                       onLucrareUpdate={setLucrare}
                       hideOfertaUpload
                     />
+
+              
                   </div>
                 </div>
               </CardContent>
-              <CardFooter className="flex justify-between">
+              <CardFooter className="flex justify-between">    
              
               </CardFooter>
             </Card>

@@ -90,8 +90,49 @@ export default function RevisionEquipmentPage() {
   }
 
   const handleDiscardAndBack = () => {
+    // Allow actual back navigation: temporarily remove popstate handler to avoid re-blocking
+    try {
+      if (popstateHandlerRef.current) {
+        window.removeEventListener("popstate", popstateHandlerRef.current as any)
+      }
+    } catch {}
     router.back()
   }
+
+  // Trap device/browser back when there are unsaved changes
+  const popstateHandlerRef = useRef<((e: PopStateEvent) => void) | null>(null)
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      if (hasUnsavedChangesRef.current) {
+        // Re-push the current state to cancel the back and show confirm dialog
+        try {
+          history.pushState(null, "", location.href)
+        } catch {}
+        setShowUnsavedDialog(true)
+      }
+    }
+    popstateHandlerRef.current = handlePopState
+    window.addEventListener("popstate", handlePopState)
+    // Push a state so the first back triggers popstate instead of leaving immediately
+    try {
+      history.pushState(null, "", location.href)
+    } catch {}
+    return () => {
+      window.removeEventListener("popstate", handlePopState)
+    }
+  }, [])
+
+  // Warn on tab close/refresh if there are unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!hasUnsavedChangesRef.current) return
+      e.preventDefault()
+      e.returnValue = ""
+      return ""
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [])
 
   if (loading) {
     return (

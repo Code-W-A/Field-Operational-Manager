@@ -13,6 +13,7 @@ import { toast } from "@/components/ui/use-toast"
 import { Upload, FileText, Download, Trash2, AlertCircle, Check, Eye } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { ReportGenerator } from "@/components/report-generator"
+import { generateRevisionOperationsPDF } from "@/lib/pdf/revision-operations"
 import { NoInvoiceReasonDialog } from "@/components/no-invoice-reason-dialog"
 
 interface DocumentUploadProps {
@@ -571,6 +572,26 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
             <li>Documentele pot fi înlocuite prin încărcarea unor fișiere noi</li>
           </ul>
         </div> */}
+
+        {/* Acțiuni descărcare documente generate (context: Documente PDF) */}
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              // Dacă raportul este generat, îl descărcăm; altfel deschidem generatorul ascuns
+              if (lucrare?.raportGenerat) {
+                reportGeneratorRef.current?.click()
+              } else {
+                reportGeneratorRef.current?.click()
+              }
+            }}
+          >
+            <FileText className="mr-2 h-4 w-4" />
+            {lucrare?.raportGenerat ? "Descarcă raport" : "Generează/Descarcă raport"}
+          </Button>
+
+       
+        </div>
 
         {/* Dialog pentru motivul nefăcturării */}
         <Dialog open={isMotivDialogOpen} onOpenChange={setIsMotivDialogOpen}>

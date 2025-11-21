@@ -12,18 +12,15 @@ import { serverTimestamp } from "firebase/firestore"
 import { formatDate, formatTime, calculateDuration } from "@/lib/utils/time-format"
 import { collection, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
+import { drawFooter as drawCommonFooter } from "@/lib/pdf/common"
 
 interface ReportGeneratorProps {
   lucrare: Lucrare & { products?: Product[] }
   onGenerate?: (pdf: Blob) => void
 }
 
-// strip diacritics to use built‑in Helvetica; swap to custom TTF if needed
-const normalize = (text = "") =>
-  text.replace(
-    /[ăâîșțĂÂÎȘȚ]/g,
-    (c) => (({ ă: "a", â: "a", î: "i", ș: "s", ț: "t", Ă: "A", Â: "A", Î: "I", Ș: "S", Ț: "T" }) as any)[c],
-  )
+// păstrăm diacriticele; folosim font încărcat dinamic pentru PDF
+const normalize = (text = "") => text
 
 // A4 portrait: 210×297 mm
 const M = 7 // page margin (reduced for more content space)
@@ -325,54 +322,15 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const PW = doc.internal.pageSize.getWidth()
       const PH = doc.internal.pageSize.getHeight()
       let currentY = M
+      // Load unicode font (alias over 'helvetica') so diacritice render correctly
+      try {
+        const { ensurePdfFont } = await import("@/lib/pdf/font-loader")
+        await ensurePdfFont(doc)
+      } catch {}
 
       // Funcție pentru desenarea footer-ului pe pagina curentă
       const drawFooter = () => {
-        // FOOTER cu separator și 3 coloane (la fel ca la ofertă)
-        const footerSepY = PH - 28
-        // Separator footer – negru, bine definit
-        doc.setDrawColor(0, 0, 0)
-        doc.setLineWidth(0.3)
-        doc.line(M, footerSepY, M + W, footerSepY)
-        
-        let footerY = footerSepY + 5
-        doc.setFontSize(7)
-        doc.setFont("helvetica", "normal")
-        doc.setTextColor(41, 72, 143) // albastru vibrant ca la ofertă
-        
-        const footerColW = W / 3 - 4
-        const footerColX = [M, M + W / 3, M + (2 * W) / 3]
-        
-        const footerLeft = [
-          "NRG Access Systems SRL",
-          "Rezervelor Nr 70,",
-          "Chiajna, Ilfov",
-          "C.I.F. RO34272913",
-        ]
-        const footerMid = [
-          "Telefon: +40 371 49 44 99",
-          "E-mail: office@nrg-access.ro",
-          "Website: www.nrg-access.ro",
-        ]
-        const footerRight = [
-          "IBAN RO79BTRL RON CRT 0294 5948 01",
-          "Banca Transilvania Sucursala Aviatiei",
-        ]
-        
-        const renderFooterColumn = (items: string[], x: number) => {
-          let yy = footerY
-          items.forEach((t) => {
-            const lines = doc.splitTextToSize(t, footerColW)
-            lines.forEach((ln: string) => {
-              doc.text(ln, x, yy)
-              yy += 4
-            })
-          })
-        }
-        
-        renderFooterColumn(footerLeft, footerColX[0])
-        renderFooterColumn(footerMid, footerColX[1])
-        renderFooterColumn(footerRight, footerColX[2])
+        drawCommonFooter(doc)
       }
 
       // Helper: add new page if required
@@ -900,56 +858,32 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         currentY += imageHeight + 8
       }
 
-      // SEMNĂTURI - tehnician stânga, beneficiar dreapta distanțat
-      // Înainte de semnături: pentru lucrările tip Revizie adăugăm câte o pagină pe echipament cu fișa de operațiuni
+      // Înainte de semnături: pentru lucrările tip Revizie listăm echipamentele procesate
       if (lucrareForPDF.tipLucrare === "Revizie" && lucrare.id) {
         try {
           const revCol = collection(db, "lucrari", lucrare.id, "revisions")
           const revSnap = await getDocs(revCol)
           const revisions = revSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))
-          for (const rev of revisions) {
-            // Nu mai începem neapărat o pagină nouă; afișăm fișele una sub alta
-            // Lăsăm un mic spațiu între fișe și verificăm că avem loc pentru titlu
+          const equipmentNames = revisions.map((r: any) => r.equipmentName || r.id)
+          if (equipmentNames.length) {
             checkPageBreak(12)
-            if (currentY > M) {
-              currentY += 4
-              checkPageBreak(12)
+            doc.setFont("helvetica", "bold").setFontSize(11).setTextColor(0, 0, 0)
+            doc.text(normalize("Am efectuat revizie pentru:"), M + 2, currentY + 6)
+            currentY += 8
+            doc.setFont("helvetica", "normal").setFontSize(10).setTextColor(0, 0, 0)
+            for (const name of equipmentNames) {
+              const lines = doc.splitTextToSize(`• ${normalize(String(name))}`, W - 6)
+              const height = lines.length * 4.2 + 2
+              checkPageBreak(height + 2)
+              lines.forEach((ln: string, idx: number) => {
+                doc.text(ln, M + 4, currentY + 4 + idx * 4.2)
+              })
+              currentY += height
             }
-            // Titlu
-            doc.setFontSize(12).setFont("helvetica", "bold").setTextColor(0, 0, 0)
-            doc.text(
-              normalize(`Fișa de operațiuni – ${rev.equipmentName || rev.id}`),
-              M + 2,
-              currentY + 6
-            )
-            currentY += 10
-            // Pentru fiecare secțiune afișăm titlul și elementele
-            const sections = Array.isArray(rev.sections) ? rev.sections : []
-            doc.setFont("helvetica", "bold").setFontSize(10)
-            for (const s of sections) {
-              checkPageBreak(10)
-              doc.setTextColor(74, 118, 184) // albastru secțiune
-              doc.text(normalize(s.name || s.title || "Puncte de control"), M + 2, currentY + 4)
-              currentY += 6
-              // Elemente
-              doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(0, 0, 0)
-              const items = Array.isArray(s.items) ? s.items : []
-              for (const it of items) {
-                const line = `• ${normalize(it.name || it.label || "-")} — ${String((it.state || "N/A")).toUpperCase()}${it.obs ? ` (${normalize(it.obs)})` : ""}`
-                const lines = doc.splitTextToSize(line, W - 6)
-                const height = lines.length * 4.2 + 2
-                checkPageBreak(height + 2)
-                lines.forEach((ln: string, idx: number) => {
-                  doc.text(ln, M + 4, currentY + 4 + idx * 4.2)
-                })
-                currentY += height
-              }
-              currentY += 2
-            }
-            // NU includem fotografiile pe fișele de operațiuni pentru Revizie (cerință actuală)
+            currentY += 4
           }
         } catch (e) {
-          console.warn("Nu s-au putut include fișele de revizie în raport:", e)
+          console.warn("Nu s-a putut lista echipamentele de revizie în raport:", e)
         }
       }
 

@@ -24,6 +24,7 @@ import { db } from "@/lib/firebase/config"
 import { calculateDuration } from "@/lib/utils/time-format"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { generateRevisionOperationsPDF } from "@/lib/pdf/revision-operations"
 
 export default function RaportPage({ params }: { params: { id: string } }) {
   const SIG_HEIGHT = 160 // px – lasă-l fix
@@ -561,6 +562,19 @@ FOM by NRG`,
               type: "application/pdf",
             })
             formData.append("pdfFile", pdfFile)
+
+            // Add Operations Sheets PDF for Revizie (if applicable)
+            try {
+              if ((updatedLucrare?.tipLucrare || "").toLowerCase() === "revizie") {
+                const opsBlob = await generateRevisionOperationsPDF(updatedLucrare.id || params.id)
+                const opsFile = new File([opsBlob], `Fise_Operatiuni_${updatedLucrare.id || params.id}.pdf`, {
+                  type: "application/pdf",
+                })
+                formData.append("opsPdfFile", opsFile)
+              }
+            } catch (e) {
+              console.warn("Nu s-a putut genera fișele de operațiuni pentru atașare email:", e)
+            }
 
             // Add company logo
             formData.append("companyLogo", "/logo-placeholder.png")

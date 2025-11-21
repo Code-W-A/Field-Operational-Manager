@@ -94,6 +94,17 @@ export async function POST(request: NextRequest) {
           content: buffer,
           contentType: "application/pdf",
         },
+        // atașament opțional: fișe operațiuni revizie
+        ...(formData.get("opsPdfFile")
+          ? (() => {
+              const f = formData.get("opsPdfFile") as File
+              return [{
+                filename: (f?.name as string) || "fise_operatiuni_revizie.pdf",
+                content: Buffer.from([]), // placeholder, replaced below
+                contentType: "application/pdf",
+              }]
+            })()
+          : []),
         {
           filename: "logo.png",
           path: path.join(process.cwd(), "public", "nrglogo.png"),
@@ -132,6 +143,18 @@ export async function POST(request: NextRequest) {
       })
     } catch (error) {
       console.error("Eroare la logging eveniment email queued:", error)
+    }
+
+    // Dacă avem atașament suplimentar (opsPdfFile), îl încărcăm corect în attachments[1]
+    const opsFile = formData.get("opsPdfFile") as File | null
+    if (opsFile) {
+      const arr = await opsFile.arrayBuffer()
+      const buf = Buffer.from(arr)
+      ;(mailOptions.attachments as any[])[1] = {
+        filename: opsFile.name || "fise_operatiuni_revizie.pdf",
+        content: buf,
+        contentType: "application/pdf",
+      }
     }
 
     // Trimitem emailul
