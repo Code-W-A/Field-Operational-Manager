@@ -13,7 +13,7 @@ export const SETTINGS_TARGETS: SettingsTarget[] = [
   },
   {
     id: "revisions.checklist.sections",
-    label: "Revizie → Secțiuni fișă (părinți cu puncte ca subsetări)",
+    label: "Revizie → Secțiuni fișă",
     kind: "list",
   },
   {

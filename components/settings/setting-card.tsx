@@ -214,7 +214,8 @@ export function SettingCard({
           <div className="max-h-[360px] overflow-y-auto space-y-3">
             {Object.entries(
               SETTINGS_TARGETS
-                .filter((t) => t.id.startsWith("dialogs.")) // afișăm doar țintele la nivel de dialog
+                // Afișăm ținte pentru dialoguri + țintele specifice aplicației (ex: Revizie)
+                .filter((t) => t.id.startsWith("dialogs.") || t.id.startsWith("revisions."))
                 .reduce<Record<string, typeof SETTINGS_TARGETS>>((acc, t) => {
                 const [rawGroup, rawLeaf] = String(t.label || "").split("→")
                 const group = (rawGroup || "Altele").trim()
