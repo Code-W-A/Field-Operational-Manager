@@ -284,7 +284,7 @@ export async function POST(request: NextRequest) {
 
     // Prepare email content for client
     const revisionEquipmentsHtml = Array.isArray(details?.revisionEquipmentNames) && details.revisionEquipmentNames.length > 0
-      ? `<li><strong>Echipamente revizie:</strong><ul style="margin:6px 0 0 14px;">${details.revisionEquipmentNames.map((n: string) => `<li>${n}</li>`).join("")}</ul></li>`
+      ? `<li><strong>Echipamente revizuite:</strong><ul style="margin:6px 0 0 14px;">${details.revisionEquipmentNames.map((n: string) => `<li>${n}</li>`).join("")}</ul></li>`
       : ""
     const clientWorkOrderInfo = isPostponed
       ? `

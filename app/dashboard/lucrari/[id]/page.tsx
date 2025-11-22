@@ -218,6 +218,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   
   // State pentru afișarea banner-ului de modificare
   const [showModificationBanner, setShowModificationBanner] = useState(true)
+  const [isFinalizingPartial, setIsFinalizingPartial] = useState(false)
 
   // Încărcăm datele lucrării și adresa locației
   useEffect(() => {
@@ -515,6 +516,78 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         description: "Nu s-au putut reîncărca datele lucrării.",
         variant: "destructive",
       })
+    }
+  })
+
+  // Finalizare parțială pentru revizii: închide lucrarea curentă și creează o lucrare nouă cu echipamentele rămase
+  const handleFinalizePartial = useStableCallback(async () => {
+    if (!lucrare || lucrare.tipLucrare !== "Revizie" || !Array.isArray(lucrare.equipmentIds)) return
+    const status = (lucrare.revision?.equipmentStatus || {}) as Record<string, string>
+    const all = lucrare.equipmentIds
+    const done = all.filter((id) => status[id] === "done")
+    const remaining = all.filter((id) => status[id] !== "done")
+    if (done.length === 0 || remaining.length === 0) {
+      toast({
+        title: "Condiții neîndeplinite",
+        description: "Finalizarea parțială este disponibilă doar după ce finalizezi cel puțin un echipament și rămân altele nefinalizate.",
+        variant: "destructive",
+      })
+      return
+    }
+    if (!window.confirm(`Finalizezi parțial revizia? Echipamente finalizate: ${done.length}. Se creează o lucrare nouă pentru ${remaining.length} echipament(e) rămas(e).`)) {
+      return
+    }
+    setIsFinalizingPartial(true)
+    try {
+      // 1) Închidem lucrarea curentă ca Finalizat (fără generare raport)
+      await updateLucrare(
+        lucrare.id!,
+        {
+          statusLucrare: WORK_STATUS.COMPLETED,
+          mesajReatribuire: "Revizie finalizată parțial – echipamentele rămase vor fi replanificate",
+        } as any,
+        userData?.uid,
+        userData?.displayName || "Utilizator"
+      )
+      // 2) Creăm lucrare nouă doar cu echipamentele rămase
+      const newWork: any = {
+        client: lucrare.client,
+        persoanaContact: lucrare.persoanaContact,
+        telefon: lucrare.telefon,
+        dataEmiterii: lucrare.dataEmiterii,
+        dataInterventie: lucrare.dataInterventie,
+        tipLucrare: "Revizie",
+        locatie: lucrare.locatie,
+        descriere: lucrare.descriere || `Echipamente rămase din revizie parțială (${done.length}/${all.length} finalizate)`,
+        statusLucrare: WORK_STATUS.POSTPONED,
+        statusFacturare: "Nefacturat",
+        tehnicieni: Array.isArray(lucrare.tehnicieni) ? lucrare.tehnicieni : [],
+        contract: (lucrare as any).contract,
+        contractNumber: (lucrare as any).contractNumber,
+        clientInfo: (lucrare as any).clientInfo,
+        equipmentIds: remaining,
+        revision: { equipmentStatus: {} as Record<string, string> } as any,
+        lucrareOriginala: lucrare.id,
+        mesajReatribuire: `Replanificare echipamente rămase (${remaining.length}) din revizie parțială`,
+        createdBy: userData?.uid || "system",
+        createdByName: userData?.displayName || userData?.email || "Utilizator",
+      }
+      const created = await addLucrare(newWork as any)
+      toast({
+        title: "Finalizare parțială reușită",
+        description: `Am creat o lucrare nouă pentru echipamentele rămase (ID: ${created.id}).`,
+      })
+      // Reîncarcă lucrarea curentă
+      await refreshLucrare(true)
+    } catch (e: any) {
+      console.error("Eroare finalizare parțială:", e)
+      toast({
+        title: "Eroare",
+        description: "Nu s-a putut finaliza parțial revizia.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsFinalizingPartial(false)
     }
   })
 
@@ -1491,6 +1564,24 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                             <FileText className="mr-2 h-5 w-5" />
                             Generează raport
                           </Button>
+                          {/* Finalizare parțială – disponibilă dacă cel puțin un echipament este finalizat dar nu toate */}
+                          {Array.isArray(lucrare.equipmentIds) && (() => {
+                            const st = (lucrare.revision?.equipmentStatus || {}) as Record<string, string>
+                            const all = lucrare.equipmentIds || []
+                            const done = all.filter((id) => st[id] === "done")
+                            return done.length > 0 && done.length < all.length
+                          })() && (
+                            <div className="mt-2">
+                              <Button
+                                variant="outline"
+                                className="w-full h-12 text-base font-semibold rounded-xl"
+                                onClick={handleFinalizePartial}
+                                disabled={isFinalizingPartial}
+                              >
+                                {isFinalizingPartial ? "Se finalizează..." : "Finalizează parțial"}
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </>
                     )}
@@ -2509,23 +2600,22 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   </div>
                 )}
 
-                {/* Documente PDF – păstrăm încărcarea pentru facturi; upload ofertă ascuns (se generează automat după acceptare) */}
-                <div className="mt-4">
-                  <div className="mt-2 p-3">
-                    <div className="text-sm text-muted-foreground mb-2">
-                      Facturare: Încărcați factura sau marcați „Nu se facturează” și adăugați motivul.
+                {/* Documente PDF – doar pentru admin/dispecer */}
+                {isAdminOrDispatcher && (
+                  <div className="mt-4">
+                    <div className="mt-2 p-3">
+                      <div className="text-sm text-muted-foreground mb-2">
+                        Facturare: Încărcați factura sau marcați „Nu se facturează” și adăugați motivul.
+                      </div>
+                      <DocumentUpload
+                        lucrareId={lucrare.id!}
+                        lucrare={lucrare}
+                        onLucrareUpdate={setLucrare}
+                        hideOfertaUpload
+                      />
                     </div>
-
-                    <DocumentUpload
-                      lucrareId={lucrare.id!}
-                      lucrare={lucrare}
-                      onLucrareUpdate={setLucrare}
-                      hideOfertaUpload
-                    />
-
-              
                   </div>
-                </div>
+                )}
               </CardContent>
               <CardFooter className="flex justify-between">    
              
