@@ -4,6 +4,15 @@ import { jsPDF } from "jspdf"
 export const MARGIN = 7 // page margin (mm)
 export const CONTENT_WIDTH = 210 - 2 * MARGIN // A4 width minus margins
 
+function normalizeForPdf(text?: string): string {
+  if (!text) return ""
+  // Normalize to NFC and correct frequent Romanian cedilla/comma confusions
+  let t = text.normalize("NFC")
+  // Map s-cedilla/ t-cedilla to s-comma-below / t-comma-below
+  t = t.replace(/\u015F/g, "\u0219").replace(/\u0163/g, "\u021B")
+  return t
+}
+
 /**
  * Draws a simple header bar with company color and optional right-aligned logo.
  * Returns the new Y cursor after the header.
@@ -42,8 +51,16 @@ export function drawSimpleHeader(
 
   // Title text on left
   if (options.title) {
-    doc.setFont("helvetica", "bold").setFontSize(12).setTextColor(255, 255, 255)
-    doc.text(options.title, MARGIN + 4, currentY + 11)
+    // Folosim familia 'helvetica' aliasată către NotoSans în font-loader (diacritice OK)
+    try { doc.setFont("NotoSans", "bold") } catch {}
+    doc.setFontSize(13).setTextColor(255, 255, 255)
+    // Reducem spațierea între caractere dacă API-ul există (jsPDF >=2.5)
+    const anyDoc: any = doc as any
+    const restoreCharSpace = typeof anyDoc.getCharSpace === "function" ? anyDoc.getCharSpace() : undefined
+    try { if (typeof anyDoc.setCharSpace === "function") anyDoc.setCharSpace(-0.15) } catch {}
+    const title = normalizeForPdf(options.title)
+    doc.text(title, MARGIN + 4, currentY + 11)
+    try { if (typeof anyDoc.setCharSpace === "function" && restoreCharSpace !== undefined) anyDoc.setCharSpace(restoreCharSpace) } catch {}
   }
 
   currentY += titleBarHeight + 6 // add a small gap below header

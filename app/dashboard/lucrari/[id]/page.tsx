@@ -1551,11 +1551,11 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                             onClick={handleGenerateReport}
                             disabled={
                               (() => {
-                                // Verificăm dacă toate echipamentele sunt completate
+                                // Permitem finalizare PARȚIALĂ: necesar minim 1 echipament finalizat
                                 if (!Array.isArray(lucrare.equipmentIds)) return true
                                 const status = (lucrare.revision?.equipmentStatus || {}) as Record<string, string>
                                 const completed = lucrare.equipmentIds.filter((id) => status[id] === "done")
-                                return completed.length < lucrare.equipmentIds.length
+                                return completed.length === 0
                               })()
                             }
                             className="w-full h-14 text-base font-bold rounded-xl shadow-lg bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"

@@ -26,7 +26,12 @@ type RevisionDoc = {
   sections?: RevisionSection[]
 }
 
-const normalize = (text = "") => text
+// Helper pentru normalizare text cu diacritice corecte
+function normalizeTextForPdf(text = ""): string {
+  let s = text.normalize("NFC")
+  s = s.replace(/\u015F/g, "\u0219").replace(/\u0163/g, "\u021B")
+  return s
+}
 
 function checkPageBreak(doc: jsPDF, currentY: number, needed: number): number {
   const PH = doc.internal.pageSize.getHeight()
@@ -78,7 +83,7 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
       String(rev.id)
 
     currentY = drawSimpleHeader(doc, {
-      title: `Lista operațiuni – (${normalize(equipmentLabel)})`,
+      title: `Lista operațiuni – (${normalizeTextForPdf(equipmentLabel)})`,
       logoDataUrl,
     })
 
@@ -89,36 +94,47 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
     const nfnW = 26
     const obsW = W - firstColW - fnW - nfnW
 
-    // Header band
-    doc.setFillColor(220, 227, 240)
-    doc.rect(MARGIN, currentY, W, rowH, "F")
-    doc.setFont("helvetica", "bold").setFontSize(10).setTextColor(0, 0, 0)
-    doc.text("Punct de control", MARGIN + 2, currentY + 5)
-    doc.text("Funcțional", MARGIN + firstColW + fnW / 2, currentY + 5, { align: "center" } as any)
-    doc.text("Nefuncțional", MARGIN + firstColW + fnW + nfnW / 2, currentY + 5, { align: "center" } as any)
-    doc.text("Obs.", MARGIN + firstColW + fnW + nfnW + 2, currentY + 5)
-    currentY += rowH
+  // Header band
+  doc.setFillColor(220, 227, 240)
+  doc.rect(MARGIN, currentY, W, rowH, "F")
+  try { doc.setFont("NotoSans", "bold") } catch {}
+  doc.setFontSize(10).setTextColor(0, 0, 0)
+  
+  // Folosim helper pentru normalizare diacritice + reducere spațiere caractere
+  const anyDoc: any = doc as any
+  const restoreCharSpace = typeof anyDoc.getCharSpace === "function" ? anyDoc.getCharSpace() : undefined
+  try { if (typeof anyDoc.setCharSpace === "function") anyDoc.setCharSpace(-0.1) } catch {}
+  
+  doc.text(normalizeTextForPdf("Punct de control"), MARGIN + 2, currentY + 5)
+  doc.text(normalizeTextForPdf("Funcțional"), MARGIN + firstColW + fnW / 2, currentY + 5, { align: "center" } as any)
+  doc.text(normalizeTextForPdf("Nefuncțional"), MARGIN + firstColW + fnW + nfnW / 2, currentY + 5, { align: "center" } as any)
+  doc.text(normalizeTextForPdf("Obs."), MARGIN + firstColW + fnW + nfnW + 2, currentY + 5)
+  
+  try { if (typeof anyDoc.setCharSpace === "function" && restoreCharSpace !== undefined) anyDoc.setCharSpace(restoreCharSpace) } catch {}
+  currentY += rowH
 
     const sections = Array.isArray(rev.sections) ? rev.sections : []
 
     // Render sections and items
     for (const s of sections) {
       // Section row (category)
-      const sectionTitle = normalize(s.title || s.name || "Secțiune")
+      const sectionTitle = normalizeTextForPdf(s.title || s.name || "Secțiune")
       currentY = checkPageBreak(doc, currentY, rowH)
       doc.setFillColor(240, 240, 240)
       doc.rect(MARGIN, currentY, W, rowH, "F")
-      doc.setFont("helvetica", "bold").setFontSize(10).setTextColor(0, 0, 0)
+      try { doc.setFont("NotoSans", "bold") } catch {}
+      doc.setFontSize(10).setTextColor(0, 0, 0)
       doc.text(sectionTitle, MARGIN + 2, currentY + 5)
       currentY += rowH
 
       // Items
       const items = Array.isArray(s.items) ? s.items : []
-      doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(0, 0, 0)
+      try { doc.setFont("NotoSans", "normal") } catch {}
+      doc.setFontSize(9).setTextColor(0, 0, 0)
       for (const it of items) {
-        const label = normalize(it.label || it.name || "-")
+        const label = normalizeTextForPdf(it.label || it.name || "-")
         const state = (it.state || "na") as "functional" | "nefunctional" | "na"
-        const obs = normalize(it.obs || "")
+        const obs = normalizeTextForPdf(it.obs || "")
 
         const heightNeeded = 8
         currentY = checkPageBreak(doc, currentY, heightNeeded)
@@ -134,14 +150,14 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
         // Functional / Nefunctional check marks
         const fnX = MARGIN + firstColW
         const nfnX = MARGIN + firstColW + fnW
-        doc.setFont("helvetica", "bold")
+        try { doc.setFont("NotoSans", "bold") } catch {}
         const markFn = state === "functional" ? "X" : ""
         const markNf = state === "nefunctional" ? "X" : ""
         doc.text(markFn, fnX + fnW / 2, currentY + 5, { align: "center" } as any)
         doc.text(markNf, nfnX + nfnW / 2, currentY + 5, { align: "center" } as any)
 
         // Obs
-        doc.setFont("helvetica", "normal")
+        try { doc.setFont("NotoSans", "normal") } catch {}
         const obsText = obs ? doc.splitTextToSize(obs, obsW - 4) : []
         if (obsText.length) {
           doc.text(obsText, MARGIN + firstColW + fnW + nfnW + 2, currentY + 5)
@@ -201,7 +217,7 @@ export async function generateRevisionEquipmentPDF(
   const rev = { id: revSnap.id, ...(revSnap.data() as any) } as any
 
   // Header
-  const title = `Lista operațiuni – (${normalize(rev.equipmentName || equipmentId)})`
+  const title = `Lista operațiuni – (${normalizeTextForPdf(rev.equipmentName || equipmentId)})`
   let logoDataUrl: string | null = null
   try {
     const resp = await fetch("/nrglogo.png")
@@ -224,29 +240,40 @@ export async function generateRevisionEquipmentPDF(
 
   js.setFillColor(220, 227, 240)
   js.rect(MARGIN, currentY, W, rowH, "F")
-  js.setFont("helvetica", "bold").setFontSize(10).setTextColor(0, 0, 0)
-  js.text("Punct de control", MARGIN + 2, currentY + 5)
-  js.text("Funcțional", MARGIN + firstColW + fnW / 2, currentY + 5, { align: "center" } as any)
-  js.text("Nefuncțional", MARGIN + firstColW + fnW + nfnW / 2, currentY + 5, { align: "center" } as any)
-  js.text("Obs.", MARGIN + firstColW + fnW + nfnW + 2, currentY + 5)
+  try { js.setFont("NotoSans", "bold") } catch {}
+  js.setFontSize(10).setTextColor(0, 0, 0)
+  
+  // Folosim helper pentru normalizare diacritice + reducere spațiere caractere
+  const anyJs: any = js as any
+  const restoreCharSpace2 = typeof anyJs.getCharSpace === "function" ? anyJs.getCharSpace() : undefined
+  try { if (typeof anyJs.setCharSpace === "function") anyJs.setCharSpace(-0.1) } catch {}
+  
+  js.text(normalizeTextForPdf("Punct de control"), MARGIN + 2, currentY + 5)
+  js.text(normalizeTextForPdf("Funcțional"), MARGIN + firstColW + fnW / 2, currentY + 5, { align: "center" } as any)
+  js.text(normalizeTextForPdf("Nefuncțional"), MARGIN + firstColW + fnW + nfnW / 2, currentY + 5, { align: "center" } as any)
+  js.text(normalizeTextForPdf("Obs."), MARGIN + firstColW + fnW + nfnW + 2, currentY + 5)
+  
+  try { if (typeof anyJs.setCharSpace === "function" && restoreCharSpace2 !== undefined) anyJs.setCharSpace(restoreCharSpace2) } catch {}
   currentY += rowH
 
   const sections = Array.isArray(rev.sections) ? rev.sections : []
   for (const s of sections) {
-    const sectionTitle = normalize(s.title || s.name || "Secțiune")
+    const sectionTitle = normalizeTextForPdf(s.title || s.name || "Secțiune")
     currentY = checkPageBreak(js, currentY, rowH)
     js.setFillColor(240, 240, 240)
     js.rect(MARGIN, currentY, W, rowH, "F")
-    js.setFont("helvetica", "bold").setFontSize(10).setTextColor(0, 0, 0)
+    try { js.setFont("NotoSans", "bold") } catch {}
+    js.setFontSize(10).setTextColor(0, 0, 0)
     js.text(sectionTitle, MARGIN + 2, currentY + 5)
     currentY += rowH
 
     const items = Array.isArray(s.items) ? s.items : []
-    js.setFont("helvetica", "normal").setFontSize(9).setTextColor(0, 0, 0)
+    try { js.setFont("NotoSans", "normal") } catch {}
+    js.setFontSize(9).setTextColor(0, 0, 0)
     for (const it of items) {
-      const label = normalize(it.label || it.name || "-")
+      const label = normalizeTextForPdf(it.label || it.name || "-")
       const state = (it.state || "na") as "functional" | "nefunctional" | "na"
-      const obs = normalize(it.obs || "")
+      const obs = normalizeTextForPdf(it.obs || "")
 
       const heightNeeded = 8
       currentY = checkPageBreak(js, currentY, heightNeeded)
@@ -259,13 +286,13 @@ export async function generateRevisionEquipmentPDF(
 
       const fnX = MARGIN + firstColW
       const nfnX = MARGIN + firstColW + fnW
-      js.setFont("helvetica", "bold")
+      try { js.setFont("NotoSans", "bold") } catch {}
       const markFn = state === "functional" ? "X" : ""
       const markNf = state === "nefunctional" ? "X" : ""
       js.text(markFn, fnX + fnW / 2, currentY + 5, { align: "center" } as any)
       js.text(markNf, nfnX + nfnW / 2, currentY + 5, { align: "center" } as any)
 
-      js.setFont("helvetica", "normal")
+      try { js.setFont("NotoSans", "normal") } catch {}
       const obsText = obs ? js.splitTextToSize(obs, obsW - 4) : []
       if (obsText.length) {
         js.text(obsText, MARGIN + firstColW + fnW + nfnW + 2, currentY + 5)

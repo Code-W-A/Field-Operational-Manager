@@ -335,7 +335,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 
       // Helper: add new page if required
       const checkPageBreak = (needed: number) => {
-        if (currentY + needed > PH - M - 30) { // Lăsăm 30mm pentru footer (footer începe la PH-28)
+        if (currentY + needed > PH - M - 28) { // Lăsăm 28mm pentru footer (footer începe la PH-28)
           drawFooter() // Desenăm footer-ul pe pagina curentă înainte de a trece la următoarea
           doc.addPage()
           currentY = M
@@ -619,7 +619,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       doc.line(M, currentY + interventionBarHeight, M + W, currentY + interventionBarHeight)
 
       doc.setFontSize(10)
-        .setFont("NotoSans", "bold")
+        .setFont("helvetica", "bold")
         .setTextColor(sectionTitleColor[0], sectionTitleColor[1], sectionTitleColor[2])
         .text("Detalii despre interventie", M + 2, currentY + 4)
       
@@ -629,7 +629,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const addTextSection = (label: string, text?: string) => {
         if (!text?.trim()) return
         
-        doc.setFontSize(9).setFont("NotoSans", "bold").setTextColor(50, 50, 50)
+        doc.setFontSize(9).setFont("helvetica", "bold").setTextColor(50, 50, 50)
         doc.text(`${label}:`, M + 2, currentY + 4)
         
         const textLines = doc.splitTextToSize(normalize(text), W - 6)
@@ -638,7 +638,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 
         checkPageBreak(boxHeight + 5)
 
-        doc.setFont("NotoSans", "normal").setFontSize(9).setTextColor(30, 30, 30)
+        doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(30, 30, 30)
         textLines.forEach((l: string, li: number) => doc.text(l, M + 2, currentY + 4 + (li + 1) * lineHeight))
         
         currentY += boxHeight + 2 // Redus de la 3 la 2
@@ -679,7 +679,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         doc.line(M, currentY + productsBarHeight, M + W, currentY + productsBarHeight)
 
         doc.setFontSize(10)
-          .setFont("NotoSans", "bold")
+          .setFont("helvetica", "bold")
           .setTextColor(sectionTitleColor[0], sectionTitleColor[1], sectionTitleColor[2])
           .text("Servicii si piese", M + 2, currentY + 5)
         
@@ -698,7 +698,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         const drawTableHeader = () => {
           // Header coloane – text negru, fără fundal, aliniere ca în imagine
           doc.setTextColor(0, 0, 0)
-          doc.setFont("NotoSans", "bold").setFontSize(11)
+          doc.setFont("helvetica", "bold").setFontSize(11)
           
           headers.forEach((h, i) => {
             if (i === 0) {
@@ -888,7 +888,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       }
 
       // SEMNĂTURI - tehnician stânga, beneficiar dreapta distanțat
-      checkPageBreak(40)
+      // Folosim un prag mai mic pentru a evita trecerea prea devreme pe pagina următoare
+      checkPageBreak(32)
       
       currentY += 8 // Spațiu între atașamente și semnături
       
