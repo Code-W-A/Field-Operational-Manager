@@ -134,6 +134,144 @@ export function subscribeRevisionChecklist(
 }
 
 /**
+ * Subscribe to a specific checklist tree starting from a concrete Settings parent (rootId).
+ * This allows per‑equipment templates by pointing to a custom root category instead of the global target.
+ *
+ * Structure supported is identical cu subscribeRevisionChecklist:
+ * - Root (parentId = rootId)
+ * - Children can be either:
+ *   - variables (becoming items în secțiunea root)
+ *   - categories (children with variables) – fiecare categorie devine o secțiune separată
+ */
+export function subscribeRevisionChecklistFromRoot(
+  rootId: string,
+  callback: (checklist: RevisionChecklist) => void
+): () => void {
+  // Track nested subscriptions for each child of the provided root
+  const childUnsubs: Array<() => void> = []
+  // Sections map that we rebuild incrementally from subscriptions
+  const sectionsMap: Record<string, RevisionChecklistSection> = {}
+  // Keep current root variables (items that live directly under root)
+  let rootItems: Array<{ id: string; label: string }> = []
+  // Child order to keep deterministic rendering
+  let childOrder: string[] = []
+
+  const publish = (rootName: string) => {
+    const result: RevisionChecklistSection[] = []
+    // 1) Root section from variables directly under root
+    if (rootItems.length > 0) {
+      result.push({
+        id: `${rootId}__root`,
+        title: rootName,
+        items: rootItems,
+      })
+    }
+    // 2) Category sections in stored child order
+    for (const cId of childOrder) {
+      const sec = sectionsMap[cId]
+      if (sec && sec.items.length > 0) {
+        result.push(sec)
+      }
+    }
+    callback({
+      version: new Date().toISOString(),
+      sections: result,
+      states: ["Functional", "Nefunctional"],
+    })
+  }
+
+  // Subscribe to direct children of root
+  const unsubRoot = subscribeToSettings(rootId, (children) => {
+    // Reset previous child listeners
+    childUnsubs.forEach((u) => u && u())
+    childUnsubs.length = 0
+    // Reset accumulators
+    rootItems = []
+    childOrder = (children || [])
+      .slice()
+      .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
+      .map((c: any) => c.id)
+
+    // Determine root name (fallback la path/id dacă lipsește)
+    const rootName =
+      (children && children.length > 0 && children[0]?.parentName) ||
+      // Some UIs might not supply parentName; fallback to first child's parent inferred name or placeholder
+      "Puncte de control"
+
+    children.forEach((child: any) => {
+      const u = subscribeToSettings(child.id, (grandChildren) => {
+        const vars = (grandChildren || []).filter((gc: any) => gc.type === "variable")
+        if (vars.length > 0) {
+          // L1 category with direct variables → one section
+          sectionsMap[child.id] = {
+            id: child.id,
+            title: child.name,
+            items: vars.map((gc: any) => ({ id: gc.id, label: gc.name })),
+          }
+          publish(rootName)
+          return
+        }
+
+        // No direct variables; look one level deeper (child → subcategory → variables)
+        // Clear any stale section for current child
+        sectionsMap[child.id] && delete sectionsMap[child.id]
+
+        // If child itself is a variable → treat as root item
+        if (child.type === "variable") {
+          if (!rootItems.find((ri) => ri.id === child.id)) {
+            rootItems.push({ id: child.id, label: child.name })
+          }
+          publish(rootName)
+          return
+        }
+
+        // Track subcategory subscriptions for this child
+        // We will aggregate subcategory sections under their own IDs
+        // and keep their order according to grandChildren order.
+        const subOrders = (grandChildren || [])
+          .slice()
+          .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
+          .map((gc: any) => gc.id)
+
+        // For each grandChild (potential subcategory), subscribe and build section if it has variables
+        subOrders.forEach((gcId) => {
+          const gc = (grandChildren || []).find((x: any) => x.id === gcId)
+          if (!gc) return
+          const u2 = subscribeToSettings(gc.id, (greatGrandChildren) => {
+            const subVars = (greatGrandChildren || []).filter((gg: any) => gg.type === "variable")
+            if (subVars.length > 0) {
+              // Create/update section for subcategory
+              sectionsMap[gc.id] = {
+                id: gc.id,
+                title: gc.name || gc.path || gc.id,
+                items: subVars.map((gg: any) => ({ id: gg.id, label: gg.name })),
+              }
+            } else {
+              // No variables under subcategory → remove stale section
+              sectionsMap[gc.id] && delete sectionsMap[gc.id]
+            }
+            publish(rootName)
+          })
+          childUnsubs.push(u2)
+        })
+
+        publish(rootName)
+      })
+      childUnsubs.push(u)
+    })
+
+    publish(rootName)
+  })
+
+  return () => {
+    try {
+      unsubRoot?.()
+    } catch {}
+    childUnsubs.forEach((u) => u && u())
+  }
+}
+
+/**
  * Convenience: get checklist once. Useful at work creation to snapshot version id.
  */
 export function getRevisionChecklistOnce(): Promise<RevisionChecklist> {

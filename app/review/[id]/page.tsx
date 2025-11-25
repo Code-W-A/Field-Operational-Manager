@@ -26,6 +26,7 @@ export default function ReviewPage() {
   const [rating, setRating] = useState<number | null>(preselect)
   const [review, setReview] = useState("")
   const [done, setDone] = useState(false)
+  const [workNumber, setWorkNumber] = useState<string>("")
 
   useEffect(() => {
     let mounted = true
@@ -37,6 +38,9 @@ export default function ReviewPage() {
         setClient(w.client || "Client")
         setLocation(w.locatie || "Locație")
         setTechs(Array.isArray(w.tehnicieni) ? w.tehnicieni.join(", ") : (w.tehnicieni || ""))
+        // Preferăm nrLucrare; cădere pe numarRaport; ultim fallback ID
+        const nr = String(w.nrLucrare || w.numarRaport || "")
+        setWorkNumber(nr || String(id))
         if (typeof w.clientRating === 'number' && w.clientRating >= 1 && w.clientRating <= 5) {
           setRating(w.clientRating)
         }
@@ -79,7 +83,7 @@ export default function ReviewPage() {
             <CardTitle>Mulțumim pentru feedback!</CardTitle>
           </CardHeader>
           <CardContent>
-            <p>Feedback-ul a fost înregistrat pentru lucrarea {String(id)}.</p>
+            <p>Feedback-ul a fost înregistrat pentru lucrarea {workNumber || String(id)}.</p>
           </CardContent>
           <CardFooter>
             <Button onClick={() => router.push("/")}>Închide</Button>

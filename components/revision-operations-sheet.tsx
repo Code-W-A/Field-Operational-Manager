@@ -32,13 +32,14 @@ type Props = {
   workId: string
   equipmentId: string
   equipmentName?: string
+  checklistRootId?: string
   onUnsavedChanges?: (hasChanges: boolean) => void
   onSaveDraftRef?: (saveFn: () => Promise<boolean>) => void
 }
 
 type ItemState = "functional" | "nefunctional"
 
-export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, onUnsavedChanges, onSaveDraftRef }: Props) {
+export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, checklistRootId, onUnsavedChanges, onSaveDraftRef }: Props) {
   const { userData } = useAuth()
   const { toast } = useToast()
   const router = useRouter()
@@ -73,8 +74,17 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, on
     let checklistUnsub: (() => void) | null = null
     let revisionUnsub: (() => void) | null = null
     
-    // Subscribe to checklist changes
-    checklistUnsub = subscribeRevisionChecklist((checklist) => {
+    // Subscribe to checklist changes (global or per‑equipment custom root)
+    const subscribeChecklist = (cb: (c: RevisionChecklist) => void) => {
+      if (checklistRootId) {
+        // Per‑equipment selected template
+        const { subscribeRevisionChecklistFromRoot } = require("@/lib/revisions/checklist")
+        return subscribeRevisionChecklistFromRoot(checklistRootId, cb)
+      }
+      return subscribeRevisionChecklist(cb)
+    }
+
+    checklistUnsub = subscribeChecklist((checklist) => {
       // Subscribe to revision doc changes
       revisionUnsub = subscribeRevisionDoc(workId, equipmentId, (existing) => {
         try {
@@ -130,7 +140,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, on
       checklistUnsub?.()
       revisionUnsub?.()
     }
-  }, [workId, equipmentId])
+  }, [workId, equipmentId, checklistRootId])
 
   // Resolve expected QR metadata (client, location, equipment code) for gating
   useEffect(() => {

@@ -531,6 +531,34 @@ export function subscribeToSettingsByTarget(
   })
 }
 
+/**
+ * List settings that are eligible as revision checklist templates.
+ * These are the parents that have assignedTargets including "revisions.checklist.sections".
+ */
+export async function listRevisionChecklistTemplates(): Promise<Setting[]> {
+  const q = query(
+    collection(db, "settings"),
+    where("assignedTargets", "array-contains", "revisions.checklist.sections")
+  )
+  const snapshot = await getDocs(q)
+  const settings = snapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  })) as Setting[]
+  // Try to keep a stable order if the documents have "order"
+  return settings.sort((a, b) => (a.order || 0) - (b.order || 0))
+}
+
+export function subscribeRevisionChecklistTemplates(
+  callback: (settings: Setting[]) => void
+): () => void {
+  return subscribeToSettingsByTarget("revisions.checklist.sections", (settings) => {
+    // Keep a stable order client-side
+    const ordered = settings.slice().sort((a, b) => (a.order || 0) - (b.order || 0))
+    callback(ordered)
+  })
+}
+
 // Search settings
 export async function searchSettings(searchTerm: string): Promise<Setting[]> {
   // Note: Firestore doesn't support full-text search natively

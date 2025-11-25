@@ -51,16 +51,11 @@ export function drawSimpleHeader(
 
   // Title text on left
   if (options.title) {
-    // Folosim familia 'helvetica' aliasată către NotoSans în font-loader (diacritice OK)
-    try { doc.setFont("NotoSans", "bold") } catch {}
+    // Folosim familia 'helvetica' pentru text (diacritice OK)
+    try { doc.setFont("helvetica", "bold") } catch {}
     doc.setFontSize(13).setTextColor(255, 255, 255)
-    // Reducem spațierea între caractere dacă API-ul există (jsPDF >=2.5)
-    const anyDoc: any = doc as any
-    const restoreCharSpace = typeof anyDoc.getCharSpace === "function" ? anyDoc.getCharSpace() : undefined
-    try { if (typeof anyDoc.setCharSpace === "function") anyDoc.setCharSpace(-0.15) } catch {}
     const title = normalizeForPdf(options.title)
     doc.text(title, MARGIN + 4, currentY + 11)
-    try { if (typeof anyDoc.setCharSpace === "function" && restoreCharSpace !== undefined) anyDoc.setCharSpace(restoreCharSpace) } catch {}
   }
 
   currentY += titleBarHeight + 6 // add a small gap below header
@@ -72,48 +67,33 @@ export function drawSimpleHeader(
  */
 export function drawFooter(doc: jsPDF): void {
   const PH = doc.internal.pageSize.getHeight()
-  const footerSepY = PH - 28
+  const footerSepY = PH - 25
 
-  // Footer separator
-  doc.setDrawColor(0, 0, 0).setLineWidth(0.3)
+  // Footer separator neagru
+  doc.setDrawColor(0, 0, 0).setLineWidth(0.5)
   doc.line(MARGIN, footerSepY, MARGIN + CONTENT_WIDTH, footerSepY)
 
-  let footerY = footerSepY + 5
-  doc.setFont("helvetica", "normal").setFontSize(8).setTextColor(0, 0, 0)
+  let footerY = footerSepY + 4
+  // Culoare albastru intens cu nuanță de violet: RGB(30, 70, 180)
+  doc.setFont("helvetica", "normal").setFontSize(7.5).setTextColor(30, 70, 180)
 
-  const footerColW = CONTENT_WIDTH / 3 - 4
+  const footerColW = CONTENT_WIDTH / 3
   const footerColX = [MARGIN, MARGIN + CONTENT_WIDTH / 3, MARGIN + (2 * CONTENT_WIDTH) / 3]
 
-  const footerLeft = [
-    "NRG Access Systems SRL",
-    "Rezervelor Nr 70, Chiajna, Ilfov",
-    "Nr. Reg. Com. J23/991/2015",
-    "C.I.F. RO3472913",
-  ]
-  const footerMid = [
-    "Telefon: +40 371 494 499",
-    "E-mail: office@nrg-acces.ro",
-    "Website: www.nrg-acces.ro",
-  ]
-  const footerRight = [
-    "IBAN RO79BTRL0000000000000000", // placeholder to match style
-    "Banca Transilvania Sucursala Aviatiei",
-  ]
+  // Coloana stânga - informații companie
+  doc.text("NRG Access Systems SRL", footerColX[0], footerY)
+  doc.text("Rezervelor Nr 70, Chiajna, Ilfov", footerColX[0], footerY + 3.5)
+  doc.text("Nr. Reg. Com. J23/991/2015", footerColX[0], footerY + 7)
+  doc.text("C.I.F. RO34272913", footerColX[0], footerY + 10.5)
 
-  const renderFooterColumn = (items: string[], x: number) => {
-    let yy = footerY
-    for (const t of items) {
-      const lines = doc.splitTextToSize(t, footerColW)
-      lines.forEach((ln: string, idx: number) => {
-        doc.text(ln, x + 2, yy + idx * 4.2)
-      })
-      yy += lines.length * 4.2 + 2
-    }
-  }
+  // Coloana mijloc - contact
+  doc.text("Telefon: +40 371 494 499", footerColX[1], footerY)
+  doc.text("E-mail: office@nrg-acces.ro", footerColX[1], footerY + 3.5)
+  doc.text("Website: www.nrg-acces.ro", footerColX[1], footerY + 7)
 
-  renderFooterColumn(footerLeft, footerColX[0])
-  renderFooterColumn(footerMid, footerColX[1])
-  renderFooterColumn(footerRight, footerColX[2])
+  // Coloana dreapta - banking
+  doc.text("IBAN: RO79BTRL00000000000000", footerColX[2], footerY)
+  doc.text("Banca Transilvania Sucursala Aviatiei", footerColX[2], footerY + 3.5)
 }
 
 

@@ -97,20 +97,14 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
   // Header band
   doc.setFillColor(220, 227, 240)
   doc.rect(MARGIN, currentY, W, rowH, "F")
-  try { doc.setFont("NotoSans", "bold") } catch {}
+  try { doc.setFont("helvetica", "bold") } catch {}
   doc.setFontSize(10).setTextColor(0, 0, 0)
-  
-  // Folosim helper pentru normalizare diacritice + reducere spațiere caractere
-  const anyDoc: any = doc as any
-  const restoreCharSpace = typeof anyDoc.getCharSpace === "function" ? anyDoc.getCharSpace() : undefined
-  try { if (typeof anyDoc.setCharSpace === "function") anyDoc.setCharSpace(-0.1) } catch {}
   
   doc.text(normalizeTextForPdf("Punct de control"), MARGIN + 2, currentY + 5)
   doc.text(normalizeTextForPdf("Funcțional"), MARGIN + firstColW + fnW / 2, currentY + 5, { align: "center" } as any)
   doc.text(normalizeTextForPdf("Nefuncțional"), MARGIN + firstColW + fnW + nfnW / 2, currentY + 5, { align: "center" } as any)
   doc.text(normalizeTextForPdf("Obs."), MARGIN + firstColW + fnW + nfnW + 2, currentY + 5)
   
-  try { if (typeof anyDoc.setCharSpace === "function" && restoreCharSpace !== undefined) anyDoc.setCharSpace(restoreCharSpace) } catch {}
   currentY += rowH
 
     const sections = Array.isArray(rev.sections) ? rev.sections : []
@@ -122,14 +116,14 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
       currentY = checkPageBreak(doc, currentY, rowH)
       doc.setFillColor(240, 240, 240)
       doc.rect(MARGIN, currentY, W, rowH, "F")
-      try { doc.setFont("NotoSans", "bold") } catch {}
+      try { doc.setFont("helvetica", "bold") } catch {}
       doc.setFontSize(10).setTextColor(0, 0, 0)
       doc.text(sectionTitle, MARGIN + 2, currentY + 5)
       currentY += rowH
 
       // Items
       const items = Array.isArray(s.items) ? s.items : []
-      try { doc.setFont("NotoSans", "normal") } catch {}
+      try { doc.setFont("helvetica", "normal") } catch {}
       doc.setFontSize(9).setTextColor(0, 0, 0)
       for (const it of items) {
         const label = normalizeTextForPdf(it.label || it.name || "-")
@@ -150,14 +144,14 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
         // Functional / Nefunctional check marks
         const fnX = MARGIN + firstColW
         const nfnX = MARGIN + firstColW + fnW
-        try { doc.setFont("NotoSans", "bold") } catch {}
+        try { doc.setFont("helvetica", "bold") } catch {}
         const markFn = state === "functional" ? "X" : ""
         const markNf = state === "nefunctional" ? "X" : ""
         doc.text(markFn, fnX + fnW / 2, currentY + 5, { align: "center" } as any)
         doc.text(markNf, nfnX + nfnW / 2, currentY + 5, { align: "center" } as any)
 
         // Obs
-        try { doc.setFont("NotoSans", "normal") } catch {}
+        try { doc.setFont("helvetica", "normal") } catch {}
         const obsText = obs ? doc.splitTextToSize(obs, obsW - 4) : []
         if (obsText.length) {
           doc.text(obsText, MARGIN + firstColW + fnW + nfnW + 2, currentY + 5)
@@ -208,9 +202,9 @@ export async function generateRevisionEquipmentPDF(
         fr.readAsDataURL(bl)
       })
     } catch {}
-    currentY = drawSimpleHeader(js, { title: "Lista operațiuni – (necunoscut)", logoDataUrl: emptyLogo })
+    currentY = drawSimpleHeader(js, { title: "Lista operatiuni – (necunoscut)", logoDataUrl: emptyLogo })
     js.setFont("helvetica", "normal").setFontSize(10)
-    js.text("Fișa de operațiuni nu a fost găsită pentru acest echipament.", MARGIN + 2, currentY + 4)
+    js.text("Fișa de operatiuni nu a fost găsită pentru acest echipament.", MARGIN + 2, currentY + 4)
     drawFooter(js)
     return js.output("blob")
   }
@@ -240,20 +234,14 @@ export async function generateRevisionEquipmentPDF(
 
   js.setFillColor(220, 227, 240)
   js.rect(MARGIN, currentY, W, rowH, "F")
-  try { js.setFont("NotoSans", "bold") } catch {}
+  try { js.setFont("helvetica", "bold") } catch {}
   js.setFontSize(10).setTextColor(0, 0, 0)
   
-  // Folosim helper pentru normalizare diacritice + reducere spațiere caractere
-  const anyJs: any = js as any
-  const restoreCharSpace2 = typeof anyJs.getCharSpace === "function" ? anyJs.getCharSpace() : undefined
-  try { if (typeof anyJs.setCharSpace === "function") anyJs.setCharSpace(-0.1) } catch {}
-  
   js.text(normalizeTextForPdf("Punct de control"), MARGIN + 2, currentY + 5)
-  js.text(normalizeTextForPdf("Funcțional"), MARGIN + firstColW + fnW / 2, currentY + 5, { align: "center" } as any)
-  js.text(normalizeTextForPdf("Nefuncțional"), MARGIN + firstColW + fnW + nfnW / 2, currentY + 5, { align: "center" } as any)
+  js.text(normalizeTextForPdf("Functional"), MARGIN + firstColW + fnW / 2, currentY + 5, { align: "center" } as any)
+  js.text(normalizeTextForPdf("Nefunctional"), MARGIN + firstColW + fnW + nfnW / 2, currentY + 5, { align: "center" } as any)
   js.text(normalizeTextForPdf("Obs."), MARGIN + firstColW + fnW + nfnW + 2, currentY + 5)
   
-  try { if (typeof anyJs.setCharSpace === "function" && restoreCharSpace2 !== undefined) anyJs.setCharSpace(restoreCharSpace2) } catch {}
   currentY += rowH
 
   const sections = Array.isArray(rev.sections) ? rev.sections : []
@@ -262,13 +250,13 @@ export async function generateRevisionEquipmentPDF(
     currentY = checkPageBreak(js, currentY, rowH)
     js.setFillColor(240, 240, 240)
     js.rect(MARGIN, currentY, W, rowH, "F")
-    try { js.setFont("NotoSans", "bold") } catch {}
+    try { js.setFont("helvetica", "bold") } catch {}
     js.setFontSize(10).setTextColor(0, 0, 0)
     js.text(sectionTitle, MARGIN + 2, currentY + 5)
     currentY += rowH
 
     const items = Array.isArray(s.items) ? s.items : []
-    try { js.setFont("NotoSans", "normal") } catch {}
+    try { js.setFont("helvetica", "normal") } catch {}
     js.setFontSize(9).setTextColor(0, 0, 0)
     for (const it of items) {
       const label = normalizeTextForPdf(it.label || it.name || "-")
@@ -286,13 +274,13 @@ export async function generateRevisionEquipmentPDF(
 
       const fnX = MARGIN + firstColW
       const nfnX = MARGIN + firstColW + fnW
-      try { js.setFont("NotoSans", "bold") } catch {}
+      try { js.setFont("helvetica", "bold") } catch {}
       const markFn = state === "functional" ? "X" : ""
       const markNf = state === "nefunctional" ? "X" : ""
       js.text(markFn, fnX + fnW / 2, currentY + 5, { align: "center" } as any)
       js.text(markNf, nfnX + nfnW / 2, currentY + 5, { align: "center" } as any)
 
-      try { js.setFont("NotoSans", "normal") } catch {}
+      try { js.setFont("helvetica", "normal") } catch {}
       const obsText = obs ? js.splitTextToSize(obs, obsW - 4) : []
       if (obsText.length) {
         js.text(obsText, MARGIN + firstColW + fnW + nfnW + 2, currentY + 5)

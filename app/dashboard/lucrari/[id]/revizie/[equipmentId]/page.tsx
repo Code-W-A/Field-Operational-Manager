@@ -30,8 +30,9 @@ export default function RevisionEquipmentPage() {
   const saveDraftRef = useRef<(() => Promise<boolean>) | null>(null)
   const [equipmentName, setEquipmentName] = useState<string>("")
   const [loading, setLoading] = useState(true)
+  const [checklistRootId, setChecklistRootId] = useState<string | undefined>(undefined)
 
-  // Fetch equipment name from work order and client data
+  // Fetch equipment name and per‑equipment checklist template from work order and client data
   useEffect(() => {
     const fetchEquipmentName = async () => {
       try {
@@ -46,6 +47,10 @@ export default function RevisionEquipmentPage() {
           const revMatch = byId || byCode
           if (revMatch?.equipmentName) {
             setEquipmentName(revMatch.equipmentName)
+            // Per‑equipment template selection (saved alongside the mapped equipment in work.revision.equipment)
+            if (revMatch?.revisionChecklistTemplateId) {
+              setChecklistRootId(String(revMatch.revisionChecklistTemplateId))
+            }
             return
           }
 
@@ -62,6 +67,25 @@ export default function RevisionEquipmentPage() {
           const eq = eqById || eqByCode
           const name = eq?.denumire || eq?.nume || eq?.name
           if (name) setEquipmentName(name)
+          // Per‑equipment template selection saved on equipment object
+          if (eq?.revisionChecklistTemplateId) {
+            setChecklistRootId(String(eq.revisionChecklistTemplateId))
+          } else if (eq?.revisionChecklistTemplate?.id) {
+            // legacy/alternate shape
+            setChecklistRootId(String(eq.revisionChecklistTemplate.id))
+          } else if (eq?.dynamicSettings?.["revision.checklistParentId"]) {
+            // Highest priority: explicit selected category/section
+            const useForSheet = eq?.dynamicSettings?.["revision.useChecklistForSheet"]
+            if (useForSheet === undefined || !!useForSheet) {
+              setChecklistRootId(String(eq.dynamicSettings["revision.checklistParentId"]))
+            }
+          } else if (eq?.dynamicSettings?.["revision.checklistTemplateId"]) {
+            // stored in dynamicSettings
+            const useForSheet = eq?.dynamicSettings?.["revision.useChecklistForSheet"]
+            if (useForSheet === undefined || !!useForSheet) {
+              setChecklistRootId(String(eq.dynamicSettings["revision.checklistTemplateId"]))
+            }
+          }
         }
       } catch (error) {
         console.error("Error fetching equipment name:", error)
@@ -165,6 +189,7 @@ export default function RevisionEquipmentPage() {
           workId={workId} 
           equipmentId={equipmentId}
           equipmentName={equipmentName}
+          checklistRootId={checklistRootId}
           onUnsavedChanges={(hasChanges) => {
             hasUnsavedChangesRef.current = hasChanges
           }}

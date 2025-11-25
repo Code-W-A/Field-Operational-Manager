@@ -137,10 +137,10 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         // Pentru rapoartele vechi finalizate, NU generăm niciun număr
         numarRaport = undefined // Forțăm să fie undefined pentru a nu afișa în PDF
         console.log("🏛️ Raport vechi finalizat - NU se afișează număr de raport")
-      } else if (isFirstGeneration && !numarRaport) {
-        // Doar pentru lucrări noi la prima generare generăm număr
+      } else if ((isFirstGeneration || !numarRaport) && !numarRaport) {
+        // Generăm număr la prima generare SAU când lipsește (pentru a corecta lucrări vechi fără număr)
         console.log("🔢 CONDIȚII ÎNDEPLINITE pentru generarea numărului:")
-        console.log("   - isFirstGeneration:", isFirstGeneration)
+        console.log("   - isFirstGeneration:", isFirstGeneration, "sau lipsește numărul existent")
         console.log("   - !numarRaport:", !numarRaport)
         console.log("🔢 Generez număr raport din sistemul centralizat...")
         
@@ -430,9 +430,6 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const chronoBarHeight = 5
       doc.setFillColor(sectionBarBg[0], sectionBarBg[1], sectionBarBg[2])
       doc.rect(M, currentY, W, chronoBarHeight, "F")
-      // Linie de delimitare neagră, bine definită, la baza barei
-      doc.setDrawColor(0, 0, 0).setLineWidth(0.4)
-      doc.line(M, currentY + chronoBarHeight, M + W, currentY + chronoBarHeight)
 
       doc.setFontSize(10)
         .setFont("helvetica", "bold")
@@ -539,7 +536,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       
       // Valori
       doc.setFontSize(9)
-        .setFont("NotoSans", "normal")
+        .setFont("helvetica", "normal")
         .setTextColor(30, 30, 30)
       
       doc.text(normalize(emitereData || "-"), M + chronoColW * 0 + 2, currentY + 9)
@@ -576,9 +573,6 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const detailsBarHeight = 5
       doc.setFillColor(sectionBarBg[0], sectionBarBg[1], sectionBarBg[2])
       doc.rect(M, currentY, W, detailsBarHeight, "F")
-      // Linie de delimitare neagră la baza secțiunii
-      doc.setDrawColor(0, 0, 0).setLineWidth(0.4)
-      doc.line(M, currentY + detailsBarHeight, M + W, currentY + detailsBarHeight)
 
       doc.setFontSize(10)
         .setFont("helvetica", "bold")
@@ -614,9 +608,6 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const interventionBarHeight = 5
       doc.setFillColor(sectionBarBg[0], sectionBarBg[1], sectionBarBg[2])
       doc.rect(M, currentY, W, interventionBarHeight, "F")
-      // Linie de delimitare neagră la baza secțiunii
-      doc.setDrawColor(0, 0, 0).setLineWidth(0.4)
-      doc.line(M, currentY + interventionBarHeight, M + W, currentY + interventionBarHeight)
 
       doc.setFontSize(10)
         .setFont("helvetica", "bold")
@@ -1050,12 +1041,16 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
             console.log("🏛️ RAPORT VECHI FINALIZAT - Nu salvez nimic în baza de date")
             console.log("📋 Folosesc doar datele existente pentru PDF fără a modifica starea lucrării")
           } else {
-            console.log("🔄 REGENERARE - Actualizez doar timestamp-ul")
-            await updateDoc(doc(db, "lucrari", lucrare.id), {
-              updatedAt: serverTimestamp(),
-            })
+            console.log("🔄 REGENERARE - Actualizez timestamp-ul și atribui număr dacă lipsea")
+            const payload: any = { updatedAt: serverTimestamp() }
+            if (!lucrare.numarRaport && numarRaport) {
+              payload.numarRaport = numarRaport
+              payload.nrLucrare = String(numarRaport)
+              console.log("✅ Atribui numarRaport/nrLucrare la regenerare:", numarRaport)
+            }
+            await updateDoc(doc(db, "lucrari", lucrare.id), payload)
             // LOG DEBUG – confirmare regenerare
-            console.log("🔍 Firestore UPDATE (regenerare) – doar updatedAt")
+            console.log("🔍 Firestore UPDATE (regenerare) – payload:", payload)
             console.log("✅ SUCCES - Regenerare confirmată în Firestore")
           }
         } catch (e) {

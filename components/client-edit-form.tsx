@@ -42,6 +42,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
+import { subscribeRevisionChecklistTemplates, subscribeToSettings } from "@/lib/firebase/settings"
 
 interface ClientEditFormProps {
   client: Client
@@ -164,6 +167,28 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
 
     setEchipamentFormModified(hasChanged && hasContent)
   }, [echipamentFormData, initialEchipamentState])
+  
+  // Capture child selection from TemplateSelector (first-level under template)
+  useEffect(() => {
+    const handler = (e: any) => {
+      const detail = e?.detail || {}
+      const parentId = String(detail.parentId || "")
+      const parentName = String(detail.parentName || "")
+      if (!parentId) return
+      setEchipamentFormData((prev: any) => ({
+        ...prev,
+        dynamicSettings: {
+          ...(prev?.dynamicSettings || {}),
+          "revision.checklistParentId": parentId,
+          "revision.checklistParentName": parentName,
+        },
+      }))
+    }
+    try { window.addEventListener("revision-template-child-change", handler as any) } catch {}
+    return () => {
+      try { window.removeEventListener("revision-template-child-change", handler as any) } catch {}
+    }
+  }, [])
 
   // Reset form modified state after successful submission
   useEffect(() => {
@@ -239,16 +264,6 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
     field: keyof PersoanaContact,
     value: string,
   ) => {
-    // Verificăm dacă se încearcă să se introducă telefonul principal la o persoană de contact
-    if (field === "telefon" && value.trim() && formData.telefon.trim() && value.trim() === formData.telefon.trim()) {
-      toast({
-        title: "Telefon duplicat",
-        description: "Acest număr de telefon este deja folosit ca telefon principal al clientului.",
-        variant: "destructive",
-      })
-      return
-    }
-
     const updatedLocatii = [...locatii]
     updatedLocatii[locatieIndex].persoaneContact[contactIndex] = {
       ...updatedLocatii[locatieIndex].persoaneContact[contactIndex],
@@ -1328,6 +1343,28 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
                 }
               />
             </div>
+
+            {/* Check-list revizie per echipament */}
+            <div className="pt-2">
+              <div className="space-y-2 rounded-md border p-3">
+                <label className="text-sm font-medium">Checklist revizie (șablon din Setări)</label>
+                <TemplateSelector
+                  valueId={(echipamentFormData as any)?.dynamicSettings?.["revision.checklistTemplateId"] || ""}
+                  useForSheet={!!(echipamentFormData as any)?.dynamicSettings?.["revision.useChecklistForSheet"]}
+                  onChange={(payload) => {
+                    setEchipamentFormData((prev: any) => ({
+                      ...prev,
+                      dynamicSettings: {
+                        ...(prev?.dynamicSettings || {}),
+                        "revision.checklistTemplateId": payload.templateId,
+                        "revision.checklistTemplateName": payload.templateName,
+                        "revision.useChecklistForSheet": payload.useForSheet,
+                      },
+                    }))
+                  }}
+                />
+              </div>
+            </div>
           </div>
 
           <DialogFooter className="pt-2 flex-col gap-2 sm:flex-row">
@@ -1417,3 +1454,142 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
 
 // Make sure to export the component
 export { ClientEditForm }
+
+// Subcomponent for template selection used in the equipment dialog
+function TemplateSelector({
+  valueId,
+  useForSheet,
+  onChange,
+}: {
+  valueId: string
+  useForSheet: boolean
+  onChange: (payload: { templateId: string; templateName: string; useForSheet: boolean }) => void
+}) {
+  const [templates, setTemplates] = useState<Array<{ id: string; name: string }>>([])
+  const [selectedId, setSelectedId] = useState<string>(valueId || "")
+  const [useFlag, setUseFlag] = useState<boolean>(useForSheet ?? true)
+  const [childOpts, setChildOpts] = useState<Array<{ id: string; name: string }>>([])
+  const [selectedChild, setSelectedChild] = useState<string>("")
+
+  useEffect(() => {
+    const unsub = subscribeRevisionChecklistTemplates((settings: any[]) => {
+      const opts = (settings || []).map((s: any) => ({ id: s.id, name: s.name || s.path || s.id }))
+      setTemplates(opts)
+      // Keep display name in sync if current selection is present
+      const sel = opts.find((o) => o.id === (valueId || selectedId))
+      if (sel) {
+        onChange({ templateId: sel.id, templateName: sel.name, useForSheet: useFlag })
+      }
+    })
+    return () => {
+      try { unsub?.() } catch {}
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    setSelectedId(valueId || "")
+  }, [valueId])
+
+  // Load first-level children for the currently selected template
+  useEffect(() => {
+    if (!selectedId) {
+      setChildOpts([])
+      setSelectedChild("")
+      return
+    }
+    const unsub = subscribeToSettings(selectedId, (children: any[]) => {
+      const opts = (children || [])
+        .slice()
+        .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
+        .map((c: any) => ({ id: c.id, name: c.name || c.path || c.id }))
+      setChildOpts(opts)
+      if (selectedChild && !opts.find((o) => o.id === selectedChild)) {
+        setSelectedChild("")
+      }
+    })
+    return () => {
+      try { (unsub as any)?.() } catch {}
+    }
+  }, [selectedId, selectedChild])
+
+  return (
+    <div className="grid gap-2">
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className="text-sm font-medium">Șablon checklist</label>
+          <Select
+            value={selectedId}
+            onValueChange={(id) => {
+              setSelectedId(id)
+              const name = templates.find((t) => t.id === id)?.name || ""
+              onChange({ templateId: id, templateName: name, useForSheet: useFlag })
+              setSelectedChild("")
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selectați șablonul" />
+            </SelectTrigger>
+            <SelectContent>
+              {templates.map((t) => (
+                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-end">
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={useFlag}
+              onCheckedChange={(v) => {
+                const b = !!v
+                setUseFlag(b)
+                onChange({
+                  templateId: selectedId,
+                  templateName: templates.find((t) => t.id === selectedId)?.name || "",
+                  useForSheet: b,
+                })
+              }}
+            />
+            Folosește pentru fișa de operațiuni
+          </label>
+        </div>
+      </div>
+      {/* First-level category under selected template */}
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className="text-sm font-medium">Secțiune (nivel 1 din șablon)</label>
+          <Select
+            value={selectedChild}
+            onValueChange={(id) => {
+              setSelectedChild(id)
+              // fire an app-level event so the parent can store it in dynamic settings alongside template
+              try {
+                const name = childOpts.find((o) => o.id === id)?.name || ""
+                window.dispatchEvent(new CustomEvent("revision-template-child-change", {
+                  detail: { parentId: id, parentName: name },
+                } as any))
+              } catch {}
+            }}
+            disabled={!selectedId || childOpts.length === 0}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder={selectedId ? "Selectați secțiunea" : "Alegeți întâi șablonul"} />
+            </SelectTrigger>
+            <SelectContent>
+              {childOpts.map((t) => (
+                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            În funcție de selecție, fișa va porni din această secțiune.
+          </p>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Lista este generată din Setări → țintele marcate cu “revisions.checklist.sections”.
+      </p>
+    </div>
+  )
+}
