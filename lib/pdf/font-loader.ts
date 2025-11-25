@@ -21,16 +21,44 @@ async function loadFontCache(): Promise<void> {
   if (fontCache) return
   
   try {
-    console.log("📥 Încărcare font Noto Sans pentru diacritice românești...")
-    // Use latin-ext subset to include Romanian diacritics (ă â î ș ț)
-    const regularUrl =
-      "https://cdn.jsdelivr.net/npm/@fontsource/noto-sans/files/noto-sans-latin-ext-400-normal.ttf"
-    const boldUrl =
-      "https://cdn.jsdelivr.net/npm/@fontsource/noto-sans/files/noto-sans-latin-ext-700-normal.ttf"
+    console.log("📥 Încărcare font pentru diacritice românești...")
+    // 1) Încearcă local public/fonts (recomandat)
+    const localPairs: Array<[string, string]> = [
+      ["/fonts/NotoSans-Regular.ttf", "/fonts/NotoSans-Bold.ttf"],
+      ["/fonts/Roboto-Regular.ttf", "/fonts/Roboto-Bold.ttf"],
+      ["/fonts/DejaVuSans.ttf", "/fonts/DejaVuSans-Bold.ttf"],
+    ]
+    // 2) Fallback surse fiabile (GitHub raw - CORS permis) pentru TTF
+    const remotePairs: Array<[string, string]> = [
+      ["https://raw.githubusercontent.com/google/fonts/main/ofl/notosans/NotoSans-Regular.ttf", "https://raw.githubusercontent.com/google/fonts/main/ofl/notosans/NotoSans-Bold.ttf"],
+      ["https://raw.githubusercontent.com/google/fonts/main/apache/roboto/Roboto-Regular.ttf", "https://raw.githubusercontent.com/google/fonts/main/apache/roboto/Roboto-Bold.ttf"],
+      ["https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/version_2_37/ttf/DejaVuSans.ttf", "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/version_2_37/ttf/DejaVuSans-Bold.ttf"],
+    ]
 
-    const [regB64, boldB64] = await Promise.all([fetchAsBase64(regularUrl), fetchAsBase64(boldUrl)])
-    fontCache = { regB64, boldB64 }
-    console.log("✅ Font Noto Sans încărcat cu succes!")
+    const tryPairs = async (pairs: Array<[string, string]>): Promise<{ regB64: string; boldB64: string } | null> => {
+      for (const [regUrl, boldUrl] of pairs) {
+        try {
+          const [regB64, boldB64] = await Promise.all([fetchAsBase64(regUrl), fetchAsBase64(boldUrl)])
+          return { regB64, boldB64 }
+        } catch {
+          // try next pair
+        }
+      }
+      return null
+    }
+
+    let loaded = await tryPairs(localPairs)
+    if (!loaded) {
+      console.warn("⚠️ Fonturile locale lipsesc/nu pot fi citite. Încerc surse remote (GitHub raw, TTF)...")
+      loaded = await tryPairs(remotePairs)
+    }
+
+    if (!loaded) {
+      throw new Error("Nu s-a putut încărca niciun font TTF pentru PDF (local sau remote).")
+    }
+
+    fontCache = { regB64: loaded.regB64, boldB64: loaded.boldB64 }
+    console.log("✅ Font PDF încărcat cu succes (diacritice suportate)")
   } catch (e) {
     console.error("❌ Eroare la încărcarea fontului Noto Sans:", e)
     throw e
@@ -67,7 +95,7 @@ export async function ensurePdfFont(doc: jsPDF): Promise<void> {
     doc.addFont("NotoSans-Regular.ttf", "helvetica", "normal")
     doc.addFont("NotoSans-Bold.ttf", "helvetica", "bold")
 
-    doc.setFont("helvetica", "normal")
+    try { doc.setFont("NotoSans", "normal") } catch { try { doc.setFont("helvetica", "normal") } catch {} }
     console.log("✅ Font aplicat cu succes în document PDF")
   } catch (e) {
     // Fallback silently; diacritics may be stripped if network fails

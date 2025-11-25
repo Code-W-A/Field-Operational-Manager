@@ -51,8 +51,8 @@ export function drawSimpleHeader(
 
   // Title text on left
   if (options.title) {
-    // Folosim familia 'helvetica' pentru text (diacritice OK)
-    try { doc.setFont("helvetica", "bold") } catch {}
+    // Folosim familia 'NotoSans' pentru text (diacritice OK)
+    try { doc.setFont("NotoSans", "bold") } catch {}
     doc.setFontSize(13).setTextColor(255, 255, 255)
     const title = normalizeForPdf(options.title)
     doc.text(title, MARGIN + 4, currentY + 11)
@@ -75,11 +75,14 @@ export function drawFooter(doc: jsPDF): void {
 
   let footerY = footerSepY + 4
   // Culoare albastru intens cu nuanță de violet: RGB(30, 70, 180)
-  doc.setFont("helvetica", "normal").setFontSize(7.5).setTextColor(30, 70, 180)
+  try { doc.setFont("NotoSans", "normal") } catch {}
+  doc.setFontSize(7.5).setTextColor(30, 70, 180)
 
   const footerColW = CONTENT_WIDTH / 3
   const footerColX = [MARGIN, MARGIN + CONTENT_WIDTH / 3, MARGIN + (2 * CONTENT_WIDTH) / 3]
 
+  // Set explicit Unicode font to ensure diacritics render
+  try { doc.setFont("NotoSans", "normal") } catch {}
   // Coloana stânga - informații companie
   doc.text("NRG Access Systems SRL", footerColX[0], footerY)
   doc.text("Rezervelor Nr 70, Chiajna, Ilfov", footerColX[0], footerY + 3.5)
@@ -93,7 +96,7 @@ export function drawFooter(doc: jsPDF): void {
 
   // Coloana dreapta - banking
   doc.text("IBAN: RO79BTRL00000000000000", footerColX[2], footerY)
-  doc.text("Banca Transilvania Sucursala Aviatiei", footerColX[2], footerY + 3.5)
+  doc.text("Banca Transilvania Sucursala Aviației", footerColX[2], footerY + 3.5)
 }
 
 

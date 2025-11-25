@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf"
+import { ensurePdfFont } from "@/lib/pdf/font-loader"
 
 export interface OfferItem {
   name: string
@@ -32,16 +33,19 @@ export interface OfferPdfInput {
   beneficiar?: { name?: string; cui?: string; reg?: string; address?: string }
 }
 
-// Helper to strip diacritics for built-in Helvetica
-const normalize = (text = "") =>
-  text.replace(
-    /[ăâîșțĂÂÎȘȚ]/g,
-    (c) => (({ ă: "a", â: "a", î: "i", ș: "s", ț: "t", Ă: "A", Â: "A", Î: "I", Ș: "S", Ț: "T" }) as any)[c],
-  )
+// Normalize keeping diacritics; fix common cedilla/comma confusions and enforce NFC
+function normalizeForPdf(text = ""): string {
+  let t = text.normalize("NFC")
+  // Map s-cedilla/t-cedilla to s/t with comma below (Romanian)
+  t = t.replace(/\u015F/g, "\u0219").replace(/\u0163/g, "\u021B")
+  return t
+}
 
 // Generate Offer PDF as Blob using a clean layout
 export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   const doc = new jsPDF({ unit: "mm", format: "a4" })
+  // Ensure Unicode font is embedded (aliased to 'helvetica')
+  try { await ensurePdfFont(doc) } catch {}
   const M = 10
   const W = doc.internal.pageSize.getWidth() - 2 * M
   const PH = doc.internal.pageSize.getHeight()
@@ -57,14 +61,14 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   // Header ribbon with title on left and logo on right (#49649b)
   const headerHeight = 16
   doc.setFillColor(73, 100, 155).rect(M, y, W, headerHeight, "F")
-  doc.setTextColor(255).setFont("helvetica", "bold").setFontSize(12)
+  doc.setTextColor(255).setFont("NotoSans", "bold").setFontSize(12)
   const displayWorkId = (() => {
     const n = (input.numarRaport || '').trim()
     if (n) return n.startsWith('#') ? n : `#${n}`
     return `#${String(input.id)}`
   })()
   const offerNo = typeof input.offerNumber === 'number' && input.offerNumber > 0 ? `-${input.offerNumber}` : ''
-  const title = normalize(`Oferta piese si servicii ${displayWorkId}${offerNo}`)
+  const title = normalizeForPdf(`Oferta piese și servicii ${displayWorkId}${offerNo}`)
   doc.text(title, M + 4, y + (headerHeight / 2) + 1)
   // Logo (right)
   try {
@@ -95,33 +99,33 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   const rightW = W/2 - 3
   const l = input.prestator || {}
   const r = input.beneficiar || {}
-  doc.setFont("helvetica", "bold").setFontSize(9)
+  doc.setFont("NotoSans", "bold").setFontSize(9)
   // Left: Prestator
   doc.text("Prestator", M, y)
-  doc.setFont("helvetica", "normal")
+  doc.setFont("NotoSans", "normal")
   const prestLeftLines = [
-    normalize(l.name || input.fromCompany || "NRG Access Systems SRL"),
-    normalize(l.cui || "RO34722913"),
-    normalize(l.address || "Rezervelor 70, Chiajna, Ilfov"),
+    normalizeForPdf(l.name || input.fromCompany || "NRG Access Systems SRL"),
+    normalizeForPdf(l.cui || "RO34722913"),
+    normalizeForPdf(l.address || "Rezervelor 70, Chiajna, Ilfov"),
   ]
   prestLeftLines.forEach((t, i) => doc.text(t, M, y + 6 + i*5))
   // Right: Beneficiar (right-aligned)
-  doc.setFont("helvetica", "bold").text("Beneficiar", M + W, y, { align: "right" })
-  doc.setFont("helvetica", "normal")
+  doc.setFont("NotoSans", "bold").text("Beneficiar", M + W, y, { align: "right" })
+  doc.setFont("NotoSans", "normal")
   const prestRightLines = [
-    normalize(r.name || input.client || "-"),
-    normalize(r.cui || "-"),
-    normalize(r.address || "-"),
+    normalizeForPdf(r.name || input.client || "-"),
+    normalizeForPdf(r.cui || "-"),
+    normalizeForPdf(r.address || "-"),
   ]
   prestRightLines.forEach((t, i) => doc.text(t, M + W, y + 6 + i*5, { align: "right" }))
   y += 6 + Math.max(prestLeftLines.length, prestRightLines.length)*5 + 6
 
   y += 14
   // Intro paragraph
-  doc.setFontSize(10).setFont("helvetica", "normal")
+  doc.setFontSize(10).setFont("NotoSans", "normal")
   const equip = input.equipmentName ? `, echipament ${input.equipmentName}` : ""
   const loc = input.locationName ? ` din locatia ${input.locationName}` : ""
-  const intro = normalize(`Referitor la lucrarea nr. ${displayWorkId}${equip}${loc} va facem cunoscute costurile aferente pieselor de schimb si serviciilor necesare remedierii dupa cum urmeaza:`)
+  const intro = normalizeForPdf(`Referitor la lucrarea nr. ${displayWorkId}${equip}${loc} vă facem cunoscute costurile aferente pieselor de schimb și serviciilor necesare remedierii după cum urmează:`)
   const introLines = doc.splitTextToSize(intro, W)
   introLines.forEach((line: string) => {
     checkPage(6)
@@ -143,7 +147,7 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
 
   // Column header with blue text (#49649b), no background
   doc.setTextColor(73, 100, 155)
-  doc.setFont("helvetica", "bold").setFontSize(10)
+  doc.setFont("NotoSans", "bold").setFontSize(10)
   headers.forEach((h, i) => {
     if (i === 0) {
       // First column (Servicii&Piese) aligned left
@@ -160,9 +164,9 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   doc.setTextColor(0) // reset to black for body
 
   // Rows (only horizontal lines)
-  doc.setFont("helvetica", "normal").setFontSize(9)
+  doc.setFont("NotoSans", "normal").setFontSize(9)
   const items = (input.products || []).map((p) => ({
-    name: normalize(p.name || "—"),
+    name: normalizeForPdf(p.name || "—"),
     qty: Number(p.quantity || 0),
     price: Number(p.price || 0),
     total: Number(p.quantity || 0) * Number(p.price || 0),
@@ -209,7 +213,7 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   // Subtotal
   checkPage(lineH2)
   doc.setTextColor(0, 0, 0) // black text on light background
-  doc.setFont("helvetica", "normal").setFontSize(9)
+  doc.setFont("NotoSans", "normal").setFontSize(9)
   const valueX = M + W - 5 // values aligned at right edge
   const labelColonX = M + W - 25 // fixed position for all colons (right aligned, very close)
   doc.text("Subtotal:", labelColonX, y, { align: "right" })
@@ -222,7 +226,7 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   y += rowHeight
   // Total lei fara TVA (accentuat)
   checkPage(10)
-  doc.setFont("helvetica", "bold").setFontSize(10)
+  doc.setFont("NotoSans", "bold").setFontSize(10)
   const amountText = `${totalNoVat.toLocaleString("ro-RO")}`
   doc.text("Total insumat LEI fara TVA:", labelColonX, y, { align: "right" })
   doc.text(amountText, valueX, y, { align: "right" })
@@ -237,16 +241,16 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   // Conditions (match sample wording and spacing)
   const vatPercent = typeof input.offerVAT === "number" && input.offerVAT > 0 ? input.offerVAT : 19
   const defaultConds = [
-    `Plata: 100% in avans`,
-    `Livrare: 30 zile lucratoare de la plata`,
-    `Instalare: 3 zile lucratoare de la livrare`,
+    `Plata: 100% în avans`,
+    `Livrare: 30 zile lucrătoare de la plată`,
+    `Instalare: 3 zile lucrătoare de la livrare`,
     // Garantiile nu se mai afișează in oferta
-    `Preturile nu includ TVA (${vatPercent}%)`,
+    `Prețurile nu includ TVA (${vatPercent}%)`,
   ]
-  const conds = (input.conditions && input.conditions.length ? input.conditions : defaultConds).map(normalize)
-  doc.setFont("helvetica", "bold").setFontSize(10).text("Termeni si conditii:", M, y)
+  const conds = (input.conditions && input.conditions.length ? input.conditions : defaultConds).map(normalizeForPdf)
+  doc.setFont("NotoSans", "bold").setFontSize(10).text("Termeni și condiții:", M, y)
   y += 6
-  doc.setFont("helvetica", "normal").setFontSize(9)
+  doc.setFont("NotoSans", "normal").setFontSize(9)
   conds.forEach((c) => {
     const lines = doc.splitTextToSize("- " + c, W)
     lines.forEach((l: string) => {
@@ -258,16 +262,16 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
 
   // Prepared by (author and date) directly above footer separator (absolute positioning)
   try {
-    const author = normalize(input.preparedBy || "")
+    const author = normalizeForPdf(input.preparedBy || "")
     const when = (() => {
-      if (input.preparedAt) return normalize(input.preparedAt)
+      if (input.preparedAt) return normalizeForPdf(input.preparedAt)
       const d = new Date()
       const dd = String(d.getDate()).padStart(2, '0')
       const mm = String(d.getMonth() + 1).padStart(2, '0')
       const yy = String(d.getFullYear())
       return `${dd}.${mm}.${yy}`
     })()
-    const line = author ? `Intocmit de ${author} la data de ${when}` : `Intocmit la data de ${when}`
+    const line = author ? `Întocmit de ${author} la data de ${when}` : `Întocmit la data de ${when}`
     const footerSepY = PH - 28
     doc.setFontSize(9).setTextColor(0)
     doc.text(line, M, footerSepY - 4)

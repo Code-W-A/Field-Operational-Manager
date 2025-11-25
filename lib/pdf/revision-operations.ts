@@ -47,6 +47,7 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
   const doc = new jsPDF({ unit: "mm", format: "a4" })
   let currentY = MARGIN
   await ensurePdfFont(doc)
+  try { doc.setFont("NotoSans", "normal") } catch {}
 
   // Load lucrare (for client/location context if needed later)
   const workSnap = await getDoc(docRef("lucrari", lucrareId))
@@ -97,7 +98,7 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
   // Header band
   doc.setFillColor(220, 227, 240)
   doc.rect(MARGIN, currentY, W, rowH, "F")
-  try { doc.setFont("helvetica", "bold") } catch {}
+  try { doc.setFont("NotoSans", "bold") } catch {}
   doc.setFontSize(10).setTextColor(0, 0, 0)
   
   doc.text(normalizeTextForPdf("Punct de control"), MARGIN + 2, currentY + 5)
@@ -116,14 +117,14 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
       currentY = checkPageBreak(doc, currentY, rowH)
       doc.setFillColor(240, 240, 240)
       doc.rect(MARGIN, currentY, W, rowH, "F")
-      try { doc.setFont("helvetica", "bold") } catch {}
+      try { doc.setFont("NotoSans", "bold") } catch {}
       doc.setFontSize(10).setTextColor(0, 0, 0)
       doc.text(sectionTitle, MARGIN + 2, currentY + 5)
       currentY += rowH
 
       // Items
       const items = Array.isArray(s.items) ? s.items : []
-      try { doc.setFont("helvetica", "normal") } catch {}
+      try { doc.setFont("NotoSans", "normal") } catch {}
       doc.setFontSize(9).setTextColor(0, 0, 0)
       for (const it of items) {
         const label = normalizeTextForPdf(it.label || it.name || "-")
@@ -144,14 +145,14 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
         // Functional / Nefunctional check marks
         const fnX = MARGIN + firstColW
         const nfnX = MARGIN + firstColW + fnW
-        try { doc.setFont("helvetica", "bold") } catch {}
+        try { doc.setFont("NotoSans", "bold") } catch {}
         const markFn = state === "functional" ? "X" : ""
         const markNf = state === "nefunctional" ? "X" : ""
         doc.text(markFn, fnX + fnW / 2, currentY + 5, { align: "center" } as any)
         doc.text(markNf, nfnX + nfnW / 2, currentY + 5, { align: "center" } as any)
 
         // Obs
-        try { doc.setFont("helvetica", "normal") } catch {}
+        try { doc.setFont("NotoSans", "normal") } catch {}
         const obsText = obs ? doc.splitTextToSize(obs, obsW - 4) : []
         if (obsText.length) {
           doc.text(obsText, MARGIN + firstColW + fnW + nfnW + 2, currentY + 5)
@@ -186,6 +187,7 @@ export async function generateRevisionEquipmentPDF(
   const js = new jsPDF({ unit: "mm", format: "a4" })
   let currentY = MARGIN
   await ensurePdfFont(js)
+  try { js.setFont("NotoSans", "normal") } catch {}
 
   // Load single revision
   const revSnap = await getDoc(doc(db, "lucrari", lucrareId, "revisions", equipmentId))
@@ -202,9 +204,10 @@ export async function generateRevisionEquipmentPDF(
         fr.readAsDataURL(bl)
       })
     } catch {}
-    currentY = drawSimpleHeader(js, { title: "Lista operatiuni – (necunoscut)", logoDataUrl: emptyLogo })
-    js.setFont("helvetica", "normal").setFontSize(10)
-    js.text("Fișa de operatiuni nu a fost găsită pentru acest echipament.", MARGIN + 2, currentY + 4)
+    currentY = drawSimpleHeader(js, { title: "Lista operațiuni – (necunoscut)", logoDataUrl: emptyLogo })
+    try { js.setFont("NotoSans", "normal") } catch {}
+    js.setFontSize(10)
+    js.text(normalizeTextForPdf("Fișa de operațiuni nu a fost găsită pentru acest echipament."), MARGIN + 2, currentY + 4)
     drawFooter(js)
     return js.output("blob")
   }
@@ -234,7 +237,7 @@ export async function generateRevisionEquipmentPDF(
 
   js.setFillColor(220, 227, 240)
   js.rect(MARGIN, currentY, W, rowH, "F")
-  try { js.setFont("helvetica", "bold") } catch {}
+  try { js.setFont("NotoSans", "bold") } catch {}
   js.setFontSize(10).setTextColor(0, 0, 0)
   
   js.text(normalizeTextForPdf("Punct de control"), MARGIN + 2, currentY + 5)
@@ -250,13 +253,13 @@ export async function generateRevisionEquipmentPDF(
     currentY = checkPageBreak(js, currentY, rowH)
     js.setFillColor(240, 240, 240)
     js.rect(MARGIN, currentY, W, rowH, "F")
-    try { js.setFont("helvetica", "bold") } catch {}
+    try { js.setFont("NotoSans", "bold") } catch {}
     js.setFontSize(10).setTextColor(0, 0, 0)
     js.text(sectionTitle, MARGIN + 2, currentY + 5)
     currentY += rowH
 
     const items = Array.isArray(s.items) ? s.items : []
-    try { js.setFont("helvetica", "normal") } catch {}
+    try { js.setFont("NotoSans", "normal") } catch {}
     js.setFontSize(9).setTextColor(0, 0, 0)
     for (const it of items) {
       const label = normalizeTextForPdf(it.label || it.name || "-")
@@ -274,13 +277,13 @@ export async function generateRevisionEquipmentPDF(
 
       const fnX = MARGIN + firstColW
       const nfnX = MARGIN + firstColW + fnW
-      try { js.setFont("helvetica", "bold") } catch {}
+      try { js.setFont("NotoSans", "bold") } catch {}
       const markFn = state === "functional" ? "X" : ""
       const markNf = state === "nefunctional" ? "X" : ""
       js.text(markFn, fnX + fnW / 2, currentY + 5, { align: "center" } as any)
       js.text(markNf, nfnX + nfnW / 2, currentY + 5, { align: "center" } as any)
 
-      try { js.setFont("helvetica", "normal") } catch {}
+      try { js.setFont("NotoSans", "normal") } catch {}
       const obsText = obs ? js.splitTextToSize(obs, obsW - 4) : []
       if (obsText.length) {
         js.text(obsText, MARGIN + firstColW + fnW + nfnW + 2, currentY + 5)
