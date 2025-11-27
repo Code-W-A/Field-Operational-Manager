@@ -596,8 +596,26 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         setEquipmentsLoaded(true)
       } else {
         console.log("Nu există echipamente pentru locația selectată")
-        setAvailableEquipments([])
-        setEquipmentsLoaded(true)
+        // Fallback: dacă edităm o Revizie și avem equipmentIds pe lucrare, încercăm să le găsim în client
+        const ids = Array.isArray((formData as any).equipmentIds) ? ((formData as any).equipmentIds as string[]) : []
+        if (ids.length && selectedClient) {
+          const allEquipments = (selectedClient.locatii || []).flatMap((l: any) => l?.echipamente || [])
+          const matched = allEquipments.filter((e: any) => ids.includes(String(e.id)) || ids.includes(String(e.cod)))
+          if (matched.length) {
+            console.log("Fallback: echipamente potrivite găsite în alte locații ale clientului:", matched)
+            setAvailableEquipments([...matched].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" })))
+            setEquipmentsLoaded(true)
+          } else {
+            // Ultim fallback: construim placeholdere din ids ca să permitem selecția și salvarea
+            const placeholders = ids.map((id) => ({ id, nume: id } as any))
+            console.log("Fallback: nu s-au găsit echipamente în client; folosim placeholdere din equipmentIds:", placeholders)
+            setAvailableEquipments(placeholders)
+            setEquipmentsLoaded(true)
+          }
+        } else {
+          setAvailableEquipments([])
+          setEquipmentsLoaded(true)
+        }
       }
 
       // Actualizăm locația selectată
@@ -841,8 +859,23 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             }
           } else {
             console.log("Nu există echipamente pentru locația", formData.locatie)
-            setAvailableEquipments([])
-            setEquipmentsLoaded(true)
+            // Fallback: încearcă să populezi din equipmentIds ale lucrării (revizie)
+            const ids = Array.isArray((formData as any).equipmentIds) ? ((formData as any).equipmentIds as string[]) : []
+            if (ids.length && selectedClient) {
+              const allEquipments = (selectedClient.locatii || []).flatMap((l: any) => l?.echipamente || [])
+              const matched = allEquipments.filter((e: any) => ids.includes(String(e.id)) || ids.includes(String(e.cod)))
+              if (matched.length) {
+                setAvailableEquipments([...matched].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" })))
+                setEquipmentsLoaded(true)
+              } else {
+                const placeholders = ids.map((id) => ({ id, nume: id } as any))
+                setAvailableEquipments(placeholders)
+                setEquipmentsLoaded(true)
+              }
+            } else {
+              setAvailableEquipments([])
+              setEquipmentsLoaded(true)
+            }
           }
         } else {
           console.log("Locația", formData.locatie, "nu a fost găsită în clientul", selectedClient.nume)
