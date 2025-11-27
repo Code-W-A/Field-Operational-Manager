@@ -566,7 +566,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         descriere: lucrare.descriere || `Echipamente rămase din revizie parțială (${done.length}/${all.length} finalizate)`,
         statusLucrare: WORK_STATUS.POSTPONED,
         statusFacturare: "Nefacturat",
-        tehnicieni: Array.isArray(lucrare.tehnicieni) ? lucrare.tehnicieni : [],
+        tehnicieni: [],
         contract: (lucrare as any).contract,
         contractNumber: (lucrare as any).contractNumber,
         clientInfo: (lucrare as any).clientInfo,
@@ -1619,7 +1619,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
                 {/* Afișăm mesajul de reatribuire dacă există */}
                 {lucrare.mesajReatribuire && (
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md mb-4">
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md my-4">
                     <div className="flex items-center space-x-2 mb-1">
                       <RefreshCw className="h-4 w-4 text-blue-600" />
                       <p className="text-sm font-medium text-blue-800">Lucrare reatribuită:</p>
