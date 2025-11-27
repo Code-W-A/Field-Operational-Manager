@@ -76,6 +76,7 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
   const [formData, setFormData] = useState({
     tipLucrare: "",
     tehnicieni: [] as string[],
+    equipmentIds: [] as string[],
     client: "",
     locatie: "",
     echipament: "",
@@ -118,6 +119,7 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
           setFormData({
             tipLucrare: lucrare.tipLucrare || "",
             tehnicieni: lucrare.tehnicieni || [],
+            equipmentIds: (lucrare as any).equipmentIds || [],
             client: lucrare.client || "",
             locatie: lucrare.locatie || "",
             echipament: lucrare.echipament || "",
