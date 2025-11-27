@@ -1202,7 +1202,9 @@ export default function Lucrari() {
       defectReclamat: lucrare.defectReclamat || "",
       echipamentId: lucrare.echipamentId || "", // ← nou
       echipamentCod: lucrare.echipamentCod || "", // ← nou
-      echipament: lucrare.echipament,
+      echipament: lucrare.echipament || "",
+      // Preselectăm echipamentele pentru revizie în modul Edit
+      equipmentIds: Array.isArray((lucrare as any).equipmentIds) ? (lucrare as any).equipmentIds : [],
     })
 
     setIsEditDialogOpen(true)
@@ -1235,15 +1237,27 @@ export default function Lucrari() {
         dataInterventie: format(dataInterventie, "dd.MM.yyyy HH:mm"),
       }
 
-      await updateLucrare(selectedLucrare.id, updatedLucrare)
+      // Curățăm câmpurile nerelevante/undefinite pentru Revizie și în general
+      const cleaned: any = { ...updatedLucrare }
+      if (cleaned.tipLucrare === "Revizie") {
+        delete cleaned.echipament
+        delete cleaned.echipamentId
+        delete cleaned.echipamentCod
+      }
+      // Eliminăm orice chei cu valori undefined
+      Object.keys(cleaned).forEach((k) => {
+        if (cleaned[k] === undefined) delete cleaned[k]
+      })
+
+      await updateLucrare(selectedLucrare.id, cleaned)
 
       // Obținem lucrarea completă cu ID pentru a o trimite la notificări
-      const lucrareCompleta = { id: selectedLucrare.id, ...updatedLucrare }
+      const lucrareCompleta = { id: selectedLucrare.id, ...cleaned }
 
       // Trimitem notificări prin email doar dacă s-a schimbat data intervenției sau tehnicienii
       if (
-        selectedLucrare.dataInterventie !== updatedLucrare.dataInterventie ||
-        JSON.stringify(selectedLucrare.tehnicieni) !== JSON.stringify(updatedLucrare.tehnicieni)
+        selectedLucrare.dataInterventie !== cleaned.dataInterventie ||
+        JSON.stringify(selectedLucrare.tehnicieni) !== JSON.stringify(cleaned.tehnicieni)
       ) {
         try {
           // Trimitem notificările
@@ -2275,6 +2289,7 @@ export default function Lucrari() {
               fieldErrors={fieldErrors}
               onCancel={() => handleCloseEditDialog()}
               handleCustomChange={handleCustomChange}
+              initialData={selectedLucrare}
             />
             <DialogFooter className="flex-col gap-2 sm:flex-row">
               <Button variant="outline" onClick={handleCloseEditDialog}>

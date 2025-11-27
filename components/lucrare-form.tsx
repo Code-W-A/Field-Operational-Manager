@@ -613,8 +613,16 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             setEquipmentsLoaded(true)
           }
         } else {
-          setAvailableEquipments([])
-          setEquipmentsLoaded(true)
+          // Nu goli lista dacă avem deja selecții pentru revizie; păstrăm/afișăm placeholdere
+          const ids = Array.isArray((formData as any).equipmentIds) ? ((formData as any).equipmentIds as string[]) : []
+          if (ids.length) {
+            const placeholders = ids.map((id) => ({ id, nume: id } as any))
+            setAvailableEquipments(placeholders)
+            setEquipmentsLoaded(true)
+          } else {
+            setAvailableEquipments([])
+            setEquipmentsLoaded(true)
+          }
         }
       }
 
@@ -763,17 +771,25 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     // Adăugăm un efect special pentru a gestiona încărcarea inițială a locației și echipamentelor
     useEffect(() => {
       // Verificăm dacă avem date inițiale și client selectat
-      if (initialData && selectedClient && formData.locatie) {
+      if (initialData && selectedClient) {
+        // Dacă locația din formData nu e setată, încercăm să o completăm din datele inițiale
+        if (!formData.locatie && (initialData as any)?.locatie) {
+          console.log("Completăm locația lipsă din initialData.locatie:", (initialData as any).locatie)
+          handleSelectChange("locatie", (initialData as any).locatie)
+        }
+      }
+      if (initialData && selectedClient && (formData.locatie || (initialData as any)?.locatie)) {
         console.log("Încărcare inițială a locației și echipamentelor", {
           initialData,
           selectedClient,
-          formDataLocatie: formData.locatie,
+          formDataLocatie: formData.locatie || (initialData as any)?.locatie,
           formDataEchipamentId: formData.echipamentId,
           formDataEchipament: formData.echipament,
         })
 
         // Găsim locația selectată în client
-        const locatie = selectedClient.locatii?.find((loc) => loc.nume === formData.locatie)
+        const selectedLocName = formData.locatie || (initialData as any)?.locatie
+        const locatie = selectedClient.locatii?.find((loc) => loc.nume === selectedLocName)
 
         if (locatie) {
           console.log("Locație găsită în client:", locatie)
@@ -861,13 +877,20 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             console.log("Nu există echipamente pentru locația", formData.locatie)
             // Fallback: încearcă să populezi din equipmentIds ale lucrării (revizie)
             const ids = Array.isArray((formData as any).equipmentIds) ? ((formData as any).equipmentIds as string[]) : []
-            if (ids.length && selectedClient) {
-              const allEquipments = (selectedClient.locatii || []).flatMap((l: any) => l?.echipamente || [])
-              const matched = allEquipments.filter((e: any) => ids.includes(String(e.id)) || ids.includes(String(e.cod)))
-              if (matched.length) {
-                setAvailableEquipments([...matched].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" })))
-                setEquipmentsLoaded(true)
+            if (ids.length) {
+              if (selectedClient) {
+                const allEquipments = (selectedClient.locatii || []).flatMap((l: any) => l?.echipamente || [])
+                const matched = allEquipments.filter((e: any) => ids.includes(String(e.id)) || ids.includes(String(e.cod)))
+                if (matched.length) {
+                  setAvailableEquipments([...matched].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" })))
+                  setEquipmentsLoaded(true)
+                } else {
+                  const placeholders = ids.map((id) => ({ id, nume: id } as any))
+                  setAvailableEquipments(placeholders)
+                  setEquipmentsLoaded(true)
+                }
               } else {
+                // Clientul nu e încă încărcat: afișăm placeholdere ca să nu rămână lista goală
                 const placeholders = ids.map((id) => ({ id, nume: id } as any))
                 setAvailableEquipments(placeholders)
                 setEquipmentsLoaded(true)
@@ -1079,8 +1102,15 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           setTriedSelectEquipment(false)
         } else {
           console.log("Nu există echipamente pentru această locație")
-          setAvailableEquipments([])
-          setEquipmentsLoaded(true)
+          const ids = Array.isArray((formData as any).equipmentIds) ? ((formData as any).equipmentIds as string[]) : []
+          if (ids.length) {
+            const placeholders = ids.map((id) => ({ id, nume: id } as any))
+            setAvailableEquipments(placeholders)
+            setEquipmentsLoaded(true)
+          } else {
+            setAvailableEquipments([])
+            setEquipmentsLoaded(true)
+          }
         }
 
         // Activăm afișarea acordeonului și nu-l dezactivăm
@@ -1160,8 +1190,15 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             }
           } else {
             console.log("Nu există echipamente pentru locația", locatieNume)
-            setAvailableEquipments([])
-            setEquipmentsLoaded(true)
+            const ids = Array.isArray((formData as any).equipmentIds) ? ((formData as any).equipmentIds as string[]) : []
+            if (ids.length) {
+              const placeholders = ids.map((id) => ({ id, nume: id } as any))
+              setAvailableEquipments(placeholders)
+              setEquipmentsLoaded(true)
+            } else {
+              setAvailableEquipments([])
+              setEquipmentsLoaded(true)
+            }
           }
         }
       },

@@ -76,7 +76,7 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
   for (let idx = 0; idx < revisions.length; idx++) {
     const rev = revisions[idx]
 
-    // Header: Lista operațiuni – {Nivel 2} (categorie sau primul punct de control când nu există categorii)
+    // Header: Lista operațiuni – {Nivel 2} (categorie sau primul puncte de control când nu există categorii)
     const sectionsForHeader = Array.isArray(rev.sections) ? rev.sections : []
     const firstNonRoot = sectionsForHeader.find((s: any) => !String(s?.id || "").endsWith("__root"))
     const firstRoot = sectionsForHeader.find((s: any) => String(s?.id || "").endsWith("__root"))
@@ -105,7 +105,7 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
   try { doc.setFont("NotoSans", "bold") } catch {}
   doc.setFontSize(10).setTextColor(0, 0, 0)
   
-  doc.text(normalizeTextForPdf("Punct de control"), MARGIN + 2, currentY + 5)
+  doc.text(normalizeTextForPdf("Puncte de control"), MARGIN + 2, currentY + 5)
   // Ambele coloane devin "Verificat" conform cerinței
   doc.text(normalizeTextForPdf("Verificat"), MARGIN + firstColW + fnW / 2, currentY + 5, { align: "center" } as any)
   doc.text(normalizeTextForPdf("Verificat"), MARGIN + firstColW + fnW + nfnW / 2, currentY + 5, { align: "center" } as any)
@@ -150,7 +150,7 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
         doc.setDrawColor(210, 210, 210).setLineWidth(0.2)
         doc.rect(MARGIN, currentY, W, heightNeeded)
 
-        // First col (punct de control)
+        // First col (puncte de control)
         doc.text(labelLines, MARGIN + 2, currentY + 5)
 
         // Functional / Nefunctional check marks
@@ -223,7 +223,7 @@ export async function generateRevisionEquipmentPDF(
   }
   const rev = { id: revSnap.id, ...(revSnap.data() as any) } as any
 
-  // Header: Lista operațiuni – {Nivel 2} (categorie sau primul punct de control când nu există categorii)
+  // Header: Lista operațiuni – {Nivel 2} (categorie sau primul puncte de control când nu există categorii)
   const sectionsForHeader = Array.isArray(rev.sections) ? rev.sections : []
   const firstNonRoot = sectionsForHeader.find((s: any) => !String(s?.id || "").endsWith("__root"))
   const firstRoot = sectionsForHeader.find((s: any) => String(s?.id || "").endsWith("__root"))
@@ -259,7 +259,7 @@ export async function generateRevisionEquipmentPDF(
   try { js.setFont("NotoSans", "bold") } catch {}
   js.setFontSize(10).setTextColor(0, 0, 0)
   
-  js.text(normalizeTextForPdf("Punct de control"), MARGIN + 2, currentY + 5)
+  js.text(normalizeTextForPdf("Puncte de control"), MARGIN + 2, currentY + 5)
   js.text(normalizeTextForPdf("Verificat"), MARGIN + firstColW + fnW / 2, currentY + 5, { align: "center" } as any)
   js.text(normalizeTextForPdf("Verificat"), MARGIN + firstColW + fnW + nfnW / 2, currentY + 5, { align: "center" } as any)
   js.text(normalizeTextForPdf("Obs."), MARGIN + firstColW + fnW + nfnW + 2, currentY + 5)

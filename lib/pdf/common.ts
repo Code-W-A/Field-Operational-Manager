@@ -69,7 +69,7 @@ export function drawFooter(doc: jsPDF): void {
   const PH = doc.internal.pageSize.getHeight()
   const footerSepY = PH - 18
 
-  // Footer separator gri subțire (stil similar cu chenarul tabelului „Punct de control”)
+  // Footer separator gri subțire (stil similar cu chenarul tabelului „Puncte de control”)
   doc.setDrawColor(210, 210, 210).setLineWidth(0.2)
   doc.line(MARGIN, footerSepY, MARGIN + CONTENT_WIDTH, footerSepY)
 

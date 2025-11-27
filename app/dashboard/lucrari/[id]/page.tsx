@@ -1632,7 +1632,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
                 {/* Afișăm mesajul de reatribuire dacă există */}
                 {lucrare.mesajReatribuire && (
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md my-4">
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md my`-4">
                     <div className="flex items-center space-x-2 mb-1">
                       <RefreshCw className="h-4 w-4 text-blue-600" />
                       <p className="text-sm font-medium text-blue-800">Lucrare reatribuită:</p>
