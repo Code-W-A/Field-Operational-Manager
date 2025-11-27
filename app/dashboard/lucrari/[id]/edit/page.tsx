@@ -227,14 +227,27 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
         statusLucrare = hasTechnicians ? "Atribuită" : "Listată"
       }
 
-      // Actualizăm lucrarea în Firestore
-      await updateLucrare(id, {
+      // Construim payload-ul și curățăm câmpurile undefined (Firestore nu acceptă undefined)
+      const rawPayload: any = {
         ...data,
-        statusLucrare: statusLucrare, // Folosim statusul calculat
+        statusLucrare, // Folosim statusul calculat
         // Forțăm păstrarea datei emiterii originale
         dataEmiterii: originalEmiterii,
         updatedAt: serverTimestamp(),
+      }
+      // Pentru Revizie, eliminăm câmpurile single‑select de echipament
+      if (rawPayload.tipLucrare === "Revizie") {
+        delete rawPayload.echipament
+        delete rawPayload.echipamentId
+        delete rawPayload.echipamentCod
+      }
+      // Eliminăm toate valorile undefined din payload
+      Object.keys(rawPayload).forEach((k) => {
+        if (rawPayload[k] === undefined) delete rawPayload[k]
       })
+
+      // Actualizăm lucrarea în Firestore
+      await updateLucrare(id, rawPayload)
 
       // Restul codului rămâne neschimbat...
 
