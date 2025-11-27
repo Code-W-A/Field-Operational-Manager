@@ -117,7 +117,13 @@ export function PostponeWorkDialog({ lucrareId, onSuccess, className }: Postpone
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      setIsOpen(open)
+      if (!open) {
+        // resetăm formularul când utilizatorul închide dialogul fără a salva
+        setMotiv("")
+      }
+    }}>
       <DialogTrigger asChild>
         <Button 
           variant="outline" 

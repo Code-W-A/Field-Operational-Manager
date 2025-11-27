@@ -157,13 +157,7 @@ export function useDashboardStatus() {
     if (!Array.isArray(activeLucrari) || activeLucrari.length === 0) return res
 
     const todayAt18 = getTodayAt(18, 0)
-    const assignedTodayByWork: Record<string, Date> = {}
-    for (const m of modificariAtribuire || []) {
-      const wid = String((m as any).lucrareId || "")
-      const t = toDate((m as any).modifiedAt)
-      if (!wid || !t) continue
-      if (!assignedTodayByWork[wid] || t > assignedTodayByWork[wid]) assignedTodayByWork[wid] = t
-    }
+    const endOfToday = getTodayAt(23, 59)
 
     // Build map pentru data amânării (ultima modificare cu newValue = "Amânată")
     const postponedDateByWork: Record<string, Date> = {}
@@ -180,18 +174,18 @@ export function useDashboardStatus() {
       const status = String(l.statusLucrare || "")
       const technicians = Array.isArray(l.tehnicieni) ? l.tehnicieni : []
 
-      // Intarziate - sortate după data generării raportului (createdAt)
-      const assignedAt = assignedTodayByWork[id] || toDate(l.updatedAt)
-      const noActionYet = !l.timpSosire && !l.equipmentVerified
-      const consideredAssigned = technicians.length > 0 || eqInsensitive(status, WORK_STATUS.ASSIGNED)
-      if (
-        consideredAssigned &&
-        noActionYet &&
-        assignedAt && assignedAt >= startOfToday &&
-        new Date() >= todayAt18 &&
-        (eqInsensitive(status, WORK_STATUS.ASSIGNED) || eqInsensitive(status, WORK_STATUS.LISTED))
-      ) {
-        res.intarziate.push(buildBubble(l, undefined, toDate(l.createdAt) || undefined))
+      // Intarziate – logic refăcut:
+      // dacă data programată (dataInterventie) este în trecut SAU este azi (după ora 18:00),
+      // lucrarea este atribuită și nu are echipament scanat (equipmentVerified === false)
+      const execDate = toDate(l.dataInterventie)
+      const isAssigned = technicians.length > 0 || eqInsensitive(status, WORK_STATUS.ASSIGNED)
+      const notScanned = !l.equipmentVerified
+      const isPastDay = !!execDate && execDate < startOfToday
+      const isToday = !!execDate && execDate >= startOfToday && execDate <= endOfToday
+      const timeCondition = isPastDay || (isToday && new Date() >= todayAt18)
+      if (execDate && (isPastDay || isToday) && isAssigned && notScanned && timeCondition) {
+        // sortăm după data programării pentru relevanță
+        res.intarziate.push(buildBubble(l, undefined, execDate || undefined))
       }
 
       // Amânate - sortate după data amânării

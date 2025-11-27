@@ -67,16 +67,16 @@ export function drawSimpleHeader(
  */
 export function drawFooter(doc: jsPDF): void {
   const PH = doc.internal.pageSize.getHeight()
-  const footerSepY = PH - 25
+  const footerSepY = PH - 18
 
-  // Footer separator neagru
-  doc.setDrawColor(0, 0, 0).setLineWidth(0.5)
+  // Footer separator gri subțire (stil similar cu chenarul tabelului „Punct de control”)
+  doc.setDrawColor(210, 210, 210).setLineWidth(0.2)
   doc.line(MARGIN, footerSepY, MARGIN + CONTENT_WIDTH, footerSepY)
 
-  let footerY = footerSepY + 4
+  let footerY = footerSepY + 3
   // Culoare albastru intens cu nuanță de violet: RGB(30, 70, 180)
   try { doc.setFont("NotoSans", "normal") } catch {}
-  doc.setFontSize(7.5).setTextColor(30, 70, 180)
+  doc.setFontSize(7).setTextColor(30, 70, 180)
 
   const footerColW = CONTENT_WIDTH / 3
   const footerColX = [MARGIN, MARGIN + CONTENT_WIDTH / 3, MARGIN + (2 * CONTENT_WIDTH) / 3]

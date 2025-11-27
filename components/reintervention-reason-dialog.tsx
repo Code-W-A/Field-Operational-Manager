@@ -116,11 +116,24 @@ export function ReinterventionReasonDialog({
       necesitaPieseSuplimentare: false
     })
     setTextReinterventie("")
+    setDynSelection({})
     onClose()
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open) {
+        // resetăm toate stările locale când se închide fără confirmare
+        setReasons({
+          remediereNeconforma: false,
+          necesitaTimpSuplimentar: false,
+          necesitaPieseSuplimentare: false
+        })
+        setTextReinterventie("")
+        setDynSelection({})
+        onClose()
+      }
+    }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

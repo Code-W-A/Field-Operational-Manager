@@ -53,6 +53,9 @@ export function ClientSearchDialog({
       setTimeout(() => {
         searchInputRef.current?.focus()
       }, 100)
+    } else {
+      // Resetăm căutarea când se închide dialogul fără selectare
+      setSearchTerm("")
     }
     onOpenChange(isOpen)
   }

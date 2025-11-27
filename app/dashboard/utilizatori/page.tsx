@@ -589,6 +589,29 @@ export default function Utilizatori() {
     saveFilters([]) // Salvăm lista goală în localStorage
   }
 
+  // Reset add-user form state
+  const resetAddUserForm = () => {
+    setFormData({
+      email: "",
+      password: "",
+      confirmPassword: "",
+      displayName: "",
+      phoneNumber: "",
+      role: "" as UserRole,
+      clientId: "",
+      allowedLocationNames: [],
+    })
+    setSelectedClientLocations([])
+    setClientAccess([])
+    setPendingClientId("")
+    setPendingLocations([])
+    setInviteRecipients([])
+    setSendInvite(false)
+    setFormError(null)
+    setShowPassword(false)
+    setShowConfirmPassword(false)
+  }
+
   const handleEdit = (user: UserData) => {
     setSelectedUser(user)
     setIsEditDialogOpen(true)
@@ -823,6 +846,7 @@ export default function Utilizatori() {
       setShowCloseAlert(true)
     } else {
       setIsAddDialogOpen(false)
+      resetAddUserForm()
     }
   }
 
@@ -847,7 +871,10 @@ export default function Utilizatori() {
     setShowCloseAlert(false)
 
     // Close the active dialog
-    if (activeDialog === "add") setIsAddDialogOpen(false)
+    if (activeDialog === "add") {
+      setIsAddDialogOpen(false)
+      resetAddUserForm()
+    }
     if (activeDialog === "edit") setIsEditDialogOpen(false)
     if (activeDialog === "delete") setDeleteConfirmOpen(false)
 
@@ -865,6 +892,8 @@ export default function Utilizatori() {
               handleCloseAddDialog()
             } else {
               setIsAddDialogOpen(open)
+              // Fresh form each time dialog opens
+              resetAddUserForm()
             }
           }}
         >

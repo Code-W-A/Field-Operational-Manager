@@ -462,18 +462,20 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       return
     }
 
-    // Dacă raportul este deja generat, descărcăm direct PDF-ul
-    // Deschidem pagina de raport într-un tab nou și trigger-uim download-ul automat
+    // Dacă raportul este deja generat, deschidem direct într-un tab nou (mai fiabil pentru download)
     const downloadUrl = `/raport/${lucrare.id}?autoDownload=true`
-    
-    // Cream un link temporar pentru download
-    const link = document.createElement('a')
-    link.href = downloadUrl
-    link.target = '_blank'
-    link.rel = 'noopener noreferrer'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    try {
+      window.open(downloadUrl, "_blank", "noopener")
+    } catch {
+      // fallback ancoră
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.target = '_blank'
+      link.rel = 'noopener'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
     
     toast({
       title: "Descărcare raport",
@@ -539,11 +541,14 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     }
     setIsFinalizingPartial(true)
     try {
-      // 1) Închidem lucrarea curentă ca Finalizat (fără generare raport)
+      // 1) Închidem lucrarea curentă ca Finalizat și păstrăm DOAR echipamentele finalizate
+      const filteredStatus: Record<string, string> = Object.fromEntries(done.map((id) => [id, "done"]))
       await updateLucrare(
         lucrare.id!,
         {
           statusLucrare: WORK_STATUS.COMPLETED,
+          equipmentIds: done,
+          ["revision.equipmentStatus"]: filteredStatus as any,
           mesajReatribuire: "Revizie finalizată parțial – echipamentele rămase vor fi replanificate",
         } as any,
         userData?.uid,
@@ -577,8 +582,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         title: "Finalizare parțială reușită",
         description: `Am creat o lucrare nouă pentru echipamentele rămase (ID: ${created.id}).`,
       })
-      // Reîncarcă lucrarea curentă
-      await refreshLucrare(true)
+      // Navigăm direct la generarea raportului pentru lucrarea curentă (doar echipamentele finalizate)
+      router.push(`/raport/${lucrare.id}`)
     } catch (e: any) {
       console.error("Eroare finalizare parțială:", e)
       toast({
@@ -926,24 +931,46 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
             <ChevronLeft className="mr-2 h-4 w-4" /> Înapoi
           </Button>
           {role !== "client" && (
-            <Button 
-              onClick={handleGenerateReport}
-              disabled={
-                role === "tehnician" && 
-                (lucrare.tipLucrare === "Revizie" 
-                  ? (() => {
-                      // Pentru revizii: verificăm dacă toate echipamentele sunt completate
-                      if (!Array.isArray(lucrare.equipmentIds)) return true
-                      const status = (lucrare.revision?.equipmentStatus || {}) as Record<string, string>
-                      const completed = lucrare.equipmentIds.filter((id) => status[id] === "done")
-                      return completed.length < lucrare.equipmentIds.length
-                    })()
-                  : !equipmentVerified // Pentru lucrări normale: verificare QR echipament
-                )
-              }
-            >
-              <FileText className="mr-2 h-4 w-4" /> Generează raport
-            </Button>
+            lucrare.raportGenerat ? (
+              <Button
+                onClick={() => {
+                  const url = `/raport/${lucrare.id}?autoDownload=true`
+                  try {
+                    window.open(url, "_blank", "noopener")
+                  } catch {
+                    const a = document.createElement("a")
+                    a.href = url
+                    a.target = "_blank"
+                    a.rel = "noopener"
+                    document.body.appendChild(a)
+                    a.click()
+                    document.body.removeChild(a)
+                  }
+                  toast({ title: "Descărcare raport", description: "Raportul se va descărca automat..." })
+                }}
+              >
+                <FileText className="mr-2 h-4 w-4" /> Descarcă raport
+              </Button>
+            ) : (
+              <Button 
+                onClick={handleGenerateReport}
+                disabled={
+                  role === "tehnician" && 
+                  (lucrare.tipLucrare === "Revizie" 
+                    ? (() => {
+                        // Pentru revizii: verificăm dacă toate echipamentele sunt completate
+                        if (!Array.isArray(lucrare.equipmentIds)) return true
+                        const status = (lucrare.revision?.equipmentStatus || {}) as Record<string, string>
+                        const completed = lucrare.equipmentIds.filter((id) => status[id] === "done")
+                        return completed.length < lucrare.equipmentIds.length
+                      })()
+                    : !equipmentVerified // Pentru lucrări normale: verificare QR echipament
+                  )
+                }
+              >
+                <FileText className="mr-2 h-4 w-4" /> Generează raport
+              </Button>
+            )
           )}
 
           {lucrare.statusLucrare === WORK_STATUS.ARCHIVED && role === "admin" && (
@@ -1084,8 +1111,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
             )
           })()}
 
-          {/* Adăugăm butonul de preluare/anulare preluare pentru admin și dispecer */}
-          {isAdminOrDispatcher && isCompletedWithReport && !lucrare.preluatDispecer && (
+          {/* Buton de preluare pentru admin/dispecer: vizibil pentru Finalizat (cu raport) sau Amânată, dacă nu e preluată */}
+          {isAdminOrDispatcher && !lucrare.preluatDispecer && (isCompletedWithReport || lucrare.statusLucrare === WORK_STATUS.POSTPONED) && (
             <Button
               variant="default"
               className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -1545,44 +1572,46 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                           </Alert>
                         </div>
 
-                        {/* Buton Generează raport - sticky la bottom pentru tehnicieni */}
-                        <div className="mt-4 sm:mt-6 sticky bottom-4 z-10">
-                          <Button
-                            onClick={handleGenerateReport}
-                            disabled={
-                              (() => {
-                                // Permitem finalizare PARȚIALĂ: necesar minim 1 echipament finalizat
-                                if (!Array.isArray(lucrare.equipmentIds)) return true
-                                const status = (lucrare.revision?.equipmentStatus || {}) as Record<string, string>
-                                const completed = lucrare.equipmentIds.filter((id) => status[id] === "done")
-                                return completed.length === 0
-                              })()
-                            }
-                            className="w-full h-14 text-base font-bold rounded-xl shadow-lg bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                            size="lg"
-                          >
-                            <FileText className="mr-2 h-5 w-5" />
-                            Generează raport
-                          </Button>
-                          {/* Finalizare parțială – disponibilă dacă cel puțin un echipament este finalizat dar nu toate */}
-                          {Array.isArray(lucrare.equipmentIds) && (() => {
-                            const st = (lucrare.revision?.equipmentStatus || {}) as Record<string, string>
-                            const all = lucrare.equipmentIds || []
-                            const done = all.filter((id) => st[id] === "done")
-                            return done.length > 0 && done.length < all.length
-                          })() && (
-                            <div className="mt-2">
-                              <Button
-                                variant="outline"
-                                className="w-full h-12 text-base font-semibold rounded-xl"
-                                onClick={handleFinalizePartial}
-                                disabled={isFinalizingPartial}
-                              >
-                                {isFinalizingPartial ? "Se finalizează..." : "Finalizează parțial"}
-                              </Button>
-                            </div>
-                          )}
-                        </div>
+                        {/* Buton Generează raport - sticky la bottom pentru tehnicieni (ascuns dacă raportul este deja generat) */}
+                        {!lucrare.raportGenerat && (
+                          <div className="mt-4 sm:mt-6 sticky bottom-4 z-10">
+                            <Button
+                              onClick={handleGenerateReport}
+                              disabled={
+                                (() => {
+                                  if (!Array.isArray(lucrare.equipmentIds)) return true
+                                  const status = (lucrare.revision?.equipmentStatus || {}) as Record<string, string>
+                                  const completed = lucrare.equipmentIds.filter((id) => status[id] === "done")
+                                  // Generare raport disponibilă DOAR când toate echipamentele sunt finalizate
+                                  return completed.length !== lucrare.equipmentIds.length
+                                })()
+                              }
+                              className="w-full h-14 text-base font-bold rounded-xl shadow-lg bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                              size="lg"
+                            >
+                              <FileText className="mr-2 h-5 w-5" />
+                              Generează raport
+                            </Button>
+                            {/* Finalizare parțială – disponibilă dacă cel puțin un echipament este finalizat dar nu toate */}
+                            {Array.isArray(lucrare.equipmentIds) && (() => {
+                              const st = (lucrare.revision?.equipmentStatus || {}) as Record<string, string>
+                              const all = lucrare.equipmentIds || []
+                              const done = all.filter((id) => st[id] === "done")
+                              return done.length > 0 && done.length < all.length
+                            })() && (
+                              <div className="mt-2">
+                                <Button
+                                  variant="outline"
+                                  className="w-full h-12 text-base font-semibold rounded-xl"
+                                  onClick={handleFinalizePartial}
+                                  disabled={isFinalizingPartial}
+                                >
+                                  {isFinalizingPartial ? "Se finalizează..." : "Finalizează parțial"}
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </>
                     )}
                   </div>

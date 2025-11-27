@@ -155,6 +155,10 @@ export function ContractPricingDialog({ open, onOpenChange, pricing, onSave, cus
     if (hasUnsavedChanges()) {
       setShowCloseAlert(true)
     } else {
+      // resetăm la starea inițială înainte de închidere
+      setLocalPricing({ ...initialPricing })
+      setLocalCustomFields({ ...initialCustomFields })
+      setRemovedKeys(new Set())
       onOpenChange(false)
     }
   }
@@ -162,6 +166,10 @@ export function ContractPricingDialog({ open, onOpenChange, pricing, onSave, cus
   // Confirmă închiderea fără salvare
   const confirmClose = () => {
     setShowCloseAlert(false)
+    // resetăm toate câmpurile la valorile inițiale
+    setLocalPricing({ ...initialPricing })
+    setLocalCustomFields({ ...initialCustomFields })
+    setRemovedKeys(new Set())
     onOpenChange(false)
   }
 

@@ -576,7 +576,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
                   <table className="w-full border-collapse text-sm">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200">
-                        <th className="text-left p-2 font-semibold text-xs">Punct de control</th>
+                        <th className="text-left p-2 font-semibold text-xs">Puncte de control</th>
                         <th className="text-center p-2 font-semibold text-xs w-20">Verificat</th>
                         <th className="text-center p-2 font-semibold text-xs w-16">Obs.</th>
                       </tr>

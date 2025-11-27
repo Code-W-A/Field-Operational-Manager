@@ -76,15 +76,19 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
   for (let idx = 0; idx < revisions.length; idx++) {
     const rev = revisions[idx]
 
-    // Header: Lista operațiuni – (Equipment)
-    const equipmentLabel =
-      rev.equipmentName ||
-      (work?.echipament && String(work.echipament)) ||
-      (work?.echipamentModel && String(work.echipamentModel)) ||
-      String(rev.id)
+    // Header: Lista operațiuni – {Nivel 2} (categorie sau primul punct de control când nu există categorii)
+    const sectionsForHeader = Array.isArray(rev.sections) ? rev.sections : []
+    const firstNonRoot = sectionsForHeader.find((s: any) => !String(s?.id || "").endsWith("__root"))
+    const firstRoot = sectionsForHeader.find((s: any) => String(s?.id || "").endsWith("__root"))
+    const level2Label =
+      (firstNonRoot?.title || firstNonRoot?.name) ||
+      (firstRoot && Array.isArray(firstRoot.items) && firstRoot.items.length > 0
+        ? (firstRoot.items[0]?.label || firstRoot.items[0]?.name)
+        : undefined) ||
+      "Nivel 2 — Fie categorii, fie variabile"
 
     currentY = drawSimpleHeader(doc, {
-      title: `Lista operațiuni – (${normalizeTextForPdf(equipmentLabel)})`,
+      title: `Lista operațiuni – ${normalizeTextForPdf(level2Label)}`,
       logoDataUrl,
     })
 
@@ -102,8 +106,9 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
   doc.setFontSize(10).setTextColor(0, 0, 0)
   
   doc.text(normalizeTextForPdf("Punct de control"), MARGIN + 2, currentY + 5)
-  doc.text(normalizeTextForPdf("Funcțional"), MARGIN + firstColW + fnW / 2, currentY + 5, { align: "center" } as any)
-  doc.text(normalizeTextForPdf("Nefuncțional"), MARGIN + firstColW + fnW + nfnW / 2, currentY + 5, { align: "center" } as any)
+  // Ambele coloane devin "Verificat" conform cerinței
+  doc.text(normalizeTextForPdf("Verificat"), MARGIN + firstColW + fnW / 2, currentY + 5, { align: "center" } as any)
+  doc.text(normalizeTextForPdf("Verificat"), MARGIN + firstColW + fnW + nfnW / 2, currentY + 5, { align: "center" } as any)
   doc.text(normalizeTextForPdf("Obs."), MARGIN + firstColW + fnW + nfnW + 2, currentY + 5)
   
   currentY += rowH
@@ -122,7 +127,7 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
       doc.text(sectionTitle, MARGIN + 2, currentY + 5)
       currentY += rowH
 
-      // Items
+      // Items (obs pe mai multe rânduri, înălțime de rând dinamică)
       const items = Array.isArray(s.items) ? s.items : []
       try { doc.setFont("NotoSans", "normal") } catch {}
       doc.setFontSize(9).setTextColor(0, 0, 0)
@@ -131,7 +136,14 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
         const state = (it.state || "na") as "functional" | "nefunctional" | "na"
         const obs = normalizeTextForPdf(it.obs || "")
 
-        const heightNeeded = 8
+        const labelLines = doc.splitTextToSize(label, firstColW - 4)
+        const obsLines = obs ? doc.splitTextToSize(obs, obsW - 4) : []
+        const numLines = Math.max(labelLines.length, obsLines.length || 0)
+        const lineHeight = 4 // aproximativ pentru fontSize 9
+        const baseRow = 8
+        const dynamic = numLines > 1 ? 5 + (numLines - 1) * lineHeight : baseRow
+        const heightNeeded = Math.max(baseRow, dynamic)
+
         currentY = checkPageBreak(doc, currentY, heightNeeded)
 
         // Row borders
@@ -139,8 +151,7 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
         doc.rect(MARGIN, currentY, W, heightNeeded)
 
         // First col (punct de control)
-        const lines = doc.splitTextToSize(label, firstColW - 4)
-        doc.text(lines, MARGIN + 2, currentY + 5)
+        doc.text(labelLines, MARGIN + 2, currentY + 5)
 
         // Functional / Nefunctional check marks
         const fnX = MARGIN + firstColW
@@ -153,9 +164,8 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
 
         // Obs
         try { doc.setFont("NotoSans", "normal") } catch {}
-        const obsText = obs ? doc.splitTextToSize(obs, obsW - 4) : []
-        if (obsText.length) {
-          doc.text(obsText, MARGIN + firstColW + fnW + nfnW + 2, currentY + 5)
+        if (obsLines.length) {
+          doc.text(obsLines, MARGIN + firstColW + fnW + nfnW + 2, currentY + 5)
         }
 
         currentY += heightNeeded
@@ -204,7 +214,7 @@ export async function generateRevisionEquipmentPDF(
         fr.readAsDataURL(bl)
       })
     } catch {}
-    currentY = drawSimpleHeader(js, { title: "Lista operațiuni – (necunoscut)", logoDataUrl: emptyLogo })
+    currentY = drawSimpleHeader(js, { title: "Lista operațiuni – Nivel 2 — Fie categorii, fie variabile", logoDataUrl: emptyLogo })
     try { js.setFont("NotoSans", "normal") } catch {}
     js.setFontSize(10)
     js.text(normalizeTextForPdf("Fișa de operațiuni nu a fost găsită pentru acest echipament."), MARGIN + 2, currentY + 4)
@@ -213,8 +223,17 @@ export async function generateRevisionEquipmentPDF(
   }
   const rev = { id: revSnap.id, ...(revSnap.data() as any) } as any
 
-  // Header
-  const title = `Lista operațiuni – (${normalizeTextForPdf(rev.equipmentName || equipmentId)})`
+  // Header: Lista operațiuni – {Nivel 2} (categorie sau primul punct de control când nu există categorii)
+  const sectionsForHeader = Array.isArray(rev.sections) ? rev.sections : []
+  const firstNonRoot = sectionsForHeader.find((s: any) => !String(s?.id || "").endsWith("__root"))
+  const firstRoot = sectionsForHeader.find((s: any) => String(s?.id || "").endsWith("__root"))
+  const level2Label =
+    (firstNonRoot?.title || firstNonRoot?.name) ||
+    (firstRoot && Array.isArray(firstRoot.items) && firstRoot.items.length > 0
+      ? (firstRoot.items[0]?.label || firstRoot.items[0]?.name)
+      : undefined) ||
+    "Nivel 2 — Fie categorii, fie variabile"
+  const title = `Lista operațiuni – ${normalizeTextForPdf(level2Label)}`
   let logoDataUrl: string | null = null
   try {
     const resp = await fetch("/nrglogo.png")
@@ -241,8 +260,8 @@ export async function generateRevisionEquipmentPDF(
   js.setFontSize(10).setTextColor(0, 0, 0)
   
   js.text(normalizeTextForPdf("Punct de control"), MARGIN + 2, currentY + 5)
-  js.text(normalizeTextForPdf("Functional"), MARGIN + firstColW + fnW / 2, currentY + 5, { align: "center" } as any)
-  js.text(normalizeTextForPdf("Nefunctional"), MARGIN + firstColW + fnW + nfnW / 2, currentY + 5, { align: "center" } as any)
+  js.text(normalizeTextForPdf("Verificat"), MARGIN + firstColW + fnW / 2, currentY + 5, { align: "center" } as any)
+  js.text(normalizeTextForPdf("Verificat"), MARGIN + firstColW + fnW + nfnW / 2, currentY + 5, { align: "center" } as any)
   js.text(normalizeTextForPdf("Obs."), MARGIN + firstColW + fnW + nfnW + 2, currentY + 5)
   
   currentY += rowH
@@ -266,14 +285,19 @@ export async function generateRevisionEquipmentPDF(
       const state = (it.state || "na") as "functional" | "nefunctional" | "na"
       const obs = normalizeTextForPdf(it.obs || "")
 
-      const heightNeeded = 8
+      const labelLines = js.splitTextToSize(label, firstColW - 4)
+      const obsLines = obs ? js.splitTextToSize(obs, obsW - 4) : []
+      const numLines = Math.max(labelLines.length, obsLines.length || 0)
+      const lineHeight = 4
+      const baseRow = 8
+      const dynamic = numLines > 1 ? 5 + (numLines - 1) * lineHeight : baseRow
+      const heightNeeded = Math.max(baseRow, dynamic)
       currentY = checkPageBreak(js, currentY, heightNeeded)
 
       js.setDrawColor(210, 210, 210).setLineWidth(0.2)
       js.rect(MARGIN, currentY, W, heightNeeded)
 
-      const lines = js.splitTextToSize(label, firstColW - 4)
-      js.text(lines, MARGIN + 2, currentY + 5)
+      js.text(labelLines, MARGIN + 2, currentY + 5)
 
       const fnX = MARGIN + firstColW
       const nfnX = MARGIN + firstColW + fnW
@@ -284,9 +308,8 @@ export async function generateRevisionEquipmentPDF(
       js.text(markNf, nfnX + nfnW / 2, currentY + 5, { align: "center" } as any)
 
       try { js.setFont("NotoSans", "normal") } catch {}
-      const obsText = obs ? js.splitTextToSize(obs, obsW - 4) : []
-      if (obsText.length) {
-        js.text(obsText, MARGIN + firstColW + fnW + nfnW + 2, currentY + 5)
+      if (obsLines.length) {
+        js.text(obsLines, MARGIN + firstColW + fnW + nfnW + 2, currentY + 5)
       }
 
       currentY += heightNeeded

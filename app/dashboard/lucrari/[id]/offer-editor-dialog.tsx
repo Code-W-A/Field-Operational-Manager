@@ -521,8 +521,32 @@ useEffect(() => {
   }
   
 
+  // Helper: reset all local editor states to initial values
+  const resetEditorForm = () => {
+    try { if (typeof window !== 'undefined') localStorage.removeItem(draftStorageKey) } catch {}
+    setProducts(initialProducts || [])
+    setBaselineProducts(initialProducts || [])
+    setAdjustmentPercent(0)
+    setAdjustmentInput("")
+    setTermsPayment("")
+    setTermsDelivery("")
+    setTermsInstallation("")
+    setEditingNewVersion(false)
+    setCanSendOffer(false)
+    // VAT: preferă setarea din settings dacă este disponibilă, altfel 21
+    const nextVat = (typeof defaultVatPercentSetting === 'number' && defaultVatPercentSetting >= 0)
+      ? Number(defaultVatPercentSetting)
+      : 21
+    setVatPercent(nextVat)
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      if (!isOpen) {
+        resetEditorForm()
+      }
+      onOpenChange(isOpen)
+    }}>
       <DialogHeader >
         {/* <DialogTitle className="my-4">Editor ofertă</DialogTitle> */}
       </DialogHeader>
