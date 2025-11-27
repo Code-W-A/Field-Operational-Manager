@@ -828,14 +828,27 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
     try {
       setIsUpdating(true)
-      await updateLucrare(lucrare.id, { preluatDispecer: true, preluatDe: userData?.displayName || userData?.email || "Dispecer" })
+      const noTechs = !Array.isArray(lucrare.tehnicieni) || lucrare.tehnicieni.length === 0
+      const shouldList = lucrare.statusLucrare === WORK_STATUS.POSTPONED && noTechs
+      await updateLucrare(lucrare.id, { 
+        preluatDispecer: true, 
+        preluatDe: userData?.displayName || userData?.email || "Dispecer",
+        ...(shouldList ? { statusLucrare: WORK_STATUS.LISTED } : {}),
+      })
 
       // Actualizăm lucrarea local
-      setLucrare((prev) => (prev ? { ...prev, preluatDispecer: true, preluatDe: userData?.displayName || userData?.email || "Dispecer" } : null))
+      setLucrare((prev) => (prev ? { 
+        ...prev, 
+        preluatDispecer: true, 
+        preluatDe: userData?.displayName || userData?.email || "Dispecer",
+        ...(shouldList ? { statusLucrare: WORK_STATUS.LISTED } : {}),
+      } : null))
 
       toast({
         title: "Lucrare preluată",
-        description: "Lucrarea a fost marcată ca preluată de dispecer.",
+        description: shouldList 
+          ? "Lucrarea a fost marcată ca preluată și trecută în status 'Listată'."
+          : "Lucrarea a fost marcată ca preluată de dispecer.",
         variant: "default",
       })
     } catch (error) {
