@@ -596,6 +596,47 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     }
   })
 
+  // Utilitare locale pentru a afișa corect datele indiferent de tip (string/Date/Timestamp)
+  const toDateSafe = (val: any): Date | null => {
+    try {
+      if (!val) return null
+      // Firestore Timestamp
+      if (typeof val?.toDate === "function") return val.toDate()
+      // Admin SDK serialized object { seconds, nanoseconds }
+      if (typeof val?.seconds === "number" && typeof val?.nanoseconds === "number") {
+        return new Date(val.seconds * 1000 + Math.floor(val.nanoseconds / 1e6))
+      }
+      if (val instanceof Date) return val
+      if (typeof val === "string") {
+        // în app stocăm ca "dd.MM.yyyy HH:mm"
+        const parts = val.trim()
+        // Dacă e deja un ISO valid
+        const maybe = new Date(parts)
+        if (!isNaN(maybe.getTime())) return maybe
+        // Try parse dd.MM.yyyy HH:mm
+        const [datePart, timePart] = parts.split(" ")
+        if (datePart) {
+          const [dd, mm, yyyy] = datePart.split(".").map((x) => parseInt(x, 10))
+          const [hh = 0, min = 0] = (timePart || "00:00").split(":").map((x) => parseInt(x, 10))
+          if (yyyy && mm && dd) {
+            return new Date(yyyy, (mm - 1) as number, dd, hh || 0, min || 0, 0, 0)
+          }
+        }
+      }
+    } catch {}
+    return null
+  }
+
+  const formatDateSafe = (val: any): string => {
+    const d = toDateSafe(val)
+    if (!d) return "-"
+    try {
+      return format(d, "dd.MM.yyyy HH:mm")
+    } catch {
+      return d.toLocaleString("ro-RO")
+    }
+  }
+
   // Detectăm întoarcerea de la pagina de raport prin focus pe fereastră
   useEffect(() => {
     let hasFocus = true
@@ -1355,11 +1396,11 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 <div className="text-sm flex flex-wrap items-start gap-x-3 gap-y-2 mt-2">
                   <div className="flex flex-col min-w-[140px]">
                     <div className="text-xs font-medium text-muted-foreground">Data emiterii:</div>
-                    <div className="text-gray-900 whitespace-nowrap">{String(lucrare.dataEmiterii || "").split(" ")[0]}</div>
+                    <div className="text-gray-900 whitespace-nowrap">{formatDateSafe(lucrare.dataEmiterii)}</div>
                   </div>
                   <div className="flex flex-col min-w-[140px]">
                     <div className="text-xs font-medium text-muted-foreground">Data intervenție:</div>
-                    <div className="text-gray-900 whitespace-nowrap">{String(lucrare.dataInterventie || "").split(" ")[0]}</div>
+                    <div className="text-gray-900 whitespace-nowrap">{formatDateSafe(lucrare.dataInterventie)}</div>
                   </div>
                   {lucrare.timpSosire && (
                     <div className="flex flex-col min-w-[160px]">

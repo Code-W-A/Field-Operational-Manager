@@ -620,8 +620,8 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             setAvailableEquipments(placeholders)
             setEquipmentsLoaded(true)
           } else {
-            setAvailableEquipments([])
-            setEquipmentsLoaded(true)
+        setAvailableEquipments([])
+        setEquipmentsLoaded(true)
           }
         }
       }
@@ -896,8 +896,8 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 setEquipmentsLoaded(true)
               }
             } else {
-              setAvailableEquipments([])
-              setEquipmentsLoaded(true)
+            setAvailableEquipments([])
+            setEquipmentsLoaded(true)
             }
           }
         } else {
@@ -1108,8 +1108,8 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             setAvailableEquipments(placeholders)
             setEquipmentsLoaded(true)
           } else {
-            setAvailableEquipments([])
-            setEquipmentsLoaded(true)
+          setAvailableEquipments([])
+          setEquipmentsLoaded(true)
           }
         }
 
@@ -1196,8 +1196,8 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
               setAvailableEquipments(placeholders)
               setEquipmentsLoaded(true)
             } else {
-              setAvailableEquipments([])
-              setEquipmentsLoaded(true)
+            setAvailableEquipments([])
+            setEquipmentsLoaded(true)
             }
           }
         }
