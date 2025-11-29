@@ -119,6 +119,7 @@ export default function Lucrari() {
   const [isReassignment, setIsReassignment] = useState(false)
   const [originalWorkOrderId, setOriginalWorkOrderId] = useState(null)
   const [revEquipmentNames, setRevEquipmentNames] = useState<Record<string, string[]>>({})
+  const [expandedRevEquip, setExpandedRevEquip] = useState<Record<string, boolean>>({})
   const [dataEmiterii, setDataEmiterii] = useState<Date | undefined>(new Date())
   
   // State pentru dialogul de motive reintervenție
