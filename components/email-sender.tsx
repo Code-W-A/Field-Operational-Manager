@@ -87,8 +87,10 @@ Echipa de interventie`,
         formData.append("clientId", lucrare.clientInfo.id)
       }
 
-      // Adăugăm PDF-ul ca fișier
-      const pdfFile = new File([pdfBlob], `Raport_Interventie_${lucrare.id}.pdf`, { type: "application/pdf" })
+      // Adăugăm PDF-ul ca fișier (folosim nrLucrare/numarRaport dacă există)
+      const workNumRaw = String((lucrare as any)?.nrLucrare || (lucrare as any)?.numarRaport || lucrare.id || "")
+      const workNum = workNumRaw.replace(/^#\s*/, "").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
+      const pdfFile = new File([pdfBlob], `Raport_Interventie_${workNum}.pdf`, { type: "application/pdf" })
       formData.append("pdfFile", pdfFile)
 
       // Adăugăm logo-ul companiei

@@ -558,7 +558,9 @@ FOM by NRG`,
             }
 
             // Add PDF as file
-            const pdfFile = new File([pdfBlob], `Raport_Interventie_${updatedLucrare.id || params.id}.pdf`, {
+            const workNumRaw = String(updatedLucrare.nrLucrare || updatedLucrare.numarRaport || updatedLucrare.id || params.id)
+            const workNum = workNumRaw.replace(/^#\s*/, "").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
+            const pdfFile = new File([pdfBlob], `Raport_Interventie_${workNum}.pdf`, {
               type: "application/pdf",
             })
             formData.append("pdfFile", pdfFile)
@@ -567,7 +569,7 @@ FOM by NRG`,
             try {
               if ((updatedLucrare?.tipLucrare || "").toLowerCase() === "revizie") {
                 const opsBlob = await generateRevisionOperationsPDF(updatedLucrare.id || params.id)
-                const opsFile = new File([opsBlob], `Fise_Operatiuni_${updatedLucrare.id || params.id}.pdf`, {
+                const opsFile = new File([opsBlob], `Fise_Operatiuni_${workNum}.pdf`, {
                   type: "application/pdf",
                 })
                 formData.append("opsPdfFile", opsFile)
@@ -1795,7 +1797,10 @@ FOM by NRG`,
                   const url = URL.createObjectURL(blob)
                   const a = document.createElement('a')
                   a.href = url
-                  a.download = `Raport_${lucrare?.client || 'Interventie'}_${params.id}.pdf`
+                    const numRaw = String(lucrare?.nrLucrare || lucrare?.numarRaport || params.id || "")
+                    const num = numRaw.replace(/^#\s*/, "").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
+                    const clientPart = String(lucrare?.client || "Interventie").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
+                    a.download = `Raport_${clientPart}_${num}.pdf`
                   document.body.appendChild(a)
                   a.click()
                   document.body.removeChild(a)

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, use } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import Link from "next/link"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Button } from "@/components/ui/button"
@@ -1580,10 +1581,12 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                         const url = URL.createObjectURL(blob)
                                         const a = document.createElement("a")
                                         a.href = url
-                                        // Construim numele fișierului pe baza numelui echipamentului
+                                        // Construim numele fișierului: Echipament + număr lucrare
                                         const equipLabel = String(eq?.nume || eq?.name || eq?.model || eid || "Echipament")
                                         const safeLabel = equipLabel.replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
-                                        a.download = `Fisa_Operatiuni_${safeLabel}.pdf`
+                                        const workNumRaw = String(lucrare?.nrLucrare || lucrare?.numarRaport || lucrare?.id || "")
+                                        const workNum = workNumRaw.replace(/^#\s*/, "").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
+                                        a.download = `Fisa_Operatiuni_${safeLabel}_${workNum}.pdf`
                                         document.body.appendChild(a)
                                         a.click()
                                         a.remove()
@@ -2242,8 +2245,19 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
             <Card>
               <CardHeader>
-                <CardTitle>Informații client</CardTitle>
-                <CardDescription className="text-base font-semibold text-gray-600">{lucrare.client}</CardDescription>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <CardTitle>Informații client</CardTitle>
+                    <CardDescription className="text-base font-semibold text-gray-600">{lucrare.client}</CardDescription>
+                  </div>
+                  {lucrare?.clientId && (
+                    <Link href={`/dashboard/clienti/${lucrare.clientId}`}>
+                      <Button variant="outline" size="sm" className="whitespace-nowrap">
+                        Vezi detalii client
+                      </Button>
+                    </Link>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
              

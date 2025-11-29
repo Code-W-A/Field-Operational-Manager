@@ -1,7 +1,7 @@
 import { jsPDF } from "jspdf"
 import { collection, doc, getDoc, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
-import { drawSimpleHeader, drawFooter, MARGIN, CONTENT_WIDTH } from "./common"
+import { drawSimpleHeader, MARGIN, CONTENT_WIDTH } from "./common"
 import { ensurePdfFont } from "./font-loader"
 
 type RevisionItem = {
@@ -33,14 +33,21 @@ function normalizeTextForPdf(text = ""): string {
   return s
 }
 
-function checkPageBreak(doc: jsPDF, currentY: number, needed: number): number {
+// Local footer centrat pentru Fisa de operatiuni
+function drawOpsFooter(doc: jsPDF): void {
   const PH = doc.internal.pageSize.getHeight()
-  if (currentY + needed > PH - MARGIN - 30) {
-    drawFooter(doc)
-    doc.addPage()
-    currentY = drawSimpleHeader(doc, {}) // header will be filled by caller at section start
-  }
-  return currentY
+  const footerSepY = PH - 18
+  // separator subtire
+  doc.setDrawColor(210, 210, 210).setLineWidth(0.2)
+  doc.line(MARGIN, footerSepY, MARGIN + CONTENT_WIDTH, footerSepY)
+  // text centrat (doua randuri concise)
+  let footerY = footerSepY + 6
+  try { doc.setFont("NotoSans", "normal") } catch {}
+  doc.setFontSize(8).setTextColor(30, 70, 180)
+  const centerX = MARGIN + CONTENT_WIDTH / 2
+  doc.text("NRG Access Systems SRL", centerX, footerY, { align: "center" } as any)
+  footerY += 4
+  doc.text("office@nrg-acces.ro • www.nrg-acces.ro • +40 371 494 499", centerX, footerY, { align: "center" } as any)
 }
 
 export async function generateRevisionOperationsPDF(lucrareId: string): Promise<Blob> {
@@ -87,17 +94,28 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
         : undefined) ||
       "Nivel 2 — Fie categorii, fie variabile"
 
+    const headerTitle = `Lista operațiuni – ${normalizeTextForPdf(level2Label)}`
     currentY = drawSimpleHeader(doc, {
-      title: `Lista operațiuni – ${normalizeTextForPdf(level2Label)}`,
+      title: headerTitle,
       logoDataUrl,
     })
 
+    // Page-break helper cu header repetat si footer centrat
+    const checkBreak = (need: number) => {
+      const PH = doc.internal.pageSize.getHeight()
+      if (currentY + need > PH - MARGIN - 30) {
+        drawOpsFooter(doc)
+        doc.addPage()
+        currentY = drawSimpleHeader(doc, { title: headerTitle, logoDataUrl })
+      }
+    }
+
     // Table header
     const rowH = 8
-    const firstColW = Math.round(W * 0.58)
-    const fnW = 20
-    const nfnW = 26
-    const obsW = W - firstColW - fnW - nfnW
+    // o singura coloana "Verificat"
+    const firstColW = Math.round(W * 0.62)
+    const verW = 22
+    const obsW = W - firstColW - verW
 
   // Header band
   doc.setFillColor(220, 227, 240)
@@ -106,10 +124,9 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
   doc.setFontSize(10).setTextColor(0, 0, 0)
   
   doc.text(normalizeTextForPdf("Puncte de control"), MARGIN + 2, currentY + 5)
-  // Ambele coloane devin "Verificat" conform cerinței
-  doc.text(normalizeTextForPdf("Verificat"), MARGIN + firstColW + fnW / 2, currentY + 5, { align: "center" } as any)
-  doc.text(normalizeTextForPdf("Verificat"), MARGIN + firstColW + fnW + nfnW / 2, currentY + 5, { align: "center" } as any)
-  doc.text(normalizeTextForPdf("Obs."), MARGIN + firstColW + fnW + nfnW + 2, currentY + 5)
+  // O singura coloana "Verificat"
+  doc.text(normalizeTextForPdf("Verificat"), MARGIN + firstColW + verW / 2, currentY + 5, { align: "center" } as any)
+  doc.text(normalizeTextForPdf("Obs."), MARGIN + firstColW + verW + 2, currentY + 5)
   
   currentY += rowH
 
@@ -119,7 +136,7 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
     for (const s of sections) {
       // Section row (category)
       const sectionTitle = normalizeTextForPdf(s.title || s.name || "Secțiune")
-      currentY = checkPageBreak(doc, currentY, rowH)
+      checkBreak(rowH)
       doc.setFillColor(240, 240, 240)
       doc.rect(MARGIN, currentY, W, rowH, "F")
       try { doc.setFont("NotoSans", "bold") } catch {}
@@ -144,7 +161,7 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
         const dynamic = numLines > 1 ? 5 + (numLines - 1) * lineHeight : baseRow
         const heightNeeded = Math.max(baseRow, dynamic)
 
-        currentY = checkPageBreak(doc, currentY, heightNeeded)
+        checkBreak(heightNeeded)
 
         // Row borders
         doc.setDrawColor(210, 210, 210).setLineWidth(0.2)
@@ -153,19 +170,16 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
         // First col (puncte de control)
         doc.text(labelLines, MARGIN + 2, currentY + 5)
 
-        // Functional / Nefunctional check marks
-        const fnX = MARGIN + firstColW
-        const nfnX = MARGIN + firstColW + fnW
+        // O singura coloana "Verificat" – marcam X daca a fost evaluat (functional sau nefunctional)
+        const verX = MARGIN + firstColW
         try { doc.setFont("NotoSans", "bold") } catch {}
-        const markFn = state === "functional" ? "X" : ""
-        const markNf = state === "nefunctional" ? "X" : ""
-        doc.text(markFn, fnX + fnW / 2, currentY + 5, { align: "center" } as any)
-        doc.text(markNf, nfnX + nfnW / 2, currentY + 5, { align: "center" } as any)
+        const mark = state !== "na" ? "X" : ""
+        doc.text(mark, verX + verW / 2, currentY + 5, { align: "center" } as any)
 
         // Obs
         try { doc.setFont("NotoSans", "normal") } catch {}
         if (obsLines.length) {
-          doc.text(obsLines, MARGIN + firstColW + fnW + nfnW + 2, currentY + 5)
+          doc.text(obsLines, MARGIN + firstColW + verW + 2, currentY + 5)
         }
 
         currentY += heightNeeded
@@ -173,7 +187,7 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
     }
 
     // Footer per page
-    drawFooter(doc)
+    drawOpsFooter(doc)
     if (idx < revisions.length - 1) {
       doc.addPage()
       currentY = MARGIN
@@ -246,13 +260,21 @@ export async function generateRevisionEquipmentPDF(
   } catch {}
   currentY = drawSimpleHeader(js, { title, logoDataUrl })
 
+  const checkBreak = (need: number) => {
+    const PH = js.internal.pageSize.getHeight()
+    if (currentY + need > PH - MARGIN - 30) {
+      drawOpsFooter(js)
+      js.addPage()
+      currentY = drawSimpleHeader(js, { title, logoDataUrl })
+    }
+  }
+
   // Table header
   const rowH = 8
   const W = CONTENT_WIDTH
-  const firstColW = Math.round(W * 0.58)
-  const fnW = 20
-  const nfnW = 26
-  const obsW = W - firstColW - fnW - nfnW
+  const firstColW = Math.round(W * 0.62)
+  const verW = 22
+  const obsW = W - firstColW - verW
 
   js.setFillColor(220, 227, 240)
   js.rect(MARGIN, currentY, W, rowH, "F")
@@ -260,16 +282,15 @@ export async function generateRevisionEquipmentPDF(
   js.setFontSize(10).setTextColor(0, 0, 0)
   
   js.text(normalizeTextForPdf("Puncte de control"), MARGIN + 2, currentY + 5)
-  js.text(normalizeTextForPdf("Verificat"), MARGIN + firstColW + fnW / 2, currentY + 5, { align: "center" } as any)
-  js.text(normalizeTextForPdf("Verificat"), MARGIN + firstColW + fnW + nfnW / 2, currentY + 5, { align: "center" } as any)
-  js.text(normalizeTextForPdf("Obs."), MARGIN + firstColW + fnW + nfnW + 2, currentY + 5)
+  js.text(normalizeTextForPdf("Verificat"), MARGIN + firstColW + verW / 2, currentY + 5, { align: "center" } as any)
+  js.text(normalizeTextForPdf("Obs."), MARGIN + firstColW + verW + 2, currentY + 5)
   
   currentY += rowH
 
   const sections = Array.isArray(rev.sections) ? rev.sections : []
   for (const s of sections) {
     const sectionTitle = normalizeTextForPdf(s.title || s.name || "Secțiune")
-    currentY = checkPageBreak(js, currentY, rowH)
+    checkBreak(rowH)
     js.setFillColor(240, 240, 240)
     js.rect(MARGIN, currentY, W, rowH, "F")
     try { js.setFont("NotoSans", "bold") } catch {}
@@ -292,31 +313,28 @@ export async function generateRevisionEquipmentPDF(
       const baseRow = 8
       const dynamic = numLines > 1 ? 5 + (numLines - 1) * lineHeight : baseRow
       const heightNeeded = Math.max(baseRow, dynamic)
-      currentY = checkPageBreak(js, currentY, heightNeeded)
+      checkBreak(heightNeeded)
 
       js.setDrawColor(210, 210, 210).setLineWidth(0.2)
       js.rect(MARGIN, currentY, W, heightNeeded)
 
       js.text(labelLines, MARGIN + 2, currentY + 5)
 
-      const fnX = MARGIN + firstColW
-      const nfnX = MARGIN + firstColW + fnW
+      const verX = MARGIN + firstColW
       try { js.setFont("NotoSans", "bold") } catch {}
-      const markFn = state === "functional" ? "X" : ""
-      const markNf = state === "nefunctional" ? "X" : ""
-      js.text(markFn, fnX + fnW / 2, currentY + 5, { align: "center" } as any)
-      js.text(markNf, nfnX + nfnW / 2, currentY + 5, { align: "center" } as any)
+      const mark = state !== "na" ? "X" : ""
+      js.text(mark, verX + verW / 2, currentY + 5, { align: "center" } as any)
 
       try { js.setFont("NotoSans", "normal") } catch {}
       if (obsLines.length) {
-        js.text(obsLines, MARGIN + firstColW + fnW + nfnW + 2, currentY + 5)
+        js.text(obsLines, MARGIN + firstColW + verW + 2, currentY + 5)
       }
 
       currentY += heightNeeded
     }
   }
 
-  drawFooter(js)
+  drawOpsFooter(js)
   return js.output("blob")
 }
 

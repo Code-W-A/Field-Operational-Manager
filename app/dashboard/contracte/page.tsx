@@ -69,6 +69,7 @@ interface Contract {
   clientId?: string
   locationId?: string
   locationName?: string
+  locationNames?: string[]
   equipmentIds?: string[]
   startDate?: string
   recurrenceInterval?: number
@@ -102,11 +103,12 @@ export default function ContractsPage() {
   const [newContractClientId, setNewContractClientId] = useState("UNASSIGNED")
   const [newContractLocationId, setNewContractLocationId] = useState("")
   const [newContractLocationName, setNewContractLocationName] = useState("")
+  const [newContractLocationIds, setNewContractLocationIds] = useState<string[]>([])
+  const [newContractLocationNames, setNewContractLocationNames] = useState<string[]>([])
   const [newContractEquipmentIds, setNewContractEquipmentIds] = useState<string[]>([])
   const [newContractStartDate, setNewContractStartDate] = useState<string>("")
   const [newContractRecurrenceInterval, setNewContractRecurrenceInterval] = useState<number>(90)
   const [newContractRecurrenceUnit, setNewContractRecurrenceUnit] = useState<'zile' | 'luni'>('zile')
-  const [newContractRecurrenceDayOfMonth, setNewContractRecurrenceDayOfMonth] = useState<number>(1)
   const [newContractDaysBeforeWork, setNewContractDaysBeforeWork] = useState<number>(10)
   const [newContractPricing, setNewContractPricing] = useState<Record<string, number>>({})
   const [newContractPricingCustomFields, setNewContractPricingCustomFields] = useState<Record<string, any>>({})
@@ -486,7 +488,9 @@ export default function ContractsPage() {
       enableSorting: true,
       enableFiltering: true,
       cell: ({ row }) => {
-        const locatie = row.original.locatie
+        const locatie = (row.original as any).locationNames?.length
+          ? (row.original as any).locationNames.join(", ")
+          : ((row.original as any).locationName || (row.original as any).locatie)
         
         if (!locatie) {
           return (
@@ -655,6 +659,8 @@ export default function ContractsPage() {
         setClientEquipments([])
         setNewContractLocationId("")
         setNewContractLocationName("")
+        setNewContractLocationIds([])
+        setNewContractLocationNames([])
         setNewContractEquipmentIds([])
         return
       }
@@ -677,21 +683,23 @@ export default function ContractsPage() {
     loadClientLocations()
   }, [newContractClientId])
 
-  // Încărcăm echipamentele când se schimbă locația selectată
+  // Încărcăm echipamentele când se schimbă locația/locațiile selectate
   useEffect(() => {
-    if (!newContractLocationId) {
+    const ids = newContractLocationIds.length ? newContractLocationIds : (newContractLocationId ? [newContractLocationId] : [])
+    if (!ids.length) {
       setClientEquipments([])
       setNewContractEquipmentIds([])
       return
     }
-
-    const selectedLocation = clientLocations.find(loc => loc.nume === newContractLocationId)
-    if (selectedLocation && selectedLocation.echipamente) {
-      setClientEquipments(selectedLocation.echipamente)
-    } else {
-      setClientEquipments([])
+    const eqs: Echipament[] = []
+    for (const id of ids) {
+      const selectedLocation = clientLocations.find(loc => loc.nume === id)
+      if (selectedLocation?.echipamente?.length) {
+        eqs.push(...selectedLocation.echipamente)
+      }
     }
-  }, [newContractLocationId, clientLocations])
+    setClientEquipments(eqs)
+  }, [newContractLocationIds, newContractLocationId, clientLocations])
 
   // Inițializare valoare default pentru daysBeforeWork
   useEffect(() => {
@@ -735,7 +743,7 @@ export default function ContractsPage() {
           setIsSubmitting(false)
           return
         }
-        if (!newContractLocationId) {
+        if ((newContractLocationIds.length === 0) && !newContractLocationId) {
           toast({
             title: "Lipsă locație",
             description: "Selectați locația pentru contractele recurente.",
@@ -783,10 +791,13 @@ export default function ContractsPage() {
       if (newContractClientId && newContractClientId !== "UNASSIGNED") {
         contractData.clientId = newContractClientId
         
-        // Adăugăm locația și echipamentele dacă sunt selectate
-        if (newContractLocationId) {
-          contractData.locationId = newContractLocationId
-          contractData.locationName = newContractLocationName
+        // Suport multi-locații
+        const locs = newContractLocationIds.length ? newContractLocationIds : (newContractLocationId ? [newContractLocationId] : [])
+        if (locs.length > 0) {
+          contractData.locationNames = locs
+          // legacy fallback
+          contractData.locationId = locs[0]
+          contractData.locationName = locs[0]
         }
         
         if (newContractEquipmentIds.length > 0) {
@@ -803,10 +814,7 @@ export default function ContractsPage() {
         contractData.recurrenceInterval = newContractRecurrenceInterval
         contractData.recurrenceUnit = newContractRecurrenceUnit
         contractData.daysBeforeWork = newContractDaysBeforeWork
-        // Adăugăm ziua din lună doar pentru recurență lunară
-        if (newContractRecurrenceUnit === 'luni') {
-          contractData.recurrenceDayOfMonth = newContractRecurrenceDayOfMonth
-        }
+        // Ziua din lună nu mai este folosită
       }
 
       // Adăugăm prețurile dacă sunt setate
@@ -848,6 +856,8 @@ export default function ContractsPage() {
       setNewContractClientId("UNASSIGNED")
       setNewContractLocationId("")
       setNewContractLocationName("")
+      setNewContractLocationIds([])
+      setNewContractLocationNames([])
       setNewContractEquipmentIds([])
       setNewContractRecurrenceInterval(90)
       setNewContractRecurrenceUnit("zile")
@@ -919,11 +929,14 @@ export default function ContractsPage() {
       if (newContractClientId && newContractClientId !== "UNASSIGNED") {
         updateData.clientId = newContractClientId
         
-        // Gestionăm locația și echipamentele
-        if (newContractLocationId) {
-          updateData.locationId = newContractLocationId
-          updateData.locationName = newContractLocationName
+        // Gestionăm locațiile (multi)
+        const locs = newContractLocationIds.length ? newContractLocationIds : (newContractLocationId ? [newContractLocationId] : [])
+        if (locs.length > 0) {
+          updateData.locationNames = locs
+          updateData.locationId = locs[0]
+          updateData.locationName = locs[0]
         } else {
+          updateData.locationNames = []
           updateData.locationId = null
           updateData.locationName = null
         }
@@ -951,17 +964,10 @@ export default function ContractsPage() {
         updateData.recurrenceInterval = newContractRecurrenceInterval
         updateData.recurrenceUnit = newContractRecurrenceUnit
         updateData.daysBeforeWork = newContractDaysBeforeWork
-        // Adăugăm ziua din lună doar pentru recurență lunară
-        if (newContractRecurrenceUnit === 'luni') {
-          updateData.recurrenceDayOfMonth = newContractRecurrenceDayOfMonth
-        } else {
-          updateData.recurrenceDayOfMonth = null
-        }
       } else {
         updateData.startDate = null
         updateData.recurrenceInterval = null
         updateData.recurrenceUnit = null
-        updateData.recurrenceDayOfMonth = null
         updateData.daysBeforeWork = null
       }
 
@@ -994,6 +1000,8 @@ export default function ContractsPage() {
       setNewContractClientId("UNASSIGNED")
       setNewContractLocationId("")
       setNewContractLocationName("")
+    setNewContractLocationIds([])
+    setNewContractLocationNames([])
       setNewContractEquipmentIds([])
       setNewContractRecurrenceInterval(90)
       setNewContractRecurrenceUnit("zile")
@@ -1059,11 +1067,12 @@ export default function ContractsPage() {
     setNewContractClientId(contract.clientId || "UNASSIGNED")
     setNewContractLocationId(contract.locationId || "")
     setNewContractLocationName(contract.locationName || "")
+    setNewContractLocationIds((contract.locationNames as any) || (contract.locationId ? [contract.locationId] : []))
+    setNewContractLocationNames((contract.locationNames as any) || (contract.locationName ? [contract.locationName] : []))
     setNewContractEquipmentIds(contract.equipmentIds || [])
     setNewContractStartDate(contract.startDate || "")
     setNewContractRecurrenceInterval(contract.recurrenceInterval || 90)
     setNewContractRecurrenceUnit(contract.recurrenceUnit || "zile")
-    setNewContractRecurrenceDayOfMonth(contract.recurrenceDayOfMonth || 1)
     setNewContractDaysBeforeWork(contract.daysBeforeWork || 10)
     setNewContractPricing(contract.pricing || {})
     
@@ -1076,12 +1085,15 @@ export default function ContractsPage() {
         if (selectedClient && selectedClient.locatii) {
           setClientLocations(selectedClient.locatii)
           
-          // Încărcăm echipamentele pentru locația selectată
-          if (contract.locationId) {
-            const selectedLocation = selectedClient.locatii.find(loc => loc.nume === contract.locationId)
-            if (selectedLocation && selectedLocation.echipamente) {
-              setClientEquipments(selectedLocation.echipamente)
+          // Încărcăm echipamentele pentru locațiile selectate
+          const locs = (contract.locationNames as any) || (contract.locationId ? [contract.locationId] : [])
+          if (Array.isArray(locs) && locs.length) {
+            const eqs: Echipament[] = []
+            for (const id of locs) {
+              const l = selectedClient.locatii.find((x: any) => x.nume === id)
+              if (l?.echipamente?.length) eqs.push(...l.echipamente)
             }
+            setClientEquipments(eqs)
           }
         }
       } catch (error) {
@@ -1113,7 +1125,7 @@ export default function ContractsPage() {
   // Function to check if we should show the close confirmation dialog
   const handleCloseDialog = (dialogType: "add" | "edit" | "delete") => {
     // For contracts, we'll check if the form fields have values
-    if (dialogType === "add" && (newContractName || newContractNumber || newContractLocationId || newContractEquipmentIds.length > 0 || (newContractClientId && newContractClientId !== "UNASSIGNED"))) {
+    if (dialogType === "add" && (newContractName || newContractNumber || newContractLocationId || newContractLocationIds.length > 0 || newContractEquipmentIds.length > 0 || (newContractClientId && newContractClientId !== "UNASSIGNED"))) {
       setActiveDialog(dialogType)
       setShowCloseAlert(true)
     } else if (
@@ -1121,11 +1133,11 @@ export default function ContractsPage() {
       (newContractName !== selectedContract?.name ||
         newContractNumber !== selectedContract?.number ||
         newContractLocationId !== (selectedContract?.locationId || "") ||
+        JSON.stringify(newContractLocationIds) !== JSON.stringify((selectedContract?.locationNames as any) || []) ||
         JSON.stringify(newContractEquipmentIds) !== JSON.stringify(selectedContract?.equipmentIds || []) ||
         newContractStartDate !== (selectedContract?.startDate || "") ||
         newContractRecurrenceInterval !== (selectedContract?.recurrenceInterval || 90) ||
         newContractRecurrenceUnit !== (selectedContract?.recurrenceUnit || "zile") ||
-        newContractRecurrenceDayOfMonth !== (selectedContract?.recurrenceDayOfMonth || 1) ||
         newContractDaysBeforeWork !== (selectedContract?.daysBeforeWork || 10) ||
         newContractClientId !== (selectedContract?.clientId || "UNASSIGNED"))
     ) {
@@ -1149,11 +1161,12 @@ export default function ContractsPage() {
     setNewContractClientId("UNASSIGNED")
     setNewContractLocationId("")
     setNewContractLocationName("")
+    setNewContractLocationIds([])
+    setNewContractLocationNames([])
     setNewContractEquipmentIds([])
     setNewContractStartDate("")
     setNewContractRecurrenceInterval(90)
     setNewContractRecurrenceUnit("zile")
-    setNewContractRecurrenceDayOfMonth(1)
     setNewContractDaysBeforeWork(10)
     setNewContractPricing({})
     setClientLocations([])
@@ -1276,29 +1289,24 @@ export default function ContractsPage() {
               </div>
               {clientLocations.length > 0 && (
                 <div className="space-y-2">
-                  <Label htmlFor="contractLocatie">Locație</Label>
-                  <Select value={newContractLocationId} onValueChange={(value) => {
-                    setNewContractLocationId(value)
-                    setNewContractLocationName(value)
-                  }}>
-                    <SelectTrigger id="contractLocatie">
-                      <SelectValue placeholder="Selectați locația pentru acest contract" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clientLocations.map((locatie) => (
-                        <SelectItem key={locatie.nume} value={locatie.nume}>
-                          {locatie.nume}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-gray-500">Selectați locația pentru care se aplică contractul</p>
+                  <Label>Locații</Label>
+                  <MultiSelect
+                    options={clientLocations.map((l) => ({ label: l.nume, value: l.nume }))}
+                    selected={newContractLocationIds}
+                    onChange={(vals) => {
+                      setNewContractLocationIds(vals)
+                      setNewContractLocationNames(vals)
+                    }}
+                    placeholder="Selectați una sau mai multe locații"
+                    emptyText="Clientul nu are locații"
+                  />
+                  <p className="text-xs text-gray-500">Selectați una sau mai multe locații pentru acest contract</p>
                 </div>
               )}
             </div>
 
             {/* Echipamente - full width */}
-            {newContractLocationId && clientEquipments.length > 0 && (
+            {(newContractLocationIds.length > 0 || newContractLocationId) && clientEquipments.length > 0 && (
               <div className="space-y-2">
                 <Label>Echipamente</Label>
                 <MultiSelect
@@ -1378,30 +1386,7 @@ export default function ContractsPage() {
                 </div>
               </div>
               
-              {/* Ziua din lună - doar pentru recurență lunară */}
-              {newContractRecurrenceUnit === 'luni' && (
-                <div className="space-y-2 mt-4">
-                  <Label htmlFor="recurrenceDayOfMonth">Ziua din lună</Label>
-                  <Select 
-                    value={newContractRecurrenceDayOfMonth.toString()} 
-                    onValueChange={(value) => setNewContractRecurrenceDayOfMonth(parseInt(value))}
-                  >
-                    <SelectTrigger id="recurrenceDayOfMonth">
-                      <SelectValue placeholder="Selectați ziua" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[200px]">
-                      {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
-                        <SelectItem key={day} value={day.toString()}>
-                          {day}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-gray-500">
-                    Revizia va fi programată în această zi a lunii
-                  </p>
-                </div>
-              )}
+              {/* Ziua din lună a fost eliminată */}
             </div>
 
             {/* Rândul pentru Zile înainte și Prețuri */}
@@ -1560,29 +1545,24 @@ export default function ContractsPage() {
               </div>
               {clientLocations.length > 0 && (
                 <div className="space-y-2">
-                  <Label htmlFor="editContractLocatie">Locație</Label>
-                  <Select value={newContractLocationId} onValueChange={(value) => {
-                    setNewContractLocationId(value)
-                    setNewContractLocationName(value)
-                  }}>
-                    <SelectTrigger id="editContractLocatie">
-                      <SelectValue placeholder="Selectați locația pentru acest contract" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clientLocations.map((locatie) => (
-                        <SelectItem key={locatie.nume} value={locatie.nume}>
-                          {locatie.nume}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-gray-500">Selectați locația pentru care se aplică contractul</p>
+                  <Label>Locații</Label>
+                  <MultiSelect
+                    options={clientLocations.map((l) => ({ label: l.nume, value: l.nume }))}
+                    selected={newContractLocationIds}
+                    onChange={(vals) => {
+                      setNewContractLocationIds(vals)
+                      setNewContractLocationNames(vals)
+                    }}
+                    placeholder="Selectați una sau mai multe locații"
+                    emptyText="Clientul nu are locații"
+                  />
+                  <p className="text-xs text-gray-500">Selectați una sau mai multe locații pentru acest contract</p>
                 </div>
               )}
             </div>
 
             {/* Echipamente - full width */}
-            {newContractLocationId && clientEquipments.length > 0 && (
+            {(newContractLocationIds.length > 0 || newContractLocationId) && clientEquipments.length > 0 && (
               <div className="space-y-2">
                 <Label>Echipamente</Label>
                 <MultiSelect
@@ -1662,30 +1642,7 @@ export default function ContractsPage() {
                 </div>
               </div>
               
-              {/* Ziua din lună - doar pentru recurență lunară */}
-              {newContractRecurrenceUnit === 'luni' && (
-                <div className="space-y-2 mt-4">
-                  <Label htmlFor="editRecurrenceDayOfMonth">Ziua din lună</Label>
-                  <Select 
-                    value={newContractRecurrenceDayOfMonth.toString()} 
-                    onValueChange={(value) => setNewContractRecurrenceDayOfMonth(parseInt(value))}
-                  >
-                    <SelectTrigger id="editRecurrenceDayOfMonth">
-                      <SelectValue placeholder="Selectați ziua" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[200px]">
-                      {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
-                        <SelectItem key={day} value={day.toString()}>
-                          {day}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-gray-500">
-                    Revizia va fi programată în această zi a lunii
-                  </p>
-                </div>
-              )}
+              {/* Ziua din lună a fost eliminată */}
             </div>
 
             {/* Rândul pentru Zile înainte și Prețuri */}
@@ -1760,6 +1717,18 @@ export default function ContractsPage() {
                 )}
               </div>
             </div>
+
+            {/* Câmpuri dinamice din setări (legate la Dialog: Editare Contract) */}
+            <DynamicDialogFields
+              targetId="dialogs.contract.new"
+              values={(newContract as any)?.customFields}
+              onChange={(fieldKey, value) => {
+                setNewContract((prev: any) => ({
+                  ...(prev || {}),
+                  customFields: { ...((prev as any)?.customFields || {}), [fieldKey]: value },
+                }))
+              }}
+            />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => handleCloseDialog("edit")}>

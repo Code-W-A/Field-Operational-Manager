@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, Loader2, Plus, Trash2, MapPin, Wrench, AlertTriangle } from "lucide-react"
-import { addClient, type PersoanaContact, type Locatie, type Echipament } from "@/lib/firebase/firestore"
+import { addClient, type PersoanaContact, type Locatie, type Echipament, isEchipamentCodeUnique } from "@/lib/firebase/firestore"
 import { uploadFile } from "@/lib/firebase/storage"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Separator } from "@/components/ui/separator"
@@ -42,6 +42,9 @@ import { collection, query, where, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { toast } from "@/components/ui/use-toast"
 import { DynamicDialogFields } from "@/components/DynamicDialogFields"
+import { subscribeRevisionChecklistTemplates, subscribeToSettings } from "@/lib/firebase/settings"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface ClientFormProps {
   onSuccess?: (clientName: string) => void
@@ -113,7 +116,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
   const [isEchipamentDialogOpen, setIsEchipamentDialogOpen] = useState(false)
   const [selectedLocatieIndex, setSelectedLocatieIndex] = useState<number | null>(null)
   const [selectedEchipamentIndex, setSelectedEchipamentIndex] = useState<number | null>(null)
-  const [echipamentFormData, setEchipamentFormData] = useState<Echipament & { dataInstalare?: string; observatii?: string }>({
+  const [echipamentFormData, setEchipamentFormData] = useState<Echipament & { dataInstalare?: string; observatii?: string; dynamicSettings?: any }>({
     nume: "",
     cod: "",
     model: "",
@@ -122,7 +125,29 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
     ultimaInterventie: "",
     observatii: "",
     dynamicSettings: {} as any,
+    dynamicSettings: {},
   })
+  // Capture child selection from TemplateSelector (first-level under template)
+  useEffect(() => {
+    const handler = (e: any) => {
+      const detail = e?.detail || {}
+      const parentId = String(detail.parentId || "")
+      const parentName = String(detail.parentName || "")
+      if (!parentId) return
+      setEchipamentFormData((prev: any) => ({
+        ...prev,
+        dynamicSettings: {
+          ...(prev?.dynamicSettings || {}),
+          "revision.checklistParentId": parentId,
+          "revision.checklistParentName": parentName,
+        },
+      }))
+    }
+    try { window.addEventListener("revision-template-child-change", handler as any) } catch {}
+    return () => {
+      try { window.removeEventListener("revision-template-child-change", handler as any) } catch {}
+    }
+  }, [])
   const [echipamentFormErrors, setEchipamentFormErrors] = useState<string[]>([])
   const [isCheckingCode, setIsCheckingCode] = useState(false)
   const [isCodeUnique, setIsCodeUnique] = useState(true)
@@ -1325,8 +1350,9 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
               )}
             </div>
 
-            {/* Setări dinamice (legate la dialog) */}
+            {/* Câmpuri din setări (legate de acest dialog) */}
             <div className="pt-1">
+              <label className="text-sm font-medium">Câmpuri din setări (legate de acest dialog)</label>
               <DynamicDialogFields
                 targetId="dialogs.equipment.new"
                 values={(echipamentFormData as any)?.dynamicSettings}
@@ -1337,6 +1363,28 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
                   }))
                 }
               />
+            </div>
+
+            {/* Check-list revizie per echipament */}
+            <div className="pt-1">
+              <div className="space-y-2 rounded-md border p-3">
+                <label className="text-sm font-medium">Checklist revizie (șablon din Setări)</label>
+                <TemplateSelector
+                  valueId={(echipamentFormData as any)?.dynamicSettings?.["revision.checklistTemplateId"] || ""}
+                  useForSheet={!!(echipamentFormData as any)?.dynamicSettings?.["revision.useChecklistForSheet"]}
+                  onChange={(payload) => {
+                    setEchipamentFormData((prev: any) => ({
+                      ...prev,
+                      dynamicSettings: {
+                        ...(prev?.dynamicSettings || {}),
+                        "revision.checklistTemplateId": payload.templateId,
+                        "revision.checklistTemplateName": payload.templateName,
+                        "revision.useChecklistForSheet": payload.useForSheet,
+                      },
+                    }))
+                  }}
+                />
+              </div>
             </div>
           </div>
 
@@ -1429,3 +1477,169 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
 
 // Make sure to export the component
 export { ClientForm }
+
+// Subcomponent pentru selectarea șablonului de checklist (copiat din client-edit-form pentru consistență)
+function TemplateSelector({
+  valueId,
+  useForSheet,
+  onChange,
+}: {
+  valueId: string
+  useForSheet: boolean
+  onChange: (payload: { templateId: string; templateName: string; useForSheet: boolean }) => void
+}) {
+  const [templates, setTemplates] = useState<Array<{ id: string; name: string }>>([])
+  const [selectedId, setSelectedId] = useState<string>(valueId || "")
+  const [useFlag, setUseFlag] = useState<boolean>(useForSheet ?? true)
+  const [childOpts, setChildOpts] = useState<Array<{ id: string; name: string }>>([])
+  const [selectedChild, setSelectedChild] = useState<string>("")
+
+  useEffect(() => {
+    const unsub = subscribeRevisionChecklistTemplates((settings: any[]) => {
+      const opts = (settings || []).map((s: any) => ({ id: s.id, name: s.name || s.path || s.id }))
+      setTemplates(opts)
+      // Keep display name in sync if current selection is present
+      const sel = opts.find((o) => o.id === (valueId || selectedId))
+      if (sel) {
+        onChange({ templateId: sel.id, templateName: sel.name, useForSheet: useFlag })
+      }
+    })
+    return () => {
+      try { unsub?.() } catch {}
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Verificare unicitate cod echipament (pentru dialogul de adăugare client)
+  useEffect(() => {
+    const run = async () => {
+      const code = echipamentFormData.cod || ""
+      if (!(code && /[a-zA-Z]/.test(code) && /[0-9]/.test(code) && code.length <= 10)) return
+      setIsCheckingCode(true)
+      // verificare locală (în dialog)
+      let isUnique = true
+      for (const loc of locatii) {
+        for (const eq of loc.echipamente || []) {
+          if (eq?.cod === code) { isUnique = false; break }
+        }
+        if (!isUnique) break
+      }
+      if (isUnique) {
+        try {
+          isUnique = await isEchipamentCodeUnique(code)
+        } catch (e) {
+          console.error("Eroare verificare cod unic:", e)
+        }
+      }
+      setIsCodeUnique(isUnique)
+      setIsCheckingCode(false)
+    }
+    run()
+  }, [echipamentFormData.cod, locatii])
+
+  useEffect(() => {
+    setSelectedId(valueId || "")
+  }, [valueId])
+
+  // Load first-level children for the currently selected template
+  useEffect(() => {
+    if (!selectedId) {
+      setChildOpts([])
+      setSelectedChild("")
+      return
+    }
+    const unsub = subscribeToSettings(selectedId, (children: any[]) => {
+      const opts = (children || [])
+        .slice()
+        .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
+        .map((c: any) => ({ id: c.id, name: c.name || c.path || c.id }))
+      setChildOpts(opts)
+      if (selectedChild && !opts.find((o) => o.id === selectedChild)) {
+        setSelectedChild("")
+      }
+    })
+    return () => {
+      try { (unsub as any)?.() } catch {}
+    }
+  }, [selectedId, selectedChild])
+
+  return (
+    <div className="grid gap-2">
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className="text-sm font-medium">Șablon checklist</label>
+          <Select
+            value={selectedId}
+            onValueChange={(id) => {
+              setSelectedId(id)
+              const name = templates.find((t) => t.id === id)?.name || ""
+              onChange({ templateId: id, templateName: name, useForSheet: useFlag })
+              setSelectedChild("")
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selectați șablonul" />
+            </SelectTrigger>
+            <SelectContent>
+              {templates.map((t) => (
+                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-end">
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={useFlag}
+              onCheckedChange={(v) => {
+                const b = !!v
+                setUseFlag(b)
+                onChange({
+                  templateId: selectedId,
+                  templateName: templates.find((t) => t.id === selectedId)?.name || "",
+                  useForSheet: b,
+                })
+              }}
+            />
+            Folosește pentru fișa de operațiuni
+          </label>
+        </div>
+      </div>
+      {/* First-level category under selected template */}
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className="text-sm font-medium">Secțiune (nivel 1 din șablon)</label>
+          <Select
+            value={selectedChild}
+            onValueChange={(id) => {
+              setSelectedChild(id)
+              // fire an app-level event so the parent can store it in dynamic settings alongside template
+              try {
+                const name = childOpts.find((o) => o.id === id)?.name || ""
+                window.dispatchEvent(new CustomEvent("revision-template-child-change", {
+                  detail: { parentId: id, parentName: name },
+                } as any))
+              } catch {}
+            }}
+            disabled={!selectedId || childOpts.length === 0}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder={selectedId ? "Selectați secțiunea" : "Alegeți întâi șablonul"} />
+            </SelectTrigger>
+            <SelectContent>
+              {childOpts.map((t) => (
+                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            În funcție de selecție, fișa va porni din această secțiune.
+          </p>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Lista este generată din Setări → țintele marcate cu “revisions.checklist.sections”.
+      </p>
+    </div>
+  )
+}

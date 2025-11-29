@@ -771,7 +771,7 @@ export function QRCodeScanner({
         </p>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmitManualCode)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmitManualCode)} className="space-y-4" autoComplete="off">
             <FormField
               control={form.control}
               name="equipmentCode"
@@ -782,6 +782,14 @@ export function QRCodeScanner({
                     <Input 
                       placeholder="Introduceți codul echipamentului" 
                       {...field}
+                      type="text"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      name="manual-eq-code"
+                      id="manual-eq-code"
+                      inputMode="text"
                       onChange={(e) => {
                         const uppercaseValue = e.target.value.toUpperCase()
                         field.onChange(uppercaseValue)

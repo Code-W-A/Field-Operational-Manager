@@ -22,7 +22,7 @@ import { useMediaQuery } from "@/hooks/use-media-query"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { addLucrare, deleteLucrare, updateLucrare, getLucrareById, type Lucrare } from "@/lib/firebase/firestore"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { orderBy, where } from "firebase/firestore"
+import { orderBy, where, collection, getDocs } from "firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import { LucrareForm, type LucrareFormRef } from "@/components/lucrare-form"
 import { ArchiveButton } from "@/components/archive-button"
@@ -118,6 +118,7 @@ export default function Lucrari() {
   const [lucrareToDelete, setLucrareToDelete] = useState<string | null>(null)
   const [isReassignment, setIsReassignment] = useState(false)
   const [originalWorkOrderId, setOriginalWorkOrderId] = useState(null)
+  const [revEquipmentNames, setRevEquipmentNames] = useState<Record<string, string[]>>({})
   const [dataEmiterii, setDataEmiterii] = useState<Date | undefined>(new Date())
   
   // State pentru dialogul de motive reintervenție
@@ -250,6 +251,35 @@ export default function Lucrari() {
       return dateB.localeCompare(dateA)
     })
   }, [rawLucrari])
+
+  // Load equipment names for Revizie works (from revisions subcollection)
+  useEffect(() => {
+    const loadNames = async () => {
+      try {
+        const worksToLoad = (filteredLucrari || [])
+          .filter((w: any) => w && w.tipLucrare === "Revizie" && Array.isArray(w.equipmentIds) && w.equipmentIds.length > 0)
+          .filter((w: any) => !revEquipmentNames[w.id || w._id || ""])
+        for (const w of worksToLoad) {
+          const workId = String(w.id || w._id || "")
+          if (!workId) continue
+          try {
+            const revCol = collection(db, "lucrari", workId, "revisions")
+            const snap = await getDocs(revCol)
+            const names = snap.docs.map(d => {
+              const data: any = d.data()
+              return String(data?.equipmentName || data?.name || d.id || "").trim()
+            }).filter(Boolean)
+            setRevEquipmentNames(prev => ({ ...prev, [workId]: names }))
+          } catch (e) {
+            // fallback: derive names from equipmentIds
+            const names = Array.isArray((w as any).equipmentIds) ? (w as any).equipmentIds.map((id: any) => String(id)) : []
+            setRevEquipmentNames(prev => ({ ...prev, [String(workId)]: names }))
+          }
+        }
+      } catch {}
+    }
+    loadNames()
+  }, [filteredLucrari, db])
 
   // Update the filteredLucrari function to include completed work orders that haven't been picked up
   const filteredLucrari = useMemo(() => {
@@ -1592,6 +1622,40 @@ export default function Lucrari() {
     saveFilters([]) // Salvăm lista goală în localStorage
   }
 
+  // Formatare robustă pentru date (acceptă Firestore Timestamp, obiect {seconds,nanoseconds}, string, Date)
+  const toDateSafe = (val: any): Date | null => {
+    try {
+      if (!val) return null
+      if (typeof val?.toDate === "function") return val.toDate()
+      if (typeof val?.seconds === "number" && typeof val?.nanoseconds === "number") {
+        return new Date(val.seconds * 1000 + Math.floor(val.nanoseconds / 1e6))
+      }
+      if (val instanceof Date) return val
+      if (typeof val === "string") {
+        const maybe = new Date(val)
+        if (!isNaN(maybe.getTime())) return maybe
+        const parts = val.trim()
+        const [datePart, timePart] = parts.split(" ")
+        if (datePart) {
+          const [dd, mm, yyyy] = datePart.split(".").map((x) => parseInt(x, 10))
+          const [hh = 0, min = 0] = (timePart || "00:00").split(":").map((x) => parseInt(x, 10))
+          if (yyyy && mm && dd) return new Date(yyyy, (mm - 1) as number, dd, hh || 0, min || 0, 0, 0)
+        }
+      }
+    } catch {}
+    return null
+  }
+
+  const formatDateSafe = (val: any): string => {
+    const d = toDateSafe(val)
+    if (!d) return "-"
+    try {
+      return format(d, "dd.MM.yyyy HH:mm", { locale: ro })
+    } catch {
+      return d.toLocaleString("ro-RO")
+    }
+  }
+
 
   // Definim coloanele pentru DataTable
   const columns = [
@@ -1675,7 +1739,7 @@ export default function Lucrari() {
           return (
             <div className="flex flex-col text-sm">
               <div className="font-medium text-gray-600">
-                {lucrare.dataEmiterii}
+                {formatDateSafe(lucrare.dataEmiterii)}
               </div>
               <div className="text-gray-500 text-xs">
                 Din formular
@@ -1690,22 +1754,13 @@ export default function Lucrari() {
       header: "Data Emiterii",
       enableHiding: true,
       enableFiltering: true,
+      cell: ({ row }) => <span>{formatDateSafe(row.original.dataEmiterii)}</span>,
       sortingFn: (rowA: any, rowB: any, columnId: any) => {
-        const dateA = rowA.getValue(columnId) as string
-        const dateB = rowB.getValue(columnId) as string
-        
-        try {
-          // Parsăm datele din formatul "dd.MM.yyyy HH:mm"
-          const parsedDateA = parse(dateA, "dd.MM.yyyy HH:mm", new Date())
-          const parsedDateB = parse(dateB, "dd.MM.yyyy HH:mm", new Date())
-          
-          // Comparăm cronologic
-          return parsedDateA.getTime() - parsedDateB.getTime()
-        } catch (error) {
-          console.error("Eroare la parsarea datelor pentru sortare:", error)
-          // Fallback la sortarea alfabetică
-          return dateA.localeCompare(dateB)
-        }
+        const a = toDateSafe(rowA.original.dataEmiterii)
+        const b = toDateSafe(rowB.original.dataEmiterii)
+        const at = a ? a.getTime() : 0
+        const bt = b ? b.getTime() : 0
+        return at - bt
       },
     },
     {
@@ -1713,22 +1768,13 @@ export default function Lucrari() {
       header: "Data executie",
       enableHiding: true,
       enableFiltering: true,
+      cell: ({ row }) => <span>{formatDateSafe(row.original.dataInterventie)}</span>,
       sortingFn: (rowA: any, rowB: any, columnId: any) => {
-        const dateA = rowA.getValue(columnId) as string
-        const dateB = rowB.getValue(columnId) as string
-        
-        try {
-          // Parsăm datele din formatul "dd.MM.yyyy HH:mm"
-          const parsedDateA = parse(dateA, "dd.MM.yyyy HH:mm", new Date())
-          const parsedDateB = parse(dateB, "dd.MM.yyyy HH:mm", new Date())
-          
-          // Comparăm cronologic
-          return parsedDateA.getTime() - parsedDateB.getTime()
-        } catch (error) {
-          console.error("Eroare la parsarea datelor pentru sortare:", error)
-          // Fallback la sortarea alfabetică
-          return dateA.localeCompare(dateB)
-        }
+        const a = toDateSafe(rowA.original.dataInterventie)
+        const b = toDateSafe(rowB.original.dataInterventie)
+        const at = a ? a.getTime() : 0
+        const bt = b ? b.getTime() : 0
+        return at - bt
       },
     },
     {
@@ -2111,7 +2157,9 @@ export default function Lucrari() {
           // După alocarea numărului, programăm următoarea lucrare pentru contractele auto-generate
           try {
             const ww: any = w
-            if (ww.autoGenerated && !ww.nextScheduled && ww.contractId) {
+            // Rulează DOAR pentru lucrările auto-generate vechi, pe un singur echipament.
+            // Lucrările noi agregate (cu equipmentIds) sunt gestionate exclusiv de Cloud Functions.
+            if (ww.autoGenerated && !ww.nextScheduled && ww.contractId && !!ww.echipament) {
               // Citim contractul
               const contractRef = doc(db, "contracts", ww.contractId)
               const cSnap = await getDoc(contractRef)
@@ -2485,6 +2533,53 @@ export default function Lucrari() {
                             {lucrare.echipamentCod ? ` (cod: ${lucrare.echipamentCod})` : ""}
                           </p>
                         )}
+                        {(!lucrare.echipament && !(lucrare as any)?.echipamentModel && !lucrare.echipamentCod && lucrare.tipLucrare === "Revizie" && Array.isArray((lucrare as any).equipmentIds) && (lucrare as any).equipmentIds.length > 0) && (() => {
+                          const workId = String(lucrare.id)
+                          const allNames = (revEquipmentNames[workId] && revEquipmentNames[workId].length > 0)
+                            ? revEquipmentNames[workId]
+                            : []
+                          const isExpanded = !!expandedRevEquip[workId]
+                          const shown = isExpanded ? allNames : allNames.slice(0, 3)
+                          const remaining = Math.max(0, (allNames.length || 0) - shown.length)
+                          const fallbackText = `${(lucrare as any).equipmentIds.length} selectate`
+                          return (
+                            <p className="text-xs text-gray-600">
+                              Echipamente: {shown.length > 0 ? shown.join(", ") : fallbackText}
+                              {remaining > 0 && (
+                                <>
+                                  ,{" "}
+                                  <button
+                                    type="button"
+                                    className="text-blue-600 underline hover:no-underline"
+                                    onClick={(e) => {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      setExpandedRevEquip((prev) => ({ ...prev, [workId]: true }))
+                                    }}
+                                  >
+                                    +{remaining} mai multe
+                                  </button>
+                                </>
+                              )}
+                              {isExpanded && allNames.length > 3 && (
+                                <>
+                                  {" "}
+                                  <button
+                                    type="button"
+                                    className="text-blue-600 underline hover:no-underline ml-1"
+                                    onClick={(e) => {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      setExpandedRevEquip((prev) => ({ ...prev, [workId]: false }))
+                                    }}
+                                  >
+                                    arată mai puțin
+                                  </button>
+                                </>
+                              )}
+                            </p>
+                          )
+                        })()}
                       </div>
                       <Badge className={getWorkStatusClass(lucrare.statusLucrare)}>{lucrare.statusLucrare === "Finalizat" ? "Raport generat" : lucrare.statusLucrare}</Badge>
                     </div>
