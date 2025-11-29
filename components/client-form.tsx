@@ -1508,32 +1508,7 @@ function TemplateSelector({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Verificare unicitate cod echipament (pentru dialogul de adăugare client)
-  useEffect(() => {
-    const run = async () => {
-      const code = echipamentFormData.cod || ""
-      if (!(code && /[a-zA-Z]/.test(code) && /[0-9]/.test(code) && code.length <= 10)) return
-      setIsCheckingCode(true)
-      // verificare locală (în dialog)
-      let isUnique = true
-      for (const loc of locatii) {
-        for (const eq of loc.echipamente || []) {
-          if (eq?.cod === code) { isUnique = false; break }
-        }
-        if (!isUnique) break
-      }
-      if (isUnique) {
-        try {
-          isUnique = await isEchipamentCodeUnique(code)
-        } catch (e) {
-          console.error("Eroare verificare cod unic:", e)
-        }
-      }
-      setIsCodeUnique(isUnique)
-      setIsCheckingCode(false)
-    }
-    run()
-  }, [echipamentFormData.cod, locatii])
+  // (Removed) Any code-level validations must live in the parent, not here
 
   useEffect(() => {
     setSelectedId(valueId || "")

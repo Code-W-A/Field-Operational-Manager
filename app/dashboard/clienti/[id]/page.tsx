@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, use } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
@@ -30,9 +30,10 @@ const extractCUI = (client: any) => {
   return client?.cui || client?.cif || client?.CIF || client?.CUI || "N/A"
 }
 
-export default function ClientPage({ params }: { params: { id: string } }) {
+export default function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
   const { userData } = useAuth()
+  const { id } = use(params)
   const [client, setClient] = useState<Client | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -48,7 +49,7 @@ export default function ClientPage({ params }: { params: { id: string } }) {
     const fetchClient = async () => {
       try {
         setLoading(true)
-        const data = await getClientById(params.id)
+        const data = await getClientById(id)
         if (data) {
           console.log("DEBUG - Client data from database:", data)
           console.log("DEBUG - client.cui:", data.cui)
@@ -66,7 +67,7 @@ export default function ClientPage({ params }: { params: { id: string } }) {
     }
 
     fetchClient()
-  }, [params.id])
+  }, [id])
 
   // Filtrăm lucrările pentru acest client
   useEffect(() => {
@@ -78,14 +79,14 @@ export default function ClientPage({ params }: { params: { id: string } }) {
 
   // Modificăm funcția handleEdit pentru a reîmprospăta datele
   const handleEdit = () => {
-    router.push(`/dashboard/clienti?edit=${params.id}`)
+    router.push(`/dashboard/clienti?edit=${id}`)
   }
 
   // Modificăm funcția handleDelete pentru a reîmprospăta datele
   const handleDelete = async () => {
     if (window.confirm("Sunteți sigur că doriți să ștergeți acest client?")) {
       try {
-        await deleteClient(params.id)
+        await deleteClient(id)
         refreshData() // Adăugăm apelul către refreshData
         router.push("/dashboard/clienti")
       } catch (err) {
@@ -424,8 +425,8 @@ export default function ClientPage({ params }: { params: { id: string } }) {
 
           {/* Secțiunea pentru contracte */}
           <div>
-            <ClientContractsManager 
-              clientId={params.id}
+              <ClientContractsManager 
+              clientId={id}
               clientName={client?.nume || ""}
               onContractsChange={() => {
                 // Opțional: reîncărcăm datele clientului sau facem alte actualizări
