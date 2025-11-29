@@ -125,7 +125,6 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
     ultimaInterventie: "",
     observatii: "",
     dynamicSettings: {} as any,
-    dynamicSettings: {},
   })
   // Capture child selection from TemplateSelector (first-level under template)
   useEffect(() => {
@@ -1355,7 +1354,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
               <label className="text-sm font-medium">Câmpuri din setări (legate de acest dialog)</label>
               <DynamicDialogFields
                 targetId="dialogs.equipment.new"
-                values={(echipamentFormData as any)?.dynamicSettings}
+                values={(((echipamentFormData as any) || {})?.dynamicSettings) || {}}
                 onChange={(fieldKey, value) =>
                   setEchipamentFormData((prev: any) => ({
                     ...prev,
@@ -1370,8 +1369,8 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
               <div className="space-y-2 rounded-md border p-3">
                 <label className="text-sm font-medium">Checklist revizie (șablon din Setări)</label>
                 <TemplateSelector
-                  valueId={(echipamentFormData as any)?.dynamicSettings?.["revision.checklistTemplateId"] || ""}
-                  useForSheet={!!(echipamentFormData as any)?.dynamicSettings?.["revision.useChecklistForSheet"]}
+                  valueId={(((echipamentFormData as any)?.dynamicSettings) || {})["revision.checklistTemplateId"] || ""}
+                  useForSheet={!!((((echipamentFormData as any)?.dynamicSettings) || {})["revision.useChecklistForSheet"])}
                   onChange={(payload) => {
                     setEchipamentFormData((prev: any) => ({
                       ...prev,
@@ -1490,7 +1489,8 @@ function TemplateSelector({
 }) {
   const [templates, setTemplates] = useState<Array<{ id: string; name: string }>>([])
   const [selectedId, setSelectedId] = useState<string>(valueId || "")
-  const [useFlag, setUseFlag] = useState<boolean>(useForSheet ?? true)
+  // Always true and implicit; checkbox removed from UI
+  const [useFlag] = useState<boolean>(true)
   const [childOpts, setChildOpts] = useState<Array<{ id: string; name: string }>>([])
   const [selectedChild, setSelectedChild] = useState<string>("")
 
@@ -1500,9 +1500,7 @@ function TemplateSelector({
       setTemplates(opts)
       // Keep display name in sync if current selection is present
       const sel = opts.find((o) => o.id === (valueId || selectedId))
-      if (sel) {
-        onChange({ templateId: sel.id, templateName: sel.name, useForSheet: useFlag })
-      }
+      if (sel) onChange({ templateId: sel.id, templateName: sel.name, useForSheet: true })
     })
     return () => {
       try { unsub?.() } catch {}
@@ -1573,7 +1571,7 @@ function TemplateSelector({
             onValueChange={(id) => {
               setSelectedId(id)
               const name = templates.find((t) => t.id === id)?.name || ""
-              onChange({ templateId: id, templateName: name, useForSheet: useFlag })
+              onChange({ templateId: id, templateName: name, useForSheet: true })
               setSelectedChild("")
             }}
           >
@@ -1587,23 +1585,7 @@ function TemplateSelector({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-end">
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox
-              checked={useFlag}
-              onCheckedChange={(v) => {
-                const b = !!v
-                setUseFlag(b)
-                onChange({
-                  templateId: selectedId,
-                  templateName: templates.find((t) => t.id === selectedId)?.name || "",
-                  useForSheet: b,
-                })
-              }}
-            />
-            Folosește pentru fișa de operațiuni
-          </label>
-        </div>
+        {/* Checkbox eliminat: “Folosește pentru fișa de operațiuni” este implicit activ */}
       </div>
       {/* First-level category under selected template */}
       <div className="grid sm:grid-cols-2 gap-3">

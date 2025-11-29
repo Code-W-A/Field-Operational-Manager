@@ -1467,7 +1467,8 @@ function TemplateSelector({
 }) {
   const [templates, setTemplates] = useState<Array<{ id: string; name: string }>>([])
   const [selectedId, setSelectedId] = useState<string>(valueId || "")
-  const [useFlag, setUseFlag] = useState<boolean>(useForSheet ?? true)
+  // Always true and implicit; checkbox removed from UI
+  const [useFlag] = useState<boolean>(true)
   const [childOpts, setChildOpts] = useState<Array<{ id: string; name: string }>>([])
   const [selectedChild, setSelectedChild] = useState<string>("")
 
@@ -1477,9 +1478,7 @@ function TemplateSelector({
       setTemplates(opts)
       // Keep display name in sync if current selection is present
       const sel = opts.find((o) => o.id === (valueId || selectedId))
-      if (sel) {
-        onChange({ templateId: sel.id, templateName: sel.name, useForSheet: useFlag })
-      }
+      if (sel) onChange({ templateId: sel.id, templateName: sel.name, useForSheet: true })
     })
     return () => {
       try { unsub?.() } catch {}
@@ -1523,7 +1522,7 @@ function TemplateSelector({
             onValueChange={(id) => {
               setSelectedId(id)
               const name = templates.find((t) => t.id === id)?.name || ""
-              onChange({ templateId: id, templateName: name, useForSheet: useFlag })
+              onChange({ templateId: id, templateName: name, useForSheet: true })
               setSelectedChild("")
             }}
           >
@@ -1537,23 +1536,7 @@ function TemplateSelector({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-end">
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox
-              checked={useFlag}
-              onCheckedChange={(v) => {
-                const b = !!v
-                setUseFlag(b)
-                onChange({
-                  templateId: selectedId,
-                  templateName: templates.find((t) => t.id === selectedId)?.name || "",
-                  useForSheet: b,
-                })
-              }}
-            />
-            Folosește pentru fișa de operațiuni
-          </label>
-        </div>
+        {/* Checkbox eliminat: “Folosește pentru fișa de operațiuni” este implicit activ */}
       </div>
       {/* First-level category under selected template */}
       <div className="grid sm:grid-cols-2 gap-3">
