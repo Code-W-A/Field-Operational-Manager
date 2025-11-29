@@ -253,35 +253,6 @@ export default function Lucrari() {
     })
   }, [rawLucrari])
 
-  // Load equipment names for Revizie works (from revisions subcollection)
-  useEffect(() => {
-    const loadNames = async () => {
-      try {
-        const worksToLoad = (filteredLucrari || [])
-          .filter((w: any) => w && w.tipLucrare === "Revizie" && Array.isArray(w.equipmentIds) && w.equipmentIds.length > 0)
-          .filter((w: any) => !revEquipmentNames[w.id || w._id || ""])
-        for (const w of worksToLoad) {
-          const workId = String(w.id || w._id || "")
-          if (!workId) continue
-          try {
-            const revCol = collection(db, "lucrari", workId, "revisions")
-            const snap = await getDocs(revCol)
-            const names = snap.docs.map(d => {
-              const data: any = d.data()
-              return String(data?.equipmentName || data?.name || d.id || "").trim()
-            }).filter(Boolean)
-            setRevEquipmentNames(prev => ({ ...prev, [workId]: names }))
-          } catch (e) {
-            // fallback: derive names from equipmentIds
-            const names = Array.isArray((w as any).equipmentIds) ? (w as any).equipmentIds.map((id: any) => String(id)) : []
-            setRevEquipmentNames(prev => ({ ...prev, [String(workId)]: names }))
-          }
-        }
-      } catch {}
-    }
-    loadNames()
-  }, [filteredLucrari, db])
-
   // Update the filteredLucrari function to include completed work orders that haven't been picked up
   const filteredLucrari = useMemo(() => {
     if (userData?.role === "tehnician" && userData?.displayName) {
@@ -311,6 +282,35 @@ export default function Lucrari() {
     }
     return lucrari
   }, [lucrari, userData?.role, userData?.displayName])
+
+  // Load equipment names for Revizie works (from revisions subcollection)
+  useEffect(() => {
+    const loadNames = async () => {
+      try {
+        const worksToLoad = (filteredLucrari || [])
+          .filter((w: any) => w && w.tipLucrare === "Revizie" && Array.isArray(w.equipmentIds) && w.equipmentIds.length > 0)
+          .filter((w: any) => !revEquipmentNames[w.id || w._id || ""])
+        for (const w of worksToLoad) {
+          const workId = String(w.id || w._id || "")
+          if (!workId) continue
+          try {
+            const revCol = collection(db, "lucrari", workId, "revisions")
+            const snap = await getDocs(revCol)
+            const names = snap.docs.map(d => {
+              const data: any = d.data()
+              return String(data?.equipmentName || data?.name || d.id || "").trim()
+            }).filter(Boolean)
+            setRevEquipmentNames(prev => ({ ...prev, [workId]: names }))
+          } catch (e) {
+            // fallback: derive names from equipmentIds
+            const names = Array.isArray((w as any).equipmentIds) ? (w as any).equipmentIds.map((id: any) => String(id)) : []
+            setRevEquipmentNames(prev => ({ ...prev, [String(workId)]: names }))
+          }
+        }
+      } catch {}
+    }
+    loadNames()
+  }, [filteredLucrari, db])
 
   // Helper function to check if a work order is completed with report but not picked up
   const isCompletedWithReportNotPickedUp = useCallback((lucrare) => {
@@ -2505,6 +2505,84 @@ export default function Lucrari() {
               {paginatedCardsData.map((lucrare) => {
               // Check if the work order is completed with report but not picked up
               const isCompletedNotPickedUp = isCompletedWithReportNotPickedUp(lucrare)
+              // Precompute revizie equipment line to avoid inline IIFEs (stability)
+              let revEquipNode: any = null
+              let dataEmiteriiText: string = ""
+              let dataInterventieText: string = ""
+              if (
+                lucrare &&
+                !lucrare.echipament &&
+                !(lucrare as any)?.echipamentModel &&
+                !lucrare.echipamentCod &&
+                lucrare.tipLucrare === "Revizie" &&
+                Array.isArray((lucrare as any).equipmentIds) &&
+                (lucrare as any).equipmentIds.length > 0
+              ) {
+                const workId = String(lucrare.id || "")
+                const allNames = (revEquipmentNames[workId] && revEquipmentNames[workId].length > 0)
+                  ? revEquipmentNames[workId]
+                  : []
+                const isExpanded = !!expandedRevEquip[workId]
+                const shown = isExpanded ? allNames : allNames.slice(0, 3)
+                const remaining = Math.max(0, (allNames.length || 0) - shown.length)
+                const fallbackText = `${(lucrare as any).equipmentIds.length} selectate`
+                revEquipNode = (
+                  <span className="text-xs text-gray-600">
+                    Echipamente: {shown.length > 0 ? shown.join(", ") : fallbackText}
+                    {remaining > 0 && (
+                      <>
+                        ,{" "}
+                        <button
+                          type="button"
+                          className="text-blue-600 underline hover:no-underline"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            setExpandedRevEquip((prev) => ({ ...prev, [workId]: true }))
+                          }}
+                        >
+                          +{remaining} mai multe
+                        </button>
+                      </>
+                    )}
+                    {isExpanded && allNames.length > 3 && (
+                      <>
+                        {" "}
+                        <button
+                          type="button"
+                          className="text-blue-600 underline hover:no-underline ml-1"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            setExpandedRevEquip((prev) => ({ ...prev, [workId]: false }))
+                          }}
+                        >
+                          arată mai puțin
+                        </button>
+                      </>
+                    )}
+                  </span>
+                )
+              }
+              // Precompute dates
+              try {
+                const v: any = (lucrare as any).dataEmiterii
+                const d = typeof v?.toDate === "function"
+                  ? v.toDate()
+                  : (typeof v?.seconds === "number" ? new Date(v.seconds * 1000) : (typeof v === "string" ? new Date(v) : null))
+                dataEmiteriiText = d && !isNaN(d.getTime()) ? format(d, "dd.MM.yyyy HH:mm") : String((lucrare as any).dataEmiterii || "")
+              } catch {
+                dataEmiteriiText = String((lucrare as any).dataEmiterii || "")
+              }
+              try {
+                const v2: any = (lucrare as any).dataInterventie
+                const d2 = typeof v2?.toDate === "function"
+                  ? v2.toDate()
+                  : (typeof v2?.seconds === "number" ? new Date(v2.seconds * 1000) : (typeof v2 === "string" ? new Date(v2) : null))
+                dataInterventieText = d2 && !isNaN(d2.getTime()) ? format(d2, "dd.MM.yyyy HH:mm") : String((lucrare as any).dataInterventie || "")
+              } catch {
+                dataInterventieText = String((lucrare as any).dataInterventie || "")
+              }
 
               return (
                 <Card
@@ -2534,53 +2612,7 @@ export default function Lucrari() {
                             {lucrare.echipamentCod ? ` (cod: ${lucrare.echipamentCod})` : ""}
                           </p>
                         )}
-                        {(!lucrare.echipament && !(lucrare as any)?.echipamentModel && !lucrare.echipamentCod && lucrare.tipLucrare === "Revizie" && Array.isArray((lucrare as any).equipmentIds) && (lucrare as any).equipmentIds.length > 0) && (() => {
-                          const workId = String(lucrare.id)
-                          const allNames = (revEquipmentNames[workId] && revEquipmentNames[workId].length > 0)
-                            ? revEquipmentNames[workId]
-                            : []
-                          const isExpanded = !!expandedRevEquip[workId]
-                          const shown = isExpanded ? allNames : allNames.slice(0, 3)
-                          const remaining = Math.max(0, (allNames.length || 0) - shown.length)
-                          const fallbackText = `${(lucrare as any).equipmentIds.length} selectate`
-                          return (
-                            <p className="text-xs text-gray-600">
-                              Echipamente: {shown.length > 0 ? shown.join(", ") : fallbackText}
-                              {remaining > 0 && (
-                                <>
-                                  ,{" "}
-                                  <button
-                                    type="button"
-                                    className="text-blue-600 underline hover:no-underline"
-                                    onClick={(e) => {
-                                      e.preventDefault()
-                                      e.stopPropagation()
-                                      setExpandedRevEquip((prev) => ({ ...prev, [workId]: true }))
-                                    }}
-                                  >
-                                    +{remaining} mai multe
-                                  </button>
-                                </>
-                              )}
-                              {isExpanded && allNames.length > 3 && (
-                                <>
-                                  {" "}
-                                  <button
-                                    type="button"
-                                    className="text-blue-600 underline hover:no-underline ml-1"
-                                    onClick={(e) => {
-                                      e.preventDefault()
-                                      e.stopPropagation()
-                                      setExpandedRevEquip((prev) => ({ ...prev, [workId]: false }))
-                                    }}
-                                  >
-                                    arată mai puțin
-                                  </button>
-                                </>
-                              )}
-                            </p>
-                          )
-                        })()}
+                        {revEquipNode}
                       </div>
                       <Badge className={getWorkStatusClass(lucrare.statusLucrare)}>{lucrare.statusLucrare === "Finalizat" ? "Raport generat" : lucrare.statusLucrare}</Badge>
                     </div>
@@ -2615,19 +2647,7 @@ export default function Lucrari() {
                         )}
                         <div className="flex justify-between">
                           <span className="text-sm font-medium text-muted-foreground">Data emiterii:</span>
-                          <span className="text-sm">
-                            {(() => {
-                              try {
-                                const v: any = (lucrare as any).dataEmiterii
-                                const d = typeof v?.toDate === "function"
-                                  ? v.toDate()
-                                  : (typeof v?.seconds === "number" ? new Date(v.seconds * 1000) : (typeof v === "string" ? new Date(v) : null))
-                                return d && !isNaN(d.getTime()) ? format(d, "dd.MM.yyyy HH:mm") : String(lucrare.dataEmiterii || "")
-                              } catch {
-                                return String(lucrare.dataEmiterii || "")
-                              }
-                            })()}
-                          </span>
+                          <span className="text-sm">{dataEmiteriiText}</span>
                         </div>
                         {(lucrare.lastReportEmail || lucrare.lastOfferEmail) && (
                           <div className="flex justify-between items-center">
@@ -2644,19 +2664,7 @@ export default function Lucrari() {
                         )}
                         <div className="flex justify-between">
                           <span className="text-sm font-medium text-muted-foreground">Data executie:</span>
-                          <span className="text-sm">
-                            {(() => {
-                              try {
-                                const v: any = (lucrare as any).dataInterventie
-                                const d = typeof v?.toDate === "function"
-                                  ? v.toDate()
-                                  : (typeof v?.seconds === "number" ? new Date(v.seconds * 1000) : (typeof v === "string" ? new Date(v) : null))
-                                return d && !isNaN(d.getTime()) ? format(d, "dd.MM.yyyy HH:mm") : String(lucrare.dataInterventie || "")
-                              } catch {
-                                return String(lucrare.dataInterventie || "")
-                              }
-                            })()}
-                          </span>
+                          <span className="text-sm">{dataInterventieText}</span>
                         </div>
                         <div>
                           <span className="text-sm font-medium text-muted-foreground">Tehnicieni:</span>
