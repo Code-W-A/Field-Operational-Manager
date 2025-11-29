@@ -3,11 +3,11 @@ import * as admin from 'firebase-admin'
 
 admin.initializeApp()
 
-// Scheduled function care rulează la 8:00, 13:00, 17:00 EET (Europe/Bucharest)
+// Scheduled function care rulează la fiecare 5 minute (Europe/Bucharest)
 export const generateScheduledWorks = functions
   .region('europe-west1')
   .pubsub
-  .schedule('0 8,13,17 * * *')
+  .schedule('*/5 * * * *')
   .timeZone('Europe/Bucharest')
   .onRun(async (_context: functions.EventContext) => {
     const db = admin.firestore()

@@ -107,6 +107,9 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
         drawOpsFooter(doc)
         doc.addPage()
         currentY = drawSimpleHeader(doc, { title: headerTitle, logoDataUrl })
+        // Reset text state after header so we don't inherit footer/header styles
+        try { doc.setFont("NotoSans", "normal") } catch {}
+        doc.setFontSize(9).setTextColor(0, 0, 0)
       }
     }
 
@@ -162,6 +165,9 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
         const heightNeeded = Math.max(baseRow, dynamic)
 
         checkBreak(heightNeeded)
+        // Ensure standard text settings after a page break
+        try { doc.setFont("NotoSans", "normal") } catch {}
+        doc.setFontSize(9).setTextColor(0, 0, 0)
 
         // Row borders
         doc.setDrawColor(210, 210, 210).setLineWidth(0.2)
@@ -266,6 +272,9 @@ export async function generateRevisionEquipmentPDF(
       drawOpsFooter(js)
       js.addPage()
       currentY = drawSimpleHeader(js, { title, logoDataUrl })
+      // Reset text state after header so we don't inherit footer/header styles
+      try { js.setFont("NotoSans", "normal") } catch {}
+      js.setFontSize(9).setTextColor(0, 0, 0)
     }
   }
 
@@ -314,6 +323,9 @@ export async function generateRevisionEquipmentPDF(
       const dynamic = numLines > 1 ? 5 + (numLines - 1) * lineHeight : baseRow
       const heightNeeded = Math.max(baseRow, dynamic)
       checkBreak(heightNeeded)
+      // Ensure standard text settings after a page break
+      try { js.setFont("NotoSans", "normal") } catch {}
+      js.setFontSize(9).setTextColor(0, 0, 0)
 
       js.setDrawColor(210, 210, 210).setLineWidth(0.2)
       js.rect(MARGIN, currentY, W, heightNeeded)
