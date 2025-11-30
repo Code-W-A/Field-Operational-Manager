@@ -136,6 +136,7 @@ export default function ClientPortalPage() {
       if (!v) return 0
       try {
         if (v?.toDate) return v.toDate().getTime()
+        if (typeof v?.seconds === "number") return new Date(v.seconds * 1000).getTime()
         return new Date(v).getTime() || 0
       } catch { return 0 }
     }
@@ -161,33 +162,9 @@ export default function ClientPortalPage() {
     setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))
   }
 
-  const formatDate = (dateStr: any) => {
-    if (!dateStr) return "-"
-    try {
-      // Gestionăm Firestore Timestamp
-      let d: Date
-      if (dateStr?.toDate && typeof dateStr.toDate === 'function') {
-        d = dateStr.toDate()
-      } else if (dateStr instanceof Date) {
-        d = dateStr
-      } else {
-        // Încercăm să convertim string-ul în dată
-        d = new Date(dateStr)
-      }
-      
-      // Verificăm dacă data este validă
-      if (isNaN(d.getTime())) {
-        return "-"
-      }
-      
-      // Formatăm în DD.MM.YYYY
-      const day = d.getDate().toString().padStart(2, '0')
-      const month = (d.getMonth() + 1).toString().padStart(2, '0')
-      const year = d.getFullYear()
-      return `${day}.${month}.${year}`
-    } catch {
-      return "-"
-    }
+  const formatDate = (v: any) => {
+    // UI-only format "dd MMM yyyy"
+    try { const { formatUiDate } = require("@/lib/utils/time-format"); return formatUiDate(v) } catch { return "-" }
   }
 
   // Compute filter options for clients and their locations based on access

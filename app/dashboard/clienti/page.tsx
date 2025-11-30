@@ -612,7 +612,7 @@ export default function Clienti() {
         if (wasModified) {
           // Afișăm data ultimei modificări
           const updatedDate = client.updatedAt.toDate()
-          const formattedDate = format(updatedDate, "dd.MM.yyyy", { locale: ro })
+          const formattedDate = (() => { try { const { formatUiDate } = require("@/lib/utils/time-format"); return formatUiDate(updatedDate) } catch { return format(updatedDate, "dd.MM.yyyy", { locale: ro }) } })()
           const formattedTime = format(updatedDate, "HH:mm", { locale: ro })
           
           return (
@@ -628,7 +628,7 @@ export default function Clienti() {
         } else if (hasCreatedAt) {
           // Afișăm data creării dacă nu a fost modificat
           const createdDate = client.createdAt.toDate()
-          const formattedDate = format(createdDate, "dd.MM.yyyy", { locale: ro })
+          const formattedDate = (() => { try { const { formatUiDate } = require("@/lib/utils/time-format"); return formatUiDate(createdDate) } catch { return format(createdDate, "dd.MM.yyyy", { locale: ro }) } })()
           const formattedTime = format(createdDate, "HH:mm", { locale: ro })
           
           return (

@@ -521,7 +521,7 @@ export default function ContractsPage() {
           const dateObj = date.toDate ? date.toDate() : new Date(date)
           return (
             <div className="text-sm">
-              {format(dateObj, "dd.MM.yyyy", { locale: ro })}
+              {(() => { try { const { formatUiDate } = require("@/lib/utils/time-format"); return formatUiDate(dateObj) } catch { return "" } })()}
               <div className="text-xs text-muted-foreground">
                 {format(dateObj, "HH:mm", { locale: ro })}
               </div>
@@ -1073,8 +1073,15 @@ export default function ContractsPage() {
     setNewContractStartDate(contract.startDate || "")
     setNewContractRecurrenceInterval(contract.recurrenceInterval || 90)
     setNewContractRecurrenceUnit(contract.recurrenceUnit || "zile")
-    setNewContractDaysBeforeWork(contract.daysBeforeWork || 10)
+    setNewContractDaysBeforeWork(contract.daysBeforeWork ?? defaultDaysBeforeWork ?? 10)
+    // Sincronizează și inputul text pentru a afișa valoarea din contract (nu default-ul)
+    setDaysBeforeWorkInput(String(contract.daysBeforeWork ?? defaultDaysBeforeWork ?? 10))
     setNewContractPricing(contract.pricing || {})
+    // Inițializează câmpurile dinamice cu valorile salvate în contract (pentru afișare corectă în dialog)
+    setNewContract((prev: any) => ({
+      ...(prev || {}),
+      customFields: { ...(contract as any)?.customFields } || {}
+    }))
     
     // Încărcăm locațiile și echipamentele clientului dacă există un client asignat
     if (contract.clientId) {
@@ -1296,6 +1303,25 @@ export default function ContractsPage() {
                     onChange={(vals) => {
                       setNewContractLocationIds(vals)
                       setNewContractLocationNames(vals)
+                      // Recalculează echipamentele disponibile pentru locațiile selectate
+                      try {
+                        const selected = new Set(vals)
+                        const nextEqs: Echipament[] = []
+                        for (const loc of clientLocations) {
+                          if (selected.has(loc.nume) && Array.isArray((loc as any).echipamente)) {
+                            nextEqs.push(...((loc as any).echipamente as any[]))
+                          }
+                        }
+                        setClientEquipments(nextEqs)
+                        // Filtrează selecția curentă la echipamentele permise
+                        if (Array.isArray(newContractEquipmentIds) && newContractEquipmentIds.length > 0) {
+                          const allowed = new Set(nextEqs.map((eq: any) => eq.id || eq.cod))
+                          const filtered = newContractEquipmentIds.filter((id) => allowed.has(id))
+                          if (filtered.length !== newContractEquipmentIds.length) {
+                            setNewContractEquipmentIds(filtered)
+                          }
+                        }
+                      } catch {}
                     }}
                     placeholder="Selectați una sau mai multe locații"
                     emptyText="Clientul nu are locații"

@@ -445,7 +445,19 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
                   <div key={lucrare.id} className="flex items-center justify-between rounded-lg border p-3">
                     <div>
                       <p className="font-medium">{lucrare.tipLucrare}</p>
-                      <p className="text-sm text-gray-500">Data: {lucrare.dataInterventie}</p>
+                      <p className="text-sm text-gray-500">
+                        Data: {(() => {
+                          try {
+                            const v: any = (lucrare as any).dataInterventie
+                            const d = typeof v?.toDate === "function"
+                              ? v.toDate()
+                              : (typeof v?.seconds === "number" ? new Date(v.seconds * 1000) : (typeof v === "string" ? new Date(v) : null))
+                            return d && !isNaN(d.getTime()) ? formatDate(d) : String((lucrare as any).dataInterventie || "")
+                          } catch {
+                            return String((lucrare as any).dataInterventie || "")
+                          }
+                        })()}
+                      </p>
                     </div>
                     <Button variant="ghost" size="sm" onClick={() => router.push(`/dashboard/lucrari/${lucrare.id}`)}>
                       Detalii

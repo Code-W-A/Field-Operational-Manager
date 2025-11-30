@@ -1371,6 +1371,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
                 <TemplateSelector
                   valueId={(((echipamentFormData as any)?.dynamicSettings) || {})["revision.checklistTemplateId"] || ""}
                   useForSheet={!!((((echipamentFormData as any)?.dynamicSettings) || {})["revision.useChecklistForSheet"])}
+                  parentId={(((echipamentFormData as any)?.dynamicSettings) || {})["revision.checklistParentId"] || ""}
                   onChange={(payload) => {
                     setEchipamentFormData((prev: any) => ({
                       ...prev,
@@ -1481,10 +1482,12 @@ export { ClientForm }
 function TemplateSelector({
   valueId,
   useForSheet,
+  parentId,
   onChange,
 }: {
   valueId: string
   useForSheet: boolean
+  parentId?: string
   onChange: (payload: { templateId: string; templateName: string; useForSheet: boolean }) => void
 }) {
   const [templates, setTemplates] = useState<Array<{ id: string; name: string }>>([])
@@ -1492,7 +1495,7 @@ function TemplateSelector({
   // Always true and implicit; checkbox removed from UI
   const [useFlag] = useState<boolean>(true)
   const [childOpts, setChildOpts] = useState<Array<{ id: string; name: string }>>([])
-  const [selectedChild, setSelectedChild] = useState<string>("")
+  const [selectedChild, setSelectedChild] = useState<string>(parentId || "")
 
   useEffect(() => {
     const unsub = subscribeRevisionChecklistTemplates((settings: any[]) => {
@@ -1514,6 +1517,13 @@ function TemplateSelector({
     setSelectedId(valueId || "")
   }, [valueId])
 
+  // Sync selected child with prop if provided (for edit flows)
+  useEffect(() => {
+    if (parentId && parentId !== selectedChild) {
+      setSelectedChild(parentId)
+    }
+  }, [parentId])
+
   // Load first-level children for the currently selected template
   useEffect(() => {
     if (!selectedId) {
@@ -1527,14 +1537,16 @@ function TemplateSelector({
         .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
         .map((c: any) => ({ id: c.id, name: c.name || c.path || c.id }))
       setChildOpts(opts)
-      if (selectedChild && !opts.find((o) => o.id === selectedChild)) {
+      if (parentId && opts.find((o) => o.id === parentId)) {
+        setSelectedChild(parentId)
+      } else if (selectedChild && !opts.find((o) => o.id === selectedChild)) {
         setSelectedChild("")
       }
     })
     return () => {
       try { (unsub as any)?.() } catch {}
     }
-  }, [selectedId, selectedChild])
+  }, [selectedId, selectedChild, parentId])
 
   return (
     <div className="grid gap-2">
@@ -1565,7 +1577,7 @@ function TemplateSelector({
       {/* First-level category under selected template */}
       <div className="grid sm:grid-cols-2 gap-3">
         <div className="space-y-1">
-          <label className="text-sm font-medium">Secțiune (nivel 1 din șablon)</label>
+          <label className="text-sm font-medium">Fisa de operatiuni</label>
           <Select
             value={selectedChild}
             onValueChange={(id) => {
@@ -1594,9 +1606,7 @@ function TemplateSelector({
           </p>
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">
-        Lista este generată din Setări → țintele marcate cu “revisions.checklist.sections”.
-      </p>
+    
     </div>
   )
 }

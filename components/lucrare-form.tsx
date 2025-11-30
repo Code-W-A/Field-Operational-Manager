@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { format } from "date-fns"
+import { format, startOfDay, isBefore } from "date-fns"
 import { ro } from "date-fns/locale"
 import { CalendarIcon, Loader2, Plus, Phone, Mail, Users, LightbulbIcon, AlertCircle } from "lucide-react"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
@@ -351,7 +351,14 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         }
 
         // Create a new date to avoid mutation
-        const newDate = new Date(date)
+        let newDate = new Date(date)
+
+        // Enforce min date = today (no past dates)
+        const todayStart = startOfDay(new Date())
+        if (isBefore(startOfDay(newDate), todayStart)) {
+          newDate = new Date(todayStart)
+          try { toast({ title: "Dată invalidă", description: "Nu poți selecta o dată din trecut. Am setat data de azi.", variant: "destructive" }) } catch {}
+        }
 
         // If we already have a date, preserve the time
         if (dataInterventie) {
@@ -1788,7 +1795,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                   disabled
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dataEmiterii ? format(dataEmiterii, "dd.MM.yyyy", { locale: ro }) : "Data curentă"}
+                  {dataEmiterii ? (() => { try { const { formatUiDate } = require("@/lib/utils/time-format"); return formatUiDate(dataEmiterii) } catch { return "Data curentă" } })() : "Data curentă"}
                 </Button>
               </div>
               <div className="relative sm:w-1/3">
@@ -1806,7 +1813,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           {/* 1. Data când se solicită intervenția (fără oră în UI, dar cu ora în baza de date) */}
           <div className="space-y-2">
             <label htmlFor="dataInterventie" className="text-sm font-medium">
-              Data când se solicită intervenția *
+              Data la care se solicită intervenția *
             </label>
             <div className="w-full">
               <Popover open={dateInterventieOpen} onOpenChange={setDateInterventieOpen}>
@@ -1818,7 +1825,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {dataInterventie ? (
-                      format(dataInterventie, "dd.MM.yyyy", { locale: ro })
+                      (() => { try { const { formatUiDate } = require("@/lib/utils/time-format"); return formatUiDate(dataInterventie) } catch { return format(dataInterventie, "dd.MM.yyyy", { locale: ro }) } })()
                     ) : (
                       <span>Selectați data</span>
                     )}
@@ -1835,7 +1842,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
               </Popover>
             </div>
             <p className="text-xs text-muted-foreground">
-              Data când se solicită intervenția
+            Data la care se solicită intervenția
             </p>
           </div>
 

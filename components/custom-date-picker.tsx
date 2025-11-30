@@ -11,6 +11,8 @@ import {
   eachDayOfInterval,
   isSameMonth,
   isSameDay,
+  startOfDay,
+  isBefore,
 } from "date-fns"
 import { ro } from "date-fns/locale"
 import { Button } from "@/components/ui/button"
@@ -116,6 +118,7 @@ export function CustomDatePicker({ selectedDate, onDateChange, onClose, hasError
           {daysInMonth.map((day) => {
             const isSelected = selectedDate ? isSameDay(day, selectedDate) : false
             const isToday = isSameDay(day, new Date())
+            const isPast = isBefore(startOfDay(day), startOfDay(new Date()))
 
             return (
               <Button
@@ -127,8 +130,14 @@ export function CustomDatePicker({ selectedDate, onDateChange, onClose, hasError
                   isSelected && "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
                   isToday && !isSelected && "border border-primary text-primary",
                   !isSameMonth(day, currentMonth) && "text-muted-foreground opacity-50",
+                  isPast && "opacity-40 cursor-not-allowed"
                 )}
-                onClick={() => handleDateSelect(day)}
+                disabled={isPast}
+                aria-disabled={isPast}
+                onClick={() => {
+                  if (isPast) return
+                  handleDateSelect(day)
+                }}
               >
                 <time dateTime={format(day, "yyyy-MM-dd")}>{format(day, "d")}</time>
               </Button>

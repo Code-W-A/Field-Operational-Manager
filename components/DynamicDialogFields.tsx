@@ -89,14 +89,17 @@ export function DynamicDialogFields({ targetId, values, onChange, className = ""
       )}>
         {visibleParents.map((p, index) => {
           const children = childrenByParent[p.id] || []
-          const current = values?.[p.id] ?? ""
+          // Acceptă atât numele copilului, cât și ID-ul lui, pentru valori salvate istoric
+          const raw = values?.[p.id]
+          const matchedById = children.find((c) => String(c.id || "") === String(raw || ""))
+          const current = matchedById ? (matchedById.name || "") : (raw ?? "")
           // Aplica filtrarea dar păstrează opțiunea selectată curent dacă există
           const filteredChildrenBase = filterChild ? children.filter((c) => filterChild(c, p.name)) : children
           const filteredChildren = filteredChildrenBase.some((c) => String(c.name || "") === String(current || ""))
             ? filteredChildrenBase
             : [
                 ...filteredChildrenBase,
-                ...children.filter((c) => String(c.name || "") === String(current || "")),
+              ...children.filter((c) => String(c.name || "") === String(current || "")),
               ]
           const options = filteredChildren
             .map((c) => c?.name || "")

@@ -670,7 +670,7 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
                         <PopoverTrigger asChild>
                           <Button variant="outline" className="w-full justify-start text-left font-normal">
                             <CalendarIcon className="mr-2 h-4 w-4" />
-                            {startDate ? format(startDate, "dd.MM.yyyy", { locale: ro }) : "Selectați data"}
+                            {startDate ? (() => { try { const { formatUiDate } = require("@/lib/utils/time-format"); return formatUiDate(startDate) } catch { return format(startDate, "dd.MM.yyyy", { locale: ro }) } })() : "Selectați data"}
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0">
@@ -687,7 +687,7 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
                         <PopoverTrigger asChild>
                           <Button variant="outline" className="w-full justify-start text-left font-normal">
                             <CalendarIcon className="mr-2 h-4 w-4" />
-                            {endDate ? format(endDate, "dd.MM.yyyy", { locale: ro }) : "Selectați data"}
+                            {endDate ? (() => { try { const { formatUiDate } = require("@/lib/utils/time-format"); return formatUiDate(endDate) } catch { return format(endDate, "dd.MM.yyyy", { locale: ro }) } })() : "Selectați data"}
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0">
@@ -786,7 +786,7 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
                       ? `Analiza intervențiilor pe echipament în anul ${selectedYear}`
                       : dateRange === "all"
                         ? "Analiza tuturor intervențiilor pe echipament"
-                        : `Perioada analizată: ${startDate ? format(startDate, "dd.MM.yyyy", { locale: ro }) : ""} - ${endDate ? format(endDate, "dd.MM.yyyy", { locale: ro }) : ""}`}
+                        : `Perioada analizată: ${startDate ? (() => { try { const { formatUiDate } = require("@/lib/utils/time-format"); return formatUiDate(startDate) } catch { return format(startDate, "dd.MM.yyyy", { locale: ro }) } })() : ""} - ${endDate ? (() => { try { const { formatUiDate } = require("@/lib/utils/time-format"); return formatUiDate(endDate) } catch { return format(endDate, "dd.MM.yyyy", { locale: ro }) } })() : ""}`}
                   </CardDescription>
                 </div>
                 <div className="mt-4 flex space-x-2 md:mt-0">
@@ -876,7 +876,7 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
                             ? `În anul ${selectedYear}`
                             : dateRange === "all"
                               ? "Toate perioadele"
-                              : `${startDate ? format(startDate, "dd.MM.yyyy", { locale: ro }) : ""} - ${endDate ? format(endDate, "dd.MM.yyyy", { locale: ro }) : ""}`}
+                              : `${startDate ? (() => { try { const { formatUiDate } = require("@/lib/utils/time-format"); return formatUiDate(startDate) } catch { return format(startDate, "dd.MM.yyyy", { locale: ro }) } })() : ""} - ${endDate ? (() => { try { const { formatUiDate } = require("@/lib/utils/time-format"); return formatUiDate(endDate) } catch { return format(endDate, "dd.MM.yyyy", { locale: ro }) } })() : ""}`}
                         </p>
                       </div>
                     </div>

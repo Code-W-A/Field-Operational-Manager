@@ -3,6 +3,30 @@ import * as admin from 'firebase-admin'
 
 admin.initializeApp()
 
+// Helpers for day-only calculations in Europe/Bucharest (ignore time-of-day)
+function toDayKey(date: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+  const y = parts.find((p) => p.type === 'year')?.value || '1970'
+  const m = parts.find((p) => p.type === 'month')?.value || '01'
+  const d = parts.find((p) => p.type === 'day')?.value || '01'
+  return `${y}-${m}-${d}` // lexicographically comparable
+}
+
+function shiftDayKey(dayKey: string, deltaDays: number): string {
+  const [y, m, d] = dayKey.split('-').map(Number)
+  const baseUtc = new Date(Date.UTC(y, (m || 1) - 1, d || 1))
+  baseUtc.setUTCDate(baseUtc.getUTCDate() + deltaDays)
+  const yy = baseUtc.getUTCFullYear()
+  const mm = String(baseUtc.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(baseUtc.getUTCDate()).padStart(2, '0')
+  return `${yy}-${mm}-${dd}`
+}
+
 // Scheduled function care rulează la fiecare 5 minute (Europe/Bucharest)
 export const generateScheduledWorks = functions
   .region('europe-west1')
@@ -12,6 +36,8 @@ export const generateScheduledWorks = functions
   .onRun(async (_context: functions.EventContext) => {
     const db = admin.firestore()
     const now = new Date()
+    const tz = 'Europe/Bucharest'
+    const todayKey = toDayKey(now, tz)
     
     console.log(`[${now.toISOString()}] Starting scheduled work generation`)
     
@@ -85,14 +111,15 @@ export const generateScheduledWorks = functions
           }
         }
         
-        // 3. Verifică dacă trebuie să generăm lucrarea acum
-        // Lucrarea se generează cu "daysBeforeWork" zile înainte de data reviziei
+        // 3. Verifică dacă trebuie să generăm lucrarea acum (day-only, fără oră)
         const daysBeforeWork = contract.daysBeforeWork || 10
-        const generateDate = new Date(nextReviewDate)
-        generateDate.setDate(generateDate.getDate() - daysBeforeWork)
+        const reviewKey = toDayKey(nextReviewDate, tz)
+        const generateKey = shiftDayKey(reviewKey, -daysBeforeWork)
+        const lastGenKey = contract.lastAutoWorkGenerated ? toDayKey(new Date(contract.lastAutoWorkGenerated), tz) : ''
         
-        // Verificăm dacă am depășit sau suntem exact în ziua de generare
-        if (now >= generateDate && (!contract.lastAutoWorkGenerated || new Date(contract.lastAutoWorkGenerated) < generateDate)) {
+        console.log(`Contract ${contractId}: reviewKey=${reviewKey}, generateKey=${generateKey}, lastGenKey=${lastGenKey || 'none'}, daysBeforeWork=${daysBeforeWork}`)
+        console.log(`(callable) Contract ${contractId}: reviewKey=${reviewKey}, generateKey=${generateKey}, lastGenKey=${lastGenKey || 'none'}, daysBeforeWork=${daysBeforeWork}`)
+        if (todayKey >= generateKey && (!lastGenKey || lastGenKey < generateKey)) {
           // Trebuie să generăm lucrări pentru fiecare echipament
           
           // Obținem datele clientului pentru a avea informații complete
@@ -206,7 +233,8 @@ export const generateScheduledWorks = functions
           
           console.log(`Updated lastAutoWorkGenerated for contract ${contractId}`)
         } else {
-          console.log(`Contract ${contractId}: not yet time to generate (generateDate: ${generateDate.toISOString()})`)
+          const reason = todayKey < generateKey ? 'future_day' : 'already_generated_for_or_after_generate_day'
+          console.log(`Contract ${contractId}: not yet time to generate (reason=${reason}, todayKey=${todayKey}, generateKey=${generateKey}, lastGenKey=${lastGenKey || 'none'})`)
         }
       }
       
@@ -224,6 +252,8 @@ export const runGenerateScheduledWorks = functions
   .https.onCall(async (data, context) => {
     const db = admin.firestore()
     const now = new Date()
+    const tz = 'Europe/Bucharest'
+    const todayKey = toDayKey(now, tz)
 
     // Optional: permite doar utilizatori autentificați
     if (!context.auth) {
@@ -277,10 +307,11 @@ export const runGenerateScheduledWorks = functions
         }
 
         const daysBeforeWork = contract.daysBeforeWork || 10
-        const generateDate = new Date(nextReviewDate)
-        generateDate.setDate(generateDate.getDate() - daysBeforeWork)
+        const reviewKey = toDayKey(nextReviewDate, tz)
+        const generateKey = shiftDayKey(reviewKey, -daysBeforeWork)
+        const lastGenKey = contract.lastAutoWorkGenerated ? toDayKey(new Date(contract.lastAutoWorkGenerated), tz) : ''
 
-        if (now >= generateDate && (!contract.lastAutoWorkGenerated || new Date(contract.lastAutoWorkGenerated) < generateDate)) {
+        if (todayKey >= generateKey && (!lastGenKey || lastGenKey < generateKey)) {
           if (!contract.clientId) {
             console.log(`Contract ${contractId} has no client, skipping`)
             return
@@ -376,7 +407,8 @@ export const runGenerateScheduledWorks = functions
             updatedAt: admin.firestore.Timestamp.now(),
           })
         } else {
-          console.log(`Contract ${contractId}: not yet time to generate (generateDate: ${generateDate.toISOString()})`)
+          const reason = todayKey < generateKey ? 'future_day' : 'already_generated_for_or_after_generate_day'
+          console.log(`(callable) Contract ${contractId}: not yet time to generate (reason=${reason}, todayKey=${todayKey}, generateKey=${generateKey}, lastGenKey=${lastGenKey || 'none'})`)
         }
       }
 

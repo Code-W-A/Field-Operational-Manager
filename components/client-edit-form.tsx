@@ -1351,6 +1351,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
                 <TemplateSelector
                   valueId={(echipamentFormData as any)?.dynamicSettings?.["revision.checklistTemplateId"] || ""}
                   useForSheet={!!(echipamentFormData as any)?.dynamicSettings?.["revision.useChecklistForSheet"]}
+                  parentId={(echipamentFormData as any)?.dynamicSettings?.["revision.checklistParentId"] || ""}
                   onChange={(payload) => {
                     setEchipamentFormData((prev: any) => ({
                       ...prev,
@@ -1459,10 +1460,12 @@ export { ClientEditForm }
 function TemplateSelector({
   valueId,
   useForSheet,
+  parentId,
   onChange,
 }: {
   valueId: string
   useForSheet: boolean
+  parentId?: string
   onChange: (payload: { templateId: string; templateName: string; useForSheet: boolean }) => void
 }) {
   const [templates, setTemplates] = useState<Array<{ id: string; name: string }>>([])
@@ -1470,15 +1473,22 @@ function TemplateSelector({
   // Always true and implicit; checkbox removed from UI
   const [useFlag] = useState<boolean>(true)
   const [childOpts, setChildOpts] = useState<Array<{ id: string; name: string }>>([])
-  const [selectedChild, setSelectedChild] = useState<string>("")
+  const [selectedChild, setSelectedChild] = useState<string>(parentId || "")
 
   useEffect(() => {
     const unsub = subscribeRevisionChecklistTemplates((settings: any[]) => {
       const opts = (settings || []).map((s: any) => ({ id: s.id, name: s.name || s.path || s.id }))
       setTemplates(opts)
       // Keep display name in sync if current selection is present
-      const sel = opts.find((o) => o.id === (valueId || selectedId))
-      if (sel) onChange({ templateId: sel.id, templateName: sel.name, useForSheet: true })
+      const current = valueId || selectedId
+      const sel = opts.find((o) => o.id === current)
+      if (sel) {
+        onChange({ templateId: sel.id, templateName: sel.name, useForSheet: true })
+      } else if (opts.length > 0) {
+        // Auto-select primul șablon dacă nu există o selecție
+        setSelectedId(opts[0].id)
+        onChange({ templateId: opts[0].id, templateName: opts[0].name, useForSheet: true })
+      }
     })
     return () => {
       try { unsub?.() } catch {}
@@ -1489,6 +1499,13 @@ function TemplateSelector({
   useEffect(() => {
     setSelectedId(valueId || "")
   }, [valueId])
+
+  // Keep selected child in sync with prop from Firestore
+  useEffect(() => {
+    if (parentId && parentId !== selectedChild) {
+      setSelectedChild(parentId)
+    }
+  }, [parentId]) 
 
   // Load first-level children for the currently selected template
   useEffect(() => {
@@ -1503,45 +1520,26 @@ function TemplateSelector({
         .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
         .map((c: any) => ({ id: c.id, name: c.name || c.path || c.id }))
       setChildOpts(opts)
-      if (selectedChild && !opts.find((o) => o.id === selectedChild)) {
+      // If the current selectedChild is not present and we have a parentId from props, try to select it
+      if (parentId && opts.find((o) => o.id === parentId)) {
+        setSelectedChild(parentId)
+      } else if (selectedChild && !opts.find((o) => o.id === selectedChild)) {
         setSelectedChild("")
       }
     })
     return () => {
       try { (unsub as any)?.() } catch {}
     }
-  }, [selectedId, selectedChild])
+  }, [selectedId, selectedChild, parentId])
 
   return (
     <div className="grid gap-2">
-      <div className="grid sm:grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <label className="text-sm font-medium">Șablon checklist</label>
-          <Select
-            value={selectedId}
-            onValueChange={(id) => {
-              setSelectedId(id)
-              const name = templates.find((t) => t.id === id)?.name || ""
-              onChange({ templateId: id, templateName: name, useForSheet: true })
-              setSelectedChild("")
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Selectați șablonul" />
-            </SelectTrigger>
-            <SelectContent>
-              {templates.map((t) => (
-                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        {/* Checkbox eliminat: “Folosește pentru fișa de operațiuni” este implicit activ */}
-      </div>
+      {/* Selectorul de șablon este ascuns; se selectează automat primul șablon disponibil */}
+      <div className="hidden" aria-hidden />
       {/* First-level category under selected template */}
       <div className="grid sm:grid-cols-2 gap-3">
         <div className="space-y-1">
-          <label className="text-sm font-medium">Secțiune (nivel 1 din șablon)</label>
+          <label className="text-sm font-medium">Fisa de operatiuni</label>
           <Select
             value={selectedChild}
             onValueChange={(id) => {
@@ -1570,9 +1568,7 @@ function TemplateSelector({
           </p>
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">
-        Lista este generată din Setări → țintele marcate cu “revisions.checklist.sections”.
-      </p>
+     
     </div>
   )
 }

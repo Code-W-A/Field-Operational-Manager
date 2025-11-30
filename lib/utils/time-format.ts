@@ -52,6 +52,33 @@ export function formatDateTime24(date: Date): string {
 }
 
 /**
+ * UI only: Formatează data ca "dd MMM yyyy" (ex: 29 Nov 2025).
+ * Acceptă Date sau string; pentru Firestore Timestamp treceți .toDate() înainte.
+ */
+export function formatUiDate(dateLike: any): string {
+  try {
+    let d: Date
+    if (!dateLike) return "-"
+    if (dateLike?.toDate && typeof dateLike.toDate === "function") {
+      d = dateLike.toDate()
+    } else if (typeof dateLike?.seconds === "number") {
+      d = new Date(dateLike.seconds * 1000)
+    } else if (dateLike instanceof Date) {
+      d = dateLike
+    } else {
+      d = new Date(dateLike)
+    }
+    if (isNaN(d.getTime())) return "-"
+    const day = d.getDate().toString().padStart(2, "0")
+    const monthShort = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]
+    const year = d.getFullYear()
+    return `${day} ${monthShort} ${year}`
+  } catch {
+    return "-"
+  }
+}
+
+/**
  * Calculează durata între două timestamp-uri și o formatează ca "Xh Ym"
  * @param startTime Timestamp de început (ISO string)
  * @param endTime Timestamp de sfârșit (ISO string sau Date)
