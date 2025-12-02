@@ -48,7 +48,7 @@ export const generateScheduledWorks = functions
     const tz = 'Europe/Bucharest'
     const todayKey = toDayKey(now, tz)
     
-    console.log(`[${now.toISOString()}] Starting scheduled work generation`)
+    console.log(`[${now.toISOString()}] Starting scheduled work generation (todayKey=${todayKey}, tz=${tz})`)
     
     try {
       // 1. Găsește toate contractele cu recurență setată
@@ -71,6 +71,21 @@ export const generateScheduledWorks = functions
           continue
         }
         
+        // Log raw contract fields used in computation
+        try {
+          console.log(
+            `Contract ${contractId} raw: ` +
+            `number=${String(contract.number || '-')}, ` +
+            `recurrenceUnit=${String(contract.recurrenceUnit)}, ` +
+            `recurrenceInterval=${String(contract.recurrenceInterval)}, ` +
+            `daysBeforeWork=${String(contract.daysBeforeWork)}, ` +
+            `startDate=${String(contract.startDate || '-')}, ` +
+            `lastAutoWorkGenerated=${String(contract.lastAutoWorkGenerated || '-')}, ` +
+            `locationNames=${JSON.stringify(Array.isArray(contract.locationNames) ? contract.locationNames : (contract.locationName ? [contract.locationName] : []))}, ` +
+            `equipmentIdsCount=${Array.isArray(contract.equipmentIds) ? contract.equipmentIds.length : 0}`
+          )
+        } catch {}
+
         contractsProcessed++
         
         // 2. Calculează data următoarei revizii
@@ -79,9 +94,16 @@ export const generateScheduledWorks = functions
         if (contract.lastAutoWorkGenerated) {
           // Avem o lucrare generată anterior, calculăm următoarea
           const lastGenerated = new Date(contract.lastAutoWorkGenerated)
+          const startDateRaw = contract.startDate ? new Date(contract.startDate) : null
+          const shouldUseStart =
+            !!startDateRaw && !isNaN(startDateRaw.getTime()) && lastGenerated < startDateRaw
+          if (shouldUseStart) {
+            console.log(`Contract ${contractId}: lastAutoWorkGenerated < startDate → using startDate as baseline`)
+          }
+          const baseline = shouldUseStart && startDateRaw ? startDateRaw : lastGenerated
           
           if (contract.recurrenceUnit === 'luni') {
-            nextReviewDate = new Date(lastGenerated)
+            nextReviewDate = new Date(baseline)
             nextReviewDate.setMonth(nextReviewDate.getMonth() + contract.recurrenceInterval)
             
             // Dacă există o zi specifică din lună setată, o aplicăm
@@ -90,7 +112,7 @@ export const generateScheduledWorks = functions
             }
           } else {
             // zile
-            nextReviewDate = new Date(lastGenerated)
+            nextReviewDate = new Date(baseline)
             nextReviewDate.setDate(nextReviewDate.getDate() + contract.recurrenceInterval)
           }
         } else {
@@ -127,8 +149,8 @@ export const generateScheduledWorks = functions
         // Track the last generated REVIEW day (not the generation day) to allow correct progression
         const lastReviewKey = contract.lastAutoWorkGenerated ? toDayKey(new Date(contract.lastAutoWorkGenerated), tz) : ''
         
-        console.log(`Contract ${contractId}: reviewKey=${reviewKey}, generateKey=${generateKey}, lastReviewKey=${lastReviewKey || 'none'}, daysBeforeWork=${daysBeforeWork}`)
-        console.log(`(callable) Contract ${contractId}: reviewKey=${reviewKey}, generateKey=${generateKey}, lastReviewKey=${lastReviewKey || 'none'}, daysBeforeWork=${daysBeforeWork}`)
+        console.log(`Contract ${contractId}: computed nextReviewDate=${nextReviewDate.toISOString()}, reviewKey=${reviewKey}, generateKey=${generateKey}, todayKey=${todayKey}, lastReviewKey=${lastReviewKey || 'none'}, daysBeforeWork=${daysBeforeWork}`)
+        console.log(`(callable) Contract ${contractId}: computed nextReviewDate=${nextReviewDate.toISOString()}, reviewKey=${reviewKey}, generateKey=${generateKey}, todayKey=${todayKey}, lastReviewKey=${lastReviewKey || 'none'}, daysBeforeWork=${daysBeforeWork}`)
         // Generate if today is on/after generateKey and we have not yet generated for this reviewKey
         if (todayKey >= generateKey && (!lastReviewKey || lastReviewKey < reviewKey)) {
           // Trebuie să generăm lucrări pentru fiecare echipament
@@ -172,6 +194,7 @@ export const generateScheduledWorks = functions
           const endOfDay = new Date(startOfDay)
           endOfDay.setDate(endOfDay.getDate() + 1)
 
+          let createdForThisContract = 0
           for (const locName of targetLocations) {
             const location = findLocationByName(locName)
             if (!location) {
@@ -182,6 +205,10 @@ export const generateScheduledWorks = functions
             // Echipamentele pentru această locație: dacă avem lista generală, o filtrăm după ce există în locație.
             const locationEquipmentCodes = new Set<string>((location.echipamente || []).map((e: any) => e.id || e.cod))
             const equipmentForLocation = allEquipments.filter((code) => locationEquipmentCodes.has(code))
+            console.log(
+              `Match for ${contractId} @ ${locName}: ` +
+              `locEquipCount=${locationEquipmentCodes.size}, contractEquipCount=${allEquipments.length}, matched=${equipmentForLocation.length}`
+            )
 
             if (equipmentForLocation.length === 0) {
               console.log(`No equipments for location ${locName} on contract ${contractId}, skipping this location`)
@@ -203,6 +230,7 @@ export const generateScheduledWorks = functions
               .where('dataInterventie', '<', admin.firestore.Timestamp.fromDate(endOfDay))
               .get()
 
+            console.log(`Idempotency check for ${contractId} @ ${locName}: existingToday=${dupSnap.size}`)
             if (!dupSnap.empty) {
               console.log(`Work already exists for contract ${contractId} at ${nextReviewDate.toISOString()} for location ${locName}, skipping`)
               continue
@@ -235,6 +263,7 @@ export const generateScheduledWorks = functions
             try {
               await db.collection('lucrari').doc(workId).create(workData)
               worksCreated++
+              createdForThisContract++
               console.log(`Created Revizie work for contract ${contractId} at location ${locName} with ${equipmentForLocation.length} equipments (id=${workId})`)
             } catch (err: any) {
               // If another instance created it in the meantime, skip gracefully
@@ -247,13 +276,16 @@ export const generateScheduledWorks = functions
           }
           
           // 4. Actualizează contract.lastAutoWorkGenerated
-          await db.collection('contracts').doc(contractId).update({
-            // store the REVIEW date to progress correctly across intervals
-            lastAutoWorkGenerated: nextReviewDate.toISOString(),
-            updatedAt: admin.firestore.Timestamp.now(),
-          })
-          
-          console.log(`Updated lastAutoWorkGenerated for contract ${contractId}`)
+          if (createdForThisContract > 0) {
+            await db.collection('contracts').doc(contractId).update({
+              // store the REVIEW date to progress correctly across intervals
+              lastAutoWorkGenerated: nextReviewDate.toISOString(),
+              updatedAt: admin.firestore.Timestamp.now(),
+            })
+            console.log(`Updated lastAutoWorkGenerated for contract ${contractId} (created=${createdForThisContract})`)
+          } else {
+            console.log(`No works created for any location on contract ${contractId}; NOT updating lastAutoWorkGenerated`)
+          }
         } else {
           const reason = todayKey < generateKey ? 'future_day' : 'already_generated_this_review_day'
           console.log(`Contract ${contractId}: not yet time to generate (reason=${reason}, todayKey=${todayKey}, generateKey=${generateKey}, reviewKey=${reviewKey}, lastReviewKey=${lastReviewKey || 'none'})`)
@@ -296,18 +328,40 @@ export const runGenerateScheduledWorks = functions
 
         contractsProcessed++
 
+        // Log raw contract fields used in computation (callable)
+        try {
+          console.log(
+            `(callable) Contract ${contractId} raw: ` +
+            `number=${String(contract.number || '-')}, ` +
+            `recurrenceUnit=${String(contract.recurrenceUnit)}, ` +
+            `recurrenceInterval=${String(contract.recurrenceInterval)}, ` +
+            `daysBeforeWork=${String(contract.daysBeforeWork)}, ` +
+            `startDate=${String(contract.startDate || '-')}, ` +
+            `lastAutoWorkGenerated=${String(contract.lastAutoWorkGenerated || '-')}, ` +
+            `locationNames=${JSON.stringify(Array.isArray(contract.locationNames) ? contract.locationNames : (contract.locationName ? [contract.locationName] : []))}, ` +
+            `equipmentIdsCount=${Array.isArray(contract.equipmentIds) ? contract.equipmentIds.length : 0}`
+          )
+        } catch {}
+
         // Calculează data următoarei revizii (identic cu scheduled)
         let nextReviewDate: Date
         if (contract.lastAutoWorkGenerated) {
           const lastGenerated = new Date(contract.lastAutoWorkGenerated)
+          const startDateRaw = contract.startDate ? new Date(contract.startDate) : null
+          const shouldUseStart =
+            !!startDateRaw && !isNaN(startDateRaw.getTime()) && lastGenerated < startDateRaw
+          if (shouldUseStart) {
+            console.log(`(callable) Contract ${contractId}: lastAutoWorkGenerated < startDate → using startDate as baseline`)
+          }
+          const baseline = shouldUseStart && startDateRaw ? startDateRaw : lastGenerated
           if (contract.recurrenceUnit === 'luni') {
-            nextReviewDate = new Date(lastGenerated)
+            nextReviewDate = new Date(baseline)
             nextReviewDate.setMonth(nextReviewDate.getMonth() + contract.recurrenceInterval)
             if (contract.recurrenceDayOfMonth && contract.recurrenceDayOfMonth >= 1 && contract.recurrenceDayOfMonth <= 31) {
               nextReviewDate.setDate(Math.min(contract.recurrenceDayOfMonth, new Date(nextReviewDate.getFullYear(), nextReviewDate.getMonth() + 1, 0).getDate()))
             }
           } else {
-            nextReviewDate = new Date(lastGenerated)
+            nextReviewDate = new Date(baseline)
             nextReviewDate.setDate(nextReviewDate.getDate() + contract.recurrenceInterval)
           }
         } else {
@@ -332,6 +386,8 @@ export const runGenerateScheduledWorks = functions
         const reviewKey = toDayKey(nextReviewDate, tz)
         const generateKey = shiftDayKey(reviewKey, -daysBeforeWork)
         const lastReviewKey = contract.lastAutoWorkGenerated ? toDayKey(new Date(contract.lastAutoWorkGenerated), tz) : ''
+
+        console.log(`(callable) Contract ${contractId}: computed nextReviewDate=${nextReviewDate.toISOString()}, reviewKey=${reviewKey}, generateKey=${generateKey}, todayKey=${todayKey}, lastReviewKey=${lastReviewKey || 'none'}, daysBeforeWork=${daysBeforeWork}`)
 
         if (todayKey >= generateKey && (!lastReviewKey || lastReviewKey < reviewKey)) {
           if (!contract.clientId) {
@@ -364,6 +420,7 @@ export const runGenerateScheduledWorks = functions
 
           const allEquipments: string[] = Array.isArray(contract.equipmentIds) ? contract.equipmentIds : []
 
+          let createdForThisContract = 0
           for (const locName of targetLocations) {
             const location = allClientLocations.find((l: any) => String(l?.nume) === String(locName))
             if (!location) {
@@ -373,6 +430,10 @@ export const runGenerateScheduledWorks = functions
 
             const locationEquipmentCodes = new Set<string>((location.echipamente || []).map((e: any) => e.id || e.cod))
             const equipmentForLocation = allEquipments.filter((code) => locationEquipmentCodes.has(code))
+            console.log(
+              `(callable) Match for ${contractId} @ ${locName}: ` +
+              `locEquipCount=${locationEquipmentCodes.size}, contractEquipCount=${allEquipments.length}, matched=${equipmentForLocation.length}`
+            )
 
             if (equipmentForLocation.length === 0) {
               console.log(`No equipments for location ${locName} on contract ${contractId}, skipping`)
@@ -389,6 +450,7 @@ export const runGenerateScheduledWorks = functions
               .where('dataInterventie', '<', admin.firestore.Timestamp.fromDate(endOfDay))
               .get()
 
+            console.log(`(callable) Idempotency check for ${contractId} @ ${locName}: existingToday=${dupSnap.size}`)
             if (!dupSnap.empty) {
               console.log(`Work already exists for contract ${contractId} at ${nextReviewDate.toISOString()} for location ${locName}, skipping`)
               continue
@@ -425,6 +487,7 @@ export const runGenerateScheduledWorks = functions
             try {
               await db.collection('lucrari').doc(workId).create(workData)
               worksCreated++
+              createdForThisContract++
             } catch (err: any) {
               if (err?.code === 6 || String(err?.message || '').includes('ALREADY_EXISTS')) {
                 console.log(`(callable) Work already exists by id for contract ${contractId} at location ${locName} (id=${workId}), skipping`)
@@ -433,10 +496,14 @@ export const runGenerateScheduledWorks = functions
               }
             }
           }
-          await db.collection('contracts').doc(contractId).update({
-            lastAutoWorkGenerated: nextReviewDate.toISOString(),
-            updatedAt: admin.firestore.Timestamp.now(),
-          })
+          if (createdForThisContract > 0) {
+            await db.collection('contracts').doc(contractId).update({
+              lastAutoWorkGenerated: nextReviewDate.toISOString(),
+              updatedAt: admin.firestore.Timestamp.now(),
+            })
+          } else {
+            console.log(`(callable) No works created for any location on contract ${contractId}; NOT updating lastAutoWorkGenerated`)
+          }
         } else {
           const reason = todayKey < generateKey ? 'future_day' : 'already_generated_this_review_day'
           console.log(`(callable) Contract ${contractId}: not yet time to generate (reason=${reason}, todayKey=${todayKey}, generateKey=${generateKey}, reviewKey=${reviewKey}, lastReviewKey=${lastReviewKey || 'none'})`)
@@ -465,3 +532,7 @@ export const runGenerateScheduledWorks = functions
     }
   })
 
+
+
+
+  

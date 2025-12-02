@@ -64,9 +64,12 @@ export function toDateSafe(val: any): Date | null {
     }
     if (val instanceof Date) return isNaN(val.getTime()) ? null : val
     if (typeof val === "string") {
-      // Try ISO first
-      const iso = new Date(val)
-      if (!isNaN(iso.getTime())) return iso
+      // Accept ONLY strict ISO-like strings for native Date parsing to avoid dd.MM ambiguity
+      const isIsoLike = /^\d{4}-\d{2}-\d{2}(?:[T\s]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+\-]\d{2}:?\d{2})?)?$/.test(val)
+      if (isIsoLike) {
+        const iso = new Date(val)
+        if (!isNaN(iso.getTime())) return iso
+      }
       // Fallback dd.MM.yyyy [HH:mm]
       const [datePart, timePart = "00:00"] = val.trim().split(" ")
       const [dd, mm, yyyy] = datePart.split(".").map((x) => parseInt(x, 10))

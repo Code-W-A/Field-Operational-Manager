@@ -1633,8 +1633,12 @@ export default function Lucrari() {
       }
       if (val instanceof Date) return val
       if (typeof val === "string") {
-        const maybe = new Date(val)
-        if (!isNaN(maybe.getTime())) return maybe
+        // Only allow strict ISO-like strings for native parsing to avoid dd.MM ambiguity
+        const isIsoLike = /^\d{4}-\d{2}-\d{2}(?:[T\s]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+\-]\d{2}:?\d{2})?)?$/.test(val)
+        if (isIsoLike) {
+          const maybe = new Date(val)
+          if (!isNaN(maybe.getTime())) return maybe
+        }
         const parts = val.trim()
         const [datePart, timePart] = parts.split(" ")
         if (datePart) {
