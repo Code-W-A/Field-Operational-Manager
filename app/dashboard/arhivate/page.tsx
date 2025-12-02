@@ -869,7 +869,7 @@ export default function LucrariArhivate() {
                         </div>
                         <div className="flex items-center gap-2">
                           <Calendar className="h-4 w-4 text-gray-400" />
-                          <span>{formatDate(lucrare.dataInterventie)}</span>
+                          <span>{(() => { try { const { formatUiDate, toDateSafe } = require("@/lib/utils/time-format"); return formatUiDate(toDateSafe(lucrare.dataInterventie)) } catch { return String(lucrare.dataInterventie || "-") } })()}</span>
                         </div>
                       </div>
 

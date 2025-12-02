@@ -27,6 +27,15 @@ function shiftDayKey(dayKey: string, deltaDays: number): string {
   return `${yy}-${mm}-${dd}`
 }
 
+// Small stable hash for composing deterministic doc IDs (avoids races)
+function hashString(input: string): string {
+  let hash = 5381
+  for (let i = 0; i < input.length; i++) {
+    hash = ((hash << 5) + hash) ^ input.charCodeAt(i) // djb2 with xor
+  }
+  return (hash >>> 0).toString(36)
+}
+
 // Scheduled function care rulează la fiecare 5 minute (Europe/Bucharest)
 export const generateScheduledWorks = functions
   .region('europe-west1')
@@ -222,9 +231,19 @@ export const generateScheduledWorks = functions
               createdBy: 'system',
               createdByName: 'Generare Automată',
             }
-            await db.collection('lucrari').add(workData)
-            worksCreated++
-            console.log(`Created Revizie work for contract ${contractId} at location ${locName} with ${equipmentForLocation.length} equipments`)
+            const workId = `auto_${contractId}_${hashString(String(locName))}_${reviewKey.replace(/-/g, '')}`
+            try {
+              await db.collection('lucrari').doc(workId).create(workData)
+              worksCreated++
+              console.log(`Created Revizie work for contract ${contractId} at location ${locName} with ${equipmentForLocation.length} equipments (id=${workId})`)
+            } catch (err: any) {
+              // If another instance created it in the meantime, skip gracefully
+              if (err?.code === 6 || String(err?.message || '').includes('ALREADY_EXISTS')) {
+                console.log(`Work already exists by id for contract ${contractId} at location ${locName} (id=${workId}), skipping`)
+              } else {
+                throw err
+              }
+            }
           }
           
           // 4. Actualizează contract.lastAutoWorkGenerated
@@ -402,8 +421,17 @@ export const runGenerateScheduledWorks = functions
               createdBy: 'system',
               createdByName: 'Generare Manuală',
             }
-            await db.collection('lucrari').add(workData)
-            worksCreated++
+            const workId = `auto_${contractId}_${hashString(String(locName))}_${reviewKey.replace(/-/g, '')}`
+            try {
+              await db.collection('lucrari').doc(workId).create(workData)
+              worksCreated++
+            } catch (err: any) {
+              if (err?.code === 6 || String(err?.message || '').includes('ALREADY_EXISTS')) {
+                console.log(`(callable) Work already exists by id for contract ${contractId} at location ${locName} (id=${workId}), skipping`)
+              } else {
+                throw err
+              }
+            }
           }
           await db.collection('contracts').doc(contractId).update({
             lastAutoWorkGenerated: nextReviewDate.toISOString(),

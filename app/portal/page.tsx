@@ -325,7 +325,7 @@ export default function ClientPortalPage() {
                   </div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Calendar className="h-4 w-4" />
-                    {formatDate(w.dataInterventie)}
+                    {(() => { try { const { formatUiDate, toDateSafe } = require("@/lib/utils/time-format"); return formatUiDate(toDateSafe(w.dataInterventie)) } catch { return String(w.dataInterventie || "-") } })()}
                   </div>
                 </div>
                 

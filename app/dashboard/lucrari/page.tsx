@@ -1755,7 +1755,14 @@ export default function Lucrari() {
       header: "Data Emiterii",
       enableHiding: true,
       enableFiltering: true,
-      cell: ({ row }) => <span>{formatDateSafe(row.original.dataEmiterii)}</span>,
+      cell: ({ row }) => {
+        try {
+          const { toDateSafe, formatUiDate } = require("@/lib/utils/time-format")
+          return <span>{formatUiDate(toDateSafe(row.original.dataEmiterii))}</span>
+        } catch {
+          return <span>{formatDateSafe(row.original.dataEmiterii)}</span>
+        }
+      },
       sortingFn: (rowA: any, rowB: any, columnId: any) => {
         const a = toDateSafe(rowA.original.dataEmiterii)
         const b = toDateSafe(rowB.original.dataEmiterii)
@@ -1769,7 +1776,14 @@ export default function Lucrari() {
       header: "Data executie",
       enableHiding: true,
       enableFiltering: true,
-      cell: ({ row }) => <span>{formatDateSafe(row.original.dataInterventie)}</span>,
+      cell: ({ row }) => {
+        try {
+          const { toDateSafe, formatUiDate } = require("@/lib/utils/time-format")
+          return <span>{formatUiDate(toDateSafe(row.original.dataInterventie))}</span>
+        } catch {
+          return <span>{formatDateSafe(row.original.dataInterventie)}</span>
+        }
+      },
       sortingFn: (rowA: any, rowB: any, columnId: any) => {
         const a = toDateSafe(rowA.original.dataInterventie)
         const b = toDateSafe(rowB.original.dataInterventie)
@@ -2566,22 +2580,28 @@ export default function Lucrari() {
               }
               // Precompute dates
               try {
-                const v: any = (lucrare as any).dataEmiterii
-                const d = typeof v?.toDate === "function"
-                  ? v.toDate()
-                  : (typeof v?.seconds === "number" ? new Date(v.seconds * 1000) : (typeof v === "string" ? new Date(v) : null))
-                dataEmiteriiText = d && !isNaN(d.getTime()) ? format(d, "dd.MM.yyyy HH:mm") : String((lucrare as any).dataEmiterii || "")
+                const { toDateSafe, formatUiDate } = require("@/lib/utils/time-format")
+                dataEmiteriiText = formatUiDate(toDateSafe((lucrare as any).dataEmiterii))
+                dataInterventieText = formatUiDate(toDateSafe((lucrare as any).dataInterventie))
               } catch {
-                dataEmiteriiText = String((lucrare as any).dataEmiterii || "")
-              }
-              try {
-                const v2: any = (lucrare as any).dataInterventie
-                const d2 = typeof v2?.toDate === "function"
-                  ? v2.toDate()
-                  : (typeof v2?.seconds === "number" ? new Date(v2.seconds * 1000) : (typeof v2 === "string" ? new Date(v2) : null))
-                dataInterventieText = d2 && !isNaN(d2.getTime()) ? format(d2, "dd.MM.yyyy HH:mm") : String((lucrare as any).dataInterventie || "")
-              } catch {
-                dataInterventieText = String((lucrare as any).dataInterventie || "")
+                try {
+                  const v: any = (lucrare as any).dataEmiterii
+                  const d = typeof v?.toDate === "function"
+                    ? v.toDate()
+                    : (typeof v?.seconds === "number" ? new Date(v.seconds * 1000) : (typeof v === "string" ? new Date(v) : null))
+                  dataEmiteriiText = d && !isNaN(d.getTime()) ? format(d, "dd.MM.yyyy HH:mm") : String((lucrare as any).dataEmiterii || "")
+                } catch {
+                  dataEmiteriiText = String((lucrare as any).dataEmiterii || "")
+                }
+                try {
+                  const v2: any = (lucrare as any).dataInterventie
+                  const d2 = typeof v2?.toDate === "function"
+                    ? v2.toDate()
+                    : (typeof v2?.seconds === "number" ? new Date(v2.seconds * 1000) : (typeof v2 === "string" ? new Date(v2) : null))
+                  dataInterventieText = d2 && !isNaN(d2.getTime()) ? format(d2, "dd.MM.yyyy HH:mm") : String((lucrare as any).dataInterventie || "")
+                } catch {
+                  dataInterventieText = String((lucrare as any).dataInterventie || "")
+                }
               }
 
               return (

@@ -107,12 +107,18 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
           console.log("Lucrare încărcată pentru editare:", lucrare)
           setInitialData(lucrare)
 
-          // Set dates
-          if (lucrare.dataEmiterii) {
-            setDataEmiterii(new Date(lucrare.dataEmiterii))
-          }
-          if (lucrare.dataInterventie) {
-            setDataInterventie(new Date(lucrare.dataInterventie))
+          // Set dates (robust parsing for Timestamp | ISO | dd.MM.yyyy [HH:mm])
+          try {
+            const { toDateSafe } = await import("@/lib/utils/time-format")
+            if (lucrare.dataEmiterii) {
+              setDataEmiterii(toDateSafe(lucrare.dataEmiterii) || undefined)
+            }
+            if (lucrare.dataInterventie) {
+              setDataInterventie(toDateSafe(lucrare.dataInterventie) || undefined)
+            }
+          } catch {
+            if (lucrare.dataEmiterii) setDataEmiterii(new Date(lucrare.dataEmiterii as any))
+            if (lucrare.dataInterventie) setDataInterventie(new Date(lucrare.dataInterventie as any))
           }
 
           // Set form data
