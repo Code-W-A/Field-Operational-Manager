@@ -27,6 +27,11 @@ function shiftDayKey(dayKey: string, deltaDays: number): string {
   return `${yy}-${mm}-${dd}`
 }
 
+function dayKeyToUtcDate(dayKey: string): Date {
+  const [y, m, d] = dayKey.split('-').map(Number)
+  return new Date(Date.UTC(y, (m || 1) - 1, d || 1))
+}
+
 // Small stable hash for composing deterministic doc IDs (avoids races)
 function hashString(input: string): string {
   let hash = 5381
@@ -78,6 +83,7 @@ export const generateScheduledWorks = functions
             `number=${String(contract.number || '-')}, ` +
             `recurrenceUnit=${String(contract.recurrenceUnit)}, ` +
             `recurrenceInterval=${String(contract.recurrenceInterval)}, ` +
+            `recurrenceDayOfMonth=${String(contract.recurrenceDayOfMonth ?? '-')}, ` +
             `daysBeforeWork=${String(contract.daysBeforeWork)}, ` +
             `startDate=${String(contract.startDate || '-')}, ` +
             `lastAutoWorkGenerated=${String(contract.lastAutoWorkGenerated || '-')}, ` +
@@ -101,19 +107,29 @@ export const generateScheduledWorks = functions
             console.log(`Contract ${contractId}: lastAutoWorkGenerated < startDate → using startDate as baseline`)
           }
           const baseline = shouldUseStart && startDateRaw ? startDateRaw : lastGenerated
+          const useBaselineOnly = !!shouldUseStart
           
           if (contract.recurrenceUnit === 'luni') {
             nextReviewDate = new Date(baseline)
-            nextReviewDate.setMonth(nextReviewDate.getMonth() + contract.recurrenceInterval)
+            if (!useBaselineOnly) {
+              nextReviewDate.setMonth(nextReviewDate.getMonth() + contract.recurrenceInterval)
+            } else {
+              console.log(`Contract ${contractId}: baseline is startDate → NOT advancing months for first review`)
+            }
             
             // Dacă există o zi specifică din lună setată, o aplicăm
-            if (contract.recurrenceDayOfMonth && contract.recurrenceDayOfMonth >= 1 && contract.recurrenceDayOfMonth <= 31) {
+            // IMPORTANT: pentru prima revizie (useBaselineOnly) ignorăm ziua din lună; folosim exact startDate
+            if (!useBaselineOnly && contract.recurrenceDayOfMonth && contract.recurrenceDayOfMonth >= 1 && contract.recurrenceDayOfMonth <= 31) {
               nextReviewDate.setDate(Math.min(contract.recurrenceDayOfMonth, new Date(nextReviewDate.getFullYear(), nextReviewDate.getMonth() + 1, 0).getDate()))
             }
           } else {
             // zile
             nextReviewDate = new Date(baseline)
-            nextReviewDate.setDate(nextReviewDate.getDate() + contract.recurrenceInterval)
+            if (!useBaselineOnly) {
+              nextReviewDate.setDate(nextReviewDate.getDate() + contract.recurrenceInterval)
+            } else {
+              console.log(`Contract ${contractId}: baseline is startDate → NOT advancing days for first review`)
+            }
           }
         } else {
           // Prima generare - folosim startDate dacă este setată, altfel data de azi
@@ -128,7 +144,8 @@ export const generateScheduledWorks = functions
             }
             
             // Dacă există o zi specifică din lună setată, o aplicăm
-            if (contract.recurrenceDayOfMonth && contract.recurrenceDayOfMonth >= 1 && contract.recurrenceDayOfMonth <= 31) {
+            // IMPORTANT: pentru prima revizie când startDate este setat, folosim exact startDate; nu forțăm ziua din lună
+            if (!contract.startDate && contract.recurrenceDayOfMonth && contract.recurrenceDayOfMonth >= 1 && contract.recurrenceDayOfMonth <= 31) {
               nextReviewDate.setDate(Math.min(contract.recurrenceDayOfMonth, new Date(nextReviewDate.getFullYear(), nextReviewDate.getMonth() + 1, 0).getDate()))
             }
           } else {
@@ -151,8 +168,19 @@ export const generateScheduledWorks = functions
         
         console.log(`Contract ${contractId}: computed nextReviewDate=${nextReviewDate.toISOString()}, reviewKey=${reviewKey}, generateKey=${generateKey}, todayKey=${todayKey}, lastReviewKey=${lastReviewKey || 'none'}, daysBeforeWork=${daysBeforeWork}`)
         console.log(`(callable) Contract ${contractId}: computed nextReviewDate=${nextReviewDate.toISOString()}, reviewKey=${reviewKey}, generateKey=${generateKey}, todayKey=${todayKey}, lastReviewKey=${lastReviewKey || 'none'}, daysBeforeWork=${daysBeforeWork}`)
-        // Generate if today is on/after generateKey and we have not yet generated for this reviewKey
-        if (todayKey >= generateKey && (!lastReviewKey || lastReviewKey < reviewKey)) {
+        // Decide ținta pentru generare:
+        // - dacă azi am intrat în fereastra de generare a REVIEW-ului curent (reviewKey) -> generăm
+        // - dacă deja avem lastReviewKey == reviewKey (ex. s-au adăugat locații noi ulterior),
+        //   dar suntem încă în fereastra acelei revizii, generăm pentru lastReviewKey ca să completăm locațiile lipsă
+        if (todayKey >= generateKey) {
+          let targetReviewKey = reviewKey
+          if (lastReviewKey && lastReviewKey >= reviewKey) {
+            const lastGenerateKey = shiftDayKey(lastReviewKey, -daysBeforeWork)
+            if (todayKey >= lastGenerateKey) {
+              targetReviewKey = lastReviewKey
+            }
+          }
+          const targetReviewDate = dayKeyToUtcDate(targetReviewKey)
           // Trebuie să generăm lucrări pentru fiecare echipament
           
           // Obținem datele clientului pentru a avea informații complete
@@ -189,7 +217,7 @@ export const generateScheduledWorks = functions
             continue
           }
 
-          const startOfDay = new Date(nextReviewDate)
+          const startOfDay = new Date(targetReviewDate)
           startOfDay.setHours(0, 0, 0, 0)
           const endOfDay = new Date(startOfDay)
           endOfDay.setDate(endOfDay.getDate() + 1)
@@ -242,7 +270,7 @@ export const generateScheduledWorks = functions
               persoanaContact: primaryContact.nume || '',
               telefon: primaryContact.telefon || client.telefon || '',
               dataEmiterii: admin.firestore.Timestamp.now(),
-              dataInterventie: admin.firestore.Timestamp.fromDate(nextReviewDate),
+              dataInterventie: admin.firestore.Timestamp.fromDate(targetReviewDate),
               tipLucrare: 'Revizie',
               locatie: locName,
               descriere: 'Revizie programată automată conform contractului',
@@ -259,7 +287,7 @@ export const generateScheduledWorks = functions
               createdBy: 'system',
               createdByName: 'Generare Automată',
             }
-            const workId = `auto_${contractId}_${hashString(String(locName))}_${reviewKey.replace(/-/g, '')}`
+            const workId = `auto_${contractId}_${hashString(String(locName))}_${targetReviewKey.replace(/-/g, '')}`
             try {
               await db.collection('lucrari').doc(workId).create(workData)
               worksCreated++
@@ -277,11 +305,13 @@ export const generateScheduledWorks = functions
           
           // 4. Actualizează contract.lastAutoWorkGenerated
           if (createdForThisContract > 0) {
-            await db.collection('contracts').doc(contractId).update({
-              // store the REVIEW date to progress correctly across intervals
-              lastAutoWorkGenerated: nextReviewDate.toISOString(),
-              updatedAt: admin.firestore.Timestamp.now(),
-            })
+            // Actualizăm doar dacă avansăm la o zi de revizie mai târzie
+            if (!lastReviewKey || targetReviewKey > lastReviewKey) {
+              await db.collection('contracts').doc(contractId).update({
+                lastAutoWorkGenerated: dayKeyToUtcDate(targetReviewKey).toISOString(),
+                updatedAt: admin.firestore.Timestamp.now(),
+              })
+            }
             console.log(`Updated lastAutoWorkGenerated for contract ${contractId} (created=${createdForThisContract})`)
           } else {
             console.log(`No works created for any location on contract ${contractId}; NOT updating lastAutoWorkGenerated`)
@@ -335,6 +365,7 @@ export const runGenerateScheduledWorks = functions
             `number=${String(contract.number || '-')}, ` +
             `recurrenceUnit=${String(contract.recurrenceUnit)}, ` +
             `recurrenceInterval=${String(contract.recurrenceInterval)}, ` +
+            `recurrenceDayOfMonth=${String(contract.recurrenceDayOfMonth ?? '-')}, ` +
             `daysBeforeWork=${String(contract.daysBeforeWork)}, ` +
             `startDate=${String(contract.startDate || '-')}, ` +
             `lastAutoWorkGenerated=${String(contract.lastAutoWorkGenerated || '-')}, ` +
@@ -354,15 +385,24 @@ export const runGenerateScheduledWorks = functions
             console.log(`(callable) Contract ${contractId}: lastAutoWorkGenerated < startDate → using startDate as baseline`)
           }
           const baseline = shouldUseStart && startDateRaw ? startDateRaw : lastGenerated
+          const useBaselineOnly = !!shouldUseStart
           if (contract.recurrenceUnit === 'luni') {
             nextReviewDate = new Date(baseline)
-            nextReviewDate.setMonth(nextReviewDate.getMonth() + contract.recurrenceInterval)
-            if (contract.recurrenceDayOfMonth && contract.recurrenceDayOfMonth >= 1 && contract.recurrenceDayOfMonth <= 31) {
+            if (!useBaselineOnly) {
+              nextReviewDate.setMonth(nextReviewDate.getMonth() + contract.recurrenceInterval)
+            } else {
+              console.log(`(callable) Contract ${contractId}: baseline is startDate → NOT advancing months for first review`)
+            }
+            if (!useBaselineOnly && contract.recurrenceDayOfMonth && contract.recurrenceDayOfMonth >= 1 && contract.recurrenceDayOfMonth <= 31) {
               nextReviewDate.setDate(Math.min(contract.recurrenceDayOfMonth, new Date(nextReviewDate.getFullYear(), nextReviewDate.getMonth() + 1, 0).getDate()))
             }
           } else {
             nextReviewDate = new Date(baseline)
-            nextReviewDate.setDate(nextReviewDate.getDate() + contract.recurrenceInterval)
+            if (!useBaselineOnly) {
+              nextReviewDate.setDate(nextReviewDate.getDate() + contract.recurrenceInterval)
+            } else {
+              console.log(`(callable) Contract ${contractId}: baseline is startDate → NOT advancing days for first review`)
+            }
           }
         } else {
           const startDate = contract.startDate ? new Date(contract.startDate) : new Date(now)
@@ -371,7 +411,7 @@ export const runGenerateScheduledWorks = functions
             if (!contract.startDate) {
               nextReviewDate.setMonth(nextReviewDate.getMonth() + contract.recurrenceInterval)
             }
-            if (contract.recurrenceDayOfMonth && contract.recurrenceDayOfMonth >= 1 && contract.recurrenceDayOfMonth <= 31) {
+            if (!contract.startDate && contract.recurrenceDayOfMonth && contract.recurrenceDayOfMonth >= 1 && contract.recurrenceDayOfMonth <= 31) {
               nextReviewDate.setDate(Math.min(contract.recurrenceDayOfMonth, new Date(nextReviewDate.getFullYear(), nextReviewDate.getMonth() + 1, 0).getDate()))
             }
           } else {
@@ -389,7 +429,15 @@ export const runGenerateScheduledWorks = functions
 
         console.log(`(callable) Contract ${contractId}: computed nextReviewDate=${nextReviewDate.toISOString()}, reviewKey=${reviewKey}, generateKey=${generateKey}, todayKey=${todayKey}, lastReviewKey=${lastReviewKey || 'none'}, daysBeforeWork=${daysBeforeWork}`)
 
-        if (todayKey >= generateKey && (!lastReviewKey || lastReviewKey < reviewKey)) {
+        if (todayKey >= generateKey) {
+          let targetReviewKey = reviewKey
+          if (lastReviewKey && lastReviewKey >= reviewKey) {
+            const lastGenerateKey = shiftDayKey(lastReviewKey, -daysBeforeWork)
+            if (todayKey >= lastGenerateKey) {
+              targetReviewKey = lastReviewKey
+            }
+          }
+          const targetReviewDate = dayKeyToUtcDate(targetReviewKey)
           if (!contract.clientId) {
             console.log(`Contract ${contractId} has no client, skipping`)
             return
@@ -413,7 +461,7 @@ export const runGenerateScheduledWorks = functions
           }
 
           // Idempotency: să nu creăm din nou în aceeași zi
-          const startOfDay = new Date(nextReviewDate)
+          const startOfDay = new Date(targetReviewDate)
           startOfDay.setHours(0, 0, 0, 0)
           const endOfDay = new Date(startOfDay)
           endOfDay.setDate(endOfDay.getDate() + 1)
@@ -466,7 +514,7 @@ export const runGenerateScheduledWorks = functions
               persoanaContact: primaryContact.nume || '',
               telefon: primaryContact.telefon || client.telefon || '',
               dataEmiterii: admin.firestore.Timestamp.now(),
-              dataInterventie: admin.firestore.Timestamp.fromDate(nextReviewDate),
+              dataInterventie: admin.firestore.Timestamp.fromDate(targetReviewDate),
               tipLucrare: 'Revizie',
               locatie: locName,
               descriere: 'Revizie programată automată conform contractului',
@@ -483,7 +531,7 @@ export const runGenerateScheduledWorks = functions
               createdBy: 'system',
               createdByName: 'Generare Manuală',
             }
-            const workId = `auto_${contractId}_${hashString(String(locName))}_${reviewKey.replace(/-/g, '')}`
+            const workId = `auto_${contractId}_${hashString(String(locName))}_${targetReviewKey.replace(/-/g, '')}`
             try {
               await db.collection('lucrari').doc(workId).create(workData)
               worksCreated++
@@ -497,10 +545,12 @@ export const runGenerateScheduledWorks = functions
             }
           }
           if (createdForThisContract > 0) {
-            await db.collection('contracts').doc(contractId).update({
-              lastAutoWorkGenerated: nextReviewDate.toISOString(),
-              updatedAt: admin.firestore.Timestamp.now(),
-            })
+            if (!lastReviewKey || targetReviewKey > lastReviewKey) {
+              await db.collection('contracts').doc(contractId).update({
+                lastAutoWorkGenerated: dayKeyToUtcDate(targetReviewKey).toISOString(),
+                updatedAt: admin.firestore.Timestamp.now(),
+              })
+            }
           } else {
             console.log(`(callable) No works created for any location on contract ${contractId}; NOT updating lastAutoWorkGenerated`)
           }

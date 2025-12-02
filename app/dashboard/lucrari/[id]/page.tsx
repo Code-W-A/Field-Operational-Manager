@@ -49,7 +49,7 @@ import { useStableCallback } from "@/lib/utils/hooks"
 import { ContractDisplay } from "@/components/contract-display"
 import { QRCodeScanner } from "@/components/qr-code-scanner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { formatDate, formatTime } from "@/lib/utils/time-format"
+import { formatDate, formatTime, formatUiDate } from "@/lib/utils/time-format"
 import { EquipmentQRCode } from "@/components/equipment-qr-code"
 // Adăugăm importurile pentru calculul garanției
 import { getWarrantyDisplayInfo } from "@/lib/utils/warranty-calculator"
@@ -632,9 +632,10 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     const d = toDateSafe(val)
     if (!d) return "-"
     try {
-      return format(d, "dd.MM.yyyy HH:mm")
+      // cerință: pe pagina de detalii folosim „02 dec 2025”
+      return formatUiDate(d)
     } catch {
-      return d.toLocaleString("ro-RO")
+      return d.toLocaleDateString("ro-RO", { day: "2-digit", month: "short", year: "numeric" }).replace(".", "")
     }
   }
 
@@ -750,7 +751,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         // Record arrival time
         const now = new Date()
         const timpSosire = now.toISOString()
-        const dataSosire = formatDate(now)
+        const dataSosire = formatUiDate(now)
         const oraSosire = formatTime(now)
         
         // DEBUGGING PENTRU TIMPI CORUPȚI - VERIFICARE LA SETARE timpSosire
@@ -1381,7 +1382,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                 <a href={d.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
                                   {d.fileName}
                                 </a>
-                                <span className="text-xs text-muted-foreground">{new Date(d.uploadedAt).toLocaleDateString("ro-RO")}</span>
+                                <span className="text-xs text-muted-foreground">{formatUiDate(new Date(d.uploadedAt))}</span>
                               </li>
                             ))}
                           </ul>
@@ -1406,13 +1407,13 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   {lucrare.timpSosire && (
                     <div className="flex flex-col min-w-[160px]">
                       <div className="text-xs font-medium text-muted-foreground">Sosire la locație:</div>
-                      <div className="text-gray-900 whitespace-nowrap">{lucrare.dataSosire} {lucrare.oraSosire}</div>
+                      <div className="text-gray-900 whitespace-nowrap">{formatDateSafe(lucrare.timpSosire || lucrare.dataSosire)} {lucrare.oraSosire}</div>
                     </div>
                   )}
                   {lucrare.timpPlecare && (
                     <div className="flex flex-col min-w-[160px]">
                       <div className="text-xs font-medium text-muted-foreground">Plecare de la locație:</div>
-                      <div className="text-gray-900 whitespace-nowrap">{lucrare.dataPlecare} {lucrare.oraPlecare}</div>
+                      <div className="text-gray-900 whitespace-nowrap">{formatDateSafe(lucrare.timpPlecare || lucrare.dataPlecare)} {lucrare.oraPlecare}</div>
                     </div>
                   )}
                   {lucrare.timpSosire && lucrare.timpPlecare && (
@@ -1864,7 +1865,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                     {reinterventie.statusLucrare}
                                   </Badge>
                                   <span className="text-blue-700 font-medium">
-                                    {reinterventie.dataInterventie}
+                                    {formatDateSafe(reinterventie.dataInterventie)}
                                   </span>
                                   {reinterventie.tehnicieni && reinterventie.tehnicieni.length > 0 && (
                                     <span className="text-xs text-blue-600">
@@ -2590,7 +2591,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                 try {
                                   const at: any = (lucrare as any).offerResponse?.at
                                   const d = at?.toDate ? at.toDate() : new Date(at)
-                                  return isNaN(d?.getTime?.() ?? Number.NaN) ? '-' : d.toLocaleString('ro-RO')
+                                  return isNaN(d?.getTime?.() ?? Number.NaN) ? '-' : formatUiDate(d)
                                 } catch {
                                   return '-'
                                 }
