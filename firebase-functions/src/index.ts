@@ -115,11 +115,13 @@ export const generateScheduledWorks = functions
         const daysBeforeWork = contract.daysBeforeWork || 10
         const reviewKey = toDayKey(nextReviewDate, tz)
         const generateKey = shiftDayKey(reviewKey, -daysBeforeWork)
-        const lastGenKey = contract.lastAutoWorkGenerated ? toDayKey(new Date(contract.lastAutoWorkGenerated), tz) : ''
+        // Track the last generated REVIEW day (not the generation day) to allow correct progression
+        const lastReviewKey = contract.lastAutoWorkGenerated ? toDayKey(new Date(contract.lastAutoWorkGenerated), tz) : ''
         
-        console.log(`Contract ${contractId}: reviewKey=${reviewKey}, generateKey=${generateKey}, lastGenKey=${lastGenKey || 'none'}, daysBeforeWork=${daysBeforeWork}`)
-        console.log(`(callable) Contract ${contractId}: reviewKey=${reviewKey}, generateKey=${generateKey}, lastGenKey=${lastGenKey || 'none'}, daysBeforeWork=${daysBeforeWork}`)
-        if (todayKey >= generateKey && (!lastGenKey || lastGenKey < generateKey)) {
+        console.log(`Contract ${contractId}: reviewKey=${reviewKey}, generateKey=${generateKey}, lastReviewKey=${lastReviewKey || 'none'}, daysBeforeWork=${daysBeforeWork}`)
+        console.log(`(callable) Contract ${contractId}: reviewKey=${reviewKey}, generateKey=${generateKey}, lastReviewKey=${lastReviewKey || 'none'}, daysBeforeWork=${daysBeforeWork}`)
+        // Generate if today is on/after generateKey and we have not yet generated for this reviewKey
+        if (todayKey >= generateKey && (!lastReviewKey || lastReviewKey < reviewKey)) {
           // Trebuie să generăm lucrări pentru fiecare echipament
           
           // Obținem datele clientului pentru a avea informații complete
@@ -227,14 +229,15 @@ export const generateScheduledWorks = functions
           
           // 4. Actualizează contract.lastAutoWorkGenerated
           await db.collection('contracts').doc(contractId).update({
-            lastAutoWorkGenerated: now.toISOString(),
+            // store the REVIEW date to progress correctly across intervals
+            lastAutoWorkGenerated: nextReviewDate.toISOString(),
             updatedAt: admin.firestore.Timestamp.now(),
           })
           
           console.log(`Updated lastAutoWorkGenerated for contract ${contractId}`)
         } else {
-          const reason = todayKey < generateKey ? 'future_day' : 'already_generated_for_or_after_generate_day'
-          console.log(`Contract ${contractId}: not yet time to generate (reason=${reason}, todayKey=${todayKey}, generateKey=${generateKey}, lastGenKey=${lastGenKey || 'none'})`)
+          const reason = todayKey < generateKey ? 'future_day' : 'already_generated_this_review_day'
+          console.log(`Contract ${contractId}: not yet time to generate (reason=${reason}, todayKey=${todayKey}, generateKey=${generateKey}, reviewKey=${reviewKey}, lastReviewKey=${lastReviewKey || 'none'})`)
         }
       }
       
@@ -309,9 +312,9 @@ export const runGenerateScheduledWorks = functions
         const daysBeforeWork = contract.daysBeforeWork || 10
         const reviewKey = toDayKey(nextReviewDate, tz)
         const generateKey = shiftDayKey(reviewKey, -daysBeforeWork)
-        const lastGenKey = contract.lastAutoWorkGenerated ? toDayKey(new Date(contract.lastAutoWorkGenerated), tz) : ''
+        const lastReviewKey = contract.lastAutoWorkGenerated ? toDayKey(new Date(contract.lastAutoWorkGenerated), tz) : ''
 
-        if (todayKey >= generateKey && (!lastGenKey || lastGenKey < generateKey)) {
+        if (todayKey >= generateKey && (!lastReviewKey || lastReviewKey < reviewKey)) {
           if (!contract.clientId) {
             console.log(`Contract ${contractId} has no client, skipping`)
             return
@@ -403,12 +406,12 @@ export const runGenerateScheduledWorks = functions
             worksCreated++
           }
           await db.collection('contracts').doc(contractId).update({
-            lastAutoWorkGenerated: now.toISOString(),
+            lastAutoWorkGenerated: nextReviewDate.toISOString(),
             updatedAt: admin.firestore.Timestamp.now(),
           })
         } else {
-          const reason = todayKey < generateKey ? 'future_day' : 'already_generated_for_or_after_generate_day'
-          console.log(`(callable) Contract ${contractId}: not yet time to generate (reason=${reason}, todayKey=${todayKey}, generateKey=${generateKey}, lastGenKey=${lastGenKey || 'none'})`)
+          const reason = todayKey < generateKey ? 'future_day' : 'already_generated_this_review_day'
+          console.log(`(callable) Contract ${contractId}: not yet time to generate (reason=${reason}, todayKey=${todayKey}, generateKey=${generateKey}, reviewKey=${reviewKey}, lastReviewKey=${lastReviewKey || 'none'})`)
         }
       }
 
