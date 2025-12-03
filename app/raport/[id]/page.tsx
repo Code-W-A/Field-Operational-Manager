@@ -21,7 +21,7 @@ import { ReportGenerator } from "@/components/report-generator"
 import { MultiEmailInput } from "@/components/ui/multi-email-input"
 import { doc, updateDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
-import { calculateDuration } from "@/lib/utils/time-format"
+import { calculateDuration, formatUiDate, toDateSafe } from "@/lib/utils/time-format"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { generateRevisionOperationsPDF } from "@/lib/pdf/revision-operations"
@@ -1201,20 +1201,8 @@ FOM by NRG`,
                   <div className="mt-1 text-sm text-green-700">
                     <p>
                       Acest raport a fost finalizat pe <strong>{(() => {
-                        // Încercăm să găsim data din snapshot, apoi din updatedAt, apoi fallback
-                        const dataGenerare = lucrare?.raportSnapshot?.dataGenerare || 
-                                            lucrare?.updatedAt?.toDate?.() || 
-                                            lucrare?.updatedAt;
-                        
-                        if (dataGenerare) {
-                          try {
-                            const date = dataGenerare instanceof Date ? dataGenerare : new Date(dataGenerare);
-                            return date.toLocaleString('ro-RO');
-                          } catch (e) {
-                            return 'data necunoscută';
-                          }
-                        }
-                        return 'data necunoscută';
+                        const dataGenerare = lucrare?.raportSnapshot?.dataGenerare || lucrare?.updatedAt?.toDate?.() || lucrare?.updatedAt
+                        try { return formatUiDate(toDateSafe(dataGenerare)) } catch { return "data necunoscută" }
                       })()}</strong> de către tehnician. 
                       Puteți descărca PDF-ul.
                     </p>
@@ -1236,7 +1224,7 @@ FOM by NRG`,
               </div>
               <div>
                 <h3 className="font-medium text-gray-500">Data Intervenție</h3>
-                <p>{lucrare?.dataInterventie || "N/A"}</p>
+                <p>{(() => { try { return formatUiDate(toDateSafe(lucrare?.dataInterventie)) } catch { return "N/A" } })()}</p>
               </div>
               <div>
                 <h3 className="font-medium text-gray-500">Tehnician</h3>
@@ -1249,27 +1237,7 @@ FOM by NRG`,
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <h3 className="font-medium text-gray-500">Data Generare Raport</h3>
-                <p>{(() => {
-                  // Încercăm să găsim data din snapshot, apoi din updatedAt
-                  const dataGenerare = lucrare?.raportSnapshot?.dataGenerare || 
-                                      lucrare?.updatedAt?.toDate?.() || 
-                                      lucrare?.updatedAt;
-                  
-                  if (dataGenerare) {
-                    try {
-                      const date = dataGenerare instanceof Date ? dataGenerare : new Date(dataGenerare);
-                      const day = date.getDate().toString().padStart(2, "0")
-                      const month = (date.getMonth() + 1).toString().padStart(2, "0")
-                      const year = date.getFullYear()
-                      const hour = date.getHours().toString().padStart(2, "0")
-                      const minute = date.getMinutes().toString().padStart(2, "0")
-                      return `${day}.${month}.${year} ${hour}:${minute}`
-                    } catch (e) {
-                      return "Necunoscută"
-                    }
-                  }
-                  return "Necunoscută"
-                })()}</p>
+                <p>{(() => { try { const d = lucrare?.raportSnapshot?.dataGenerare || lucrare?.updatedAt?.toDate?.() || lucrare?.updatedAt; return formatUiDate(toDateSafe(d)) } catch { return "Necunoscută" } })()}</p>
               </div>
               <div>
                 <h3 className="font-medium text-gray-500">Status</h3>
@@ -1884,7 +1852,7 @@ FOM by NRG`,
                   </h3>
                   <div className="mt-1 text-sm text-blue-700">
                     <p>
-                      Acest raport a fost generat pe <strong>{lucrare.raportSnapshot.dataGenerare ? new Date(lucrare.raportSnapshot.dataGenerare).toLocaleString('ro-RO') : 'data necunoscută'}</strong> și datele au fost înghețate permanent. 
+                      Acest raport a fost generat pe <strong>{(() => { try { return formatUiDate(toDateSafe(lucrare.raportSnapshot.dataGenerare)) } catch { return "data necunoscută" } })()}</strong> și datele au fost înghețate permanent. 
                       Orice regenerare va produce exact același PDF cu aceleași informații.
                     </p>
                   </div>
@@ -1931,7 +1899,7 @@ FOM by NRG`,
                     <div className="text-sm text-gray-600 space-y-1">
                       <p><strong>Client:</strong> {lucrare?.client}</p>
                       <p><strong>Locație:</strong> {lucrare?.locatie}</p>
-                      <p><strong>Data intervenție:</strong> {lucrare?.dataInterventie}</p>
+                      <p><strong>Data intervenție:</strong> {(() => { try { return formatUiDate(toDateSafe(lucrare?.dataInterventie)) } catch { return "N/A" } })()}</p>
                       <p><strong>Status:</strong> {lucrare?.statusLucrare}</p>
                     </div>
                   </div>
@@ -1957,10 +1925,10 @@ FOM by NRG`,
                     <h3 className="font-medium text-gray-500">Locație</h3>
                     <p>{lucrare?.locatie || "N/A"}</p>
                   </div>
-                  <div>
-                    <h3 className="font-medium text-gray-500">Data Intervenție</h3>
-                    <p>{lucrare?.dataInterventie || "N/A"}</p>
-                  </div>
+              <div>
+                <h3 className="font-medium text-gray-500">Data Intervenție</h3>
+                <p>{(() => { try { return formatUiDate(toDateSafe(lucrare?.dataInterventie)) } catch { return "N/A" } })()}</p>
+              </div>
                   <div>
                     <h3 className="font-medium text-gray-500">Tehnician</h3>
                     <p>{lucrare?.tehnicieni?.join(", ") || "N/A"}</p>

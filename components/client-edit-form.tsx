@@ -1024,7 +1024,9 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
                               {echipament.model && <p>Model: {echipament.model}</p>}
                               {echipament.serie && <p>Serie: {echipament.serie}</p>}
                               {echipament.dataInstalare && (
-                                <p className="text-xs text-gray-500">Instalat: {formatDate(echipament.dataInstalare)}</p>
+                                <p className="text-xs text-gray-500">
+                                  Instalat: {(() => { try { const { formatUiDate, toDateSafe } = require("@/lib/utils/time-format"); return formatUiDate(toDateSafe(echipament.dataInstalare)) } catch { return String(echipament.dataInstalare) } })()}
+                                </p>
                               )}
                               {echipament.ultimaInterventie && (
                                 <p className="text-xs text-gray-500">

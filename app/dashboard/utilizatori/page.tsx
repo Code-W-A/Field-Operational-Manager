@@ -55,6 +55,7 @@ import { Dialog as UiDialog, DialogContent as UiDialogContent, DialogHeader as U
 import { Checkbox } from "@/components/ui/checkbox"
 import { DynamicDialogFields } from "@/components/DynamicDialogFields"
 import { useTargetList } from "@/hooks/use-settings"
+import { formatUiDate, toDateSafe } from "@/lib/utils/time-format"
 
 export default function Utilizatori() {
   const { userData: currentUser } = useAuth()
@@ -728,16 +729,11 @@ export default function Utilizatori() {
 
   const formatDate = (timestamp: any) => {
     if (!timestamp) return "N/A"
-
     try {
-      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp)
-      const day = date.getDate().toString().padStart(2, "0")
-      const month = (date.getMonth() + 1).toString().padStart(2, "0")
-      const year = date.getFullYear()
-      const hour = date.getHours().toString().padStart(2, "0")
-      const minute = date.getMinutes().toString().padStart(2, "0")
-      
-      return `${day}.${month}.${year} ${hour}:${minute}`
+      const d = timestamp?.toDate ? timestamp.toDate() : (timestamp?.seconds ? new Date(timestamp.seconds * 1000) : toDateSafe(timestamp))
+      if (!d) return "N/A"
+      // UI-only: show dd mmm yyyy
+      return formatUiDate(d)
     } catch (err) {
       console.error("Eroare la formatarea datei:", err)
       return "N/A"

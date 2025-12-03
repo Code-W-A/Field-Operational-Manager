@@ -1100,7 +1100,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
 
                             {(echipament.dataInstalare || echipament.ultimaInterventie) && (
                               <div className="text-xs text-gray-500 mt-2">
-                                {echipament.dataInstalare && <p>Instalat: {formatDate(echipament.dataInstalare)}</p>}
+                                {echipament.dataInstalare && <p>Instalat: {(() => { try { const { formatUiDate, toDateSafe } = require("@/lib/utils/time-format"); return formatUiDate(toDateSafe(echipament.dataInstalare)) } catch { return String(echipament.dataInstalare) } })()}</p>}
                                 {echipament.ultimaInterventie && (
                                   <p>Ultima intervenție: {formatDate(echipament.ultimaInterventie)}</p>
                                 )}

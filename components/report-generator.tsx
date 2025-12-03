@@ -9,7 +9,7 @@ import { useStableCallback } from "@/lib/utils/hooks"
 import { toast } from "@/components/ui/use-toast"
 import { ProductTableForm, type Product } from "./product-table-form"
 import { serverTimestamp } from "firebase/firestore"
-import { formatDate, formatTime, calculateDuration } from "@/lib/utils/time-format"
+import { formatDate, formatTime, calculateDuration, formatUiDate, toDateSafe } from "@/lib/utils/time-format"
 import { collection, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { drawFooter as drawCommonFooter } from "@/lib/pdf/common"
@@ -474,10 +474,10 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       }
       
       // Extragem datele și orele pentru afișare formatată
-      const [emitereData] = (lucrareForPDF.dataInterventie || " - ").split(" ")
-      const sosireData = lucrareForPDF.dataSosire || (lucrareForPDF.timpSosire ? formatDate(new Date(lucrareForPDF.timpSosire)) : "")
+      const emitereData = (() => { try { return formatUiDate(toDateSafe(lucrareForPDF.dataInterventie)) } catch { return "-" } })()
+      const sosireData = lucrareForPDF.dataSosire || (lucrareForPDF.timpSosire ? formatUiDate(new Date(lucrareForPDF.timpSosire)) : "")
       const sosireOra = lucrareForPDF.oraSosire || (lucrareForPDF.timpSosire ? formatTime(new Date(lucrareForPDF.timpSosire)) : "")
-      const plecareData = lucrareForPDF.dataPlecare || (lucrareForPDF.timpPlecare ? formatDate(new Date(lucrareForPDF.timpPlecare)) : "")
+      const plecareData = lucrareForPDF.dataPlecare || (lucrareForPDF.timpPlecare ? formatUiDate(new Date(lucrareForPDF.timpPlecare)) : "")
       const plecareOra = lucrareForPDF.oraPlecare || (lucrareForPDF.timpPlecare ? formatTime(new Date(lucrareForPDF.timpPlecare)) : "")
       
       console.log("🖨️ PDF - Date formatate pentru afișare:", {

@@ -20,7 +20,7 @@ import { orderBy } from "firebase/firestore"
 import { ClientContractsManager } from "@/components/client-contracts-manager"
 // Adăugăm importul pentru componenta EquipmentQRCode
 import { EquipmentQRCode } from "@/components/equipment-qr-code"
-import { formatDate } from "@/lib/utils/time-format"
+import { formatDate, formatUiDate, toDateSafe } from "@/lib/utils/time-format"
 
 // Importăm hook-ul useClientLucrari pentru a putea actualiza datele
 import { useClientLucrari } from "@/hooks/use-client-lucrari"
@@ -322,7 +322,7 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
                                               <div className="flex items-center gap-1">
                                                 <Calendar className="h-3 w-3 text-blue-600" />
                                                 <span className="font-medium">Instalat:</span>
-                                                <span>{formatDate(echipament.dataInstalarii || echipament.dataInstalare!)}</span>
+                                                <span>{(() => { try { return formatUiDate(toDateSafe(echipament.dataInstalarii || echipament.dataInstalare!)) } catch { return String(echipament.dataInstalarii || echipament.dataInstalare || "") } })()}</span>
                                               </div>
                                             )}
                                             {echipament.ultimaInterventie && (
@@ -354,7 +354,7 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
                                               </div>
                                               <div>
                                                 <span className="text-gray-600">Expiră:</span>
-                                                <span className="ml-1">{warrantyInfo.warrantyExpires}</span>
+                                                <span className="ml-1">{(() => { try { return formatUiDate(toDateSafe(warrantyInfo.warrantyExpires)) } catch { return String(warrantyInfo.warrantyExpires || "-") } })()}</span>
                                               </div>
                                               <div className="col-span-2">
                                                 <span className="text-gray-600">Zile rămase:</span>
