@@ -22,7 +22,9 @@ import {
 import { Badge } from "@/components/ui/badge"
 // Adăugăm importul pentru componenta EquipmentQRCode
 import { EquipmentQRCode } from "@/components/equipment-qr-code"
-import { formatDate } from "@/lib/utils/time-format"
+import { formatDate, formatUiDate, toDateSafe } from "@/lib/utils/time-format"
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
+import { CustomDatePicker } from "@/components/custom-date-picker"
 // Import the useUnsavedChanges hook and UnsavedChangesDialog component
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
@@ -1224,14 +1226,40 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
                 <label htmlFor="dataInstalare" className="text-sm font-medium">
                   Data Instalării
                 </label>
-                <Input
-                  id="dataInstalare"
-                  type="date"
-                  value={echipamentFormData.dataInstalare || ""}
-                  onChange={handleEchipamentInputChange}
-                  lang="ro"
-                  placeholder="dd/mm/yyyy"
-                />
+                {/* UI-only date field with dd mmm yyyy display; value persisted as YYYY-MM-DD */}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Input
+                      id="dataInstalare_display"
+                      value={
+                        echipamentFormData.dataInstalare
+                          ? formatUiDate(toDateSafe(echipamentFormData.dataInstalare))
+                          : formatUiDate(new Date())
+                      }
+                      readOnly
+                      placeholder="dd mmm yyyy"
+                      className="cursor-pointer text-left"
+                    />
+                  </PopoverTrigger>
+                  <PopoverContent className="p-0 w-auto">
+                    <CustomDatePicker
+                      selectedDate={toDateSafe(echipamentFormData.dataInstalare) || new Date()}
+                      onDateChange={(date) => {
+                        const toIsoLocal = (d: Date) => {
+                          const y = d.getFullYear()
+                          const m = String(d.getMonth() + 1).padStart(2, "0")
+                          const da = String(d.getDate()).padStart(2, "0")
+                          return `${y}-${m}-${da}`
+                        }
+                        setEchipamentFormData((prev) => ({
+                          ...prev,
+                          dataInstalare: date ? toIsoLocal(date) : "",
+                        }))
+                      }}
+                      onClose={() => {}}
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
 
            

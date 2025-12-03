@@ -23,9 +23,10 @@ interface CustomDatePickerProps {
   onDateChange: (date: Date | undefined) => void
   onClose: () => void
   hasError?: boolean
+  disablePast?: boolean
 }
 
-export function CustomDatePicker({ selectedDate, onDateChange, onClose, hasError = false }: CustomDatePickerProps) {
+export function CustomDatePicker({ selectedDate, onDateChange, onClose, hasError = false, disablePast = false }: CustomDatePickerProps) {
   const [currentMonth, setCurrentMonth] = useState(selectedDate || new Date())
   const [animationDirection, setAnimationDirection] = useState<"left" | "right" | null>(null)
 
@@ -130,12 +131,12 @@ export function CustomDatePicker({ selectedDate, onDateChange, onClose, hasError
                   isSelected && "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
                   isToday && !isSelected && "border border-primary text-primary",
                   !isSameMonth(day, currentMonth) && "text-muted-foreground opacity-50",
-                  isPast && "opacity-40 cursor-not-allowed"
+                  disablePast && isPast && "opacity-40 cursor-not-allowed"
                 )}
-                disabled={isPast}
-                aria-disabled={isPast}
+                disabled={disablePast && isPast}
+                aria-disabled={disablePast && isPast}
                 onClick={() => {
-                  if (isPast) return
+                  if (disablePast && isPast) return
                   handleDateSelect(day)
                 }}
               >

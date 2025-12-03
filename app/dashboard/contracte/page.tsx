@@ -60,6 +60,9 @@ import { useTargetList, useTargetValue } from "@/hooks/use-settings"
 import { subscribeToSettingsByTarget, subscribeToSettings } from "@/lib/firebase/settings"
 import type { Setting } from "@/types/settings"
 import { getPredefinedSettingValue } from "@/lib/firebase/predefined-settings"
+import { formatUiDate, toDateSafe } from "@/lib/utils/time-format"
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
+import { CustomDatePicker } from "@/components/custom-date-picker"
 
 interface Contract {
   id: string
@@ -1355,13 +1358,36 @@ export default function ContractsPage() {
               {/* Data de început */}
               <div className="space-y-2">
                 <Label htmlFor="startDate">Data de început (Prima revizie)</Label>
-                <Input
-                  id="startDate"
-                  type="date"
-                  value={newContractStartDate}
-                  onChange={(e) => setNewContractStartDate(e.target.value)}
-                  placeholder="Selectați data"
-                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Input
+                      id="startDate_display"
+                      value={
+                        newContractStartDate
+                          ? formatUiDate(toDateSafe(newContractStartDate))
+                          : formatUiDate(new Date())
+                      }
+                      readOnly
+                      placeholder="dd mmm yyyy"
+                      className="cursor-pointer text-left max-w-[260px]"
+                    />
+                  </PopoverTrigger>
+                  <PopoverContent className="p-0 w-auto">
+                    <CustomDatePicker
+                      selectedDate={toDateSafe(newContractStartDate) || new Date()}
+                      onDateChange={(date) => {
+                        const toIsoLocal = (d: Date) => {
+                          const y = d.getFullYear()
+                          const m = String(d.getMonth() + 1).padStart(2, "0")
+                          const da = String(d.getDate()).padStart(2, "0")
+                          return `${y}-${m}-${da}`
+                        }
+                        setNewContractStartDate(date ? toIsoLocal(date) : "")
+                      }}
+                      onClose={() => {}}
+                    />
+                  </PopoverContent>
+                </Popover>
                 <p className="text-xs text-gray-500">
                   Data primei revizii sau data de referință pentru calculul recurenței
                 </p>
@@ -1611,13 +1637,36 @@ export default function ContractsPage() {
               {/* Data de început */}
               <div className="space-y-2">
                 <Label htmlFor="editStartDate">Data de început (Prima revizie)</Label>
-                <Input
-                  id="editStartDate"
-                  type="date"
-                  value={newContractStartDate}
-                  onChange={(e) => setNewContractStartDate(e.target.value)}
-                  placeholder="Selectați data"
-                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Input
+                      id="editStartDate_display"
+                      value={
+                        newContractStartDate
+                          ? formatUiDate(toDateSafe(newContractStartDate))
+                          : formatUiDate(new Date())
+                      }
+                      readOnly
+                      placeholder="dd mmm yyyy"
+                      className="cursor-pointer text-left max-w-[260px]"
+                    />
+                  </PopoverTrigger>
+                  <PopoverContent className="p-0 w-auto">
+                    <CustomDatePicker
+                      selectedDate={toDateSafe(newContractStartDate) || new Date()}
+                      onDateChange={(date) => {
+                        const toIsoLocal = (d: Date) => {
+                          const y = d.getFullYear()
+                          const m = String(d.getMonth() + 1).padStart(2, "0")
+                          const da = String(d.getDate()).padStart(2, "0")
+                          return `${y}-${m}-${da}`
+                        }
+                        setNewContractStartDate(date ? toIsoLocal(date) : "")
+                      }}
+                      onClose={() => {}}
+                    />
+                  </PopoverContent>
+                </Popover>
                 <p className="text-xs text-gray-500">
                   Data primei revizii sau data de referință pentru calculul recurenței
                 </p>
