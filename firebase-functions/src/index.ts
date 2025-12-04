@@ -307,10 +307,10 @@ export const generateScheduledWorks = functions
           if (createdForThisContract > 0) {
             // Actualizăm doar dacă avansăm la o zi de revizie mai târzie
             if (!lastReviewKey || targetReviewKey > lastReviewKey) {
-              await db.collection('contracts').doc(contractId).update({
+            await db.collection('contracts').doc(contractId).update({
                 lastAutoWorkGenerated: dayKeyToUtcDate(targetReviewKey).toISOString(),
-                updatedAt: admin.firestore.Timestamp.now(),
-              })
+              updatedAt: admin.firestore.Timestamp.now(),
+            })
             }
             console.log(`Updated lastAutoWorkGenerated for contract ${contractId} (created=${createdForThisContract})`)
           } else {
@@ -546,10 +546,10 @@ export const runGenerateScheduledWorks = functions
           }
           if (createdForThisContract > 0) {
             if (!lastReviewKey || targetReviewKey > lastReviewKey) {
-              await db.collection('contracts').doc(contractId).update({
+            await db.collection('contracts').doc(contractId).update({
                 lastAutoWorkGenerated: dayKeyToUtcDate(targetReviewKey).toISOString(),
-                updatedAt: admin.firestore.Timestamp.now(),
-              })
+              updatedAt: admin.firestore.Timestamp.now(),
+            })
             }
           } else {
             console.log(`(callable) No works created for any location on contract ${contractId}; NOT updating lastAutoWorkGenerated`)

@@ -1925,10 +1925,10 @@ FOM by NRG`,
                     <h3 className="font-medium text-gray-500">Locație</h3>
                     <p>{lucrare?.locatie || "N/A"}</p>
                   </div>
-              <div>
-                <h3 className="font-medium text-gray-500">Data Intervenție</h3>
+                  <div>
+                    <h3 className="font-medium text-gray-500">Data Intervenție</h3>
                 <p>{(() => { try { return formatUiDate(toDateSafe(lucrare?.dataInterventie)) } catch { return "N/A" } })()}</p>
-              </div>
+                  </div>
                   <div>
                     <h3 className="font-medium text-gray-500">Tehnician</h3>
                     <p>{lucrare?.tehnicieni?.join(", ") || "N/A"}</p>

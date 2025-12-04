@@ -838,7 +838,7 @@ export default function LucrariArhivate() {
             ) : (
               <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredLucrari.map((lucrare) => (
-                  <Card key={lucrare.id} className="border-gray-200 hover:shadow-md transition-shadow">
+                  <Card key={lucrare.id} className="border-gray-200 hover:shadow-md transition-shadow cursor-pointer" onClick={() => router.push(`/dashboard/arhivate/${lucrare.id}`)}>
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
                         <div>
@@ -984,6 +984,7 @@ export default function LucrariArhivate() {
                 defaultSort={{ id: "updatedAt", desc: true }}
                 sorting={tableSorting}
                 onSortingChange={handleSortingChange}
+                onRowClick={(row) => router.push(`/dashboard/arhivate/${row.id}`)}
                 table={table}
                 setTable={setTable}
                 showFilters={false}

@@ -92,6 +92,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
           },
         ],
   )
+  const [echipamentDataInstalareInput, setEchipamentDataInstalareInput] = useState<string>("")
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -117,7 +118,11 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
   const [isCheckingCode, setIsCheckingCode] = useState(false)
   const [isCodeUnique, setIsCodeUnique] = useState(true)
   const [isUploadingDocs, setIsUploadingDocs] = useState(false)
-  const [pendingFiles, setPendingFiles] = useState<File[]>([])
+  const [pendingFiles, setPendingFiles] = useState<Array<{ file: File; documentType: string }>>([])
+  // State pentru tipul de document selectat
+  const [selectedDocumentType, setSelectedDocumentType] = useState<string>("")
+  // State pentru lista de tipuri de documente din variabile
+  const [documentTypes, setDocumentTypes] = useState<Array<{ id: string; name: string }>>([])
   
   // State pentru confirmarea închiderii dialog-ului de echipament
   const [showEchipamentCloseAlert, setShowEchipamentCloseAlert] = useState(false)
@@ -147,6 +152,21 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
     console.log("showCloseAlert changed to:", showCloseAlert)
   }, [showCloseAlert])
 
+  // Încărcare tipuri de documente din variabile
+  useEffect(() => {
+    const unsub = subscribeToSettings("equipment.documentTypes", (settings: any[]) => {
+      const types = ((settings || []) as any[])
+        .map((s) => {
+          const raw = (s.name || s.path || s.id || "").toString().trim()
+          if (!raw) return null
+          return { id: String(s.id), name: raw }
+        })
+        .filter((t): t is { id: string; name: string } => Boolean(t))
+      setDocumentTypes(types)
+    })
+    return () => unsub()
+  }, [])
+
   // Check if form has been modified
   useEffect(() => {
     const currentState = {
@@ -169,7 +189,25 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
 
     setEchipamentFormModified(hasChanged && hasContent)
   }, [echipamentFormData, initialEchipamentState])
-  
+
+  // Sincronizăm câmpul de input text pentru data instalării cu valoarea salvată
+  useEffect(() => {
+    const raw = (echipamentFormData as any)?.dataInstalare
+    if (raw) {
+      const d = toDateSafe(raw)
+      if (d) {
+        try {
+          setEchipamentDataInstalareInput(formatUiDate(d))
+        } catch {
+          setEchipamentDataInstalareInput("")
+        }
+      } else {
+        setEchipamentDataInstalareInput("")
+      }
+    } else {
+      setEchipamentDataInstalareInput("")
+    }
+  }, [(echipamentFormData as any)?.dataInstalare])
   // Capture child selection from TemplateSelector (first-level under template)
   useEffect(() => {
     const handler = (e: any) => {
@@ -375,14 +413,15 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
           return
         }
 
-        const uploads: Array<{ url: string; fileName: string; uploadedAt: string; uploadedBy: string }> = []
+        const uploads: Array<{ url: string; fileName: string; documentType: string; uploadedAt: string; uploadedBy: string }> = []
         for (const f of pendingFiles) {
-          const safeName = f.name.replace(/\s+/g, "_")
+          const safeName = f.file.name.replace(/\s+/g, "_")
           const path = `clienti/${client.id}/echipamente/${echipamentFormData.cod}/docs/${Date.now()}-${safeName}`
-          const up = await uploadFile(f, path)
+          const up = await uploadFile(f.file, path)
           uploads.push({
             url: up.url,
             fileName: up.fileName,
+            documentType: f.documentType,
             uploadedAt: new Date().toISOString(),
             uploadedBy: userData?.displayName || userData?.email || "Utilizator",
           })
@@ -1199,30 +1238,69 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
                   <PopoverTrigger asChild>
                     <Input
                       id="dataInstalare_display"
-                      value={
-                        (echipamentFormData as any).dataInstalare
-                          ? formatUiDate(toDateSafe((echipamentFormData as any).dataInstalare))
-                          : formatUiDate(new Date())
-                      }
-                      readOnly
+                      value={echipamentDataInstalareInput}
+                      onChange={(e) => setEchipamentDataInstalareInput(e.target.value)}
+                      onBlur={(e) => {
+                        const raw = e.target.value.trim()
+                        if (!raw) {
+                          setEchipamentFormData((prev: any) => ({ ...prev, dataInstalare: "" }))
+                          setEchipamentDataInstalareInput("")
+                          return
+                        }
+                        const m = raw.match(/^(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})$/)
+                        let d: Date | null = null
+                        if (m) {
+                          const day = parseInt(m[1], 10)
+                          const month = parseInt(m[2], 10)
+                          const year = parseInt(m[3], 10)
+                          if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+                            d = new Date(year, month - 1, day)
+                          }
+                        } else {
+                          const parsed = new Date(raw)
+                          if (!isNaN(parsed.getTime())) d = parsed
+                        }
+                        if (!d || isNaN(d.getTime())) {
+                          toast({
+                            title: "Dată invalidă",
+                            description: "Folosiți formatul zz.ll.aaaa, de exemplu 05.06.2020",
+                            variant: "destructive",
+                          })
+                          const prevRaw = (echipamentFormData as any).dataInstalare
+                          if (prevRaw) {
+                            const prevDate = toDateSafe(prevRaw)
+                            setEchipamentDataInstalareInput(prevDate ? formatUiDate(prevDate) : "")
+                          } else {
+                            setEchipamentDataInstalareInput("")
+                          }
+                          return
+                        }
+                        const y = d.getFullYear()
+                        const m2 = String(d.getMonth() + 1).padStart(2, "0")
+                        const da = String(d.getDate()).padStart(2, "0")
+                        const iso = `${y}-${m2}-${da}`
+                        setEchipamentFormData((prev: any) => ({ ...prev, dataInstalare: iso }))
+                        setEchipamentDataInstalareInput(formatUiDate(d))
+                      }}
                       placeholder="dd mmm yyyy"
-                      className="cursor-pointer text-left"
+                      className="text-left"
                     />
                   </PopoverTrigger>
                   <PopoverContent className="p-0 w-auto">
                     <CustomDatePicker
                       selectedDate={toDateSafe((echipamentFormData as any).dataInstalare) || new Date()}
                       onDateChange={(date) => {
-                        const toIsoLocal = (d: Date) => {
-                          const y = d.getFullYear()
-                          const m = String(d.getMonth() + 1).padStart(2, "0")
-                          const da = String(d.getDate()).padStart(2, "0")
-                          return `${y}-${m}-${da}`
+                        if (!date) {
+                          setEchipamentFormData((prev: any) => ({ ...prev, dataInstalare: "" }))
+                          setEchipamentDataInstalareInput("")
+                          return
                         }
-                        setEchipamentFormData((prev: any) => ({
-                          ...prev,
-                          dataInstalare: date ? toIsoLocal(date) : "",
-                        }))
+                        const y = date.getFullYear()
+                        const m = String(date.getMonth() + 1).padStart(2, "0")
+                        const da = String(date.getDate()).padStart(2, "0")
+                        const iso = `${y}-${m}-${da}`
+                        setEchipamentFormData((prev: any) => ({ ...prev, dataInstalare: iso }))
+                        setEchipamentDataInstalareInput(formatUiDate(date))
                       }}
                       onClose={() => {}}
                     />
@@ -1270,6 +1348,30 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
               {/* Coloana 2: Documentație */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Documentație (PDF) – vizibil tehnicienilor</label>
+                
+                {/* Dropdown pentru selectarea tipului de document */}
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-600">Tip Document</label>
+                  <Select value={selectedDocumentType} onValueChange={setSelectedDocumentType}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selectați tipul de document" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {documentTypes.length === 0 ? (
+                        <SelectItem value="other" disabled>
+                          Nu există tipuri de documente definite în setări
+                        </SelectItem>
+                      ) : (
+                        documentTypes.map((type) => (
+                          <SelectItem key={type.id} value={type.name}>
+                            {type.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <input
                   key={`doc-upload-${pendingFiles.length}-${(echipamentFormData as any)?.documentatie?.length || 0}`}
                   type="file"
@@ -1278,11 +1380,23 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
                   onChange={(e) => {
                     const files = Array.from(e.target.files || [])
                     if (files.length > 0) {
-                      setPendingFiles((prev) => [...prev, ...files])
+                      if (!selectedDocumentType) {
+                        toast({ 
+                          title: "Selectați tipul de document", 
+                          description: "Vă rugăm să selectați mai întâi tipul de document",
+                          variant: "destructive"
+                        })
+                        e.target.value = ""
+                        return
+                      }
+                      const filesWithType = files.map(file => ({ file, documentType: selectedDocumentType }))
+                      setPendingFiles((prev) => [...prev, ...filesWithType])
                       toast({ 
                         title: `${files.length} fișier${files.length > 1 ? 'e' : ''} selectat${files.length > 1 ? 'e' : ''}`, 
-                        description: "Se vor încărca la salvare"
+                        description: `Tip: ${selectedDocumentType}. Se vor încărca la salvare`
                       })
+                      setSelectedDocumentType("")
+                      e.target.value = ""
                     }
                   }}
                   className="block w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-md file:border file:bg-muted file:hover:bg-muted/70 file:cursor-pointer"
@@ -1296,9 +1410,12 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
                       <ul className="text-sm space-y-2">
                         {(echipamentFormData as any).documentatie.map((d: any, idx: number) => (
                           <li key={idx} className="flex items-center justify-between gap-2 p-2 bg-white rounded border">
-                            <a href={d.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline truncate flex-1">
-                              {d.fileName}
-                            </a>
+                            <div className="flex-1 min-w-0">
+                              <a href={d.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline truncate block font-medium">
+                                {d.fileName}
+                              </a>
+                              {d.documentType && <p className="text-xs text-gray-500">Tip: {d.documentType}</p>}
+                            </div>
                             <Button
                               type="button"
                               variant="ghost"
@@ -1327,10 +1444,12 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
                     <p className="text-xs font-medium text-gray-700">Fișiere selectate (se vor încărca la salvare):</p>
                     <div className="rounded-md border p-3 max-h-[120px] overflow-y-auto bg-yellow-50 border-yellow-200">
                       <ul className="text-sm space-y-2">
-                        {pendingFiles.map((file, idx) => (
+                        {pendingFiles.map((item, idx) => (
                           <li key={idx} className="flex items-center justify-between gap-2 p-2 bg-white rounded border border-yellow-300">
-                            <span className="truncate flex-1 text-gray-700">{file.name}</span>
-                            <span className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="truncate text-gray-700 font-medium">{item.file.name}</p>
+                              <p className="text-xs text-gray-500">Tip: {item.documentType} • {(item.file.size / 1024).toFixed(1)} KB</p>
+                            </div>
                             <Button
                               type="button"
                               variant="ghost"

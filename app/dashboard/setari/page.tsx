@@ -107,6 +107,29 @@ export default function SetariPage() {
   // Navigation state
   const [currentParentId, setCurrentParentId] = useState<string | null>(null)
   const [navigationPath, setNavigationPath] = useState<Setting[]>([])
+  // Initialize browser history state for in-page navigation so Back/Forward works across hierarchy levels
+  useEffect(() => {
+    try {
+      // Ensure root state is present so the first Back returns to previous route correctly
+      if (!window.history.state || window.history.state.__settingsNav !== true) {
+        window.history.replaceState(
+          { __settingsNav: true, parentId: null, path: [] },
+          "",
+          window.location.pathname + window.location.search + window.location.hash
+        )
+      }
+      const onPopState = (e: PopStateEvent) => {
+        const st: any = e.state
+        if (st && st.__settingsNav === true) {
+          // Restore in-page navigation level
+          setCurrentParentId(st.parentId ?? null)
+          setNavigationPath(Array.isArray(st.path) ? st.path : [])
+        }
+      }
+      window.addEventListener("popstate", onPopState)
+      return () => window.removeEventListener("popstate", onPopState)
+    } catch {}
+  }, [])
 
   // UI state
   const [viewMode, setViewMode] = useState<"grid" | "list">("list")
@@ -220,16 +243,40 @@ export default function SetariPage() {
     // Allow navigation for both categories and variables (to show their children)
     setCurrentParentId(setting.id)
     setNavigationPath([...navigationPath, setting])
+    // Push in-page state so browser Back returns to previous level
+    try {
+      const nextPath = [...navigationPath, setting]
+      window.history.pushState(
+        { __settingsNav: true, parentId: setting.id, path: nextPath },
+        "",
+        window.location.pathname + `?parent=${encodeURIComponent(setting.id)}`
+      )
+    } catch {}
   }
 
   const handleNavigateToParent = (parentId: string | null) => {
     setCurrentParentId(parentId)
     if (parentId === null) {
       setNavigationPath([])
+      try {
+        window.history.pushState(
+          { __settingsNav: true, parentId: null, path: [] },
+          "",
+          window.location.pathname
+        )
+      } catch {}
     } else {
       const index = navigationPath.findIndex((s) => s.id === parentId)
       if (index >= 0) {
-        setNavigationPath(navigationPath.slice(0, index + 1))
+        const newPath = navigationPath.slice(0, index + 1)
+        setNavigationPath(newPath)
+        try {
+          window.history.pushState(
+            { __settingsNav: true, parentId, path: newPath },
+            "",
+            window.location.pathname + `?parent=${encodeURIComponent(parentId)}`
+          )
+        } catch {}
       }
     }
   }

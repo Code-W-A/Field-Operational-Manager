@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Button } from "@/components/ui/button"
@@ -92,6 +93,8 @@ interface Client {
 }
 
 export default function ContractsPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [contracts, setContracts] = useState<Contract[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
@@ -110,6 +113,7 @@ export default function ContractsPage() {
   const [newContractLocationNames, setNewContractLocationNames] = useState<string[]>([])
   const [newContractEquipmentIds, setNewContractEquipmentIds] = useState<string[]>([])
   const [newContractStartDate, setNewContractStartDate] = useState<string>("")
+  const [startDateInput, setStartDateInput] = useState<string>("")
   const [newContractRecurrenceInterval, setNewContractRecurrenceInterval] = useState<number>(90)
   const [newContractRecurrenceUnit, setNewContractRecurrenceUnit] = useState<'zile' | 'luni'>('zile')
   const [newContractDaysBeforeWork, setNewContractDaysBeforeWork] = useState<number>(10)
@@ -222,6 +226,37 @@ export default function ContractsPage() {
       Object.values(unsubscribeRefs).forEach((unsub) => unsub())
     }
   }, [])
+
+  // Sincronizăm câmpul de input text pentru data de început cu valoarea salvată
+  useEffect(() => {
+    if (newContractStartDate) {
+      const d = toDateSafe(newContractStartDate)
+      if (d) {
+        try {
+          setStartDateInput(formatUiDate(d))
+        } catch {
+          setStartDateInput("")
+        }
+      } else {
+        setStartDateInput("")
+      }
+    } else {
+      setStartDateInput("")
+    }
+  }, [newContractStartDate])
+
+  // Deschide automat dialogul de editare dacă există parametrul edit în URL
+  useEffect(() => {
+    const editId = searchParams.get("edit")
+    if (editId && contracts.length > 0 && !loading) {
+      const contractToEdit = contracts.find(c => c.id === editId)
+      if (contractToEdit) {
+        openEditDialog(contractToEdit)
+        // Remove the query parameter after opening the dialog
+        router.replace("/dashboard/contracte", { scroll: false })
+      }
+    }
+  }, [searchParams, contracts, loading])
 
   // Populăm opțiunile pentru coloane când tabelul este disponibil
   useEffect(() => {
@@ -1240,6 +1275,7 @@ export default function ContractsPage() {
             defaultSort={{ id: "createdAt", desc: true }}
             sorting={tableSorting}
             onSortingChange={handleSortingChange}
+            onRowClick={(row) => router.push(`/dashboard/contracte/${row.id}`)}
             table={table}
             setTable={setTable}
             showFilters={false}
@@ -1362,27 +1398,68 @@ export default function ContractsPage() {
                   <PopoverTrigger asChild>
                     <Input
                       id="startDate_display"
-                      value={
-                        newContractStartDate
-                          ? formatUiDate(toDateSafe(newContractStartDate))
-                          : formatUiDate(new Date())
-                      }
-                      readOnly
+                      value={startDateInput}
+                      onChange={(e) => setStartDateInput(e.target.value)}
+                      onBlur={(e) => {
+                        const raw = e.target.value.trim()
+                        if (!raw) {
+                          setNewContractStartDate("")
+                          setStartDateInput("")
+                          return
+                        }
+                        const m = raw.match(/^(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})$/)
+                        let d: Date | null = null
+                        if (m) {
+                          const day = parseInt(m[1], 10)
+                          const month = parseInt(m[2], 10)
+                          const year = parseInt(m[3], 10)
+                          if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+                            d = new Date(year, month - 1, day)
+                          }
+                        } else {
+                          const parsed = new Date(raw)
+                          if (!isNaN(parsed.getTime())) d = parsed
+                        }
+                        if (!d || isNaN(d.getTime())) {
+                          toast({
+                            title: "Dată invalidă",
+                            description: "Folosiți formatul zz.ll.aaaa, de exemplu 05.06.2020",
+                            variant: "destructive",
+                          })
+                          if (newContractStartDate) {
+                            const prev = toDateSafe(newContractStartDate)
+                            setStartDateInput(prev ? formatUiDate(prev) : "")
+                          } else {
+                            setStartDateInput("")
+                          }
+                          return
+                        }
+                        const y = d.getFullYear()
+                        const m2 = String(d.getMonth() + 1).padStart(2, "0")
+                        const da = String(d.getDate()).padStart(2, "0")
+                        const iso = `${y}-${m2}-${da}`
+                        setNewContractStartDate(iso)
+                        setStartDateInput(formatUiDate(d))
+                      }}
                       placeholder="dd mmm yyyy"
-                      className="cursor-pointer text-left max-w-[260px]"
+                      className="text-left max-w-[260px]"
                     />
                   </PopoverTrigger>
                   <PopoverContent className="p-0 w-auto">
                     <CustomDatePicker
                       selectedDate={toDateSafe(newContractStartDate) || new Date()}
                       onDateChange={(date) => {
-                        const toIsoLocal = (d: Date) => {
-                          const y = d.getFullYear()
-                          const m = String(d.getMonth() + 1).padStart(2, "0")
-                          const da = String(d.getDate()).padStart(2, "0")
-                          return `${y}-${m}-${da}`
+                        if (!date) {
+                          setNewContractStartDate("")
+                          setStartDateInput("")
+                          return
                         }
-                        setNewContractStartDate(date ? toIsoLocal(date) : "")
+                        const y = date.getFullYear()
+                        const m = String(date.getMonth() + 1).padStart(2, "0")
+                        const da = String(date.getDate()).padStart(2, "0")
+                        const iso = `${y}-${m}-${da}`
+                        setNewContractStartDate(iso)
+                        setStartDateInput(formatUiDate(date))
                       }}
                       onClose={() => {}}
                     />
@@ -1604,6 +1681,25 @@ export default function ContractsPage() {
                     onChange={(vals) => {
                       setNewContractLocationIds(vals)
                       setNewContractLocationNames(vals)
+                      // Recalculează echipamentele disponibile pentru locațiile selectate
+                      try {
+                        const selected = new Set(vals)
+                        const nextEqs: Echipament[] = []
+                        for (const loc of clientLocations) {
+                          if (selected.has(loc.nume) && Array.isArray((loc as any).echipamente)) {
+                            nextEqs.push(...((loc as any).echipamente as any[]))
+                          }
+                        }
+                        setClientEquipments(nextEqs)
+                        // Filtrează selecția curentă la echipamentele permise
+                        if (Array.isArray(newContractEquipmentIds) && newContractEquipmentIds.length > 0) {
+                          const allowed = new Set(nextEqs.map((eq: any) => eq.id || eq.cod))
+                          const filtered = newContractEquipmentIds.filter((id) => allowed.has(id))
+                          if (filtered.length !== newContractEquipmentIds.length) {
+                            setNewContractEquipmentIds(filtered)
+                          }
+                        }
+                      } catch {}
                     }}
                     placeholder="Selectați una sau mai multe locații"
                     emptyText="Clientul nu are locații"
@@ -1641,27 +1737,68 @@ export default function ContractsPage() {
                   <PopoverTrigger asChild>
                     <Input
                       id="editStartDate_display"
-                      value={
-                        newContractStartDate
-                          ? formatUiDate(toDateSafe(newContractStartDate))
-                          : formatUiDate(new Date())
-                      }
-                      readOnly
+                      value={startDateInput}
+                      onChange={(e) => setStartDateInput(e.target.value)}
+                      onBlur={(e) => {
+                        const raw = e.target.value.trim()
+                        if (!raw) {
+                          setNewContractStartDate("")
+                          setStartDateInput("")
+                          return
+                        }
+                        const m = raw.match(/^(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})$/)
+                        let d: Date | null = null
+                        if (m) {
+                          const day = parseInt(m[1], 10)
+                          const month = parseInt(m[2], 10)
+                          const year = parseInt(m[3], 10)
+                          if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+                            d = new Date(year, month - 1, day)
+                          }
+                        } else {
+                          const parsed = new Date(raw)
+                          if (!isNaN(parsed.getTime())) d = parsed
+                        }
+                        if (!d || isNaN(d.getTime())) {
+                          toast({
+                            title: "Dată invalidă",
+                            description: "Folosiți formatul zz.ll.aaaa, de exemplu 05.06.2020",
+                            variant: "destructive",
+                          })
+                          if (newContractStartDate) {
+                            const prev = toDateSafe(newContractStartDate)
+                            setStartDateInput(prev ? formatUiDate(prev) : "")
+                          } else {
+                            setStartDateInput("")
+                          }
+                          return
+                        }
+                        const y = d.getFullYear()
+                        const m2 = String(d.getMonth() + 1).padStart(2, "0")
+                        const da = String(d.getDate()).padStart(2, "0")
+                        const iso = `${y}-${m2}-${da}`
+                        setNewContractStartDate(iso)
+                        setStartDateInput(formatUiDate(d))
+                      }}
                       placeholder="dd mmm yyyy"
-                      className="cursor-pointer text-left max-w-[260px]"
+                      className="text-left max-w-[260px]"
                     />
                   </PopoverTrigger>
                   <PopoverContent className="p-0 w-auto">
                     <CustomDatePicker
                       selectedDate={toDateSafe(newContractStartDate) || new Date()}
                       onDateChange={(date) => {
-                        const toIsoLocal = (d: Date) => {
-                          const y = d.getFullYear()
-                          const m = String(d.getMonth() + 1).padStart(2, "0")
-                          const da = String(d.getDate()).padStart(2, "0")
-                          return `${y}-${m}-${da}`
+                        if (!date) {
+                          setNewContractStartDate("")
+                          setStartDateInput("")
+                          return
                         }
-                        setNewContractStartDate(date ? toIsoLocal(date) : "")
+                        const y = date.getFullYear()
+                        const m = String(date.getMonth() + 1).padStart(2, "0")
+                        const da = String(date.getDate()).padStart(2, "0")
+                        const iso = `${y}-${m}-${da}`
+                        setNewContractStartDate(iso)
+                        setStartDateInput(formatUiDate(date))
                       }}
                       onClose={() => {}}
                     />

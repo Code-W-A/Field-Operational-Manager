@@ -86,6 +86,34 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   doc.setTextColor(0)
 
   // Prestator / Beneficiar (two columns)
+  // Helper to format a date as "dd mmm yyyy" (e.g., 02 dec 2025) for visual display only
+  const formatUiDate = (val?: string | Date): string => {
+    try {
+      let d: Date
+      if (!val) d = new Date()
+      else if (val instanceof Date) d = val
+      else {
+        const iso = new Date(val)
+        if (!isNaN(iso.getTime())) d = iso
+        else {
+          const parts = val.split(".")
+          if (parts.length === 3) {
+            const [dd, mm, yyyy] = parts.map((x) => parseInt(x, 10))
+            d = new Date(yyyy, (mm || 1) - 1, dd || 1)
+          } else {
+            d = new Date()
+          }
+        }
+      }
+      if (isNaN(d.getTime())) d = new Date()
+      const dd = String(d.getDate()).padStart(2, "0")
+      const monthShort = ["ian","feb","mar","apr","mai","iun","iul","aug","sep","oct","nov","dec"][d.getMonth()]
+      const yyyy = d.getFullYear()
+      return `${dd} ${monthShort} ${yyyy}`
+    } catch {
+      return "-"
+    }
+  }
   // Format date as DD-MMM-YYYY (e.g., 31-Jul-2025)
   const fmtDate = (() => {
     if (input.date) return input.date
@@ -264,12 +292,9 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   try {
     const author = normalizeForPdf(input.preparedBy || "")
     const when = (() => {
-      if (input.preparedAt) return normalizeForPdf(input.preparedAt)
-      const d = new Date()
-      const dd = String(d.getDate()).padStart(2, '0')
-      const mm = String(d.getMonth() + 1).padStart(2, '0')
-      const yy = String(d.getFullYear())
-      return `${dd}.${mm}.${yy}`
+      // Always show as "dd mmm yyyy"
+      if (input.preparedAt) return normalizeForPdf(formatUiDate(input.preparedAt))
+      return normalizeForPdf(formatUiDate(new Date()))
     })()
     const line = author ? `Întocmit de ${author} la data de ${when}` : `Întocmit la data de ${when}`
     const footerSepY = PH - 28

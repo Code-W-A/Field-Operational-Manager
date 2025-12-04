@@ -609,11 +609,13 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       }
       if (val instanceof Date) return val
       if (typeof val === "string") {
-        // în app stocăm ca "dd.MM.yyyy HH:mm"
         const parts = val.trim()
-        // Dacă e deja un ISO valid
-        const maybe = new Date(parts)
-        if (!isNaN(maybe.getTime())) return maybe
+        // Accept ONLY strict ISO-like strings for native Date parsing to avoid dd.MM ambiguity
+        const isIsoLike = /^\d{4}-\d{2}-\d{2}(?:[T\s]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+\-]\d{2}:?\d{2})?)?$/.test(parts)
+        if (isIsoLike) {
+          const maybe = new Date(parts)
+          if (!isNaN(maybe.getTime())) return maybe
+        }
         // Try parse dd.MM.yyyy HH:mm
         const [datePart, timePart] = parts.split(" ")
         if (datePart) {
@@ -986,47 +988,50 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           <Button variant="outline" onClick={() => router.back()}>
             <ChevronLeft className="mr-2 h-4 w-4" /> Înapoi
           </Button>
-          {role !== "client" && (
-            lucrare.raportGenerat ? (
-              <Button
-                onClick={() => {
-                  const url = `/raport/${lucrare.id}?autoDownload=true`
-                  try {
-                    window.open(url, "_blank", "noopener")
-                  } catch {
-                    const a = document.createElement("a")
-                    a.href = url
-                    a.target = "_blank"
-                    a.rel = "noopener"
-                    document.body.appendChild(a)
-                    a.click()
-                    document.body.removeChild(a)
-                  }
-                  toast({ title: "Descărcare raport", description: "Raportul se va descărca automat..." })
-                }}
-              >
-                <FileText className="mr-2 h-4 w-4" /> Descarcă raport
-              </Button>
-            ) : (
-              <Button 
-                onClick={handleGenerateReport}
-                disabled={
-                  role === "tehnician" && 
-                  (lucrare.tipLucrare === "Revizie" 
-                    ? (() => {
-                        // Pentru revizii: verificăm dacă toate echipamentele sunt completate
-                        if (!Array.isArray(lucrare.equipmentIds)) return true
-                        const status = (lucrare.revision?.equipmentStatus || {}) as Record<string, string>
-                        const completed = lucrare.equipmentIds.filter((id) => status[id] === "done")
-                        return completed.length < lucrare.equipmentIds.length
-                      })()
-                    : !equipmentVerified // Pentru lucrări normale: verificare QR echipament
-                  )
+
+          {/* Toți utilizatorii (inclusiv client) pot descărca raportul dacă este generat */}
+          {lucrare.raportGenerat && (
+            <Button
+              onClick={() => {
+                const url = `/raport/${lucrare.id}?autoDownload=true`
+                try {
+                  window.open(url, "_blank", "noopener")
+                } catch {
+                  const a = document.createElement("a")
+                  a.href = url
+                  a.target = "_blank"
+                  a.rel = "noopener"
+                  document.body.appendChild(a)
+                  a.click()
+                  document.body.removeChild(a)
                 }
-              >
-                <FileText className="mr-2 h-4 w-4" /> Generează raport
-              </Button>
-            )
+                toast({ title: "Descărcare raport", description: "Raportul se va descărca automat..." })
+              }}
+            >
+              <FileText className="mr-2 h-4 w-4" /> Descarcă raport
+            </Button>
+          )}
+
+          {/* Doar tehnicienii pot genera raportul, și doar dacă nu este deja generat */}
+          {!lucrare.raportGenerat && role === "tehnician" && (
+            <Button 
+              onClick={handleGenerateReport}
+              disabled={
+                role === "tehnician" && 
+                (lucrare.tipLucrare === "Revizie" 
+                  ? (() => {
+                      // Pentru revizii: verificăm dacă toate echipamentele sunt completate
+                      if (!Array.isArray(lucrare.equipmentIds)) return true
+                      const status = (lucrare.revision?.equipmentStatus || {}) as Record<string, string>
+                      const completed = lucrare.equipmentIds.filter((id) => status[id] === "done")
+                      return completed.length < lucrare.equipmentIds.length
+                    })()
+                  : !equipmentVerified // Pentru lucrări normale: verificare QR echipament
+                )
+              }
+            >
+              <FileText className="mr-2 h-4 w-4" /> Generează raport
+            </Button>
           )}
 
           {lucrare.statusLucrare === WORK_STATUS.ARCHIVED && role === "admin" && (
@@ -1453,6 +1458,17 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         </div>
                       )}
                     </div>
+                    {role === "client" && (
+                      <div className="mb-3">
+                        <Alert className="bg-blue-50 border-blue-200">
+                          <AlertCircle className="h-4 w-4 text-blue-500" />
+                          <AlertTitle>Informație</AlertTitle>
+                          <AlertDescription>
+                            Revizia se desfășoară pentru fiecare echipament în parte. Ca utilizator client puteți descărca fișa de operațiuni doar pentru echipamentele finalizate.
+                          </AlertDescription>
+                        </Alert>
+                      </div>
+                    )}
 
                     {Array.isArray(lucrare.equipmentIds) && lucrare.equipmentIds.length > 0 ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1561,16 +1577,19 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                   )}
                                 </div>
 
-                                {/* Buton mare pentru touch - full width pe mobile */}
-                                <Button
-                                  onClick={() => router.push(`/dashboard/lucrari/${lucrare.id}/revizie/${eid}`)}
-                                  className={`w-full h-12 text-base font-semibold rounded-lg ${statusConfig.buttonClass}`}
-                                  size="lg"
-                                >
-                                  {statusConfig.buttonText}
-                                </Button>
+                                {/* Buton mare pentru touch - ascuns pentru clienți */}
+                                {role !== "client" && (
+                                  <Button
+                                    onClick={() => router.push(`/dashboard/lucrari/${lucrare.id}/revizie/${eid}`)}
+                                    className={`w-full h-12 text-base font-semibold rounded-lg ${statusConfig.buttonClass}`}
+                                    size="lg"
+                                  >
+                                    {statusConfig.buttonText}
+                                  </Button>
+                                )}
                                 
                                 {/* Descărcare fișa de operațiuni pentru acest echipament */}
+                                {(role !== "client" || status === "done") && (
                                 <div className="mt-2">
                                   <Button
                                     variant="outline"
@@ -1606,6 +1625,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                     Descarcă fișa (PDF)
                                   </Button>
                                 </div>
+                                )}
                               </div>
                             </div>
                           )

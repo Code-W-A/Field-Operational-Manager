@@ -280,8 +280,8 @@ export default function NewLucrarePage() {
         })
       }
 
-      // Redirecționăm către pagina de lucrări
-      router.push("/dashboard/lucrari")
+      // Revenim la ecranul anterior (de obicei dashboard sau lista de lucrări)
+      router.back()
     } catch (error) {
       console.error("Eroare la adăugarea lucrării:", error)
       toast({
@@ -327,7 +327,7 @@ export default function NewLucrarePage() {
             handleTehnicieniChange={handleTehnicieniChange}
             handleCustomChange={handleCustomChange}
             onSubmit={handleSubmit}
-            onCancel={() => router.push("/dashboard/lucrari")}
+            onCancel={() => router.back()}
           />
         </CardContent>
       </Card>
