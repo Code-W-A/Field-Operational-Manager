@@ -120,6 +120,21 @@ export const SETTINGS_TARGETS: SettingsTarget[] = [
     label: "Formular Echipament → Necesită documentații",
     kind: "flag",
   },
+  {
+    id: "equipment.documentation.section",
+    label: "Dialog Echipament → Secțiune Documente",
+    kind: "list",
+  },
+  {
+    id: "equipment.documentTypes",
+    label: "Formular Echipament → Tipuri documente",
+    kind: "list",
+  },
+  {
+    id: "equipment.templateDocuments",
+    label: "Formular Echipament → Documente template",
+    kind: "list",
+  },
 
   // Oferte
   {

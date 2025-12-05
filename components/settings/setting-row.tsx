@@ -207,8 +207,8 @@ export function SettingRow({
           <div className="max-h-[360px] overflow-y-auto space-y-3">
             {Object.entries(
               SETTINGS_TARGETS
-                // Afișăm ținte pentru dialoguri + țintele specifice aplicației (ex: Revizie)
-                .filter((t) => t.id.startsWith("dialogs.") || t.id.startsWith("revisions."))
+                // Afișăm ținte pentru dialoguri + țintele specifice aplicației (ex: Revizie, Echipament documente)
+                .filter((t) => t.id.startsWith("dialogs.") || t.id.startsWith("revisions.") || t.id === "equipment.documentation.section")
                 .reduce<Record<string, typeof SETTINGS_TARGETS>>((acc, t) => {
                 const [rawGroup, rawLeaf] = String(t.label || "").split("→")
                 const group = (rawGroup || "Altele").trim()

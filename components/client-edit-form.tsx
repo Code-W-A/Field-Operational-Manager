@@ -1,7 +1,5 @@
 "use client"
 
-import { DialogFooter } from "@/components/ui/dialog"
-
 import type React from "react"
 import { useState, useEffect, forwardRef, useImperativeHandle } from "react"
 import { Button } from "@/components/ui/button"
@@ -47,6 +45,7 @@ import {
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { subscribeRevisionChecklistTemplates, subscribeToSettings } from "@/lib/firebase/settings"
+import { EquipmentDocsTemplateDialog } from "@/components/equipment-docs-template-dialog"
 
 interface ClientEditFormProps {
   client: Client
@@ -117,12 +116,12 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
   const [echipamentFormErrors, setEchipamentFormErrors] = useState<string[]>([])
   const [isCheckingCode, setIsCheckingCode] = useState(false)
   const [isCodeUnique, setIsCodeUnique] = useState(true)
-  const [isUploadingDocs, setIsUploadingDocs] = useState(false)
-  const [pendingFiles, setPendingFiles] = useState<Array<{ file: File; documentType: string }>>([])
-  // State pentru tipul de document selectat
-  const [selectedDocumentType, setSelectedDocumentType] = useState<string>("")
-  // State pentru lista de tipuri de documente din variabile
-  const [documentTypes, setDocumentTypes] = useState<Array<{ id: string; name: string }>>([])
+  // State pentru documente template din variabile
+  const [templateDocuments, setTemplateDocuments] = useState<Array<{ id: string; name: string; url: string; documentType?: string }>>([])
+  // State pentru documentul template selectat (dropdown rapid)
+  const [selectedTemplateDocument, setSelectedTemplateDocument] = useState<string>("")
+  // Dialog selectare multiplă documente template (icon-uri)
+  const [isDocsTemplateDialogOpen, setIsDocsTemplateDialogOpen] = useState(false)
   
   // State pentru confirmarea închiderii dialog-ului de echipament
   const [showEchipamentCloseAlert, setShowEchipamentCloseAlert] = useState(false)
@@ -152,17 +151,24 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
     console.log("showCloseAlert changed to:", showCloseAlert)
   }, [showCloseAlert])
 
-  // Încărcare tipuri de documente din variabile
+  // Încărcare documente template din variabile
   useEffect(() => {
-    const unsub = subscribeToSettings("equipment.documentTypes", (settings: any[]) => {
-      const types = ((settings || []) as any[])
+    const unsub = subscribeToSettings("equipment.templateDocuments", (settings: any[]) => {
+      const docs = ((settings || []) as any[])
         .map((s) => {
-          const raw = (s.name || s.path || s.id || "").toString().trim()
-          if (!raw) return null
-          return { id: String(s.id), name: raw }
+          const name = (s.name || s.path || "").toString().trim()
+          const url = (s.url || s.value || "").toString().trim()
+          const documentType = (s.documentType || "").toString().trim()
+          if (!name || !url) return null
+          return { 
+            id: String(s.id), 
+            name, 
+            url,
+            ...(documentType ? { documentType } : {})
+          }
         })
-        .filter((t): t is { id: string; name: string } => Boolean(t))
-      setDocumentTypes(types)
+        .filter((t): t is { id: string; name: string; url: string; documentType?: string } => t !== null)
+      setTemplateDocuments(docs)
     })
     return () => unsub()
   }, [])
@@ -401,55 +407,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
     if (selectedLocatieIndex === null) return
 
     // Pregătim documentația finală (existentă + nouă)
-    let finalDocumentatie = [...((echipamentFormData as any).documentatie || [])]
-
-    // Încărcăm fișierele pending în Firebase Storage
-    if (pendingFiles.length > 0) {
-      setIsUploadingDocs(true)
-      try {
-        if (!client?.id) {
-          toast({ title: "Nu există ID client pentru încărcare", variant: "destructive" })
-          setIsUploadingDocs(false)
-          return
-        }
-
-        const uploads: Array<{ url: string; fileName: string; documentType: string; uploadedAt: string; uploadedBy: string }> = []
-        for (const f of pendingFiles) {
-          const safeName = f.file.name.replace(/\s+/g, "_")
-          const path = `clienti/${client.id}/echipamente/${echipamentFormData.cod}/docs/${Date.now()}-${safeName}`
-          const up = await uploadFile(f.file, path)
-          uploads.push({
-            url: up.url,
-            fileName: up.fileName,
-            documentType: f.documentType,
-            uploadedAt: new Date().toISOString(),
-            uploadedBy: userData?.displayName || userData?.email || "Utilizator",
-          })
-        }
-
-        // Adăugăm noile documente la cele existente
-        finalDocumentatie = [...finalDocumentatie, ...uploads]
-        
-        // Actualizăm state-ul pentru UI
-        setEchipamentFormData((prev: any) => ({
-          ...prev,
-          documentatie: finalDocumentatie,
-        }))
-
-        // Resetăm pending files
-        setPendingFiles([])
-        
-        toast({ title: `Încărcate ${uploads.length} fișier${uploads.length > 1 ? 'e' : ''} PDF` })
-      } catch (err) {
-        console.error("Eroare la încărcarea documentației:", err)
-        toast({ title: "Eroare la încărcare documentație", variant: "destructive" })
-        setIsUploadingDocs(false)
-        return
-      } finally {
-        setIsUploadingDocs(false)
-      }
-    }
-
+    const finalDocumentatie = [...((echipamentFormData as any).documentatie || [])]
     const updatedLocatii = [...locatii]
 
     // Ne asigurăm că locația are array-ul de echipamente inițializat
@@ -556,8 +514,6 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
     setEchipamentFormErrors([])
     setSelectedLocatieIndex(null)
     setSelectedEchipamentIndex(null)
-    setIsUploadingDocs(false)
-    setPendingFiles([])
   }
 
   // Update the checkCodeUniqueness function to use the new validation rule
@@ -740,7 +696,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
 
   // Add the UnsavedChangesDialog at the end of the component
   return (
-    <form className="space-y-4" onSubmit={handleSubmit}>
+    <form className="space-y-6" onSubmit={handleSubmit}>
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -748,44 +704,108 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
         </Alert>
       )}
 
-      <div className="space-y-2">
-        <label htmlFor="nume" className="text-sm font-medium">
-          Nume Companie *
-        </label>
-        <Input
-          id="nume"
-          placeholder="Introduceți numele companiei"
-          value={formData.nume}
-          onChange={handleInputChange}
-          className={hasError("nume") ? errorStyle : ""}
-        />
-      </div>
+      {/* Informații Generale - 2 coloane */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Coloana 1 */}
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label htmlFor="nume" className="text-sm font-medium">
+              Nume Companie *
+            </label>
+            <Input
+              id="nume"
+              placeholder="Introduceți numele companiei"
+              value={formData.nume}
+              onChange={handleInputChange}
+              className={hasError("nume") ? errorStyle : ""}
+            />
+          </div>
 
-      <div className="space-y-2">
-        <label htmlFor="cif" className="text-sm font-medium">
-          CIF / CUI
-        </label>
-        <Input id="cif" placeholder="Introduceți CIF/CUI" value={formData.cif} onChange={handleInputChange} />
-      </div>
+          <div className="space-y-2">
+            <label htmlFor="cif" className="text-sm font-medium">
+              CIF / CUI
+            </label>
+            <Input id="cif" placeholder="Introduceți CIF/CUI" value={formData.cif} onChange={handleInputChange} />
+          </div>
 
-      <div className="space-y-2">
-        <label htmlFor="regCom" className="text-sm font-medium">
-          Nr. ordine ONRC (J-…)
-        </label>
-        <Input id="regCom" placeholder="Ex: J40/12345/2020" value={formData.regCom} onChange={handleInputChange} />
-        <p className="text-xs text-muted-foreground">Vizibil doar pentru admin/dispecer.</p>
-      </div>
+          <div className="space-y-2">
+            <label htmlFor="regCom" className="text-sm font-medium">
+              Nr. ordine ONRC (J-…)
+            </label>
+            <Input id="regCom" placeholder="Ex: J40/12345/2020" value={formData.regCom} onChange={handleInputChange} />
+            <p className="text-xs text-muted-foreground">Vizibil doar pentru admin/dispecer.</p>
+          </div>
 
-      <div className="space-y-2">
-        <label htmlFor="adresa" className="text-sm font-medium">
-          Adresă Sediu
-        </label>
-        <Input
-          id="adresa"
-          placeholder="Introduceți adresa sediului"
-          value={formData.adresa}
-          onChange={handleInputChange}
-        />
+          <div className="space-y-2">
+            <label htmlFor="adresa" className="text-sm font-medium">
+              Adresă Sediu
+            </label>
+            <Input
+              id="adresa"
+              placeholder="Introduceți adresa sediului"
+              value={formData.adresa}
+              onChange={handleInputChange}
+            />
+          </div>
+        </div>
+
+        {/* Coloana 2 */}
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label htmlFor="reprezentantFirma" className="text-sm font-medium">
+              Reprezentant Firmă *
+            </label>
+            <Input
+              id="reprezentantFirma"
+              placeholder="Numele reprezentantului firmei"
+              value={formData.reprezentantFirma}
+              onChange={handleInputChange}
+              className={hasError("reprezentantFirma") ? errorStyle : ""}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="functieReprezentant" className="text-sm font-medium">
+              Funcție Reprezentant
+            </label>
+            <Input
+              id="functieReprezentant"
+              placeholder="Ex: Administrator, Director, Manager"
+              value={formData.functieReprezentant}
+              onChange={handleInputChange}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="telefon" className="text-sm font-medium">
+              Număr de telefon principal *
+            </label>
+            <Input
+              id="telefon"
+              type="tel"
+              placeholder="Număr de telefon principal al companiei"
+              value={formData.telefon}
+              onChange={handleInputChange}
+              className={hasError("telefon") ? errorStyle : ""}
+            />
+            <p className="text-xs text-muted-foreground">
+              Numărul de telefon principal al companiei (diferit de telefoanele persoanelor de contact din locații)
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="email" className="text-sm font-medium">
+              Email
+            </label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="Adresă de email"
+              value={formData.email}
+              onChange={handleInputChange}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Setări dinamice (legate la Dialog: Client Nou) */}
@@ -799,79 +819,8 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
               customFields: { ...(prev?.customFields || {}), [fieldKey]: value },
             }))
           }
+          hideNumericDisplay={true}
         />
-      </div>
-
-      <div className="space-y-2">
-        <label htmlFor="email" className="text-sm font-medium">
-          Email
-        </label>
-        <Input
-          id="email"
-          type="email"
-          placeholder="Adresă de email"
-          value={formData.email}
-          onChange={handleInputChange}
-        />
-      </div>
-
-      {/* Rand 1: Reprezentant firmă — Telefon */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <label htmlFor="reprezentantFirma" className="text-sm font-medium">
-            Reprezentant Firmă *
-          </label>
-          <Input
-            id="reprezentantFirma"
-            placeholder="Numele reprezentantului firmei"
-            value={formData.reprezentantFirma}
-            onChange={handleInputChange}
-            className={hasError("reprezentantFirma") ? errorStyle : ""}
-          />
-        </div>
-        <div className="space-y-2">
-          <label htmlFor="telefon" className="text-sm font-medium">
-            Număr de telefon principal *
-          </label>
-          <Input
-            id="telefon"
-            type="tel"
-            placeholder="Număr de telefon principal al companiei"
-            value={formData.telefon}
-            onChange={handleInputChange}
-            className={hasError("telefon") ? errorStyle : ""}
-          />
-          <p className="text-xs text-muted-foreground">
-            Numărul de telefon principal al companiei (diferit de telefoanele persoanelor de contact din locații)
-          </p>
-        </div>
-      </div>
-
-      {/* Rand 2: Email — Funcție reprezentant */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <label htmlFor="email" className="text-sm font-medium">
-            Email
-          </label>
-          <Input
-            id="email"
-            type="email"
-            placeholder="Adresă de email"
-            value={formData.email}
-            onChange={handleInputChange}
-          />
-        </div>
-        <div className="space-y-2">
-          <label htmlFor="functieReprezentant" className="text-sm font-medium">
-            Funcție Reprezentant
-          </label>
-          <Input
-            id="functieReprezentant"
-            placeholder="Ex: Administrator, Director, Manager"
-            value={formData.functieReprezentant}
-            onChange={handleInputChange}
-          />
-        </div>
       </div>
 
       {/* Secțiunea pentru locații */}
@@ -1346,61 +1295,82 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
               </div>
 
               {/* Coloana 2: Documentație */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Documentație (PDF) – vizibil tehnicienilor</label>
-                
-                {/* Dropdown pentru selectarea tipului de document */}
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-gray-600">Tip Document</label>
-                  <Select value={selectedDocumentType} onValueChange={setSelectedDocumentType}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selectați tipul de document" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {documentTypes.length === 0 ? (
-                        <SelectItem value="other" disabled>
-                          Nu există tipuri de documente definite în setări
-                        </SelectItem>
-                      ) : (
-                        documentTypes.map((type) => (
-                          <SelectItem key={type.id} value={type.name}>
-                            {type.name}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-sm font-medium mb-0">Documentație (PDF) – vizibil tehnicienilor</label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsDocsTemplateDialogOpen(true)}
+                  >
+                    Adaugă documentație
+                  </Button>
                 </div>
-
-                <input
-                  key={`doc-upload-${pendingFiles.length}-${(echipamentFormData as any)?.documentatie?.length || 0}`}
-                  type="file"
-                  accept="application/pdf"
-                  multiple
-                  onChange={(e) => {
-                    const files = Array.from(e.target.files || [])
-                    if (files.length > 0) {
-                      if (!selectedDocumentType) {
+                
+                {/* Selectare rapidă din documente template (dropdown simplu) */}
+                <div className="space-y-2 p-3 border rounded-lg bg-blue-50 border-blue-200">
+                  <label className="text-xs font-semibold text-blue-900">📋 Selectați Document din Template (Setări)</label>
+                  <div className="flex gap-2">
+                    <Select 
+                      value={selectedTemplateDocument} 
+                      onValueChange={setSelectedTemplateDocument}
+                    >
+                      <SelectTrigger className="flex-1 bg-white">
+                        <SelectValue placeholder="Selectați un document template" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {templateDocuments.length === 0 ? (
+                          <SelectItem value="none" disabled>
+                            Nu există documente template în setări
+                          </SelectItem>
+                        ) : (
+                          templateDocuments.map((doc) => (
+                            <SelectItem key={doc.id} value={doc.id}>
+                              {doc.name} {doc.documentType && `(${doc.documentType})`}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="sm"
+                      disabled={!selectedTemplateDocument}
+                      onClick={() => {
+                        const doc = templateDocuments.find(d => d.id === selectedTemplateDocument)
+                        if (!doc) return
+                        
+                        // Adaugă documentul template în lista de documentație
+                        setEchipamentFormData((prev: any) => ({
+                          ...prev,
+                          documentatie: [
+                            ...(prev.documentatie || []),
+                            {
+                              url: doc.url,
+                              fileName: doc.name,
+                              documentType: doc.documentType || "Template",
+                              uploadedAt: new Date().toISOString(),
+                              uploadedBy: userData?.displayName || "sistem"
+                            }
+                          ]
+                        }))
+                        setSelectedTemplateDocument("")
                         toast({ 
-                          title: "Selectați tipul de document", 
-                          description: "Vă rugăm să selectați mai întâi tipul de document",
-                          variant: "destructive"
+                          title: "Document adăugat", 
+                          description: `"${doc.name}" a fost adăugat la documentație`
                         })
-                        e.target.value = ""
-                        return
-                      }
-                      const filesWithType = files.map(file => ({ file, documentType: selectedDocumentType }))
-                      setPendingFiles((prev) => [...prev, ...filesWithType])
-                      toast({ 
-                        title: `${files.length} fișier${files.length > 1 ? 'e' : ''} selectat${files.length > 1 ? 'e' : ''}`, 
-                        description: `Tip: ${selectedDocumentType}. Se vor încărca la salvare`
-                      })
-                      setSelectedDocumentType("")
-                      e.target.value = ""
-                    }
-                  }}
-                  className="block w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-md file:border file:bg-muted file:hover:bg-muted/70 file:cursor-pointer"
-                />
+                      }}
+                      className="shrink-0"
+                    >
+                      Adaugă
+                    </Button>
+                  </div>
+                  <p className="text-xs text-blue-700">
+                    Documentele template sunt definite în Setări → Variables → equipment.templateDocuments
+                  </p>
+                </div>
                 
                 {/* Afișare fișiere deja încărcate (din DB) */}
                 {(echipamentFormData as any)?.documentatie?.length > 0 && (
@@ -1438,39 +1408,8 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
                   </div>
                 )}
 
-                {/* Afișare fișiere selectate (pending upload) */}
-                {pendingFiles.length > 0 && (
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium text-gray-700">Fișiere selectate (se vor încărca la salvare):</p>
-                    <div className="rounded-md border p-3 max-h-[120px] overflow-y-auto bg-yellow-50 border-yellow-200">
-                      <ul className="text-sm space-y-2">
-                        {pendingFiles.map((item, idx) => (
-                          <li key={idx} className="flex items-center justify-between gap-2 p-2 bg-white rounded border border-yellow-300">
-                            <div className="flex-1 min-w-0">
-                              <p className="truncate text-gray-700 font-medium">{item.file.name}</p>
-                              <p className="text-xs text-gray-500">Tip: {item.documentType} • {(item.file.size / 1024).toFixed(1)} KB</p>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setPendingFiles((prev) => prev.filter((_, i) => i !== idx))
-                                toast({ title: "Fișier eliminat", description: "Fișierul a fost eliminat din selecție." })
-                              }}
-                              className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 shrink-0"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                )}
-
                 {/* Mesaj când nu există nimic */}
-                {!pendingFiles.length && !(echipamentFormData as any)?.documentatie?.length && (
+                {!(echipamentFormData as any)?.documentatie?.length && (
                   <div className="text-xs text-muted-foreground text-center py-6 border rounded-md bg-gray-50">
                     Nu există documentație
                   </div>
@@ -1489,6 +1428,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
                     dynamicSettings: { ...(prev?.dynamicSettings || {}), [fieldKey]: value },
                   }))
                 }
+                hideNumericDisplay={true}
               />
             </div>
 
@@ -1516,12 +1456,11 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
             </div>
           </div>
 
-          <DialogFooter className="pt-2 flex-col gap-2 sm:flex-row">
+          <div className="pt-2 flex-col gap-2 sm:flex-row flex">
             <Button
               type="button"
               variant="outline"
               onClick={handleCloseEchipamentDialog}
-              disabled={isUploadingDocs}
               className="w-full sm:w-auto"
             >
               Anulează
@@ -1534,14 +1473,13 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
                 !echipamentFormData.nume ||
                 !echipamentFormData.cod ||
                 !isCodeUnique ||
-                isCheckingCode ||
-                isUploadingDocs
+                isCheckingCode
               }
               className="w-full sm:w-auto"
             >
-              {isUploadingDocs ? (
+              {isCheckingCode ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se încarcă documentația...
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verificare cod...
                 </>
               ) : isCheckingCode ? (
                 <>
@@ -1551,7 +1489,7 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
                 "Salvează"
               )}
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -1597,6 +1535,43 @@ const ClientEditForm = forwardRef(({ client, onSuccess, onCancel }: ClientEditFo
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog selectare multiplă documente template (icon-uri) */}
+      <EquipmentDocsTemplateDialog
+        open={isDocsTemplateDialogOpen}
+        onOpenChange={setIsDocsTemplateDialogOpen}
+        onConfirm={(docs) => {
+          if (!docs || docs.length === 0) return
+          setEchipamentFormData((prev: any) => {
+            const existing = prev.documentatie || []
+            const existingKeys = new Set(
+              existing.map((d: any) => `${String(d.url || "")}::${String(d.fileName || "")}`)
+            )
+
+            const now = new Date().toISOString()
+            const additions = docs
+              .filter((s) => s.documentUrl)
+              .map((s) => ({
+                url: s.documentUrl!,
+                fileName: s.fileName || s.name,
+                documentType: (s as any).parentName || "Template",
+                uploadedAt: now,
+                uploadedBy: userData?.displayName || userData?.email || "sistem",
+              }))
+              .filter((d) => {
+                const key = `${d.url}::${d.fileName}`
+                if (existingKeys.has(key)) return false
+                existingKeys.add(key)
+                return true
+              })
+
+          return {
+              ...prev,
+              documentatie: [...existing, ...additions],
+            }
+          })
+        }}
+      />
     </form>
   )
 })

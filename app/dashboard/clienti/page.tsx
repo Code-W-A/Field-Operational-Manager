@@ -758,7 +758,7 @@ export default function Clienti() {
               <Plus className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Adaugă</span> Client
             </Button>
           </DialogTrigger>
-          <DialogContent className="w-[calc(100%-2rem)] max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-[calc(100%-2rem)] max-w-5xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Adaugă Client Nou</DialogTitle>
               <DialogDescription>Completați detaliile pentru a adăuga un client nou</DialogDescription>
@@ -787,7 +787,7 @@ export default function Clienti() {
           }
         }}
       >
-        <DialogContent className="w-[calc(100%-2rem)] max-w-[500px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100%-2rem)] max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editează Client</DialogTitle>
             <DialogDescription>Modificați detaliile clientului</DialogDescription>
