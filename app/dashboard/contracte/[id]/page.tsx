@@ -169,184 +169,196 @@ export default function ContractDetailsPage() {
         </div>
       </DashboardHeader>
 
-      <div className="grid gap-6">
-        {/* Informații generale */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Card mare stânga - Informații generale și Client */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              Informații Generale
+              Detalii Contract
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Informații generale */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <p className="text-sm font-medium text-gray-500">Nume Contract</p>
-                <p className="text-lg font-semibold">{contract.name}</p>
+                <p className="text-xs font-medium text-gray-500">Nume Contract</p>
+                <p className="text-base font-semibold mt-1">{contract.name}</p>
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-500">Număr Contract</p>
-                <p className="text-lg font-mono font-semibold">{contract.number}</p>
+                <p className="text-xs font-medium text-gray-500">Număr Contract</p>
+                <p className="text-base font-mono font-semibold mt-1">{contract.number}</p>
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-500">Data Adăugării</p>
-                <p className="text-base">{formatDate(contract.createdAt)}</p>
+                <p className="text-xs font-medium text-gray-500">Data Adăugării</p>
+                <p className="text-sm mt-1">{formatDate(contract.createdAt)}</p>
               </div>
               {contract.updatedAt && (
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Ultima Actualizare</p>
-                  <p className="text-base">{formatDate(contract.updatedAt)}</p>
+                  <p className="text-xs font-medium text-gray-500">Ultima Actualizare</p>
+                  <p className="text-sm mt-1">{formatDate(contract.updatedAt)}</p>
                 </div>
               )}
+            </div>
+
+            <Separator className="my-4" />
+
+            {/* Client și Locații */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <Building2 className="h-4 w-4" />
+                Client și Locații
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-2">Client Asignat</p>
+                  {client ? (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-sm py-1 px-3">
+                        {client.nume}
+                      </Badge>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="h-auto p-0 text-sm"
+                        onClick={() => router.push(`/dashboard/clienti/${client.id}`)}
+                      >
+                        Vezi detalii →
+                      </Button>
+                    </div>
+                  ) : (
+                    <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200">
+                      Neasignat
+                    </Badge>
+                  )}
+                </div>
+
+                {contract.locationNames && contract.locationNames.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 mb-2">
+                      <MapPin className="inline h-3 w-3 mr-1" />
+                      Locații ({contract.locationNames.length})
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {contract.locationNames.map((loc, index) => (
+                        <Badge key={index} variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-sm">
+                          {loc}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {equipmentCount > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 mb-2">
+                      <Wrench className="inline h-3 w-3 mr-1" />
+                      Echipamente
+                    </p>
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-sm py-1 px-3">
+                      {equipmentCount} {equipmentCount === 1 ? "echipament" : "echipamente"}
+                    </Badge>
+                  </div>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Client și Locații */}
+        {/* Card mare dreapta - Recurență, Prețuri și Câmpuri custom */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              Client și Locații
+              <Clock className="h-5 w-5" />
+              Configurare Contract
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <p className="text-sm font-medium text-gray-500 mb-2">Client Asignat</p>
-              {client ? (
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-base py-1 px-3">
-                    {client.nume}
-                  </Badge>
-                  <Button
-                    variant="link"
-                    size="sm"
-                    onClick={() => router.push(`/dashboard/clienti/${client.id}`)}
-                  >
-                    Vezi detalii client
-                  </Button>
+            {/* Recurență */}
+            {hasRecurrence && (
+              <>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Recurența Reviziilor</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {contract.startDate && (
+                      <div>
+                        <p className="text-xs font-medium text-gray-500">Prima revizie</p>
+                        <p className="text-sm font-semibold mt-1">{formatDate(contract.startDate)}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-xs font-medium text-gray-500">Interval</p>
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-sm py-1 px-3 mt-1">
+                        {contract.recurrenceInterval} {contract.recurrenceUnit}
+                        {contract.recurrenceUnit === 'luni' && contract.recurrenceDayOfMonth && ` (ziua ${contract.recurrenceDayOfMonth})`}
+                      </Badge>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-gray-500">Zile înainte</p>
+                      <p className="text-sm mt-1">{contract.daysBeforeWork || 10} zile</p>
+                    </div>
+                    {contract.lastAutoWorkGenerated && (
+                      <div>
+                        <p className="text-xs font-medium text-gray-500">Ultima generare</p>
+                        <p className="text-sm mt-1">{formatDate(contract.lastAutoWorkGenerated)}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              ) : (
-                <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200">
-                  Neasignat
-                </Badge>
-              )}
-            </div>
+                {(contract.pricing && Object.keys(contract.pricing).length > 0) || (contract.customFields && Object.keys(contract.customFields).length > 0) ? (
+                  <Separator className="my-4" />
+                ) : null}
+              </>
+            )}
 
-            {contract.locationNames && contract.locationNames.length > 0 && (
+            {/* Prețuri */}
+            {contract.pricing && Object.keys(contract.pricing).length > 0 && (
+              <>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <DollarSign className="h-4 w-4" />
+                    Prețuri Contract
+                  </h3>
+                  <div className="space-y-2">
+                    {Object.entries(contract.pricing).map(([name, value]) => (
+                      <div key={name} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
+                        <span className="text-sm font-medium text-gray-700">{name}</span>
+                        <span className="font-mono font-semibold text-base">{Number(value).toFixed(2)} LEI</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {contract.customFields && Object.keys(contract.customFields).length > 0 && (
+                  <Separator className="my-4" />
+                )}
+              </>
+            )}
+
+            {/* Câmpuri custom */}
+            {contract.customFields && Object.keys(contract.customFields).length > 0 && (
               <div>
-                <p className="text-sm font-medium text-gray-500 mb-2">
-                  <MapPin className="inline h-4 w-4 mr-1" />
-                  Locații ({contract.locationNames.length})
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {contract.locationNames.map((loc, index) => (
-                    <Badge key={index} variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                      {loc}
-                    </Badge>
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Informații Suplimentare</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {Object.entries(contract.customFields).map(([key, value]) => (
+                    <div key={key}>
+                      <p className="text-xs font-medium text-gray-500 capitalize">{key.replace(/_/g, ' ')}</p>
+                      <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 mt-1 text-sm">
+                        {String(value)}
+                      </Badge>
+                    </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {equipmentCount > 0 && (
-              <div>
-                <p className="text-sm font-medium text-gray-500 mb-2">
-                  <Wrench className="inline h-4 w-4 mr-1" />
-                  Echipamente
-                </p>
-                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-base py-1 px-3">
-                  {equipmentCount} {equipmentCount === 1 ? "echipament" : "echipamente"}
-                </Badge>
+            {/* Placeholder dacă nu există recurență, prețuri sau câmpuri custom */}
+            {!hasRecurrence && (!contract.pricing || Object.keys(contract.pricing).length === 0) && (!contract.customFields || Object.keys(contract.customFields).length === 0) && (
+              <div className="text-center py-8 text-gray-500">
+                <p className="text-sm">Nu există configurații suplimentare pentru acest contract.</p>
               </div>
             )}
           </CardContent>
         </Card>
-
-        {/* Recurență */}
-        {hasRecurrence && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5" />
-                Recurența Reviziilor
-              </CardTitle>
-              <CardDescription>
-                Configurarea automată a reviziilor programate
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {contract.startDate && (
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Data de început (Prima revizie)</p>
-                    <p className="text-base font-semibold">{formatDate(contract.startDate)}</p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Interval Recurență</p>
-                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-base py-1 px-3">
-                    {contract.recurrenceInterval} {contract.recurrenceUnit}
-                    {contract.recurrenceUnit === 'luni' && contract.recurrenceDayOfMonth && ` (ziua ${contract.recurrenceDayOfMonth})`}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Zile înainte de revizie</p>
-                  <p className="text-base">{contract.daysBeforeWork || 10} zile</p>
-                </div>
-                {contract.lastAutoWorkGenerated && (
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Ultima generare automată</p>
-                    <p className="text-base">{formatDate(contract.lastAutoWorkGenerated)}</p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Prețuri */}
-        {contract.pricing && Object.keys(contract.pricing).length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5" />
-                Prețuri Contract
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {Object.entries(contract.pricing).map(([name, value]) => (
-                  <div key={name} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
-                    <span className="font-medium text-gray-700">{name}</span>
-                    <span className="font-mono font-semibold text-lg">{Number(value).toFixed(2)} LEI</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Câmpuri custom */}
-        {contract.customFields && Object.keys(contract.customFields).length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Informații Suplimentare</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Object.entries(contract.customFields).map(([key, value]) => (
-                  <div key={key}>
-                    <p className="text-sm font-medium text-gray-500 capitalize">{key.replace(/_/g, ' ')}</p>
-                    <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 mt-1">
-                      {String(value)}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>
     </DashboardShell>
   )
