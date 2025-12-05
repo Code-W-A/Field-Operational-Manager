@@ -1,8 +1,8 @@
-\"use client\"
+"use client"
 
-import { useEffect, useRef, useState } from \"react\"
-import type { Setting } from \"@/types/settings\"
-import { subscribeToSettings, subscribeToSettingsByTarget } from \"@/lib/firebase/settings\"
+import { useEffect, useRef, useState } from "react"
+import type { Setting } from "@/types/settings"
+import { subscribeToSettings, subscribeToSettingsByTarget } from "@/lib/firebase/settings"
 import {
   Dialog,
   DialogContent,
@@ -10,11 +10,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from \"@/components/ui/dialog\"
-import { Button } from \"@/components/ui/button\"
-import { ScrollArea } from \"@/components/ui/scroll-area\"
-import { cn } from \"@/lib/utils\"
-import { FileText, Folder, X, Info } from \"lucide-react\"
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { cn } from "@/lib/utils"
+import { FileText, Folder, Info } from "lucide-react"
 
 interface EquipmentDocsTemplateDialogProps {
   open: boolean
@@ -59,7 +59,7 @@ export function EquipmentDocsTemplateDialog({
 
     setLoading(true)
 
-    parentsUnsubRef.current = subscribeToSettingsByTarget(\"equipment.documentation.section\", (ps) => {
+    parentsUnsubRef.current = subscribeToSettingsByTarget("equipment.documentation.section", (ps) => {
       const ordered = [...ps].sort((a, b) => (a.order || 0) - (b.order || 0))
       setParents(ordered as Setting[])
 
@@ -121,7 +121,7 @@ export function EquipmentDocsTemplateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className=\"max-w-4xl max-h-[90vh] overflow-hidden flex flex-col\">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Adaugă documentație din template-uri</DialogTitle>
           <DialogDescription>
@@ -129,20 +129,20 @@ export function EquipmentDocsTemplateDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className=\"flex-1 flex gap-4 overflow-hidden pt-2\">
+        <div className="flex-1 flex gap-4 overflow-hidden pt-2">
           {/* Coloana stângă: categorii */}
-          <div className=\"w-56 flex-shrink-0 border rounded-md bg-muted/40 overflow-hidden\">
-            <div className=\"px-3 py-2 text-xs font-semibold text-muted-foreground border-b bg-muted/60 flex items-center gap-1\">
-              <Folder className=\"h-3.5 w-3.5\" />
+          <div className="w-56 flex-shrink-0 border rounded-md bg-muted/40 overflow-hidden">
+            <div className="px-3 py-2 text-xs font-semibold text-muted-foreground border-b bg-muted/60 flex items-center gap-1">
+              <Folder className="h-3.5 w-3.5" />
               Categorii
             </div>
-            <ScrollArea className=\"h-[260px]\">
-              <div className=\"p-2 space-y-1\">
+            <ScrollArea className="h-[260px]">
+              <div className="p-2 space-y-1">
                 {loading && !visibleParents.length && (
-                  <div className=\"text-xs text-muted-foreground px-2 py-4\">Se încarcă...</div>
+                  <div className="text-xs text-muted-foreground px-2 py-4">Se încarcă...</div>
                 )}
                 {!loading && !visibleParents.length && (
-                  <div className=\"text-xs text-muted-foreground px-2 py-4 space-y-1\">
+                  <div className="text-xs text-muted-foreground px-2 py-4 space-y-1">
                     <div>Nu există categorii configurate.</div>
                     <div>Configurează în Setări → Variables → equipment.templateDocuments.</div>
                   </div>
@@ -152,15 +152,15 @@ export function EquipmentDocsTemplateDialog({
                   return (
                     <button
                       key={p.id}
-                      type=\"button\"
+                      type="button"
                       onClick={() => setActiveParentId(p.id)}
                       className={cn(
-                        \"w-full text-left text-xs px-2 py-2 rounded-md flex items-center gap-2 transition-colors\",
-                        isActive ? \"bg-background border text-foreground\" : \"hover:bg-muted\",
+                        "w-full text-left text-xs px-2 py-2 rounded-md flex items-center gap-2 transition-colors",
+                        isActive ? "bg-background border text-foreground" : "hover:bg-muted",
                       )}
                     >
-                      <Folder className=\"h-3.5 w-3.5 text-muted-foreground\" />
-                      <span className=\"truncate\">{p.name}</span>
+                      <Folder className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="truncate">{p.name}</span>
                     </button>
                   )
                 })}
@@ -169,29 +169,29 @@ export function EquipmentDocsTemplateDialog({
           </div>
 
           {/* Coloana dreaptă: documente */}
-          <div className=\"flex-1 border rounded-md bg-muted/20 flex flex-col overflow-hidden\">
-            <div className=\"px-3 py-2 flex items-center justify-between border-b bg-muted/40\">
-              <div className=\"flex items-center gap-2 text-xs font-semibold text-muted-foreground\">
-                <FileText className=\"h-3.5 w-3.5\" />
+          <div className="flex-1 border rounded-md bg-muted/20 flex flex-col overflow-hidden">
+            <div className="px-3 py-2 flex items-center justify-between border-b bg-muted/40">
+              <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                <FileText className="h-3.5 w-3.5" />
                 <span>Documente template</span>
               </div>
               {activeParentId && (
-                <div className=\"text-[11px] text-muted-foreground\">
-                  {selectedIds.length > 0 ? `${selectedIds.length} selectat(e)` : \"Niciun document selectat\"}
+                <div className="text-[11px] text-muted-foreground">
+                  {selectedIds.length > 0 ? `${selectedIds.length} selectat(e)` : "Niciun document selectat"}
                 </div>
               )}
             </div>
 
-            <ScrollArea className=\"flex-1 h-[260px]\">
-              <div className=\"p-3 grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4\">
+            <ScrollArea className="flex-1 h-[260px]">
+              <div className="p-3 grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                 {!activeParentId && (
-                  <div className=\"col-span-full text-xs text-muted-foreground flex items-center gap-2\">
-                    <Info className=\"h-3.5 w-3.5\" />
+                  <div className="col-span-full text-xs text-muted-foreground flex items-center gap-2">
+                    <Info className="h-3.5 w-3.5" />
                     <span>Selectează o categorie din stânga pentru a vedea documentele disponibile.</span>
                   </div>
                 )}
                 {activeParentId && activeChildren.length === 0 && (
-                  <div className=\"col-span-full text-xs text-muted-foreground\">
+                  <div className="col-span-full text-xs text-muted-foreground">
                     Nu există documente pentru această categorie.
                   </div>
                 )}
@@ -204,26 +204,26 @@ export function EquipmentDocsTemplateDialog({
                     return (
                       <button
                         key={doc.id}
-                        type=\"button\"
+                        type="button"
                         onClick={() => toggleSelected(doc.id)}
                         className={cn(
-                          \"relative flex flex-col items-start gap-1 p-3 rounded-md border text-left bg-background transition-all hover:shadow-sm\",
-                          isSelected && \"border-blue-500 ring-2 ring-blue-200\"
+                          "relative flex flex-col items-start gap-1 p-3 rounded-md border text-left bg-background transition-all hover:shadow-sm",
+                          isSelected && "border-blue-500 ring-2 ring-blue-200"
                         )}
                       >
-                        <div className=\"flex items-center gap-2\">
+                        <div className="flex items-center gap-2">
                           <div className={cn(
-                            \"p-1.5 rounded-md\",
-                            isSelected ? \"bg-blue-500 text-white\" : \"bg-muted text-muted-foreground\"
+                            "p-1.5 rounded-md",
+                            isSelected ? "bg-blue-500 text-white" : "bg-muted text-muted-foreground"
                           )}>
-                            <FileText className=\"h-4 w-4\" />
+                            <FileText className="h-4 w-4" />
                           </div>
-                          <span className=\"text-xs font-medium truncate\" title={label}>
+                          <span className="text-xs font-medium truncate" title={label}>
                             {label}
                           </span>
                         </div>
                         {doc.description && (
-                          <span className=\"text-[11px] text-muted-foreground line-clamp-2\">
+                          <span className="text-[11px] text-muted-foreground line-clamp-2">
                             {doc.description}
                           </span>
                         )}
@@ -235,14 +235,14 @@ export function EquipmentDocsTemplateDialog({
           </div>
         </div>
 
-        <DialogFooter className=\"mt-4 flex-col gap-2 sm:flex-row sm:justify-end\">
-          <Button variant=\"outline\" onClick={() => onOpenChange(false)} className=\"w-full sm:w-auto\">
+        <DialogFooter className="mt-4 flex-col gap-2 sm:flex-row sm:justify-end">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
             Anulează
           </Button>
           <Button
             onClick={handleConfirm}
             disabled={selectedIds.length === 0}
-            className=\"w-full sm:w-auto\"
+            className="w-full sm:w-auto"
           >
             Adaugă documente
           </Button>
