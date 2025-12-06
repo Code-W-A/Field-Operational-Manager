@@ -23,6 +23,7 @@ type RevisionDoc = {
   id: string
   equipmentId: string
   equipmentName?: string
+  name?: string
   sections?: RevisionSection[]
 }
 
@@ -88,6 +89,8 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
     const firstNonRoot = sectionsForHeader.find((s: any) => !String(s?.id || "").endsWith("__root"))
     const firstRoot = sectionsForHeader.find((s: any) => String(s?.id || "").endsWith("__root"))
     const level2Label =
+      rev.equipmentName ||
+      rev.name ||
       (firstNonRoot?.title || firstNonRoot?.name) ||
       (firstRoot && Array.isArray(firstRoot.items) && firstRoot.items.length > 0
         ? (firstRoot.items[0]?.label || firstRoot.items[0]?.name)
@@ -238,7 +241,7 @@ export async function generateRevisionEquipmentPDF(
     try { js.setFont("NotoSans", "normal") } catch {}
     js.setFontSize(10)
     js.text(normalizeTextForPdf("Fișa de operațiuni nu a fost găsită pentru acest echipament."), MARGIN + 2, currentY + 4)
-    drawFooter(js)
+    drawOpsFooter(js)
     return js.output("blob")
   }
   const rev = { id: revSnap.id, ...(revSnap.data() as any) } as any
@@ -248,6 +251,8 @@ export async function generateRevisionEquipmentPDF(
   const firstNonRoot = sectionsForHeader.find((s: any) => !String(s?.id || "").endsWith("__root"))
   const firstRoot = sectionsForHeader.find((s: any) => String(s?.id || "").endsWith("__root"))
   const level2Label =
+    rev.equipmentName ||
+    rev.name ||
     (firstNonRoot?.title || firstNonRoot?.name) ||
     (firstRoot && Array.isArray(firstRoot.items) && firstRoot.items.length > 0
       ? (firstRoot.items[0]?.label || firstRoot.items[0]?.name)
