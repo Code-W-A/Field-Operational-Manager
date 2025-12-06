@@ -5,8 +5,8 @@ import { useState, useEffect, forwardRef, useImperativeHandle, useRef } from "re
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, Loader2, Plus, Trash2, MapPin, Wrench, AlertTriangle } from "lucide-react"
-import { addClient, type PersoanaContact, type Locatie, type Echipament, isEchipamentCodeUnique } from "@/lib/firebase/firestore"
+import { AlertCircle, Loader2, Plus, Trash2, MapPin, Wrench, AlertTriangle, FileText } from "lucide-react"
+import { addClient, updateClient, type Client, type PersoanaContact, type Locatie, type Echipament, isEchipamentCodeUnique } from "@/lib/firebase/firestore"
 import { uploadFile } from "@/lib/firebase/storage"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Separator } from "@/components/ui/separator"
@@ -22,6 +22,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 // Adăugăm importul pentru componenta EquipmentQRCode
 import { EquipmentQRCode } from "@/components/equipment-qr-code"
+import { EquipmentDocsTemplateDialog } from "@/components/equipment-docs-template-dialog"
 import { formatDate, formatUiDate, toDateSafe } from "@/lib/utils/time-format"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { CustomDatePicker } from "@/components/custom-date-picker"
@@ -47,9 +48,12 @@ import { DynamicDialogFields } from "@/components/DynamicDialogFields"
 import { subscribeRevisionChecklistTemplates, subscribeToSettings } from "@/lib/firebase/settings"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
+import { useAuth } from "@/contexts/AuthContext"
 
 interface ClientFormProps {
-  onSuccess?: (clientName: string) => void
+  mode?: "add" | "edit"
+  client?: Client
+  onSuccess?: (clientName?: string) => void
   onCancel?: () => void
 }
 
@@ -68,34 +72,32 @@ const checkCuiExists = async (cui: string): Promise<boolean> => {
 }
 
 // Modify the component definition to use forwardRef
-const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) => {
+const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel }: ClientFormProps, ref) => {
+  const { userData } = useAuth()
+  const isAdmin = userData?.role === "admin"
+  
   // Add state to track if form has been modified
   const [formModified, setFormModified] = useState(false)
+  
+  // Initialize form data based on mode
+  const [formData, setFormData] = useState({
+    nume: mode === "edit" && client ? client.nume || "" : "",
+    cif: mode === "edit" && client ? ((client as any).cif || client.cui || "") : "",
+    regCom: mode === "edit" && client ? ((client as any).regCom || "") : "",
+    adresa: mode === "edit" && client ? (client.adresa || "") : "",
+    email: mode === "edit" && client ? (client.email || "") : "",
+    telefon: mode === "edit" && client ? (client.telefon || "") : "",
+    reprezentantFirma: mode === "edit" && client ? (client.reprezentantFirma || "") : "",
+    functieReprezentant: mode === "edit" && client ? ((client as any).functieReprezentant || "") : "",
+  })
+  
   const [initialFormState, setInitialFormState] = useState({
-    formData: {
-      nume: "",
-      cif: "",
-      adresa: "",
-      email: "",
-    },
-    locatii: JSON.stringify([
-      { nume: "", adresa: "", persoaneContact: [{ nume: "", telefon: "", email: "", functie: "" }], echipamente: [] },
-    ]),
+    formData: {...formData},
+    locatii: JSON.stringify([]),
   })
 
   // Add state for close alert dialog - IMPORTANT: default to true for testing
   const [showCloseAlert, setShowCloseAlert] = useState(false)
-
-  const [formData, setFormData] = useState({
-    nume: "",
-    cif: "", // Adăugăm CIF
-    regCom: "",
-    adresa: "",
-    email: "",
-    telefon: "", // Adăugăm telefon principal
-    reprezentantFirma: "", // Adăugăm reprezentant firmă
-    functieReprezentant: "", // Nou: funcția reprezentantului
-  })
 
   // Adăugăm state pentru verificarea CUI
   const [isCuiChecking, setIsCuiChecking] = useState(false)
@@ -106,9 +108,17 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
 
 
   // Adăugăm state pentru locații
-  const [locatii, setLocatii] = useState<Locatie[]>([
+  const [locatii, setLocatii] = useState<Locatie[]>(() => {
+    if (mode === "edit" && client && client.locatii && client.locatii.length > 0) {
+      return client.locatii.map((loc) => ({
+        ...loc,
+        echipamente: loc.echipamente || [],
+      }))
+    }
+    return [
     { nume: "", adresa: "", persoaneContact: [{ nume: "", telefon: "", email: "", functie: "" }], echipamente: [] },
-  ])
+    ]
+  })
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -181,6 +191,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
   const [selectedDocumentType, setSelectedDocumentType] = useState<string>("")
   // State pentru lista de tipuri de documente din variabile
   const [documentTypes, setDocumentTypes] = useState<Array<{ id: string; name: string }>>([])
+  const [isDocsTemplateDialogOpen, setIsDocsTemplateDialogOpen] = useState(false)
   
   // State pentru confirmarea închiderii dialog-ului de echipament
   const [showEchipamentCloseAlert, setShowEchipamentCloseAlert] = useState(false)
@@ -273,8 +284,9 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
     console.log("showCloseAlert changed to:", showCloseAlert)
   }, [showCloseAlert])
 
-  // Verificăm CUI-ul când se schimbă
+  // Verificăm CUI-ul când se schimbă (doar în modul add)
   useEffect(() => {
+    if (mode === "add") {
     // Curățăm timeout-ul anterior dacă există
     if (cuiTimeoutRef.current) {
       clearTimeout(cuiTimeoutRef.current)
@@ -318,7 +330,8 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
         clearTimeout(cuiTimeoutRef.current)
       }
     }
-  }, [formData.cif, cuiTouched])
+    }
+  }, [formData.cif, cuiTouched, mode])
 
 
 
@@ -326,12 +339,10 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
     const { id, value } = e.target
     console.log(`Input changed: ${id} = ${value}`)
 
-    // Dacă se modifică CUI-ul, marcăm că a fost atins
-    if (id === "cif") {
+    // Dacă se modifică CUI-ul în modul add, marcăm că a fost atins
+    if (id === "cif" && mode === "add") {
       setCuiTouched(true)
     }
-
-
 
     setFormData((prev) => ({ ...prev, [id]: value }))
   }
@@ -522,6 +533,12 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
     e.stopPropagation()
     e.preventDefault()
 
+    // În modul edit, verificăm dacă utilizatorul este admin
+    if (mode === "edit" && !isAdmin) {
+      alert("Doar administratorii pot șterge echipamente.")
+      return
+    }
+
     if (window.confirm("Sunteți sigur că doriți să ștergeți acest echipament?")) {
       const updatedLocatii = [...locatii]
       updatedLocatii[locatieIndex].echipamente!.splice(echipamentIndex, 1)
@@ -629,8 +646,8 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
       setIsSubmitting(true)
       setError(null)
 
-      // Verificăm dacă CUI-ul există deja
-      if (formData.cif && formData.cif.trim() !== "") {
+      // Verificăm dacă CUI-ul există deja (doar în modul add)
+      if (mode === "add" && formData.cif && formData.cif.trim() !== "") {
         const exists = await checkCuiExists(formData.cif)
         if (exists) {
           setError("Există deja un client cu acest CUI/CIF în baza de date.")
@@ -646,8 +663,6 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
       if (!formData.nume) errors.push("nume")
       if (!formData.telefon) errors.push("telefon")
       if (!formData.reprezentantFirma) errors.push("reprezentantFirma")
-
-
 
       // Verificăm dacă toate locațiile au nume și adresă
       locatii.forEach((locatie, index) => {
@@ -682,6 +697,8 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
           ? filteredLocatii[0].persoaneContact[0]
           : null
 
+      if (mode === "add") {
+        // MODE: ADD - Create new client
       const newClient = {
         ...formData,
         cui: formData.cif,
@@ -731,18 +748,37 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
           updatedLocatiiForDocs[i] = { ...loc, echipamente: newEquipList }
         }
         // 3) Persistăm documentația încărcată în client
-        const { updateClient } = await import("@/lib/firebase/firestore")
         await updateClient(clientId, { locatii: updatedLocatiiForDocs } as any)
       } catch (e) {
         console.error("Eroare la upload documentație echipamente:", e)
       }
 
-      // Reset form modified state after successful submission
-      setFormModified(false) // Reset form modified state after successful submission
+        setFormModified(false)
       if (onSuccess) onSuccess(formData.nume)
+      } else {
+        // MODE: EDIT - Update existing client
+        if (!client?.id) {
+          throw new Error("ID-ul clientului lipsește")
+        }
+
+        await updateClient(client.id, {
+          ...formData,
+          cui: formData.cif,
+          regCom: formData.regCom || (client as any).regCom || "",
+          locatii: filteredLocatii,
+        })
+
+        // Update the initial state to match current state after successful save
+        setInitialFormState({
+          formData,
+          locatii: JSON.stringify(locatii),
+        })
+        setFormModified(false)
+        if (onSuccess) onSuccess()
+      }
     } catch (err) {
-      console.error("Eroare la adăugarea clientului:", err)
-      setError("A apărut o eroare la adăugarea clientului. Încercați din nou.")
+      console.error(`Eroare la ${mode === "add" ? "adăugarea" : "actualizarea"} clientului:`, err)
+      setError(`A apărut o eroare la ${mode === "add" ? "adăugarea" : "actualizarea"} clientului. Încercați din nou.`)
     } finally {
       setIsSubmitting(false)
     }
@@ -1120,6 +1156,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
                                 >
                                   <Wrench className="h-4 w-4" />
                                 </Button>
+                                {(mode === "add" || isAdmin) && (
                                 <Button
                                   type="button"
                                   variant="ghost"
@@ -1129,6 +1166,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
+                                )}
                               </div>
                             </div>
 
@@ -1193,6 +1231,16 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
           </DialogHeader>
 
           <div className="grid gap-4 py-3 overflow-y-auto">
+            {selectedEchipamentIndex !== null && mode === "edit" && !isAdmin && (
+              <Alert variant="default" className="mt-2 bg-yellow-50 border-yellow-200 text-yellow-800">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Notă: Doar administratorii pot șterge echipamente. Puteți edita detaliile, dar nu puteți șterge
+                  echipamentul.
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <label htmlFor="nume" className="text-sm font-medium">
@@ -1386,69 +1434,41 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
             <div className="space-y-2">
               <label className="text-sm font-medium">Documentație (PDF) – vizibil tehnicienilor</label>
               
-              {/* Dropdown pentru selectarea tipului de document */}
               <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-600">Tip Document</label>
-                <Select value={selectedDocumentType} onValueChange={setSelectedDocumentType}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selectați tipul de document" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {documentTypes.length === 0 ? (
-                      <SelectItem value="other" disabled>
-                        Nu există tipuri de documente definite în setări
-                      </SelectItem>
-                    ) : (
-                      documentTypes.map((type) => (
-                        <SelectItem key={type.id} value={type.name}>
-                          {type.name}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
+                <label className="text-xs font-medium text-gray-600">Selectează din bibliotecă</label>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => setIsDocsTemplateDialogOpen(true)}
+                >
+                  Alege din setări
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Navighează ierarhic (categorii → documente) definite în Setări. Nu se încarcă fișiere locale aici.
+                </p>
               </div>
 
-              <input
-                type="file"
-                accept="application/pdf"
-                multiple
-                onChange={(e) => {
-                  const files = Array.from(e.target.files || [])
-                  if (files.length > 0) {
-                    if (!selectedDocumentType) {
-                      toast({ 
-                        title: "Selectați tipul de document", 
-                        description: "Vă rugăm să selectați mai întâi tipul de document",
-                        variant: "destructive"
-                      })
-                      e.target.value = ""
-                      return
-                    }
-                    toast({ 
-                      title: `${files.length} fișier${files.length > 1 ? 'e' : ''} selectat${files.length > 1 ? 'e' : ''}`, 
-                      description: `Tip: ${selectedDocumentType}. Se vor încărca la salvarea echipamentului`
-                    })
-                    // Stocăm fișierele cu tipul lor
-                    const filesWithType = files.map(file => ({ file, documentType: selectedDocumentType }))
-                    setPendingFiles((prev) => [...prev, ...filesWithType])
-                    // Resetăm selecția de tip pentru următorul upload
-                    setSelectedDocumentType("")
-                    e.target.value = ""
-                  }
-                }}
-                className="block w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-md file:border file:bg-muted file:hover:bg-muted/70 file:cursor-pointer"
-              />
               {(echipamentFormData as any)?.documentatie?.length ? (
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-gray-700">Documentație existentă:</p>
-                  <div className="rounded-md border p-3 max-h-[120px] overflow-y-auto bg-green-50 border-green-200">
-                    <ul className="text-sm space-y-2">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-gray-700">
+                    <FileText className="h-3.5 w-3.5" />
+                    <span>Documentație existentă</span>
+                  </div>
+                  <div className="rounded-lg border bg-white shadow-sm max-h-[160px] overflow-y-auto">
+                    <ul className="divide-y">
                       {(echipamentFormData as any).documentatie.map((d: any, idx: number) => (
-                        <li key={idx} className="flex items-center justify-between gap-2 p-2 bg-white rounded border">
-                          <div className="flex-1 min-w-0">
-                            <p className="truncate text-gray-700 font-medium">{d.fileName}</p>
-                            {d.documentType && <p className="text-xs text-gray-500">Tip: {d.documentType}</p>}
+                        <li key={idx} className="flex items-center justify-between gap-2 px-3 py-2">
+                          <div className="flex items-start gap-2 min-w-0">
+                            <div className="p-1.5 rounded-md bg-muted text-muted-foreground">
+                              <FileText className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium text-gray-800">{d.fileName}</p>
+                              {d.documentType && (
+                                <p className="text-[11px] text-muted-foreground">Tip: {d.documentType}</p>
+                              )}
+                            </div>
                           </div>
                           <Button
                             type="button"
@@ -1460,9 +1480,9 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
                                 documentatie: (prev.documentatie || []).filter((_: any, i: number) => i !== idx),
                               }))
                             }}
-                            className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 shrink-0"
+                            className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 shrink-0"
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </li>
                       ))}
@@ -1536,6 +1556,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
                       },
                     }))
                   }}
+                  hideTemplateSelect
                 />
               </div>
             </div>
@@ -1586,7 +1607,7 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
         <Button
           className="bg-blue-600 hover:bg-blue-700"
           type="submit"
-          disabled={isSubmitting || cuiExists || isCuiChecking}
+          disabled={isSubmitting || (mode === "add" && (cuiExists || isCuiChecking))}
         >
           {isSubmitting ? (
             <>
@@ -1597,6 +1618,43 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
           )}
         </Button>
       </div>
+
+      {/* Dialog selectare documente din setări */}
+      <EquipmentDocsTemplateDialog
+        open={isDocsTemplateDialogOpen}
+        onOpenChange={setIsDocsTemplateDialogOpen}
+        onConfirm={(docs) => {
+          if (!docs || docs.length === 0) return
+          setEchipamentFormData((prev: any) => {
+            const existing = prev.documentatie || []
+            const existingKeys = new Set(
+              existing.map((d: any) => `${String(d.url || "")}::${String(d.fileName || "")}`)
+            )
+
+            const now = new Date().toISOString()
+            const additions = docs
+              .filter((d: any) => d.documentUrl)
+              .map((d: any) => ({
+                url: d.documentUrl!,
+                fileName: d.fileName || d.name,
+                documentType: (d as any).parentName || "Bibliotecă",
+                uploadedAt: now,
+                uploadedBy: userData?.displayName || userData?.email || "biblioteca",
+              }))
+              .filter((d) => {
+                const key = `${d.url}::${d.fileName}`
+                if (existingKeys.has(key)) return false
+                existingKeys.add(key)
+                return true
+              })
+
+            return {
+              ...prev,
+              documentatie: [...existing, ...additions],
+            }
+          })
+        }}
+      />
 
       {/* Internal AlertDialog removed in favor of parent-level confirmation */}
 
@@ -1631,17 +1689,20 @@ const ClientForm = forwardRef(({ onSuccess, onCancel }: ClientFormProps, ref) =>
 // Make sure to export the component
 export { ClientForm }
 
-// Subcomponent pentru selectarea șablonului de checklist (copiat din client-edit-form pentru consistență)
+// Subcomponent pentru selectarea șablonului de checklist (reutilizabil pentru add/edit)
 function TemplateSelector({
   valueId,
   useForSheet,
   parentId,
   onChange,
+  hideTemplateSelect = false,
 }: {
   valueId: string
   useForSheet: boolean
   parentId?: string
   onChange: (payload: { templateId: string; templateName: string; useForSheet: boolean }) => void
+  /** Dacă este true, nu afișăm dropdown-ul „Șablon checklist”, doar lista de fișe de operațiuni. */
+  hideTemplateSelect?: boolean
 }) {
   const [templates, setTemplates] = useState<Array<{ id: string; name: string }>>([])
   const [selectedId, setSelectedId] = useState<string>(valueId || "")
@@ -1703,30 +1764,32 @@ function TemplateSelector({
 
   return (
     <div className="grid gap-2">
-      <div className="grid sm:grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <label className="text-sm font-medium">Șablon checklist</label>
-          <Select
-            value={selectedId}
-            onValueChange={(id) => {
-              setSelectedId(id)
-              const name = templates.find((t) => t.id === id)?.name || ""
-              onChange({ templateId: id, templateName: name, useForSheet: true })
-              setSelectedChild("")
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Selectați șablonul" />
-            </SelectTrigger>
-            <SelectContent>
-              {templates.map((t) => (
-                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {!hideTemplateSelect && (
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Șablon checklist</label>
+            <Select
+              value={selectedId}
+              onValueChange={(id) => {
+                setSelectedId(id)
+                const name = templates.find((t) => t.id === id)?.name || ""
+                onChange({ templateId: id, templateName: name, useForSheet: true })
+                setSelectedChild("")
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selectați șablonul" />
+              </SelectTrigger>
+              <SelectContent>
+                {templates.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {/* Checkbox eliminat: “Folosește pentru fișa de operațiuni” este implicit activ */}
         </div>
-        {/* Checkbox eliminat: “Folosește pentru fișa de operațiuni” este implicit activ */}
-      </div>
+      )}
       {/* First-level category under selected template */}
       <div className="grid sm:grid-cols-2 gap-3">
         <div className="space-y-1">

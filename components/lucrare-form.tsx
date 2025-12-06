@@ -20,8 +20,6 @@ import { db } from "@/lib/firebase/config"
 import { ContractSelect } from "./contract-select"
 // Importăm componenta ClientForm
 import { ClientForm } from "./client-form"
-// Importăm componenta ClientEditForm pentru editarea locațiilor
-import { ClientEditForm } from "./client-edit-form"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { formatDateTime24, formatTime24 } from "@/lib/utils/time-format"
 // Import the TimeSelector component
@@ -2471,7 +2469,8 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 <DialogTitle>Editează {selectedClient?.nume} - Adaugă Locații</DialogTitle>
               </DialogHeader>
               {selectedClient && (
-                <ClientEditForm 
+                <ClientForm
+                  mode="edit"
                   client={selectedClient} 
                   onSuccess={handleClientEdited} 
                   onCancel={() => setIsEditClientDialogOpen(false)} 
@@ -2490,7 +2489,8 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 </p>
               </DialogHeader>
               {selectedClient && equipmentToEdit && (
-                <ClientEditForm 
+                <ClientForm
+                  mode="edit"
                   client={selectedClient} 
                   onSuccess={handleEquipmentEdited} 
                   onCancel={() => {

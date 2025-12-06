@@ -163,6 +163,18 @@ function FieldWithSearch({
     setNumericText(initial !== undefined && initial !== null ? String(initial) : "")
   }, [selectedSetting?.id])
 
+  const showNumericStatic =
+    selectedSetting &&
+    selectedSetting.numericValue !== undefined &&
+    selectedSetting.numericValue !== null &&
+    !enableNumericEdit &&
+    !hideNumericDisplay
+
+  const showNumericEditable = enableNumericEdit && !hideNumericDisplay && selectedSetting
+  const showImage = !!selectedSetting?.imageUrl
+  const showDocument = !!selectedSetting?.documentUrl && !selectedSetting?.imageUrl
+  const hasExtraData = showNumericStatic || showNumericEditable || showImage || showDocument
+
   return (
     <div className="space-y-1">
       <Label htmlFor={id} className="text-sm font-medium">
@@ -210,17 +222,17 @@ function FieldWithSearch({
         </PopoverContent>
       </Popover>
 
-      {/* Afișăm datele suplimentare pentru opțiunea selectată */}
-      {selectedSetting && (
+      {/* Afișăm datele suplimentare pentru opțiunea selectată (doar dacă există ceva de afișat) */}
+      {selectedSetting && hasExtraData && (
         <div className="mt-2 space-y-2 p-3 bg-muted/30 rounded-md border">
           {/* Valoare numerică */}
-          {(selectedSetting.numericValue !== undefined && selectedSetting.numericValue !== null) && !enableNumericEdit && !hideNumericDisplay && (
+          {showNumericStatic && (
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Valoare:</span>
               <span className="font-semibold">{selectedSetting.numericValue}</span>
             </div>
           )}
-          {(enableNumericEdit && !hideNumericDisplay) && (
+          {showNumericEditable && (
             <div className="space-y-1">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Valoare:</span>
@@ -256,7 +268,7 @@ function FieldWithSearch({
           )}
 
           {/* Imagine */}
-          {selectedSetting.imageUrl && (
+          {showImage && (
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <ImageIcon className="h-4 w-4" />
@@ -285,7 +297,7 @@ function FieldWithSearch({
           )}
 
           {/* Document */}
-          {selectedSetting.documentUrl && !selectedSetting.imageUrl && (
+          {showDocument && (
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-sm">
                 <FileText className="h-4 w-4 text-muted-foreground" />

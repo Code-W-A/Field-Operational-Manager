@@ -1,9 +1,10 @@
 "use client"
 
-import { useState, useEffect, use } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -21,6 +22,9 @@ import { ClientContractsManager } from "@/components/client-contracts-manager"
 // Adăugăm importul pentru componenta EquipmentQRCode
 import { EquipmentQRCode } from "@/components/equipment-qr-code"
 import { formatDate, formatUiDate, toDateSafe } from "@/lib/utils/time-format"
+import { DashboardShell } from "@/components/dashboard-shell"
+import { DashboardHeader } from "@/components/dashboard-header"
+import { ClientForm } from "@/components/client-form"
 
 // Importăm hook-ul useClientLucrari pentru a putea actualiza datele
 import { useClientLucrari } from "@/hooks/use-client-lucrari"
@@ -30,13 +34,14 @@ const extractCUI = (client: any) => {
   return client?.cui || client?.cif || client?.CIF || client?.CUI || "N/A"
 }
 
-export default function ClientPage({ params }: { params: Promise<{ id: string }> }) {
+export default function ClientPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const { userData } = useAuth()
-  const { id } = use(params)
+  const { id } = params
   const [client, setClient] = useState<Client | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
 
   // Obținem lucrările pentru acest client
   const { data: toateLucrarile } = useFirebaseCollection<Lucrare>("lucrari", [orderBy("dataEmiterii", "desc")])
@@ -79,7 +84,24 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
 
   // Modificăm funcția handleEdit pentru a reîmprospăta datele
   const handleEdit = () => {
-    router.push(`/dashboard/clienti?edit=${id}`)
+    if (!client) return
+    setIsEditDialogOpen(true)
+  }
+
+  const handleEditClose = () => {
+    setIsEditDialogOpen(false)
+  }
+
+  const handleEditSuccess = async () => {
+    setIsEditDialogOpen(false)
+    try {
+      const data = await getClientById(id)
+      if (data) {
+        setClient(data)
+      }
+    } catch (err) {
+      console.error("Eroare la reîncărcarea clientului după editare:", err)
+    }
   }
 
   // Modificăm funcția handleDelete pentru a reîmprospăta datele
@@ -120,69 +142,96 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
 
   return (
     <TooltipProvider>
-      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
-      <Card className="w-full max-w-3xl">
-        <CardHeader>
-          <div className="flex items-center">
-            <Button variant="ghost" size="icon" className="absolute left-4" onClick={() => router.back()}>
-              <ArrowLeft className="h-4 w-4" />
+      <DashboardShell>
+        <DashboardHeader
+          heading={
+            <span className="flex items-center gap-2 flex-wrap">
+              <span className="text-base text-muted-foreground">Client</span>
+              <span className="text-lg font-semibold">{client?.nume}</span>
+            </span>
+          }
+          text={client?.adresa || "Detalii client"}
+        >
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => router.back()}>
+              <ArrowLeft className="mr-2 h-4 w-4" /> Înapoi
             </Button>
-            <div className="w-full text-center">
-              <CardTitle className="text-xl sm:text-2xl font-bold text-blue-700">Detalii Client</CardTitle>
-              <CardDescription>Informații complete despre client</CardDescription>
-            </div>
+            <Button variant="outline" onClick={handleEdit}>
+              <Pencil className="mr-2 h-4 w-4" /> Editează
+            </Button>
+            {userData?.role === "admin" && (
+              <Button variant="destructive" onClick={handleDelete}>
+                <Trash2 className="mr-2 h-4 w-4" /> Șterge
+              </Button>
+            )}
           </div>
+        </DashboardHeader>
+
+        <div className="space-y-6 pb-10">
+          <div className="grid gap-4 lg:grid-cols-[2fr,1fr] items-start">
+            <div className="space-y-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm text-muted-foreground">Contact</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <h2 className="text-lg font-semibold">{client?.nume}</h2>
-              <p className="text-muted-foreground">{client?.adresa}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm font-medium">
-                Număr lucrări: <span className="font-bold">{lucrariClient.length}</span>
-              </p>
-            </div>
-          </div>
-
-          <Separator />
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <h3 className="font-medium text-gray-500">Telefon Principal</h3>
-              <p>{client?.telefon || "N/A"}</p>
+                    <p className="text-xs text-muted-foreground">Telefon principal</p>
+                    <p className="font-medium">{client?.telefon || "N/A"}</p>
             </div>
             <div>
-              <h3 className="font-medium text-gray-500">Reprezentant Firmă</h3>
-              <p>
+                    <p className="text-xs text-muted-foreground">Email</p>
+                    <p className="font-medium break-words">{client?.email || "N/A"}</p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <p className="text-xs text-muted-foreground">Reprezentant firmă</p>
+                    <p className="font-medium">
                 {client?.reprezentantFirma || "N/A"}
                 {client?.functieReprezentant ? `, ${client.functieReprezentant}` : ""}
               </p>
             </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm text-muted-foreground">Identificare</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <h3 className="font-medium text-gray-500">Email</h3>
-              <p>{client?.email || "N/A"}</p>
-            </div>
-            <div>
-              <h3 className="font-medium text-gray-500">CUI/CIF</h3>
-              <p>{(client as any)?.cif || "N/A"}</p>
+                    <p className="text-xs text-muted-foreground">CUI/CIF</p>
+                    <p className="font-medium">{(client as any)?.cif || "N/A"}</p>
             </div>
             {(userData?.role === "admin" || userData?.role === "dispecer") && (
               <div>
-                <h3 className="font-medium text-gray-500">Nr. ordine ONRC</h3>
-                <p>{(client as any)?.regCom || "N/A"}</p>
+                      <p className="text-xs text-muted-foreground">Nr. ordine ONRC</p>
+                      <p className="font-medium">{(client as any)?.regCom || "N/A"}</p>
               </div>
             )}
-          </div>
+                </CardContent>
+              </Card>
+            </div>
 
-          <Separator />
+            <div className="space-y-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm text-muted-foreground">Statistici</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Număr lucrări</span>
+                    <span className="font-semibold">{lucrariClient.length}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
 
           {/* Secțiunea pentru locații și echipamente */}
           <div>
-            <h3 className="font-medium text-gray-500 mb-4">Locații și Echipamente</h3>
+            <h3 className="font-medium text-gray-500 mb-3">Locații și Echipamente</h3>
             {client?.locatii && client.locatii.length > 0 ? (
-              <Accordion type="multiple" className="w-full">
+              <Accordion type="multiple" className="w-full space-y-2">
                 {client.locatii.map((locatie, index) => (
                   <AccordionItem key={index} value={`locatie-${index}`}>
                     <AccordionTrigger className="hover:no-underline">
@@ -459,34 +508,25 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
               <p className="text-muted-foreground">Nu există lucrări pentru acest client.</p>
             )}
           </div>
-        </CardContent>
-        <CardFooter className="flex flex-wrap gap-2 justify-between">
-          <Button variant="outline" onClick={() => router.back()}>
-            Înapoi
-          </Button>
-          <div className="flex flex-wrap gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={handleEdit}>
-                  <Pencil className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Editează</TooltipContent>
-            </Tooltip>
-            {userData?.role === "admin" && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="destructive" size="icon" onClick={handleDelete}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Șterge</TooltipContent>
-              </Tooltip>
+        </div>
+
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Editează client</DialogTitle>
+              <DialogDescription>Actualizează informațiile clientului</DialogDescription>
+            </DialogHeader>
+            {client && (
+              <ClientForm
+                mode="edit"
+                client={client}
+                onSuccess={handleEditSuccess}
+                onCancel={handleEditClose}
+              />
             )}
-          </div>
-        </CardFooter>
-      </Card>
-    </div>
+          </DialogContent>
+        </Dialog>
+      </DashboardShell>
     </TooltipProvider>
   )
 }

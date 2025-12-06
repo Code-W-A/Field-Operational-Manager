@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, use } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { DashboardHeader } from "@/components/dashboard-header"
@@ -134,7 +134,7 @@ const calculateInterventionDuration = (lucrare: any): string => {
   return "N/A";
 }
 
-export default function LucrarePage({ params }: { params: Promise<{ id: string }> }) {
+export default function LucrarePage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { userData } = useAuth()
@@ -142,8 +142,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const isAdminOrDispatcher = role === "admin" || role === "dispecer"
   const fromArhivate = searchParams.get('from') === 'arhivate'
   
-  // Unwrap params using React.use() for Next.js 15
-  const { id: paramsId } = use(params)
+  const { id: paramsId } = params
   
   // Detectăm parametrul modificationId din URL
   const modificationId = searchParams.get('modificationId')
@@ -914,6 +913,52 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     return phone.replace(/\D/g, "")
   }
 
+  // --- UTILITARE DESCĂRCĂRI CLIENT ---
+  const handleClientDownloadReport = useCallback(() => {
+    if (!lucrare?.raportGenerat || !lucrare?.id) return
+    const url = `/raport/${lucrare.id}?autoDownload=true`
+    try {
+      const anchor = document.createElement("a")
+      anchor.href = url
+      anchor.download = ""
+      anchor.rel = "noopener"
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+    } catch {
+      window.open(url, "_blank", "noopener")
+    }
+    toast({ title: "Descărcare raport", description: "Raportul se va descărca automat..." })
+  }, [lucrare?.id, lucrare?.raportGenerat, toast])
+
+  const handleClientDownloadEquipmentSheet = useCallback(
+    async (equipmentId: string, equipmentLabel?: string) => {
+      if (!lucrare?.id) return
+      try {
+        const blob = await generateRevisionEquipmentPDF(String(lucrare.id), String(equipmentId))
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        const safeLabel = (equipmentLabel || equipmentId || "Echipament").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
+        const workNumRaw = String(lucrare.nrLucrare || lucrare.numarRaport || lucrare.id || "")
+        const workNum = workNumRaw.replace(/^#\s*/, "").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
+        a.download = `Fisa_Operatiuni_${safeLabel}_${workNum}.pdf`
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        URL.revokeObjectURL(url)
+      } catch (e) {
+        console.error("Eroare la generarea fișei de operațiuni:", e)
+        toast({
+          title: "Eroare",
+          description: "Nu s-a putut genera fișa de operațiuni pentru acest echipament.",
+          variant: "destructive",
+        })
+      }
+    },
+    [lucrare?.id, lucrare?.nrLucrare, lucrare?.numarRaport, toast]
+  )
+
   if (loading) {
     return (
       <DashboardShell>
@@ -989,8 +1034,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
             <ChevronLeft className="mr-2 h-4 w-4" /> Înapoi
           </Button>
 
-          {/* Toți utilizatorii (inclusiv client) pot descărca raportul dacă este generat */}
-          {lucrare.raportGenerat && (
+          {/* Raport: ascuns pentru rol client (au secțiune dedicată mai jos) */}
+          {lucrare.raportGenerat && role !== "client" && (
             <Button
               onClick={() => {
                 const url = `/raport/${lucrare.id}?autoDownload=true`
@@ -2718,22 +2763,62 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   </div>
                 )}
 
-                {/* Documente PDF – doar pentru admin/dispecer */}
-                {isAdminOrDispatcher && (
-                  <div className="mt-4">
-                    <div className="mt-2 p-3">
-                      <div className="text-sm text-muted-foreground mb-2">
-                        Facturare: Încărcați factura sau marcați „Nu se facturează” și adăugați motivul.
-                      </div>
+                {/* Documente PDF – admin/dispecer sau client */}
+                <div className="mt-4">
+                  <div className="mt-2 p-3">
+                    <div className="text-sm text-muted-foreground mb-2">
+                      Facturare: Încărcați factura sau marcați „Nu se facturează” și adăugați motivul.
+                    </div>
+                    {isAdminOrDispatcher ? (
                       <DocumentUpload
                         lucrareId={lucrare.id!}
                         lucrare={lucrare}
                         onLucrareUpdate={setLucrare}
                         hideOfertaUpload
                       />
-                    </div>
+                    ) : role === "client" ? (
+                      <div className="space-y-3">
+                        {lucrare?.raportGenerat ? (
+                          <Button onClick={handleClientDownloadReport} className="w-full sm:w-auto">
+                            <FileText className="mr-2 h-4 w-4" /> Descarcă raport
+                          </Button>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">Raportul nu este încă disponibil.</p>
+                        )}
+                        {lucrare?.tipLucrare === "Revizie" && Array.isArray(lucrare.equipmentIds) && (
+                          <div className="space-y-2">
+                            <p className="text-sm font-medium">Fișe de operațiuni (echipamente finalizate)</p>
+                            <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+                              {lucrare.equipmentIds
+                                .filter((eid: string) => (lucrare.revision?.equipmentStatus || {})[eid] === "done")
+                                .map((eid: string) => {
+                                  const loc = clientData?.locatii?.find((l: any) => l.nume === lucrare.locatie)
+                                  const eq = loc?.echipamente?.find((e: any) => e.id === eid)
+                                  const label = eq?.nume || eq?.name || eq?.model || eid
+                                  return (
+                                    <Button
+                                      key={eid}
+                                      variant="outline"
+                                      className="justify-start"
+                                      onClick={() => handleClientDownloadEquipmentSheet(eid, label)}
+                                    >
+                                      <Download className="mr-2 h-4 w-4" />
+                                      {label}
+                                    </Button>
+                                  )
+                                })}
+                              {lucrare.equipmentIds.filter((eid: string) => (lucrare.revision?.equipmentStatus || {})[eid] === "done").length === 0 && (
+                                <p className="text-sm text-muted-foreground sm:col-span-2 md:col-span-3">
+                                  Nicio fișă disponibilă încă. Echipamentele trebuie finalizate.
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
-                )}
+                </div>
               </CardContent>
               <CardFooter className="flex justify-between">    
              

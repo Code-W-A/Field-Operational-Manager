@@ -20,7 +20,7 @@ import { Eye, Pencil, Trash2, Loader2, AlertCircle, Plus } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/contexts/AuthContext"
 import { useClientLucrari } from "@/hooks/use-client-lucrari"
-import { ClientEditForm } from "@/components/client-edit-form"
+import { ClientForm } from "@/components/client-form"
 import { useSearchParams, useRouter } from "next/navigation"
 import { type Client, deleteClient } from "@/lib/firebase/firestore"
 import { DataTable } from "@/components/data-table/data-table"
@@ -31,7 +31,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { Badge } from "@/components/ui/badge"
-import { ClientForm } from "@/components/client-form"
 import { UniversalSearch } from "@/components/universal-search"
 import { useTablePersistence } from "@/hooks/use-table-persistence"
 import { ColumnSelectionButton } from "@/components/column-selection-button"
@@ -764,6 +763,7 @@ export default function Clienti() {
               <DialogDescription>Completați detaliile pentru a adăuga un client nou</DialogDescription>
             </DialogHeader>
             <ClientForm
+              mode="add"
               ref={addFormRef}
               onSuccess={(clientName) => {
                 setIsAddDialogOpen(false)
@@ -793,7 +793,8 @@ export default function Clienti() {
             <DialogDescription>Modificați detaliile clientului</DialogDescription>
           </DialogHeader>
           {selectedClient && (
-            <ClientEditForm
+            <ClientForm
+              mode="edit"
               ref={editFormRef}
               client={selectedClient}
               onSuccess={handleEditSuccess}

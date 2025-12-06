@@ -122,15 +122,30 @@ export function SettingEditorDialog({
   const handleSave = async () => {
     setLoading(true)
     try {
+      const hasFile = Boolean(documentUrl || imageUrl)
+      const typedName = (name || "").trim()
+
+      if (!typedName && !hasFile) {
+        toast({
+          title: "Completează valoarea sau adaugă un fișier",
+          description: "Pentru o setare fără fișier, valoarea text este obligatorie.",
+          variant: "destructive",
+        })
+        setLoading(false)
+        return
+      }
+
+      const effectiveName = typedName || fileName || "Document"
+
       const data: any = {
-        name,
+        name: effectiveName,
         description,
       }
 
       // Always variable with value = name (string)
       data.type = "variable"
       data.valueType = "string"
-      data.value = name
+      data.value = effectiveName
 
       // Add optional fields if they exist
       if (numericValue && numericValue.trim() !== "") {
@@ -178,13 +193,20 @@ export function SettingEditorDialog({
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label>Valoare text (obligatorie)</Label>
+            <Label>
+              Valoare text {parentId ? "(opțională dacă încarci un fișier)" : "(obligatorie)"}
+            </Label>
             <Input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Introdu valoarea..."
             />
+            {parentId && (
+              <p className="text-xs text-muted-foreground">
+                Pentru sub-setări poți lăsa gol dacă încarci doar un document/imagine.
+              </p>
+            )}
           </div>
 
           {/* Câmpuri opționale - DOAR pentru sub-setări (când parentId există) */}
@@ -313,7 +335,10 @@ export function SettingEditorDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Anulează
           </Button>
-          <Button onClick={handleSave} disabled={loading || !name.trim()}>
+          <Button
+            onClick={handleSave}
+            disabled={loading || (!name.trim() && !documentUrl && !imageUrl)}
+          >
             {loading ? "Se salvează..." : mode === "create" ? "Creează" : "Salvează"}
           </Button>
         </DialogFooter>
