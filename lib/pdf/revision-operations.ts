@@ -24,6 +24,11 @@ type RevisionDoc = {
   equipmentId: string
   equipmentName?: string
   name?: string
+  title?: string
+  label?: string
+  checklistName?: string
+  templateName?: string
+  templateTitle?: string
   sections?: RevisionSection[]
 }
 
@@ -91,6 +96,11 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
     const level2Label =
       rev.equipmentName ||
       rev.name ||
+      rev.title ||
+      rev.label ||
+      rev.checklistName ||
+      rev.templateName ||
+      rev.templateTitle ||
       (firstNonRoot?.title || firstNonRoot?.name) ||
       (firstRoot && Array.isArray(firstRoot.items) && firstRoot.items.length > 0
         ? (firstRoot.items[0]?.label || firstRoot.items[0]?.name)
@@ -253,6 +263,11 @@ export async function generateRevisionEquipmentPDF(
   const level2Label =
     rev.equipmentName ||
     rev.name ||
+    rev.title ||
+    rev.label ||
+    rev.checklistName ||
+    rev.templateName ||
+    rev.templateTitle ||
     (firstNonRoot?.title || firstNonRoot?.name) ||
     (firstRoot && Array.isArray(firstRoot.items) && firstRoot.items.length > 0
       ? (firstRoot.items[0]?.label || firstRoot.items[0]?.name)
