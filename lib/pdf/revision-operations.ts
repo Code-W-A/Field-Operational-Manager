@@ -94,13 +94,13 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
     const firstNonRoot = sectionsForHeader.find((s: any) => !String(s?.id || "").endsWith("__root"))
     const firstRoot = sectionsForHeader.find((s: any) => String(s?.id || "").endsWith("__root"))
     const level2Label =
-      rev.equipmentName ||
-      rev.name ||
-      rev.title ||
-      rev.label ||
-      rev.checklistName ||
-      rev.templateName ||
       rev.templateTitle ||
+      rev.templateName ||
+      rev.checklistName ||
+      rev.label ||
+      rev.title ||
+      rev.name ||
+      rev.equipmentName ||
       (firstNonRoot?.title || firstNonRoot?.name) ||
       (firstRoot && Array.isArray(firstRoot.items) && firstRoot.items.length > 0
         ? (firstRoot.items[0]?.label || firstRoot.items[0]?.name)
@@ -261,13 +261,13 @@ export async function generateRevisionEquipmentPDF(
   const firstNonRoot = sectionsForHeader.find((s: any) => !String(s?.id || "").endsWith("__root"))
   const firstRoot = sectionsForHeader.find((s: any) => String(s?.id || "").endsWith("__root"))
   const level2Label =
-    rev.equipmentName ||
-    rev.name ||
-    rev.title ||
-    rev.label ||
-    rev.checklistName ||
-    rev.templateName ||
     rev.templateTitle ||
+    rev.templateName ||
+    rev.checklistName ||
+    rev.label ||
+    rev.title ||
+    rev.name ||
+    rev.equipmentName ||
     (firstNonRoot?.title || firstNonRoot?.name) ||
     (firstRoot && Array.isArray(firstRoot.items) && firstRoot.items.length > 0
       ? (firstRoot.items[0]?.label || firstRoot.items[0]?.name)
