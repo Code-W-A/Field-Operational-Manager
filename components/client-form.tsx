@@ -55,6 +55,12 @@ interface ClientFormProps {
   client?: Client
   onSuccess?: (clientName?: string) => void
   onCancel?: () => void
+  initialEquipmentSelection?: {
+    locationIndex?: number
+    equipmentId?: string
+    equipmentCode?: string
+    equipmentIndex?: number
+  }
 }
 
 // Funcție pentru verificarea CUI-ului
@@ -72,7 +78,7 @@ const checkCuiExists = async (cui: string): Promise<boolean> => {
 }
 
 // Modify the component definition to use forwardRef
-const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel }: ClientFormProps, ref) => {
+const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, initialEquipmentSelection }: ClientFormProps, ref) => {
   const { userData } = useAuth()
   const isAdmin = userData?.role === "admin"
   
@@ -128,6 +134,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel }: Cl
   const [isEchipamentDialogOpen, setIsEchipamentDialogOpen] = useState(false)
   const [selectedLocatieIndex, setSelectedLocatieIndex] = useState<number | null>(null)
   const [selectedEchipamentIndex, setSelectedEchipamentIndex] = useState<number | null>(null)
+  const hasAutoOpenedEquipmentRef = useRef(false)
   const [echipamentFormData, setEchipamentFormData] = useState<Echipament & { dataInstalare?: string; observatii?: string; dynamicSettings?: any }>({
     nume: "",
     cod: "",
@@ -178,6 +185,34 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel }: Cl
       setEchipamentDataInstalareInput("")
     }
   }, [echipamentFormData.dataInstalare])
+
+  // Auto-deschidere dialog echipament pe baza selecției inițiale (query params din pagina de listă)
+  useEffect(() => {
+    if (mode !== "edit") return
+    if (!initialEquipmentSelection) return
+    if (hasAutoOpenedEquipmentRef.current) return
+
+    const locIdx = initialEquipmentSelection.locationIndex ?? 0
+    const loc = locatii?.[locIdx]
+    if (!loc || !Array.isArray(loc.echipamente)) return
+
+    let targetIdx =
+      typeof initialEquipmentSelection.equipmentIndex === "number" && Number.isFinite(initialEquipmentSelection.equipmentIndex)
+        ? (initialEquipmentSelection.equipmentIndex as number)
+        : -1
+
+    if (targetIdx < 0) {
+      const eqs = loc.echipamente
+      const matchId = initialEquipmentSelection.equipmentId
+      const matchCode = initialEquipmentSelection.equipmentCode
+      targetIdx = eqs.findIndex((e: any) => (matchId && e?.id === matchId) || (matchCode && e?.cod === matchCode))
+    }
+
+    if (targetIdx >= 0) {
+      handleOpenEditEchipamentDialog(locIdx, targetIdx)
+      hasAutoOpenedEquipmentRef.current = true
+    }
+  }, [initialEquipmentSelection, locatii, mode])
   const [echipamentFormErrors, setEchipamentFormErrors] = useState<string[]>([])
   const [isCheckingCode, setIsCheckingCode] = useState(false)
   const [isCodeUnique, setIsCodeUnique] = useState(true)
@@ -423,10 +458,12 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel }: Cl
   }
 
   // Funcție pentru deschiderea dialogului de editare echipament
-  const handleOpenEditEchipamentDialog = (locatieIndex: number, echipamentIndex: number, e: React.MouseEvent) => {
+  const handleOpenEditEchipamentDialog = (locatieIndex: number, echipamentIndex: number, e?: React.MouseEvent) => {
     // Stop propagation to prevent the click from affecting parent components
-    e.stopPropagation()
-    e.preventDefault()
+    if (e) {
+      e.stopPropagation()
+      e.preventDefault()
+    }
 
     setSelectedLocatieIndex(locatieIndex)
     setSelectedEchipamentIndex(echipamentIndex)

@@ -99,6 +99,21 @@ export default function Clienti() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const editId = searchParams.get("edit")
+  const editLocParam = searchParams.get("loc")
+  const editEquipParam = searchParams.get("equip")
+  const editEquipIndexParam = searchParams.get("equipIndex")
+  const initialEquipmentSelection = useMemo(() => {
+    const locIdx = editLocParam ? Number(editLocParam) : undefined
+    const equipIdx = editEquipIndexParam ? Number(editEquipIndexParam) : undefined
+    const equip = editEquipParam || undefined
+    if (!editId || (locIdx === undefined && !equip)) return undefined
+    return {
+      locationIndex: Number.isFinite(locIdx) ? (locIdx as number) : undefined,
+      equipmentIndex: Number.isFinite(equipIdx) ? (equipIdx as number) : undefined,
+      equipmentId: equip,
+      equipmentCode: equip,
+    }
+  }, [editId, editLocParam, editEquipParam, editEquipIndexParam])
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
 
@@ -799,6 +814,7 @@ export default function Clienti() {
               client={selectedClient}
               onSuccess={handleEditSuccess}
               onCancel={handleCloseEditDialog}
+              initialEquipmentSelection={initialEquipmentSelection}
             />
           )}
         </DialogContent>

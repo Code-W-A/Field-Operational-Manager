@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
 import type { Table } from "@tanstack/react-table"
 
@@ -13,9 +13,10 @@ interface DataTablePaginationProps<TData> {
 }
 
 export function DataTablePagination<TData>({ table, persistenceKey }: DataTablePaginationProps<TData>) {
-  // Încărcăm page size-ul salvat la inițializare
+  // Încărcăm page size-ul salvat la inițializare (o singură dată)
+  const hasInitializedPageSize = useRef(false)
   useEffect(() => {
-    if (persistenceKey) {
+    if (persistenceKey && !hasInitializedPageSize.current) {
       const savedPageSize = localStorage.getItem(`pageSize_${persistenceKey}`)
       if (savedPageSize) {
         const pageSize = parseInt(savedPageSize, 10)
@@ -23,6 +24,7 @@ export function DataTablePagination<TData>({ table, persistenceKey }: DataTableP
           table.setPageSize(pageSize)
         }
       }
+      hasInitializedPageSize.current = true
     }
   }, [table, persistenceKey])
 

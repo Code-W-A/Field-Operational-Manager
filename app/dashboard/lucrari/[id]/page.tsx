@@ -932,14 +932,17 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
   }, [lucrare?.id, lucrare?.raportGenerat, toast])
 
   const handleClientDownloadEquipmentSheet = useCallback(
-    async (equipmentId: string, equipmentLabel?: string) => {
+    async (equipmentId: string, equipmentLabel?: string, headerOverride?: string) => {
       if (!lucrare?.id) return
       try {
-        const blob = await generateRevisionEquipmentPDF(String(lucrare.id), String(equipmentId))
+        const blob = await generateRevisionEquipmentPDF(String(lucrare.id), String(equipmentId), {
+          headerLabelOverride: headerOverride,
+        })
         const url = URL.createObjectURL(blob)
         const a = document.createElement("a")
         a.href = url
-        const safeLabel = (equipmentLabel || equipmentId || "Echipament").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
+        const finalLabel = headerOverride || equipmentLabel || equipmentId || "Echipament"
+        const safeLabel = finalLabel.replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
         const workNumRaw = String(lucrare.nrLucrare || lucrare.numarRaport || lucrare.id || "")
         const workNum = workNumRaw.replace(/^#\s*/, "").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
         a.download = `Fisa_Operatiuni_${safeLabel}_${workNum}.pdf`
@@ -1642,13 +1645,19 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                                     onClick={async () => {
                                       try {
                                         if (!lucrare?.id) return
-                                        const blob = await generateRevisionEquipmentPDF(String(lucrare.id), String(eid))
+                                        const headerOverride =
+                                          (eq as any)?.dynamicSettings?.["revision.checklistParentName"] ||
+                                          (eq as any)?.dynamicSettings?.["revision.templateName"] ||
+                                          (eq as any)?.dynamicSettings?.["revision.checklistName"]
+                                        const blob = await generateRevisionEquipmentPDF(String(lucrare.id), String(eid), {
+                                          headerLabelOverride: headerOverride,
+                                        })
                                         const url = URL.createObjectURL(blob)
                                         const a = document.createElement("a")
                                         a.href = url
-                                        // Construim numele fișierului: Echipament + număr lucrare
-                                        const equipLabel = String(eq?.nume || eq?.name || eq?.model || eid || "Echipament")
-                                        const safeLabel = equipLabel.replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
+                                        // Construim numele fișierului pe baza selecției (headerOverride) sau fallback
+                                        const fileLabel = headerOverride || eq?.nume || eq?.name || eq?.model || eid || "Echipament"
+                                        const safeLabel = String(fileLabel).replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
                                         const workNumRaw = String(lucrare?.nrLucrare || lucrare?.numarRaport || lucrare?.id || "")
                                         const workNum = workNumRaw.replace(/^#\s*/, "").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
                                         a.download = `Fisa_Operatiuni_${safeLabel}_${workNum}.pdf`
@@ -2764,11 +2773,11 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                 )}
 
                 {/* Documente PDF – admin/dispecer sau client */}
-                <div className="mt-4">
-                  <div className="mt-2 p-3">
-                    <div className="text-sm text-muted-foreground mb-2">
-                      Facturare: Încărcați factura sau marcați „Nu se facturează” și adăugați motivul.
-                    </div>
+                  <div className="mt-4">
+                    <div className="mt-2 p-3">
+                      <div className="text-sm text-muted-foreground mb-2">
+                        Facturare: Încărcați factura sau marcați „Nu se facturează” și adăugați motivul.
+                      </div>
                     {isAdminOrDispatcher ? (
                       <DocumentUpload
                         lucrareId={lucrare.id!}
@@ -2800,7 +2809,13 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                                       key={eid}
                                       variant="outline"
                                       className="justify-start"
-                                      onClick={() => handleClientDownloadEquipmentSheet(eid, label)}
+                                      onClick={() => {
+                                        const headerOverride =
+                                          (eq as any)?.dynamicSettings?.["revision.checklistParentName"] ||
+                                          (eq as any)?.dynamicSettings?.["revision.templateName"] ||
+                                          (eq as any)?.dynamicSettings?.["revision.checklistName"]
+                                        handleClientDownloadEquipmentSheet(eid, label, headerOverride)
+                                      }}
                                     >
                                       <Download className="mr-2 h-4 w-4" />
                                       {label}
@@ -2812,9 +2827,9 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                                   Nicio fișă disponibilă încă. Echipamentele trebuie finalizate.
                                 </p>
                               )}
-                            </div>
-                          </div>
-                        )}
+                    </div>
+                  </div>
+                )}
                       </div>
                     ) : null}
                   </div>

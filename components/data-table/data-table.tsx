@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   type ColumnDef,
   type SortingState,
@@ -14,7 +14,6 @@ import {
   useReactTable,
 } from "@tanstack/react-table"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { DataTablePagination } from "./data-table-pagination"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -27,7 +26,7 @@ interface DataTableProps<TData, TValue> {
   setTable?: (table: any) => void
   showFilters?: boolean
   getRowClassName?: (row: TData) => string // Adăugăm această proprietate pentru a permite colorarea rândurilor
-  persistenceKey?: string // Cheia pentru persistența page size-ului
+  persistenceKey?: string // (neutilizat momentan)
 }
 
 export function DataTable<TData, TValue>({
@@ -84,7 +83,6 @@ export function DataTable<TData, TValue>({
     onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     globalFilterFn: (row, columnId, filterValue) => {
       const safeValue = (() => {
@@ -228,8 +226,10 @@ export function DataTable<TData, TValue>({
     },
   })
 
-  // Configure column filters
+  // Configure column filters (only once to avoid infinite loops)
+  const hasConfiguredFilters = useRef(false)
   useEffect(() => {
+    if (hasConfiguredFilters.current) return
     // For each filterable column
     table.getAllColumns().forEach((column) => {
       if (column.getCanFilter() && column.id !== "actions") {
@@ -244,12 +244,15 @@ export function DataTable<TData, TValue>({
         }
       }
     })
+    hasConfiguredFilters.current = true
   }, [table])
 
-  // Expose table instance to parent component if needed
+  // Expose table instance to parent component if needed (only once to avoid infinite loops)
+  const hasExposedTable = useRef(false)
   useEffect(() => {
-    if (setExternalTable) {
+    if (setExternalTable && !hasExposedTable.current) {
       setExternalTable(table)
+      hasExposedTable.current = true
     }
   }, [table, setExternalTable])
 
@@ -323,7 +326,7 @@ export function DataTable<TData, TValue>({
         </Table>
       </div>
 
-      <DataTablePagination table={table} persistenceKey={persistenceKey} />
+      {/* Pagination dezactivată temporar */}
     </div>
   )
 }

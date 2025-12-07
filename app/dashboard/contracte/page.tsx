@@ -9,6 +9,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { DataTable } from "@/components/data-table/data-table"
+
+type ExtendedColumnDef<T> = ColumnDef<T> & {
+  enableFiltering?: boolean
+}
 import { EnhancedFilterSystem } from "@/components/data-table/enhanced-filter-system"
 import { Badge } from "@/components/ui/badge"
 import { ColumnDef } from "@tanstack/react-table"
@@ -374,7 +378,7 @@ export default function ContractsPage() {
 
   // Generăm coloanele dinamice bazate pe câmpurile din setări
   const dynamicColumns = useMemo(() => {
-    const cols: ColumnDef<Contract>[] = []
+    const cols: ExtendedColumnDef<Contract>[] = []
     
     dynamicFieldsParents.forEach((parent) => {
       const children = dynamicFieldsChildren[parent.id] || []
@@ -415,7 +419,7 @@ export default function ContractsPage() {
   }, [dynamicFieldsParents, dynamicFieldsChildren])
 
   // Definim coloanele pentru tabelul de contracte
-  const columns: ColumnDef<Contract>[] = useMemo(() => [
+  const columns: ExtendedColumnDef<Contract>[] = useMemo(() => [
     {
       accessorKey: "name",
       header: "Nume Contract",
@@ -582,45 +586,14 @@ export default function ContractsPage() {
         <div className="flex items-center justify-end gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8 text-amber-600"
-                disabled={triggeringContractId === row.original.id}
-                onClick={async () => {
-                  try {
-                    setTriggeringContractId(row.original.id)
-                    const functions = getFunctions(app, "europe-west1")
-                    const runFn = httpsCallable(functions, "runGenerateScheduledWorks")
-                    const res: any = await runFn({ contractId: row.original.id })
-                    toast({
-                      title: "Generare declanșată",
-                      description: `Procesat: ${res?.data?.contractsProcessed ?? 1}; lucrări create: ${res?.data?.worksCreated ?? 0}`,
-                    })
-                  } catch (err: any) {
-                    console.error("Manual generate error", err)
-                    toast({ title: "Eroare", description: err?.message || "Nu s-a putut declanșa generarea.", variant: "destructive" })
-                  } finally {
-                    setTriggeringContractId(null)
-                  }
-                }}
-              >
-                {triggeringContractId === row.original.id ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Zap className="h-4 w-4" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Generează lucrări (manual)</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
               <Button 
                 variant="outline" 
                 size="icon" 
                 className="h-8 w-8 text-blue-600"
-                onClick={() => openEditDialog(row.original)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  openEditDialog(row.original)
+                }}
               >
                 <Pencil className="h-4 w-4" />
               </Button>
@@ -633,7 +606,10 @@ export default function ContractsPage() {
                 variant="outline" 
                 size="icon" 
                 className="h-8 w-8 text-red-600"
-                onClick={() => openDeleteDialog(row.original)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  openDeleteDialog(row.original)
+                }}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -1118,7 +1094,7 @@ export default function ContractsPage() {
     // Inițializează câmpurile dinamice cu valorile salvate în contract (pentru afișare corectă în dialog)
     setNewContract((prev: any) => ({
       ...(prev || {}),
-      customFields: { ...(contract as any)?.customFields } || {}
+      customFields: { ...(contract as any)?.customFields },
     }))
     
     // Încărcăm locațiile și echipamentele clientului dacă există un client asignat

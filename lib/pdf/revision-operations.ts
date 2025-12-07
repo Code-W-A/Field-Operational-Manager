@@ -29,7 +29,44 @@ type RevisionDoc = {
   checklistName?: string
   templateName?: string
   templateTitle?: string
+  revision?: any
+  dynamicSettings?: Record<string, any>
   sections?: RevisionSection[]
+}
+
+function resolveHeaderLabel(rev: any, sections: RevisionSection[]): string {
+  const candidates: (string | undefined)[] = [
+    rev?.headerOverride,
+    rev?.templateTitle,
+    rev?.templateName,
+    rev?.checklistName,
+    rev?.label,
+    rev?.title,
+    rev?.name,
+    rev?.dynamicSettings?.["revision.checklistParentName"],
+    rev?.dynamicSettings?.["revision.templateName"],
+    rev?.dynamicSettings?.["revision.checklistName"],
+    rev?.["revision.checklistParentName"],
+    rev?.["revision.templateName"],
+    rev?.["revision.checklistName"],
+    rev?.revision?.templateName,
+    rev?.revision?.checklistName,
+    rev?.equipmentName,
+  ]
+
+  const firstNonRoot = sections.find((s: any) => !String(s?.id || "").endsWith("__root"))
+  const firstRoot = sections.find((s: any) => String(s?.id || "").endsWith("__root"))
+  const sectionFallback =
+    (firstNonRoot?.title || firstNonRoot?.name) ||
+    (firstRoot && Array.isArray(firstRoot.items) && firstRoot.items.length > 0
+      ? (firstRoot.items[0]?.label || firstRoot.items[0]?.name)
+      : undefined)
+
+  return normalizeTextForPdf(
+    candidates.find((v) => v && String(v).trim().length > 0) ||
+      sectionFallback ||
+      "Nivel 2 — Fie categorii, fie variabile",
+  )
 }
 
 // Helper pentru normalizare text cu diacritice corecte
@@ -91,23 +128,8 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
 
     // Header: Lista operațiuni – {Nivel 2} (categorie sau primul puncte de control când nu există categorii)
     const sectionsForHeader = Array.isArray(rev.sections) ? rev.sections : []
-    const firstNonRoot = sectionsForHeader.find((s: any) => !String(s?.id || "").endsWith("__root"))
-    const firstRoot = sectionsForHeader.find((s: any) => String(s?.id || "").endsWith("__root"))
-    const level2Label =
-      rev.templateTitle ||
-      rev.templateName ||
-      rev.checklistName ||
-      rev.label ||
-      rev.title ||
-      rev.name ||
-      rev.equipmentName ||
-      (firstNonRoot?.title || firstNonRoot?.name) ||
-      (firstRoot && Array.isArray(firstRoot.items) && firstRoot.items.length > 0
-        ? (firstRoot.items[0]?.label || firstRoot.items[0]?.name)
-        : undefined) ||
-      "Nivel 2 — Fie categorii, fie variabile"
-
-    const headerTitle = `Lista operațiuni – ${normalizeTextForPdf(level2Label)}`
+    const level2Label = resolveHeaderLabel(rev, sectionsForHeader)
+    const headerTitle = `Lista operațiuni – ${level2Label}`
     currentY = drawSimpleHeader(doc, {
       title: headerTitle,
       logoDataUrl,
@@ -225,7 +247,8 @@ function docRef(collectionName: string, id: string) {
  */
 export async function generateRevisionEquipmentPDF(
   lucrareId: string,
-  equipmentId: string
+  equipmentId: string,
+  opts?: { headerLabelOverride?: string }
 ): Promise<Blob> {
   const js = new jsPDF({ unit: "mm", format: "a4" })
   let currentY = MARGIN
@@ -258,22 +281,11 @@ export async function generateRevisionEquipmentPDF(
 
   // Header: Lista operațiuni – {Nivel 2} (categorie sau primul puncte de control când nu există categorii)
   const sectionsForHeader = Array.isArray(rev.sections) ? rev.sections : []
-  const firstNonRoot = sectionsForHeader.find((s: any) => !String(s?.id || "").endsWith("__root"))
-  const firstRoot = sectionsForHeader.find((s: any) => String(s?.id || "").endsWith("__root"))
-  const level2Label =
-    rev.templateTitle ||
-    rev.templateName ||
-    rev.checklistName ||
-    rev.label ||
-    rev.title ||
-    rev.name ||
-    rev.equipmentName ||
-    (firstNonRoot?.title || firstNonRoot?.name) ||
-    (firstRoot && Array.isArray(firstRoot.items) && firstRoot.items.length > 0
-      ? (firstRoot.items[0]?.label || firstRoot.items[0]?.name)
-      : undefined) ||
-    "Nivel 2 — Fie categorii, fie variabile"
-  const title = `Lista operațiuni – ${normalizeTextForPdf(level2Label)}`
+  const level2Label = resolveHeaderLabel(
+    { ...rev, headerOverride: opts?.headerLabelOverride },
+    sectionsForHeader
+  )
+  const title = `Lista operațiuni – ${level2Label}`
   let logoDataUrl: string | null = null
   try {
     const resp = await fetch("/nrglogo.png")

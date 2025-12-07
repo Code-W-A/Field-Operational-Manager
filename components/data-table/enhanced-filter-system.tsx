@@ -102,6 +102,10 @@ export function EnhancedFilterSystem<TData>({ table, persistenceKey }: EnhancedF
   const [isApplyingFilter, setIsApplyingFilter] = useState(false)
   const [lastAppliedFilter, setLastAppliedFilter] = useState<string | null>(null)
 
+  // Cache table state to avoid re-evaluating getters in dependency arrays
+  const tableColumnFilters = table.getState().columnFilters
+  const tableGlobalFilter = table.getState().globalFilter
+
   // Set mounted to true after component is mounted to avoid hydration issues
   useEffect(() => {
     setMounted(true)
@@ -147,9 +151,9 @@ export function EnhancedFilterSystem<TData>({ table, persistenceKey }: EnhancedF
   // Save active filters to persistence when they change
   useEffect(() => {
     if (mounted && persistenceKey) {
-      const columnFilters = table.getState().columnFilters
-      const globalFilter = table.getState().globalFilter
-      
+      const columnFilters = tableColumnFilters
+      const globalFilter = tableGlobalFilter
+ 
       // Build filters array for persistence
       const filtersToSave = columnFilters.map((filter: any) => ({
         id: filter.id,
@@ -176,7 +180,7 @@ export function EnhancedFilterSystem<TData>({ table, persistenceKey }: EnhancedF
         console.error("Error saving active filters:", error)
       }
     }
-  }, [table.getState().columnFilters, table.getState().globalFilter, mounted, persistenceKey, table])
+  }, [tableColumnFilters, tableGlobalFilter, mounted, persistenceKey, table])
 
   // Save filters to localStorage when they change
   useEffect(() => {
@@ -188,10 +192,10 @@ export function EnhancedFilterSystem<TData>({ table, persistenceKey }: EnhancedF
   // Sync filter state with table
   useEffect(() => {
     if (mounted) {
-      setGlobalFilter(table.getState().globalFilter || "")
+      setGlobalFilter(tableGlobalFilter || "")
 
       // Convert table column filters to our format
-      const tableFilters = table.getState().columnFilters
+      const tableFilters = tableColumnFilters
       if (tableFilters.length > 0) {
         const conditions: FilterCondition[] = []
 
@@ -226,57 +230,59 @@ export function EnhancedFilterSystem<TData>({ table, persistenceKey }: EnhancedF
         setFilterConditions(conditions)
       }
     }
-  }, [table.getState().globalFilter, table.getState().columnFilters, mounted, table])
+  }, [tableGlobalFilter, tableColumnFilters, mounted, table])
 
   // Generate options for dropdowns
   useEffect(() => {
-    if (mounted) {
-      const options: Record<string, { label: string; value: string }[]> = {}
+    if (!mounted) return
 
-      // For each filterable column
-      table.getAllColumns().forEach((column) => {
-        if (column.getCanFilter() && column.id !== "actions") {
-          // Get all unique values for this column
-          const uniqueValues = new Set<string>()
+    const options: Record<string, { label: string; value: string }[]> = {}
 
-          table.getPreFilteredRowModel().rows.forEach((row) => {
-            const value = row.getValue(column.id)
+    // For each filterable column
+    table.getAllColumns().forEach((column) => {
+      if (column.getCanFilter() && column.id !== "actions") {
+        // Get all unique values for this column
+        const uniqueValues = new Set<string>()
 
-            if (value !== undefined && value !== null) {
-              if (Array.isArray(value)) {
-                // If value is an array (e.g., technicians), add each element
-                value.forEach((v) => {
-                  if (v !== undefined && v !== null) {
-                    uniqueValues.add(String(v))
-                  }
-                })
-              } else if (value instanceof Date) {
-                // For dates, use dd.MM.yyyy format
-                uniqueValues.add(format(value, "dd.MM.yyyy", { locale: ro }))
-              } else if (typeof value === "object") {
-                // For objects, convert to string
-                uniqueValues.add(JSON.stringify(value))
-              } else {
-                // For simple values, convert to string
-                uniqueValues.add(String(value))
-              }
+        table.getPreFilteredRowModel().rows.forEach((row) => {
+          const value = row.getValue(column.id)
+
+          if (value !== undefined && value !== null) {
+            if (Array.isArray(value)) {
+              // If value is an array (e.g., technicians), add each element
+              value.forEach((v) => {
+                if (v !== undefined && v !== null) {
+                  uniqueValues.add(String(v))
+                }
+              })
+            } else if (value instanceof Date) {
+              // For dates, use dd.MM.yyyy format
+              uniqueValues.add(format(value, "dd.MM.yyyy", { locale: ro }))
+            } else if (typeof value === "object") {
+              // For objects, convert to string
+              uniqueValues.add(JSON.stringify(value))
+            } else {
+              // For simple values, convert to string
+              uniqueValues.add(String(value))
             }
-          })
+          }
+        })
 
-          // Convert unique values to options for dropdown and sort them
-          options[column.id] = Array.from(uniqueValues)
-            .filter(Boolean) // Remove empty values
-            .sort((a, b) => a.localeCompare(b, "ro"))
-            .map((value) => ({
-              label: value,
-              value: value,
-            }))
-        }
-      })
+        // Convert unique values to options for dropdown and sort them
+        options[column.id] = Array.from(uniqueValues)
+          .filter(Boolean) // Remove empty values
+          .sort((a, b) => a.localeCompare(b, "ro"))
+          .map((value) => ({
+            label: value,
+            value: value,
+          }))
+      }
+    })
 
-      setColumnOptions(options)
-    }
-  }, [table.getPreFilteredRowModel().rows, mounted, table])
+    setColumnOptions(options)
+    // We intentionally do NOT depend on row model here to avoid infinite loops;
+    // options will be recomputed when the table instance changes.
+  }, [mounted, table])
 
   // Update global filter
   const handleGlobalFilterChange = (value: string) => {

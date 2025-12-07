@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { MainNav } from "@/components/main-nav"
-import { UserNav } from "@/components/user-nav"
+// import { UserNav } from "@/components/user-nav"
 import { MobileNav } from "@/components/mobile-nav"
 
 import { AutoLogoutDebug } from "@/components/auto-logout-debug"
@@ -26,7 +26,8 @@ export function DashboardShell({ children, className }: DashboardShellProps) {
             <MainNav className="hidden md:flex" />
           </div>
           <div className="flex items-center gap-2">
-            <UserNav />
+            {/* UserNav dezactivat temporar pentru a investiga bucla de rerandare */}
+            <div className="text-sm text-muted-foreground">Utilizator</div>
           </div>
         </div>
       </header>

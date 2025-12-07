@@ -42,6 +42,15 @@ export default function ClientPage({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [initialEquipmentSelection, setInitialEquipmentSelection] = useState<
+    | {
+        locationIndex?: number
+        equipmentId?: string
+        equipmentCode?: string
+        equipmentIndex?: number
+      }
+    | undefined
+  >(undefined)
 
   // Obținem lucrările pentru acest client
   const { data: toateLucrarile } = useFirebaseCollection<Lucrare>("lucrari", [orderBy("dataEmiterii", "desc")])
@@ -85,6 +94,8 @@ export default function ClientPage({ params }: { params: { id: string } }) {
   // Modificăm funcția handleEdit pentru a reîmprospăta datele
   const handleEdit = () => {
     if (!client) return
+    // Editare client generală – nu auto-selectăm un echipament
+    setInitialEquipmentSelection(undefined)
     setIsEditDialogOpen(true)
   }
 
@@ -435,14 +446,30 @@ export default function ClientPage({ params }: { params: { id: string } }) {
                                           </div>
                                         )}
 
-                                        {/* Butoane QR Code și Print */}
-                                        <div className="flex items-center justify-center pt-3 border-t">
+                                        {/* Butoane QR Code și Editare echipament */}
+                                        <div className="flex items-center justify-center gap-2 pt-3 border-t">
                                           <EquipmentQRCode
                                             equipment={echipament}
                                             clientName={client?.nume || ""}
                                             locationName={locatie.nume}
                                             useSimpleFormat={true} // Format simplu pentru scanare mai ușoară
                                           />
+                                          <Button
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={() => {
+                                              setInitialEquipmentSelection({
+                                                locationIndex: index,
+                                                equipmentIndex: echipamentIndex,
+                                                equipmentId: (echipament as any).id,
+                                                equipmentCode: (echipament as any).cod,
+                                              })
+                                              setIsEditDialogOpen(true)
+                                            }}
+                                            title="Editează echipamentul"
+                                          >
+                                            <Wrench className="h-4 w-4" />
+                                          </Button>
                                         </div>
                                       </div>
                                     </div>
@@ -522,6 +549,7 @@ export default function ClientPage({ params }: { params: { id: string } }) {
                 client={client}
                 onSuccess={handleEditSuccess}
                 onCancel={handleEditClose}
+                initialEquipmentSelection={initialEquipmentSelection}
               />
             )}
           </DialogContent>
