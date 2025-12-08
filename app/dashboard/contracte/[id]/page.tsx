@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
-import { doc, getDoc } from "firebase/firestore"
+import { doc, getDoc, getDocs, collection, query, where, orderBy, limit, Timestamp } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
@@ -50,6 +50,48 @@ interface Contract {
   updatedAt?: any
 }
 
+const SCHEDULE_COLLECTION = "contractRevisionSchedule"
+
+type UpcomingGeneration = {
+  generateAt: Date
+  scheduledAt: Date
+  locationName?: string
+}
+
+const addMonths = (date: Date, months: number) => {
+  const d = new Date(date)
+  d.setMonth(d.getMonth() + months)
+  return d
+}
+
+const addDays = (date: Date, days: number) => {
+  const d = new Date(date)
+  d.setDate(d.getDate() + days)
+  return d
+}
+
+const computeFallbackUpcoming = (contract: Contract, count = 3): UpcomingGeneration[] => {
+  if (!contract.startDate || !contract.recurrenceInterval || !contract.recurrenceUnit) return []
+  const interval = Math.max(1, contract.recurrenceInterval)
+  const lead = contract.daysBeforeWork ?? 0
+  const now = new Date()
+  let occ = new Date(contract.startDate)
+  if (Number.isNaN(occ.getTime())) return []
+
+  const upcoming: UpcomingGeneration[] = []
+  let safety = 0
+  while (upcoming.length < count && safety < 500) {
+    if (occ >= now) {
+      const scheduledAt = new Date(occ)
+      const generateAt = addDays(scheduledAt, -lead)
+      upcoming.push({ generateAt, scheduledAt })
+    }
+    occ = contract.recurrenceUnit === "luni" ? addMonths(occ, interval) : addDays(occ, interval)
+    safety += 1
+  }
+  return upcoming
+}
+
 export default function ContractDetailsPage() {
   const router = useRouter()
   const params = useParams()
@@ -59,6 +101,8 @@ export default function ContractDetailsPage() {
   const [client, setClient] = useState<Client | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [upcomingGenerations, setUpcomingGenerations] = useState<UpcomingGeneration[]>([])
+  const [loadingGenerations, setLoadingGenerations] = useState(false)
 
   useEffect(() => {
     const fetchContractDetails = async () => {
@@ -104,6 +148,48 @@ export default function ContractDetailsPage() {
 
     fetchContractDetails()
   }, [contractId])
+
+  useEffect(() => {
+    const fetchUpcomingGenerations = async () => {
+      if (!contractId || !contract) return
+      try {
+        setLoadingGenerations(true)
+        const nowTs = Timestamp.fromDate(new Date())
+        const q = query(
+          collection(db, SCHEDULE_COLLECTION),
+          where("contractId", "==", contractId),
+          where("generateAt", ">=", nowTs),
+          orderBy("generateAt", "asc"),
+          limit(3)
+        )
+        const snap = await getDocs(q)
+        const items: UpcomingGeneration[] = snap.docs
+          .map((doc) => doc.data())
+          .map((data: any) => {
+            const generateAt: Date | undefined = data.generateAt?.toDate?.()
+            const scheduledAt: Date | undefined = data.scheduledAt?.toDate?.()
+            if (!generateAt || !scheduledAt) return null
+            return {
+              generateAt,
+              scheduledAt,
+              locationName: data.locationName || data.locationId || undefined,
+            }
+          })
+          .filter((v): v is UpcomingGeneration => Boolean(v))
+        if (items.length > 0) {
+          setUpcomingGenerations(items)
+        } else {
+          setUpcomingGenerations(computeFallbackUpcoming(contract))
+        }
+      } catch (err) {
+        console.error("Eroare la încărcarea următoarelor generări:", err)
+      } finally {
+        setLoadingGenerations(false)
+      }
+    }
+
+    fetchUpcomingGenerations()
+  }, [contractId, contract])
 
   const formatDate = (timestamp: any) => {
     if (!timestamp) return "N/A"
@@ -302,6 +388,38 @@ export default function ContractDetailsPage() {
                         <p className="text-xs font-medium text-gray-500">Ultima generare</p>
                         <p className="text-sm mt-1">{formatDate(contract.lastAutoWorkGenerated)}</p>
                       </div>
+                    )}
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    <p className="text-xs font-medium text-gray-500 flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      Următoarele 3 date de generare
+                    </p>
+                    {loadingGenerations ? (
+                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Se încarcă...
+                      </div>
+                    ) : upcomingGenerations.length > 0 ? (
+                      <div className="space-y-2">
+                        {upcomingGenerations.map((item, idx) => (
+                          <div key={idx} className="flex items-center justify-between rounded-md border px-3 py-2 bg-gray-50">
+                            <div>
+                              <p className="text-sm font-semibold">{formatDate(item.generateAt)}</p>
+                              <p className="text-xs text-gray-500">
+                                Generează lucrarea pentru {formatDate(item.scheduledAt)}
+                              </p>
+                            </div>
+                            {item.locationName && (
+                              <Badge variant="outline" className="text-xs">
+                                {item.locationName}
+                              </Badge>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">Nu există generări programate în perioada următoare.</p>
                     )}
                   </div>
                 </div>

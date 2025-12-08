@@ -14,16 +14,19 @@ type Contract = {
   id: string
   name: string
   number?: string
+  type?: string
   clientId?: string
   locationId?: string
   locationName?: string
   locationIds?: string[]
   locationNames?: string[]
+  equipmentIds?: string[]
   startDate?: string
   recurrenceInterval?: number
   recurrenceUnit?: "zile" | "luni"
   daysBeforeWork?: number
   lastAutoWorkGenerated?: string
+  revisionSchedulePreview?: RevisionPreview[]
 }
 
 type Client = {
@@ -31,16 +34,13 @@ type Client = {
   nume?: string
 }
 
-function addMonths(date: Date, months: number): Date {
-  const d = new Date(date)
-  d.setMonth(d.getMonth() + months)
-  return d
-}
-
-function addDays(date: Date, days: number): Date {
-  const d = new Date(date)
-  d.setDate(d.getDate() + days)
-  return d
+type RevisionPreview = {
+  scheduledIso?: string
+  scheduledAt?: any
+  generateIso?: string
+  generateAt?: any
+  locationId?: string
+  locationName?: string
 }
 
 function toIsoDate(date: Date): string {
@@ -74,26 +74,6 @@ async function workExists(contractId: string, locationId: string | undefined, sc
   return !snap.empty
 }
 
-function computeNextOccurrence(contract: Contract, now: Date): Date | null {
-  if (!contract.startDate || !contract.recurrenceInterval || !contract.recurrenceUnit) return null
-  const start = new Date(contract.startDate)
-  if (Number.isNaN(start.getTime())) return null
-
-  let occ = start
-  const interval = Math.max(1, contract.recurrenceInterval)
-  const maxLoops = 1000
-  let loops = 0
-  while (occ < now && loops < maxLoops) {
-    if (contract.recurrenceUnit === "luni") {
-      occ = addMonths(occ, interval)
-    } else {
-      occ = addDays(occ, interval)
-    }
-    loops++
-  }
-  return occ
-}
-
 function createWorkPayload(params: {
   contract: Contract
   clientName?: string
@@ -103,9 +83,21 @@ function createWorkPayload(params: {
 }): Record<string, any> {
   const nowIso = toIsoDate(new Date())
   const scheduledIso = toIsoDate(params.scheduledDate)
+  const equipmentIds = Array.isArray(params.contract.equipmentIds) ? params.contract.equipmentIds : []
+
+  // Metadata revizie: toate echipamentele sunt setate pe "pending"
+  const revision = {
+    checklistVersionId: "auto", // fallback; se poate sincroniza ulterior la primul checklist
+    equipmentStatus: equipmentIds.reduce<Record<string, "pending">>((acc, id) => {
+      acc[id] = "pending"
+      return acc
+    }, {}),
+    doneCount: 0,
+  }
+
   return {
     tipLucrare: "Revizie",
-    statusLucrare: "Listată",
+    statusLucrare: "În așteptare",
     statusFacturare: "Nefacturat",
     client: params.clientName || "Client",
     clientId: params.contract.clientId || null,
@@ -114,14 +106,20 @@ function createWorkPayload(params: {
     locationName: params.locationName || null,
     contract: params.contract.id,
     contractNumber: params.contract.number || "",
+    contractType: params.contract.type || "",
     dataEmiterii: nowIso,
     dataInterventie: scheduledIso,
     tehnicieni: [] as string[],
     persoaneContact: [],
-    equipmentIds: [],
+    equipmentIds,
+    revision,
     echipamentId: "",
     echipamentCod: "",
     descriere: "Revizie programată automat",
+    defectReclamat: "",
+    necesitaOferta: false,
+    statusOferta: "NU",
+    nrLucrare: `#AUTO-${Date.now().toString().slice(-6)}`,
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
     createdBy: "system",
@@ -129,58 +127,65 @@ function createWorkPayload(params: {
     notificationRead: false,
     notificationReadBy: [],
     raportGenerat: false,
-    necesitaOferta: false,
     preluatDispecer: false,
     preluatDe: "",
     statusEchipament: "",
-    defectReclamat: "",
   }
 }
 
 export const generateRevisionWorksCron = functions
   .region(REGION)
-  .pubsub.schedule("0 6 * * *") // 06:00 local
+  .pubsub.schedule("0 7,13 * * *") // 07:00 și 13:00 local time
   .timeZone(TIMEZONE)
   .onRun(async () => {
     const now = new Date()
     const contractsSnap = await db.collection("contracts").get()
-
     const contracts: Contract[] = contractsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))
+
     let created = 0
 
     for (const contract of contracts) {
-      if (!contract.startDate || !contract.recurrenceInterval || !contract.recurrenceUnit) continue
+      if (!contract.revisionSchedulePreview || !Array.isArray(contract.revisionSchedulePreview)) continue
 
-      const next = computeNextOccurrence(contract, now)
-      if (!next) continue
+      // Normalize and sort by generate date
+      const entries: { generateAt: Date; scheduledAt: Date; locationId?: string; locationName?: string }[] = []
+      for (const raw of contract.revisionSchedulePreview) {
+        const genRaw = (raw as any).generateAt?.toDate?.() ?? (raw as any).generateIso ?? (raw as any).generateDate
+        const schedRaw = (raw as any).scheduledAt?.toDate?.() ?? (raw as any).scheduledIso ?? (raw as any).scheduledDate
+        const gen = genRaw ? new Date(genRaw) : null
+        const sched = schedRaw ? new Date(schedRaw) : null
+        if (!gen || Number.isNaN(gen.getTime()) || !sched || Number.isNaN(sched.getTime())) continue
+        entries.push({
+          generateAt: gen,
+          scheduledAt: sched,
+          locationId: (raw as any).locationId,
+          locationName: (raw as any).locationName,
+        })
+      }
 
-      const lead = contract.daysBeforeWork ?? 0
-      const createFrom = addDays(next, -lead)
-      if (now < createFrom) continue
+      entries.sort((a, b) => a.generateAt.getTime() - b.generateAt.getTime())
 
-      const clientName = await fetchClientName(contract.clientId)
-      const locIds = contract.locationIds || []
-      const locNames = contract.locationNames || []
-
-      const pairs = locIds.length
-        ? locIds.map((id, idx) => ({ id, name: locNames[idx] }))
-        : [{ id: contract.locationId || "", name: contract.locationName || "" }]
-
-      for (const pair of pairs) {
+      for (const entry of entries) {
         if (created >= MAX_WORKS_PER_RUN) {
           console.warn("Cron limit reached, skipping remaining.")
           return null
         }
-        const scheduledIso = toIsoDate(next)
-        const exists = await workExists(contract.id, pair.id, scheduledIso)
+        if (entry.generateAt > now) {
+          // Entries are sorted; future ones can be skipped for this run
+          break
+        }
+
+        const scheduledIso = toIsoDate(entry.scheduledAt)
+        const exists = await workExists(contract.id, entry.locationId, scheduledIso)
         if (exists) continue
 
+        const clientName = await fetchClientName(contract.clientId)
         const payload = createWorkPayload({
           contract,
           clientName,
-          locationId: pair.id,
-          locationName: pair.name,
-          scheduledDate: next,
+          locationId: entry.locationId,
+          locationName: entry.locationName,
+          scheduledDate: entry.scheduledAt,
         })
         await db.collection("lucrari").add(payload)
         created += 1

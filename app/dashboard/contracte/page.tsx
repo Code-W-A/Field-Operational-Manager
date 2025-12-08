@@ -69,6 +69,81 @@ import { formatUiDate, toDateSafe } from "@/lib/utils/time-format"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { CustomDatePicker } from "@/components/custom-date-picker"
 
+const SCHEDULE_MONTHS_AHEAD = 48
+const MAX_PREVIEW_OCCURRENCES = 2000
+
+const addMonths = (date: Date, months: number) => {
+  const d = new Date(date)
+  d.setMonth(d.getMonth() + months)
+  return d
+}
+
+const addDays = (date: Date, days: number) => {
+  const d = new Date(date)
+  d.setDate(d.getDate() + days)
+  return d
+}
+
+type RevisionSchedulePreview = {
+  scheduledIso: string
+  generateIso: string
+  locationId?: string
+  locationName?: string
+}
+
+const computeRevisionSchedulePreview = (params: {
+  startDate?: string
+  recurrenceInterval?: number
+  recurrenceUnit?: "zile" | "luni"
+  daysBeforeWork?: number
+  locationIds?: string[]
+  locationNames?: string[]
+  locationId?: string
+  locationName?: string
+}): RevisionSchedulePreview[] => {
+  if (!params.startDate || !params.recurrenceInterval || !params.recurrenceUnit) return []
+  const start = new Date(params.startDate)
+  if (Number.isNaN(start.getTime())) return []
+
+  const interval = Math.max(1, params.recurrenceInterval)
+  const lead = params.daysBeforeWork ?? 0
+  const horizon =
+    params.recurrenceUnit === "luni"
+      ? addMonths(start, SCHEDULE_MONTHS_AHEAD)
+      : addDays(start, SCHEDULE_MONTHS_AHEAD * 30)
+
+  const locations =
+    (params.locationIds?.length ?? 0) > 0
+      ? (params.locationIds || []).map((id, idx) => ({
+          id,
+          name: params.locationNames?.[idx],
+        }))
+      : [{ id: params.locationId || "", name: params.locationName }]
+
+  const occurrences: RevisionSchedulePreview[] = []
+  let occ = start
+
+  while (occ <= horizon && occurrences.length < MAX_PREVIEW_OCCURRENCES) {
+    const scheduledAt = new Date(occ)
+    const generateAt = addDays(scheduledAt, -lead)
+    const scheduledIso = scheduledAt.toISOString()
+    const generateIso = generateAt.toISOString()
+
+    for (const loc of locations) {
+      occurrences.push({
+        scheduledIso,
+        generateIso,
+        locationId: loc.id || undefined,
+        locationName: loc.name || undefined,
+      })
+    }
+
+    occ = params.recurrenceUnit === "luni" ? addMonths(occ, interval) : addDays(occ, interval)
+  }
+
+  return occurrences
+}
+
 interface Contract {
   id: string
   name: string
@@ -831,6 +906,19 @@ export default function ContractsPage() {
         // Ziua din lună nu mai este folosită
       }
 
+      // Precalculăm următoarele date (până la 48 luni) și le stocăm pe contract
+      contractData.revisionSchedulePreview = computeRevisionSchedulePreview({
+        startDate: contractData.startDate,
+        recurrenceInterval: contractData.recurrenceInterval,
+        recurrenceUnit: contractData.recurrenceUnit,
+        daysBeforeWork: contractData.daysBeforeWork,
+        locationIds: newContractLocationIds,
+        locationNames: newContractLocationNames,
+        locationId: newContractLocationId,
+        locationName: newContractLocationName,
+      })
+      contractData.revisionScheduleUpdatedAt = serverTimestamp()
+
       // Adăugăm prețurile dacă sunt setate
       if (Object.keys(newContractPricing).length > 0) {
         contractData.pricing = newContractPricing
@@ -991,6 +1079,19 @@ export default function ContractsPage() {
       } else {
         updateData.pricing = {}
       }
+
+      // Precalculăm următoarele date (până la 48 luni) și le stocăm pe contract
+      updateData.revisionSchedulePreview = computeRevisionSchedulePreview({
+        startDate: updateData.startDate || undefined,
+        recurrenceInterval: updateData.recurrenceInterval || undefined,
+        recurrenceUnit: updateData.recurrenceUnit || undefined,
+        daysBeforeWork: updateData.daysBeforeWork || undefined,
+        locationIds: newContractLocationIds,
+        locationNames: newContractLocationNames,
+        locationId: newContractLocationId,
+        locationName: newContractLocationName,
+      })
+      updateData.revisionScheduleUpdatedAt = serverTimestamp()
 
       await updateDoc(contractRef, updateData)
 

@@ -1,13 +1,14 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/components/ui/use-toast"
-import { Plus, Trash2, AlertTriangle, CheckCircle, X } from "lucide-react"
+import { Plus, Trash2, AlertTriangle, CheckCircle, X, ExternalLink } from "lucide-react"
 import {
   getContractsByClient,
   getUnassignedContracts,
@@ -42,6 +43,7 @@ interface Contract {
 }
 
 export function ClientContractsManager({ clientId, clientName, onContractsChange }: ClientContractsManagerProps) {
+  const router = useRouter()
   const [clientContracts, setClientContracts] = useState<Contract[]>([])
   const [availableContracts, setAvailableContracts] = useState<Contract[]>([])
   const [loading, setLoading] = useState(true)
@@ -181,17 +183,46 @@ export function ClientContractsManager({ clientId, clientName, onContractsChange
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span>Contracte Client: {clientName}</span>
-            <Button
-              onClick={() => setIsAssignDialogOpen(true)}
-              disabled={availableContracts.length === 0}
-              size="sm"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Asignează Contract
-            </Button>
+            <div className="flex items-center gap-2">
+              {availableContracts.length === 0 ? (
+                <>
+                  <Button
+                    onClick={() => router.push('/dashboard/contracte')}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Creează Contract
+                  </Button>
+                  <Button
+                    onClick={() => setIsAssignDialogOpen(true)}
+                    disabled={true}
+                    size="sm"
+                    title="Nu există contracte disponibile. Creați un contract nou sau eliberați unul existent."
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Asignează Contract
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  onClick={() => setIsAssignDialogOpen(true)}
+                  size="sm"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Asignează Contract
+                </Button>
+              )}
+            </div>
           </CardTitle>
           <CardDescription>
-            Gestionează contractele asignate acestui client
+            {availableContracts.length === 0 ? (
+              <span className="text-amber-600">
+                ⚠️ Nu există contracte disponibile pentru asignare. Toate contractele sunt deja asignate.
+              </span>
+            ) : (
+              <span>Gestionează contractele asignate acestui client ({availableContracts.length} disponibile)</span>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -231,8 +262,20 @@ export function ClientContractsManager({ clientId, clientName, onContractsChange
           )}
 
           {availableContracts.length === 0 && clientContracts.length === 0 && (
-            <div className="text-center py-4 text-muted-foreground">
-              <p>Nu există contracte disponibile pentru asignare</p>
+            <div className="text-center py-6 space-y-3">
+              <AlertTriangle className="h-12 w-12 mx-auto text-amber-500 opacity-70" />
+              <div>
+                <p className="font-medium text-muted-foreground">Nu există contracte disponibile</p>
+                <p className="text-sm text-muted-foreground mt-1">Creați un contract nou pentru a-l putea asigna acestui client</p>
+              </div>
+              <Button
+                onClick={() => router.push('/dashboard/contracte')}
+                variant="outline"
+                size="sm"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Creează Contract Nou
+              </Button>
             </div>
           )}
         </CardContent>
