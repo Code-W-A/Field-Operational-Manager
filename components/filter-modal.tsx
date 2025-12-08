@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { format } from "date-fns"
+import { ro } from "date-fns/locale"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -465,54 +467,108 @@ export function FilterModal({
           </div>
         )
       case "date":
-        return (
-          <Input
-            id={filter.id}
-            type="date"
-            value={filter.value || ""}
-            onChange={(e) => handleFilterChange(filter.id, e.target.value)}
-            className="w-full"
-          />
-        )
+        {
+          const formatted =
+            filter.value && typeof filter.value === "string" && filter.value
+              ? format(new Date(filter.value), "dd MMM yyyy", { locale: ro })
+              : ""
+          return (
+            <div className="space-y-1">
+              <div className="relative">
+                <Input
+                  id={filter.id}
+                  type="date"
+                  value={filter.value || ""}
+                  onChange={(e) => handleFilterChange(filter.id, e.target.value)}
+                  className="w-full text-transparent caret-transparent"
+                  placeholder="dd mmm yyyy"
+                />
+                {formatted ? (
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-foreground">
+                    {formatted}
+                  </span>
+                ) : (
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                    dd mmm yyyy
+                  </span>
+                )}
+              </div>
+            </div>
+          )
+        }
       case "dateRange":
+        {
+          const formattedFrom =
+            filter.value?.from && typeof filter.value.from === "string" && filter.value.from
+              ? format(new Date(filter.value.from), "dd MMM yyyy", { locale: ro })
+              : ""
+          const formattedTo =
+            filter.value?.to && typeof filter.value.to === "string" && filter.value.to
+              ? format(new Date(filter.value.to), "dd MMM yyyy", { locale: ro })
+              : ""
         return (
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label htmlFor={`${filter.id}-from`} className="text-xs">
-                De la
-              </Label>
-              <Input
-                id={`${filter.id}-from`}
-                type="date"
-                value={(filter.value && filter.value.from) || ""}
-                onChange={(e) =>
-                  handleFilterChange(filter.id, {
-                    ...filter.value,
-                    from: e.target.value,
-                  })
-                }
-                className="w-full"
-              />
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label htmlFor={`${filter.id}-from`} className="text-xs">
+                  De la
+                </Label>
+                <div className="relative">
+                  <Input
+                    id={`${filter.id}-from`}
+                    type="date"
+                    value={(filter.value && filter.value.from) || ""}
+                    onChange={(e) =>
+                      handleFilterChange(filter.id, {
+                        ...filter.value,
+                        from: e.target.value,
+                      })
+                    }
+                    className="w-full text-transparent caret-transparent"
+                    placeholder="dd mmm yyyy"
+                  />
+                  {formattedFrom ? (
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-foreground">
+                      {formattedFrom}
+                    </span>
+                  ) : (
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                      dd mmm yyyy
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor={`${filter.id}-to`} className="text-xs">
+                  Până la
+                </Label>
+                <div className="relative">
+                  <Input
+                    id={`${filter.id}-to`}
+                    type="date"
+                    value={(filter.value && filter.value.to) || ""}
+                    onChange={(e) =>
+                      handleFilterChange(filter.id, {
+                        ...filter.value,
+                        to: e.target.value,
+                      })
+                    }
+                    className="w-full text-transparent caret-transparent"
+                    placeholder="dd mmm yyyy"
+                  />
+                  {formattedTo ? (
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-foreground">
+                      {formattedTo}
+                    </span>
+                  ) : (
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                      dd mmm yyyy
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
-            <div>
-              <Label htmlFor={`${filter.id}-to`} className="text-xs">
-                Până la
-              </Label>
-              <Input
-                id={`${filter.id}-to`}
-                type="date"
-                value={(filter.value && filter.value.to) || ""}
-                onChange={(e) =>
-                  handleFilterChange(filter.id, {
-                    ...filter.value,
-                    to: e.target.value,
-                  })
-                }
-                className="w-full"
-              />
-            </div>
-          </div>
-        )
+          )
+        }
       case "checkbox":
         return (
           <Checkbox

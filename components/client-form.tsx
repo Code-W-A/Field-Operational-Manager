@@ -1593,7 +1593,6 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
                       },
                     }))
                   }}
-                  hideTemplateSelect
                 />
               </div>
             </div>
@@ -1732,7 +1731,7 @@ function TemplateSelector({
   useForSheet,
   parentId,
   onChange,
-  hideTemplateSelect = false,
+  hideTemplateSelect = true,
 }: {
   valueId: string
   useForSheet: boolean
@@ -1754,7 +1753,13 @@ function TemplateSelector({
       setTemplates(opts)
       // Keep display name in sync if current selection is present
       const sel = opts.find((o) => o.id === (valueId || selectedId))
-      if (sel) onChange({ templateId: sel.id, templateName: sel.name, useForSheet: true })
+      if (sel) {
+        onChange({ templateId: sel.id, templateName: sel.name, useForSheet: true })
+      } else if (opts.length > 0 && !selectedId && !valueId) {
+        const first = opts[0]
+        setSelectedId(first.id)
+        onChange({ templateId: first.id, templateName: first.name, useForSheet: true })
+      }
     })
     return () => {
       try { unsub?.() } catch {}
