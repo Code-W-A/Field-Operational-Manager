@@ -47,18 +47,18 @@ function toIsoDate(date: Date): string {
   return date.toISOString()
 }
 
-async function fetchClientName(clientId?: string): Promise<string | undefined> {
-  if (!clientId) return undefined
+async function fetchClient(clientId?: string): Promise<{ name?: string; data?: Client }> {
+  if (!clientId) return {}
   try {
     const snap = await db.collection("clienti").doc(clientId).get()
     if (snap.exists) {
       const data = snap.data() as Client
-      return data?.nume || undefined
+      return { name: data?.nume, data }
     }
   } catch (e) {
-    console.error("fetchClientName error", clientId, e)
+    console.error("fetchClient error", clientId, e)
   }
-  return undefined
+  return {}
 }
 
 async function workExists(contractId: string, locationId: string | undefined, scheduledIso: string) {
@@ -74,16 +74,54 @@ async function workExists(contractId: string, locationId: string | undefined, sc
   return !snap.empty
 }
 
+async function getNextReportNumberAdmin(): Promise<string> {
+  const ref = db.collection("numarRaport").doc("document-numar-raport")
+  try {
+    const result = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref)
+      if (!snap.exists) {
+        tx.set(ref, { numarRaport: 2 })
+        return 1
+      }
+      const current = (snap.data() as any)?.numarRaport || 1
+      const next = current + 1
+      tx.update(ref, { numarRaport: next })
+      return current
+    })
+    return `#${result.toString().padStart(6, "0")}`
+  } catch (e) {
+    console.error("getNextReportNumberAdmin error", e)
+    return `#${Date.now().toString().slice(-6)}`
+  }
+}
+
 function createWorkPayload(params: {
   contract: Contract
   clientName?: string
+  clientInfo?: Client
   locationId?: string
   locationName?: string
   scheduledDate: Date
+  nrLucrare: string
+  equipmentIds?: string[]
 }): Record<string, any> {
   const nowIso = toIsoDate(new Date())
   const scheduledIso = toIsoDate(params.scheduledDate)
-  const equipmentIds = Array.isArray(params.contract.equipmentIds) ? params.contract.equipmentIds : []
+  const equipmentIds =
+    (Array.isArray(params.equipmentIds) ? params.equipmentIds : undefined) ??
+    (Array.isArray(params.contract.equipmentIds) ? params.contract.equipmentIds : [])
+  const contactName =
+    (params.clientInfo as any)?.contact ||
+    (params.clientInfo as any)?.persoanaContact ||
+    (params.clientInfo as any)?.contactPerson ||
+    (params.clientInfo as any)?.persoaneContact?.[0]?.nume ||
+    ""
+  const contactPhone =
+    (params.clientInfo as any)?.telefon ||
+    (params.clientInfo as any)?.phone ||
+    (params.clientInfo as any)?.persoaneContact?.[0]?.telefon ||
+    (params.clientInfo as any)?.persoaneContact?.[0]?.phone ||
+    ""
 
   // Metadata revizie: toate echipamentele sunt setate pe "pending"
   const revision = {
@@ -97,10 +135,11 @@ function createWorkPayload(params: {
 
   return {
     tipLucrare: "Revizie",
-    statusLucrare: "În așteptare",
+    statusLucrare: "Listată",
     statusFacturare: "Nefacturat",
-    client: params.clientName || "Client",
+    client: params.clientName || params.contract.clientId || "Client",
     clientId: params.contract.clientId || null,
+    clientInfo: params.clientInfo || null,
     locatie: params.locationName || "",
     locationId: params.locationId || null,
     locationName: params.locationName || null,
@@ -111,6 +150,9 @@ function createWorkPayload(params: {
     dataInterventie: scheduledIso,
     tehnicieni: [] as string[],
     persoaneContact: [],
+    persoanaContact: contactName,
+    telefon: contactPhone,
+    contact: contactName,
     equipmentIds,
     revision,
     echipamentId: "",
@@ -119,7 +161,7 @@ function createWorkPayload(params: {
     defectReclamat: "",
     necesitaOferta: false,
     statusOferta: "NU",
-    nrLucrare: `#AUTO-${Date.now().toString().slice(-6)}`,
+    nrLucrare: params.nrLucrare,
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
     createdBy: "system",
@@ -135,7 +177,7 @@ function createWorkPayload(params: {
 
 export const generateRevisionWorksCron = functions
   .region(REGION)
-  .pubsub.schedule("0 7,13 * * *") // 07:00 și 13:00 local time
+  .pubsub.schedule("*/5 * * * *") // la fiecare 5 minute (pentru test)
   .timeZone(TIMEZONE)
   .onRun(async () => {
     const now = new Date()
@@ -146,6 +188,24 @@ export const generateRevisionWorksCron = functions
 
     for (const contract of contracts) {
       if (!contract.revisionSchedulePreview || !Array.isArray(contract.revisionSchedulePreview)) continue
+
+      const clientPayload = await fetchClient(contract.clientId)
+      const locationEquipments = new Map<string, string[]>()
+      const locs = (clientPayload.data as any)?.locatii
+      if (Array.isArray(locs)) {
+        for (const loc of locs) {
+          const locName = loc?.nume
+          if (!locName) continue
+          const eqIds = Array.isArray(loc?.echipamente)
+            ? loc.echipamente
+                .map((eq: any) => eq?.id)
+                .filter((id: any) => typeof id === "string" && id.length > 0)
+            : []
+          if (eqIds.length) {
+            locationEquipments.set(locName, eqIds)
+          }
+        }
+      }
 
       // Normalize and sort by generate date
       const entries: { generateAt: Date; scheduledAt: Date; locationId?: string; locationName?: string }[] = []
@@ -179,13 +239,16 @@ export const generateRevisionWorksCron = functions
         const exists = await workExists(contract.id, entry.locationId, scheduledIso)
         if (exists) continue
 
-        const clientName = await fetchClientName(contract.clientId)
+        const nrLucrare = await getNextReportNumberAdmin()
         const payload = createWorkPayload({
           contract,
-          clientName,
+          clientName: clientPayload.name,
+          clientInfo: clientPayload.data,
           locationId: entry.locationId,
           locationName: entry.locationName,
           scheduledDate: entry.scheduledAt,
+          nrLucrare,
+          equipmentIds: locationEquipments.get(entry.locationName || "") || undefined,
         })
         await db.collection("lucrari").add(payload)
         created += 1
