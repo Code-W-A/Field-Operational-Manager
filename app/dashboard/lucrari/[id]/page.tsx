@@ -1625,6 +1625,32 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                                   )}
                                 </div>
 
+                                {/* Documente echipament selectate din Setări (vizibile tehnicianului) */}
+                                {role === "tehnician" && Array.isArray(eq?.documentatie) && eq.documentatie.length > 0 && (
+                                  <div className="mb-4 space-y-1">
+                                    <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Documente</p>
+                                    <ul className="space-y-1 text-sm">
+                                      {eq.documentatie.map((doc: any, idx: number) => (
+                                        <li key={idx} className="flex items-center justify-between gap-2">
+                                          <a
+                                            href={doc.url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-blue-600 hover:underline truncate"
+                                          >
+                                            {doc.fileName || "Document"}
+                                          </a>
+                                          {doc.uploadedAt ? (
+                                            <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                                              {formatUiDate(new Date(doc.uploadedAt))}
+                                            </span>
+                                          ) : null}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+
                                 {/* Buton mare pentru touch - ascuns pentru clienți */}
                                 {role !== "client" && (
                                   <Button
@@ -1751,7 +1777,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
 
                 {/* Afișăm mesajul de reatribuire dacă există */}
                 {lucrare.mesajReatribuire && (
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md my`-4">
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md my-4">
                     <div className="flex items-center space-x-2 mb-1">
                       <RefreshCw className="h-4 w-4 text-blue-600" />
                       <p className="text-sm font-medium text-blue-800">Lucrare reatribuită:</p>
@@ -2325,13 +2351,13 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                     <CardTitle>Informații client</CardTitle>
                     <CardDescription className="text-base font-semibold text-gray-600">{lucrare.client}</CardDescription>
                   </div>
-                  {lucrare?.clientId && (
-                    <Link href={`/dashboard/clienti/${lucrare.clientId}`}>
+                  {(lucrare as any)?.clientId || clientData?.id ? (
+                    <Link href={`/dashboard/clienti/${(lucrare as any)?.clientId ?? clientData?.id}`}>
                       <Button variant="outline" size="sm" className="whitespace-nowrap">
                         Vezi detalii client
                       </Button>
                     </Link>
-                  )}
+                  ) : null}
                 </div>
               </CardHeader>
               <CardContent>
