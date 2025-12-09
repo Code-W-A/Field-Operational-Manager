@@ -472,17 +472,17 @@ export function FilterModal({
             filter.value && typeof filter.value === "string" && filter.value
               ? format(new Date(filter.value), "dd MMM yyyy", { locale: ro })
               : ""
-          return (
+        return (
             <div className="space-y-1">
               <div className="relative">
-                <Input
-                  id={filter.id}
-                  type="date"
-                  value={filter.value || ""}
-                  onChange={(e) => handleFilterChange(filter.id, e.target.value)}
+          <Input
+            id={filter.id}
+            type="date"
+            value={filter.value || ""}
+            onChange={(e) => handleFilterChange(filter.id, e.target.value)}
                   className="w-full text-transparent caret-transparent"
                   placeholder="dd mmm yyyy"
-                />
+          />
                 {formatted ? (
                   <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-foreground">
                     {formatted}
@@ -507,25 +507,25 @@ export function FilterModal({
               ? format(new Date(filter.value.to), "dd MMM yyyy", { locale: ro })
               : ""
         return (
-            <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <Label htmlFor={`${filter.id}-from`} className="text-xs">
-                  De la
-                </Label>
+              <Label htmlFor={`${filter.id}-from`} className="text-xs">
+                De la
+              </Label>
                 <div className="relative">
-                  <Input
-                    id={`${filter.id}-from`}
-                    type="date"
-                    value={(filter.value && filter.value.from) || ""}
-                    onChange={(e) =>
-                      handleFilterChange(filter.id, {
-                        ...filter.value,
-                        from: e.target.value,
-                      })
-                    }
+              <Input
+                id={`${filter.id}-from`}
+                type="date"
+                value={(filter.value && filter.value.from) || ""}
+                onChange={(e) =>
+                  handleFilterChange(filter.id, {
+                    ...filter.value,
+                    from: e.target.value,
+                  })
+                }
                     className="w-full text-transparent caret-transparent"
                     placeholder="dd mmm yyyy"
-                  />
+              />
                   {formattedFrom ? (
                     <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-foreground">
                       {formattedFrom}
@@ -536,25 +536,25 @@ export function FilterModal({
                     </span>
                   )}
                 </div>
-              </div>
+            </div>
               <div className="space-y-1">
-                <Label htmlFor={`${filter.id}-to`} className="text-xs">
-                  Până la
-                </Label>
+              <Label htmlFor={`${filter.id}-to`} className="text-xs">
+                Până la
+              </Label>
                 <div className="relative">
-                  <Input
-                    id={`${filter.id}-to`}
-                    type="date"
-                    value={(filter.value && filter.value.to) || ""}
-                    onChange={(e) =>
-                      handleFilterChange(filter.id, {
-                        ...filter.value,
-                        to: e.target.value,
-                      })
-                    }
+              <Input
+                id={`${filter.id}-to`}
+                type="date"
+                value={(filter.value && filter.value.to) || ""}
+                onChange={(e) =>
+                  handleFilterChange(filter.id, {
+                    ...filter.value,
+                    to: e.target.value,
+                  })
+                }
                     className="w-full text-transparent caret-transparent"
                     placeholder="dd mmm yyyy"
-                  />
+              />
                   {formattedTo ? (
                     <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-foreground">
                       {formattedTo}
@@ -565,9 +565,9 @@ export function FilterModal({
                     </span>
                   )}
                 </div>
-              </div>
             </div>
-          )
+          </div>
+        )
         }
       case "checkbox":
         return (

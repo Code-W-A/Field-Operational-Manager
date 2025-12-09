@@ -68,6 +68,7 @@ import { getPredefinedSettingValue } from "@/lib/firebase/predefined-settings"
 import { formatUiDate, toDateSafe } from "@/lib/utils/time-format"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { CustomDatePicker } from "@/components/custom-date-picker"
+import { Card, CardContent } from "@/components/ui/card"
 
 const SCHEDULE_MONTHS_AHEAD = 48
 const MAX_PREVIEW_OCCURRENCES = 2000
@@ -164,12 +165,43 @@ interface Contract {
   locatie?: string // Legacy field
   customFields?: Record<string, any> // Câmpuri dinamice din setări
   createdAt: any
+  revisionSchedulePreview?: RevisionSchedulePreview[]
 }
 
 interface Client {
   id: string
   nume: string
 }
+
+type CalendarEvent = {
+  id: string
+  date: Date
+  contractId: string
+  contractName: string
+  contractNumber?: string
+  locationName?: string
+}
+
+const COLORS = ["#2563eb", "#16a34a", "#d97706", "#dc2626", "#7c3aed", "#0891b2", "#b45309", "#ea580c"]
+
+const getColorForId = (id: string) => {
+  if (!id) return COLORS[0]
+  let hash = 0
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash << 5) - hash + id.charCodeAt(i)
+    hash |= 0
+  }
+  const idx = Math.abs(hash) % COLORS.length
+  return COLORS[idx]
+}
+
+const startOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1)
+const addMonthsDate = (d: Date, count: number) => {
+  const nd = new Date(d)
+  nd.setMonth(nd.getMonth() + count)
+  return nd
+}
+const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate()
 
 export default function ContractsPage() {
   const router = useRouter()
@@ -243,6 +275,20 @@ export default function ContractsPage() {
   const [searchText, setSearchText] = useState("")
   const [activeFilters, setActiveFilters] = useState<any[]>([])
   const [columnOptions, setColumnOptions] = useState<any[]>([])
+  const [viewMode, setViewMode] = useState<"list" | "calendar">("list")
+  const [calendarMode, setCalendarMode] = useState<"year" | "month" | "week">("month")
+  const [selectedDayEvents, setSelectedDayEvents] = useState<CalendarEvent[]>([])
+  const [selectedDayDate, setSelectedDayDate] = useState<Date | null>(null)
+  const [isDayPanelOpen, setIsDayPanelOpen] = useState(false)
+  const [showWeekStrip, setShowWeekStrip] = useState(false)
+  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
+    const today = new Date()
+    const day = today.getDay()
+    const diff = day === 0 ? -6 : 1 - day // Monday as first day
+    const monday = new Date(today)
+    monday.setDate(today.getDate() + diff)
+    return monday
+  })
 
   // Persistența tabelului
   const { loadSettings, saveFilters, saveColumnVisibility, saveSorting, saveSearchText } = useTablePersistence("contracte")
@@ -429,6 +475,98 @@ export default function ContractsPage() {
       return 0
     })
   }, [contracts, tableSorting])
+
+  // Calendar data (12 luni începând cu luna curentă)
+  const calendarStart = useMemo(() => startOfMonth(new Date()), [])
+  const calendarEnd = useMemo(() => addMonthsDate(calendarStart, 12), [calendarStart])
+
+  const calendarEvents = useMemo(() => {
+    const events: CalendarEvent[] = []
+
+    contracts.forEach((contract) => {
+      const preview = (contract as any)?.revisionSchedulePreview
+      if (!Array.isArray(preview)) return
+
+      preview.forEach((item: any, idx: number) => {
+        const raw = item?.scheduledIso || item?.scheduledAt || item?.scheduledDate
+        const date =
+          raw?.toDate?.() instanceof Date
+            ? raw.toDate()
+            : raw && typeof raw.seconds === "number"
+              ? new Date(raw.seconds * 1000)
+              : raw
+              ? new Date(raw)
+              : null
+        if (!date || Number.isNaN(date.getTime())) return
+        if (date < calendarStart || date >= calendarEnd) return
+
+        events.push({
+          id: `${contract.id}-${idx}-${date.toISOString()}`,
+          date,
+          contractId: contract.id,
+          contractName: contract.name,
+          contractNumber: contract.number,
+          locationName: item?.locationName,
+        })
+      })
+    })
+
+    return events.sort((a, b) => a.date.getTime() - b.date.getTime())
+  }, [contracts, calendarStart, calendarEnd])
+
+  const calendarMonths = useMemo(() => {
+    return Array.from({ length: 12 }).map((_, idx) => {
+      const d = addMonthsDate(calendarStart, idx)
+      return {
+        key: `${d.getFullYear()}-${d.getMonth()}`,
+        date: d,
+        label: format(d, "MMM yyyy", { locale: ro }),
+        days: daysInMonth(d.getFullYear(), d.getMonth()),
+      }
+    })
+  }, [calendarStart])
+
+  const legendEntries = useMemo(() => {
+    const map = new Map<string, { contractId: string; contractName: string; color: string }>()
+    calendarEvents.forEach((ev) => {
+      if (!map.has(ev.contractId)) {
+        map.set(ev.contractId, {
+          contractId: ev.contractId,
+          contractName: ev.contractName,
+          color: getColorForId(ev.contractId),
+        })
+      }
+    })
+    return Array.from(map.values())
+  }, [calendarEvents])
+
+  const topBusyDays = useMemo(() => {
+    const counts = new Map<string, { date: Date; count: number }>()
+    calendarEvents.forEach((ev) => {
+      const key = ev.date.toISOString().slice(0, 10)
+      const existing = counts.get(key)
+      if (existing) existing.count += 1
+      else counts.set(key, { date: new Date(ev.date), count: 1 })
+    })
+    return Array.from(counts.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10)
+  }, [calendarEvents])
+
+  const weekStripDays = useMemo(() => {
+    if (!showWeekStrip) return []
+    const start = new Date()
+    start.setHours(0, 0, 0, 0)
+    const arr: { date: Date; count: number }[] = []
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start)
+      d.setDate(start.getDate() + i)
+      const key = d.toISOString().slice(0, 10)
+      const count = calendarEvents.filter((ev) => ev.date.toISOString().slice(0, 10) === key).length
+      arr.push({ date: d, count })
+    }
+    return arr
+  }, [calendarEvents, showWeekStrip])
 
   // Setăm search-ul global în tabel când se schimbă searchText
   useEffect(() => {
@@ -1306,11 +1444,21 @@ export default function ContractsPage() {
   return (
     <TooltipProvider>
       <DashboardShell>
-      <DashboardHeader heading="Contracte" text="Gestionați contractele din sistem">
-        <Button onClick={() => setIsAddDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" /> Adaugă Contract
-        </Button>
-      </DashboardHeader>
+        {viewMode === "list" && (
+          <DashboardHeader heading="Contracte" text="Gestionați contractele din sistem">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setViewMode("calendar")}
+              >
+                Calendar revizii
+              </Button>
+              <Button onClick={() => setIsAddDialogOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" /> Adaugă Contract
+              </Button>
+            </div>
+          </DashboardHeader>
+        )}
 
       {error && (
         <Alert variant="destructive" className="mb-4">
@@ -1333,33 +1481,710 @@ export default function ContractsPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Layout pentru căutare și filtrare */}
-          <div className="flex flex-col sm:flex-row gap-2">
-            <UniversalSearch 
-              onSearch={handleSearchChange} 
-              initialValue={searchText}
-              className="flex-1"
-              placeholder="Căutare contracte..."
-            />
-            {/* EnhancedFilterSystem se va randa cu propriul său buton de filtrare */}
-            {table && <EnhancedFilterSystem table={table} persistenceKey="contracte" />}
-          </div>
+          {viewMode === "calendar" ? (
+            <div className="space-y-4 pb-12">
+              {/* Header compact în stil Planado */}
+              <div className="flex items-center gap-4 px-4 py-2 bg-white border-b border-slate-200">
+                <h1 className="text-xl font-bold text-slate-800">Calendar</h1>
+                
+                <div className="flex items-center gap-1 border-r pr-4">
+                  <Button
+                    variant={calendarMode === "year" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setCalendarMode("year")}
+                    className="h-8 px-3 text-sm"
+                  >
+                    An
+                  </Button>
+                  <Button
+                    variant={calendarMode === "month" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setCalendarMode("month")}
+                    className="h-8 px-3 text-sm"
+                  >
+                    Lună
+                  </Button>
+                  <Button
+                    variant={calendarMode === "week" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setCalendarMode("week")}
+                    className="h-8 px-3 text-sm"
+                  >
+                    Săptămână
+                  </Button>
+                </div>
+
           
-          {/* Tabelul de contracte */}
-          <DataTable
-            columns={columns}
-            data={sortedContracts}
-            defaultSort={{ id: "createdAt", desc: true }}
-            sorting={tableSorting}
-            onSortingChange={handleSortingChange}
-            onRowClick={(row) => router.push(`/dashboard/contracte/${row.id}`)}
-            table={table}
-            setTable={setTable}
-            showFilters={false}
-            persistenceKey="contracte"
-          />
+                <div className="flex-1"></div>
+
+                {/* Legendă încărcare */}
+                <div className="flex items-center gap-3 border-r pr-4">
+                  <span className="text-xs font-semibold text-slate-700">Încărcare:</span>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1">
+                      <div className="h-3 w-3 rounded bg-emerald-500"></div>
+                      <span className="text-xs text-slate-600">Mică (1-2)</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="h-3 w-3 rounded bg-amber-500"></div>
+                      <span className="text-xs text-slate-600">Medie (3-4)</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="h-3 w-3 rounded bg-rose-600"></div>
+                      <span className="text-xs text-slate-600">Mare (5+)</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Butoane de acțiune */}
+                <div className="flex items-center gap-2">
+              
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setViewMode("list")}
+                    className="h-8"
+                  >
+                    Contracte
+                  </Button>
+              
+                </div>
+              </div>
+
+              {showWeekStrip && (
+                <Card>
+                  <CardContent className="py-3 px-4">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-semibold text-slate-700">Rezumat săptămână</span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {weekStripDays.map((d) => {
+                          let color = "#10b981"
+                          let colorDark = "#059669"
+                          if (d.count > 4) {
+                            color = "#e11d48"
+                            colorDark = "#be123c"
+                          } else if (d.count > 2) {
+                            color = "#f59e0b"
+                            colorDark = "#d97706"
+                          }
+                          return (
+                            <div
+                              key={d.date.toISOString()}
+                              className="flex items-center gap-1 px-2 py-1 rounded-md border text-xs"
+                              style={{ borderColor: colorDark + "40", backgroundColor: color + "20" }}
+                            >
+                              <div className="h-3 w-3 rounded" style={{ backgroundColor: color }} />
+                              <span className="font-semibold text-slate-700">
+                                {format(d.date, "EEE", { locale: ro })} ({d.count})
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+         
+
+              {calendarEvents.length === 0 ? (
+                <Card className="border-2 border-dashed">
+                  <CardContent className="py-16 text-center">
+                    <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-100 flex items-center justify-center">
+                      <FileText className="h-10 w-10 text-slate-400" />
+                    </div>
+                    <p className="text-lg font-semibold text-slate-700">Nu există revizii programate</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Următoarele 12 luni nu au revizii planificate
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : calendarMode === "month" ? (
+                <Card className="border-2 shadow-md">
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <div className="min-w-[1400px]">
+                        {/* Header fix cu zilele */}
+                        <div className="sticky top-0 bg-gradient-to-b from-slate-100 to-slate-50 border-b-2 border-slate-300 z-10 shadow-sm">
+                          <div className="flex">
+                            <div className="w-40 flex-shrink-0 border-r-2 border-slate-300 px-3 py-2 font-bold text-slate-700 text-sm">
+                              Lună / Zi
+                            </div>
+                            <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(31, minmax(40px, 1fr))` }}>
+                              {Array.from({ length: 31 }).map((_, i) => {
+                                const sampleDate = new Date(2024, 0, i + 1)
+                                const dayOfWeek = sampleDate.getDay()
+                                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
+                                
+                                return (
+                                  <div
+                                    key={i}
+                                    className={`text-center py-2 text-xs font-bold border-r border-slate-200 ${
+                                      isWeekend ? "bg-red-50 text-red-700" : "text-slate-700"
+                                    }`}
+                                  >
+                                    {i + 1}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Rânduri pentru fiecare lună */}
+                        <div>
+                          {calendarMonths.map((month, monthIndex) => {
+                            const monthEvents = calendarEvents.filter(
+                              (ev) =>
+                                ev.date.getFullYear() === month.date.getFullYear() &&
+                                ev.date.getMonth() === month.date.getMonth(),
+                            )
+                            const today = new Date()
+                            const isCurrentMonth = 
+                              today.getFullYear() === month.date.getFullYear() && 
+                              today.getMonth() === month.date.getMonth()
+
+                            return (
+                              <div
+                                key={month.key}
+                                className={`flex border-b-2 border-slate-200 transition-all hover:bg-slate-50 ${
+                                  isCurrentMonth ? "bg-blue-50" : monthIndex % 2 === 0 ? "bg-white" : "bg-slate-50/40"
+                                }`}
+                              >
+                                {/* Label luna */}
+                                <div className={`w-40 flex-shrink-0 border-r-2 border-slate-300 px-3 py-2 flex flex-col justify-center ${
+                                  isCurrentMonth ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white" : ""
+                                }`}>
+                                  <div className={`text-base font-bold ${isCurrentMonth ? "text-white" : "text-slate-800"}`}>
+                                    {month.label}
+                                  </div>
+                                  <div className={`text-xs mt-0.5 font-medium ${
+                                    isCurrentMonth ? "text-blue-100" : "text-slate-600"
+                                  }`}>
+                                    {monthEvents.length} {monthEvents.length === 1 ? "revizie" : "revizii"}
+                                  </div>
+                                </div>
+
+                                {/* Grid zile */}
+                                <div className="flex-1 relative min-h-[45px]">
+                                  <div className="grid h-full" style={{ gridTemplateColumns: `repeat(31, minmax(40px, 1fr))` }}>
+                                    {Array.from({ length: 31 }).map((_, dayIndex) => {
+                                      const dayNum = dayIndex + 1
+                                      const isValidDay = dayNum <= month.days
+                                      const dayDate = isValidDay 
+                                        ? new Date(month.date.getFullYear(), month.date.getMonth(), dayNum)
+                                        : null
+                                      const isToday = dayDate && 
+                                        dayDate.getDate() === today.getDate() &&
+                                        dayDate.getMonth() === today.getMonth() &&
+                                        dayDate.getFullYear() === today.getFullYear()
+                                      const isWeekend = dayDate && (dayDate.getDay() === 0 || dayDate.getDay() === 6)
+
+                                      return (
+                                        <div
+                                          key={dayIndex}
+                                          className={`border-r border-slate-200 relative ${
+                                            !isValidDay ? "bg-slate-200/30 bg-[linear-gradient(45deg,transparent_25%,rgba(0,0,0,.02)_25%,rgba(0,0,0,.02)_50%,transparent_50%,transparent_75%,rgba(0,0,0,.02)_75%,rgba(0,0,0,.02))] bg-[length:8px_8px]" : 
+                                            isToday ? "bg-blue-200/40" :
+                                            isWeekend ? "bg-red-50/50" : ""
+                                          }`}
+                                        >
+                                          {isToday && (
+                                            <div className="absolute inset-0 border-2 border-blue-500 pointer-events-none z-20 rounded-sm"></div>
+                                          )}
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+
+                                  {/* Evenimente - badge fin cu tooltip inteligent */}
+                                  <div className="absolute inset-0 grid pointer-events-none" style={{ gridTemplateColumns: `repeat(31, minmax(40px, 1fr))` }}>
+                                    {(() => {
+                                      // Grupăm evenimentele pe zi
+                                      const eventsByDay: Record<number, typeof monthEvents> = {}
+                                      monthEvents.forEach((ev) => {
+                                        const day = ev.date.getDate()
+                                        if (!eventsByDay[day]) eventsByDay[day] = []
+                                        eventsByDay[day].push(ev)
+                                      })
+
+                                      return Object.entries(eventsByDay).map(([day, dayEvents]) => {
+                                        const dayIndex = Number(day) - 1
+                                        const firstEvent = dayEvents[0]
+                                        const count = dayEvents.length
+                                        
+                                        // Culoare bazată pe încărcare
+                                        let color: string
+                                        let colorDark: string
+                                        if (count <= 2) {
+                                          color = "#10b981" // emerald-500
+                                          colorDark = "#059669" // emerald-600
+                                        } else if (count <= 4) {
+                                          color = "#f59e0b" // amber-500
+                                          colorDark = "#d97706" // amber-600
+                                        } else {
+                                          color = "#e11d48" // rose-600
+                                          colorDark = "#be123c" // rose-700
+                                        }
+                                        
+                                        // Determină direcția tooltip-ului bazat pe poziția în calendar
+                                        const tooltipSide = monthIndex < 6 ? "bottom" : "top"
+                                        
+                                        return (
+                                          <div
+                                            key={`day-${day}`}
+                                            style={{ gridColumn: `${dayIndex + 1} / ${dayIndex + 2}` }}
+                                            className="flex items-center justify-center p-1 pointer-events-auto"
+                                          >
+                                            <Tooltip delayDuration={200}>
+                                              <TooltipTrigger asChild>
+                                                <div
+                                                  style={{ 
+                                                    background: `linear-gradient(135deg, ${color} 0%, ${colorDark} 100%)`,
+                                                    boxShadow: `0 2px 8px -2px ${color}80, 0 0 0 1px ${color}40`,
+                                                  }}
+                                                  className="w-full h-8 rounded-md transition-all duration-200 cursor-pointer hover:scale-105 hover:shadow-lg flex items-center justify-center relative group overflow-hidden"
+                                                  onClick={() => {
+                                                    const iso = firstEvent.date.toISOString().slice(0, 10)
+                                                    setSelectedDayDate(firstEvent.date)
+                                                    setSelectedDayEvents(
+                                                      calendarEvents.filter((ev) => ev.date.toISOString().slice(0, 10) === iso),
+                                                    )
+                                                    setIsDayPanelOpen(true)
+                                                  }}
+                                                >
+                                                  {/* Shine effect background */}
+                                                  <div className="absolute inset-0 bg-gradient-to-br from-white/0 via-white/10 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                                  
+                                                  {/* Number */}
+                                                  <div className="text-white text-xs font-bold relative z-10 drop-shadow-sm">
+                                                    {dayEvents.length}
+                                                  </div>
+                                                  
+                                                  {/* Border accent pe hover */}
+                                                  <div 
+                                                    className="absolute inset-0 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    style={{ 
+                                                      boxShadow: `inset 0 0 0 2px ${colorDark}`,
+                                                    }}
+                                                  ></div>
+                                                  {/* Heat bar */}
+                                                  <div
+                                                    className="absolute left-1 right-1 bottom-1 h-1 rounded-full opacity-90"
+                                                    style={{ backgroundColor: colorDark }}
+                                                  ></div>
+                                                </div>
+                                              </TooltipTrigger>
+                                              <TooltipContent 
+                                                side={tooltipSide}
+                                                sideOffset={8}
+                                                className="bg-white border-2 border-slate-200 shadow-2xl max-w-sm p-0 rounded-xl overflow-hidden"
+                                              >
+                                                <div className="space-y-0">
+                                                  {/* Header tooltip */}
+                                                  <div className="bg-gradient-to-r from-slate-700 to-slate-800 text-white px-4 py-3">
+                                                    <div className="font-bold text-base">
+                                                      {format(firstEvent.date, "EEEE, dd MMMM yyyy", { locale: ro })}
+                                                    </div>
+                                                    <div className="text-xs opacity-90 mt-1">
+                                                      {dayEvents.length} {dayEvents.length === 1 ? "revizie programată" : "revizii programate"}
+                                                    </div>
+                                                  </div>
+                                                  
+                                                  {/* Histogram orar all-day */}
+                                                  <div className="px-4 py-3 space-y-2 border-b border-slate-100">
+                                                    <div className="text-xs font-semibold text-slate-700">Distribuție (all-day)</div>
+                                                    <div className="flex items-end gap-2">
+                                                      <div className="flex-1 bg-slate-100 rounded-sm h-2 relative">
+                                                        <div
+                                                          className="absolute left-0 top-0 h-full rounded-sm"
+                                                          style={{
+                                                            width: "100%",
+                                                            background: `linear-gradient(90deg, ${color} 0%, ${colorDark} 100%)`,
+                                                          }}
+                                                        ></div>
+                                                      </div>
+                                                      <span className="text-[11px] text-slate-600 font-semibold">{dayEvents.length}</span>
+                                                    </div>
+                                                  </div>
+
+                                                  {/* Listă revizii */}
+                                                  <div className="p-3 space-y-2 max-h-[300px] overflow-y-auto">
+                                                    {[...dayEvents].sort((a, b) => a.contractName.localeCompare(b.contractName)).map((ev) => (
+                                                      <div 
+                                                        key={ev.id} 
+                                                        className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors"
+                                                      >
+                                                        <div
+                                                          className="h-4 w-4 rounded shadow-sm flex-shrink-0 mt-0.5"
+                                                          style={{ backgroundColor: getColorForId(ev.contractId) }}
+                                                        />
+                                                        <div className="flex-1 min-w-0">
+                                                          <p className="font-bold text-sm text-slate-800 truncate">{ev.contractName}</p>
+                                                          {ev.contractNumber && (
+                                                            <p className="text-xs text-slate-600 mt-0.5">Contract: {ev.contractNumber}</p>
+                                                          )}
+                                                          {ev.locationName && (
+                                                            <p className="text-xs text-slate-600 mt-0.5 truncate">📍 {ev.locationName}</p>
+                                                          )}
+                                                        </div>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                </div>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          </div>
+                                        )
+                                      })
+                                    })()}
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : calendarMode === "year" ? (
+                <Card className="border-2 shadow-md">
+                  <CardContent className="p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {calendarMonths.map((month, monthIndex) => {
+                        const monthEvents = calendarEvents.filter(
+                          (ev) =>
+                            ev.date.getFullYear() === month.date.getFullYear() &&
+                            ev.date.getMonth() === month.date.getMonth(),
+                        )
+                        const today = new Date()
+                        const isCurrentMonth = 
+                          today.getFullYear() === month.date.getFullYear() && 
+                          today.getMonth() === month.date.getMonth()
+
+                        // Grupăm pe zile pentru acest mini-calendar
+                        const eventsByDay: Record<number, typeof monthEvents> = {}
+                        monthEvents.forEach((ev) => {
+                          const day = ev.date.getDate()
+                          if (!eventsByDay[day]) eventsByDay[day] = []
+                          eventsByDay[day].push(ev)
+                        })
+
+                        return (
+                          <Card 
+                            key={month.key} 
+                            className={`border-2 ${isCurrentMonth ? "border-blue-400 shadow-lg" : "border-slate-200"}`}
+                          >
+                            <div className={`px-3 py-2 border-b ${
+                              isCurrentMonth ? "bg-blue-500 text-white" : "bg-slate-100"
+                            }`}>
+                              <h3 className={`font-bold text-sm ${isCurrentMonth ? "text-white" : "text-slate-800"}`}>
+                                {month.label}
+                              </h3>
+                              <p className={`text-xs ${isCurrentMonth ? "text-blue-100" : "text-slate-600"}`}>
+                                {monthEvents.length} revizii
+                              </p>
+                            </div>
+                            <div className="p-2">
+                              <div className="grid grid-cols-7 gap-1">
+                                {/* Mini calendar grid */}
+                                {Array.from({ length: month.days }).map((_, dayIndex) => {
+                                  const dayNum = dayIndex + 1
+                                  const dayDate = new Date(month.date.getFullYear(), month.date.getMonth(), dayNum)
+                                  const isToday = 
+                                    dayDate.getDate() === today.getDate() &&
+                                    dayDate.getMonth() === today.getMonth() &&
+                                    dayDate.getFullYear() === today.getFullYear()
+                                  const dayEventsCount = eventsByDay[dayNum]?.length || 0
+                                  
+                                  let bgColor = ""
+                                  if (dayEventsCount > 0) {
+                                    if (dayEventsCount <= 2) {
+                                      bgColor = "bg-emerald-500"
+                                    } else if (dayEventsCount <= 4) {
+                                      bgColor = "bg-amber-500"
+                                    } else {
+                                      bgColor = "bg-rose-600"
+                                    }
+                                  }
+
+                                  return (
+                                    <Tooltip key={dayIndex}>
+                                      <TooltipTrigger asChild>
+                                        <div
+                                          className={`aspect-square rounded flex items-center justify-center text-[10px] font-bold cursor-pointer transition-all ${
+                                            isToday ? "ring-2 ring-blue-500 bg-blue-100" :
+                                            dayEventsCount > 0 ? `${bgColor} text-white hover:scale-110` :
+                                            "bg-slate-100 text-slate-400"
+                                          }`}
+                                          onClick={() => {
+                                            if (dayEventsCount > 0) {
+                                              setSelectedDayEvents(eventsByDay[dayNum] || [])
+                                              setSelectedDayDate(dayDate)
+                                              setIsDayPanelOpen(true)
+                                            }
+                                          }}
+                                        >
+                                          {dayNum}
+                                        </div>
+                                      </TooltipTrigger>
+                                      {dayEventsCount > 0 && (
+                                        <TooltipContent className="text-xs">
+                                          {dayNum} {month.label}: {dayEventsCount} {dayEventsCount === 1 ? "revizie" : "revizii"}
+                                        </TooltipContent>
+                                      )}
+                                    </Tooltip>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          </Card>
+                        )
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : calendarMode === "week" ? (
+                <Card className="border-2 shadow-md">
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <div className="min-w-[1000px]">
+                        {/* Header săptămână */}
+                        <div className="bg-gradient-to-b from-slate-100 to-slate-50 border-b-2 border-slate-300 p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const prev = new Date(currentWeekStart)
+                                  prev.setDate(prev.getDate() - 7)
+                                  setCurrentWeekStart(prev)
+                                }}
+                                className="h-8"
+                              >
+                                ‹ Săptămâna anterioară
+                              </Button>
+                              <span className="font-bold text-slate-800">
+                                {format(currentWeekStart, "dd MMM", { locale: ro })} - {format(addDays(currentWeekStart, 6), "dd MMM yyyy", { locale: ro })}
+                              </span>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const next = new Date(currentWeekStart)
+                                  next.setDate(next.getDate() + 7)
+                                  setCurrentWeekStart(next)
+                                }}
+                                className="h-8"
+                              >
+                                Săptămâna următoare ›
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Grid săptămână */}
+                        <div className="grid grid-cols-7 divide-x divide-slate-200">
+                          {Array.from({ length: 7 }).map((_, dayOffset) => {
+                            const dayDate = addDays(currentWeekStart, dayOffset)
+                            const dayEvents = calendarEvents.filter(
+                              (ev) =>
+                                ev.date.getFullYear() === dayDate.getFullYear() &&
+                                ev.date.getMonth() === dayDate.getMonth() &&
+                                ev.date.getDate() === dayDate.getDate(),
+                            )
+                            const isToday = 
+                              dayDate.getDate() === new Date().getDate() &&
+                              dayDate.getMonth() === new Date().getMonth() &&
+                              dayDate.getFullYear() === new Date().getFullYear()
+                            const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6
+                            const count = dayEvents.length
+
+                            let color = "#10b981"
+                            let colorDark = "#059669"
+                            if (count > 2 && count <= 4) {
+                              color = "#f59e0b"
+                              colorDark = "#d97706"
+                            } else if (count > 4) {
+                              color = "#e11d48"
+                              colorDark = "#be123c"
+                            }
+
+                            return (
+                              <div
+                                key={dayOffset}
+                                className={`min-h-[400px] ${
+                                  isToday ? "bg-blue-50" : isWeekend ? "bg-red-50/30" : "bg-white"
+                                }`}
+                              >
+                                {/* Header zi */}
+                                <div className={`p-3 border-b-2 ${
+                                  isToday ? "bg-blue-500 text-white" : "bg-slate-100"
+                                }`}>
+                                  <div className={`text-xs font-semibold ${isToday ? "text-blue-100" : "text-slate-600"}`}>
+                                    {format(dayDate, "EEEE", { locale: ro })}
+                                  </div>
+                                  <div className={`text-2xl font-bold ${isToday ? "text-white" : "text-slate-800"}`}>
+                                    {dayDate.getDate()}
+                                  </div>
+                                  <div className={`text-xs ${isToday ? "text-blue-100" : "text-slate-600"}`}>
+                                    {format(dayDate, "MMM yyyy", { locale: ro })}
+                                  </div>
+                                  {count > 0 && (
+                                    <Badge 
+                                      className="mt-2" 
+                                      style={{ 
+                                        backgroundColor: color,
+                                        color: "white"
+                                      }}
+                                    >
+                                      {count} {count === 1 ? "revizie" : "revizii"}
+                                    </Badge>
+                                  )}
+                                </div>
+
+                                {/* Lista evenimente zi */}
+                                <div className="p-3 space-y-2">
+                                  {dayEvents.length === 0 ? (
+                                    <div className="text-center py-8 text-sm text-muted-foreground">
+                                      Nicio revizie
+                                    </div>
+                                  ) : (
+                                    dayEvents.map((ev) => (
+                                      <div
+                                        key={ev.id}
+                                        className="p-3 rounded-lg border-2 bg-white hover:shadow-md transition-all cursor-pointer"
+                                        style={{ borderColor: getColorForId(ev.contractId) + "40" }}
+                                        onClick={() => {
+                                          setSelectedDayEvents([ev])
+                                          setSelectedDayDate(dayDate)
+                                          setIsDayPanelOpen(true)
+                                        }}
+                                      >
+                                        <div className="flex items-start gap-2">
+                                          <div
+                                            className="h-3 w-3 rounded shadow-sm flex-shrink-0 mt-0.5"
+                                            style={{ backgroundColor: getColorForId(ev.contractId) }}
+                                          />
+                                          <div className="flex-1 min-w-0">
+                                            <p className="font-bold text-sm text-slate-800">{ev.contractName}</p>
+                                            {ev.contractNumber && (
+                                              <p className="text-xs text-slate-600 mt-0.5">Nr: {ev.contractNumber}</p>
+                                            )}
+                                            {ev.locationName && (
+                                              <p className="text-xs text-slate-600 mt-0.5">📍 {ev.locationName}</p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : null}
+            </div>
+          ) : (
+            <>
+              {/* Layout pentru căutare și filtrare */}
+              <div className="flex flex-col sm:flex-row gap-2">
+                <UniversalSearch 
+                  onSearch={handleSearchChange} 
+                  initialValue={searchText}
+                  className="flex-1"
+                  placeholder="Căutare contracte..."
+                />
+                {/* EnhancedFilterSystem se va randa cu propriul său buton de filtrare */}
+                {table && <EnhancedFilterSystem table={table} persistenceKey="contracte" />}
+              </div>
+              
+              {/* Tabelul de contracte */}
+              <DataTable
+                columns={columns}
+                data={sortedContracts}
+                defaultSort={{ id: "createdAt", desc: true }}
+                sorting={tableSorting}
+                onSortingChange={handleSortingChange}
+                onRowClick={(row) => router.push(`/dashboard/contracte/${row.id}`)}
+                table={table}
+                setTable={setTable}
+                showFilters={false}
+                persistenceKey="contracte"
+              />
+            </>
+          )}
         </div>
       )}
+
+      {/* Panou detalii zi */}
+      <Dialog open={isDayPanelOpen} onOpenChange={setIsDayPanelOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedDayDate ? format(selectedDayDate, "EEEE, dd MMMM yyyy", { locale: ro }) : "Detalii zi"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 max-h-[70vh] overflow-y-auto">
+            <div className="text-sm text-slate-600">
+              {selectedDayEvents.length} {selectedDayEvents.length === 1 ? "revizie" : "revizii"} programate
+            </div>
+            {selectedDayEvents.length === 0 ? (
+              <div className="text-sm text-muted-foreground">Nu există revizii în această zi.</div>
+            ) : (
+              <div className="space-y-2">
+                {[...selectedDayEvents]
+                  .sort((a, b) => a.contractName.localeCompare(b.contractName))
+                  .map((ev) => (
+                    <div
+                      key={ev.id}
+                      className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50"
+                    >
+                      <div
+                        className="h-3 w-3 rounded-full mt-1"
+                        style={{ backgroundColor: getColorForId(ev.contractId) }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="font-semibold text-sm text-slate-800 truncate">{ev.contractName}</div>
+                          {ev.contractNumber && (
+                            <Badge variant="outline" className="font-mono text-xs">
+                              {ev.contractNumber}
+                            </Badge>
+                          )}
+                        </div>
+                        {ev.locationName && (
+                          <div className="text-xs text-slate-600 mt-1 truncate">📍 {ev.locationName}</div>
+                        )}
+                        <div className="flex items-center gap-2 mt-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8"
+                            onClick={() => {
+                              setIsDayPanelOpen(false)
+                              router.push(`/dashboard/contracte/${ev.contractId}`)
+                            }}
+                          >
+                            Vezi contract
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog pentru adăugarea unui contract nou */}
       <Dialog
