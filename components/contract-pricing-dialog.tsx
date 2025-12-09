@@ -211,13 +211,22 @@ export function ContractPricingDialog({ open, onOpenChange, pricing, onSave, cus
                 // actualizăm prețul acelui serviciu cu numericValue (dacă există)
                 if (!setting) return
                 const serviceName = resolveServiceNameFromSelection(parentName, String(setting.name || ""))
-                const price = setting.numericValue
-                if (price === undefined || price === null) return
-                const key = serviceName || String(setting.name || "")
+            const price =
+              setting.numericValue ??
+              (typeof setting.value === "number" ? setting.value : undefined) ??
+              (typeof setting.defaultValue === "number" ? setting.defaultValue : undefined) ??
+              0
+            const key = serviceName || String(setting.name || "")
                 setLocalPricing((prev) => ({
                   ...prev,
                   [key]: String(price),
                 }))
+            // Dacă era marcat ca șters, îl reactivăm
+            setRemovedKeys((prev) => {
+              const next = new Set(prev)
+              next.delete(key)
+              return next
+            })
               }}
               enableNumericEdit={false}
               filterChild={(child, parentName) => {
