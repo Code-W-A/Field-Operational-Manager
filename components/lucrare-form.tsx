@@ -187,6 +187,17 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     const { showDialog, handleNavigation, confirmNavigation, cancelNavigation, pendingUrl } =
       useUnsavedChanges(formModified)
 
+    const safeDate = (d?: Date) => (d && !isNaN(d.getTime()) ? d : undefined)
+    const safeFormatUiDate = (d?: Date) => {
+      if (!d || isNaN(d.getTime())) return "-"
+      try {
+        const { formatUiDate } = require("@/lib/utils/time-format")
+        return formatUiDate(d)
+      } catch {
+        return "-"
+      }
+    }
+
     // Add state for controlling the popovers
     const [dateEmiteriiOpen, setDateEmiteriiOpen] = useState(false)
     const [dateInterventieOpen, setDateInterventieOpen] = useState(false)
@@ -1793,13 +1804,13 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                   disabled
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dataEmiterii ? (() => { try { const { formatUiDate } = require("@/lib/utils/time-format"); return formatUiDate(dataEmiterii) } catch { return "Data curentă" } })() : "Data curentă"}
+                  {safeDate(dataEmiterii) ? safeFormatUiDate(safeDate(dataEmiterii)) : "Data curentă"}
                 </Button>
               </div>
               <div className="relative sm:w-1/3">
                 <Input
                   type="text"
-                  value={formatTime24(dataEmiterii || new Date())}
+                  value={formatTime24(safeDate(dataEmiterii) || new Date())}
                   className="cursor-not-allowed opacity-90"
                   disabled
                 />
@@ -1822,16 +1833,12 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                     className={`w-full justify-start text-left font-normal ${hasError("dataInterventie") ? errorStyle : ""}`}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dataInterventie ? (
-                      (() => { try { const { formatUiDate } = require("@/lib/utils/time-format"); return formatUiDate(dataInterventie) } catch { return format(dataInterventie, "dd.MM.yyyy", { locale: ro }) } })()
-                    ) : (
-                      <span>Selectați data</span>
-                    )}
+                    {safeDate(dataInterventie) ? safeFormatUiDate(safeDate(dataInterventie)) : <span>Selectați data</span>}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start" sideOffset={4}>
                   <CustomDatePicker
-                    selectedDate={dataInterventie}
+                    selectedDate={safeDate(dataInterventie)}
                     onDateChange={handleDateInterventieSelect}
                     onClose={() => setDateInterventieOpen(false)}
                     hasError={hasError("dataInterventie")}
@@ -2289,6 +2296,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 hasError={hasError("contract")}
                 errorStyle={errorStyle}
                 clientIdFilter={selectedClient?.id}
+                excludeTypes={formData.tipLucrare === "Intervenție în contract" ? ["La cerere"] : []}
               />
               {formData.contractType && (
                 <p className="text-xs text-blue-600">

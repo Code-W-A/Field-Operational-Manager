@@ -14,6 +14,7 @@ import { sendWorkOrderNotifications } from "@/components/work-order-notification
 import { serverTimestamp } from "firebase/firestore"
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { Mail, AlertCircle } from "lucide-react"
+import { toDateSafe } from "@/lib/utils/time-format"
 import { useAuth } from "@/contexts/AuthContext"
 import { useToast } from "@/components/ui/use-toast"
 import {
@@ -98,6 +99,11 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
+  const coerceDate = (val: any): Date | undefined => {
+    const d = toDateSafe(val)
+    return d && !isNaN(d.getTime()) ? d : undefined
+  }
+
   useEffect(() => {
     const fetchLucrare = async () => {
       try {
@@ -107,19 +113,11 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
           console.log("Lucrare încărcată pentru editare:", lucrare)
           setInitialData(lucrare)
 
-          // Set dates (robust parsing for Timestamp | ISO | dd.MM.yyyy [HH:mm])
-          try {
-            const { toDateSafe } = await import("@/lib/utils/time-format")
-            if (lucrare.dataEmiterii) {
-              setDataEmiterii(toDateSafe(lucrare.dataEmiterii) || undefined)
-            }
-            if (lucrare.dataInterventie) {
-              setDataInterventie(toDateSafe(lucrare.dataInterventie) || undefined)
-            }
-          } catch {
-            if (lucrare.dataEmiterii) setDataEmiterii(new Date(lucrare.dataEmiterii as any))
-            if (lucrare.dataInterventie) setDataInterventie(new Date(lucrare.dataInterventie as any))
-          }
+          // Set dates (robust parsing for Timestamp | ISO | date-only | dd.MM.yyyy)
+          const today = new Date()
+          setDataEmiterii(coerceDate(lucrare.dataEmiterii) || today)
+          // Cerință: la editare, data intervenției se pune automat pe azi
+          setDataInterventie(today)
 
           // Set form data
           setFormData({
@@ -141,6 +139,8 @@ export default function EditLucrarePage({ params }: { params: { id: string } }) 
             persoaneContact: lucrare.persoaneContact || [],
             echipamentId: lucrare.echipamentId || "",
             echipamentCod: lucrare.echipamentCod || "",
+            // Actualizăm data intervenției și în formData pentru submit
+            dataInterventie: today.toISOString(),
           })
 
           // Adăugăm un log pentru debugging

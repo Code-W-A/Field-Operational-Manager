@@ -31,9 +31,11 @@ interface ContractSelectProps {
   errorStyle?: string
   // Dacă este setat, listează doar contractele asignate acestui client
   clientIdFilter?: string
+  // Exclude contractele cu anumite tipuri (ex. "La cerere")
+  excludeTypes?: string[]
 }
 
-export function ContractSelect({ value, onChange, hasError = false, errorStyle = "", clientIdFilter }: ContractSelectProps) {
+export function ContractSelect({ value, onChange, hasError = false, errorStyle = "", clientIdFilter, excludeTypes = [] }: ContractSelectProps) {
   const [contracts, setContracts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
@@ -96,19 +98,47 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
     ? contracts.filter((c) => c.clientId === clientIdFilter)
     : contracts
 
+  const resolveContractType = (contract: any): string | undefined => {
+    const cf = (contract as any)?.customFields || {}
+    const direct =
+      contract.type ||
+      (contract as any)?.contractType ||
+      cf.contractType ||
+      cf.type ||
+      cf.tipContract ||
+      cf.tip ||
+      cf["Tip contract"] ||
+      cf["tip contract"]
+    if (direct) return direct
+    // fallback: first string value from customFields
+    const firstString = Object.values(cf).find((v) => typeof v === "string" && v.trim().length > 0)
+    if (typeof firstString === "string") return firstString
+    return undefined
+  }
+
+  const normalizedExcluded = excludeTypes.map((t) => t.toLowerCase().trim())
+
+  // Excludem tipurile nedorite (ex. "La cerere") din listă
+  const allowedContracts = contractsForClient.filter((c) => {
+    const t =
+      ((resolveContractType(c) || c.type || "") as string).toString().trim().toLowerCase()
+    return !normalizedExcluded.includes(t)
+  })
+
   // Filtrăm contractele pe baza termenului de căutare peste lista deja filtrată după client
-  const filteredContracts = contractsForClient.filter((contract) => {
+  const filteredContracts = allowedContracts.filter((contract) => {
     if (!searchTerm.trim()) return true
     const searchLower = searchTerm.toLowerCase()
     return (
       contract.name.toLowerCase().includes(searchLower) ||
       contract.number.toLowerCase().includes(searchLower) ||
-      (contract.type && contract.type.toLowerCase().includes(searchLower))
+      (contract.type && contract.type.toLowerCase().includes(searchLower)) ||
+      (resolveContractType(contract)?.toLowerCase().includes(searchLower))
     )
   })
 
-  // Găsim contractul selectat pentru afișare
-  const selectedContract = contracts.find((contract) => contract.id === value)
+  // Găsim contractul selectat pentru afișare (doar dacă nu este exclus)
+  const selectedContract = allowedContracts.find((contract) => contract.id === value)
 
   // Funcție pentru deschiderea dialogului de selecție
   const handleOpenSelectDialog = () => {
@@ -118,8 +148,26 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
 
   // Funcție pentru selectarea unui contract din dialog
   const handleSelectContract = (contractId: string) => {
-    const selectedContract = contracts.find((contract) => contract.id === contractId)
-    onChange(contractId, selectedContract?.number, selectedContract?.type)
+    const selectedContract = contractsForClient.find((contract) => contract.id === contractId)
+    if (!selectedContract) {
+      toast({
+        title: "Contract indisponibil",
+        description: "Acest contract nu poate fi selectat pentru acest tip de lucrare.",
+        variant: "destructive",
+      })
+      return
+    }
+    const resolvedType = resolveContractType(selectedContract)
+    const typeNormalized = (resolvedType || selectedContract.type || "").toString().trim().toLowerCase()
+    if (normalizedExcluded.includes(typeNormalized)) {
+      toast({
+        title: "Contract indisponibil",
+        description: `Contractele de tip "${resolvedType || selectedContract.type}" nu pot fi selectate pentru această lucrare.`,
+        variant: "destructive",
+      })
+      return
+    }
+    onChange(contractId, selectedContract?.number, resolveContractType(selectedContract))
     setIsSelectDialogOpen(false)
     setSearchTerm("") // Resetăm căutarea
   }
@@ -227,7 +275,7 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
           {loading 
             ? "Se încarcă..." 
             : selectedContract 
-              ? `${selectedContract.name} (${selectedContract.number})` 
+              ? `${selectedContract.name} (${selectedContract.number})${resolveContractType(selectedContract) ? ` · ${resolveContractType(selectedContract)}` : ""}` 
               : "Selectați contractul"
           }
         </span>
@@ -297,7 +345,7 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
                           </h4>
                           <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
                             <span>Număr: {contract.number}</span>
-                            <span>Tip: {contract.type || "Nespecificat"}</span>
+                            <span>Tip: {resolveContractType(contract) || "Nespecificat"}</span>
                           </div>
                         </div>
                         {value === contract.id && (
@@ -310,7 +358,7 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
                     </div>
                   ))}
                 </div>
-              ) : contractsForClient.length > 0 ? (
+              ) : allowedContracts.length > 0 ? (
                 <div className="p-8 text-center text-muted-foreground">
                   <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
                   <p>Nu s-au găsit contracte pentru "{searchTerm}"</p>

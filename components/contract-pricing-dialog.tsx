@@ -216,7 +216,7 @@ export function ContractPricingDialog({ open, onOpenChange, pricing, onSave, cus
               (typeof setting.value === "number" ? setting.value : undefined) ??
               (typeof setting.defaultValue === "number" ? setting.defaultValue : undefined) ??
               0
-            const key = serviceName || String(setting.name || "")
+                const key = serviceName || String(setting.name || "")
                 setLocalPricing((prev) => ({
                   ...prev,
                   [key]: String(price),

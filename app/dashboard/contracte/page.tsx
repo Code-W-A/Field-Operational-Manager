@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
@@ -66,6 +66,7 @@ import { subscribeToSettingsByTarget, subscribeToSettings } from "@/lib/firebase
 import type { Setting } from "@/types/settings"
 import { getPredefinedSettingValue } from "@/lib/firebase/predefined-settings"
 import { formatUiDate, toDateSafe } from "@/lib/utils/time-format"
+import { getDocs, query as fsQuery, where } from "firebase/firestore"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { CustomDatePicker } from "@/components/custom-date-picker"
 import { Card, CardContent } from "@/components/ui/card"
@@ -257,8 +258,12 @@ export default function ContractsPage() {
     loadDefaultDays()
   }, [])
 
-  const [showCloseAlert, setShowCloseAlert] = useState(false)
-  const [activeDialog, setActiveDialog] = useState<"add" | "edit" | "delete" | null>(null)
+const [showCloseAlert, setShowCloseAlert] = useState(false)
+const [activeDialog, setActiveDialog] = useState<"add" | "edit" | "delete" | null>(null)
+const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; count: number; error?: string }>({
+  loading: false,
+  count: 0,
+})
 
   // Sincronizează input-urile text cu valorile numerice inițiale
   useEffect(() => {
@@ -289,6 +294,114 @@ export default function ContractsPage() {
     monday.setDate(today.getDate() + diff)
     return monday
   })
+
+  // === Încarcă încărcarea (numărul de lucrări Revizie) pentru data de început selectată ===
+  const loadStartDateWorkload = useCallback(
+    async (isoDate: string) => {
+      if (!isoDate) {
+        setStartDateWorkload({ loading: false, count: 0 })
+        return
+      }
+
+      setStartDateWorkload((prev) => ({ ...prev, loading: true, error: undefined }))
+
+      const start = new Date(`${isoDate}T00:00:00.000Z`)
+      const end = new Date(start)
+      end.setUTCDate(end.getUTCDate() + 1)
+
+      const dayStartIso = start.toISOString()
+      const dayEndIso = end.toISOString()
+
+      // Construim mai multe interogări pentru a acoperi tipuri diferite de câmp (Timestamp, ISO string, string simplu).
+      const queries = [
+        // Interval pe Timestamp/Date
+        fsQuery(
+          collection(db, "lucrari"),
+          where("tipLucrare", "==", "Revizie"),
+          where("dataInterventie", ">=", start),
+          where("dataInterventie", "<", end),
+        ),
+        // Interval pe string ISO (fallback pentru câmp salvat ca string)
+        fsQuery(
+          collection(db, "lucrari"),
+          where("tipLucrare", "==", "Revizie"),
+          where("dataInterventie", ">=", dayStartIso),
+          where("dataInterventie", "<", dayEndIso),
+        ),
+        // Egalitate pe string date-only (ex: "2025-01-01")
+        fsQuery(
+          collection(db, "lucrari"),
+          where("tipLucrare", "==", "Revizie"),
+          where("dataInterventie", "==", isoDate),
+        ),
+        // Egalitate pe Timestamp/Date (în caz că a fost salvat ca Date fără timp)
+        fsQuery(
+          collection(db, "lucrari"),
+          where("tipLucrare", "==", "Revizie"),
+          where("dataInterventie", "==", start),
+        ),
+      ]
+
+      try {
+        const snaps = await Promise.all(
+          queries.map(async (q, idx) => {
+            try {
+              return await getDocs(q)
+            } catch (err) {
+              console.warn("loadStartDateWorkload query failed", { idx, err })
+              return null
+            }
+          }),
+        )
+
+        // Deduplicăm documentele ca să nu numărăm de două ori același rezultat.
+        const ids = new Set<string>()
+        snaps
+          .filter(Boolean)
+          .forEach((snap) => {
+            snap?.forEach((doc) => ids.add(doc.id))
+          })
+
+        // Adăugăm și reviziile din preview (folosit și în calendar) ca să fie aceeași valoare.
+        const previewCount = contracts.reduce((acc, contract) => {
+          const preview = (contract as any)?.revisionSchedulePreview
+          if (!Array.isArray(preview)) return acc
+
+          const countForContract = preview.reduce((innerAcc: number, item: any) => {
+            const raw = item?.scheduledIso || item?.scheduledAt || item?.scheduledDate
+            const date =
+              raw?.toDate?.() instanceof Date
+                ? raw.toDate()
+                : raw && typeof raw.seconds === "number"
+                  ? new Date(raw.seconds * 1000)
+                  : raw
+                  ? new Date(raw)
+                  : null
+            if (!date || Number.isNaN(date.getTime())) return innerAcc
+            const day = date.toISOString().slice(0, 10)
+            return day === isoDate ? innerAcc + 1 : innerAcc
+          }, 0)
+
+          return acc + countForContract
+        }, 0)
+
+        setStartDateWorkload({ loading: false, count: ids.size + previewCount })
+      } catch (error) {
+        console.error("Error loading workload for start date", error)
+        setStartDateWorkload({ loading: false, count: 0, error: "Nu s-a putut încărca încărcarea pentru acea dată" })
+      }
+    },
+    [db, contracts],
+  )
+
+  // Recalculează când se schimbă data de început
+  useEffect(() => {
+    if (newContractStartDate) {
+      loadStartDateWorkload(newContractStartDate)
+    } else {
+      setStartDateWorkload({ loading: false, count: 0 })
+    }
+  }, [newContractStartDate, loadStartDateWorkload])
 
   // Persistența tabelului
   const { loadSettings, saveFilters, saveColumnVisibility, saveSorting, saveSearchText } = useTablePersistence("contracte")
@@ -2370,6 +2483,22 @@ export default function ContractsPage() {
                 <p className="text-xs text-gray-500">
                   Data primei revizii sau data de referință pentru calculul recurenței
                 </p>
+              {newContractStartDate && (
+                <div className="text-xs flex items-center gap-2">
+                  {startDateWorkload.loading ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />
+                      <span className="text-slate-600">Se verifică lucrările programate în această zi...</span>
+                    </>
+                  ) : startDateWorkload.error ? (
+                    <span className="text-red-600">{startDateWorkload.error}</span>
+                  ) : (
+                    <span className="text-blue-700">
+                      Pe {formatUiDate(toDateSafe(newContractStartDate)!)} există deja {startDateWorkload.count} lucrări (revizii) programate.
+                    </span>
+                  )}
+                </div>
+              )}
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2709,6 +2838,22 @@ export default function ContractsPage() {
                 <p className="text-xs text-gray-500">
                   Data primei revizii sau data de referință pentru calculul recurenței
                 </p>
+              {newContractStartDate && (
+                <div className="text-xs flex items-center gap-2">
+                  {startDateWorkload.loading ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />
+                      <span className="text-slate-600">Se verifică lucrările programate în această zi...</span>
+                    </>
+                  ) : startDateWorkload.error ? (
+                    <span className="text-red-600">{startDateWorkload.error}</span>
+                  ) : (
+                    <span className="text-blue-700">
+                      Pe {formatUiDate(toDateSafe(newContractStartDate)!)} există deja {startDateWorkload.count} lucrări (revizii) programate.
+                    </span>
+                  )}
+                </div>
+              )}
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

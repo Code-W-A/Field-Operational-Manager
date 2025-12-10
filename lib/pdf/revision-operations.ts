@@ -1,7 +1,7 @@
 import { jsPDF } from "jspdf"
 import { collection, doc, getDoc, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
-import { drawSimpleHeader, MARGIN, CONTENT_WIDTH } from "./common"
+import { drawSimpleHeader, drawFooter, MARGIN, CONTENT_WIDTH } from "./common"
 import { ensurePdfFont } from "./font-loader"
 
 type RevisionItem = {
@@ -76,23 +76,6 @@ function normalizeTextForPdf(text = ""): string {
   return s
 }
 
-// Local footer centrat pentru Fisa de operatiuni
-function drawOpsFooter(doc: jsPDF): void {
-  const PH = doc.internal.pageSize.getHeight()
-  const footerSepY = PH - 18
-  // separator subtire
-  doc.setDrawColor(210, 210, 210).setLineWidth(0.2)
-  doc.line(MARGIN, footerSepY, MARGIN + CONTENT_WIDTH, footerSepY)
-  // text centrat (doua randuri concise)
-  let footerY = footerSepY + 6
-  try { doc.setFont("NotoSans", "normal") } catch {}
-  doc.setFontSize(8).setTextColor(30, 70, 180)
-  const centerX = MARGIN + CONTENT_WIDTH / 2
-  doc.text("NRG Access Systems SRL", centerX, footerY, { align: "center" } as any)
-  footerY += 4
-  doc.text("office@nrg-acces.ro • www.nrg-acces.ro • +40 371 494 499", centerX, footerY, { align: "center" } as any)
-}
-
 export async function generateRevisionOperationsPDF(lucrareId: string): Promise<Blob> {
   const doc = new jsPDF({ unit: "mm", format: "a4" })
   let currentY = MARGIN
@@ -139,7 +122,7 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
     const checkBreak = (need: number) => {
       const PH = doc.internal.pageSize.getHeight()
       if (currentY + need > PH - MARGIN - 30) {
-        drawOpsFooter(doc)
+        drawFooter(doc)
         doc.addPage()
         currentY = drawSimpleHeader(doc, { title: headerTitle, logoDataUrl })
         // Reset text state after header so we don't inherit footer/header styles
@@ -214,8 +197,12 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
         // O singura coloana "Verificat" – marcam X daca a fost evaluat (functional sau nefunctional)
         const verX = MARGIN + firstColW
         try { doc.setFont("NotoSans", "bold") } catch {}
-        const mark = state !== "na" ? "X" : ""
+        const mark = state !== "na" ? "✔" : ""
+        // verde discret pentru verificat
+        if (mark) doc.setTextColor(22, 163, 74)
         doc.text(mark, verX + verW / 2, currentY + 5, { align: "center" } as any)
+        // revenim la culoarea implicită
+        doc.setTextColor(0, 0, 0)
 
         // Obs
         try { doc.setFont("NotoSans", "normal") } catch {}
@@ -228,7 +215,7 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
     }
 
     // Footer per page
-    drawOpsFooter(doc)
+    drawFooter(doc)
     if (idx < revisions.length - 1) {
       doc.addPage()
       currentY = MARGIN
@@ -301,7 +288,7 @@ export async function generateRevisionEquipmentPDF(
   const checkBreak = (need: number) => {
     const PH = js.internal.pageSize.getHeight()
     if (currentY + need > PH - MARGIN - 30) {
-      drawOpsFooter(js)
+      drawFooter(js)
       js.addPage()
       currentY = drawSimpleHeader(js, { title, logoDataUrl })
       // Reset text state after header so we don't inherit footer/header styles
@@ -366,8 +353,10 @@ export async function generateRevisionEquipmentPDF(
 
       const verX = MARGIN + firstColW
       try { js.setFont("NotoSans", "bold") } catch {}
-      const mark = state !== "na" ? "X" : ""
+      const mark = state !== "na" ? "✔" : ""
+      if (mark) js.setTextColor(22, 163, 74)
       js.text(mark, verX + verW / 2, currentY + 5, { align: "center" } as any)
+      js.setTextColor(0, 0, 0)
 
       try { js.setFont("NotoSans", "normal") } catch {}
       if (obsLines.length) {
@@ -378,7 +367,7 @@ export async function generateRevisionEquipmentPDF(
     }
   }
 
-  drawOpsFooter(js)
+  drawFooter(js)
   return js.output("blob")
 }
 

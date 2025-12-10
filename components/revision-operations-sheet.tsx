@@ -12,9 +12,8 @@ import { getRevisionDoc, subscribeRevisionDoc, upsertRevisionDoc, uploadRevision
 import type { RevisionPhotoMeta } from "@/lib/firebase/revisions"
 import type { RevisionChecklistSection, RevisionChecklistItem } from "@/types/revision"
 import { useAuth } from "@/contexts/AuthContext"
-import { updateLucrare } from "@/lib/firebase/firestore"
 import { QRCodeScanner } from "@/components/qr-code-scanner"
-import { getLucrareById, getClienti } from "@/lib/firebase/firestore"
+import { getLucrareById, getClienti, updateLucrare } from "@/lib/firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import {
@@ -27,6 +26,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
+import { formatUiDate, formatTime } from "@/lib/utils/time-format"
 
 type Props = {
   workId: string
@@ -61,6 +61,10 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [initialValues, setInitialValues] = useState<Record<string, ItemState | undefined>>({})
   const [initialObs, setInitialObs] = useState<Record<string, string>>({})
+  const [equipmentTimes, setEquipmentTimes] = useState<Record<
+    string,
+    { startIso?: string; endIso?: string; durationMinutes?: number; durationText?: string }
+  >>({})
   // Dialog states
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [obsDialogOpen, setObsDialogOpen] = useState(false)
@@ -151,6 +155,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
         if (work) {
           setExpectedClient(work.client)
           setExpectedLocation(work.locatie)
+          setEquipmentTimes((work as any)?.revisionEquipmentTimes || {})
           try {
             const clients = await getClienti()
             const client = clients.find((c: any) => c.nume === work.client)
@@ -192,6 +197,41 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
     if (!allCompleted) return undefined
     return Object.values(values).every((v) => v === "functional") ? "functional" : "nefunctional"
   }, [allCompleted, values])
+
+  // Set end time and duration when all items completed (first time)
+  useEffect(() => {
+    const persistEndIfNeeded = async () => {
+      if (!verified || !allCompleted) return
+      try {
+        const work = await getLucrareById(workId)
+        if (work?.tipLucrare !== "Revizie") return
+        const times = { ...((work as any)?.revisionEquipmentTimes || {}) }
+        const existing = times[equipmentId] || {}
+        if (existing.endIso || !existing.startIso) {
+          setEquipmentTimes(times)
+          return
+        }
+        const end = new Date()
+        const start = new Date(existing.startIso)
+        const ms = Math.max(0, end.getTime() - start.getTime())
+        const minutes = Math.floor(ms / 60000)
+        const hours = Math.floor(minutes / 60)
+        const mins = minutes % 60
+        times[equipmentId] = {
+          ...existing,
+          endIso: end.toISOString(),
+          durationMinutes: minutes,
+          durationText: `${hours}h ${mins}m`,
+        }
+        await updateLucrare(workId, { revisionEquipmentTimes: times })
+        setEquipmentTimes(times)
+        console.log("✅ Durată echipament salvată", { equipmentId, ...times[equipmentId] })
+      } catch (e) {
+        console.error("Eroare la salvarea duratei pe echipament:", e)
+      }
+    }
+    void persistEndIfNeeded()
+  }, [verified, allCompleted, workId, equipmentId])
 
   // Handle photo selection with preview (limit: max 4 photos)
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -519,6 +559,39 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
                           })
                         } catch (e) {
                           console.error("Error saving QR verification:", e)
+                        }
+
+                        // Set timpSosire for Revizie works if absent (use first QR scan as arrival)
+                        try {
+                          const work = await getLucrareById(workId)
+                          if (work?.tipLucrare === "Revizie") {
+                            const now = new Date()
+
+                            // Per-echipament start
+                            const times = { ...((work as any)?.revisionEquipmentTimes || {}) }
+                            const existing = times[equipmentId] || {}
+                            if (!existing.startIso) {
+                              times[equipmentId] = {
+                                ...existing,
+                                startIso: now.toISOString(),
+                              }
+                              await updateLucrare(workId, { revisionEquipmentTimes: times })
+                              setEquipmentTimes(times)
+                            }
+
+                            // Global timpSosire (dacă lipsește)
+                            if (!work?.timpSosire) {
+                              const payload: any = {
+                                timpSosire: now.toISOString(),
+                                dataSosire: formatUiDate(now),
+                                oraSosire: formatTime(now),
+                              }
+                              await updateLucrare(workId, payload)
+                              console.log("✅ timpSosire set from first QR scan (revizie)", payload)
+                            }
+                          }
+                        } catch (e) {
+                          console.error("Eroare la setarea timpSosire pentru revizie:", e)
                         }
                       }
                     }}

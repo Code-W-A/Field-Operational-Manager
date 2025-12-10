@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { Plus, Search, List, Grid3x3, Folder, Settings, Save, RefreshCw } from "lucide-react"
+import { Plus, Search, List, Grid3x3, Folder, Settings, Save, RefreshCw, Download, Loader2 } from "lucide-react"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
@@ -10,6 +10,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   AlertDialog,
@@ -139,6 +140,10 @@ export default function SetariPage() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [multiSelectMode, setMultiSelectMode] = useState(false)
   const [activeTab, setActiveTab] = useState<"sistem" | "variabile">("variabile")
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
+  const [stopHierarchy, setStopHierarchy] = useState(false)
+  const [stopHierarchyLoading, setStopHierarchyLoading] = useState(false)
+  const currentParentSetting = navigationPath.length ? navigationPath[navigationPath.length - 1] : null
 
   // Dialog state
   const [editorOpen, setEditorOpen] = useState(false)
@@ -160,6 +165,11 @@ export default function SetariPage() {
 
   // Load settings
   const { settings, loading } = useSettings(currentParentId)
+
+  // Sync stopHierarchy flag from current parent
+  useEffect(() => {
+    setStopHierarchy(!!currentParentSetting?.stopHierarchy)
+  }, [currentParentSetting])
 
   // Load predefined settings and report number
   useEffect(() => {
@@ -282,6 +292,14 @@ export default function SetariPage() {
   }
 
   const handleCreate = () => {
+    if (stopHierarchy && currentParentId) {
+      toast({
+        title: "Ierarhie oprită",
+        description: "Nu poți crea sub-nivele aici. Repornește ierarhia pentru a continua.",
+        variant: "destructive",
+      })
+      return
+    }
     setEditorMode("create")
     setEditingSetting(null)
     setEditorOpen(true)
@@ -294,6 +312,14 @@ export default function SetariPage() {
   }
 
   const handleAddChild = (parent: Setting) => {
+    if (parent.stopHierarchy) {
+      toast({
+        title: "Ierarhie oprită",
+        description: "Nu poți crea sub-nivele sub acest element până nu reactivăm ierarhia.",
+        variant: "destructive",
+      })
+      return
+    }
     setCurrentParentId(parent.id)
     setNavigationPath([...navigationPath, parent])
     setTimeout(() => {
@@ -323,12 +349,57 @@ export default function SetariPage() {
   }
 
   const handleDelete = async (setting: Setting) => {
+    setDeletingIds((prev) => {
+      const next = new Set(prev)
+      next.add(setting.id)
+      return next
+    })
     try {
       await deleteSetting(setting.id, userData?.uid || "", userData?.displayName || "Utilizator")
       toast({ title: "Setare ștearsă cu succes" })
     } catch (error) {
       console.error("Error deleting setting:", error)
       toast({ title: "Eroare la ștergere", variant: "destructive" })
+    } finally {
+      setDeletingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(setting.id)
+        return next
+      })
+    }
+  }
+
+  const handleToggleStopHierarchy = async () => {
+    if (!currentParentSetting) return
+    const nextValue = !stopHierarchy
+    setStopHierarchyLoading(true)
+    try {
+      await updateSetting(
+        currentParentSetting.id,
+        { stopHierarchy: nextValue },
+        userData?.uid || "",
+        userData?.displayName || "Utilizator"
+      )
+      setStopHierarchy(nextValue)
+      setNavigationPath((prev) => {
+        if (!prev.length) return prev
+        const newPath = [...prev]
+        const last = newPath[newPath.length - 1]
+        newPath[newPath.length - 1] = { ...last, stopHierarchy: nextValue } as Setting
+        return newPath
+      })
+      toast({
+        title: nextValue ? "Ierarhia a fost oprită" : "Ierarhia a fost reactivată",
+      })
+    } catch (error) {
+      console.error("Error toggling stopHierarchy:", error)
+      toast({
+        title: "Eroare",
+        description: "Nu s-a putut actualiza starea ierarhiei.",
+        variant: "destructive",
+      })
+    } finally {
+      setStopHierarchyLoading(false)
     }
   }
 
@@ -358,6 +429,16 @@ export default function SetariPage() {
   const handleViewHistory = (setting: Setting) => {
     setHistorySetting(setting)
     setHistoryOpen(true)
+  }
+
+  const handleDownloadCurrentDocument = () => {
+    if (!currentParentSetting?.documentUrl) return
+    try {
+      window.open(currentParentSetting.documentUrl, "_blank", "noopener,noreferrer")
+    } catch (error) {
+      console.error("Error opening document:", error)
+      toast({ title: "Nu am putut deschide documentul", variant: "destructive" })
+    }
   }
 
   const toggleSelect = (setting: Setting) => {
@@ -818,11 +899,24 @@ export default function SetariPage() {
                       Construiește structura cu setări și subsetări.
                     </p>
                   </div>
-                  <div className="flex gap-2">
-                    <Button onClick={handleCreate}>
+                  <div className="flex flex-col items-center gap-2">
+                    <Button onClick={handleCreate} disabled={stopHierarchy}>
                       <Plus className="mr-2 h-4 w-4" />
                       Creează primul element
                     </Button>
+                    {currentParentId && (
+                      <Button
+                        variant={stopHierarchy ? "secondary" : "outline"}
+                        onClick={handleToggleStopHierarchy}
+                        disabled={stopHierarchyLoading}
+                      >
+                        {stopHierarchyLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {stopHierarchy ? "Repornește ierarhia" : "Oprește ierarhia"}
+                      </Button>
+                    )}
+                    {stopHierarchy && (
+                      <p className="text-xs text-muted-foreground">Crearea de sub-nivele este blocată aici.</p>
+                    )}
                   </div>
                 </>
               )}
@@ -837,6 +931,7 @@ export default function SetariPage() {
                     <SortableSettingCard
                       key={setting.id}
                       setting={setting}
+                      isDeleting={deletingIds.has(setting.id)}
                       selected={isSelected(setting.id)}
                       onToggleSelect={toggleSelect}
                       showCheckbox={multiSelectMode}
@@ -851,8 +946,8 @@ export default function SetariPage() {
                   ))}
                   {/* Add new card shortcut at the end (right of the last card) */}
                   <Card
-                    className="border-dashed hover:border-primary/60 hover:bg-primary/5 transition cursor-pointer flex items-center justify-center"
-                    onClick={handleCreate}
+                    className={`border-dashed hover:border-primary/60 hover:bg-primary/5 transition flex items-center justify-center ${stopHierarchy ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+                    onClick={stopHierarchy ? undefined : handleCreate}
                   >
                     <CardContent className="flex items-center justify-center py-10">
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
@@ -870,6 +965,7 @@ export default function SetariPage() {
                     <SortableSettingRow
                       key={`row-${setting.id}`}
                       setting={setting}
+                      isDeleting={deletingIds.has(setting.id)}
                       selected={isSelected(setting.id)}
                       onToggleSelect={toggleSelect}
                       showCheckbox={multiSelectMode}
@@ -884,8 +980,8 @@ export default function SetariPage() {
                   ))}
                   {/* Add new row shortcut at the end of the list */}
                   <div
-                    className="w-full rounded-md border border-dashed bg-background hover:bg-muted/30 transition-all px-3 py-3 flex items-center justify-center cursor-pointer"
-                    onClick={handleCreate}
+                    className={`w-full rounded-md border border-dashed bg-background hover:bg-muted/30 transition-all px-3 py-3 flex items-center justify-center ${stopHierarchy ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+                    onClick={stopHierarchy ? undefined : handleCreate}
                   >
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Plus className="h-4 w-4" />
@@ -907,7 +1003,18 @@ export default function SetariPage() {
             <div className="flex items-center justify-between">
               <SettingsBreadcrumbs currentPath={navigationPath} onNavigate={handleNavigateToParent} />
               <div className="flex items-center gap-2">
-                <Button onClick={handleCreate} size="sm">
+                {stopHierarchy && (
+                  <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                    Oprire ierarhie activă
+                  </Badge>
+                )}
+                {currentParentSetting?.documentUrl && (
+                  <Button variant="outline" size="sm" onClick={handleDownloadCurrentDocument}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Descarcă document
+                  </Button>
+                )}
+                <Button onClick={handleCreate} size="sm" disabled={stopHierarchy}>
                   <Plus className="mr-2 h-4 w-4" />
                   Element nou
                 </Button>
@@ -1026,11 +1133,24 @@ export default function SetariPage() {
                           Construiește structura cu setări și subsetări.
                         </p>
                       </div>
-                      <div className="flex gap-2">
-                        <Button onClick={handleCreate}>
+                      <div className="flex flex-col items-center gap-2">
+                        <Button onClick={handleCreate} disabled={stopHierarchy}>
                           <Plus className="mr-2 h-4 w-4" />
                           Creează primul element
                         </Button>
+                        {currentParentId && (
+                          <Button
+                            variant={stopHierarchy ? "secondary" : "outline"}
+                            onClick={handleToggleStopHierarchy}
+                            disabled={stopHierarchyLoading}
+                          >
+                            {stopHierarchyLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {stopHierarchy ? "Repornește ierarhia" : "Oprește ierarhia"}
+                          </Button>
+                        )}
+                        {stopHierarchy && (
+                          <p className="text-xs text-muted-foreground">Crearea de sub-nivele este blocată aici.</p>
+                        )}
                       </div>
                     </>
                   )}
@@ -1078,6 +1198,7 @@ export default function SetariPage() {
                         <SortableSettingRow
                           key={`row-${setting.id}`}
                           setting={setting}
+                      isDeleting={deletingIds.has(setting.id)}
                           selected={isSelected(setting.id)}
                           onToggleSelect={toggleSelect}
                           showCheckbox={multiSelectMode}

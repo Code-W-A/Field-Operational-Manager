@@ -407,7 +407,7 @@ export default function ContractDetailsPage() {
                             <div>
                               <p className="text-sm font-semibold">{formatDate(item.generateAt)}</p>
                               <p className="text-xs text-gray-500">
-                                Generează lucrarea pentru {formatDate(item.scheduledAt)}
+                                Generează revizie pentru {formatDate(item.scheduledAt)}
                               </p>
                             </div>
                             {item.locationName && (
@@ -459,7 +459,6 @@ export default function ContractDetailsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {Object.entries(contract.customFields).map(([key, value]) => (
                     <div key={key}>
-                      <p className="text-xs font-medium text-gray-500 capitalize">{key.replace(/_/g, ' ')}</p>
                       <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 mt-1 text-sm">
                         {String(value)}
                       </Badge>

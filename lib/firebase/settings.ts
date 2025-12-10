@@ -14,7 +14,8 @@ import {
   onSnapshot,
   Timestamp,
 } from "firebase/firestore"
-import { db } from "./config"
+import { ref, ref as refFromStorage, deleteObject } from "firebase/storage"
+import { db, storage } from "./config"
 import type {
   Setting,
   SettingHistory,
@@ -215,6 +216,22 @@ export async function deleteSetting(id: string, userId: string, userName: string
 
   const settingData = docSnap.data()
 
+  // Gather storage URLs to clean up (document, image, or value.url)
+  const storageUrls: string[] = []
+  const val = (settingData as any)?.value
+  const urlFromValue =
+    typeof val === "string" && /^(https?:\/\/|gs:\/\/)/i.test(val)
+      ? val
+      : typeof val === "string" && /\.(pdf|docx?|xlsx?|xls|png|jpe?g|gif|webp)$/i.test(val)
+      ? val
+      : val && typeof val === "object" && typeof (val as any).url === "string"
+      ? (val as any).url
+      : undefined
+
+  if (settingData.documentUrl) storageUrls.push(settingData.documentUrl)
+  if (settingData.imageUrl) storageUrls.push(settingData.imageUrl)
+  if (urlFromValue) storageUrls.push(urlFromValue)
+
   // Find all children
   const childrenQuery = query(collection(db, "settings"), where("parentId", "==", id))
   const childrenSnapshot = await getDocs(childrenQuery)
@@ -229,6 +246,18 @@ export async function deleteSetting(id: string, userId: string, userName: string
 
   // Delete the setting
   await deleteDoc(docRef)
+
+  // Attempt to delete linked storage files (best-effort)
+  for (const url of storageUrls) {
+    try {
+      const storageRef = url.startsWith("http") || url.startsWith("gs://")
+        ? refFromStorage(storage, url)
+        : ref(storage, url)
+      await deleteObject(storageRef)
+    } catch (err) {
+      console.warn("Could not delete storage object for setting", id, url, err)
+    }
+  }
 }
 
 // Duplicate setting

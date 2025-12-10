@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
-import { MoreVertical, Folder, FileText, Star, Copy, History, Trash2, Plus, GripVertical, Link2 } from "lucide-react"
+import { useMemo, useState } from "react"
+import { getDownloadURL, ref as storageRef } from "firebase/storage"
+import { MoreVertical, Folder, FileText, Star, Copy, History, Trash2, Plus, GripVertical, Link2, Download, Loader2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -27,6 +28,7 @@ import type { Setting } from "@/types/settings"
 import { cn } from "@/lib/utils"
 import { SETTINGS_TARGETS } from "@/lib/settings/targets"
 import { useAuth } from "@/contexts/AuthContext"
+import { storage } from "@/lib/firebase/config"
 import { updateSetting } from "@/lib/firebase/settings"
 import { toast } from "@/hooks/use-toast"
 
@@ -43,6 +45,7 @@ interface SettingCardProps {
   selected?: boolean
   onToggleSelect?: (setting: Setting) => void
   showCheckbox?: boolean
+  isDeleting?: boolean
 }
 
 export function SettingCard({
@@ -58,12 +61,44 @@ export function SettingCard({
   selected = false,
   onToggleSelect,
   showCheckbox = false,
+  isDeleting = false,
 }: SettingCardProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false)
   const [showBindDialog, setShowBindDialog] = useState(false)
   const [selectedTargets, setSelectedTargets] = useState<string[]>(Array.isArray(setting.assignedTargets) ? setting.assignedTargets : [])
   const { userData } = useAuth()
+
+  const documentMeta = useMemo(() => {
+    const val = setting.value
+    const urlFromValue =
+      val && typeof val === "object" && typeof (val as any).url === "string"
+        ? (val as any).url
+        : undefined
+
+    const url = setting.documentUrl || setting.imageUrl || urlFromValue
+    if (!url) return null
+
+    const label =
+      setting.fileName ||
+      setting.name ||
+      (typeof url === "string" ? url.split("/").pop() || "Document" : "Document")
+    return { url, label }
+  }, [setting])
+
+  const handleOpenDocument = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!documentMeta) return
+    try {
+      let finalUrl = documentMeta.url
+      if (!/^https?:\/\//i.test(finalUrl) && !finalUrl.startsWith("gs://")) {
+        finalUrl = await getDownloadURL(storageRef(storage, finalUrl))
+      }
+      window.open(finalUrl, "_blank", "noopener,noreferrer")
+    } catch {
+      toast({ title: "Nu am putut deschide documentul", variant: "destructive" })
+    }
+  }
 
   const handleCardClick = () => {
     // Allow navigation for both categories and variables
@@ -75,6 +110,16 @@ export function SettingCard({
   const handleDelete = () => {
     setShowDeleteDialog(false)
     onDelete?.(setting)
+  }
+
+  const handleDownload = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!setting.documentUrl) return
+    try {
+      window.open(setting.documentUrl, "_blank", "noopener,noreferrer")
+    } catch {
+      toast({ title: "Nu am putut deschide documentul", variant: "destructive" })
+    }
   }
 
   return (
@@ -121,11 +166,21 @@ export function SettingCard({
             </div>
 
             <div className="flex items-center gap-1 flex-shrink-0">
+              {isDeleting && (
+                <div className="h-8 w-8 flex items-center justify-center text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                </div>
+              )}
+              {documentMeta && (
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleOpenDocument} title={documentMeta.label ? `Descarcă ${documentMeta.label}` : "Descarcă document"} disabled={isDeleting}>
+                  <Download className="h-4 w-4" />
+                </Button>
+              )}
               {setting.favorite && <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />}
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <Button variant="ghost" size="icon" className="h-8 w-8" disabled={isDeleting}>
                     <MoreVertical className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -156,6 +211,12 @@ export function SettingCard({
                       Duplică
                     </DropdownMenuItem>
                   )}
+                  {documentMeta && (
+                    <DropdownMenuItem onClick={handleOpenDocument} disabled={isDeleting}>
+                      <Download className="mr-2 h-4 w-4" />
+                      Descarcă document
+                    </DropdownMenuItem>
+                  )}
                   {onToggleFavorite && (
                     <DropdownMenuItem onClick={() => onToggleFavorite(setting)}>
                       <Star className="mr-2 h-4 w-4" />
@@ -170,9 +231,9 @@ export function SettingCard({
                   )}
                   <DropdownMenuSeparator />
                   {onDelete && (
-                    <DropdownMenuItem onClick={() => setShowDeleteDialog(true)} className="text-red-600">
+                    <DropdownMenuItem onClick={() => setShowDeleteDialog(true)} className="text-red-600" disabled={isDeleting}>
                       <Trash2 className="mr-2 h-4 w-4" />
-                      Șterge
+                      {isDeleting ? "Se șterge..." : "Șterge"}
                     </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>
@@ -197,6 +258,18 @@ export function SettingCard({
               <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">
                 🔗 Moștenit
               </Badge>
+            )}
+            {documentMeta && (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={handleOpenDocument}
+                disabled={isDeleting}
+              >
+                <Download className="h-3.5 w-3.5 mr-2" />
+                {documentMeta.label ? `Descarcă ${documentMeta.label}` : "Descarcă fișier"}
+              </Button>
             )}
           </div>
         </CardContent>

@@ -1201,22 +1201,11 @@ export default function Lucrari() {
   const handleEdit = (lucrare) => {
     setSelectedLucrare(lucrare)
 
-    // Convertim string-urile de dată în obiecte Date
-    try {
-      // Verificăm dacă data conține și ora
-      const dateFormatEmiterii = lucrare.dataEmiterii.includes(" ") ? "dd.MM.yyyy HH:mm" : "dd.MM.yyyy"
-      const dateFormatInterventie = lucrare.dataInterventie.includes(" ") ? "dd.MM.yyyy HH:mm" : "dd.MM.yyyy"
-
-      const emitereDate = parse(lucrare.dataEmiterii, dateFormatEmiterii, new Date())
-      const interventieDate = parse(lucrare.dataInterventie, dateFormatInterventie, new Date())
-
-      setDataEmiterii(emitereDate)
-      setDataInterventie(interventieDate)
-    } catch (error) {
-      console.error("Eroare la parsarea datelor:", error)
-      setDataEmiterii(new Date())
-      setDataInterventie(new Date())
-    }
+    // Convertim datele cu parsare robustă (ISO, Timestamp, dd.MM, etc.)
+    const parsedEmitere = toDateSafe(lucrare.dataEmiterii)
+    const parsedInterventie = toDateSafe(lucrare.dataInterventie)
+    setDataEmiterii(parsedEmitere || new Date())
+    setDataInterventie(parsedInterventie || new Date())
 
     // Populăm formularul cu datele lucrării
     setFormData({

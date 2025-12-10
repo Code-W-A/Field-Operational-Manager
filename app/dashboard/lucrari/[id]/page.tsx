@@ -49,7 +49,7 @@ import { useStableCallback } from "@/lib/utils/hooks"
 import { ContractDisplay } from "@/components/contract-display"
 import { QRCodeScanner } from "@/components/qr-code-scanner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { formatDate, formatTime, formatUiDate } from "@/lib/utils/time-format"
+import { formatDate, formatTime, formatUiDate, toDateSafe } from "@/lib/utils/time-format"
 import { EquipmentQRCode } from "@/components/equipment-qr-code"
 // Adăugăm importurile pentru calculul garanției
 import { getWarrantyDisplayInfo } from "@/lib/utils/warranty-calculator"
@@ -219,6 +219,13 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
   // State pentru afișarea banner-ului de modificare
   const [showModificationBanner, setShowModificationBanner] = useState(true)
   const [isFinalizingPartial, setIsFinalizingPartial] = useState(false)
+
+  // Helper: parsează în siguranță o dată (Timestamp, ISO, date-only, dd.MM.yyyy) -> Date
+  const coerceDate = (val: any): Date | undefined => {
+    const d = toDateSafe(val)
+    if (d && !isNaN(d.getTime())) return d
+    return undefined
+  }
 
   // Încărcăm datele lucrării și adresa locației
   useEffect(() => {
@@ -1497,10 +1504,10 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                   <div className="mt-4 sm:mt-6">
                     {/* Header cu progres - responsive */}
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3 sm:mb-4 bg-slate-50 p-3 rounded-lg">
-                      <h3 className="text-base sm:text-lg font-semibold text-gray-900">Echipamente în revizie</h3>
+                      <h3 className="text-lg sm:text-xl font-semibold text-gray-900">Echipamente în revizie</h3>
                       {Array.isArray(lucrare.equipmentIds) && lucrare.equipmentIds.length > 0 && (
                         <div className="flex items-center gap-2">
-                          <Badge variant="secondary" className="text-sm font-semibold px-3 py-1">
+                          <Badge variant="secondary" className="text-sm sm:text-base font-semibold px-3 py-1.5">
                             {lucrare.equipmentIds.filter((eid: string) => (lucrare.revision?.equipmentStatus || {})[eid] === "done").length} / {lucrare.equipmentIds.length} completate
                           </Badge>
                         </div>
@@ -1524,6 +1531,11 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                           const status = (lucrare.revision?.equipmentStatus || {})[eid] || "pending"
                           const loc = clientData?.locatii?.find((l: any) => l.nume === lucrare.locatie)
                           const eq = loc?.echipamente?.find((e: any) => e.id === eid)
+                          const eqTimes = (lucrare as any)?.revisionEquipmentTimes || {}
+                          const eqTime = eqTimes[eid]
+                          const durationText = eqTime?.durationText || (eqTime?.durationMinutes != null
+                            ? `${Math.floor((eqTime.durationMinutes || 0) / 60)}h ${(eqTime.durationMinutes || 0) % 60}m`
+                            : undefined)
                           
                           // Debug logging
                           if (index === 0) {
@@ -1576,10 +1588,10 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                               {/* Header card cu număr și status */}
                               <div className="flex items-center justify-between p-3 border-b border-current/10 bg-white/50">
                                 <div className="flex items-center gap-2">
-                                  <div className="w-7 h-7 rounded-full bg-slate-700 text-white flex items-center justify-center text-xs font-bold">
+                                  <div className="w-8 h-8 rounded-full bg-slate-700 text-white flex items-center justify-center text-sm font-bold">
                                     {index + 1}
                                   </div>
-                                  <Badge className={`${statusConfig.badgeClass} text-xs font-semibold px-2 py-1`}>
+                                  <Badge className={`${statusConfig.badgeClass} text-xs sm:text-sm font-semibold px-2 py-1`}>
                                     {statusConfig.label}
                                   </Badge>
                                 </div>
@@ -1598,29 +1610,37 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
 
                               {/* Informații echipament - stack vertical pentru mobile */}
                               <div className="p-4">
-                                <h4 className="text-lg font-bold mb-2 text-gray-900 leading-tight">
+                                <h4 className="text-xl font-bold mb-2 text-gray-900 leading-tight">
                                   {eq?.nume || "Echipament necunoscut"}
                                 </h4>
                                 
-                                <div className="space-y-1.5 mb-4">
+                                <div className="space-y-2 mb-4 text-base">
                                   {eq?.cod && (
                                     <div className="flex items-center gap-2">
-                                      <span className="text-xs text-gray-500 font-medium min-w-[60px]">Cod:</span>
-                                      <span className="font-mono text-sm bg-slate-100 px-2 py-0.5 rounded font-semibold text-slate-700">
+                                      <span className="text-sm text-gray-500 font-medium min-w-[70px]">Cod:</span>
+                                      <span className="font-mono text-base bg-slate-100 px-2.5 py-1 rounded font-semibold text-slate-700">
                                         {eq.cod}
                                       </span>
                                     </div>
                                   )}
                                   {eq?.model && (
                                     <div className="flex items-center gap-2">
-                                      <span className="text-xs text-gray-500 font-medium min-w-[60px]">Model:</span>
-                                      <span className="text-sm text-gray-700">{eq.model}</span>
+                                      <span className="text-sm text-gray-500 font-medium min-w-[70px]">Model:</span>
+                                      <span className="text-base text-gray-700">{eq.model}</span>
                                     </div>
                                   )}
                                   {eq?.producator && (
                                     <div className="flex items-center gap-2">
-                                      <span className="text-xs text-gray-500 font-medium min-w-[60px]">Brand:</span>
-                                      <span className="text-sm text-gray-700">{eq.producator}</span>
+                                      <span className="text-sm text-gray-500 font-medium min-w-[70px]">Brand:</span>
+                                      <span className="text-base text-gray-700">{eq.producator}</span>
+                                    </div>
+                                  )}
+                                  {durationText && (
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm text-gray-500 font-medium min-w-[70px]">Timp lucru:</span>
+                                      <span className="text-base text-gray-800 font-semibold">
+                                        {durationText}
+                                      </span>
                                     </div>
                                   )}
                                 </div>

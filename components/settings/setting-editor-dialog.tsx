@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -42,6 +42,22 @@ export function SettingEditorDialog({
   const imageInputRef = useRef<HTMLInputElement>(null)
   const documentInputRef = useRef<HTMLInputElement>(null)
 
+  const existingDocument = useMemo(() => {
+    if (!setting) return null
+    const val = setting.value
+    const urlFromValue =
+      val && typeof val === "object" && typeof (val as any).url === "string"
+        ? (val as any).url
+        : undefined
+    const url = setting.documentUrl || setting.imageUrl || urlFromValue
+    if (!url) return null
+    const label =
+      setting.fileName ||
+      setting.name ||
+      (typeof url === "string" ? url.split("/").pop() || "Document" : "Document")
+    return { url, label }
+  }, [setting])
+
   useEffect(() => {
     if (open) {
       if (mode === "edit" && setting) {
@@ -50,8 +66,8 @@ export function SettingEditorDialog({
         setValue(setting.name)
         setNumericValue(setting.numericValue?.toString() || "")
         setImageUrl(setting.imageUrl || "")
-        setDocumentUrl(setting.documentUrl || "")
-        setFileName(setting.fileName || "")
+        setDocumentUrl(existingDocument?.url || setting.documentUrl || "")
+        setFileName(setting.fileName || existingDocument?.label || "")
       } else {
         // Reset for create mode
         setName("")
