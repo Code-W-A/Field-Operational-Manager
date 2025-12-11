@@ -153,11 +153,29 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
 
     const sections = Array.isArray(rev.sections) ? rev.sections : []
 
-    // Render sections and items
+    // Helper pentru măsurarea înălțimii unui item (folosit ca să evităm ruperea secțiunilor pe pagini)
+    const measureItemHeight = (it: any): number => {
+      const label = normalizeTextForPdf(it.label || it.name || "-")
+      const obs = normalizeTextForPdf(it.obs || "")
+      const labelLines = doc.splitTextToSize(label, firstColW - 4)
+      const obsLines = obs ? doc.splitTextToSize(obs, obsW - 4) : []
+      const numLines = Math.max(labelLines.length, obsLines.length || 0)
+      const lineHeight = 4 // aproximativ pentru fontSize 9
+      const baseRow = 8
+      const dynamic = numLines > 1 ? 5 + (numLines - 1) * lineHeight : baseRow
+      return Math.max(baseRow, dynamic)
+    }
+
     for (const s of sections) {
-      // Section row (category)
       const sectionTitle = normalizeTextForPdf(s.title || s.name || "Secțiune")
-      checkBreak(rowH)
+      const items = Array.isArray(s.items) ? s.items : []
+
+      // Înălțimea totală a secțiunii (header + toate item-urile)
+      const sectionHeight = rowH + items.reduce((sum, it) => sum + measureItemHeight(it), 0)
+      // Dacă nu încape întreaga secțiune pe pagină, mutăm pe pagina următoare
+      checkBreak(sectionHeight)
+
+      // Section row (category)
       doc.setFillColor(240, 240, 240)
       doc.rect(MARGIN, currentY, W, rowH, "F")
       try { doc.setFont("NotoSans", "bold") } catch {}
@@ -165,20 +183,18 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
       doc.text(sectionTitle, MARGIN + 2, currentY + 5)
       currentY += rowH
 
-      // Items (obs pe mai multe rânduri, înălțime de rând dinamică)
-      const items = Array.isArray(s.items) ? s.items : []
+      // Items
       try { doc.setFont("NotoSans", "normal") } catch {}
       doc.setFontSize(9).setTextColor(0, 0, 0)
       for (const it of items) {
         const label = normalizeTextForPdf(it.label || it.name || "-")
-      // Normalize legacy boolean states to string values for rendering
-      const rawState = it.state as any
-      const state =
-        rawState === true
-          ? "functional"
-          : rawState === false
-            ? "nefunctional"
-            : (rawState || "na") as "functional" | "nefunctional" | "na"
+        const rawState = it.state as any
+        const state =
+          rawState === true
+            ? "functional"
+            : rawState === false
+              ? "nefunctional"
+              : (rawState || "na") as "functional" | "nefunctional" | "na"
         const obs = normalizeTextForPdf(it.obs || "")
 
         const labelLines = doc.splitTextToSize(label, firstColW - 4)
@@ -190,31 +206,31 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
         const heightNeeded = Math.max(baseRow, dynamic)
 
         checkBreak(heightNeeded)
-        // Ensure standard text settings after a page break
         try { doc.setFont("NotoSans", "normal") } catch {}
         doc.setFontSize(9).setTextColor(0, 0, 0)
 
-        // Row borders
         doc.setDrawColor(210, 210, 210).setLineWidth(0.2)
         doc.rect(MARGIN, currentY, W, heightNeeded)
 
-        // First col (puncte de control)
         doc.text(labelLines, MARGIN + 2, currentY + 5)
 
-        // O singura coloana "Verificat" – marcam X daca a fost evaluat (functional sau nefunctional)
         const verX = MARGIN + firstColW
         try { doc.setFont("NotoSans", "bold") } catch {}
-        const mark = state === "functional" ? "✔" : state === "nefunctional" ? "✖" : ""
-        if (mark) {
-          // verde pentru functional, roșu pentru nefuncțional
-          if (state === "functional") doc.setTextColor(22, 163, 74)
-          if (state === "nefunctional") doc.setTextColor(220, 38, 38)
+        const isFunctional = state === "functional"
+        const isNonFunctional = state === "nefunctional"
+        const cx = verX + verW / 2
+        const cy = currentY + 5
+        if (isFunctional) {
+          doc.setDrawColor(22, 163, 74).setLineWidth(0.6)
+          doc.line(cx - 3, cy - 1, cx - 1, cy + 2)
+          doc.line(cx - 1, cy + 2, cx + 3, cy - 3)
+        } else if (isNonFunctional) {
+          doc.setDrawColor(220, 38, 38).setLineWidth(0.6)
+          doc.line(cx - 3, cy - 3, cx + 3, cy + 3)
+          doc.line(cx - 3, cy + 3, cx + 3, cy - 3)
         }
-        doc.text(mark, verX + verW / 2, currentY + 5, { align: "center" } as any)
-        // revenim la culoarea implicită
         doc.setTextColor(0, 0, 0)
 
-        // Obs
         try { doc.setFont("NotoSans", "normal") } catch {}
         if (obsLines.length) {
           doc.text(obsLines, MARGIN + firstColW + verW + 2, currentY + 5)
@@ -326,9 +342,29 @@ export async function generateRevisionEquipmentPDF(
   currentY += rowH
 
   const sections = Array.isArray(rev.sections) ? rev.sections : []
+
+  // Helper pentru măsurarea înălțimii unui item (folosit ca să evităm ruperea secțiunilor pe pagini)
+  const measureItemHeightJs = (it: any): number => {
+    const label = normalizeTextForPdf(it.label || it.name || "-")
+    const obs = normalizeTextForPdf(it.obs || "")
+    const labelLines = js.splitTextToSize(label, firstColW - 4)
+    const obsLines = obs ? js.splitTextToSize(obs, obsW - 4) : []
+    const numLines = Math.max(labelLines.length, obsLines.length || 0)
+    const lineHeight = 4
+    const baseRow = 8
+    const dynamic = numLines > 1 ? 5 + (numLines - 1) * lineHeight : baseRow
+    return Math.max(baseRow, dynamic)
+  }
+
   for (const s of sections) {
     const sectionTitle = normalizeTextForPdf(s.title || s.name || "Secțiune")
-    checkBreak(rowH)
+    const items = Array.isArray(s.items) ? s.items : []
+
+    // Înălțimea totală a secțiunii (header + toate item-urile)
+    const sectionHeight = rowH + items.reduce((sum, it) => sum + measureItemHeightJs(it), 0)
+    // Dacă nu încape întreaga secțiune pe pagină, mutăm pe pagina următoare
+    checkBreak(sectionHeight)
+
     js.setFillColor(240, 240, 240)
     js.rect(MARGIN, currentY, W, rowH, "F")
     try { js.setFont("NotoSans", "bold") } catch {}
@@ -336,12 +372,10 @@ export async function generateRevisionEquipmentPDF(
     js.text(sectionTitle, MARGIN + 2, currentY + 5)
     currentY += rowH
 
-    const items = Array.isArray(s.items) ? s.items : []
     try { js.setFont("NotoSans", "normal") } catch {}
     js.setFontSize(9).setTextColor(0, 0, 0)
     for (const it of items) {
       const label = normalizeTextForPdf(it.label || it.name || "-")
-      // Normalize legacy boolean states to string values for rendering
       const rawState = it.state as any
       const state =
         rawState === true
@@ -359,7 +393,6 @@ export async function generateRevisionEquipmentPDF(
       const dynamic = numLines > 1 ? 5 + (numLines - 1) * lineHeight : baseRow
       const heightNeeded = Math.max(baseRow, dynamic)
       checkBreak(heightNeeded)
-      // Ensure standard text settings after a page break
       try { js.setFont("NotoSans", "normal") } catch {}
       js.setFontSize(9).setTextColor(0, 0, 0)
 
@@ -370,12 +403,19 @@ export async function generateRevisionEquipmentPDF(
 
       const verX = MARGIN + firstColW
       try { js.setFont("NotoSans", "bold") } catch {}
-      const mark = state === "functional" ? "✔" : state === "nefunctional" ? "✖" : ""
-      if (mark) {
-        if (state === "functional") js.setTextColor(22, 163, 74)
-        if (state === "nefunctional") js.setTextColor(220, 38, 38)
+      const isFunctional = state === "functional"
+      const isNonFunctional = state === "nefunctional"
+      const cx = verX + verW / 2
+      const cy = currentY + 5
+      if (isFunctional) {
+        js.setDrawColor(22, 163, 74).setLineWidth(0.6)
+        js.line(cx - 3, cy - 1, cx - 1, cy + 2)
+        js.line(cx - 1, cy + 2, cx + 3, cy - 3)
+      } else if (isNonFunctional) {
+        js.setDrawColor(220, 38, 38).setLineWidth(0.6)
+        js.line(cx - 3, cy - 3, cx + 3, cy + 3)
+        js.line(cx - 3, cy + 3, cx + 3, cy - 3)
       }
-      js.text(mark, verX + verW / 2, currentY + 5, { align: "center" } as any)
       js.setTextColor(0, 0, 0)
 
       try { js.setFont("NotoSans", "normal") } catch {}

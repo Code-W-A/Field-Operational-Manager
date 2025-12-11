@@ -1203,9 +1203,9 @@ export default function Lucrari() {
 
     // Convertim datele cu parsare robustă (ISO, Timestamp, dd.MM, etc.)
     const parsedEmitere = toDateSafe(lucrare.dataEmiterii)
-    const parsedInterventie = toDateSafe(lucrare.dataInterventie)
     setDataEmiterii(parsedEmitere || new Date())
-    setDataInterventie(parsedInterventie || new Date())
+    // Cerință: la editare, afișăm în UI data de azi pentru solicitarea intervenției (doar vizual)
+    setDataInterventie(new Date())
 
     // Populăm formularul cu datele lucrării
     setFormData({
