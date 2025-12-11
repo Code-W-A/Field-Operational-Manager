@@ -77,7 +77,8 @@ useEffect(() => {
   useEffect(() => {
     const load = async () => {
       const current = await getLucrareById(lucrareId)
-      setVersions(((current as any)?.offerVersions || []) as any)
+      const loadedVersions = ((current as any)?.offerVersions || []) as any
+      setVersions(loadedVersions)
       setIsPickedUp(Boolean((current as any)?.preluatDispecer))
       setStatusOferta((current as any)?.statusOferta)
       setCurrentWork(current)
@@ -129,9 +130,12 @@ useEffect(() => {
         if (l) setTermsDelivery(l.replace(/^livrare:\s*/i, '').trim() || termsDelivery)
         if (i) setTermsInstallation(i.replace(/^instalare:\s*/i, '').trim() || termsInstallation)
       } catch {}
+
+      // Permit "Trimite ofertă" doar dacă există o versiune salvată și nu suntem în editare de versiune nouă
+      setCanSendOffer(Array.isArray(loadedVersions) && loadedVersions.length > 0 && !editingNewVersion)
     }
     if (open) void load()
-  }, [open, lucrareId, defaultVatPercentSetting])
+  }, [open, lucrareId, defaultVatPercentSetting, editingNewVersion])
 
   // no manual recipient selection; display-only suggestion handled via suggestedRecipient
 
@@ -217,9 +221,10 @@ useEffect(() => {
   useEffect(() => {
     if (open) {
       setInitialVersionsCount(versions?.length || 0)
-      setCanSendOffer(false)
+      // Dacă există deja versiuni salvate, permitem trimiterea; altfel așteptăm un Save
+      setCanSendOffer((versions?.length || 0) > 0 && !editingNewVersion)
     }
-  }, [open, versions?.length])
+  }, [open, versions?.length, editingNewVersion])
 
   const handleSave = async () => {
     try {
@@ -229,8 +234,8 @@ useEffect(() => {
       const baseline = last?.products?.length ? last.products : baselineProducts
       const changed = JSON.stringify(products) !== JSON.stringify(baseline) || (last?.total ?? 0) !== total
       if (!changed) {
-        // Nu închidem dialogul dacă nu sunt schimbări
-        setCanSendOffer(true)
+        // Nu activăm trimiterea fără o salvare explicită a modificărilor
+        setCanSendOffer((versions?.length || 0) > 0 && !editingNewVersion)
         return
       }
       const version = {
@@ -293,6 +298,7 @@ useEffect(() => {
     const seed = last?.products?.length ? last.products : products
     setProducts(seed)
     setEditingNewVersion(true)
+    setCanSendOffer(false)
   }
 
   const handleSendOffer = async () => {
@@ -478,7 +484,11 @@ useEffect(() => {
       })
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}))
-        throw new Error(err?.error || `Cerere invalidă (${resp.status})`)
+        const invalidList = Array.isArray(err?.invalidRecipients) && err.invalidRecipients.length
+          ? ` | Destinatari invalizi: ${err.invalidRecipients.join(", ")}`
+          : ""
+        const apiMsg = err?.error || err?.message || `Cerere invalidă (${resp.status})`
+        throw new Error(`${apiMsg}${invalidList}${recipient ? ` | către: ${recipient}` : ""}`)
       }
   
       // marchează ca ofertat și salvează autorul/datele pregătirii ofertei
@@ -505,13 +515,14 @@ useEffect(() => {
     } catch (e) {
       console.warn('Trimitere ofertă eșuată', e)
       const msg = e instanceof Error ? e.message : 'Nu s-a putut trimite emailul.'
-      toast({ title: 'Eroare trimitere', description: msg, variant: 'destructive' })
+      const destInfo = presetRecipientEmail || suggestedRecipient ? ` | către: ${presetRecipientEmail || suggestedRecipient}` : ''
+      toast({ title: 'Eroare trimitere', description: `${msg}${destInfo}`, variant: 'destructive' })
       // log non‑blocking eroare trimitere
       void addUserLogEntry({
         utilizator: userData?.displayName || userData?.email || "Utilizator",
         utilizatorId: userData?.uid || "system",
         actiune: "Trimitere ofertă eșuată",
-        detalii: `Lucrare: ${String(currentWork?.numarRaport || lucrareId)}; Motiv: ${msg}`,
+        detalii: `Lucrare: ${String(currentWork?.numarRaport || lucrareId)}; Motiv: ${msg}${destInfo}`,
         tip: "Eroare",
         categorie: "Email",
       })
@@ -714,7 +725,7 @@ useEffect(() => {
               ) : (
                 <Button onClick={handleSave} disabled={saving || products.length === 0 || (!isPickedUp && !editingNewVersion)}>{saving ? "Se salvează..." : "Salvează"}</Button>
               )}
-              <Button onClick={handleSendOffer} disabled={saving}>Trimite ofertă</Button>
+              <Button onClick={handleSendOffer} disabled={saving || !canSendOffer}>Trimite ofertă</Button>
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving} className="ml-2">Închide</Button>
             </div>
           </div>
