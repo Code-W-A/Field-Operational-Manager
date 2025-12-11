@@ -197,9 +197,12 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
         // O singura coloana "Verificat" – marcam X daca a fost evaluat (functional sau nefunctional)
         const verX = MARGIN + firstColW
         try { doc.setFont("NotoSans", "bold") } catch {}
-        const mark = state !== "na" ? "✔" : ""
-        // verde discret pentru verificat
-        if (mark) doc.setTextColor(22, 163, 74)
+        const mark = state === "functional" ? "✔" : state === "nefunctional" ? "✖" : ""
+        if (mark) {
+          // verde pentru functional, roșu pentru nefuncțional
+          if (state === "functional") doc.setTextColor(22, 163, 74)
+          if (state === "nefunctional") doc.setTextColor(220, 38, 38)
+        }
         doc.text(mark, verX + verW / 2, currentY + 5, { align: "center" } as any)
         // revenim la culoarea implicită
         doc.setTextColor(0, 0, 0)
@@ -353,8 +356,11 @@ export async function generateRevisionEquipmentPDF(
 
       const verX = MARGIN + firstColW
       try { js.setFont("NotoSans", "bold") } catch {}
-      const mark = state !== "na" ? "✔" : ""
-      if (mark) js.setTextColor(22, 163, 74)
+      const mark = state === "functional" ? "✔" : state === "nefunctional" ? "✖" : ""
+      if (mark) {
+        if (state === "functional") js.setTextColor(22, 163, 74)
+        if (state === "nefunctional") js.setTextColor(220, 38, 38)
+      }
       js.text(mark, verX + verW / 2, currentY + 5, { align: "center" } as any)
       js.setTextColor(0, 0, 0)
 
