@@ -149,6 +149,16 @@ useEffect(() => {
       return na === nb || na.includes(nb) || nb.includes(na)
     }
 
+    // Fallback direct din lucrare/clientInfo dacă nu avem client complet încărcat
+    const workLevelCandidates = [
+      work?.clientInfo?.locationEmail,
+      work?.clientInfo?.email,
+      work?.clientInfo?.contactEmail,
+      work?.email,
+      work?.persoanaContactEmail,
+    ].filter(isValid)
+    if (workLevelCandidates.length) return String(workLevelCandidates[0])
+
     const locatii = Array.isArray(client?.locatii) ? client.locatii : []
     const targetId = work?.clientInfo?.locationId || work?.clientInfo?.locatieId || work?.locationId
     const targetName = work?.locatie || work?.clientInfo?.locationName
