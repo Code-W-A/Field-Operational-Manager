@@ -57,6 +57,16 @@ export function validateArchiveRules(lucrare: any): ArchiveValidationResult {
                       (lucrare.offerVersions && lucrare.offerVersions.length > 0)
   
   if (hasOfferSent && !lucrare.offerResponse) {
+    // EXCEPȚIE: dacă lucrarea este deja finalizată cu raport + facturare rezolvată,
+    // permitem arhivarea imediat (altfel rămâne blocată în Dashboard).
+    const hasInvoiceDoc = Boolean(lucrare?.facturaDocument)
+    const noInvoicingSelected = lucrare?.statusFacturare === "Nu se facturează"
+    const isReportDone = lucrare?.raportGenerat === true
+
+    if (isReportDone && (hasInvoiceDoc || noInvoicingSelected)) {
+      return { canArchive: true }
+    }
+
     // Verificăm dacă au trecut 30 de zile de la expirarea tokenului
     // offerActionExpiresAt este deja setat la 30 de zile după trimitere
     if (lucrare.offerActionExpiresAt) {
