@@ -171,7 +171,14 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
       doc.setFontSize(9).setTextColor(0, 0, 0)
       for (const it of items) {
         const label = normalizeTextForPdf(it.label || it.name || "-")
-        const state = (it.state || "na") as "functional" | "nefunctional" | "na"
+      // Normalize legacy boolean states to string values for rendering
+      const rawState = it.state as any
+      const state =
+        rawState === true
+          ? "functional"
+          : rawState === false
+            ? "nefunctional"
+            : (rawState || "na") as "functional" | "nefunctional" | "na"
         const obs = normalizeTextForPdf(it.obs || "")
 
         const labelLines = doc.splitTextToSize(label, firstColW - 4)
@@ -334,7 +341,14 @@ export async function generateRevisionEquipmentPDF(
     js.setFontSize(9).setTextColor(0, 0, 0)
     for (const it of items) {
       const label = normalizeTextForPdf(it.label || it.name || "-")
-      const state = (it.state || "na") as "functional" | "nefunctional" | "na"
+      // Normalize legacy boolean states to string values for rendering
+      const rawState = it.state as any
+      const state =
+        rawState === true
+          ? "functional"
+          : rawState === false
+            ? "nefunctional"
+            : (rawState || "na") as "functional" | "nefunctional" | "na"
       const obs = normalizeTextForPdf(it.obs || "")
 
       const labelLines = js.splitTextToSize(label, firstColW - 4)
