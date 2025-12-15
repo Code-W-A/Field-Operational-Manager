@@ -26,6 +26,17 @@ const normalize = (text = "") => {
   return t.replace(/\u015F/g, "\u0219").replace(/\u0163/g, "\u021B")
 }
 
+// Normalizează CUI/CIF pentru afișare: asigură un singur prefix "RO" (case-insensitive)
+const formatRomanianVat = (raw?: string) => {
+  const v = String(raw || "").trim()
+  if (!v) return "-"
+  const compact = v.replace(/\s+/g, "")
+  // Eliminăm orice număr de prefixe "RO" existente (ex: "RORO123", "Ro123")
+  const rest = compact.replace(/^(RO)+/i, "")
+  if (!rest) return "RO"
+  return `RO${rest}`
+}
+
 // A4 portrait: 210×297 mm
 const M = 7 // page margin (reduced for more content space)
 const W = 210 - 2 * M // content width
@@ -419,7 +430,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       const clientInfo = lucrareForPDF.clientInfo || {}
       const beneficiarLines = [
         lucrareForPDF.client || "-",
-        clientInfo.cui ? `RO${clientInfo.cui}` : "-",
+        formatRomanianVat(clientInfo.cui),
         clientInfo.adresa || "-",
       ]
       
