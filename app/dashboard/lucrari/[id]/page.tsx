@@ -37,7 +37,7 @@ import {
   Download,
   Mail,
 } from "lucide-react"
-import { getLucrareById, deleteLucrare, updateLucrare, getClienti, addLucrare } from "@/lib/firebase/firestore"
+import { getLucrareById, deleteLucrare, updateLucrare, getClientById, addLucrare } from "@/lib/firebase/firestore"
 import { WORK_STATUS, WORK_STATUS_OPTIONS } from "@/lib/utils/constants"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TehnicianInterventionForm } from "@/components/tehnician-intervention-form"
@@ -59,10 +59,15 @@ import { PostponeWorkDialog } from "@/components/postpone-work-dialog"
 import { ModificationBanner } from "@/components/modification-banner"
 import { useModificationDetails } from "@/hooks/use-modification-details"
 import { db } from "@/lib/firebase/config"
-import { collection, query, where, getDocs } from "firebase/firestore"
+import { collection, query, where, getDocs, limit } from "firebase/firestore"
 import { canArchiveLucrare } from "@/lib/utils/archive-validation"
 import { deleteField } from "firebase/firestore"
 import { generateRevisionOperationsPDF, generateRevisionEquipmentPDF } from "@/lib/pdf/revision-operations"
+
+const debugClient = (...args: any[]) => {
+  // eslint-disable-next-line no-console
+  console.log("[fom][client-debug]", ...args)
+}
 
 // Funcție utilitar pentru a extrage CUI-ul indiferent de cum este salvat
 const extractCUI = (client: any) => {
@@ -160,9 +165,14 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
   const [reinterventii, setReinterventii] = useState<Lucrare[]>([])
   const [loadingReinterventii, setLoadingReinterventii] = useState(false)
   const [clientData, setClientData] = useState<any>(null)
+  // Resolved from live client data (preferred); snapshot fields are fallback only
+  const [resolvedLocation, setResolvedLocation] = useState<any>(null)
+  const [resolvedContact, setResolvedContact] = useState<any>(null)
+  const [resolvedEquipment, setResolvedEquipment] = useState<any>(null)
   // Blocare scanare dacă tehnicianul are deja altă lucrare "În lucru"
   const [otherActiveWork, setOtherActiveWork] = useState<null | { id: string; numar: string; client?: string; locatie?: string }>(null)
   const [checkingOtherActive, setCheckingOtherActive] = useState(false)
+  const debugLoggedOnceRef = useState({ did: false })[0]
 
   // Asigurăm feedback atunci când se încearcă deschiderea editorului fără preluare
   useEffect(() => {
@@ -235,6 +245,24 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
         const data = await getLucrareById(paramsId)
         setLucrare(data)
 
+        if (!debugLoggedOnceRef.did) {
+          debugLoggedOnceRef.did = true
+          const workAny: any = data as any
+          debugClient("enter_work_page", {
+            workId: paramsId,
+            clientName: data?.client,
+            locatieName: data?.locatie,
+            tipLucrare: data?.tipLucrare,
+            clientId: workAny?.clientId,
+            clientInfoId: workAny?.clientInfo?.id,
+            locationId: workAny?.locationId,
+            clientInfoLocationId: workAny?.clientInfo?.locationId || workAny?.clientInfo?.locatieId,
+            echipamentId: workAny?.echipamentId,
+            echipamentCod: workAny?.echipamentCod,
+            equipmentIdsCount: Array.isArray(workAny?.equipmentIds) ? workAny.equipmentIds.length : 0,
+          })
+        }
+
         // AUTO-MARK AS READ: Marcăm lucrarea ca citită când utilizatorul o vizualizează
         if (data && userData?.uid) {
           const isNotificationRead = data.notificationRead === true || 
@@ -267,106 +295,173 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
           setEquipmentVerified(true)
         }
 
-        // Obținem adresa locației
-        if (data?.client && data?.locatie) {
+        // Încarcă datele clientului dinamic (preferă clientId; fallback safe pe nume unic) și completează backfill.
+        if (data?.client) {
           try {
-            console.log("Încercăm să obținem adresa pentru locația:", data.locatie, "a clientului:", data.client)
+            const workAny: any = data as any
+            let resolvedClient: any = null
+            let resolution: "byId" | "byNameUnique" | "none" = "none"
+            let resolvedFromId: string | null = null
 
-            // Obținem toți clienții
-            const clienti = await getClienti()
-            console.log("Număr total de clienți:", clienti.length)
-
-            // Găsim clientul după nume
-            const client = clienti.find((c) => c.nume === data.client)
-
-            if (client) {
-              console.log("Client găsit:", client.nume, "ID:", client.id)
-              console.log("Locații disponibile:", client.locatii ? client.locatii.length : 0)
-              console.log("DEBUG - Client data from lucrare page:", client)
-              console.log("DEBUG - client.cui:", client.cui)
-              console.log("DEBUG - client.cif:", (client as any).cif)
-              
-              // Salvăm datele clientului pentru afișare
-              setClientData(client)
-
-              if (client.locatii && client.locatii.length > 0) {
-                // Căutăm locația în lista de locații a clientului
-                const locatie = client.locatii.find((loc) => loc.nume === data.locatie)
-
-                if (locatie) {
-                  console.log("Locație găsită:", locatie.nume, "Adresă:", locatie.adresa)
-                  setLocationAddress(locatie.adresa)
-
-                  // Verificăm dacă informațiile lipsesc înainte de a actualiza
-                  const needsLocationAddress = !data.clientInfo?.locationAddress
-                  const needsCif = !data.clientInfo?.cui
-                  const needsClientAddress = !data.clientInfo?.adresa
-
-                  // Actualizăm lucrarea DOAR dacă informațiile lipsesc (pentru a evita actualizări inutile)
-                  if (needsLocationAddress || needsCif || needsClientAddress) {
-                    console.log("Actualizare necesară - informații lipsă:", {
-                      needsLocationAddress,
-                      needsCif,
-                      needsClientAddress
-                    })
-                    
-                  // Folosim parametrul silent pentru completarea automată a informațiilor clientului
-                  // (nu este o modificare reală făcută de utilizator)
-                  await updateLucrare(paramsId, {
-                    clientInfo: {
-                      ...data.clientInfo,
-                        cui: (client as any).cif,
-                      adresa: client.adresa,
-                      locationAddress: locatie.adresa,
-                    },
-                  }, undefined, undefined, true) // silent = true
-                  } else {
-                    console.log("Nu este necesară actualizarea - toate informațiile sunt deja prezente")
-                  }
-                } else {
-                  console.log("Locația nu a fost găsită în lista de locații a clientului")
+            const existingClientId = workAny.clientId || workAny.clientInfo?.id
+            if (existingClientId) {
+              try {
+                resolvedClient = await getClientById(String(existingClientId))
+                resolvedFromId = String(existingClientId)
+                resolution = "byId"
+              } catch {
+                resolvedClient = null
+              }
+              // Dacă ID-ul există dar clientul nu mai poate fi încărcat (șters / inconsistent),
+              // încercăm fallback-ul safe după nume.
+              if (!resolvedClient) {
+                const clientiRef = collection(db, "clienti")
+                const q = query(clientiRef, where("nume", "==", String(data.client)), limit(2))
+                const snap = await getDocs(q)
+                debugClient("client_fallback_query_after_bad_id", { size: snap.size, clientName: String(data.client) })
+                if (snap.size === 1) {
+                  const d0 = snap.docs[0]
+                  resolvedClient = { id: d0.id, ...(d0.data() as any) }
+                  resolvedFromId = d0.id
+                  resolution = "byNameUnique"
+                  // Persistăm clientId pe lucrare (silent)
+                  await updateLucrare(paramsId, { clientId: d0.id } as any, undefined, undefined, true)
+                  setLucrare((prev: any) => (prev ? { ...prev, clientId: d0.id } : prev))
                 }
-              } else {
-                console.log("Clientul nu are locații definite")
               }
             } else {
-              console.log("Clientul nu a fost găsit după nume")
-            }
-          } catch (error) {
-            console.error("Eroare la obținerea adresei locației:", error)
-          }
-        }
-
-        // Calculăm informațiile de garanție pentru lucrările de tip "Intervenție în garanție"
-        if (data && data.tipLucrare === "Intervenție în garanție" && data.client && data.locatie && data.echipament) {
-          try {
-            const clienti = await getClienti()
-            const client = clienti.find((c) => c.nume === data.client)
-            
-            if (client && client.locatii) {
-              const locatie = client.locatii.find((loc) => loc.nume === data.locatie)
-              
-              if (locatie && locatie.echipamente) {
-                // Căutăm echipamentul după numele sau codul echipamentului
-                const echipament = locatie.echipamente.find(
-                  (eq) => eq.nume === data.echipament || eq.cod === data.echipamentCod
-                )
-                
-                if (echipament) {
-                  console.log("Echipament găsit pentru calculul garanției:", echipament)
-                  setEquipmentData(echipament)
-                  
-                  // Calculăm informațiile de garanție
-                  const warranty = getWarrantyDisplayInfo(echipament)
-                  setWarrantyInfo(warranty)
-                  console.log("Informații garanție calculate:", warranty)
-                } else {
-                  console.log("Echipamentul nu a fost găsit pentru calculul garanției")
-                }
+              // Backfill safe: client.nume e unic → query exact
+              const clientiRef = collection(db, "clienti")
+              const q = query(clientiRef, where("nume", "==", String(data.client)), limit(2))
+              const snap = await getDocs(q)
+              debugClient("client_fallback_query_no_id", { size: snap.size, clientName: String(data.client) })
+              if (snap.size === 1) {
+                const d0 = snap.docs[0]
+                resolvedClient = { id: d0.id, ...(d0.data() as any) }
+                resolvedFromId = d0.id
+                resolution = "byNameUnique"
+                // Persistăm clientId pe lucrare (silent)
+                await updateLucrare(paramsId, { clientId: d0.id } as any, undefined, undefined, true)
+                // Actualizăm și starea locală ca să evităm re-rulări inutile
+                setLucrare((prev: any) => (prev ? { ...prev, clientId: d0.id } : prev))
               }
             }
+
+            // Dacă avem doar clientInfo.id (legacy) și nu există clientId pe lucrare, îl persistăm (silent).
+            if (!workAny.clientId && workAny.clientInfo?.id) {
+              try {
+                await updateLucrare(paramsId, { clientId: String(workAny.clientInfo.id) } as any, undefined, undefined, true)
+                setLucrare((prev: any) => (prev ? { ...prev, clientId: String(workAny.clientInfo.id) } : prev))
+              } catch {}
+            }
+
+            if (resolvedClient) {
+              setClientData(resolvedClient)
+              debugClient("client_resolved", {
+                resolution,
+                resolvedClientId: resolvedClient?.id || resolvedFromId || null,
+                workClientId: workAny?.clientId || null,
+                workClientInfoId: workAny?.clientInfo?.id || null,
+                clientName: data?.client,
+                hasLocatii: Array.isArray(resolvedClient?.locatii),
+                locatiiCount: Array.isArray(resolvedClient?.locatii) ? resolvedClient.locatii.length : 0,
+              })
+
+              // Resolve locație (preferă locationId, altfel fallback pe nume/adresă)
+              const workLocationId = workAny.locationId || workAny.clientInfo?.locationId || workAny.clientInfo?.locatieId
+              const locatii = Array.isArray(resolvedClient?.locatii) ? resolvedClient.locatii : []
+              let matchedLoc: any =
+                workLocationId ? locatii.find((l: any) => String(l?.id || "") === String(workLocationId)) : null
+              if (!matchedLoc && data.locatie) {
+                matchedLoc = locatii.find((l: any) => l?.nume === data.locatie) || null
+              }
+              if (!matchedLoc && workAny?.clientInfo?.locationAddress) {
+                matchedLoc = locatii.find((l: any) => l?.adresa === workAny.clientInfo.locationAddress) || null
+              }
+
+              if (matchedLoc?.adresa) setLocationAddress(String(matchedLoc.adresa))
+              setResolvedLocation(matchedLoc || null)
+
+              // Persoană de contact + echipament: derivăm din locația live (fallback la snapshot)
+              try {
+                const contacts: any[] = Array.isArray(matchedLoc?.persoaneContact) ? matchedLoc.persoaneContact : []
+                const targetName = String((data as any)?.persoanaContact || "").trim()
+                const foundContact = targetName
+                  ? contacts.find((c: any) => String(c?.nume || "").trim() === targetName) || null
+                  : null
+                setResolvedContact(foundContact || null)
+              } catch {
+                setResolvedContact(null)
+              }
+              try {
+                const eqs: any[] = Array.isArray(matchedLoc?.echipamente) ? matchedLoc.echipamente : []
+                const targetEid = String((data as any).echipamentId || "")
+                const targetCod = String((data as any).echipamentCod || "")
+                const targetName = String((data as any).echipament || "")
+                const foundEq =
+                  eqs.find((e: any) => (targetEid && String(e?.id || "") === targetEid)) ||
+                  eqs.find((e: any) => (targetCod && String(e?.cod || "") === targetCod)) ||
+                  eqs.find((e: any) => (targetName && String(e?.nume || "") === targetName)) ||
+                  null
+                setResolvedEquipment(foundEq || null)
+              } catch {
+                setResolvedEquipment(null)
+              }
+              debugClient("location_resolved", {
+                workLocationId: workLocationId ? String(workLocationId) : null,
+                matchedLocationId: matchedLoc?.id ? String(matchedLoc.id) : null,
+                matchedLocationName: matchedLoc?.nume || null,
+                matchedLocationAddress: matchedLoc?.adresa || null,
+                via: workLocationId
+                  ? "id"
+                  : data?.locatie
+                    ? "name"
+                    : workAny?.clientInfo?.locationAddress
+                      ? "address"
+                      : "none",
+              })
+
+              // Backfill locationId dacă putem (silent)
+              if (matchedLoc?.id && !workAny.locationId) {
+                await updateLucrare(paramsId, { locationId: String(matchedLoc.id) } as any, undefined, undefined, true)
+                setLucrare((prev: any) => (prev ? { ...prev, locationId: String(matchedLoc.id) } : prev))
+                debugClient("location_backfilled", { locationId: String(matchedLoc.id) })
+              }
+
+              // Calculăm informațiile de garanție folosind clientul live (fără full scan)
+              if (data.tipLucrare === "Intervenție în garanție" && data.locatie && (data.echipament || data.echipamentCod || (data as any).echipamentId)) {
+                try {
+                  const eqs = Array.isArray(matchedLoc?.echipamente) ? matchedLoc.echipamente : []
+                  const targetEid = String((data as any).echipamentId || "")
+                  const targetCod = String((data as any).echipamentCod || "")
+                  const targetName = String((data as any).echipament || "")
+                  const eq = eqs.find((e: any) =>
+                    (targetEid && String(e?.id || "") === targetEid) ||
+                    (targetCod && String(e?.cod || "") === targetCod) ||
+                    (targetName && String(e?.nume || "") === targetName)
+                  )
+                  if (eq) {
+                    setEquipmentData(eq)
+                    setWarrantyInfo(getWarrantyDisplayInfo(eq))
+                  }
+                } catch {}
+              }
+            } else {
+              // fallback UI pe snapshot (nu blocăm pagina)
+              setClientData(null)
+              setResolvedLocation(null)
+              setResolvedContact(null)
+              setResolvedEquipment(null)
+              debugClient("client_not_resolved", {
+                reason: existingClientId ? "id_invalid_and_name_not_unique_or_missing" : "no_id_and_name_not_unique_or_missing",
+                workClientId: workAny?.clientId || null,
+                workClientInfoId: workAny?.clientInfo?.id || null,
+                clientName: data?.client,
+              })
+            }
           } catch (error) {
-            console.error("Eroare la calculul garanției:", error)
+            console.error("Eroare la încărcarea datelor clientului dinamic:", error)
+            debugClient("client_load_error", String((error as any)?.message || error))
           }
         }
       } catch (error) {
@@ -1529,8 +1624,28 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {lucrare.equipmentIds.map((eid: string, index: number) => {
                           const status = (lucrare.revision?.equipmentStatus || {})[eid] || "pending"
-                          const loc = clientData?.locatii?.find((l: any) => l.nume === lucrare.locatie)
-                          const eq = loc?.echipamente?.find((e: any) => e.id === eid)
+                          const locatii = Array.isArray(clientData?.locatii) ? clientData.locatii : []
+                          const workLocationId =
+                            (lucrare as any)?.locationId ||
+                            (lucrare as any)?.clientInfo?.locationId ||
+                            (lucrare as any)?.clientInfo?.locatieId
+                          const loc =
+                            (workLocationId
+                              ? locatii.find((l: any) => String(l?.id || "") === String(workLocationId))
+                              : null) ||
+                            locatii.find((l: any) => l?.nume === lucrare.locatie) ||
+                            null
+                          const eq =
+                            loc?.echipamente?.find(
+                              (e: any) => String(e?.id || "") === String(eid) || String(e?.cod || "") === String(eid),
+                            ) || null
+                          const revList = Array.isArray((lucrare as any)?.revision?.equipment)
+                            ? ((lucrare as any).revision.equipment as any[])
+                            : []
+                          const revItem =
+                            revList.find((r: any) => String(r?.equipmentId || "") === String(eid)) ||
+                            revList.find((r: any) => String(r?.equipmentCode || "") === String(eid)) ||
+                            null
                           const eqTimes = (lucrare as any)?.revisionEquipmentTimes || {}
                           const eqTime = eqTimes[eid]
                           const durationText = eqTime?.durationText || (eqTime?.durationMinutes != null
@@ -1611,7 +1726,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                               {/* Informații echipament - stack vertical pentru mobile */}
                               <div className="p-4">
                                 <h4 className="text-xl font-bold mb-2 text-gray-900 leading-tight">
-                                  {eq?.nume || "Echipament necunoscut"}
+                                  {eq?.nume || revItem?.equipmentName || "Echipament necunoscut"}
                                 </h4>
                                 
                                 <div className="space-y-2 mb-4 text-base">
@@ -2056,16 +2171,19 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                   {/* Locație */}
                   <div>
                     <p className="text-base font-semibold mb-2">Locație:</p>
-                    <p className="text-base mb-1">{lucrare.locatie}</p>
-                    {locationAddress && (
+                    <p className="text-base mb-1">{resolvedLocation?.nume || lucrare.locatie}</p>
+                    {(() => {
+                      const addr = String(resolvedLocation?.adresa || locationAddress || (lucrare as any)?.clientInfo?.locationAddress || "").trim()
+                      if (!addr) return null
+                      return (
                       <div className="mt-2">
                         <p className="text-sm text-gray-600 flex items-center gap-1 mb-2">
                           <MapPin className="h-4 w-4" />
-                          {locationAddress}
+                          {addr}
                         </p>
                         <div className="flex gap-2">
                           <a
-                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationAddress)}`}
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
@@ -2074,7 +2192,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                             Google Maps
                           </a>
                           <a
-                            href={`https://waze.com/ul?q=${encodeURIComponent(locationAddress)}&navigate=yes`}
+                            href={`https://waze.com/ul?q=${encodeURIComponent(addr)}&navigate=yes`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
@@ -2084,42 +2202,40 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                           </a>
                         </div>
                       </div>
-                    )}
+                      )
+                    })()}
                   </div>
 
                   {/* Persoană contact */}
                   <div>
                     <p className="text-base font-semibold mb-2">Persoană contact (locație):</p>
-                    <p className="text-sm mb-2">{lucrare.persoanaContact}</p>
-                    {/* Email persoană de contact dacă există în clientData pentru locația curentă */}
-                    {clientData?.locatii && (
-                      () => {
-                        const loc = clientData.locatii.find((l: any) => l.nume === lucrare.locatie)
-                        const contact = loc?.persoaneContact?.find((c: any) => c.nume === lucrare.persoanaContact)
-                        return contact?.email ? (
-                          <div className="text-sm mb-2">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="break-all">{contact.email}</span>
-                              <a
-                                href={`mailto:${contact.email}`}
-                                className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-gray-600 text-white hover:bg-gray-700 transition-colors flex-shrink-0"
-                                aria-label={`Scrie email către ${contact.email}`}
-                                title={`Scrie email către ${contact.email}`}
-                              >
-                                <Mail className="h-3 w-3" />
-                              </a>
-                            </div>
+                    <p className="text-sm mb-2">{resolvedContact?.nume || lucrare.persoanaContact}</p>
+                    {(() => {
+                      const email = String(resolvedContact?.email || (lucrare as any)?.persoanaContactEmail || "").trim()
+                      if (!email) return null
+                      return (
+                        <div className="text-sm mb-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="break-all">{email}</span>
+                            <a
+                              href={`mailto:${email}`}
+                              className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-gray-600 text-white hover:bg-gray-700 transition-colors flex-shrink-0"
+                              aria-label={`Scrie email către ${email}`}
+                              title={`Scrie email către ${email}`}
+                            >
+                              <Mail className="h-3 w-3" />
+                            </a>
                           </div>
-                        ) : null
-                      }
-                    )()}
+                        </div>
+                      )
+                    })()}
                     <div className="text-sm flex items-center gap-2">
-                      <span>{lucrare.telefon}</span>
+                      <span>{resolvedContact?.telefon || lucrare.telefon}</span>
                       <a
-                        href={`tel:${formatPhoneForCall(lucrare.telefon)}`}
+                        href={`tel:${formatPhoneForCall(resolvedContact?.telefon || lucrare.telefon)}`}
                         className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-green-500 text-white hover:bg-green-600 transition-colors"
-                        aria-label={`Apelează ${lucrare.persoanaContact}`}
-                        title={`Apelează ${lucrare.persoanaContact}`}
+                        aria-label={`Apelează ${resolvedContact?.nume || lucrare.persoanaContact}`}
+                        title={`Apelează ${resolvedContact?.nume || lucrare.persoanaContact}`}
                       >
                         <Phone className="h-3 w-3" />
                       </a>
@@ -2130,32 +2246,42 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                   <div>
                     <p className="text-base font-semibold mb-2">Echipament:</p>
                     <p className="text-sm mb-2">
-                      {lucrare.echipament ? `${lucrare.echipament}` : "Nespecificat"}
+                      {(() => {
+                        const eq = resolvedEquipment || equipmentData
+                        const name = eq?.denumire || eq?.nume || eq?.name || lucrare.echipament
+                        return name ? String(name) : "Nespecificat"
+                      })()}
                     </p>
                     <div className="space-y-1">
-                      {role !== "tehnician" && lucrare.echipamentCod && (
+                      {role !== "tehnician" && (resolvedEquipment?.cod || lucrare.echipamentCod) && (
                         <div className="text-sm flex items-center gap-2">
                           <span className="font-medium text-blue-600">Cod:</span>
-                          <span className="text-blue-600">{lucrare.echipamentCod}</span>
+                          <span className="text-blue-600">{resolvedEquipment?.cod || lucrare.echipamentCod}</span>
                           <EquipmentQRCode
                             equipment={{
-                              id: lucrare.id || "",
-                              cod: lucrare.echipamentCod,
-                              nume: lucrare.echipament || "Echipament necunoscut",
-                              model: lucrare.echipamentModel || "",
+                              id: String(resolvedEquipment?.id || (lucrare as any)?.echipamentId || (lucrare as any)?.echipamentCod || ""),
+                              cod: String(resolvedEquipment?.cod || lucrare.echipamentCod || ""),
+                              nume: String(
+                                resolvedEquipment?.denumire ||
+                                  resolvedEquipment?.nume ||
+                                  resolvedEquipment?.name ||
+                                  lucrare.echipament ||
+                                  "Echipament necunoscut",
+                              ),
+                              model: String(resolvedEquipment?.model || (lucrare as any)?.echipamentModel || ""),
                             }}
-                            clientName={lucrare.client}
-                            locationName={lucrare.locatie}
+                            clientName={clientData?.nume || clientData?.name || lucrare.client}
+                            locationName={resolvedLocation?.nume || lucrare.locatie}
                             showLabel={false}
                             useSimpleFormat={true}
                             className="h-7 w-7 p-0"
                           />
                         </div>
                       )}
-                      {lucrare.echipamentModel && (
+                      {(resolvedEquipment?.model || (lucrare as any)?.echipamentModel) && (
                         <p className="text-sm">
                           <span className="font-medium text-blue-600">Model:</span>{" "}
-                          <span className="text-blue-600">{lucrare.echipamentModel}</span>
+                          <span className="text-blue-600">{resolvedEquipment?.model || (lucrare as any)?.echipamentModel}</span>
                         </p>
                       )}
                       {lucrare.textReinterventie && (
@@ -2369,7 +2495,9 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <CardTitle>Informații client</CardTitle>
-                    <CardDescription className="text-base font-semibold text-gray-600">{lucrare.client}</CardDescription>
+                    <CardDescription className="text-base font-semibold text-gray-600">
+                      {clientData?.nume || clientData?.name || lucrare.client}
+                    </CardDescription>
                   </div>
                   {(lucrare as any)?.clientId || clientData?.id ? (
                     <Link href={`/dashboard/clienti/${(lucrare as any)?.clientId ?? clientData?.id}`}>
@@ -3041,9 +3169,9 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                         Scanați QR code-ul echipamentului pentru a verifica dacă este cel corect pentru această lucrare.
                       </p>
                       <QRCodeScanner
-                        expectedEquipmentCode={lucrare.echipamentCod}
-                        expectedLocationName={lucrare.locatie}
-                        expectedClientName={lucrare.client}
+                        expectedEquipmentCode={resolvedEquipment?.cod || lucrare.echipamentCod}
+                        expectedLocationName={resolvedLocation?.nume || lucrare.locatie}
+                        expectedClientName={clientData?.nume || clientData?.name || lucrare.client}
                         workId={lucrare.id}
                         onScanSuccess={(data) => {
                           toast({
@@ -3103,9 +3231,11 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                 lucrareId={lucrare.id}
                 locationEmail={(() => {
                   try {
-                    const loc = (clientData?.locatii || []).find((l: any) => l?.nume === lucrare.locatie)
-                    const contact = loc?.persoaneContact?.find((c: any) => c?.nume === lucrare.persoanaContact)
-                    return contact?.email || loc?.email || undefined
+                    const email =
+                      String(resolvedContact?.email || "").trim() ||
+                      String(resolvedLocation?.email || "").trim() ||
+                      ""
+                    return email ? email : undefined
                   } catch { return undefined }
                 })()}
               />

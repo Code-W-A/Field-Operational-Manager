@@ -112,6 +112,10 @@ interface LucrareFormProps {
     echipamentCod?: string
     customFields?: Record<string, any>
     equipmentIds?: string[]
+    // Backward-compatible IDs (new): persisted on work docs to allow live lookup
+    clientId?: string
+    locationId?: string
+    persoanaContactEmail?: string
   }
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void
   handleSelectChange: (id: string, value: string) => void
@@ -177,6 +181,18 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [showCloseAlert, setShowCloseAlert] = useState(false)
     const equipmentSelectRef = useRef<any>(null)
+
+    const normalizeEmail = (raw?: any) => {
+      let s = String(raw ?? "")
+      try {
+        s = s.normalize("NFKC")
+      } catch {}
+      s = s.replace(/\u00A0/g, " ").replace(/[\u200B-\u200D\uFEFF]/g, "").trim()
+      const m = s.match(/<\s*([^>]+)\s*>/)
+      if (m?.[1]) s = m[1].trim()
+      if (/[;,]/.test(s)) s = s.split(/[;,]/)[0].trim()
+      return s
+    }
 
     // Dinamic: tipuri de lucrare din setări (works.create.workTypes)
     const { items: dynamicWorkTypes } = useTargetList("works.create.workTypes")
@@ -565,6 +581,9 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         if (handleCustomChange) {
           handleCustomChange("echipamentId", "")
           handleCustomChange("echipamentCod", "")
+          handleCustomChange("equipmentIds", [])
+          handleCustomChange("locationId", "")
+          handleCustomChange("persoanaContactEmail", "")
         }
 
         // Resetăm echipamentele disponibile
@@ -577,6 +596,11 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
       // Actualizăm starea pentru clientul selectat
       setSelectedClient(client)
+
+      // Propagăm ID-ul stabil al clientului în payload-ul de lucrare (backward compatible)
+      if (handleCustomChange && client?.id) {
+        handleCustomChange("clientId", String(client.id))
+      }
 
       console.log("Client selectat:", client)
     }
@@ -602,6 +626,8 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         if (handleCustomChange) {
           handleCustomChange("echipamentId", "")
           handleCustomChange("echipamentCod", "")
+          handleCustomChange("equipmentIds", [])
+          handleCustomChange("persoanaContactEmail", "")
         }
         
         // Resetăm și lista de lucrări existente
@@ -649,6 +675,12 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
       // Actualizăm locația selectată
       setSelectedLocatie(selectedLocation || null)
+
+      // Propagăm ID-ul stabil al locației în payload-ul de lucrare (backward compatible)
+      if (handleCustomChange) {
+        const locId = (selectedLocation as any)?.id
+        handleCustomChange("locationId", locId ? String(locId) : "")
+      }
     }
 
     // Funcție pentru verificarea lucrărilor existente pe echipament
@@ -1098,6 +1130,13 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             const primaryContact = locatie.persoaneContact[0]
             handleSelectChange("persoanaContact", primaryContact.nume || "")
             handleSelectChange("telefon", primaryContact.telefon || "")
+          if (handleCustomChange) {
+            const email = normalizeEmail((primaryContact as any)?.email)
+            handleCustomChange(
+              "persoanaContactEmail",
+              email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "",
+            )
+          }
           }
         } else {
           console.log("Nu există persoane de contact pentru această locație")
@@ -1111,6 +1150,9 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           // Clear the primary contact fields
           handleSelectChange("persoanaContact", "")
           handleSelectChange("telefon", "")
+          if (handleCustomChange) {
+            handleCustomChange("persoanaContactEmail", "")
+          }
         }
 
         // Actualizăm echipamentele disponibile pentru această locație
@@ -1139,8 +1181,33 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
         // Actualizăm câmpul locație în formData
         handleSelectChange("locatie", locatieNume)
+
+        // Propagăm ID-ul stabil al locației + resetăm selecții dependente (backward compatible)
+        if (handleCustomChange) {
+          const locId = (locatie as any)?.id
+          handleCustomChange("locationId", locId ? String(locId) : "")
+          handleCustomChange("equipmentIds", [])
+        }
       }
     }
+
+    // Dacă se schimbă persoana de contact selectată, păstrăm și email-ul (când există) în lucrare.
+    useEffect(() => {
+      if (!handleCustomChange) return
+      const name = String(formData.persoanaContact || "").trim()
+      if (!name) {
+        handleCustomChange("persoanaContactEmail", "")
+        return
+      }
+      const contacts: any[] = ((formData as any)?.persoaneContact || persoaneContact || []) as any[]
+      const found = contacts.find((c: any) => String(c?.nume || "").trim() === name)
+      const email = normalizeEmail(found?.email)
+      handleCustomChange(
+        "persoanaContactEmail",
+        email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "",
+      )
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [formData.persoanaContact, (formData as any)?.persoaneContact, persoaneContact, handleCustomChange])
 
     // Adăugăm o funcție pentru a forța încărcarea echipamentelor pentru o locație
     // Adăugați această funcție după handleLocatieSelect (în jurul liniei 350):

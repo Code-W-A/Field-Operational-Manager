@@ -128,7 +128,7 @@ export default function NewLucrarePage() {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (dataFromForm?: any) => {
     try {
       // Asigurăm că folosim data și ora curentă pentru dataEmiterii
       const currentDateTime = new Date()
@@ -136,6 +136,7 @@ export default function NewLucrarePage() {
       // Pregătim datele pentru noua lucrare
       const newWorkOrderData: any = {
         ...formData,
+        ...(dataFromForm && typeof dataFromForm === "object" ? dataFromForm : {}),
         dataEmiterii: currentDateTime.toISOString(),
         dataInterventie: dataInterventie ? dataInterventie.toISOString() : new Date().toISOString(),
       }
@@ -203,6 +204,7 @@ export default function NewLucrarePage() {
         const workOrderData = {
           id: lucrareId,
           ...formData,
+          ...(dataFromForm && typeof dataFromForm === "object" ? dataFromForm : {}),
           dataEmiterii: currentDateTime.toISOString(),
           dataInterventie: dataInterventie ? dataInterventie.toISOString() : new Date().toISOString(),
         }

@@ -473,7 +473,14 @@ export async function sendWorkOrderPostponedNotification(workOrderData: any) {
     let contactEmail: string | null = null
     let clientName: string = typeof workOrderData.client === "string" ? workOrderData.client : (workOrderData.client?.nume || workOrderData.client?.name || "")
 
-    if (workOrderData.client && typeof workOrderData.client === "object" && workOrderData.client.id) {
+    // Preferăm `clientId` pe lucrare (backward compatible)
+    if (typeof workOrderData?.clientId === "string" && workOrderData.clientId) {
+      try {
+        clientRecord = await getClientById(String(workOrderData.clientId))
+      } catch {}
+    }
+
+    if (!clientRecord && workOrderData.client && typeof workOrderData.client === "object" && workOrderData.client.id) {
       try {
         clientRecord = await getClientById(workOrderData.client.id)
       } catch {}
@@ -485,14 +492,45 @@ export async function sendWorkOrderPostponedNotification(workOrderData: any) {
       } catch {}
     }
 
-    // Prefer email-ul persoanei de contact de la locație, dacă există
-    if (clientRecord && Array.isArray(clientRecord.locatii) && workOrderData.locatie) {
-      const loc = clientRecord.locatii.find((l: any) => l?.nume === workOrderData.locatie)
-      if (loc && Array.isArray(loc.persoaneContact)) {
-        const contact = workOrderData.persoanaContact
-          ? loc.persoaneContact.find((c: any) => c?.nume === workOrderData.persoanaContact)
+    const isValidEmail = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(String(e || ""))
+    const norm = (s?: string) => String(s || "").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "").trim()
+    const matches = (a?: string, b?: string) => {
+      const na = norm(a); const nb = norm(b)
+      if (!na || !nb) return false
+      return na === nb || na.includes(nb) || nb.includes(na)
+    }
+
+    // Prefer email-ul deja backfill-uit pe lucrare (când există)
+    if (isValidEmail(workOrderData?.persoanaContactEmail)) {
+      contactEmail = String(workOrderData.persoanaContactEmail).trim()
+    }
+
+    // Apoi: prefer email-ul persoanei de contact de la locație (match by locationId, apoi nume/adresă)
+    if (!contactEmail && clientRecord && Array.isArray(clientRecord.locatii)) {
+      const locatii: any[] = clientRecord.locatii
+      const selectedLocationId =
+        (workOrderData as any)?.locationId ||
+        (workOrderData as any)?.clientInfo?.locationId ||
+        (workOrderData as any)?.clientInfo?.locatieId
+      const targetName = workOrderData?.locatie || workOrderData?.clientInfo?.locationName
+      const targetAddr = workOrderData?.clientInfo?.locationAddress
+      const targetContactName = workOrderData?.persoanaContact
+
+      let loc =
+        (selectedLocationId
+          ? locatii.find((l: any) => String(l?.id || "") === String(selectedLocationId))
+          : null) ||
+        locatii.find((l: any) => matches(l?.nume, targetName) || matches(l?.adresa, targetAddr)) ||
+        null
+
+      if (loc && Array.isArray(loc?.persoaneContact)) {
+        const persoane: any[] = loc.persoaneContact
+        const contact = targetContactName
+          ? persoane.find((c: any) => matches(c?.nume, targetContactName))
           : null
-        contactEmail = contact?.email || null
+        if (isValidEmail(contact?.email)) {
+          contactEmail = String(contact.email).trim()
+        }
       }
     }
 

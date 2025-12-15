@@ -136,6 +136,10 @@ export default function Lucrari() {
     descriere: "",
     persoanaContact: "",
     telefon: "",
+    // Backward-compatible IDs (new): persisted for live client/location lookups
+    clientId: "",
+    locationId: "",
+    persoanaContactEmail: "",
     statusLucrare: "Listată",
     statusFacturare: "Nefacturat",
     contract: "",
@@ -144,6 +148,7 @@ export default function Lucrari() {
     echipamentId: "",
     echipamentCod: "",
     persoaneContact: [],
+    equipmentIds: [],
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -933,6 +938,9 @@ export default function Lucrari() {
       descriere: "",
       persoanaContact: "",
       telefon: "",
+      clientId: "",
+      locationId: "",
+      persoanaContactEmail: "",
       statusLucrare: "Programată",
       statusFacturare: "Nefacturat",
       contract: "",
@@ -942,6 +950,7 @@ export default function Lucrari() {
       persoaneContact: [],
       echipamentId: "",
       echipamentCod: "",
+      equipmentIds: [],
     })
     setFieldErrors([])
   }, [])
@@ -1216,6 +1225,9 @@ export default function Lucrari() {
       descriere: lucrare.descriere,
       persoanaContact: lucrare.persoanaContact,
       telefon: lucrare.telefon,
+      clientId: String((lucrare as any).clientId || ""),
+      locationId: String((lucrare as any).locationId || ""),
+      persoanaContactEmail: String((lucrare as any).persoanaContactEmail || ""),
       statusLucrare: lucrare.statusLucrare,
       statusFacturare: lucrare.statusFacturare,
       contract: lucrare.contract || "",

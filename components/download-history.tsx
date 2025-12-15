@@ -24,7 +24,7 @@ export function DownloadHistory({ lucrareId, locationEmail }: { lucrareId: strin
             const workRef = doc(db, "lucrari", lucrareId)
             const workSnap = await getDoc(workRef)
             const work = workSnap.exists() ? (workSnap.data() as any) : null
-            const clientId = work?.clientInfo?.id
+            const clientId = work?.clientId || work?.clientInfo?.id
             if (clientId) {
               const clientRef = doc(db, "clienti", String(clientId))
               const clientSnap = await getDoc(clientRef)
@@ -37,7 +37,7 @@ export function DownloadHistory({ lucrareId, locationEmail }: { lucrareId: strin
                 return na === nb || na.includes(nb) || nb.includes(na)
               }
               const locatii: any[] = Array.isArray(client?.locatii) ? client.locatii : []
-              const targetId = work?.clientInfo?.locationId || work?.clientInfo?.locatieId
+              const targetId = work?.locationId || work?.clientInfo?.locationId || work?.clientInfo?.locatieId
               const targetName = work?.locatie || work?.clientInfo?.locationName
               const targetAddr = work?.clientInfo?.locationAddress
               const targetContactName = work?.persoanaContact

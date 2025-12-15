@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { getLucrareById, getClienti } from "@/lib/firebase/firestore"
+import { getLucrareById, getClientById, getClienti } from "@/lib/firebase/firestore"
 
 export default function RevisionEquipmentPage() {
   const params = useParams<{ id: string; equipmentId: string }>()
@@ -55,9 +55,28 @@ export default function RevisionEquipmentPage() {
           }
 
           // 2) Căutăm în client/locație după id sau cod
-          const clients = await getClienti()
-          const client = clients.find((c: any) => c.nume === work.client)
-          const location = client?.locatii?.find((l: any) => l.nume === work.locatie)
+          let client: any = null
+          const cid = (work as any)?.clientId || (work as any)?.clientInfo?.id
+          if (cid) {
+            try {
+              client = await getClientById(String(cid))
+            } catch {
+              client = null
+            }
+          }
+          if (!client) {
+            const clients = await getClienti()
+            client = clients.find((c: any) => c.nume === work.client) || null
+          }
+
+          const workLocationId = (work as any)?.locationId || (work as any)?.clientInfo?.locationId || (work as any)?.clientInfo?.locatieId
+          const locations = Array.isArray(client?.locatii) ? client.locatii : []
+          const location =
+            (workLocationId
+              ? locations.find((l: any) => String(l?.id || "") === String(workLocationId))
+              : null) ||
+            locations.find((l: any) => l.nume === work.locatie) ||
+            null
           const eqById = location?.echipamente?.find(
             (e: any) => String(e.id) === String(equipmentId)
           )
