@@ -18,7 +18,8 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
     let clientEmail = ""
     let clientName = workOrderData.client
     const contactPerson = workOrderData.persoanaContact
-    let clientId = null
+    // Preferăm id-uri stabile dacă există (backward compatible)
+    let clientId = (typeof workOrderData?.clientId === "string" && workOrderData.clientId) ? workOrderData.clientId : null
     let locationContactEmails: string[] = []
 
     const isValidEmail = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(String(e || ""))
@@ -57,7 +58,10 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
           try {
             if (clientData && Array.isArray(clientData.locatii)) {
               const selectedLocationNameRaw = (workOrderData.locatie || workOrderData.clientInfo?.locationName || "").toString()
-              const selectedLocationId = (workOrderData as any)?.clientInfo?.locationId || (workOrderData as any)?.clientInfo?.locatieId
+              const selectedLocationId =
+                (workOrderData as any)?.locationId ||
+                (workOrderData as any)?.clientInfo?.locationId ||
+                (workOrderData as any)?.clientInfo?.locatieId
               const selectedContactNameRaw = (workOrderData.persoanaContact || "").toString()
 
               const targetName = norm(selectedLocationNameRaw)
@@ -186,7 +190,10 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
               const clientRecord: any = clientData
               if (Array.isArray(clientRecord?.locatii)) {
                 const selectedLocationNameRaw = (workOrderData.locatie || workOrderData.clientInfo?.locationName || "").toString()
-                const selectedLocationId = (workOrderData as any)?.clientInfo?.locationId || (workOrderData as any)?.clientInfo?.locatieId
+                const selectedLocationId =
+                  (workOrderData as any)?.locationId ||
+                  (workOrderData as any)?.clientInfo?.locationId ||
+                  (workOrderData as any)?.clientInfo?.locatieId
                 const selectedContactNameRaw = (workOrderData.persoanaContact || "").toString()
 
                 const targetName = norm(selectedLocationNameRaw)

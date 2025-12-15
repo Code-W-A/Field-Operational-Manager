@@ -67,15 +67,15 @@ async function workExists(contractId: string, locationId: string | undefined, sc
   const probes: Array<"contractId" | "contract"> = ["contractId", "contract"]
 
   for (const field of probes) {
-    let q = db.collection("lucrari")
+  let q = db.collection("lucrari")
       .where(field, "==", contractId)
-      .where("dataInterventie", "==", scheduledIso)
+    .where("dataInterventie", "==", scheduledIso)
 
-    if (locationId) {
-      q = q.where("locationId", "==", locationId)
-    }
+  if (locationId) {
+    q = q.where("locationId", "==", locationId)
+  }
 
-    const snap = await q.limit(1).get()
+  const snap = await q.limit(1).get()
     if (!snap.empty) return true
   }
 
@@ -196,46 +196,46 @@ async function generateRevisionWorks(params: { now: Date; contractId?: string })
     contracts.push(...contractsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })))
   }
 
-  let created = 0
+    let created = 0
 
-  for (const contract of contracts) {
+    for (const contract of contracts) {
     if (created >= MAX_WORKS_PER_RUN) break
-    if (!contract.revisionSchedulePreview || !Array.isArray(contract.revisionSchedulePreview)) continue
+      if (!contract.revisionSchedulePreview || !Array.isArray(contract.revisionSchedulePreview)) continue
 
-    const clientPayload = await fetchClient(contract.clientId)
-    const locationEquipments = new Map<string, string[]>()
-    const locs = (clientPayload.data as any)?.locatii
-    if (Array.isArray(locs)) {
-      for (const loc of locs) {
-        const locName = loc?.nume
-        if (!locName) continue
-        const eqIds = Array.isArray(loc?.echipamente)
-          ? loc.echipamente
-              .map((eq: any) => eq?.id)
-              .filter((id: any) => typeof id === "string" && id.length > 0)
-          : []
-        if (eqIds.length) {
-          locationEquipments.set(locName, eqIds)
+      const clientPayload = await fetchClient(contract.clientId)
+      const locationEquipments = new Map<string, string[]>()
+      const locs = (clientPayload.data as any)?.locatii
+      if (Array.isArray(locs)) {
+        for (const loc of locs) {
+          const locName = loc?.nume
+          if (!locName) continue
+          const eqIds = Array.isArray(loc?.echipamente)
+            ? loc.echipamente
+                .map((eq: any) => eq?.id)
+                .filter((id: any) => typeof id === "string" && id.length > 0)
+            : []
+          if (eqIds.length) {
+            locationEquipments.set(locName, eqIds)
+          }
         }
       }
-    }
 
-    const entries: { generateAt: Date; scheduledAt: Date; locationId?: string; locationName?: string }[] = []
-    for (const raw of contract.revisionSchedulePreview) {
-      const genRaw = (raw as any).generateAt?.toDate?.() ?? (raw as any).generateIso ?? (raw as any).generateDate
-      const schedRaw = (raw as any).scheduledAt?.toDate?.() ?? (raw as any).scheduledIso ?? (raw as any).scheduledDate
-      const gen = genRaw ? new Date(genRaw) : null
-      const sched = schedRaw ? new Date(schedRaw) : null
-      if (!gen || Number.isNaN(gen.getTime()) || !sched || Number.isNaN(sched.getTime())) continue
-      entries.push({
-        generateAt: gen,
-        scheduledAt: sched,
-        locationId: (raw as any).locationId,
-        locationName: (raw as any).locationName,
-      })
-    }
+      const entries: { generateAt: Date; scheduledAt: Date; locationId?: string; locationName?: string }[] = []
+      for (const raw of contract.revisionSchedulePreview) {
+        const genRaw = (raw as any).generateAt?.toDate?.() ?? (raw as any).generateIso ?? (raw as any).generateDate
+        const schedRaw = (raw as any).scheduledAt?.toDate?.() ?? (raw as any).scheduledIso ?? (raw as any).scheduledDate
+        const gen = genRaw ? new Date(genRaw) : null
+        const sched = schedRaw ? new Date(schedRaw) : null
+        if (!gen || Number.isNaN(gen.getTime()) || !sched || Number.isNaN(sched.getTime())) continue
+        entries.push({
+          generateAt: gen,
+          scheduledAt: sched,
+          locationId: (raw as any).locationId,
+          locationName: (raw as any).locationName,
+        })
+      }
 
-    entries.sort((a, b) => a.generateAt.getTime() - b.generateAt.getTime())
+      entries.sort((a, b) => a.generateAt.getTime() - b.generateAt.getTime())
 
     const lastGeneratedRaw = contract.lastAutoWorkGenerated
     const lastGeneratedAt = lastGeneratedRaw ? new Date(lastGeneratedRaw) : null
@@ -243,7 +243,7 @@ async function generateRevisionWorks(params: { now: Date; contractId?: string })
 
     let createdForContract = 0
 
-    for (const entry of entries) {
+      for (const entry of entries) {
       if (created >= MAX_WORKS_PER_RUN) break
 
       // 1) Nu generăm înainte de generateAt (asta trebuie să corespundă UI "Următoarele date de generare")
@@ -253,28 +253,28 @@ async function generateRevisionWorks(params: { now: Date; contractId?: string })
       // 3) Nu creăm revizii pentru date de execuție deja trecute (fără backfill implicit)
       if (entry.scheduledAt <= now) continue
 
-      const scheduledIso = toIsoDate(entry.scheduledAt)
-      const exists = await workExists(contract.id, entry.locationId, scheduledIso)
-      if (exists) continue
+        const scheduledIso = toIsoDate(entry.scheduledAt)
+        const exists = await workExists(contract.id, entry.locationId, scheduledIso)
+        if (exists) continue
 
-      const nrLucrare = await getNextReportNumberAdmin()
-      const payload = createWorkPayload({
-        contract,
-        clientName: clientPayload.name,
-        clientInfo: clientPayload.data,
-        locationId: entry.locationId,
-        locationName: entry.locationName,
-        scheduledDate: entry.scheduledAt,
-        nrLucrare,
-        equipmentIds: locationEquipments.get(entry.locationName || "") || undefined,
-      })
+        const nrLucrare = await getNextReportNumberAdmin()
+        const payload = createWorkPayload({
+          contract,
+          clientName: clientPayload.name,
+          clientInfo: clientPayload.data,
+          locationId: entry.locationId,
+          locationName: entry.locationName,
+          scheduledDate: entry.scheduledAt,
+          nrLucrare,
+          equipmentIds: locationEquipments.get(entry.locationName || "") || undefined,
+        })
 
       // Safety net: chiar dacă o altă bucată de cod ar crea prematur, UI va ascunde lucrarea până la generateAt.
       ;(payload as any).visibleAt = Timestamp.fromDate(entry.generateAt)
       ;(payload as any).autoGenerated = true
 
-      await db.collection("lucrari").add(payload)
-      created += 1
+        await db.collection("lucrari").add(payload)
+        created += 1
       createdForContract += 1
     }
 

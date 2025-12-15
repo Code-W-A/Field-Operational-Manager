@@ -33,6 +33,11 @@ export interface Lucrare {
   id?: string
   client: string
   persoanaContact: string
+  // Backward-compatible IDs (optional): help resolve live client/location data even if names change
+  clientId?: string
+  locationId?: string
+  locationName?: string
+  persoanaContactEmail?: string
   telefon: string
   dataEmiterii: string
   dataInterventie: string
@@ -345,6 +350,8 @@ export interface Contract {
 }
 
 export interface Locatie {
+  // ID stabil pentru locație (stocat în array-ul client.locatii). Backward compatible.
+  id?: string
   nume: string
   adresa: string
   persoaneContact: PersoanaContact[]
@@ -405,7 +412,7 @@ export async function addUserLogEntry(params: {
         // ignorăm, rămâne fallback‑ul
       }
     }
-    await addDoc(collection(db, "logs"), {
+    const payload: Record<string, any> = {
       timestamp: serverTimestamp(),
       utilizator: finalUtilizator || "Sistem",
       utilizatorId: finalUtilizatorId || "system",
@@ -427,7 +434,12 @@ export async function addUserLogEntry(params: {
       before: params.before,
       after: params.after,
       metadata: params.metadata,
-    })
+    }
+    // Firestore nu acceptă valori `undefined`
+    for (const k of Object.keys(payload)) {
+      if (payload[k] === undefined) delete payload[k]
+    }
+    await addDoc(collection(db, "logs"), payload)
   } catch (e) {
     // nu blocăm acțiunea principală
     console.warn("Log writing failed (non-blocking):", e)
@@ -591,9 +603,45 @@ export const getClientById = async (id: string) => {
 // Add a new client
 export const addClient = async (client: Client) => {
   const clientsCollection = collection(db, "clienti")
+
+  // Helper: generate stable ids for nested objects (locații / persoaneContact) – backward compatible
+  const genId = () => `id_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
+  const ensureLocatiiIds = (locs?: any[]) => {
+    if (!Array.isArray(locs)) return locs
+    return locs.map((l: any) => {
+      const next = { ...(l || {}) }
+      if (!next.id) next.id = genId()
+      if (Array.isArray(next.persoaneContact)) {
+        next.persoaneContact = next.persoaneContact.map((p: any) => {
+          const pp = { ...(p || {}) }
+          if (!pp.id) pp.id = genId()
+          return pp
+        })
+      }
+      // Echipamente: asigurăm id stabil pentru fiecare echipament din locație (backward compatible)
+      if (Array.isArray(next.echipamente)) {
+        next.echipamente = next.echipamente.map((e: any) => {
+          const ee = { ...(e || {}) }
+          if (!ee.id) ee.id = genId()
+          return ee
+        })
+      }
+      return next
+    })
+  }
+
+  // Pre-normalizăm structuri nested: nu rupe clienții vechi; doar completează id-uri lipsă.
+  ;(client as any).locatii = ensureLocatiiIds((client as any).locatii)
+
   client.createdAt = serverTimestamp() as Timestamp
   client.updatedAt = serverTimestamp() as Timestamp
-  const docRef = await addDoc(clientsCollection, client)
+
+  // Stocăm și `id` în document (egal cu doc id) pentru interconectări mai ușoare.
+  // Folosim setDoc pe doc precreat ca să evităm o scriere suplimentară.
+  const { doc, setDoc } = await import("firebase/firestore")
+  const docRef = doc(clientsCollection)
+  ;(client as any).id = docRef.id
+  await setDoc(docRef, client as any)
   // Log non‑blocking
   void addUserLogEntry({
     actiune: "Creare client",
@@ -618,6 +666,54 @@ export const updateClient = async (id: string, client: Partial<Client>) => {
   } catch (e) {
     console.warn("Nu s-au putut obține datele vechi ale clientului pentru log dif:", e)
   }
+
+  // Helper: generate stable ids for nested objects (locații / persoaneContact) – backward compatible
+  const genId = () => `id_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
+  const ensureLocatiiIds = (locs?: any[]) => {
+    if (!Array.isArray(locs)) return locs
+    return locs.map((l: any) => {
+      const next = { ...(l || {}) }
+      if (!next.id) next.id = genId()
+      if (Array.isArray(next.persoaneContact)) {
+        next.persoaneContact = next.persoaneContact.map((p: any) => {
+          const pp = { ...(p || {}) }
+          if (!pp.id) pp.id = genId()
+          return pp
+        })
+      }
+      // Echipamente: asigurăm id stabil pentru fiecare echipament din locație (backward compatible)
+      if (Array.isArray(next.echipamente)) {
+        next.echipamente = next.echipamente.map((e: any) => {
+          const ee = { ...(e || {}) }
+          if (!ee.id) ee.id = genId()
+          return ee
+        })
+      }
+      return next
+    })
+  }
+
+  // Dacă se editează locațiile, completăm id-uri lipsă înainte de update.
+  if ("locatii" in (client as any)) {
+    ;(client as any).locatii = ensureLocatiiIds((client as any).locatii)
+  }
+  // Dacă NU se trimit locațiile în payload, dar în DB există locații fără id-uri,
+  // facem backfill automat la orice editare (chiar și când se schimbă doar nume/email).
+  if (!("locatii" in (client as any)) && Array.isArray(oldData?.locatii)) {
+    const needsBackfill = (oldData.locatii as any[]).some((l: any) => {
+      if (!l?.id) return true
+      const pcs = Array.isArray(l?.persoaneContact) ? l.persoaneContact : []
+      if (pcs.some((p: any) => !p?.id)) return true
+      const eqs = Array.isArray(l?.echipamente) ? l.echipamente : []
+      if (eqs.some((e: any) => !e?.id)) return true
+      return false
+    })
+    if (needsBackfill) {
+      ;(client as any).locatii = ensureLocatiiIds(oldData.locatii)
+    }
+  }
+  // Asigurăm că documentul are și câmp `id` (doar dacă nu e deja setat)
+  ;(client as any).id = (client as any).id ?? id
 
   client.updatedAt = serverTimestamp() as Timestamp
   await updateDoc(clientDoc, client as DocumentData)
@@ -724,6 +820,18 @@ export const getLucrareById = async (id: string) => {
 // Add a new work order
 export const addLucrare = async (lucrare: Lucrare) => {
   const lucrariCollection = collection(db, "lucrari")
+  // Best-effort: derive stable IDs from clientInfo snapshot if present (backward compatible)
+  try {
+    const ci: any = (lucrare as any)?.clientInfo
+    if (!lucrare.clientId && ci?.id) lucrare.clientId = String(ci.id)
+    if (!lucrare.locationId && (ci?.locationId || ci?.locatieId)) lucrare.locationId = String(ci.locationId || ci.locatieId)
+    if (!lucrare.locationName && ci?.locationName) lucrare.locationName = String(ci.locationName)
+    if (!lucrare.persoanaContactEmail && (ci?.locationEmail || ci?.contactEmail || ci?.email)) {
+      lucrare.persoanaContactEmail = String(ci.locationEmail || ci.contactEmail || ci.email)
+    }
+  } catch {
+    // non-blocking
+  }
   lucrare.createdAt = serverTimestamp() as Timestamp
   lucrare.updatedAt = serverTimestamp() as Timestamp
   const docRef = await addDoc(lucrariCollection, lucrare)

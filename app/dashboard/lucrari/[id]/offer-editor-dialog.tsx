@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle, XCircle } from "lucide-react"
@@ -59,6 +59,23 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
   const { items: installationTermOptions } = useTargetList("offer.installationTermsOptions")
   const { value: defaultVatPercentSetting } = useTargetValue<number>("offer.defaultVatPercent")
 
+  // Debug flag (client-side): set `localStorage.fom_debug_offer_email = "1"` then retry sending
+  const isOfferEmailDebugEnabled = () => {
+    try {
+      if (typeof window === "undefined") return false
+      return localStorage.getItem("fom_debug_offer_email") === "1"
+    } catch {
+      return false
+    }
+  }
+  const dbg = (...args: any[]) => {
+    try {
+      if (!isOfferEmailDebugEnabled()) return
+      // prefix ușor de filtrat în consola browserului
+      console.log("[OfferEmailDebug]", ...args)
+    } catch {}
+  }
+
 useEffect(() => {
   // Actualizăm mereu baseline-ul din props
   setBaselineProducts(initialProducts || [])
@@ -102,10 +119,13 @@ useEffect(() => {
         }
       } catch {}
       try {
-        const cid = (current as any)?.clientInfo?.id
+        // Backward-compatible: unele lucrări au doar clientInfo.id, altele au clientId.
+        const cid = (current as any)?.clientId || (current as any)?.clientInfo?.id
         if (cid) {
-          const c = await getClientById(cid)
+          const c = await getClientById(String(cid))
           setClientData(c)
+        } else {
+          setClientData(null)
         }
       } catch {}
       {
@@ -167,6 +187,15 @@ useEffect(() => {
       return na === nb || na.includes(nb) || nb.includes(na)
     }
 
+    dbg("resolveRecipientEmailForLocation input", {
+      presetRecipientEmail,
+      work_locatie: work?.locatie,
+      work_contact: work?.persoanaContact,
+      work_locationId: work?.clientInfo?.locationId || work?.clientInfo?.locatieId || work?.locationId,
+      work_locationName: work?.clientInfo?.locationName,
+      work_locationAddress: work?.clientInfo?.locationAddress,
+    })
+
     // Fallback direct din lucrare/clientInfo dacă nu avem client complet încărcat
     const workLevelCandidates = [
       work?.clientInfo?.locationEmail,
@@ -175,6 +204,7 @@ useEffect(() => {
       work?.email,
       work?.persoanaContactEmail,
     ].filter(isValid)
+    dbg("workLevelCandidates(valid)", workLevelCandidates.map((e: any) => ({ raw: e, normalized: normalizeEmail(e) })))
     if (workLevelCandidates.length) return normalizeEmail(workLevelCandidates[0])
 
     const locatii = Array.isArray(client?.locatii) ? client.locatii : []
@@ -189,11 +219,28 @@ useEffect(() => {
     if (!loc) {
       loc = locatii.find((l: any) => matches(l?.nume, targetName) || matches(l?.adresa, targetAddr))
     }
+    dbg("location match", {
+      found: Boolean(loc),
+      byId: Boolean(targetId && loc && String(loc?.id || "") === String(targetId)),
+      locName: loc?.nume,
+      locAddr: loc?.adresa,
+      locEmail: loc?.email,
+      locContactsCount: Array.isArray(loc?.persoaneContact) ? loc.persoaneContact.length : 0,
+    })
 
     // If we have a location, try exact contact match first, then any contact, then location email
     if (loc) {
       const persoane: any[] = Array.isArray(loc?.persoaneContact) ? loc.persoaneContact : []
       const exact = persoane.find((c: any) => matches(c?.nume, targetContactName))
+      dbg("contacts scan", {
+        targetContactName,
+        exactName: exact?.nume,
+        exactEmailRaw: exact?.email,
+        exactEmailNormalized: normalizeEmail(exact?.email),
+        anyValidContactEmails: persoane
+          .map((c: any) => ({ name: c?.nume, emailRaw: c?.email, emailNorm: normalizeEmail(c?.email), valid: isValid(c?.email) }))
+          .filter((x: any) => x.valid),
+      })
       if (isValid(exact?.email)) return normalizeEmail(exact.email)
       const anyContact = persoane.find((c: any) => isValid(c?.email))
       if (isValid(anyContact?.email)) return normalizeEmail(anyContact.email)
@@ -207,7 +254,26 @@ useEffect(() => {
     if (isValid(anyClientContact?.email)) return normalizeEmail(anyClientContact.email)
 
     // No valid email found
+    dbg("resolveRecipientEmailForLocation result", null)
     return null
+  }
+
+  // Helper: găsește locația în client (preferă ID, altfel fuzzy pe nume/adresă).
+  // Folosit pentru "lazy backfill" (lucrări vechi fără locationId/clientId).
+  const resolveLocationForWork = (client: any, work: any) => {
+    const locatii = Array.isArray(client?.locatii) ? client.locatii : []
+    const targetId = work?.clientInfo?.locationId || work?.clientInfo?.locatieId || work?.locationId
+    const targetName = work?.locatie || work?.clientInfo?.locationName
+    const targetAddr = work?.clientInfo?.locationAddress
+    const norm = (s?: string) => String(s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').trim()
+    const matches = (a?: string, b?: string) => {
+      const na = norm(a); const nb = norm(b)
+      if (!na || !nb) return false
+      return na === nb || na.includes(nb) || nb.includes(na)
+    }
+    let loc = targetId ? locatii.find((l: any) => String(l?.id || '') === String(targetId)) : undefined
+    if (!loc) loc = locatii.find((l: any) => matches(l?.nume, targetName) || matches(l?.adresa, targetAddr))
+    return loc || null
   }
 
   const total = useMemo(() => products.reduce((s, p) => s + (p.total || 0), 0), [products])
@@ -355,13 +421,42 @@ useEffect(() => {
       const freshWork = await getLucrareById(lucrareId)
       let freshClient: any = clientData
       try {
-        const cid = (freshWork as any)?.clientInfo?.id
-        if (cid) freshClient = await getClientById(cid)
+        const cid = (freshWork as any)?.clientId || (freshWork as any)?.clientInfo?.id
+        if (cid) freshClient = await getClientById(String(cid))
       } catch {}
+      dbg("handleSendOffer context", {
+        lucrareId,
+        presetRecipientEmail,
+        suggestedRecipient,
+        hasFreshClient: Boolean(freshClient),
+        hasFreshWork: Boolean(freshWork),
+        freshWork_locatie: (freshWork as any)?.locatie,
+        freshWork_contact: (freshWork as any)?.persoanaContact,
+      })
+
       const candidate = presetRecipientEmail || resolveRecipientEmailForLocation(freshClient, freshWork)
       const recipient = normalizeEmail(candidate)
+      dbg("recipient resolution", { candidateRaw: candidate, recipientNormalized: recipient })
       if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
         throw new Error('Nu există un email valid disponibil pentru această lucrare.')
+      }
+
+      // Lazy backfill (non-blocking): dacă putem deduce `clientId`/`locationId`, le salvăm pe lucrare
+      // astfel încât pe viitor să nu mai depindem de nume (care se pot schimba).
+      try {
+        const patch: any = {}
+        const cid = (freshWork as any)?.clientId || (freshWork as any)?.clientInfo?.id
+        if (cid && !(freshWork as any)?.clientId) patch.clientId = String(cid)
+        const loc = resolveLocationForWork(freshClient, freshWork)
+        const locId = loc?.id
+        if (locId && !(freshWork as any)?.locationId) patch.locationId = String(locId)
+        if (!(freshWork as any)?.persoanaContactEmail) patch.persoanaContactEmail = recipient
+        if (Object.keys(patch).length) {
+          dbg("lazy backfill patch", patch)
+          await updateLucrare(lucrareId, patch as any, undefined, undefined, true)
+        }
+      } catch (e) {
+        dbg("lazy backfill failed (non-blocking)", e)
       }
   
       toast({ title: 'Se trimite ofertă', description: `Către: ${recipient}` })
@@ -593,6 +688,10 @@ useEffect(() => {
         {/* <DialogTitle className="my-4">Editor ofertă</DialogTitle> */}
       </DialogHeader>
       <DialogContent className="max-w-[1600px] w-[calc(100%-2rem)] max-h-[95vh] p-0">
+        {/* Fix pentru warning Radix Dialog: asigurăm aria-describedby */}
+        <DialogDescription className="sr-only">
+          Editor ofertă: salvează versiuni și trimite oferta pe email către persoana de contact a locației.
+        </DialogDescription>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
           <div className="lg:col-span-2 space-y-4 overflow-y-auto max-h-[calc(95vh-8rem)] p-6">
             <ProductTableForm products={products} onProductsChange={setProducts} disabled={effectiveDisabled} />

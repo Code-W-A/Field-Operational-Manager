@@ -67,6 +67,11 @@ interface Lucrare {
   descriere: string
   persoanaContact: string
   telefon: string
+  // Backward-compatible IDs (new): help resolve live client/location data even if names change
+  clientId?: string
+  locationId?: string
+  // Cached recipient email used for offer/report sending (optional)
+  persoanaContactEmail?: string
   statusLucrare: string
   statusFacturare: string
   contract?: string
@@ -1532,6 +1537,35 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           }
         }
 
+        // Derivăm ID-uri stabile (când sunt disponibile) pentru client/locație și emailul persoanei de contact.
+        // IMPORTANT: sunt opționale și nu rup compatibilitatea pentru lucrările vechi.
+        const derivedClientId = selectedClient?.id ? String(selectedClient.id) : undefined
+        const derivedLocationId = (() => {
+          try {
+            const bySelected = (selectedLocatie as any)?.id
+            if (bySelected) return String(bySelected)
+            const byName = (selectedClient as any)?.locatii?.find?.((l: any) => l?.nume === formData.locatie)?.id
+            return byName ? String(byName) : undefined
+          } catch {
+            return undefined
+          }
+        })()
+        const normalizeEmail = (raw?: any) => {
+          let s = String(raw ?? "")
+          try { s = s.normalize("NFKC") } catch {}
+          s = s.replace(/\u00A0/g, " ").replace(/[\u200B-\u200D\uFEFF]/g, "").trim()
+          const m = s.match(/<\s*([^>]+)\s*>/)
+          if (m?.[1]) s = m[1].trim()
+          if (/[;,]/.test(s)) s = s.split(/[;,]/)[0].trim()
+          return s
+        }
+        const derivedContactEmail = (() => {
+          const contacts: any[] = (formData.persoaneContact || persoaneContact || []) as any[]
+          const found = contacts.find((c: any) => String(c?.nume || "").trim() === String(formData.persoanaContact || "").trim())
+          const email = normalizeEmail(found?.email)
+          return email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : undefined
+        })()
+
         const updatedData: Partial<Lucrare> = {
           dataEmiterii: dataEmiterii ? formatDateTime24(dataEmiterii) : "",
           dataInterventie: dataInterventieFormatted,
@@ -1543,6 +1577,10 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           descriere: formData.descriere,
           persoanaContact: formData.persoanaContact,
           telefon: formData.telefon,
+          // New optional stable fields
+          ...(derivedClientId ? { clientId: derivedClientId } : {}),
+          ...(derivedLocationId ? { locationId: derivedLocationId } : {}),
+          ...(derivedContactEmail ? { persoanaContactEmail: derivedContactEmail } : {}),
           statusLucrare: formData.statusLucrare,
           statusFacturare: formData.statusFacturare,
           contract: formData.contract,

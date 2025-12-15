@@ -1176,6 +1176,10 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
       }
 
       const docRef = await addDoc(collection(db, "contracts"), contractData)
+      // Backward compatible: persistăm și câmpul `id` în document (egal cu doc id)
+      try {
+        await updateDoc(doc(db, "contracts", docRef.id), { id: docRef.id } as any)
+      } catch {}
 
       // Dacă avem recurență și date complete, declanșăm generarea pe backend (aceeași logică ca programata)
       if (
@@ -1277,6 +1281,8 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
         updatedAt: serverTimestamp(),
         ...(newContract?.customFields ? { customFields: newContract.customFields } : {}),
       }
+      // Backfill la orice editare: persistăm `id` în document (egal cu doc id)
+      updateData.id = selectedContract.id
 
       // Gestionăm clientId - poate fi null pentru neasignat
       if (newContractClientId && newContractClientId !== "UNASSIGNED") {

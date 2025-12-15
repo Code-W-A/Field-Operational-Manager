@@ -203,7 +203,11 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
       // Nu setăm clientId pentru contracte create din ContractSelect - rămân neasignate
       // Acest lucru asigură consistența cu sistemul de asignare din pagina de contracte
       
-      await addDoc(collection(db, "contracts"), contractData)
+      const docRef = await addDoc(collection(db, "contracts"), contractData)
+      // Backward compatible: persistăm și câmpul `id` în document (egal cu doc id)
+      try {
+        await updateDoc(doc(db, "contracts", docRef.id), { id: docRef.id } as any)
+      } catch {}
 
       toast({
         title: "Contract adăugat",
