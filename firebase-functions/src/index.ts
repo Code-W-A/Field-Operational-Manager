@@ -295,7 +295,7 @@ async function generateRevisionWorks(params: { now: Date; contractId?: string })
 // Numele acesta există deja în deploy (conform firebase debug log). Păstrăm aceeași semnătură și program.
 export const generateScheduledWorks = functions
   .region(REGION)
-  .pubsub.schedule("0 8,13,17 * * *")
+  .pubsub.schedule("0 7,13 * * *")
   .timeZone(TIMEZONE)
   .onRun(async () => {
     const res = await generateRevisionWorks({ now: new Date() })

@@ -139,9 +139,27 @@ useEffect(() => {
 
   // no manual recipient selection; display-only suggestion handled via suggestedRecipient
 
+  // Normalizează email-uri venite din Firestore/UI: trim, elimină spații invizibile, extrage dintre <>
+  const normalizeEmail = (raw?: any): string => {
+    let s = String(raw ?? "")
+    // normalize unicode (pentru caractere invizibile/compat)
+    try { s = s.normalize("NFKC") } catch {}
+    // înlocuim NBSP/ZWSP cu nimic și trim
+    s = s.replace(/\u00A0/g, " ").replace(/[\u200B-\u200D\uFEFF]/g, "").trim()
+    // dacă e în format "Nume <email@domeniu>", extragem email-ul
+    const m = s.match(/<\s*([^>]+)\s*>/)
+    if (m?.[1]) s = m[1].trim()
+    // dacă sunt separatori (virgulă/;), luăm prima intrare
+    if (/[;,]/.test(s)) s = s.split(/[;,]/)[0].trim()
+    return s
+  }
+
   // Helper: resolve best email for the work's location/contact with robust fallbacks
   const resolveRecipientEmailForLocation = (client: any, work: any): string | null => {
-    const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(String(e || ''))
+    const isValid = (e?: any) => {
+      const v = normalizeEmail(e)
+      return !!v && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
+    }
     const norm = (s?: string) => String(s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').trim()
     const matches = (a?: string, b?: string) => {
       const na = norm(a); const nb = norm(b)
@@ -157,7 +175,7 @@ useEffect(() => {
       work?.email,
       work?.persoanaContactEmail,
     ].filter(isValid)
-    if (workLevelCandidates.length) return String(workLevelCandidates[0])
+    if (workLevelCandidates.length) return normalizeEmail(workLevelCandidates[0])
 
     const locatii = Array.isArray(client?.locatii) ? client.locatii : []
     const targetId = work?.clientInfo?.locationId || work?.clientInfo?.locatieId || work?.locationId
@@ -176,17 +194,17 @@ useEffect(() => {
     if (loc) {
       const persoane: any[] = Array.isArray(loc?.persoaneContact) ? loc.persoaneContact : []
       const exact = persoane.find((c: any) => matches(c?.nume, targetContactName))
-      if (isValid(exact?.email)) return String(exact.email)
+      if (isValid(exact?.email)) return normalizeEmail(exact.email)
       const anyContact = persoane.find((c: any) => isValid(c?.email))
-      if (isValid(anyContact?.email)) return String(anyContact.email)
-      if (isValid(loc?.email)) return String(loc.email)
+      if (isValid(anyContact?.email)) return normalizeEmail(anyContact.email)
+      if (isValid(loc?.email)) return normalizeEmail(loc.email)
     }
 
     // Global fallbacks on client level
-    if (isValid(client?.email)) return String(client.email)
+    if (isValid(client?.email)) return normalizeEmail(client.email)
     const persoaneClient: any[] = Array.isArray(client?.persoaneContact) ? client.persoaneContact : []
     const anyClientContact = persoaneClient.find((c: any) => isValid(c?.email))
-    if (isValid(anyClientContact?.email)) return String(anyClientContact.email)
+    if (isValid(anyClientContact?.email)) return normalizeEmail(anyClientContact.email)
 
     // No valid email found
     return null
@@ -340,8 +358,11 @@ useEffect(() => {
         const cid = (freshWork as any)?.clientInfo?.id
         if (cid) freshClient = await getClientById(cid)
       } catch {}
-      const recipient = presetRecipientEmail || resolveRecipientEmailForLocation(freshClient, freshWork)
-      if (!recipient) throw new Error('Nu există un email valid disponibil pentru această lucrare.')
+      const candidate = presetRecipientEmail || resolveRecipientEmailForLocation(freshClient, freshWork)
+      const recipient = normalizeEmail(candidate)
+      if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+        throw new Error('Nu există un email valid disponibil pentru această lucrare.')
+      }
   
       toast({ title: 'Se trimite ofertă', description: `Către: ${recipient}` })
   
