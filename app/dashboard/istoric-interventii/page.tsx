@@ -17,18 +17,21 @@ import { DataTableFilters } from "@/components/data-table/data-table-filters"
 import { ClampedText } from "@/components/history/clamped-text"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { useTablePersistence } from "@/hooks/use-table-persistence"
-import { formatUiDate, toDateSafe } from "@/lib/utils/time-format"
+import { formatDate, formatUiDate, toDateSafe } from "@/lib/utils/time-format"
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import { FilterButton } from "@/components/filter-button"
 import { FilterModal, type FilterOption } from "@/components/filter-modal"
+import { Eye } from "lucide-react"
+import { ensurePdfFont } from "@/lib/pdf/font-loader"
+import { drawFooter, drawSimpleHeader } from "@/lib/pdf/common"
 
 type HistoryRow = {
   id: string
   nrLucrare: string
   dataInterventie: string
   locatie: string
-  echipament: string
+  echipamentNume: string
   client?: string
   clientId?: string
   echipamentCod?: string
@@ -105,32 +108,6 @@ export default function IstoricInterventiiPage() {
     saveFilters([...activeFilters, { id: "viewMode", value: viewMode }])
   }, [viewMode, activeFilters, saveFilters])
 
-  const filterOptions = useMemo<FilterOption[]>(
-    () => [
-      {
-        id: "dateRange",
-        label: "Perioadă (data intervenției)",
-        type: "dateRange",
-      },
-      {
-        id: "client",
-        label: "Client",
-        type: "text",
-      },
-      {
-        id: "locatie",
-        label: "Locație",
-        type: "text",
-      },
-      {
-        id: "echipament",
-        label: "Echipament (cod/nume)",
-        type: "text",
-      },
-    ],
-    [],
-  )
-
   const handleApplyFilters = (filters: FilterOption[]) => {
     const filtersWithValues = filters.filter((filter) => {
       if (filter.type === "dateRange") {
@@ -156,15 +133,7 @@ export default function IstoricInterventiiPage() {
       const locatie = String(w.locationName || w.locatie || "").trim()
 
       const echipamentCod = String(w.echipamentCod || "").trim()
-      const echipament =
-        String(
-          [
-            echipamentCod ? `(${echipamentCod})` : "",
-            w.echipament || "",
-          ]
-            .filter(Boolean)
-            .join(" "),
-        ).trim() || String(w.echipament || "").trim()
+      const echipamentNume = String(w.echipament || "").trim()
 
       const durata = String(w.durataInterventie || computeDurationFallback(w) || "").trim()
 
@@ -173,7 +142,7 @@ export default function IstoricInterventiiPage() {
         nrLucrare,
         dataInterventie: String(w.dataInterventie || "").trim(),
         locatie,
-        echipament,
+        echipamentNume,
         client: String(w.client || "").trim(),
         clientId: String(w.clientId || w?.clientInfo?.id || "").trim() || undefined,
         echipamentCod,
@@ -188,6 +157,43 @@ export default function IstoricInterventiiPage() {
     mapped.sort((a, b) => extractNr(b.nrLucrare) - extractNr(a.nrLucrare))
     return mapped
   }, [works])
+
+  const filterOptions = useMemo<FilterOption[]>(() => {
+    const uniq = (xs: string[]) =>
+      Array.from(new Set(xs.map((x) => String(x || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ro"))
+
+    const clientOptions = uniq(rows.map((r) => String(r.client || ""))).map((v) => ({ label: v, value: v }))
+    const locatieOptions = uniq(rows.map((r) => String(r.locatie || ""))).map((v) => ({ label: v, value: v }))
+    const echipamentOptions = uniq(
+      rows.map((r) => [r.echipamentNume, r.echipamentCod ? `(${r.echipamentCod})` : ""].filter(Boolean).join(" ").trim()),
+    ).map((v) => ({ label: v, value: v }))
+
+    return [
+      {
+        id: "dateRange",
+        label: "Perioadă (data intervenției)",
+        type: "dateRange",
+      },
+      {
+        id: "client",
+        label: "Client",
+        type: "multiselect",
+        options: clientOptions,
+      },
+      {
+        id: "locatie",
+        label: "Locație",
+        type: "multiselect",
+        options: locatieOptions,
+      },
+      {
+        id: "echipament",
+        label: "Echipament (cod/nume)",
+        type: "multiselect",
+        options: echipamentOptions,
+      },
+    ]
+  }, [rows])
 
   const clientAccess = useMemo(() => {
     return Array.isArray((userData as any)?.clientAccess) ? ((userData as any).clientAccess as Array<{ clientId: string; locationNames: string[] }>) : []
@@ -260,25 +266,28 @@ export default function IstoricInterventiiPage() {
 
     // Admin/Dispecer: filtre dedicate (perioadă, client, locație, echipament)
     if (isAdminOrDispatcher) {
-      const getText = (id: string) =>
-        String(activeFilters.find((f) => f.id === id)?.value || "")
-          .trim()
-          .toLowerCase()
+      const getMulti = (id: string): string[] => {
+        const v = activeFilters.find((f) => f.id === id)?.value
+        if (!v) return []
+        if (Array.isArray(v)) return v.map((x) => String(x || "").trim()).filter(Boolean)
+        const s = String(v || "").trim()
+        return s ? [s] : []
+      }
       const range = activeFilters.find((f) => f.id === "dateRange")?.value as { from?: string; to?: string } | undefined
 
-      const fc = getText("client")
-      const fl = getText("locatie")
-      const fe = getText("echipament")
+      const fc = getMulti("client").map((x) => x.toLowerCase())
+      const fl = getMulti("locatie").map((x) => x.toLowerCase())
+      const fe = getMulti("echipament").map((x) => x.toLowerCase())
 
       const start = range?.from ? new Date(`${range.from}T00:00:00`) : null
       const end = range?.to ? new Date(`${range.to}T23:59:59`) : null
 
       out = out.filter((r) => {
-        if (fc && !String(r.client || "").toLowerCase().includes(fc)) return false
-        if (fl && !String(r.locatie || "").toLowerCase().includes(fl)) return false
-        if (fe) {
-          const hay = `${r.echipament || ""} ${r.echipamentCod || ""}`.toLowerCase()
-          if (!hay.includes(fe)) return false
+        if (fc.length > 0 && !fc.includes(String(r.client || "").trim().toLowerCase())) return false
+        if (fl.length > 0 && !fl.includes(String(r.locatie || "").trim().toLowerCase())) return false
+        if (fe.length > 0) {
+          const hay = [r.echipamentNume, r.echipamentCod ? `(${r.echipamentCod})` : ""].filter(Boolean).join(" ").trim().toLowerCase()
+          if (!fe.includes(hay)) return false
         }
         if (start || end) {
           const d = toDateSafe(r.dataInterventie)
@@ -305,7 +314,7 @@ export default function IstoricInterventiiPage() {
     () => [
       {
         accessorKey: "nrLucrare",
-        header: "Nr. lucrare",
+        header: "Nr. tichet",
         sortingFn: (rowA, rowB) => {
           const a = extractNr((rowA.original as any)?.nrLucrare)
           const b = extractNr((rowB.original as any)?.nrLucrare)
@@ -314,68 +323,135 @@ export default function IstoricInterventiiPage() {
         cell: ({ row }) => (
           <div className="whitespace-nowrap font-semibold text-gray-900">{row.original.nrLucrare || "-"}</div>
         ),
+        meta: {
+          thClassName: "w-[90px] max-w-[90px] px-2",
+          tdClassName: "w-[90px] max-w-[90px] px-2",
+        },
       },
       {
         accessorKey: "dataInterventie",
         header: "Data execuției",
         cell: ({ row }) => (
           <div className="whitespace-nowrap">
-            {row.original.dataInterventie ? formatUiDate(row.original.dataInterventie) : "-"}
+            {(() => {
+              const d = toDateSafe(row.original.dataInterventie)
+              return d ? formatDate(d) : "-"
+            })()}
           </div>
         ),
+        meta: {
+          thClassName: "w-[110px] max-w-[110px] px-2",
+          tdClassName: "w-[110px] max-w-[110px] px-2",
+        },
       },
       {
         accessorKey: "locatie",
         header: "Locație",
-        cell: ({ row }) => <ClampedText text={row.original.locatie} className="max-w-[260px]" />,
+        cell: ({ row }) => <ClampedText text={row.original.locatie} lines={2} className="max-w-full" />,
+        meta: {
+          thClassName: "w-[160px] max-w-[160px] px-2",
+          tdClassName: "w-[160px] max-w-[160px] px-2",
+        },
       },
       {
-        accessorKey: "echipament",
+        accessorKey: "echipamentNume",
         header: "Echipament",
-        cell: ({ row }) => <ClampedText text={row.original.echipament} className="max-w-[260px]" />,
+        cell: ({ row }) => (
+          <div className="min-w-0">
+            <ClampedText text={row.original.echipamentNume} lines={2} className="max-w-full" />
+            <div className="text-xs text-muted-foreground mt-1 whitespace-nowrap">
+              {row.original.echipamentCod ? row.original.echipamentCod : "-"}
+            </div>
+          </div>
+        ),
+        meta: {
+          thClassName: "w-[200px] max-w-[200px] px-2",
+          tdClassName: "w-[200px] max-w-[200px] px-2",
+        },
       },
       {
         accessorKey: "tehnicieni",
         header: "Tehnician",
         cell: ({ row }) => (
-          <ClampedText
-            text={(row.original.tehnicieni || []).join(", ")}
-            className="max-w-[220px]"
-          />
+          <div className="min-w-0">
+            {(row.original.tehnicieni || []).length ? (
+              <div className="space-y-0.5">
+                {(row.original.tehnicieni || []).map((t, idx) => (
+                  <div key={`${t}-${idx}`} className="leading-snug">
+                    {t}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <span className="text-muted-foreground">-</span>
+            )}
+          </div>
         ),
+        meta: {
+          thClassName: "w-[170px] max-w-[170px] px-2",
+          tdClassName: "w-[170px] max-w-[170px] px-2",
+        },
       },
       {
         accessorKey: "defectReclamat",
         header: "Defect reclamat",
-        cell: ({ row }) => <ClampedText text={row.original.defectReclamat} className="max-w-[380px]" />,
+        cell: ({ row }) => <ClampedText text={row.original.defectReclamat} lines={4} className="max-w-full" />,
+        meta: {
+          thClassName: "w-[420px] min-w-[420px] px-3",
+          tdClassName: "w-[420px] min-w-[420px] px-3",
+        },
       },
       {
         accessorKey: "constatareLaLocatie",
         header: "Constatare la locație",
         cell: ({ row }) => (
-          <ClampedText text={row.original.constatareLaLocatie} className="max-w-[520px]" />
+          <ClampedText text={row.original.constatareLaLocatie} lines={4} className="max-w-full" />
         ),
+        meta: {
+          thClassName: "w-[420px] min-w-[420px] px-3",
+          tdClassName: "w-[420px] min-w-[420px] px-3",
+        },
       },
       {
         accessorKey: "descriereInterventie",
         header: "Intervenție",
         cell: ({ row }) => (
-          <ClampedText text={row.original.descriereInterventie} className="max-w-[520px]" />
+          <ClampedText text={row.original.descriereInterventie} lines={4} className="max-w-full" />
         ),
+        meta: {
+          thClassName: "w-[420px] min-w-[420px] px-3",
+          tdClassName: "w-[420px] min-w-[420px] px-3",
+        },
       },
       {
         accessorKey: "durataInterventie",
         header: "Ore lucrate",
         cell: ({ row }) => <div className="whitespace-nowrap">{row.original.durataInterventie || "-"}</div>,
+        meta: {
+          thClassName: "w-[90px] max-w-[90px] px-2",
+          tdClassName: "w-[90px] max-w-[90px] px-2",
+        },
       },
       {
         id: "actions",
         header: "Acțiune",
         cell: ({ row }) => (
-          <Button asChild size="sm" variant="link" className="px-0">
-            <Link href={`/dashboard/lucrari/${row.original.id}`}>Vezi lucrarea</Link>
+          <Button
+            asChild
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Link href={`/dashboard/lucrari/${row.original.id}`} title="Vezi lucrarea">
+              <Eye className="h-4 w-4" />
+            </Link>
           </Button>
         ),
+        meta: {
+          thClassName: "w-[56px] max-w-[56px] px-2 text-center",
+          tdClassName: "w-[56px] max-w-[56px] px-2 text-center",
+        },
       },
     ],
     [],
@@ -403,10 +479,10 @@ export default function IstoricInterventiiPage() {
       typeof table.getPrePaginationRowModel === "function"
         ? table.getPrePaginationRowModel().rows
         : table.getRowModel().rows
-    const visibleRows = exportRows.map((r: any) => r.original as HistoryRow)
+    const visibleRows: HistoryRow[] = exportRows.map((r: any) => r.original as HistoryRow)
 
     const header = [
-      "Nr. lucrare",
+      "Nr. tichet",
       "Data execuției",
       "Locație",
       "Echipament",
@@ -421,12 +497,13 @@ export default function IstoricInterventiiPage() {
     const lines = [header.map(escapeCsvCell).join(",")]
     for (const r of visibleRows) {
       const link = `/dashboard/lucrari/${r.id}`
+      const echipamentCombined = [r.echipamentNume, r.echipamentCod].filter(Boolean).join("\n").trim()
       lines.push(
         [
           r.nrLucrare,
           r.dataInterventie ? formatUiDate(r.dataInterventie) : "",
           r.locatie,
-          r.echipament,
+          echipamentCombined,
           (r.tehnicieni || []).join(", "),
           r.defectReclamat || "",
           r.constatareLaLocatie || "",
@@ -437,7 +514,9 @@ export default function IstoricInterventiiPage() {
       )
     }
 
-    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" })
+    // Add UTF-8 BOM for Excel compatibility (diacritics)
+    const bom = "\uFEFF"
+    const blob = new Blob([bom + lines.join("\n")], { type: "text/csv;charset=utf-8" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
@@ -454,107 +533,143 @@ export default function IstoricInterventiiPage() {
       typeof table.getPrePaginationRowModel === "function"
         ? table.getPrePaginationRowModel().rows
         : table.getRowModel().rows
-    const visibleRows = exportRows.map((r: any) => r.original as HistoryRow)
+    const visibleRows: HistoryRow[] = exportRows.map((r: any) => r.original as HistoryRow)
 
     const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" })
-    
-    // Titlu
-    pdf.setFontSize(16)
-    pdf.setFont("helvetica", "bold")
-    pdf.text("Istoric intervenții", 14, 15)
-    
-    // Data generării
-    pdf.setFontSize(10)
-    pdf.setFont("helvetica", "normal")
-    pdf.text(`Generat: ${formatUiDate(new Date())}`, 14, 22)
-    
-    // Header tabel
-    const headers = ["Nr.", "Data", "Locație", "Echipament", "Tehnician", "Ore"]
-    const columnWidths = [15, 25, 50, 50, 40, 20]
-    const startY = 30
-    const startX = 14
-    const rowHeight = 7
-    
-    // Desenăm header
-    pdf.setFillColor(240, 240, 240)
-    pdf.rect(startX, startY, columnWidths.reduce((a, b) => a + b, 0), rowHeight, "F")
-    pdf.setFont("helvetica", "bold")
-    pdf.setFontSize(9)
-    
-    let currentX = startX
-    headers.forEach((header, i) => {
-      pdf.text(header, currentX + 2, startY + 5)
-      currentX += columnWidths[i]
-    })
-    
-    // Desenăm rânduri
-    pdf.setFont("helvetica", "normal")
-    pdf.setFontSize(8)
-    
-    let currentY = startY + rowHeight
-    const pageHeight = pdf.internal.pageSize.getHeight()
-    const bottomMargin = 20
-    
-    visibleRows.forEach((row, index) => {
-      // Verificăm dacă trebuie să adăugăm o pagină nouă
-      if (currentY + rowHeight > pageHeight - bottomMargin) {
+    try {
+      await ensurePdfFont(pdf)
+      try { pdf.setFont("NotoSans", "normal") } catch {}
+    } catch {}
+
+    const normalizeForPdf = (text = ""): string => {
+      let t = String(text || "").normalize("NFC")
+      t = t.replace(/\u015F/g, "\u0219").replace(/\u0163/g, "\u021B")
+      return t
+    }
+
+    // Optional logo
+    let logoDataUrl: string | null = null
+    try {
+      const resp = await fetch("/nrglogo.png")
+      const blob = await resp.blob()
+      const reader = new FileReader()
+      logoDataUrl = await new Promise((resolve) => {
+        reader.onload = () => resolve(reader.result as string)
+        reader.readAsDataURL(blob)
+      })
+    } catch {}
+
+    const pageH = pdf.internal.pageSize.getHeight()
+    const pageW = pdf.internal.pageSize.getWidth()
+    const margin = 7
+    const startX = margin
+    const contentW = pageW - 2 * margin
+
+    const tableHeaders = [
+      "Nr.",
+      "Data",
+      "Locație",
+      "Echipament",
+      "Tehnicieni",
+      "Defect reclamat",
+      "Constatare la locație",
+      "Intervenție",
+      "Ore",
+    ]
+
+    // Baseline widths (mm), scaled to fit contentW
+    const baseW = [18, 22, 30, 32, 28, 38, 42, 42, 18]
+    const sumW = baseW.reduce((a, b) => a + b, 0)
+    const scale = sumW > contentW ? contentW / sumW : 1
+    const widths = baseW.map((w) => Math.floor(w * scale * 10) / 10)
+
+    const xAt = (idx: number) => startX + widths.slice(0, idx).reduce((a, b) => a + b, 0)
+    const totalW = widths.reduce((a, b) => a + b, 0)
+
+    const drawStamp = (y: number) => {
+      try { pdf.setFont("NotoSans", "normal") } catch {}
+      pdf.setFontSize(8).setTextColor(80, 80, 80)
+      pdf.text(normalizeForPdf(`Generat: ${formatUiDate(new Date())}`), startX, y)
+      return y + 5
+    }
+
+    const drawTableHeader = (y: number) => {
+      pdf.setFillColor(220, 227, 240)
+      pdf.rect(startX, y, totalW, 8, "F")
+      pdf.setDrawColor(210, 210, 210).setLineWidth(0.2)
+      pdf.rect(startX, y, totalW, 8)
+      try { pdf.setFont("NotoSans", "bold") } catch {}
+      pdf.setFontSize(9).setTextColor(0, 0, 0)
+      tableHeaders.forEach((h, i) => {
+        pdf.text(normalizeForPdf(h), xAt(i) + 2, y + 5.5)
+      })
+      try { pdf.setFont("NotoSans", "normal") } catch {}
+      pdf.setFontSize(8)
+      return y + 8
+    }
+
+    const ensureSpace = (y: number, need: number) => {
+      if (y + need > pageH - margin - 22) {
+        drawFooter(pdf)
         pdf.addPage()
-        currentY = 20
-        
-        // Redesenăm header-ul pe pagina nouă
-        pdf.setFillColor(240, 240, 240)
-        pdf.rect(startX, currentY, columnWidths.reduce((a, b) => a + b, 0), rowHeight, "F")
-        pdf.setFont("helvetica", "bold")
-        currentX = startX
-        headers.forEach((header, i) => {
-          pdf.text(header, currentX + 2, currentY + 5)
-          currentX += columnWidths[i]
-        })
-        currentY += rowHeight
-        pdf.setFont("helvetica", "normal")
+        let yy = drawSimpleHeader(pdf, { title: "Istoric intervenții", logoDataUrl })
+        yy = drawStamp(yy)
+        yy = drawTableHeader(yy)
+        return yy
       }
-      
-      // Fundal alb/gri alternant
-      if (index % 2 === 0) {
-        pdf.setFillColor(255, 255, 255)
-      } else {
-        pdf.setFillColor(250, 250, 250)
-      }
-      pdf.rect(startX, currentY, columnWidths.reduce((a, b) => a + b, 0), rowHeight, "F")
-      
-      // Date
-      const rowData = [
+      return y
+    }
+
+    // First page
+    let y = drawSimpleHeader(pdf, { title: "Istoric intervenții", logoDataUrl })
+    y = drawStamp(y)
+    y = drawTableHeader(y)
+
+    const lineH = 3.6
+    visibleRows.forEach((row, idx) => {
+      const cells: string[] = [
         row.nrLucrare || "-",
         row.dataInterventie ? formatUiDate(row.dataInterventie) : "-",
         row.locatie || "-",
-        row.echipament || "-",
-        (row.tehnicieni || []).join(", ") || "-",
-        row.durataInterventie || "-"
-      ]
-      
-      currentX = startX
-      rowData.forEach((data, i) => {
-        const text = String(data)
-        // Truncăm textul dacă e prea lung
-        const maxWidth = columnWidths[i] - 4
-        const truncated = pdf.splitTextToSize(text, maxWidth)[0] || text
-        pdf.text(truncated, currentX + 2, currentY + 5)
-        currentX += columnWidths[i]
-      })
-      
-      currentY += rowHeight
-    })
-    
-    // Footer cu număr total
-    currentY += 5
-    if (currentY > pageHeight - bottomMargin) {
-      pdf.addPage()
-      currentY = 20
-    }
-    pdf.setFont("helvetica", "bold")
-    pdf.setFontSize(9)
-    pdf.text(`Total intervenții: ${visibleRows.length}`, startX, currentY)
+        [row.echipamentNume, row.echipamentCod].filter(Boolean).join("\n") || "-",
+        (row.tehnicieni || []).join("\n") || "-",
+        row.defectReclamat || "-",
+        row.constatareLaLocatie || "-",
+        row.descriereInterventie || "-",
+        row.durataInterventie || "-",
+      ].map((t) => normalizeForPdf(t))
 
+      const wrapped = cells.map((t, i) => pdf.splitTextToSize(t, Math.max(10, widths[i] - 4)))
+      const maxLines = Math.max(...wrapped.map((w) => (Array.isArray(w) ? w.length : 1)))
+      const rowH = Math.max(8, 4 + maxLines * lineH)
+
+      y = ensureSpace(y, rowH)
+
+      // Zebra
+      pdf.setFillColor(idx % 2 === 0 ? 255 : 250, idx % 2 === 0 ? 255 : 250, idx % 2 === 0 ? 255 : 250)
+      pdf.rect(startX, y, totalW, rowH, "F")
+
+      // Borders
+      pdf.setDrawColor(210, 210, 210).setLineWidth(0.2)
+      pdf.rect(startX, y, totalW, rowH)
+      let xx = startX
+      widths.forEach((w, i) => {
+        if (i > 0) pdf.line(xx, y, xx, y + rowH)
+        xx += w
+      })
+
+      // Text
+      try { pdf.setFont("NotoSans", "normal") } catch {}
+      pdf.setFontSize(8).setTextColor(0, 0, 0)
+      wrapped.forEach((lines, i) => {
+        const textLines = Array.isArray(lines) ? lines : [String(lines)]
+        pdf.text(textLines, xAt(i) + 2, y + 5)
+      })
+
+      y += rowH
+    })
+
+    drawFooter(pdf)
     pdf.save(`istoric-interventii_${formatUiDate(new Date())}.pdf`)
   }
 
@@ -637,7 +752,8 @@ export default function IstoricInterventiiPage() {
                       <span className="font-medium">Locație:</span> {r.locatie || "-"}
                     </div>
                     <div className="text-sm text-gray-900">
-                      <span className="font-medium">Echipament:</span> {r.echipament || "-"}
+                      <span className="font-medium">Echipament:</span>{" "}
+                      {[r.echipamentNume, r.echipamentCod ? `(${r.echipamentCod})` : ""].filter(Boolean).join(" ") || "-"}
                     </div>
                     <div className="text-sm text-gray-900">
                       <span className="font-medium">Tehnicieni:</span> {(r.tehnicieni || []).join(", ") || "-"}

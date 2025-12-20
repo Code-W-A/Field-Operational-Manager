@@ -292,7 +292,15 @@ export function DataTable<TData, TValue>({
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id} className="bg-gray-100">
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} className="whitespace-nowrap font-bold">
+                  <TableHead
+                    key={header.id}
+                    className={[
+                      "whitespace-nowrap font-bold",
+                      (header.column.columnDef.meta as any)?.thClassName,
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  >
                     {header.isPlaceholder ? null : (
                       <div
                         className={
@@ -334,7 +342,12 @@ export function DataTable<TData, TValue>({
                     className={`${rowClass} hover:bg-gray-100 ${onRowClick ? "cursor-pointer" : ""} transition-colors`}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                      <TableCell
+                        key={cell.id}
+                        className={(cell.column.columnDef.meta as any)?.tdClassName}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
                     ))}
                   </TableRow>
                 )

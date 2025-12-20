@@ -13,6 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
 import { X } from "lucide-react"
 import { useLockBody } from "@/hooks/use-lock-body"
+import { MultiSelect } from "@/components/ui/multi-select"
 
 export interface FilterOption {
   id: string
@@ -129,7 +130,7 @@ export function FilterModal({
             <div className="space-y-2">
               <div className="flex flex-wrap gap-1 mb-2">
                 {filter.value && Array.isArray(filter.value) && filter.value.length > 0 ? (
-                  filter.value.map((val) => {
+                  filter.value.map((val: string) => {
                     const option = filter.options?.find((opt) => opt.value === val)
                     // Determină clasa de stil pentru badge în funcție de valoarea statusului
                     let badgeClass = "flex items-center gap-1"
@@ -214,7 +215,7 @@ export function FilterModal({
               />
               <div className="flex flex-wrap gap-1 mb-2">
                 {filter.value && Array.isArray(filter.value) && filter.value.length > 0 ? (
-                  filter.value.map((val) => {
+                  filter.value.map((val: string) => {
                     const option = filter.options?.find((opt) => opt.value === val)
                     return (
                       <Badge key={val} variant="secondary" className="flex items-center gap-1">
@@ -269,13 +270,22 @@ export function FilterModal({
             </div>
           )
         }
+        // Multiselect generic: dropdown cu căutare (MultiSelect)
+        return (
+          <MultiSelect
+            options={(filter.options || []).map((o) => ({ label: o.label, value: o.value }))}
+            selected={Array.isArray(filter.value) ? (filter.value as string[]) : []}
+            onChange={(vals) => handleFilterChange(filter.id, vals)}
+            placeholder={`Selectează ${filter.label.toLowerCase()}`}
+          />
+        )
         // Stilizare specială pentru statusul preluare
         if (filter.id === "preluatStatus") {
           return (
             <div className="space-y-2">
               <div className="flex flex-wrap gap-1 mb-2">
                 {filter.value && Array.isArray(filter.value) && filter.value.length > 0 ? (
-                  filter.value.map((val) => {
+                  filter.value.map((val: string) => {
                     const option = filter.options?.find((opt) => opt.value === val)
                     // Determină clasa de stil pentru badge în funcție de valoarea statusului
                     let badgeClass = "flex items-center gap-1"
@@ -348,7 +358,7 @@ export function FilterModal({
             <div className="space-y-2">
               <div className="flex flex-wrap gap-1 mb-2">
                 {filter.value && Array.isArray(filter.value) && filter.value.length > 0 ? (
-                  filter.value.map((val) => {
+                  filter.value.map((val: string) => {
                     const option = filter.options?.find((opt) => opt.value === val)
                     // Determină clasa de stil pentru badge în funcție de valoarea
                     let badgeClass = "flex items-center gap-1"
@@ -417,7 +427,7 @@ export function FilterModal({
           <div className="space-y-2">
             <div className="flex flex-wrap gap-1 mb-2">
               {filter.value && Array.isArray(filter.value) && filter.value.length > 0 ? (
-                filter.value.map((val) => {
+                filter.value.map((val: string) => {
                   const option = filter.options?.find((opt) => opt.value === val)
                   return (
                     <Badge key={val} variant="secondary" className="flex items-center gap-1">

@@ -25,13 +25,15 @@ export function drawSimpleHeader(
   } = {}
 ): number {
   const PH = doc.internal.pageSize.getHeight()
+  const PW = doc.internal.pageSize.getWidth()
+  const contentWidth = PW - 2 * MARGIN
   const titleBarHeight = 16
   const titleBarColor: [number, number, number] = [73, 100, 155] // #49649b
   let currentY = MARGIN
 
   // Background bar
   doc.setFillColor(titleBarColor[0], titleBarColor[1], titleBarColor[2])
-  doc.rect(MARGIN, currentY, CONTENT_WIDTH, titleBarHeight, "F")
+  doc.rect(MARGIN, currentY, contentWidth, titleBarHeight, "F")
 
   // Optional logo on right
   if (options.logoDataUrl) {
@@ -41,7 +43,7 @@ export function drawSimpleHeader(
       doc.addImage(
         options.logoDataUrl,
         "PNG",
-        MARGIN + CONTENT_WIDTH - logoW - 4,
+        MARGIN + contentWidth - logoW - 4,
         currentY + (titleBarHeight - logoH) / 2,
         logoW,
         logoH
@@ -67,19 +69,21 @@ export function drawSimpleHeader(
  */
 export function drawFooter(doc: jsPDF): void {
   const PH = doc.internal.pageSize.getHeight()
+  const PW = doc.internal.pageSize.getWidth()
+  const contentWidth = PW - 2 * MARGIN
   const footerSepY = PH - 18
 
   // Footer separator gri subțire (stil similar cu chenarul tabelului „Puncte de control”)
   doc.setDrawColor(210, 210, 210).setLineWidth(0.2)
-  doc.line(MARGIN, footerSepY, MARGIN + CONTENT_WIDTH, footerSepY)
+  doc.line(MARGIN, footerSepY, MARGIN + contentWidth, footerSepY)
 
   let footerY = footerSepY + 3
   // Culoare albastru intens cu nuanță de violet: RGB(30, 70, 180)
   try { doc.setFont("NotoSans", "normal") } catch {}
   doc.setFontSize(7).setTextColor(30, 70, 180)
 
-  const footerColW = CONTENT_WIDTH / 3
-  const footerColX = [MARGIN, MARGIN + CONTENT_WIDTH / 3, MARGIN + (2 * CONTENT_WIDTH) / 3]
+  const footerColW = contentWidth / 3
+  const footerColX = [MARGIN, MARGIN + contentWidth / 3, MARGIN + (2 * contentWidth) / 3]
 
   // Set explicit Unicode font to ensure diacritics render
   try { doc.setFont("NotoSans", "normal") } catch {}
