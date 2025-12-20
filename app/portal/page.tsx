@@ -4,6 +4,10 @@ import { useEffect, useMemo, useState } from "react"
 import { useAuth } from "@/contexts/AuthContext"
 import { ProtectedRoute } from "@/components/protected-route"
 import { getLucrari, getClienti } from "@/lib/firebase/firestore"
+import { DashboardHeader } from "@/components/dashboard-header"
+import { MainNav } from "@/components/main-nav"
+import { MobileNav } from "@/components/mobile-nav"
+import { UserNav } from "@/components/user-nav"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
@@ -13,7 +17,6 @@ import { Button } from "@/components/ui/button"
 import { ArrowUpDown, ArrowUp, ArrowDown, LayoutGrid, Table as TableIcon, Calendar, MapPin } from "lucide-react"
 import Link from "next/link"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { UserNav } from "@/components/user-nav"
 import { useTablePersistence } from "@/hooks/use-table-persistence"
 
 export default function ClientPortalPage() {
@@ -201,19 +204,28 @@ export default function ClientPortalPage() {
   }
 
   const content = (
-    <div className="min-h-screen">
-      <div className="sticky top-0 z-40 border-b bg-background">
-        <div className="mx-auto max-w-7xl h-14 flex items-center justify-between px-4">
-          <div className="flex items-center gap-3">
-            <span className="text-xl font-bold tracking-tight">FOM</span>
-            <span className="text-sm text-muted-foreground">Portal Client</span>
+    <div className="flex flex-col h-screen w-full overflow-hidden">
+      <header className="flex-shrink-0 z-40 border-b bg-background">
+        <div className="w-full flex h-16 items-center justify-between py-4 px-6">
+          <div className="flex items-center gap-2">
+            <MobileNav className="md:hidden" />
+            <MainNav className="hidden md:flex" />
           </div>
-          <UserNav />
+          <div className="flex items-center gap-2">
+            <UserNav />
+          </div>
         </div>
-      </div>
+      </header>
 
-      <div className="p-4 mx-auto max-w-7xl">
-        <h1 className="text-xl font-semibold mb-4">Lucrările mele</h1>
+      <main className="flex-1 w-full overflow-auto min-h-0">
+        <div className="w-full h-full min-h-0 flex flex-col px-6 sm:px-8 lg:px-10 py-4">
+          <div className="space-y-6 pb-8">
+            <DashboardHeader
+              heading="Lucrările mele"
+              text="Lucrările disponibile pentru locațiile asociate contului tău."
+            />
+
+            <div className="w-full max-w-7xl mx-auto">
       <div className="space-y-3 mb-4">
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         <Input placeholder="Caută client/locație/tip" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -461,6 +473,9 @@ export default function ClientPortalPage() {
         </div>
       )}
       </div>
+            </div>
+          </div>
+      </main>
     </div>
   )
 

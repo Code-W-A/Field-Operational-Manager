@@ -65,7 +65,7 @@ export default function RevisionEquipmentPage() {
             }
           }
           if (!client) {
-            const clients = await getClienti()
+          const clients = await getClienti()
             client = clients.find((c: any) => c.nume === work.client) || null
           }
 

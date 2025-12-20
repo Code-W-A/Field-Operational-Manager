@@ -6,6 +6,7 @@ import {
   type SortingState,
   type VisibilityState,
   type ColumnFiltersState,
+  type PaginationState,
   flexRender,
   getCoreRowModel,
   getPaginationRowModel,
@@ -14,6 +15,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Button } from "@/components/ui/button"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -27,6 +29,10 @@ interface DataTableProps<TData, TValue> {
   showFilters?: boolean
   getRowClassName?: (row: TData) => string // Adăugăm această proprietate pentru a permite colorarea rândurilor
   persistenceKey?: string // (neutilizat momentan)
+  tableClassName?: string
+  enablePagination?: boolean
+  initialPageSize?: number
+  pageSizeOptions?: number[]
 }
 
 export function DataTable<TData, TValue>({
@@ -41,12 +47,17 @@ export function DataTable<TData, TValue>({
   showFilters = true,
   getRowClassName,
   persistenceKey,
+  tableClassName,
+  enablePagination = false,
+  initialPageSize = 10,
+  pageSizeOptions = [10, 20, 50, 100],
 }: DataTableProps<TData, TValue>) {
   const [internalSorting, setInternalSorting] = useState<SortingState>(defaultSort ? [defaultSort] : [])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = useState({})
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState("")
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: initialPageSize })
 
   // Use external sorting if provided, otherwise use internal
   const sorting = externalSorting !== undefined ? externalSorting : internalSorting
@@ -64,6 +75,16 @@ export function DataTable<TData, TValue>({
     }
   }
 
+  // Keep page index in range when data or filters change
+  useEffect(() => {
+    if (!enablePagination) return
+    const total = data.length
+    const maxPageIndex = Math.max(0, Math.ceil(total / pagination.pageSize) - 1)
+    if (pagination.pageIndex > maxPageIndex) {
+      setPagination((prev) => ({ ...prev, pageIndex: maxPageIndex }))
+    }
+  }, [enablePagination, data.length, pagination.pageIndex, pagination.pageSize])
+
   // Create a table instance
   const table = useReactTable({
     data,
@@ -74,6 +95,7 @@ export function DataTable<TData, TValue>({
       rowSelection,
       columnFilters,
       globalFilter,
+      ...(enablePagination ? { pagination } : {}),
     },
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
@@ -81,9 +103,11 @@ export function DataTable<TData, TValue>({
     onColumnVisibilityChange: setColumnVisibility,
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
+    ...(enablePagination ? { onPaginationChange: setPagination } : {}),
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    ...(enablePagination ? { getPaginationRowModel: getPaginationRowModel() } : {}),
     globalFilterFn: (row, columnId, filterValue) => {
       const safeValue = (() => {
         const value = row.getValue(columnId)
@@ -263,7 +287,7 @@ export function DataTable<TData, TValue>({
   return (
     <div className="space-y-4 w-full">
       <div className="rounded-md border overflow-x-auto">
-        <Table>
+        <Table className={tableClassName}>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id} className="bg-gray-100">
@@ -298,7 +322,7 @@ export function DataTable<TData, TValue>({
                 if (getRowClassName && row.original) {
                   const customClass = getRowClassName(row.original)
                   if (customClass) {
-                    rowClass = customClass
+                    rowClass = `${rowClass} ${customClass}`
                   }
                 }
 
@@ -307,7 +331,7 @@ export function DataTable<TData, TValue>({
                     key={row.id}
                     data-state={row.getIsSelected() && "selected"}
                     onClick={() => onRowClick && onRowClick(row.original)}
-                    className={`${rowClass} hover:bg-gray-100 cursor-pointer transition-colors`}
+                    className={`${rowClass} hover:bg-gray-100 ${onRowClick ? "cursor-pointer" : ""} transition-colors`}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
@@ -326,7 +350,53 @@ export function DataTable<TData, TValue>({
         </Table>
       </div>
 
-      {/* Pagination dezactivată temporar */}
+      {enablePagination ? (
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="text-sm text-muted-foreground">
+            {(() => {
+              const total = table.getFilteredRowModel().rows.length
+              const start = total === 0 ? 0 : pagination.pageIndex * pagination.pageSize + 1
+              const end = Math.min(total, (pagination.pageIndex + 1) * pagination.pageSize)
+              return `${start}-${end} din ${total}`
+            })()}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Rânduri/pagină:</span>
+            <select
+              className="h-9 rounded-md border bg-background px-2 text-sm"
+              value={pagination.pageSize}
+              onChange={(e) => {
+                const nextSize = Number(e.target.value) || initialPageSize
+                setPagination({ pageIndex: 0, pageSize: nextSize })
+              }}
+            >
+              {pageSizeOptions.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+            >
+              Înapoi
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+            >
+              Înainte
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

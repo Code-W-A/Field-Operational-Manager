@@ -45,7 +45,8 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
         // Clients: allow only /dashboard/lucrari and its subroutes; redirect others to /portal
         const isDashboard = pathname?.startsWith("/dashboard")
         const isAllowedLucrari = pathname === "/dashboard/lucrari" || pathname?.startsWith("/dashboard/lucrari/")
-        if (isDashboard && !isAllowedLucrari) {
+        const isAllowedHistory = pathname === "/dashboard/istoric-interventii"
+        if (isDashboard && !isAllowedLucrari && !isAllowedHistory) {
           router.push("/portal")
         }
       }

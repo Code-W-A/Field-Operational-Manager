@@ -9,7 +9,8 @@ import { WORK_STATUS } from "@/lib/utils/constants"
 import { useAuth } from "@/contexts/AuthContext"
 import { serverTimestamp } from "firebase/firestore"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { canArchiveLucrare } from "@/lib/utils/archive-validation"
+import { getArchiveValidationDetails } from "@/lib/utils/archive-validation"
+import { useArchiveRulesSettings } from "@/hooks/use-archive-rules-settings"
 
 interface ArchiveButtonProps {
   lucrareId: string
@@ -34,16 +35,21 @@ export function ArchiveButton({
 }: ArchiveButtonProps) {
   const { userData } = useAuth()
   const [isArchiving, setIsArchiving] = useState(false)
+  const { config: archiveRulesConfig } = useArchiveRulesSettings()
 
-  // Doar lucrările finalizate pot fi arhivate
-  if (lucrareStatus !== WORK_STATUS.COMPLETED) {
-    return null
-  }
+  // Doar admin/dispecer (coerent cu pagina de detaliu)
+  const role = userData?.role || "tehnician"
+  if (role !== "admin" && role !== "dispecer") return null
+
+  // Dacă regula "Finalizat obligatoriu" e activă, păstrăm comportamentul vechi (arată doar pe Finalizat).
+  // Dacă e dezactivată din Setări Sistem, permitem afișarea butonului și pe alte statusuri (cu validare suplimentară).
+  const shouldShow = archiveRulesConfig.requireFinalizedStatus ? lucrareStatus === WORK_STATUS.COMPLETED : true
+  if (!shouldShow) return null
 
   // Verificăm regulile de arhivare
-  const archiveValidation = lucrareData ? canArchiveLucrare(lucrareData) : { canArchive: true }
-  const canArchive = archiveValidation.canArchive
-  const archiveReason = archiveValidation.reason || "Arhivează lucrarea finalizată"
+  const details = lucrareData ? getArchiveValidationDetails(lucrareData, archiveRulesConfig) : { canArchive: true, blockingReasons: [], ignoredRules: [] }
+  const canArchive = details.canArchive
+  const archiveReason = details.blockingReasons?.[0] || "Arhivează lucrarea"
 
   const handleArchive = async (e: React.MouseEvent) => {
     e.preventDefault()

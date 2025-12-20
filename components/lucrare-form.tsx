@@ -452,6 +452,9 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
     // Adăugăm efect pentru calcularea garanției când se schimbă tipul de lucrare
     useEffect(() => {
+      const currentGarantieExpira = (formData as any)?.garantieExpira ?? null
+      const currentGarantieZile = (formData as any)?.garantieZileRamase ?? null
+
       // Calculăm garanția doar pentru "Intervenție în garanție" și când avem echipament selectat
       if (formData.tipLucrare === "Intervenție în garanție" && selectedEquipment) {
         const warranty = getWarrantyDisplayInfo(selectedEquipment)
@@ -459,15 +462,23 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         
         // Actualizăm informațiile de garanție în formData
         if (handleCustomChange) {
-          handleCustomChange("garantieExpira", warranty.warrantyExpires)
-          handleCustomChange("garantieZileRamase", warranty.daysRemaining)
+          if (warranty.warrantyExpires !== currentGarantieExpira) {
+            handleCustomChange("garantieExpira", warranty.warrantyExpires)
+          }
+          if (warranty.daysRemaining !== currentGarantieZile) {
+            handleCustomChange("garantieZileRamase", warranty.daysRemaining)
+          }
         }
       } else if (formData.tipLucrare !== "Intervenție în garanție") {
         // Resetăm informațiile de garanție pentru alte tipuri de lucrări
         setWarrantyInfo(null)
         if (handleCustomChange) {
-          handleCustomChange("garantieExpira", null)
-          handleCustomChange("garantieZileRamase", null)
+          if (currentGarantieExpira !== null) {
+            handleCustomChange("garantieExpira", null)
+          }
+          if (currentGarantieZile !== null) {
+            handleCustomChange("garantieZileRamase", null)
+          }
         }
       }
     }, [formData.tipLucrare, selectedEquipment, handleCustomChange])
@@ -1187,25 +1198,28 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           const locId = (locatie as any)?.id
           handleCustomChange("locationId", locId ? String(locId) : "")
           handleCustomChange("equipmentIds", [])
-        }
       }
+    }
     }
 
     // Dacă se schimbă persoana de contact selectată, păstrăm și email-ul (când există) în lucrare.
     useEffect(() => {
       if (!handleCustomChange) return
       const name = String(formData.persoanaContact || "").trim()
+      const currentEmail = String((formData as any)?.persoanaContactEmail || "")
       if (!name) {
-        handleCustomChange("persoanaContactEmail", "")
+        if (currentEmail !== "") {
+          handleCustomChange("persoanaContactEmail", "")
+        }
         return
       }
       const contacts: any[] = ((formData as any)?.persoaneContact || persoaneContact || []) as any[]
       const found = contacts.find((c: any) => String(c?.nume || "").trim() === name)
       const email = normalizeEmail(found?.email)
-      handleCustomChange(
-        "persoanaContactEmail",
-        email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "",
-      )
+      const nextEmail = email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : ""
+      if (nextEmail !== currentEmail) {
+        handleCustomChange("persoanaContactEmail", nextEmail)
+      }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [formData.persoanaContact, (formData as any)?.persoaneContact, persoaneContact, handleCustomChange])
 

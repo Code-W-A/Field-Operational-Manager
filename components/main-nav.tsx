@@ -1,37 +1,133 @@
 "use client"
 
-import type * as React from "react"
+import * as React from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/contexts/AuthContext"
 
-// Adăugăm importurile pentru iconițe
 import {
-  ClipboardList,
-  Users,
-  Settings,
-  FileText,
-  LayoutDashboard,
-  BarChart3,
-  FileCodeIcon as FileContract,
-  StickyNote,
-  Archive,
-  Sliders,
-} from "lucide-react"
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { buildNav, isNavGroupActive, isNavLinkActive, type NavGroup, type NavLink } from "@/lib/navigation/nav-items"
+
+function NavGroupDropdown({
+  group,
+  pathname,
+  tab,
+  getLinkHref,
+  isLinkActive,
+  isGroupActive,
+}: {
+  group: NavGroup
+  pathname: string
+  tab: string
+  getLinkHref: (link: NavLink) => string
+  isLinkActive: (link: NavLink) => boolean
+  isGroupActive: (group: NavGroup) => boolean
+}) {
+  const [open, setOpen] = React.useState(false)
+  const closeTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
+  const groupActive = isGroupActive(group)
+  const GroupIcon = group.icon
+
+  const handleMouseEnter = () => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current)
+      closeTimeoutRef.current = null
+    }
+    setOpen(true)
+  }
+
+  const handleMouseLeave = () => {
+    closeTimeoutRef.current = setTimeout(() => {
+      setOpen(false)
+    }, 200)
+  }
+
+  React.useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  return (
+    <div
+      className="flex items-center"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      <DropdownMenu open={open} onOpenChange={setOpen}>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
+              groupActive ? "text-primary" : "text-muted-foreground"
+            )}
+            aria-current={groupActive ? "page" : undefined}
+          >
+            <GroupIcon className="h-4 w-4" />
+            <span>{group.label}</span>
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+        >
+          {group.items.map((item) => {
+            const ItemIcon = item.icon
+            const active = isLinkActive(item)
+            return (
+              <DropdownMenuItem key={item.id} asChild onSelect={() => setOpen(false)}>
+                <Link href={getLinkHref(item)} className={cn(active ? "font-medium" : undefined)}>
+                  <ItemIcon className="h-4 w-4" />
+                  <span>{item.label}</span>
+                </Link>
+              </DropdownMenuItem>
+            )
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  )
+}
 
 // Actualizăm componenta MainNav pentru a include iconițele și logo-ul FOM
 export function MainNav({ className, ...props }: React.HTMLAttributes<HTMLElement>) {
   const pathname = usePathname()
   const { userData } = useAuth()
+  const searchParams = useSearchParams()
+  const tab = searchParams.get("tab") ?? "variabile"
 
-  // Verificăm dacă utilizatorul este admin pentru a afișa meniurile restricționate
-  const role = userData?.role
-  const isAdmin = role === "admin"
-  const isTechnician = role === "tehnician"
-  const isAdminOrDispatcher = role === "admin" || role === "dispecer"
-  const isClient = role === "client"
+  const nodes = buildNav({ role: (userData?.role as any) ?? null })
+
+  const getLinkHref = (link: NavLink) => {
+    if (link.id === "setari-variabile") return `${link.href}?tab=variabile`
+    if (link.id === "setari-sistem") return `${link.href}?tab=sistem`
+    return link.href
+  }
+
+  const isLinkActive = (link: NavLink) => {
+    if (link.href === "/dashboard/setari") {
+      if (!pathname.startsWith("/dashboard/setari")) return false
+      if (link.id === "setari-sistem") return tab === "sistem"
+      if (link.id === "setari-variabile") return tab !== "sistem"
+    }
+    return isNavLinkActive(pathname, link)
+  }
+
+  const isGroupActive = (group: NavGroup) => {
+    if (group.id === "setari" && pathname.startsWith("/dashboard/setari")) return true
+    return isNavGroupActive(pathname, group)
+  }
 
   return (
     <div className={cn("flex items-center space-x-4 lg:space-x-6", className)} {...props}>
@@ -39,145 +135,37 @@ export function MainNav({ className, ...props }: React.HTMLAttributes<HTMLElemen
         <span className="hidden font-bold sm:inline-block">FOM</span>
       </Link>
       <nav className="hidden md:flex items-center space-x-4 lg:space-x-6">
-        {isClient ? (
-          <Link
-            href="/portal"
-            className={cn(
-              "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
-              pathname === "/portal" ? "text-primary" : "text-muted-foreground",
-            )}
-          >
-            <ClipboardList className="h-4 w-4" />
-            <span>Lucrările mele</span>
-          </Link>
-        ) : (
-          <>
-        <Link
-          href="/dashboard"
-          className={cn(
-            "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
-            pathname === "/dashboard" ? "text-primary" : "text-muted-foreground",
-          )}
-        >
-          <LayoutDashboard className="h-4 w-4" />
-          <span>Dashboard</span>
-        </Link>
-        <Link
-          href="/dashboard/lucrari"
-          className={cn(
-            "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
-            pathname === "/dashboard/lucrari" || pathname.startsWith("/dashboard/lucrari/")
-              ? "text-primary"
-              : "text-muted-foreground",
-          )}
-        >
-          <ClipboardList className="h-4 w-4" />
-          <span>Lucrări</span>
-        </Link>
-        {isAdminOrDispatcher && (
-          <Link
-            href="/dashboard/arhivate"
-            className={cn(
-              "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
-              pathname === "/dashboard/arhivate" || pathname.startsWith("/dashboard/arhivate/")
-                ? "text-primary"
-                : "text-muted-foreground",
-            )}
-          >
-            <Archive className="h-4 w-4" />
-            <span>Arhivate</span>
-          </Link>
-        )}
-        {!isTechnician && (
-          <Link
-            href="/dashboard/clienti"
-            className={cn(
-              "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
-              pathname === "/dashboard/clienti" || pathname.startsWith("/dashboard/clienti/")
-                ? "text-primary"
-                : "text-muted-foreground",
-            )}
-          >
-            <Users className="h-4 w-4" />
-            <span>Clienți</span>
-          </Link>
-        )}
-        {isAdmin && (
-          <Link
-            href="/dashboard/contracte"
-            className={cn(
-              "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
-              pathname === "/dashboard/contracte" || pathname.startsWith("/dashboard/contracte/")
-                ? "text-primary"
-                : "text-muted-foreground",
-            )}
-          >
-            <FileContract className="h-4 w-4" />
-            <span>Contracte</span>
-          </Link>
-        )}
-        {!isTechnician && userData?.role !== "dispecer" && (
-          <Link
-            href="/dashboard/rapoarte"
-            className={cn(
-              "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
-              pathname === "/dashboard/rapoarte" ? "text-primary" : "text-muted-foreground",
-            )}
-          >
-            <BarChart3 className="h-4 w-4" />
-            <span>Rapoarte</span>
-          </Link>
-        )}
-        {isAdmin && (
-          <>
-            <Link
-              href="/dashboard/utilizatori"
-              className={cn(
-                "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
-                pathname === "/dashboard/utilizatori" ? "text-primary" : "text-muted-foreground",
-              )}
-            >
-              <Settings className="h-4 w-4" />
-              <span>Utilizatori</span>
-            </Link>
-            <Link
-              href="/dashboard/loguri"
-              className={cn(
-                "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
-                pathname === "/dashboard/loguri" ? "text-primary" : "text-muted-foreground",
-              )}
-            >
-              <FileText className="h-4 w-4" />
-              <span>Loguri</span>
-            </Link>
-            <Link
-              href="/dashboard/setari"
-              className={cn(
-                "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
-                pathname === "/dashboard/setari" || pathname.startsWith("/dashboard/setari/")
-                  ? "text-primary"
-                  : "text-muted-foreground",
-              )}
-            >
-              <Sliders className="h-4 w-4" />
-              <span>Setări</span>
-            </Link>
-          </>
-        )}
-        {!isTechnician && (
-          <Link
-            href="/dashboard/note-interne"
-            className={cn(
-              "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
-              pathname === "/dashboard/note-interne" ? "text-primary" : "text-muted-foreground",
-            )}
-          >
-            <StickyNote className="h-4 w-4" />
-            <span>Note interne</span>
-          </Link>
-        )}
-          </>
-        )}
+        {nodes.map((node) => {
+          if (node.type === "link") {
+            const Icon = node.icon
+            const active = isLinkActive(node)
+            return (
+              <Link
+                key={node.id}
+                href={getLinkHref(node)}
+                className={cn(
+                  "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
+                  active ? "text-primary" : "text-muted-foreground"
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                <span>{node.label}</span>
+              </Link>
+            )
+          }
+
+          return (
+            <NavGroupDropdown
+              key={node.id}
+              group={node}
+              pathname={pathname}
+              tab={tab}
+              getLinkHref={getLinkHref}
+              isLinkActive={isLinkActive}
+              isGroupActive={isGroupActive}
+            />
+          )
+        })}
       </nav>
     </div>
   )

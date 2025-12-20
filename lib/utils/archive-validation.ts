@@ -7,6 +7,171 @@ export interface ArchiveValidationResult {
   reason?: string
 }
 
+export interface ArchiveRulesConfig {
+  requireFinalizedStatus: boolean
+  requireDispatcherPickup: boolean
+  requireInvoiceOrNoInvoicing: boolean
+  requireNoInvoicingReason: boolean
+  offerRequireOfferSentWhenNeeded: boolean
+  offerBlockWhenAccepted: boolean
+  offerWait30DaysWhenNoResponse: boolean
+  offerAllowImmediateWhenReportAndInvoicingDone: boolean
+}
+
+const DEFAULT_RULES: ArchiveRulesConfig = {
+  requireFinalizedStatus: true,
+  requireDispatcherPickup: true,
+  requireInvoiceOrNoInvoicing: true,
+  requireNoInvoicingReason: true,
+  offerRequireOfferSentWhenNeeded: true,
+  offerBlockWhenAccepted: true,
+  offerWait30DaysWhenNoResponse: true,
+  offerAllowImmediateWhenReportAndInvoicingDone: true,
+}
+
+export interface ArchiveValidationDetails {
+  canArchive: boolean
+  blockingReasons: string[]
+  ignoredRules: string[] // reguli dezactivate din Setări Sistem (informativ)
+}
+
+const toDateSafe = (v: any): Date | null => {
+  try {
+    if (!v) return null
+    if (typeof v?.toDate === "function") return v.toDate()
+    if (typeof v?.seconds === "number") return new Date(v.seconds * 1000)
+    if (typeof v === "string" || typeof v === "number") {
+      const d = new Date(v)
+      return isNaN(d.getTime()) ? null : d
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Versiune extinsă: întoarce toate motivele care blochează arhivarea + regulile ignorate (dezactivate).
+ */
+export function getArchiveValidationDetails(lucrare: any, config?: Partial<ArchiveRulesConfig>): ArchiveValidationDetails {
+  const rules: ArchiveRulesConfig = { ...DEFAULT_RULES, ...(config || {}) }
+  const blockingReasons: string[] = []
+  const ignoredRules: string[] = []
+
+  // Regula "status finalizat" (era în UI, acum o centralizăm aici pentru configurabilitate)
+  if (rules.requireFinalizedStatus) {
+    if (lucrare?.statusLucrare !== "Finalizat") {
+      blockingReasons.push("Lucrarea trebuie să fie în status 'Finalizat' pentru a putea fi arhivată")
+    }
+  } else {
+    ignoredRules.push("Status 'Finalizat' obligatoriu")
+  }
+
+  // Reguli standard existente (preluare + facturare)
+  const hasInvoiceDoc = Boolean(lucrare?.facturaDocument)
+  const noInvoicingSelected = lucrare?.statusFacturare === "Nu se facturează"
+  const hasNoInvoiceReason = Boolean(lucrare?.motivNefacturare && String(lucrare?.motivNefacturare).trim().length > 0)
+  const isPickedUp = lucrare?.preluatDispecer === true
+
+  if (rules.requireDispatcherPickup) {
+    if (!isPickedUp) {
+      blockingReasons.push("Necesită preluare de dispecer înainte de arhivare")
+    }
+  } else {
+    ignoredRules.push("Preluare dispecer obligatorie")
+  }
+
+  if (rules.requireInvoiceOrNoInvoicing) {
+    if (!hasInvoiceDoc && !noInvoicingSelected) {
+      blockingReasons.push("Încărcați factura sau marcați 'Nu se facturează' pentru a arhiva")
+    }
+
+    if (rules.requireNoInvoicingReason) {
+      if (noInvoicingSelected && !hasNoInvoiceReason) {
+        blockingReasons.push("Completați motivul pentru 'Nu se facturează' pentru a arhiva")
+      }
+    } else {
+      ignoredRules.push("Motiv obligatoriu pentru 'Nu se facturează'")
+    }
+  } else {
+    ignoredRules.push("Factură sau 'Nu se facturează' obligatoriu")
+    // Dacă nu cerem deloc factură/no-invoicing, nu mai are sens să cerem motivul.
+    ignoredRules.push("Motiv obligatoriu pentru 'Nu se facturează'")
+  }
+
+  // Reguli ofertă
+  const hasOfferSent =
+    (lucrare?.offerSendCount && lucrare.offerSendCount > 0) ||
+    (Array.isArray(lucrare?.offerVersions) && lucrare.offerVersions.length > 0)
+
+  if (lucrare?.necesitaOferta === true) {
+    if (rules.offerRequireOfferSentWhenNeeded) {
+      if (!hasOfferSent) {
+        blockingReasons.push("Lucrarea necesită ofertă, dar oferta nu a fost încă transmisă")
+      }
+    } else {
+      ignoredRules.push("Necesită ofertă → ofertă trimisă obligatoriu")
+    }
+  }
+
+  if (rules.offerBlockWhenAccepted) {
+    if (lucrare?.offerResponse?.status === "accept") {
+      blockingReasons.push("Oferta a fost acceptată. Următoarea acțiune trebuie să fie reintervenție înainte de arhivare")
+    }
+  } else {
+    ignoredRules.push("Blocare când oferta este acceptată")
+  }
+
+  // Dacă oferta este refuzată, nu blocăm niciodată (rămâne permis).
+  // Dacă oferta a fost trimisă fără răspuns, aplicăm regula de 30 zile (sau excepția) dacă e activată.
+  if (hasOfferSent && !lucrare?.offerResponse) {
+    const isReportDone = lucrare?.raportGenerat === true
+
+    if (rules.offerAllowImmediateWhenReportAndInvoicingDone) {
+      // Excepție: raport + facturare rezolvată => permis imediat
+      if (isReportDone && (hasInvoiceDoc || noInvoicingSelected)) {
+        // allowed (no reason)
+      } else if (rules.offerWait30DaysWhenNoResponse) {
+        // continuă cu regula de 30 zile
+        const expirationDate = toDateSafe(lucrare?.offerActionExpiresAt)
+        if (expirationDate) {
+          const now = new Date()
+          if (now < expirationDate) {
+            const daysRemaining = Math.ceil((expirationDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+            blockingReasons.push(
+              `Oferta a fost transmisă fără răspuns. Se poate arhiva după expirarea perioadei de 30 de zile (mai rămân ${daysRemaining} zile)`
+            )
+          }
+        }
+      } else {
+        ignoredRules.push("Așteptare 30 zile fără răspuns la ofertă")
+      }
+    } else {
+      ignoredRules.push("Permite imediat dacă raport + facturare sunt gata (fără răspuns)")
+      if (rules.offerWait30DaysWhenNoResponse) {
+        const expirationDate = toDateSafe(lucrare?.offerActionExpiresAt)
+        if (expirationDate) {
+          const now = new Date()
+          if (now < expirationDate) {
+            const daysRemaining = Math.ceil((expirationDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+            blockingReasons.push(
+              `Oferta a fost transmisă fără răspuns. Se poate arhiva după expirarea perioadei de 30 de zile (mai rămân ${daysRemaining} zile)`
+            )
+          }
+        }
+      } else {
+        ignoredRules.push("Așteptare 30 zile fără răspuns la ofertă")
+      }
+    }
+  }
+
+  return {
+    canArchive: blockingReasons.length === 0,
+    blockingReasons,
+    ignoredRules,
+  }
+}
+
 /**
  * Verifică dacă o lucrare poate fi arhivată conform regulilor:
  * 
@@ -101,37 +266,11 @@ export function validateArchiveRules(lucrare: any): ArchiveValidationResult {
 /**
  * Verifică toate regulile de arhivare, inclusiv cele standard (factură, preluare)
  */
-export function canArchiveLucrare(lucrare: any): ArchiveValidationResult {
-  // Verificăm regulile standard existente
-  const hasInvoiceDoc = Boolean(lucrare?.facturaDocument)
-  const noInvoicingSelected = (lucrare.statusFacturare === "Nu se facturează")
-  const hasNoInvoiceReason = Boolean(lucrare?.motivNefacturare && String(lucrare?.motivNefacturare).trim().length > 0)
-  const isPickedUp = lucrare.preluatDispecer === true
-
-  // Regulă standard: trebuie preluat de dispecer
-  if (!isPickedUp) {
+export function canArchiveLucrare(lucrare: any, config?: Partial<ArchiveRulesConfig>): ArchiveValidationResult {
+  const details = getArchiveValidationDetails(lucrare, config)
     return {
-      canArchive: false,
-      reason: "Necesită preluare de dispecer înainte de arhivare"
-    }
+    canArchive: details.canArchive,
+    reason: details.blockingReasons[0],
   }
-
-  // Regulă standard: trebuie să aibă factură SAU să fie marcat "Nu se facturează" cu motiv
-  if (!hasInvoiceDoc && !noInvoicingSelected) {
-    return {
-      canArchive: false,
-      reason: "Încărcați factura sau marcați 'Nu se facturează' pentru a arhiva"
-    }
-  }
-
-  if (noInvoicingSelected && !hasNoInvoiceReason) {
-    return {
-      canArchive: false,
-      reason: "Completați motivul pentru 'Nu se facturează' pentru a arhiva"
-    }
-  }
-
-  // Verificăm regulile specifice ofertelor
-  return validateArchiveRules(lucrare)
 }
 

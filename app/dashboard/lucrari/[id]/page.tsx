@@ -36,6 +36,7 @@ import {
   Clock,
   Download,
   Mail,
+  History,
 } from "lucide-react"
 import { getLucrareById, deleteLucrare, updateLucrare, getClientById, addLucrare } from "@/lib/firebase/firestore"
 import { WORK_STATUS, WORK_STATUS_OPTIONS } from "@/lib/utils/constants"
@@ -60,7 +61,8 @@ import { ModificationBanner } from "@/components/modification-banner"
 import { useModificationDetails } from "@/hooks/use-modification-details"
 import { db } from "@/lib/firebase/config"
 import { collection, query, where, getDocs, limit } from "firebase/firestore"
-import { canArchiveLucrare } from "@/lib/utils/archive-validation"
+import { getArchiveValidationDetails } from "@/lib/utils/archive-validation"
+import { useArchiveRulesSettings } from "@/hooks/use-archive-rules-settings"
 import { deleteField } from "firebase/firestore"
 import { generateRevisionOperationsPDF, generateRevisionEquipmentPDF } from "@/lib/pdf/revision-operations"
 
@@ -143,6 +145,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { userData } = useAuth()
+  const { config: archiveRulesConfig } = useArchiveRulesSettings()
   const role = userData?.role || "tehnician"
   const isAdminOrDispatcher = role === "admin" || role === "dispecer"
   const fromArhivate = searchParams.get('from') === 'arhivate'
@@ -344,8 +347,8 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                 await updateLucrare(paramsId, { clientId: d0.id } as any, undefined, undefined, true)
                 // Actualizăm și starea locală ca să evităm re-rulări inutile
                 setLucrare((prev: any) => (prev ? { ...prev, clientId: d0.id } : prev))
-              }
-            }
+          }
+        }
 
             // Dacă avem doar clientInfo.id (legacy) și nu există clientId pe lucrare, îl persistăm (silent).
             if (!workAny.clientId && workAny.clientInfo?.id) {
@@ -427,7 +430,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                 setLucrare((prev: any) => (prev ? { ...prev, locationId: String(matchedLoc.id) } : prev))
                 debugClient("location_backfilled", { locationId: String(matchedLoc.id) })
               }
-
+                  
               // Calculăm informațiile de garanție folosind clientul live (fără full scan)
               if (data.tipLucrare === "Intervenție în garanție" && data.locatie && (data.echipament || data.echipamentCod || (data as any).echipamentId)) {
                 try {
@@ -1139,6 +1142,20 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
             <ChevronLeft className="mr-2 h-4 w-4" /> Înapoi
           </Button>
 
+          {/* Tehnician: verifică istoricul echipamentului (după echipamentCod) */}
+          {role === "tehnician" && lucrare?.echipamentCod && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                const cod = String(lucrare.echipamentCod || "").trim()
+                if (!cod) return
+                router.push(`/dashboard/istoric-interventii/echipament?cod=${encodeURIComponent(cod)}`)
+              }}
+            >
+              <History className="mr-2 h-4 w-4" /> Vezi istoric
+            </Button>
+          )}
+
           {/* Raport: ascuns pentru rol client (au secțiune dedicată mai jos) */}
           {lucrare.raportGenerat && role !== "client" && (
             <Button
@@ -1227,34 +1244,53 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
 
           {/* Buton pentru arhivare - vizibil întotdeauna pentru admin/dispecer, disabled când nu sunt îndeplinite condițiile */}
           {isAdminOrDispatcher && (() => {
-            const isFinalized = lucrare.statusLucrare === "Finalizat"
-            const archiveValidation = canArchiveLucrare(lucrare)
-            
-            // Butonul este enabled doar dacă statusul este "Finalizat" ȘI toate condițiile sunt îndeplinite
-            const canArchive = isFinalized && archiveValidation.canArchive
-            
-            // Determină motivul pentru care nu se poate arhiva
-            let disableReason = ""
-            if (!isFinalized) {
-              disableReason = "Lucrarea trebuie să fie în status 'Finalizat' pentru a putea fi arhivată"
-            } else if (!archiveValidation.canArchive) {
-              disableReason = archiveValidation.reason || "Nu se poate arhiva încă"
-            }
+            const details = getArchiveValidationDetails(lucrare, archiveRulesConfig)
+            const canArchive = details.canArchive
+            const disableReason = !canArchive ? (details.blockingReasons?.[0] || "Nu se poate arhiva încă") : ""
             
             // Tooltip diferit în funcție de starea butonului
             const tooltipContent = !canArchive 
               ? (
                   <div className="max-w-xs">
                     <p className="font-semibold mb-2">Nu se poate arhiva încă</p>
+                    {details.blockingReasons?.length ? (
+                      <ul className="text-sm list-disc pl-4 space-y-1">
+                        {details.blockingReasons.map((r, idx) => (
+                          <li key={idx}>{r}</li>
+                        ))}
+                      </ul>
+                    ) : (
                     <ul className="text-sm list-disc pl-4 space-y-1">
                       <li>{disableReason}</li>
+                      </ul>
+                    )}
+
+                    {details.ignoredRules?.length ? (
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <p className="font-semibold mb-2 text-xs text-muted-foreground">Reguli ignorate (dezactivate din Setări Sistem)</p>
+                        <ul className="text-xs list-disc pl-4 space-y-1 text-muted-foreground">
+                          {details.ignoredRules.map((r, idx) => (
+                            <li key={idx}>{r}</li>
+                          ))}
                     </ul>
+                      </div>
+                    ) : null}
                   </div>
                 )
               : (
                   <div className="max-w-xs">
                     <p className="font-semibold mb-2">Gata de arhivare</p>
                     <p className="text-sm">Toate condițiile sunt îndeplinite. Click pentru a arhiva lucrarea.</p>
+                    {details.ignoredRules?.length ? (
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <p className="font-semibold mb-2 text-xs text-muted-foreground">Reguli ignorate (dezactivate din Setări Sistem)</p>
+                        <ul className="text-xs list-disc pl-4 space-y-1 text-muted-foreground">
+                          {details.ignoredRules.map((r, idx) => (
+                            <li key={idx}>{r}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
                   </div>
                 )
 
@@ -2214,19 +2250,19 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
                       const email = String(resolvedContact?.email || (lucrare as any)?.persoanaContactEmail || "").trim()
                       if (!email) return null
                       return (
-                        <div className="text-sm mb-2">
-                          <div className="flex flex-wrap items-center gap-2">
+                          <div className="text-sm mb-2">
+                            <div className="flex flex-wrap items-center gap-2">
                             <span className="break-all">{email}</span>
-                            <a
+                              <a
                               href={`mailto:${email}`}
-                              className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-gray-600 text-white hover:bg-gray-700 transition-colors flex-shrink-0"
+                                className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-gray-600 text-white hover:bg-gray-700 transition-colors flex-shrink-0"
                               aria-label={`Scrie email către ${email}`}
                               title={`Scrie email către ${email}`}
-                            >
-                              <Mail className="h-3 w-3" />
-                            </a>
+                              >
+                                <Mail className="h-3 w-3" />
+                              </a>
+                            </div>
                           </div>
-                        </div>
                       )
                     })()}
                     <div className="text-sm flex items-center gap-2">

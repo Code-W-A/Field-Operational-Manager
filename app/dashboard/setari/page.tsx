@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { Plus, Search, List, Grid3x3, Folder, Settings, Save, RefreshCw, Download, Loader2 } from "lucide-react"
+import { Plus, Search, List, Grid3x3, Folder, Settings, Save, RefreshCw, Download, Loader2, Archive, Info, BarChart3 } from "lucide-react"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,12 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -23,8 +29,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/AuthContext"
+import { useRouter, useSearchParams } from "next/navigation"
 import type { Setting } from "@/types/settings"
 import { useSettings } from "@/hooks/use-settings"
 import {
@@ -104,6 +112,8 @@ function SortableSettingRow({ setting, ...props }: any) {
 export default function SetariPage() {
   const { userData } = useAuth()
   const { toast } = useToast()
+  const router = useRouter()
+  const searchParams = useSearchParams()
 
   // Navigation state
   const [currentParentId, setCurrentParentId] = useState<string | null>(null)
@@ -144,6 +154,29 @@ export default function SetariPage() {
   const [stopHierarchy, setStopHierarchy] = useState(false)
   const [stopHierarchyLoading, setStopHierarchyLoading] = useState(false)
   const currentParentSetting = navigationPath.length ? navigationPath[navigationPath.length - 1] : null
+
+  // Sync active tab from query param (only at root level)
+  useEffect(() => {
+    if (currentParentId) return
+    const tab = searchParams.get("tab")
+    if (tab === "sistem" || tab === "variabile") {
+      setActiveTab(tab)
+    }
+  }, [searchParams, currentParentId])
+
+  const handleTabChange = (value: "sistem" | "variabile") => {
+    setActiveTab(value)
+    // Keep URL in sync so menu deep-links work reliably
+    try {
+      const params = new URLSearchParams(searchParams.toString())
+      params.set("tab", value)
+      // If someone has a leftover `parent` param, tabs should bring them back to root context.
+      params.delete("parent")
+      router.replace(`/dashboard/setari?${params.toString()}`)
+    } catch {
+      // ignore URL sync errors
+    }
+  }
 
   // Dialog state
   const [editorOpen, setEditorOpen] = useState(false)
@@ -553,7 +586,7 @@ export default function SetariPage() {
       <div className="space-y-6 pb-16">
         {/* Tabs pentru Setări Sistem și Variabile - Afișate doar la root level */}
         {!currentParentId ? (
-          <Tabs value={activeTab} onValueChange={(value: any) => setActiveTab(value)} className="w-full">
+          <Tabs value={activeTab} onValueChange={(value: any) => handleTabChange(value)} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="sistem" className="flex items-center gap-2">
                 <Settings className="h-4 w-4" />
@@ -566,7 +599,7 @@ export default function SetariPage() {
             </TabsList>
 
             {/* Tab Content: Setări Sistem */}
-            <TabsContent value="sistem" className="mt-6 space-y-3">
+            <TabsContent value="sistem" className="mt-6 space-y-6">
               {loadingPredefined ? (
                 <Card>
                   <CardContent className="py-12">
@@ -577,16 +610,15 @@ export default function SetariPage() {
                   </CardContent>
                 </Card>
               ) : (
-                PREDEFINED_SETTINGS.map((setting) => (
-                  <Card key={setting.id} className="bg-blue-50/50 border-blue-200">
+                <>
+                  {/* Setări generale (non-arhivare / non-dashboard) */}
+                  {PREDEFINED_SETTINGS.filter(s => !s.id.startsWith('archive_') && !s.id.startsWith('dashboard_')).map((setting) => (
+                  <Card key={setting.id} className="border-gray-200">
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <CardTitle className="text-sm font-medium text-gray-900">
                         {setting.name}
-                        <span className="text-xs font-normal text-muted-foreground bg-blue-100 px-2 py-0.5 rounded">
-                          Sistem
-                        </span>
                       </CardTitle>
-                      <CardDescription className="text-xs">
+                      <CardDescription className="text-xs text-gray-600">
                         {setting.description}
                       </CardDescription>
                     </CardHeader>
@@ -610,7 +642,6 @@ export default function SetariPage() {
                               let newValue
                               
                               if (setting.valueType === "number") {
-                                // Permite valoare goală și filtrează doar cifrele
                                 const onlyDigits = inputValue.replace(/\D+/g, "")
                                 newValue = onlyDigits
                               } else {
@@ -650,7 +681,6 @@ export default function SetariPage() {
                             try {
                               let valueToSave = predefinedValues[setting.id]
                               
-                              // Validare pentru valori numerice
                               if (setting.valueType === "number") {
                                 const parsed = typeof valueToSave === "string" 
                                   ? parseFloat(valueToSave) 
@@ -691,35 +721,315 @@ export default function SetariPage() {
                           Salvează
                         </Button>
                       </div>
-                  
                     </CardContent>
                   </Card>
-                ))
+                  ))}
+
+                  {/* Accordion pentru Motive Arhivare și Stări Dashboard */}
+                  <Accordion type="multiple" className="space-y-4">
+                    {/* Secțiune separată pentru Motive Arhivare */}
+                    <AccordionItem value="motive-arhivare" className="border border-gray-200 rounded-lg px-1">
+                      <AccordionTrigger className="hover:no-underline px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <Archive className="h-5 w-5 text-gray-700" />
+                          <div className="text-left">
+                            <div className="text-base font-semibold text-gray-900">
+                              Motive arhivare
+                            </div>
+                            <div className="text-xs text-gray-600 mt-0.5 font-normal">
+                              Configurează regulile care blochează arhivarea lucrărilor. Modificările se salvează automat.
+                            </div>
+                          </div>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="px-5 pb-4 pt-2">
+                      <div className="space-y-2">
+                        {PREDEFINED_SETTINGS.filter(s => s.id.startsWith('archive_')).map((setting) => {
+                          const isActive = Boolean(predefinedValues[setting.id] ?? setting.defaultValue)
+                          return (
+                            <div
+                              key={setting.id}
+                              className="flex items-center justify-between py-3 px-4 rounded-md border border-gray-200 hover:bg-gray-50/50 transition-colors"
+                            >
+                              <div className="flex-1 pr-4">
+                                <Label 
+                                  htmlFor={setting.id} 
+                                  className="text-sm font-medium text-gray-900 cursor-pointer"
+                                >
+                                  {setting.name}
+                                </Label>
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                  {setting.description}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className={`text-xs font-medium min-w-[50px] text-right ${
+                                  isActive ? 'text-blue-600' : 'text-gray-400'
+                                }`}>
+                                  {isActive ? 'Activ' : 'Inactiv'}
+                                </span>
+                                <Switch
+                                  id={setting.id}
+                                  checked={isActive}
+                                  onCheckedChange={async (checked) => {
+                                    setPredefinedValues((prev) => ({ ...prev, [setting.id]: checked }))
+                                    // Salvare automată
+                                    setSavingPredefined(true)
+                                    try {
+                                      await updatePredefinedSettingValue(setting.id, checked)
+                                      toast({
+                                        title: "✓ Salvat automat",
+                                        description: `Regula "${setting.name}" a fost ${checked ? 'activată' : 'dezactivată'}.`,
+                                      })
+                                    } catch (error) {
+                                      console.error("Eroare la salvarea setării:", error)
+                                      toast({
+                                        title: "Eroare",
+                                        description: "Nu s-a putut salva setarea.",
+                                        variant: "destructive",
+                                      })
+                                      // Revert la valoarea anterioară
+                                      setPredefinedValues((prev) => ({ ...prev, [setting.id]: !checked }))
+                                    } finally {
+                                      setSavingPredefined(false)
+                                    }
+                                  }}
+                                  disabled={loadingPredefined || savingPredefined}
+                                />
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      
+                      {/* Footer info */}
+                      <div className="mt-4 p-3 bg-gray-50 rounded-md border border-gray-200">
+                        <div className="flex gap-2 text-xs text-gray-600">
+                          <Info className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-gray-500" />
+                          <p>
+                            Regulile dezactivate nu vor mai bloca arhivarea, dar vor fi afișate ca "reguli ignorate" pe pagina lucrării.
+                          </p>
+                        </div>
+                      </div>
+                    </AccordionContent>
+                    </AccordionItem>
+
+                    {/* Secțiune separată pentru Stări Dashboard */}
+                    <AccordionItem value="stari-dashboard" className="border border-gray-200 rounded-lg px-1">
+                      <AccordionTrigger className="hover:no-underline px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <BarChart3 className="h-5 w-5 text-gray-700" />
+                          <div className="text-left">
+                            <div className="text-base font-semibold text-gray-900">
+                              Stări dashboard
+                            </div>
+                            <div className="text-xs text-gray-600 mt-0.5 font-normal">
+                              Configurează regulile de filtrare pentru fiecare box din /dashboard. Modificările se salvează automat.
+                            </div>
+                          </div>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="px-5 pb-4 pt-2">
+                      {[
+                        {
+                          title: "Întârziate",
+                          enabledId: "dashboard_intarziate_enabled",
+                          subIds: [
+                            "dashboard_intarziate_require_exec_date",
+                            "dashboard_intarziate_include_past_days",
+                            "dashboard_intarziate_include_today",
+                            "dashboard_intarziate_include_today_after_18",
+                            "dashboard_intarziate_require_assigned",
+                            "dashboard_intarziate_require_not_scanned",
+                          ],
+                        },
+                        { title: "Amânate", enabledId: "dashboard_amanate_enabled", subIds: [] },
+                        {
+                          title: "Listate",
+                          enabledId: "dashboard_listate_enabled",
+                          subIds: ["dashboard_listate_require_no_technicians"],
+                        },
+                        {
+                          title: "Nepreluate",
+                          enabledId: "dashboard_nepreluate_enabled",
+                          subIds: [
+                            "dashboard_nepreluate_require_report_generated",
+                            "dashboard_nepreluate_require_not_picked_up",
+                          ],
+                        },
+                        {
+                          title: "Nefacturate",
+                          enabledId: "dashboard_nefacturate_enabled",
+                          subIds: [
+                            "dashboard_nefacturate_require_report_generated",
+                            "dashboard_nefacturate_require_no_invoice",
+                            "dashboard_nefacturate_require_no_reason",
+                          ],
+                        },
+                        {
+                          title: "Necesită ofertă",
+                          enabledId: "dashboard_necesita_oferta_enabled",
+                          subIds: [
+                            "dashboard_necesita_oferta_require_flag",
+                            "dashboard_necesita_oferta_require_no_response",
+                          ],
+                        },
+                        {
+                          title: "Ofertate (în așteptare)",
+                          enabledId: "dashboard_ofertate_enabled",
+                          subIds: [
+                            "dashboard_ofertate_require_has_offer",
+                            "dashboard_ofertate_require_no_response",
+                          ],
+                        },
+                        {
+                          title: "Status oferte",
+                          enabledId: "dashboard_status_oferte_enabled",
+                          subIds: [
+                            "dashboard_status_oferte_include_accept",
+                            "dashboard_status_oferte_include_reject",
+                          ],
+                        },
+                        {
+                          title: "Stare echipament",
+                          enabledId: "dashboard_equipment_status_enabled",
+                          subIds: [
+                            "dashboard_equipment_status_include_non_functional",
+                            "dashboard_equipment_status_include_partially_functional",
+                          ],
+                        },
+                      ].map((group) => {
+                        const enabledSetting = PREDEFINED_SETTINGS.find((s) => s.id === group.enabledId)
+                        const enabledActive = Boolean(predefinedValues[group.enabledId] ?? enabledSetting?.defaultValue)
+
+                        const saveToggle = async (settingId: string, checked: boolean, settingName?: string) => {
+                          setPredefinedValues((prev) => ({ ...prev, [settingId]: checked }))
+                          setSavingPredefined(true)
+                          try {
+                            await updatePredefinedSettingValue(settingId, checked)
+                            toast({
+                              title: "✓ Salvat automat",
+                              description: settingName
+                                ? `Setarea "${settingName}" a fost ${checked ? "activată" : "dezactivată"}.`
+                                : "Setarea a fost salvată.",
+                            })
+                          } catch (error) {
+                            console.error("Eroare la salvarea setării:", error)
+                            toast({
+                              title: "Eroare",
+                              description: "Nu s-a putut salva setarea.",
+                              variant: "destructive",
+                            })
+                            setPredefinedValues((prev) => ({ ...prev, [settingId]: !checked }))
+                          } finally {
+                            setSavingPredefined(false)
+                          }
+                        }
+
+                        return (
+                          <div key={group.enabledId} className="rounded-md border border-gray-200 overflow-hidden mb-3 last:mb-0">
+                            <div className="flex items-center justify-between px-4 py-3 bg-white">
+                              <div className="min-w-0 pr-4">
+                                <div className="text-sm font-semibold text-gray-900 truncate">{group.title}</div>
+                                <div className="text-xs text-gray-500 mt-0.5 truncate">
+                                  {enabledSetting?.description || "Activează/dezactivează această stare pe dashboard."}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3 flex-shrink-0">
+                                <span
+                                  className={`text-xs font-medium min-w-[50px] text-right ${
+                                    enabledActive ? "text-blue-600" : "text-gray-400"
+                                  }`}
+                                >
+                                  {enabledActive ? "Activ" : "Inactiv"}
+                                </span>
+                                <Switch
+                                  id={group.enabledId}
+                                  checked={enabledActive}
+                                  onCheckedChange={(checked) => saveToggle(group.enabledId, checked, enabledSetting?.name)}
+                                  disabled={loadingPredefined || savingPredefined}
+                                />
+                              </div>
+                            </div>
+
+                            {group.subIds.length > 0 && (
+                              <div className={`border-t px-4 py-3 space-y-2 ${enabledActive ? "" : "opacity-80"}`}>
+                                {group.subIds.map((sid) => {
+                                  const setting = PREDEFINED_SETTINGS.find((s) => s.id === sid)
+                                  if (!setting) return null
+                                  const isActive = Boolean(predefinedValues[sid] ?? setting.defaultValue)
+                                  return (
+                                    <div
+                                      key={sid}
+                                      className="flex items-center justify-between py-2 px-3 rounded-md border border-gray-200 hover:bg-gray-50/50 transition-colors"
+                                    >
+                                      <div className="flex-1 pr-4">
+                                        <Label htmlFor={sid} className="text-sm font-medium text-gray-900 cursor-pointer">
+                                          {setting.name}
+                                        </Label>
+                                        <p className="text-xs text-gray-500 mt-0.5">{setting.description}</p>
+                                      </div>
+                                      <div className="flex items-center gap-3">
+                                        <span
+                                          className={`text-xs font-medium min-w-[50px] text-right ${
+                                            isActive ? "text-blue-600" : "text-gray-400"
+                                          }`}
+                                        >
+                                          {isActive ? "Activ" : "Inactiv"}
+                                        </span>
+                                        <Switch
+                                          id={sid}
+                                          checked={isActive}
+                                          onCheckedChange={(checked) => saveToggle(sid, checked, setting.name)}
+                                          disabled={loadingPredefined || savingPredefined}
+                                        />
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+
+                      <div className="mt-4 p-3 bg-gray-50 rounded-md border border-gray-200">
+                        <div className="flex gap-2 text-xs text-gray-600">
+                          <Info className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-gray-500" />
+                          <p>
+                            Dacă dezactivezi o stare, boxul rămâne vizibil pe dashboard (marcat „Dezactivat"), dar nu mai
+                            afișează lucrări.
+                          </p>
+                        </div>
+                      </div>
+                    </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                </>
               )}
 
               {/* Management numerotare rapoarte */}
-              <Card className="bg-green-50/50 border-green-200">
+              <Card className="border-gray-200">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <CardTitle className="text-sm font-medium text-gray-900">
                     Management numerotare rapoarte
-                    <span className="text-xs font-normal text-muted-foreground bg-green-100 px-2 py-0.5 rounded">
-                      Sistem
-                    </span>
                   </CardTitle>
-             
+                  <CardDescription className="text-xs text-gray-600">
+                    Configurează numărul următor pentru rapoartele generate
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="pt-0">
                   <div className="space-y-3">
                     {/* Afișare număr curent */}
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">Următorul număr de raport:</span>
+                      <span className="text-xs text-gray-600">Următorul număr de raport:</span>
                       {isLoadingReportNumber ? (
                         <div className="flex items-center gap-2">
-                          <RefreshCw className="h-3 w-3 animate-spin text-green-600" />
-                          <span className="text-xs text-green-600">Se încarcă...</span>
+                          <RefreshCw className="h-3 w-3 animate-spin text-gray-600" />
+                          <span className="text-xs text-gray-600">Se încarcă...</span>
                         </div>
                       ) : (
-                        <span className="text-sm font-bold text-green-900 bg-green-100 px-2 py-1 rounded border border-green-300">
+                        <span className="text-sm font-semibold text-gray-900 bg-gray-100 px-2 py-1 rounded border border-gray-300">
                           #{currentReportNumber.toString().padStart(6, '0')}
                         </span>
                       )}
@@ -751,7 +1061,6 @@ export default function SetariPage() {
                         size="sm"
                         onClick={handleSaveReportNumber}
                         disabled={isLoadingReportNumber || isSavingReportNumber}
-                        className="bg-green-600 hover:bg-green-700"
                       >
                         {isSavingReportNumber ? (
                           <>

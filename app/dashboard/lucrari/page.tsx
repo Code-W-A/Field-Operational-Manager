@@ -17,7 +17,8 @@ import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { format, parse, isAfter, isBefore, addMonths, addDays } from "date-fns"
 import { ro } from "date-fns/locale"
-import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check, Info, RefreshCw, Archive } from "lucide-react"
+import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check, Info, RefreshCw, Archive, History } from "lucide-react"
+import { Scanner } from "@yudiel/react-qr-scanner"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { addLucrare, deleteLucrare, updateLucrare, getLucrareById, type Lucrare } from "@/lib/firebase/firestore"
@@ -111,6 +112,8 @@ export default function Lucrari() {
   const reinterventionId = searchParams.get("reintervention")
   const { userData } = useAuth()
   const isTechnician = userData?.role === "tehnician"
+  const [isHistoryCheckOpen, setIsHistoryCheckOpen] = useState(false)
+  const [historyCode, setHistoryCode] = useState("")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editLucrareId, setEditLucrareId] = useState<string | null>(null)
@@ -172,6 +175,14 @@ export default function Lucrari() {
   // State pentru sorting (folosit intern de DataTable prin defaultSort). Nu mai controlăm sorting-ul din exterior
   // pentru a permite sortarea liberă pe toate coloanele.
   const [tableSorting] = useState([{ id: "nrLucrareDisplay", desc: true }])
+
+  const isValidEquipmentCode = (code: string) => {
+    const c = (code || "").trim()
+    if (!c) return false
+    if (c.length > 10) return false
+    if (!(/[a-zA-Z]/.test(c) && /[0-9]/.test(c))) return false
+    return true
+  }
 
   // Încărcăm setările salvate la inițializare
   useEffect(() => {
@@ -2253,6 +2264,93 @@ export default function Lucrari() {
           text="Gestionați toate lucrările și intervențiile"
           headerAction={!isTechnician ? <LucrariNotificationsBell lucrari={rawLucrari || []} /> : undefined}
         >
+        {isTechnician && (
+          <Dialog
+            open={isHistoryCheckOpen}
+            onOpenChange={(open) => {
+              setIsHistoryCheckOpen(open)
+              if (!open) setHistoryCode("")
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <History className="mr-2 h-4 w-4" />
+                Verifică istoric
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="w-[calc(100%-2rem)] max-w-[680px] max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Verifică istoric echipament</DialogTitle>
+                <DialogDescription>
+                  Scanează QR-ul echipamentului sau introdu codul manual. Istoricul se caută după <span className="font-medium">echipamentCod</span>.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4">
+                <div className="rounded-md border p-3">
+                  <div className="text-sm font-medium mb-2">Scanare QR</div>
+                  <div className="relative w-full overflow-hidden rounded-md">
+                    <Scanner
+                      onScan={(detectedCodes: any[]) => {
+                        if (!detectedCodes?.length) return
+                        const raw = String(detectedCodes[0]?.rawValue || "").trim()
+                        if (!raw) return
+                        let code = raw
+                        try {
+                          const parsed = JSON.parse(raw)
+                          if (parsed?.code) code = String(parsed.code).trim()
+                        } catch {
+                          // raw string (simple format)
+                        }
+                        setHistoryCode(code)
+                      }}
+                      onError={(e: any) => {
+                        console.error("Eroare scanare QR:", e)
+                      }}
+                    />
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-2">
+                    Dacă scanarea nu funcționează, folosește introducerea manuală de mai jos.
+                  </div>
+                </div>
+
+                <div className="rounded-md border p-3">
+                  <div className="text-sm font-medium mb-2">Cod manual</div>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Input
+                      placeholder="Cod echipament (ex: R72A123)"
+                      value={historyCode}
+                      onChange={(e) => setHistoryCode(e.target.value)}
+                    />
+                    <Button
+                      onClick={() => {
+                        const code = historyCode.trim()
+                        if (!isValidEquipmentCode(code)) {
+                          toast({
+                            title: "Cod invalid",
+                            description: "Codul trebuie să aibă maxim 10 caractere și să conțină litere și cifre.",
+                            variant: "destructive",
+                          })
+                          return
+                        }
+                        setIsHistoryCheckOpen(false)
+                        router.push(`/dashboard/istoric-interventii/echipament?cod=${encodeURIComponent(code)}`)
+                      }}
+                    >
+                      Deschide istoricul
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsHistoryCheckOpen(false)}>
+                  Închide
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
         {!isTechnician && (
           <Dialog
             open={isAddDialogOpen}
@@ -2639,7 +2737,29 @@ export default function Lucrari() {
                         )}
                         {revEquipNode}
                       </div>
-                      <Badge className={getWorkStatusClass(lucrare.statusLucrare)}>{lucrare.statusLucrare === "Finalizat" ? "Raport generat" : lucrare.statusLucrare}</Badge>
+                      <div className="flex flex-col items-end gap-2">
+                        <Badge className={getWorkStatusClass(lucrare.statusLucrare)}>
+                          {lucrare.statusLucrare === "Finalizat" ? "Raport generat" : lucrare.statusLucrare}
+                        </Badge>
+
+                        {/* Tehnician: acces rapid la istoricul echipamentului direct din card */}
+                        {isTechnician && lucrare?.echipamentCod ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              const cod = String(lucrare.echipamentCod || "").trim()
+                              if (!cod) return
+                              router.push(`/dashboard/istoric-interventii/echipament?cod=${encodeURIComponent(cod)}`)
+                            }}
+                          >
+                            <History className="mr-2 h-4 w-4" />
+                            Vezi istoric
+                          </Button>
+                        ) : null}
+                      </div>
                     </div>
                     <div className="p-4">
                       {lucrare.statusLucrare === WORK_STATUS.POSTPONED && !lucrare.preluatDispecer && (

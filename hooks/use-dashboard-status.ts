@@ -6,6 +6,7 @@ import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { WORK_STATUS, EQUIPMENT_STATUS } from "@/lib/utils/constants"
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
+import type { DashboardStatusConfig } from "@/hooks/use-dashboard-status-settings"
 
 export interface DashboardBubbleItem {
   id: string
@@ -97,7 +98,47 @@ function sortByDate(items: DashboardBubbleItem[]): DashboardBubbleItem[] {
   })
 }
 
-export function useDashboardStatus() {
+const DEFAULT_DASHBOARD_STATUS_CONFIG: DashboardStatusConfig = {
+  intarziateEnabled: true,
+  intarziateRequireExecDate: true,
+  intarziateIncludePastDays: true,
+  intarziateIncludeToday: true,
+  intarziateTodayRequiresAfter18: true,
+  intarziateRequireAssigned: true,
+  intarziateRequireNotScanned: true,
+
+  amanateEnabled: true,
+
+  listateEnabled: true,
+  listateRequireNoTechnicians: true,
+
+  nepreluateEnabled: true,
+  nepreluateRequireReportGenerated: true,
+  nepreluateRequireNotPickedUp: true,
+
+  nefacturateEnabled: true,
+  nefacturateRequireReportGenerated: true,
+  nefacturateRequireNoInvoice: true,
+  nefacturateRequireNoReason: true,
+
+  necesitaOfertaEnabled: true,
+  necesitaOfertaRequireFlag: true,
+  necesitaOfertaRequireNoResponse: true,
+
+  ofertateEnabled: true,
+  ofertateRequireHasOffer: true,
+  ofertateRequireNoResponse: true,
+
+  statusOferteEnabled: true,
+  statusOferteIncludeAccept: true,
+  statusOferteIncludeReject: true,
+
+  equipmentStatusEnabled: true,
+  equipmentStatusIncludeNonFunctional: true,
+  equipmentStatusIncludePartiallyFunctional: true,
+}
+
+export function useDashboardStatus(config?: DashboardStatusConfig) {
   const { userData } = useAuth()
 
   // Active works (exclude archived) - removing orderBy to avoid index issues
@@ -142,6 +183,7 @@ export function useDashboardStatus() {
   }, [lucrari])
 
   const buckets: DashboardBuckets = useMemo(() => {
+    const cfg = config || DEFAULT_DASHBOARD_STATUS_CONFIG
     const res: DashboardBuckets = {
       intarziate: [],
       amanate: [],
@@ -177,74 +219,117 @@ export function useDashboardStatus() {
       // Intarziate – logic refăcut:
       // dacă data programată (dataInterventie) este în trecut SAU este azi (după ora 18:00),
       // lucrarea este atribuită și nu are echipament scanat (equipmentVerified === false)
+      if (cfg.intarziateEnabled) {
       const execDate = toDate(l.dataInterventie)
+        if (cfg.intarziateRequireExecDate && !execDate) {
+          // skip
+        } else if (execDate) {
       const isAssigned = technicians.length > 0 || eqInsensitive(status, WORK_STATUS.ASSIGNED)
       const notScanned = !l.equipmentVerified
-      const isPastDay = !!execDate && execDate < startOfToday
-      const isToday = !!execDate && execDate >= startOfToday && execDate <= endOfToday
-      const timeCondition = isPastDay || (isToday && new Date() >= todayAt18)
-      if (execDate && (isPastDay || isToday) && isAssigned && notScanned && timeCondition) {
+          const isPastDay = execDate < startOfToday
+          const isToday = execDate >= startOfToday && execDate <= endOfToday
+
+          let dateCondition = false
+          if (isPastDay && cfg.intarziateIncludePastDays) dateCondition = true
+          if (isToday && cfg.intarziateIncludeToday) {
+            if (cfg.intarziateTodayRequiresAfter18) {
+              if (new Date() >= todayAt18) dateCondition = true
+            } else {
+              dateCondition = true
+            }
+          }
+
+          const assignedOk = cfg.intarziateRequireAssigned ? isAssigned : true
+          const notScannedOk = cfg.intarziateRequireNotScanned ? notScanned : true
+
+          if (dateCondition && assignedOk && notScannedOk) {
         // sortăm după data programării pentru relevanță
         res.intarziate.push(buildBubble(l, undefined, execDate || undefined))
+          }
+        }
       }
 
       // Amânate - sortate după data amânării
-      if (eqInsensitive(status, WORK_STATUS.POSTPONED)) {
+      if (cfg.amanateEnabled && eqInsensitive(status, WORK_STATUS.POSTPONED)) {
         const postponedDate = postponedDateByWork[id] || toDate(l.updatedAt)
         res.amanate.push(buildBubble(l, undefined, postponedDate || undefined))
       }
 
       // Listate (fără tehnician) - sortate după data solicitării execuției (dataInterventie)
-      if (technicians.length === 0 && !eqInsensitive(status, WORK_STATUS.ARCHIVED)) {
+      if (cfg.listateEnabled) {
+        const noTechOk = cfg.listateRequireNoTechnicians ? technicians.length === 0 : true
+        if (noTechOk && !eqInsensitive(status, WORK_STATUS.ARCHIVED)) {
         res.listate.push(buildBubble(l, undefined, toDate(l.dataInterventie) || undefined))
+        }
       }
 
       // Nepreluate (raport generat, nepreluat) - sortate după data generării raportului
-      if (l.raportGenerat && !(l as any).preluatDispecer && !eqInsensitive(status, WORK_STATUS.ARCHIVED)) {
+      if (cfg.nepreluateEnabled) {
+        const reportOk = cfg.nepreluateRequireReportGenerated ? Boolean(l.raportGenerat) : true
+        const notPickedOk = cfg.nepreluateRequireNotPickedUp ? !(l as any).preluatDispecer : true
+        if (reportOk && notPickedOk && !eqInsensitive(status, WORK_STATUS.ARCHIVED)) {
         res.nepreluate.push(buildBubble(l, undefined, toDate(l.createdAt) || undefined))
+        }
       }
 
       // Nefacturate - sortate după data generării raportului
       const hasInvoice = Boolean((l as any).numarFactura || (l as any).facturaDocument)
       const hasMotiv = Boolean((l as any).motivNefacturare)
-      if (l.raportGenerat && !hasInvoice && !hasMotiv) {
+      if (cfg.nefacturateEnabled) {
+        const reportOk = cfg.nefacturateRequireReportGenerated ? Boolean(l.raportGenerat) : true
+        const noInvoiceOk = cfg.nefacturateRequireNoInvoice ? !hasInvoice : true
+        const noReasonOk = cfg.nefacturateRequireNoReason ? !hasMotiv : true
+        if (reportOk && noInvoiceOk && noReasonOk) {
         res.nefacturate.push(buildBubble(l, undefined, toDate(l.createdAt) || undefined))
+        }
       }
 
       // Necesită ofertă - sortate după data generării raportului
-      if ((l as any).necesitaOferta && !(l as any).offerResponse) {
+      if (cfg.necesitaOfertaEnabled) {
+        const flagOk = cfg.necesitaOfertaRequireFlag ? Boolean((l as any).necesitaOferta) : true
+        const noRespOk = cfg.necesitaOfertaRequireNoResponse ? !(l as any).offerResponse : true
+        if (flagOk && noRespOk) {
         res.necesitaOferta.push(buildBubble(l, undefined, toDate(l.createdAt) || undefined))
+        }
       }
 
       // Ofertate (trimise, fără răspuns) - sortate după data trimiterii ofertei
       const hasOffer = ((l as any).offerVersions && (l as any).offerVersions.length > 0) || (l as any).offerTotal
-      if (hasOffer && !(l as any).offerResponse) {
+      if (cfg.ofertateEnabled) {
+        const hasOfferOk = cfg.ofertateRequireHasOffer ? Boolean(hasOffer) : true
+        const noRespOk = cfg.ofertateRequireNoResponse ? !(l as any).offerResponse : true
+        if (hasOfferOk && noRespOk) {
         const offerDate = toDate((l as any).lastOfferEmail?.sentAt) || toDate((l as any).offerPreparedAt)
         res.ofertate.push(buildBubble(l, undefined, offerDate || undefined))
+        }
       }
 
       // Status oferte (acceptate/refuzate) - sortate după data primirii răspunsului
       const resp = (l as any).offerResponse
-      if (resp?.status === "accept") {
+      if (cfg.statusOferteEnabled) {
+        if (cfg.statusOferteIncludeAccept && resp?.status === "accept") {
         const responseDate = toDate(resp.at)
         res.statusOferte.push(buildBubble(l, "accept", responseDate || undefined))
       }
-      if (resp?.status === "reject") {
+        if (cfg.statusOferteIncludeReject && resp?.status === "reject") {
         const responseDate = toDate(resp.at)
         res.statusOferte.push(buildBubble(l, "reject", responseDate || undefined))
+        }
       }
 
       // Stare echipament - sortate după data generării raportului
       // Include doar Parțial funcțional și Nefuncțional (exclude Funcțional)
+      if (cfg.equipmentStatusEnabled) {
       const statusEchipament = (l as any).statusEchipament
-      if (
-        eqInsensitive(
-          statusEchipament,
-          EQUIPMENT_STATUS.NON_FUNCTIONAL,
-          EQUIPMENT_STATUS.PARTIALLY_FUNCTIONAL
-        )
-      ) {
+        const isNonFunctional = eqInsensitive(statusEchipament, EQUIPMENT_STATUS.NON_FUNCTIONAL)
+        const isPartial = eqInsensitive(statusEchipament, EQUIPMENT_STATUS.PARTIALLY_FUNCTIONAL)
+        const shouldInclude =
+          (isNonFunctional && cfg.equipmentStatusIncludeNonFunctional) ||
+          (isPartial && cfg.equipmentStatusIncludePartiallyFunctional)
+
+        if (shouldInclude) {
         res.equipmentStatus.push(buildBubble(l, undefined, toDate(l.createdAt) || undefined, statusEchipament))
+        }
       }
     }
 
@@ -260,7 +345,7 @@ export function useDashboardStatus() {
     res.equipmentStatus = sortByDate(res.equipmentStatus)
 
     return res
-  }, [activeLucrari, modificariAtribuire, modificariStatus, startOfToday])
+  }, [activeLucrari, modificariAtribuire, modificariStatus, startOfToday, config])
 
   const personal: PersonalBoard = useMemo(() => {
     const active = activeLucrari || []
