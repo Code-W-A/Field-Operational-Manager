@@ -17,7 +17,7 @@ import { DataTableFilters } from "@/components/data-table/data-table-filters"
 import { ClampedText } from "@/components/history/clamped-text"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { useTablePersistence } from "@/hooks/use-table-persistence"
-import { formatDate, formatUiDate, toDateSafe } from "@/lib/utils/time-format"
+import { formatUiDate, toDateSafe } from "@/lib/utils/time-format"
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import { FilterButton } from "@/components/filter-button"
@@ -335,7 +335,7 @@ export default function IstoricInterventiiPage() {
           <div className="whitespace-nowrap">
             {(() => {
               const d = toDateSafe(row.original.dataInterventie)
-              return d ? formatDate(d) : "-"
+              return d ? formatUiDate(d) : "-"
             })()}
           </div>
         ),
@@ -687,7 +687,7 @@ export default function IstoricInterventiiPage() {
           </Tabs>
 
           <div className="flex items-center gap-2">
-            {isAdminOrDispatcher ? (
+            {isAdminOrDispatcher || isClient ? (
               <FilterButton
                 onClick={() => setIsFilterModalOpen(true)}
                 activeFilters={activeFilters.length}
@@ -744,7 +744,10 @@ export default function IstoricInterventiiPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <div className="font-semibold text-gray-900">{r.nrLucrare || "-"}</div>
                       <div className="text-xs text-muted-foreground">
-                        {r.dataInterventie ? formatUiDate(r.dataInterventie) : "-"}
+                        {(() => {
+                          const d = toDateSafe(r.dataInterventie)
+                          return d ? formatUiDate(d) : "-"
+                        })()}
                       </div>
                       <div className="text-xs text-muted-foreground">{r.durataInterventie || "-"}</div>
                     </div>
