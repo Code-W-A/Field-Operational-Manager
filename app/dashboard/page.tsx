@@ -31,6 +31,42 @@ export default function Dashboard() {
   const isTechnician = userData?.role === "tehnician"
   // State pentru dialoguri mobile (trebuie definit înainte de orice return condițional)
   const [mobileDialogOpen, setMobileDialogOpen] = React.useState<string | null>(null)
+
+  const MobileStatCard = React.useCallback(
+    ({
+      title,
+      count,
+      countClassName,
+      onClick,
+      className = "",
+    }: {
+      title: string
+      count: number
+      countClassName: string
+      onClick: () => void
+      className?: string
+    }) => {
+      return (
+        <Card
+          className={`cursor-pointer hover:shadow-md transition-shadow ${className}`}
+          onClick={onClick}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") onClick()
+          }}
+        >
+          <CardContent className="p-4 min-h-[72px] flex items-center">
+            <div className="w-full flex items-center justify-between gap-3">
+              <div className="text-sm font-medium text-gray-700 leading-snug">{title}</div>
+              <div className={`text-2xl font-bold tabular-nums ${countClassName}`}>{count}</div>
+            </div>
+          </CardContent>
+        </Card>
+      )
+    },
+    []
+  )
   
   // State pentru dialogul de adăugare lucrare
   const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false)
@@ -316,7 +352,50 @@ export default function Dashboard() {
 
   return (
     <DashboardShell>
-      <DashboardHeader heading="Tablu de bord" text="">
+      <DashboardHeader
+        heading="Tablou de bord"
+        text=""
+        headerAction={
+          !isTechnician ? (
+            <Dialog
+              open={isAddDialogOpen}
+              onOpenChange={(open) => {
+                if (!open) {
+                  handleCloseAddDialog()
+                } else {
+                  setIsAddDialogOpen(open)
+                }
+              }}
+            >
+              <DialogTrigger asChild>
+                <Button className="bg-blue-600 hover:bg-blue-700">
+                  <Plus className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Adaugă</span> Lucrare
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Adaugă Lucrare Nouă</DialogTitle>
+                </DialogHeader>
+
+                <LucrareForm
+                  dataEmiterii={dataEmiterii}
+                  setDataEmiterii={setDataEmiterii}
+                  dataInterventie={dataInterventie}
+                  setDataInterventie={setDataInterventie}
+                  formData={formData}
+                  handleInputChange={handleInputChange}
+                  handleSelectChange={handleSelectChange}
+                  handleTehnicieniChange={handleTehnicieniChange}
+                  handleCustomChange={handleCustomChange}
+                  onSubmit={handleSubmit}
+                  onCancel={handleCloseAddDialog}
+                  fieldErrors={fieldErrors}
+                />
+              </DialogContent>
+            </Dialog>
+          ) : null
+        }
+      >
         {isTechnician && (
           <Dialog
             open={isHistoryCheckOpen}
@@ -405,44 +484,6 @@ export default function Dashboard() {
             </DialogContent>
           </Dialog>
         )}
-        {!isTechnician && (
-          <Dialog
-            open={isAddDialogOpen}
-            onOpenChange={(open) => {
-              if (!open) {
-                handleCloseAddDialog()
-              } else {
-                setIsAddDialogOpen(open)
-              }
-            }}
-          >
-            <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700">
-            <Plus className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Adaugă</span> Lucrare
-          </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Adaugă Lucrare Nouă</DialogTitle>
-              </DialogHeader>
-              
-              <LucrareForm
-                dataEmiterii={dataEmiterii}
-                setDataEmiterii={setDataEmiterii}
-                dataInterventie={dataInterventie}
-                setDataInterventie={setDataInterventie}
-                formData={formData}
-                handleInputChange={handleInputChange}
-                handleSelectChange={handleSelectChange}
-                handleTehnicieniChange={handleTehnicieniChange}
-                handleCustomChange={handleCustomChange}
-                onSubmit={handleSubmit}
-                onCancel={handleCloseAddDialog}
-                fieldErrors={fieldErrors}
-              />
-            </DialogContent>
-          </Dialog>
-        )}
       </DashboardHeader>
       
       {/* VERSIUNE MOBIL - visible doar pe mobile (md:hidden) */}
@@ -451,111 +492,115 @@ export default function Dashboard() {
         <div className="grid grid-cols-2 gap-3">
           {/* Întârziate */}
           {dashboardConfig.intarziateEnabled && (
-            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setMobileDialogOpen('intarziate')}>
-              <CardContent className="p-4">
-                <div className="text-sm font-medium text-gray-600 mb-1">Întârziate</div>
-                <div className="text-3xl font-bold text-red-600">{buckets.intarziate.length}</div>
-              </CardContent>
-            </Card>
+            <MobileStatCard
+              title="Întârziate"
+              count={buckets.intarziate.length}
+              countClassName="text-red-600"
+              onClick={() => setMobileDialogOpen("intarziate")}
+            />
           )}
 
           {/* Amânate */}
           {dashboardConfig.amanateEnabled && (
-            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setMobileDialogOpen('amanate')}>
-              <CardContent className="p-4">
-                <div className="text-sm font-medium text-gray-600 mb-1">Amânate</div>
-                <div className="text-3xl font-bold text-violet-600">{buckets.amanate.length}</div>
-              </CardContent>
-            </Card>
+            <MobileStatCard
+              title="Amânate"
+              count={buckets.amanate.length}
+              countClassName="text-violet-600"
+              onClick={() => setMobileDialogOpen("amanate")}
+            />
           )}
 
           {/* Listate */}
           {dashboardConfig.listateEnabled && (
-            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setMobileDialogOpen('listate')}>
-              <CardContent className="p-4">
-                <div className="text-sm font-medium text-gray-600 mb-1">Listate</div>
-                <div className="text-3xl font-bold text-gray-600">{buckets.listate.length}</div>
-              </CardContent>
-            </Card>
+            <MobileStatCard
+              title="Listate"
+              count={buckets.listate.length}
+              countClassName="text-gray-700"
+              onClick={() => setMobileDialogOpen("listate")}
+            />
           )}
 
           {/* Nepreluate */}
           {dashboardConfig.nepreluateEnabled && (
-            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setMobileDialogOpen('nepreluate')}>
-              <CardContent className="p-4">
-                <div className="text-sm font-medium text-gray-600 mb-1">Nepreluate</div>
-                <div className="text-3xl font-bold text-orange-600">{buckets.nepreluate.length}</div>
-              </CardContent>
-            </Card>
+            <MobileStatCard
+              title="Nepreluate"
+              count={buckets.nepreluate.length}
+              countClassName="text-orange-600"
+              onClick={() => setMobileDialogOpen("nepreluate")}
+            />
           )}
 
           {/* Nefacturate */}
           {dashboardConfig.nefacturateEnabled && (
-            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setMobileDialogOpen('nefacturate')}>
-              <CardContent className="p-4">
-                <div className="text-sm font-medium text-gray-600 mb-1">Nefacturate</div>
-                <div className="text-3xl font-bold text-rose-600">{buckets.nefacturate.length}</div>
-              </CardContent>
-            </Card>
+            <MobileStatCard
+              title="Nefacturate"
+              count={buckets.nefacturate.length}
+              countClassName="text-rose-600"
+              onClick={() => setMobileDialogOpen("nefacturate")}
+            />
           )}
 
           {/* Necesită ofertă */}
           {dashboardConfig.necesitaOfertaEnabled && (
-            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setMobileDialogOpen('necesitaOferta')}>
-              <CardContent className="p-4">
-                <div className="text-sm font-medium text-gray-600 mb-1">Necesită ofertă</div>
-                <div className="text-3xl font-bold text-sky-600">{buckets.necesitaOferta.length}</div>
-              </CardContent>
-            </Card>
+            <MobileStatCard
+              title="Necesită ofertă"
+              count={buckets.necesitaOferta.length}
+              countClassName="text-sky-600"
+              onClick={() => setMobileDialogOpen("necesitaOferta")}
+            />
           )}
 
           {/* Ofertate */}
           {dashboardConfig.ofertateEnabled && (
-            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setMobileDialogOpen('ofertate')}>
-              <CardContent className="p-4">
-                <div className="text-sm font-medium text-gray-600 mb-1">Ofertate (în așteptare)</div>
-                <div className="text-3xl font-bold text-indigo-600">{buckets.ofertate.length}</div>
-              </CardContent>
-            </Card>
+            <MobileStatCard
+              title="Ofertate (în așteptare)"
+              count={buckets.ofertate.length}
+              countClassName="text-indigo-600"
+              onClick={() => setMobileDialogOpen("ofertate")}
+            />
           )}
 
           {/* Status oferte */}
           {dashboardConfig.statusOferteEnabled && (
-            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setMobileDialogOpen('statusOferte')}>
-              <CardContent className="p-4">
-                <div className="text-sm font-medium text-gray-600 mb-1">Status oferte</div>
-                <div className="text-3xl font-bold text-green-600">{buckets.statusOferte.length}</div>
-              </CardContent>
-            </Card>
+            <MobileStatCard
+              title="Status oferte"
+              count={buckets.statusOferte.length}
+              countClassName="text-green-600"
+              onClick={() => setMobileDialogOpen("statusOferte")}
+            />
           )}
 
           {/* Stare echipament */}
           {dashboardConfig.equipmentStatusEnabled && (
-            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setMobileDialogOpen('equipmentStatus')}>
-              <CardContent className="p-4">
-                <div className="text-sm font-medium text-gray-600 mb-1">Stare echipament</div>
-                <div className="text-3xl font-bold text-yellow-600">{buckets.equipmentStatus.length}</div>
-              </CardContent>
-            </Card>
+            <MobileStatCard
+              title="Stare echipament"
+              count={buckets.equipmentStatus.length}
+              countClassName="text-yellow-600"
+              onClick={() => setMobileDialogOpen("equipmentStatus")}
+            />
           )}
         </div>
 
+        {/* Separator between status cards and personal board (mobile only) */}
+        <div className="h-px w-full bg-gray-200/80" />
+
         {/* Personal Cards */}
-        <div className="space-y-3">
-          <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setMobileDialogOpen('dispatcher')}>
-            <CardContent className="p-4">
-              <div className="text-sm font-medium text-gray-600 mb-1">Dispecer</div>
-              <div className="text-3xl font-bold text-blue-600">{personal.dispatcher.items.length}</div>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-2 gap-3">
+          <MobileStatCard
+            title="Dispecer"
+            count={personal.dispatcher.items.length}
+            countClassName="text-blue-600"
+            onClick={() => setMobileDialogOpen("dispatcher")}
+          />
 
           {personal.technicians.map((tech) => (
-            <Card key={tech.name} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setMobileDialogOpen(`tech-${tech.name}`)}>
-              <CardContent className="p-4">
-                <div className="text-sm font-medium text-gray-600 mb-1">{tech.name}</div>
-                <div className="text-3xl font-bold text-gray-700">{tech.items.length}</div>
-              </CardContent>
-            </Card>
+            <MobileStatCard
+              key={tech.name}
+              title={tech.name}
+              count={tech.items.length}
+              countClassName="text-gray-800"
+              onClick={() => setMobileDialogOpen(`tech-${tech.name}`)}
+            />
           ))}
         </div>
       </div>
