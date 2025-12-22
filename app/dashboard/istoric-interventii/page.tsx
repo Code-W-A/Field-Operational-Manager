@@ -22,9 +22,10 @@ import type { Lucrare } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import { FilterButton } from "@/components/filter-button"
 import { FilterModal, type FilterOption } from "@/components/filter-modal"
-import { Eye } from "lucide-react"
+import { Eye, Search, X } from "lucide-react"
 import { ensurePdfFont } from "@/lib/pdf/font-loader"
 import { drawFooter, drawSimpleHeader } from "@/lib/pdf/common"
+import { Input } from "@/components/ui/input"
 
 type HistoryRow = {
   id: string
@@ -88,6 +89,7 @@ export default function IstoricInterventiiPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
   const [activeFilters, setActiveFilters] = useState<FilterOption[]>([])
+  const [cardsSearch, setCardsSearch] = useState("")
 
   const { loadSettings, saveFilters } = useTablePersistence("istoric-interventii")
   const [viewMode, setViewMode] = useState<"table" | "cards">("table")
@@ -158,43 +160,6 @@ export default function IstoricInterventiiPage() {
     return mapped
   }, [works])
 
-  const filterOptions = useMemo<FilterOption[]>(() => {
-    const uniq = (xs: string[]) =>
-      Array.from(new Set(xs.map((x) => String(x || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ro"))
-
-    const clientOptions = uniq(rows.map((r) => String(r.client || ""))).map((v) => ({ label: v, value: v }))
-    const locatieOptions = uniq(rows.map((r) => String(r.locatie || ""))).map((v) => ({ label: v, value: v }))
-    const echipamentOptions = uniq(
-      rows.map((r) => [r.echipamentNume, r.echipamentCod ? `(${r.echipamentCod})` : ""].filter(Boolean).join(" ").trim()),
-    ).map((v) => ({ label: v, value: v }))
-
-    return [
-      {
-        id: "dateRange",
-        label: "Perioadă (data intervenției)",
-        type: "dateRange",
-      },
-      {
-        id: "client",
-        label: "Client",
-        type: "multiselect",
-        options: clientOptions,
-      },
-      {
-        id: "locatie",
-        label: "Locație",
-        type: "multiselect",
-        options: locatieOptions,
-      },
-      {
-        id: "echipament",
-        label: "Echipament (cod/nume)",
-        type: "multiselect",
-        options: echipamentOptions,
-      },
-    ]
-  }, [rows])
-
   const clientAccess = useMemo(() => {
     return Array.isArray((userData as any)?.clientAccess) ? ((userData as any).clientAccess as Array<{ clientId: string; locationNames: string[] }>) : []
   }, [userData])
@@ -235,7 +200,7 @@ export default function IstoricInterventiiPage() {
     return set
   }, [role, clientAccess])
 
-  const visibleRows = useMemo(() => {
+  const accessFilteredRows = useMemo(() => {
     let out = rows
 
     // Client: restricționăm strict după clientul/locațiile arondate în userData.clientAccess (default-deny).
@@ -264,8 +229,91 @@ export default function IstoricInterventiiPage() {
       })
     }
 
-    // Admin/Dispecer: filtre dedicate (perioadă, client, locație, echipament)
-    if (isAdminOrDispatcher) {
+    return out
+  }, [rows, role, allowedClientIds, allowedLocationsByClientId, allowedLocationsUnion])
+
+  const filterOptions = useMemo<FilterOption[]>(() => {
+    const uniq = (xs: string[]) =>
+      Array.from(new Set(xs.map((x) => String(x || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ro"))
+
+    const norm = (s: string) => String(s || "").trim().toLowerCase()
+    const getMulti = (filters: FilterOption[], id: string): string[] => {
+      const v = filters.find((f) => f.id === id)?.value
+      if (!v) return []
+      if (Array.isArray(v)) return v.map((x) => String(x || "").trim()).filter(Boolean)
+      const s = String(v || "").trim()
+      return s ? [s] : []
+    }
+
+    const clientOptions = uniq(accessFilteredRows.map((r) => String(r.client || ""))).map((v) => ({ label: v, value: v }))
+
+    const computeLocatieOptions = (filters: FilterOption[]) => {
+      const selectedClients = getMulti(filters, "client").map(norm)
+
+      // Client portal: enforce hierarchy (like "tichet nou") -> no client => no locations
+      if (isClient && selectedClients.length === 0) return []
+
+      const base = selectedClients.length
+        ? accessFilteredRows.filter((r) => selectedClients.includes(norm(r.client || "")))
+        : accessFilteredRows
+      return uniq(base.map((r) => String(r.locatie || ""))).map((v) => ({ label: v, value: v }))
+    }
+
+    const computeEchipamentOptions = (filters: FilterOption[]) => {
+      const selectedClients = getMulti(filters, "client").map(norm)
+      const selectedLocatii = getMulti(filters, "locatie").map(norm)
+
+      // Client portal: enforce hierarchy -> no client OR no location => no equipment
+      if (isClient && (selectedClients.length === 0 || selectedLocatii.length === 0)) return []
+
+      let base = accessFilteredRows
+      if (selectedClients.length) base = base.filter((r) => selectedClients.includes(norm(r.client || "")))
+      if (selectedLocatii.length) base = base.filter((r) => selectedLocatii.includes(norm(r.locatie || "")))
+
+      const combined = base.map((r) =>
+        [r.echipamentNume, r.echipamentCod ? `(${r.echipamentCod})` : ""].filter(Boolean).join(" ").trim(),
+      )
+      return uniq(combined).map((v) => ({ label: v, value: v }))
+    }
+
+    const locatieOptions = computeLocatieOptions([])
+    const echipamentOptions = computeEchipamentOptions([])
+
+    return [
+      {
+        id: "dateRange",
+        label: "Perioadă (data intervenției)",
+        type: "dateRange",
+      },
+      {
+        id: "client",
+        label: "Client",
+        type: "multiselect",
+        options: clientOptions,
+      },
+      {
+        id: "locatie",
+        label: "Locație",
+        type: "multiselect",
+        options: locatieOptions,
+        getOptions: computeLocatieOptions,
+      },
+      {
+        id: "echipament",
+        label: "Echipament (cod/nume)",
+        type: "multiselect",
+        options: echipamentOptions,
+        getOptions: computeEchipamentOptions,
+      },
+    ]
+  }, [accessFilteredRows, isClient])
+
+  const visibleRows = useMemo(() => {
+    let out = accessFilteredRows
+
+    // Filtre UI (perioadă, client, locație, echipament) — aplicăm pentru rolurile care au UI de filtrare.
+    // (înainte era doar pentru admin/dispecer, ceea ce făcea "Filtrare" inutilă pentru client)
+    if (isAdminOrDispatcher || isClient) {
       const getMulti = (id: string): string[] => {
         const v = activeFilters.find((f) => f.id === id)?.value
         if (!v) return []
@@ -282,33 +330,60 @@ export default function IstoricInterventiiPage() {
       const start = range?.from ? new Date(`${range.from}T00:00:00`) : null
       const end = range?.to ? new Date(`${range.to}T23:59:59`) : null
 
-      out = out.filter((r) => {
-        if (fc.length > 0 && !fc.includes(String(r.client || "").trim().toLowerCase())) return false
-        if (fl.length > 0 && !fl.includes(String(r.locatie || "").trim().toLowerCase())) return false
-        if (fe.length > 0) {
-          const hay = [r.echipamentNume, r.echipamentCod ? `(${r.echipamentCod})` : ""].filter(Boolean).join(" ").trim().toLowerCase()
-          if (!fe.includes(hay)) return false
-        }
-        if (start || end) {
-          const d = toDateSafe(r.dataInterventie)
-          if (!d) return false
-          if (start && d.getTime() < start.getTime()) return false
-          if (end && d.getTime() > end.getTime()) return false
-        }
-        return true
-      })
+      if (fc.length || fl.length || fe.length || start || end) {
+        out = out.filter((r) => {
+          if (fc.length > 0 && !fc.includes(String(r.client || "").trim().toLowerCase())) return false
+          if (fl.length > 0 && !fl.includes(String(r.locatie || "").trim().toLowerCase())) return false
+          if (fe.length > 0) {
+            const hay = [r.echipamentNume, r.echipamentCod ? `(${r.echipamentCod})` : ""]
+              .filter(Boolean)
+              .join(" ")
+              .trim()
+              .toLowerCase()
+            if (!fe.includes(hay)) return false
+          }
+          if (start || end) {
+            const d = toDateSafe(r.dataInterventie)
+            if (!d) return false
+            if (start && d.getTime() < start.getTime()) return false
+            if (end && d.getTime() > end.getTime()) return false
+          }
+          return true
+        })
+      }
     }
 
     return out
   }, [
-    rows,
-    role,
-    allowedClientIds,
-    allowedLocationsByClientId,
-    allowedLocationsUnion,
+    accessFilteredRows,
     isAdminOrDispatcher,
+    isClient,
     activeFilters,
   ])
+
+  const cardsVisibleRows = useMemo(() => {
+    const q = cardsSearch.trim().toLowerCase()
+    if (!q) return visibleRows
+    return visibleRows.filter((r) => {
+      const hay = [
+        r.nrLucrare,
+        r.dataInterventie,
+        r.locatie,
+        r.echipamentNume,
+        r.echipamentCod,
+        r.client,
+        (r.tehnicieni || []).join(" "),
+        r.defectReclamat,
+        r.constatareLaLocatie,
+        r.descriereInterventie,
+        r.durataInterventie,
+      ]
+        .filter(Boolean)
+        .join(" | ")
+        .toLowerCase()
+      return hay.includes(q)
+    })
+  }, [visibleRows, cardsSearch])
 
   const columns = useMemo<ColumnDef<HistoryRow>[]>(
     () => [
@@ -449,28 +524,29 @@ export default function IstoricInterventiiPage() {
           </Button>
         ),
         meta: {
-          thClassName: "w-[56px] max-w-[56px] px-2 text-center",
-          tdClassName: "w-[56px] max-w-[56px] px-2 text-center",
+          // Slightly wider so "Acțiune" doesn't clip/squash in the header
+          thClassName: "w-[84px] min-w-[84px] max-w-[84px] px-2 text-center whitespace-nowrap",
+          tdClassName: "w-[84px] min-w-[84px] max-w-[84px] px-2 text-center whitespace-nowrap",
         },
       },
     ],
     [],
   )
 
-  const cardsTotal = visibleRows.length
+  const cardsTotal = cardsVisibleRows.length
   const cardsTotalPages = Math.max(1, Math.ceil(cardsTotal / cardsPageSize))
   const cardsStart = cardsTotal === 0 ? 0 : cardsPageIndex * cardsPageSize + 1
   const cardsEnd = Math.min(cardsTotal, (cardsPageIndex + 1) * cardsPageSize)
   const pagedCardRows = useMemo(() => {
     const start = cardsPageIndex * cardsPageSize
-    return visibleRows.slice(start, start + cardsPageSize)
-  }, [visibleRows, cardsPageIndex, cardsPageSize])
+    return cardsVisibleRows.slice(start, start + cardsPageSize)
+  }, [cardsVisibleRows, cardsPageIndex, cardsPageSize])
 
   // keep card pagination in range when data changes
   useEffect(() => {
-    const maxIdx = Math.max(0, Math.ceil(visibleRows.length / cardsPageSize) - 1)
+    const maxIdx = Math.max(0, Math.ceil(cardsVisibleRows.length / cardsPageSize) - 1)
     if (cardsPageIndex > maxIdx) setCardsPageIndex(maxIdx)
-  }, [visibleRows.length, cardsPageIndex, cardsPageSize])
+  }, [cardsVisibleRows.length, cardsPageIndex, cardsPageSize])
 
   const handleExportCsv = () => {
     if (!table) return
@@ -714,7 +790,7 @@ export default function IstoricInterventiiPage() {
 
         {viewMode === "table" ? (
           <div className="space-y-4" ref={exportRef}>
-          {table ? <DataTableFilters table={table} /> : null}
+          {table ? <DataTableFilters table={table} showAdvancedFilters={false} globalPlaceholder="Caută în intervenții..." /> : null}
           <DataTable
             columns={columns}
             data={visibleRows}
@@ -736,6 +812,36 @@ export default function IstoricInterventiiPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4" ref={exportRef}>
+          {/* Search bar pentru Carduri (în table mode există deja DataTableFilters) */}
+          <div className="px-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+              <Input
+                placeholder="Caută în intervenții..."
+                value={cardsSearch}
+                onChange={(e) => {
+                  setCardsSearch(e.target.value)
+                  setCardsPageIndex(0)
+                }}
+                className="pl-9 pr-9"
+              />
+              {cardsSearch ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 p-0"
+                  onClick={() => {
+                    setCardsSearch("")
+                    setCardsPageIndex(0)
+                  }}
+                  title="Șterge căutarea"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              ) : null}
+            </div>
+          </div>
+
           {pagedCardRows.map((r) => (
             <Card key={r.id} className="border-gray-200">
               <CardHeader className="py-3">
@@ -828,7 +934,7 @@ export default function IstoricInterventiiPage() {
             </div>
           ) : null}
 
-          {!loading && visibleRows.length === 0 ? (
+          {!loading && cardsVisibleRows.length === 0 ? (
             <div className="text-sm text-muted-foreground px-1">Nu există intervenții (rapoarte generate) de afișat.</div>
           ) : null}
         </div>

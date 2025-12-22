@@ -20,6 +20,11 @@ export interface FilterOption {
   label: string
   type: "text" | "select" | "multiselect" | "date" | "checkbox" | "dateRange"
   options?: { value: string; label: string }[]
+  /**
+   * Optional dynamic options resolver (used for dependent dropdowns).
+   * It receives the current in-modal `filters` state (including unsaved edits).
+   */
+  getOptions?: (filters: FilterOption[]) => { value: string; label: string }[]
   value?: any
 }
 
@@ -68,8 +73,33 @@ export function FilterModal({
     setFilters(mergedFilters)
   }, [filterOptions, activeFilters])
 
+  const sanitizeDependentSelections = (draft: FilterOption[]) => {
+    // Remove values that are no longer available after a dependency change.
+    return draft.map((f) => {
+      if (f.type !== "select" && f.type !== "multiselect") return f
+      const options = (f.getOptions ? f.getOptions(draft) : f.options) || []
+      const allowed = new Set(options.map((o) => o.value))
+
+      if (f.type === "select") {
+        const v = String(f.value || "")
+        if (!v || v === "all") return f
+        if (!allowed.has(v)) return { ...f, value: "" }
+        return f
+      }
+
+      // multiselect
+      if (!Array.isArray(f.value)) return f
+      const next = (f.value as any[]).map((x) => String(x)).filter((x) => allowed.has(x))
+      if (next.length === (f.value as any[]).length) return f
+      return { ...f, value: next }
+    })
+  }
+
   const handleFilterChange = (id: string, value: any) => {
-    setFilters((prev) => prev.map((filter) => (filter.id === id ? { ...filter, value } : filter)))
+    setFilters((prev) => {
+      const updated = prev.map((filter) => (filter.id === id ? { ...filter, value } : filter))
+      return sanitizeDependentSelections(updated)
+    })
   }
 
   const handleApply = () => {
@@ -108,6 +138,8 @@ export function FilterModal({
           />
         )
       case "select":
+        {
+          const options = (filter.getOptions ? filter.getOptions(filters) : filter.options) || []
         return (
           <Select value={filter.value || ""} onValueChange={(value) => handleFilterChange(filter.id, value)}>
             <SelectTrigger>
@@ -115,7 +147,7 @@ export function FilterModal({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Toate</SelectItem>
-              {filter.options?.map((option) => (
+              {options.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>
@@ -123,7 +155,10 @@ export function FilterModal({
             </SelectContent>
           </Select>
         )
+        }
       case "multiselect":
+        {
+        const options = (filter.getOptions ? filter.getOptions(filters) : filter.options) || []
         // Stilizare specială pentru statusul echipamentului
         if (filter.id === "statusEchipament") {
           return (
@@ -161,7 +196,7 @@ export function FilterModal({
               </div>
               <ScrollArea className="h-40 rounded-md border">
                 <div className="p-2 space-y-2">
-                  {filter.options?.map((option) => {
+                  {options.map((option) => {
                     // Determină clasa de stil pentru checkbox în funcție de valoarea statusului
                     let labelClass = "text-sm"
                     if (option.value === "Funcțional") labelClass += " text-green-700"
@@ -201,7 +236,7 @@ export function FilterModal({
         // Multiselect cu search pentru lista mare de clienți
         if (filter.id === "clienti") {
           const normalized = (s: string) => (s || "").toLocaleLowerCase()
-          const filteredOptions = (filter.options || []).filter((opt) =>
+          const filteredOptions = options.filter((opt) =>
             normalized(opt.label).includes(normalized(clientsSearch)) || normalized(opt.value).includes(normalized(clientsSearch)),
           )
 
@@ -273,7 +308,7 @@ export function FilterModal({
         // Multiselect generic: dropdown cu căutare (MultiSelect)
         return (
           <MultiSelect
-            options={(filter.options || []).map((o) => ({ label: o.label, value: o.value }))}
+            options={options.map((o) => ({ label: o.label, value: o.value }))}
             selected={Array.isArray(filter.value) ? (filter.value as string[]) : []}
             onChange={(vals) => handleFilterChange(filter.id, vals)}
             placeholder={`Selectează ${filter.label.toLowerCase()}`}
@@ -423,6 +458,7 @@ export function FilterModal({
             </div>
           )
         }
+        // NOTE: code below is unreachable due to return above, kept as-is for now.
         return (
           <div className="space-y-2">
             <div className="flex flex-wrap gap-1 mb-2">
@@ -476,6 +512,7 @@ export function FilterModal({
             </ScrollArea>
           </div>
         )
+        }
       case "date":
         {
           const formatted =

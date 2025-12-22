@@ -16,9 +16,15 @@ import { MultiSelect, type Option } from "@/components/ui/multi-select"
 
 interface DataTableFiltersProps<TData> {
   table: Table<TData>
+  showAdvancedFilters?: boolean
+  globalPlaceholder?: string
 }
 
-export function DataTableFilters<TData>({ table }: DataTableFiltersProps<TData>) {
+export function DataTableFilters<TData>({
+  table,
+  showAdvancedFilters = true,
+  globalPlaceholder = "Caută în toate coloanele...",
+}: DataTableFiltersProps<TData>) {
   const [mounted, setMounted] = useState(false)
   const [globalFilter, setGlobalFilter] = useState("")
   const [columnFilters, setColumnFilters] = useState<
@@ -176,7 +182,7 @@ export function DataTableFilters<TData>({ table }: DataTableFiltersProps<TData>)
         <div className="relative flex-1">
           <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
           <Input
-            placeholder="Caută în toate coloanele..."
+            placeholder={globalPlaceholder}
             value={globalFilter}
             onChange={(e) => handleGlobalFilterChange(e.target.value)}
             className="pl-8"
@@ -194,118 +200,120 @@ export function DataTableFilters<TData>({ table }: DataTableFiltersProps<TData>)
         </div>
 
         {/* Buton pentru filtre avansate */}
-        <Popover open={isFilterOpen} onOpenChange={setIsFilterOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className={cn("h-9 gap-1", activeFilters.length > 0 && "border-blue-500 text-blue-500")}
-            >
-              <Filter className="h-4 w-4 mr-1" />
-              <span>Filtre</span>
-              {activeFilters.length > 0 && (
-                <Badge className="ml-1 bg-blue-500 text-white">{activeFilters.length}</Badge>
-              )}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-[350px] p-0">
-            <div className="p-4 border-b">
-              <h4 className="font-medium">Filtre avansate</h4>
-              <p className="text-sm text-muted-foreground">Filtrați datele după coloane specifice</p>
-            </div>
-            <div className="p-2 max-h-[400px] overflow-y-auto">
-              <Accordion type="multiple" className="w-full">
-                {filterableColumns.map((column) => {
-                  const filterType = getFilterType(column)
-                  const headerText =
-                    typeof column.columnDef.header === "string"
-                      ? column.columnDef.header
-                      : column.id.charAt(0).toUpperCase() + column.id.slice(1)
-
-                  const filterValue = column.getFilterValue()
-                  const isActive =
-                    filterValue !== undefined &&
-                    filterValue !== "" &&
-                    (Array.isArray(filterValue) ? filterValue.length > 0 : true)
-
-                  return (
-                    <AccordionItem key={column.id} value={column.id}>
-                      <AccordionTrigger className="px-2 py-1 text-sm hover:no-underline">
-                        <div className="flex items-center gap-2">
-                          <span>{headerText}</span>
-                          {isActive && <Badge className="bg-blue-500 text-white">Activ</Badge>}
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent className="px-2 pb-2">
-                        {filterType === "date" ? (
-                          <div className="space-y-2">
-                            <Calendar
-                              mode="single"
-                              selected={filterValue as Date}
-                              onSelect={(date) => handleColumnFilterChange(column.id, date)}
-                              locale={ro}
-                              className="border rounded-md p-2"
-                            />
-                            {isActive && (
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm">
-                                  {isValid(filterValue as Date)
-                                    ? format(filterValue as Date, "dd.MM.yyyy", { locale: ro })
-                                    : "Data invalidă"}
-                                </span>
-                                <Button variant="ghost" size="sm" onClick={() => resetColumnFilter(column.id)}>
-                                  <X className="h-3 w-3 mr-1" />
-                                  Șterge
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            <MultiSelect
-                              options={columnOptions[column.id] || []}
-                              selected={
-                                Array.isArray(filterValue) ? filterValue : filterValue ? [String(filterValue)] : []
-                              }
-                              onChange={(selected) => handleColumnFilterChange(column.id, selected)}
-                              placeholder={`Selectați ${headerText.toLowerCase()}`}
-                              emptyText={`Nu există opțiuni pentru ${headerText.toLowerCase()}`}
-                            />
-                            {isActive && (
-                              <div className="flex justify-end">
-                                <Button variant="ghost" size="sm" onClick={() => resetColumnFilter(column.id)}>
-                                  <X className="h-3 w-3 mr-1" />
-                                  Șterge
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </AccordionContent>
-                    </AccordionItem>
-                  )
-                })}
-              </Accordion>
-            </div>
-            <div className="p-2 border-t flex justify-between">
+        {showAdvancedFilters ? (
+          <Popover open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+            <PopoverTrigger asChild>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                onClick={resetAllFilters}
-                disabled={activeFilters.length === 0 && !globalFilter}
+                className={cn("h-9 gap-1", activeFilters.length > 0 && "border-blue-500 text-blue-500")}
               >
-                Resetează toate
+                <Filter className="h-4 w-4 mr-1" />
+                <span>Filtre</span>
+                {activeFilters.length > 0 && (
+                  <Badge className="ml-1 bg-blue-500 text-white">{activeFilters.length}</Badge>
+                )}
               </Button>
-              <Button size="sm" onClick={() => setIsFilterOpen(false)}>
-                Aplică
-              </Button>
-            </div>
-          </PopoverContent>
-        </Popover>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-[350px] p-0">
+              <div className="p-4 border-b">
+                <h4 className="font-medium">Filtre avansate</h4>
+                <p className="text-sm text-muted-foreground">Filtrați datele după coloane specifice</p>
+              </div>
+              <div className="p-2 max-h-[400px] overflow-y-auto">
+                <Accordion type="multiple" className="w-full">
+                  {filterableColumns.map((column) => {
+                    const filterType = getFilterType(column)
+                    const headerText =
+                      typeof column.columnDef.header === "string"
+                        ? column.columnDef.header
+                        : column.id.charAt(0).toUpperCase() + column.id.slice(1)
+
+                    const filterValue = column.getFilterValue()
+                    const isActive =
+                      filterValue !== undefined &&
+                      filterValue !== "" &&
+                      (Array.isArray(filterValue) ? filterValue.length > 0 : true)
+
+                    return (
+                      <AccordionItem key={column.id} value={column.id}>
+                        <AccordionTrigger className="px-2 py-1 text-sm hover:no-underline">
+                          <div className="flex items-center gap-2">
+                            <span>{headerText}</span>
+                            {isActive && <Badge className="bg-blue-500 text-white">Activ</Badge>}
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="px-2 pb-2">
+                          {filterType === "date" ? (
+                            <div className="space-y-2">
+                              <Calendar
+                                mode="single"
+                                selected={filterValue as Date}
+                                onSelect={(date) => handleColumnFilterChange(column.id, date)}
+                                locale={ro}
+                                className="border rounded-md p-2"
+                              />
+                              {isActive && (
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm">
+                                    {isValid(filterValue as Date)
+                                      ? format(filterValue as Date, "dd.MM.yyyy", { locale: ro })
+                                      : "Data invalidă"}
+                                  </span>
+                                  <Button variant="ghost" size="sm" onClick={() => resetColumnFilter(column.id)}>
+                                    <X className="h-3 w-3 mr-1" />
+                                    Șterge
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <MultiSelect
+                                options={columnOptions[column.id] || []}
+                                selected={
+                                  Array.isArray(filterValue) ? filterValue : filterValue ? [String(filterValue)] : []
+                                }
+                                onChange={(selected) => handleColumnFilterChange(column.id, selected)}
+                                placeholder={`Selectați ${headerText.toLowerCase()}`}
+                                emptyText={`Nu există opțiuni pentru ${headerText.toLowerCase()}`}
+                              />
+                              {isActive && (
+                                <div className="flex justify-end">
+                                  <Button variant="ghost" size="sm" onClick={() => resetColumnFilter(column.id)}>
+                                    <X className="h-3 w-3 mr-1" />
+                                    Șterge
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </AccordionContent>
+                      </AccordionItem>
+                    )
+                  })}
+                </Accordion>
+              </div>
+              <div className="p-2 border-t flex justify-between">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={resetAllFilters}
+                  disabled={activeFilters.length === 0 && !globalFilter}
+                >
+                  Resetează toate
+                </Button>
+                <Button size="sm" onClick={() => setIsFilterOpen(false)}>
+                  Aplică
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+        ) : null}
       </div>
 
       {/* Afișare filtre active */}
-      {(activeFilters.length > 0 || globalFilter) && (
+      {(showAdvancedFilters ? activeFilters.length > 0 : false || globalFilter) && (
         <div className="flex flex-wrap gap-2 pt-2">
           {globalFilter && (
             <Badge variant="secondary" className="flex items-center gap-1">
@@ -320,7 +328,8 @@ export function DataTableFilters<TData>({ table }: DataTableFiltersProps<TData>)
               </Button>
             </Badge>
           )}
-          {activeFilters.map((filter) => {
+          {showAdvancedFilters
+            ? activeFilters.map((filter) => {
             const column = table.getColumn(filter.id)
             if (!column) return null
 
@@ -346,10 +355,13 @@ export function DataTableFilters<TData>({ table }: DataTableFiltersProps<TData>)
                 </Button>
               </Badge>
             )
-          })}
-          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={resetAllFilters}>
-            Resetează toate
-          </Button>
+            })
+            : null}
+          {showAdvancedFilters ? (
+            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={resetAllFilters}>
+              Resetează toate
+            </Button>
+          ) : null}
         </div>
       )}
     </div>
