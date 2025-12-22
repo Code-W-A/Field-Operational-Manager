@@ -2,7 +2,7 @@
 
 import { useMemo } from "react"
 import Link from "next/link"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { where } from "firebase/firestore"
 
 import { DashboardHeader } from "@/components/dashboard-header"
@@ -38,6 +38,7 @@ const extractNr = (value?: string | null) => {
 }
 
 export default function IstoricEchipamentPage() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const codRaw = (searchParams.get("cod") || "").trim()
   const cod = codRaw.toUpperCase()
@@ -90,8 +91,16 @@ export default function IstoricEchipamentPage() {
       />
 
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <Button asChild variant="outline" size="sm">
-          <Link href="/dashboard/istoric-interventii">Înapoi la istoric</Link>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            // Back în istoric; dacă nu există, revino la pagina listă.
+            if (typeof window !== "undefined" && window.history.length > 1) router.back()
+            else router.push("/dashboard/lucrari")
+          }}
+        >
+          Înapoi la lucrări
         </Button>
         {cod ? (
           <div className="text-sm text-muted-foreground">

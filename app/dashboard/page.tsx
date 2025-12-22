@@ -17,7 +17,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { LucrareForm } from "@/components/lucrare-form"
-import { addLucrare, getNextReportNumber } from "@/lib/firebase/firestore"
+import { addLucrare, getNextReportNumber, type PersoanaContact } from "@/lib/firebase/firestore"
 import { toast } from "@/components/ui/use-toast"
 import { format } from "date-fns"
 import { Scanner } from "@yudiel/react-qr-scanner"
@@ -29,6 +29,26 @@ export default function Dashboard() {
   const { buckets, personal, loading } = useDashboardStatus(dashboardConfig)
   const { userData } = useAuth()
   const isTechnician = userData?.role === "tehnician"
+
+  type DashboardLucrareFormData = {
+    tipLucrare: string
+    tehnicieni: string[]
+    client: string
+    locatie: string
+    descriere: string
+    persoanaContact: string
+    telefon: string
+    statusLucrare: string
+    statusFacturare: string
+    contract: string
+    contractNumber: string
+    contractType: string
+    defectReclamat: string
+    echipament: string
+    echipamentId: string
+    echipamentCod: string
+    persoaneContact: PersoanaContact[]
+  }
   // State pentru dialoguri mobile (trebuie definit înainte de orice return condițional)
   const [mobileDialogOpen, setMobileDialogOpen] = React.useState<string | null>(null)
 
@@ -73,9 +93,11 @@ export default function Dashboard() {
   // Tehnician: dialog pentru verificare istoric echipament (QR + cod manual)
   const [isHistoryCheckOpen, setIsHistoryCheckOpen] = React.useState(false)
   const [historyCode, setHistoryCode] = React.useState("")
+  const [historyFailedScanAttempts, setHistoryFailedScanAttempts] = React.useState(0)
+  const [showHistoryManualInput, setShowHistoryManualInput] = React.useState(false)
   const [dataEmiterii, setDataEmiterii] = React.useState<Date | undefined>(new Date())
   const [dataInterventie, setDataInterventie] = React.useState<Date | undefined>(new Date())
-  const [formData, setFormData] = React.useState({
+  const [formData, setFormData] = React.useState<DashboardLucrareFormData>({
     tipLucrare: "",
     tehnicieni: [],
     client: "",
@@ -94,7 +116,7 @@ export default function Dashboard() {
     echipamentCod: "",
     persoaneContact: [],
   })
-  const [fieldErrors, setFieldErrors] = React.useState([])
+  const [fieldErrors, setFieldErrors] = React.useState<string[]>([])
   
   // Forțează re-render la fiecare 5 secunde pentru metrici bazate pe timp
   const [tick, setTick] = React.useState(0)
@@ -113,6 +135,32 @@ export default function Dashboard() {
       setDataInterventie(new Date())
     }
   }, [isAddDialogOpen])
+
+  // Tehnician: după 3 încercări eșuate de scanare, afișăm introducerea manuală (similar cu `components/qr-code-scanner.tsx`)
+  React.useEffect(() => {
+    if (!isHistoryCheckOpen) {
+      setHistoryFailedScanAttempts(0)
+      setShowHistoryManualInput(false)
+      return
+    }
+
+    // Dacă e activă introducerea manuală, nu mai numărăm încercări eșuate
+    if (showHistoryManualInput) return
+
+    // Dacă avem deja un cod (scanat), nu mai numărăm încercări eșuate
+    if (historyCode.trim()) return
+
+    if (historyFailedScanAttempts >= 3) {
+      setShowHistoryManualInput(true)
+      return
+    }
+
+    const t = window.setTimeout(() => {
+      setHistoryFailedScanAttempts((prev) => prev + 1)
+    }, 5000)
+
+    return () => window.clearTimeout(t)
+  }, [isHistoryCheckOpen, historyCode, historyFailedScanAttempts, showHistoryManualInput])
 
   const isValidEquipmentCode = React.useCallback((code: string) => {
     const c = (code || "").trim()
@@ -172,7 +220,7 @@ export default function Dashboard() {
   }, [])
 
   const validateForm = () => {
-    const errors = []
+    const errors: string[] = []
 
     if (!dataEmiterii) errors.push("dataEmiterii")
     if (!dataInterventie) errors.push("dataInterventie")
@@ -199,6 +247,9 @@ export default function Dashboard() {
         })
         return
       }
+
+      // Narrow types for TS (validateForm already ensures these exist)
+      if (!dataEmiterii || !dataInterventie) return
 
       // Setăm automat statusul lucrării în funcție de prezența tehnicienilor
       const statusLucrare = (formData.tehnicieni && formData.tehnicieni.length > 0) ? "Atribuită" : "Listată"
@@ -401,7 +452,14 @@ export default function Dashboard() {
             open={isHistoryCheckOpen}
             onOpenChange={(open) => {
               setIsHistoryCheckOpen(open)
-              if (!open) setHistoryCode("")
+              if (!open) {
+                setHistoryCode("")
+                setHistoryFailedScanAttempts(0)
+                setShowHistoryManualInput(false)
+              } else {
+                setHistoryFailedScanAttempts(0)
+                setShowHistoryManualInput(false)
+              }
             }}
           >
             <DialogTrigger asChild>
@@ -414,7 +472,7 @@ export default function Dashboard() {
               <DialogHeader>
                 <DialogTitle>Verifică istoric echipament</DialogTitle>
                 <DialogDescription>
-                  Scanează QR-ul echipamentului sau introdu codul manual. Istoricul se caută după{" "}
+                  Scanează QR-ul echipamentului. Dacă nu se detectează codul după 3 încercări, se activează introducerea manuală. Istoricul se caută după{" "}
                   <span className="font-medium">echipamentCod</span>.
                 </DialogDescription>
               </DialogHeader>
@@ -436,49 +494,67 @@ export default function Dashboard() {
                           // raw string (simple format)
                         }
                         setHistoryCode(code)
+                        setHistoryFailedScanAttempts(0)
+                        setShowHistoryManualInput(false)
                       }}
                       onError={(e: any) => {
                         console.error("Eroare scanare QR:", e)
+                        setHistoryFailedScanAttempts((prev) => {
+                          const next = Math.min(3, prev + 1)
+                          if (next >= 3) setShowHistoryManualInput(true)
+                          return next
+                        })
                       }}
                     />
                   </div>
                   <div className="text-xs text-muted-foreground mt-2">
-                    Dacă scanarea nu funcționează, folosește introducerea manuală de mai jos.
+                    Încercări eșuate: {Math.min(historyFailedScanAttempts, 3)}/3
                   </div>
+                  {historyCode.trim() ? (
+                    <div className="text-xs mt-2">
+                      Cod detectat: <span className="font-medium">{historyCode.trim()}</span>
+                    </div>
+                  ) : null}
                 </div>
 
-                <div className="rounded-md border p-3">
-                  <div className="text-sm font-medium mb-2">Cod manual</div>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <Input
-                      placeholder="Cod echipament (ex: R72A123)"
-                      value={historyCode}
-                      onChange={(e) => setHistoryCode(e.target.value)}
-                    />
-                    <Button
-                      onClick={() => {
-                        const code = historyCode.trim()
-                        if (!isValidEquipmentCode(code)) {
-                          toast({
-                            title: "Cod invalid",
-                            description: "Codul trebuie să aibă maxim 10 caractere și să conțină litere și cifre.",
-                            variant: "destructive",
-                          })
-                          return
-                        }
-                        setIsHistoryCheckOpen(false)
-                        router.push(`/dashboard/istoric-interventii/echipament?cod=${encodeURIComponent(code)}`)
-                      }}
-                    >
-                      Deschide istoricul
-                    </Button>
+                {showHistoryManualInput || historyFailedScanAttempts >= 3 ? (
+                  <div className="rounded-md border p-3">
+                    <div className="text-sm font-medium mb-2">Cod manual</div>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Input
+                        placeholder="Cod echipament (ex: R72A123)"
+                        value={historyCode}
+                        onChange={(e) => setHistoryCode(e.target.value)}
+                      />
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-2">
+                      Introdu codul manual și apasă „Deschide istoricul”.
+                    </div>
                   </div>
-                </div>
+                ) : null}
               </div>
 
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsHistoryCheckOpen(false)}>
                   Închide
+                </Button>
+                <Button
+                  onClick={() => {
+                    const code = historyCode.trim()
+                    if (!isValidEquipmentCode(code)) {
+                      toast({
+                        title: "Cod invalid",
+                        description: "Codul trebuie să aibă maxim 10 caractere și să conțină litere și cifre.",
+                        variant: "destructive",
+                      })
+                      return
+                    }
+                    setIsHistoryCheckOpen(false)
+                    router.push(`/dashboard/istoric-interventii/echipament?cod=${encodeURIComponent(code)}`)
+                  }}
+                  disabled={!isValidEquipmentCode(historyCode)}
+                >
+                  Deschide istoricul
                 </Button>
               </DialogFooter>
             </DialogContent>

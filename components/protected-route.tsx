@@ -33,6 +33,11 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
       } else if (allowedRoles && userData && !allowedRoles.includes(userData.role)) {
         console.log("User does not have required role, redirecting to dashboard")
         router.push("/dashboard")
+      } else if (userData?.role === "tehnician" && pathname === "/dashboard/istoric-interventii") {
+        // Prevent technicians from accessing the full History list page
+        // (they may still use the equipment-specific history check flow)
+        console.log("Technician attempting to access Istoric intervenții list, redirecting to dashboard/lucrari")
+        router.push("/dashboard/lucrari")
       } else if (userData?.role === "tehnician" && pathname === "/dashboard") {
         // Redirect technicians from /dashboard to /dashboard/lucrari
         console.log("Technician accessing dashboard, redirecting to lucrari")

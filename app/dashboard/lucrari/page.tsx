@@ -114,6 +114,8 @@ export default function Lucrari() {
   const isTechnician = userData?.role === "tehnician"
   const [isHistoryCheckOpen, setIsHistoryCheckOpen] = useState(false)
   const [historyCode, setHistoryCode] = useState("")
+  const [historyFailedScanAttempts, setHistoryFailedScanAttempts] = useState(0)
+  const [showHistoryManualInput, setShowHistoryManualInput] = useState(false)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editLucrareId, setEditLucrareId] = useState<string | null>(null)
@@ -183,6 +185,32 @@ export default function Lucrari() {
     if (!(/[a-zA-Z]/.test(c) && /[0-9]/.test(c))) return false
     return true
   }
+
+  // Tehnician: după 3 încercări eșuate de scanare, afișăm introducerea manuală (similar cu `components/qr-code-scanner.tsx`)
+  useEffect(() => {
+    if (!isHistoryCheckOpen) {
+      setHistoryFailedScanAttempts(0)
+      setShowHistoryManualInput(false)
+      return
+    }
+
+    // Dacă e activă introducerea manuală, nu mai numărăm încercări eșuate
+    if (showHistoryManualInput) return
+
+    // Dacă avem deja un cod (scanat), nu mai numărăm încercări eșuate
+    if (historyCode.trim()) return
+
+    if (historyFailedScanAttempts >= 3) {
+      setShowHistoryManualInput(true)
+      return
+    }
+
+    const t = window.setTimeout(() => {
+      setHistoryFailedScanAttempts((prev) => prev + 1)
+    }, 5000)
+
+    return () => window.clearTimeout(t)
+  }, [isHistoryCheckOpen, historyCode, historyFailedScanAttempts, showHistoryManualInput])
 
   // Încărcăm setările salvate la inițializare
   useEffect(() => {
@@ -2269,7 +2297,14 @@ export default function Lucrari() {
             open={isHistoryCheckOpen}
             onOpenChange={(open) => {
               setIsHistoryCheckOpen(open)
-              if (!open) setHistoryCode("")
+              if (!open) {
+                setHistoryCode("")
+                setHistoryFailedScanAttempts(0)
+                setShowHistoryManualInput(false)
+              } else {
+                setHistoryFailedScanAttempts(0)
+                setShowHistoryManualInput(false)
+              }
             }}
           >
             <DialogTrigger asChild>
@@ -2282,7 +2317,7 @@ export default function Lucrari() {
               <DialogHeader>
                 <DialogTitle>Verifică istoric echipament</DialogTitle>
                 <DialogDescription>
-                  Scanează QR-ul echipamentului sau introdu codul manual. Istoricul se caută după <span className="font-medium">echipamentCod</span>.
+                  Scanează QR-ul echipamentului. Dacă nu se detectează codul după 3 încercări, se activează introducerea manuală. Istoricul se caută după <span className="font-medium">echipamentCod</span>.
                 </DialogDescription>
               </DialogHeader>
 
@@ -2303,49 +2338,67 @@ export default function Lucrari() {
                           // raw string (simple format)
                         }
                         setHistoryCode(code)
+                        setHistoryFailedScanAttempts(0)
+                        setShowHistoryManualInput(false)
                       }}
                       onError={(e: any) => {
                         console.error("Eroare scanare QR:", e)
+                        setHistoryFailedScanAttempts((prev) => {
+                          const next = Math.min(3, prev + 1)
+                          if (next >= 3) setShowHistoryManualInput(true)
+                          return next
+                        })
                       }}
                     />
                   </div>
                   <div className="text-xs text-muted-foreground mt-2">
-                    Dacă scanarea nu funcționează, folosește introducerea manuală de mai jos.
+                    Încercări eșuate: {Math.min(historyFailedScanAttempts, 3)}/3
                   </div>
+                  {historyCode.trim() ? (
+                    <div className="text-xs mt-2">
+                      Cod detectat: <span className="font-medium">{historyCode.trim()}</span>
+                    </div>
+                  ) : null}
                 </div>
 
-                <div className="rounded-md border p-3">
-                  <div className="text-sm font-medium mb-2">Cod manual</div>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <Input
-                      placeholder="Cod echipament (ex: R72A123)"
-                      value={historyCode}
-                      onChange={(e) => setHistoryCode(e.target.value)}
-                    />
-                    <Button
-                      onClick={() => {
-                        const code = historyCode.trim()
-                        if (!isValidEquipmentCode(code)) {
-                          toast({
-                            title: "Cod invalid",
-                            description: "Codul trebuie să aibă maxim 10 caractere și să conțină litere și cifre.",
-                            variant: "destructive",
-                          })
-                          return
-                        }
-                        setIsHistoryCheckOpen(false)
-                        router.push(`/dashboard/istoric-interventii/echipament?cod=${encodeURIComponent(code)}`)
-                      }}
-                    >
-                      Deschide istoricul
-                    </Button>
+                {showHistoryManualInput || historyFailedScanAttempts >= 3 ? (
+                  <div className="rounded-md border p-3">
+                    <div className="text-sm font-medium mb-2">Cod manual</div>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Input
+                        placeholder="Cod echipament (ex: R72A123)"
+                        value={historyCode}
+                        onChange={(e) => setHistoryCode(e.target.value)}
+                      />
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-2">
+                      Introdu codul manual și apasă „Deschide istoricul”.
+                    </div>
                   </div>
-                </div>
+                ) : null}
               </div>
 
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsHistoryCheckOpen(false)}>
                   Închide
+                </Button>
+                <Button
+                  onClick={() => {
+                    const code = historyCode.trim()
+                    if (!isValidEquipmentCode(code)) {
+                      toast({
+                        title: "Cod invalid",
+                        description: "Codul trebuie să aibă maxim 10 caractere și să conțină litere și cifre.",
+                        variant: "destructive",
+                      })
+                      return
+                    }
+                    setIsHistoryCheckOpen(false)
+                    router.push(`/dashboard/istoric-interventii/echipament?cod=${encodeURIComponent(code)}`)
+                  }}
+                  disabled={!isValidEquipmentCode(historyCode)}
+                >
+                  Deschide istoricul
                 </Button>
               </DialogFooter>
             </DialogContent>

@@ -151,6 +151,7 @@ export function buildNav(ctx: NavCtx): NavNode[] {
       href: "/dashboard/istoric-interventii",
       icon: History,
       activeMatch: "prefix",
+      visible: () => !isTechnician,
     },
     {
       type: "group",
