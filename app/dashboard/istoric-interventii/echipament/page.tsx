@@ -83,14 +83,27 @@ export default function IstoricEchipamentPage() {
     return mapped
   }, [works, cod])
 
+  const equipmentHeaderLabel = useMemo(() => {
+    if (!cod) return ""
+    const first = String(rows?.[0]?.echipament || "").trim()
+    if (!first) return cod
+    // Evităm dublarea codului (de ex: "(ABC123) Nume" + "(ABC123)")
+    if (first.toUpperCase().includes(cod)) return first
+    return `${first} (${cod})`
+  }, [cod, rows])
+
   return (
     <DashboardShell>
       <DashboardHeader
         heading="Istoric echipament"
-        text={cod ? `Intervenții pentru echipamentul: ${cod}` : "Introdu un cod de echipament pentru a vedea istoricul."}
+        text={
+          cod
+            ? `Intervenții pentru echipamentul: ${equipmentHeaderLabel || cod}`
+            : "Introdu un cod de echipament pentru a vedea istoricul."
+        }
       />
 
-      <div className="flex items-center justify-between gap-2 flex-wrap">
+      <div className="mt-4 flex items-center justify-between gap-2 flex-wrap">
         <Button
           variant="outline"
           size="sm"
@@ -110,13 +123,13 @@ export default function IstoricEchipamentPage() {
       </div>
 
       {!cod ? (
-        <Card className="border-gray-200">
+        <Card className="border-gray-200 mt-3">
           <CardContent className="p-4 text-sm text-muted-foreground">
             Lipsă cod. Deschide această pagină cu `?cod=...` (ex: din butonul „Vezi istoric”).
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-3">
+        <div className="mt-3 grid grid-cols-1 gap-3">
           {rows.map((r) => (
             <Card key={r.id} className="border-gray-200">
               <CardHeader className="py-3">
@@ -129,17 +142,19 @@ export default function IstoricEchipamentPage() {
                       </div>
                       <div className="text-xs text-muted-foreground">{r.durataInterventie || "-"}</div>
                     </div>
-                    <div className="text-sm text-gray-900 mt-1">
-                      <span className="font-medium">Client:</span> {r.client || "-"}
-                    </div>
-                    <div className="text-sm text-gray-900">
-                      <span className="font-medium">Locație:</span> {r.locatie || "-"}
-                    </div>
-                    <div className="text-sm text-gray-900">
-                      <span className="font-medium">Echipament:</span> {r.echipament || "-"}
-                    </div>
-                    <div className="text-sm text-gray-900">
-                      <span className="font-medium">Tehnicieni:</span> {(r.tehnicieni || []).join(", ") || "-"}
+                    <div className="mt-1 space-y-1">
+                      <div className="text-sm text-gray-900">
+                        <span className="font-medium">Client:</span> {r.client || "-"}
+                      </div>
+                      <div className="text-sm text-gray-900">
+                        <span className="font-medium">Locație:</span> {r.locatie || "-"}
+                      </div>
+                      <div className="text-sm text-gray-900">
+                        <span className="font-medium">Echipament:</span> {r.echipament || "-"}
+                      </div>
+                      <div className="text-sm text-gray-900">
+                        <span className="font-medium">Tehnicieni:</span> {(r.tehnicieni || []).join(", ") || "-"}
+                      </div>
                     </div>
                   </div>
                   <Button asChild size="sm" variant="outline" className="shrink-0">
