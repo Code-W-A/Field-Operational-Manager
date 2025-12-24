@@ -1,8 +1,6 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect, useCallback, useRef } from "react"
+import React, { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -26,13 +24,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { generateRevisionOperationsPDF } from "@/lib/pdf/revision-operations"
 
-export default function RaportPage({ params }: { params: { id: string } }) {
+export default function RaportPage({ params }: { params: Promise<{ id: string }> }) {
   const SIG_HEIGHT = 160 // px – lasă-l fix
   const SIG_MIN_WIDTH = 360 // px - lățimea minimă pentru semnături
 
   const router = useRouter()
   const searchParams = useSearchParams()
   const { userData } = useAuth()
+  const { id: paramsId } = React.use(params)
   
   // Detectăm dacă trebuie să descărcăm automat raportul
   const autoDownload = searchParams.get('autoDownload') === 'true'
@@ -123,7 +122,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
     const fetchLucrare = async () => {
       try {
         setLoading(true)
-        const data = await getLucrareById(params.id)
+        const data = await getLucrareById(paramsId)
         if (data) {
           // Ensure all required fields exist with default values if missing
           const processedData = {
@@ -147,8 +146,12 @@ export default function RaportPage({ params }: { params: { id: string } }) {
           setLucrare(processedData)
           setStatusLucrare(processedData.statusLucrare)
 
-          // Check if dispatcher/admin should see download interface
-          if (isDispatcherOrAdmin && processedData.raportGenerat) {
+          // Download-only mode:
+          // - admin/dispecer: always
+          // - client: always (nu trebuie să editeze raportul)
+          // - autoDownload=true: allow for any role to trigger PDF download reliably
+          const isClient = userData?.role === "client"
+          if ((isDispatcherOrAdmin || isClient || autoDownload) && processedData.raportGenerat) {
             setShowDownloadInterface(true)
           }
 
@@ -161,7 +164,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
             snapshotData: processedData.raportSnapshot,
             userRole: userData?.role,
             isDispatcherOrAdmin: isDispatcherOrAdmin,
-            willShowDownloadInterface: isDispatcherOrAdmin && processedData.raportGenerat,
+            willShowDownloadInterface: (isDispatcherOrAdmin || userData?.role === "client" || autoDownload) && processedData.raportGenerat,
             // DEBUG: Verificăm datele principale
             products: processedData.products,
             semnaturaTehnician: !!processedData.semnaturaTehnician,
@@ -319,7 +322,7 @@ export default function RaportPage({ params }: { params: { id: string } }) {
     }
 
     fetchLucrare()
-  }, [params.id, userData])
+  }, [paramsId, userData])
 
   // Verificăm dacă tehnicianul are acces la această lucrare
   useEffect(() => {
@@ -552,13 +555,13 @@ FOM by NRG`,
             formData.append("senderName", `FOM by NRG - ${updatedLucrare.tehnicieni?.join(", ") || "Tehnician"}`)
 
             // Add IDs for logging in emailEvents
-            formData.append("lucrareId", updatedLucrare.id || params.id)
+            formData.append("lucrareId", updatedLucrare.id || paramsId)
             if (updatedLucrare.clientInfo?.id) {
               formData.append("clientId", updatedLucrare.clientInfo.id)
             }
 
             // Add PDF as file
-            const workNumRaw = String(updatedLucrare.nrLucrare || updatedLucrare.numarRaport || updatedLucrare.id || params.id)
+            const workNumRaw = String(updatedLucrare.nrLucrare || updatedLucrare.numarRaport || updatedLucrare.id || paramsId)
             const workNum = workNumRaw.replace(/^#\s*/, "").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
             const pdfFile = new File([pdfBlob], `Raport_Interventie_${workNum}.pdf`, {
               type: "application/pdf",
@@ -568,7 +571,7 @@ FOM by NRG`,
             // Add Operations Sheets PDF for Revizie (if applicable)
             try {
               if ((updatedLucrare?.tipLucrare || "").toLowerCase() === "revizie") {
-                const opsBlob = await generateRevisionOperationsPDF(updatedLucrare.id || params.id)
+                const opsBlob = await generateRevisionOperationsPDF(updatedLucrare.id || paramsId)
                 const opsFile = new File([opsBlob], `Fise_Operatiuni_${workNum}.pdf`, {
                   type: "application/pdf",
                 })
@@ -631,7 +634,7 @@ FOM by NRG`,
         return false
       }
     },
-    [manualEmails, updatedLucrare, params.id, isEmailSending, useManualRecipients],
+    [manualEmails, updatedLucrare, paramsId, isEmailSending, useManualRecipients],
   )
 
   // Use useStableCallback to ensure we have access to the latest state values
@@ -699,7 +702,7 @@ FOM by NRG`,
       console.log("🔍 DUPĂ creare updatedLucrareData - numarRaport:", updatedLucrareData.numarRaport)
 
       // Save to Firestore
-      await updateLucrare(params.id, updatedLucrareData)
+      await updateLucrare(paramsId, updatedLucrareData)
       console.log("✅ SALVAT în Firestore (handleSubmit) - raportGenerat:", updatedLucrareData.raportGenerat || "UNDEFINED")
       console.log("✅ SALVAT în Firestore (handleSubmit) - numarRaport:", updatedLucrareData.numarRaport || "UNDEFINED")
 
@@ -1178,7 +1181,7 @@ FOM by NRG`,
               </Button>
               <div className="w-full">
                 <CardTitle className="text-xl sm:text-2xl font-bold text-blue-700">
-                  Raport Finalizat #{params.id}
+                  Raport Finalizat #{paramsId}
                 </CardTitle>
                 <CardDescription>Raport generat de tehnician - doar descărcare</CardDescription>
               </div>
@@ -1765,7 +1768,7 @@ FOM by NRG`,
                   const url = URL.createObjectURL(blob)
                   const a = document.createElement('a')
                   a.href = url
-                    const numRaw = String(lucrare?.nrLucrare || lucrare?.numarRaport || params.id || "")
+                    const numRaw = String(lucrare?.nrLucrare || lucrare?.numarRaport || paramsId || "")
                     const num = numRaw.replace(/^#\s*/, "").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
                     const clientPart = String(lucrare?.client || "Interventie").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
                     a.download = `Raport_${clientPart}_${num}.pdf`
@@ -1829,7 +1832,7 @@ FOM by NRG`,
             </Button>
             <div className="w-full">
               <CardTitle className="text-xl sm:text-2xl font-bold text-blue-700">
-                Raport Intervenție #{params.id}
+                Raport Intervenție #{paramsId}
               </CardTitle>
               <CardDescription>Detalii despre intervenția efectuată</CardDescription>
             </div>

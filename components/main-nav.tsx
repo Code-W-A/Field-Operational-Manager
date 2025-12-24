@@ -32,21 +32,47 @@ function NavGroupDropdown({
 }) {
   const [open, setOpen] = React.useState(false)
   const closeTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
+  const hoveringTriggerRef = React.useRef(false)
+  const hoveringContentRef = React.useRef(false)
   const groupActive = isGroupActive(group)
   const GroupIcon = group.icon
 
-  const handleMouseEnter = () => {
+  const cancelClose = () => {
     if (closeTimeoutRef.current) {
       clearTimeout(closeTimeoutRef.current)
       closeTimeoutRef.current = null
     }
-    setOpen(true)
   }
 
-  const handleMouseLeave = () => {
+  const scheduleClose = () => {
+    cancelClose()
     closeTimeoutRef.current = setTimeout(() => {
-      setOpen(false)
-    }, 200)
+      // Close only if pointer is not over trigger/content anymore (prevents hover flicker with Radix portal)
+      if (!hoveringTriggerRef.current && !hoveringContentRef.current) {
+        setOpen(false)
+      }
+    }, 150)
+  }
+
+  const handleTriggerEnter = () => {
+    hoveringTriggerRef.current = true
+    cancelClose()
+    if (!open) setOpen(true)
+  }
+
+  const handleTriggerLeave = () => {
+    hoveringTriggerRef.current = false
+    scheduleClose()
+  }
+
+  const handleContentEnter = () => {
+    hoveringContentRef.current = true
+    cancelClose()
+  }
+
+  const handleContentLeave = () => {
+    hoveringContentRef.current = false
+    scheduleClose()
   }
 
   React.useEffect(() => {
@@ -58,12 +84,19 @@ function NavGroupDropdown({
   }, [])
 
   return (
-    <div
-      className="flex items-center"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
-      <DropdownMenu open={open} onOpenChange={setOpen}>
+    <div className="flex items-center">
+      <DropdownMenu
+        open={open}
+        modal={false}
+        onOpenChange={(next) => {
+          // Fully controlled: only allow manual close via click on item (onSelect)
+          // Hover close is handled by scheduleClose()
+          if (next === false && (hoveringTriggerRef.current || hoveringContentRef.current)) {
+            return
+          }
+          setOpen(next)
+        }}
+      >
         <DropdownMenuTrigger asChild>
           <button
             type="button"
@@ -72,6 +105,8 @@ function NavGroupDropdown({
               groupActive ? "text-primary" : "text-muted-foreground"
             )}
             aria-current={groupActive ? "page" : undefined}
+            onPointerEnter={handleTriggerEnter}
+            onPointerLeave={handleTriggerLeave}
           >
             <GroupIcon className="h-4 w-4" />
             <span>{group.label}</span>
@@ -79,8 +114,9 @@ function NavGroupDropdown({
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="start"
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
+          sideOffset={2}
+          onPointerEnter={handleContentEnter}
+          onPointerLeave={handleContentLeave}
         >
           {group.items.map((item) => {
             const ItemIcon = item.icon

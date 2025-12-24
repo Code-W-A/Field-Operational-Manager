@@ -1,8 +1,6 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { LucrareForm, type LucrareFormRef } from "@/components/lucrare-form"
 import { getLucrareById, updateLucrare } from "@/lib/firebase/firestore"
@@ -28,9 +26,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-export default function EditLucrarePage({ params }: { params: { id: string } }) {
+export default function EditLucrarePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
-  const { id } = params
+  const { id } = React.use(params)
   const { userData } = useAuth()
   const { toast } = useToast()
   const formRef = useRef<LucrareFormRef>(null)

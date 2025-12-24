@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
@@ -33,10 +33,10 @@ const extractCUI = (client: any) => {
   return client?.cui || client?.cif || client?.CIF || client?.CUI || "N/A"
 }
 
-export default function ClientPage({ params }: { params: { id: string } }) {
+export default function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
   const { userData } = useAuth()
-  const { id } = params
+  const { id } = React.use(params)
   const [client, setClient] = useState<Client | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

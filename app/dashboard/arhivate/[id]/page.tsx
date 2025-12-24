@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -51,12 +51,13 @@ import { DashboardShell } from "@/components/dashboard-shell"
 import { Skeleton } from "@/components/ui/skeleton"
 
 interface ArchivedWorkDetailPageProps {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
 export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPageProps) {
   const { userData, loading: authLoading } = useAuth()
   const router = useRouter()
+  const { id: paramsId } = React.use(params)
   const [lucrare, setLucrare] = useState<Lucrare | null>(null)
   const [client, setClient] = useState<Client | null>(null)
   const [loading, setLoading] = useState(true)
@@ -68,9 +69,9 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
   // Redirectăm către pagina detaliu principală, reutilizând UI-ul standard cu un flag pentru back
   useEffect(() => {
     if (hasAccess) {
-      router.replace(`/dashboard/lucrari/${params.id}?from=arhivate`)
+      router.replace(`/dashboard/lucrari/${paramsId}?from=arhivate`)
     }
-  }, [hasAccess, params.id, router])
+  }, [hasAccess, paramsId, router])
 
   // Afișăm spinner până se stabilește accesul și în timpul redirect-ului
   if (authLoading || hasAccess) {
@@ -137,7 +138,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
 
     const fetchData = async () => {
       try {
-        const lucrareData = await getLucrareById(params.id)
+        const lucrareData = await getLucrareById(paramsId)
         if (lucrareData) {
           // Verificăm că lucrarea este efectiv arhivată
           if (lucrareData.statusLucrare !== WORK_STATUS.ARCHIVED) {
@@ -178,7 +179,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
     }
 
     fetchData()
-  }, [params.id, hasAccess, router])
+  }, [paramsId, hasAccess, router])
 
   // Funcție pentru dezarhivare
   const handleDezarhivare = async () => {
@@ -187,7 +188,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
     setIsUpdating(true)
     try {
       // Eliminăm statusul de arhivare și câmpurile asociate
-      await updateLucrare(params.id, { 
+      await updateLucrare(paramsId, { 
         statusLucrare: WORK_STATUS.COMPLETED,
         archivedAt: null as any, // Eliminăm data arhivării
         archivedBy: null as any  // Eliminăm utilizatorul care a arhivat
@@ -281,7 +282,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                   <TooltipTrigger asChild>
                     <Button
                       variant="outline"
-                      onClick={() => router.push(`/raport/${params.id}`)}
+                      onClick={() => router.push(`/raport/${paramsId}`)}
                     >
                       <Download className="h-4 w-4 mr-2" />
                       Descarcă Raport
@@ -1071,7 +1072,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
               </CardHeader>
               <CardContent>
                 <DocumentUpload 
-                  lucrareId={params.id}
+                  lucrareId={paramsId}
                   lucrare={lucrare}
                   onLucrareUpdate={setLucrare}
                 />
@@ -1130,7 +1131,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                   <Button 
                     variant="outline" 
                     className="w-full"
-                    onClick={() => router.push(`/raport/${params.id}`)}
+                    onClick={() => router.push(`/raport/${paramsId}`)}
                   >
                     <Download className="h-4 w-4 mr-2" />
                     Accesează Raportul

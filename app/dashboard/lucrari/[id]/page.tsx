@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { DashboardHeader } from "@/components/dashboard-header"
@@ -141,7 +141,7 @@ const calculateInterventionDuration = (lucrare: any): string => {
   return "N/A";
 }
 
-export default function LucrarePage({ params }: { params: { id: string } }) {
+export default function LucrarePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { userData } = useAuth()
@@ -150,7 +150,7 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
   const isAdminOrDispatcher = role === "admin" || role === "dispecer"
   const fromArhivate = searchParams.get('from') === 'arhivate'
   
-  const { id: paramsId } = params
+  const { id: paramsId } = React.use(params)
   
   // Detectăm parametrul modificationId din URL
   const modificationId = searchParams.get('modificationId')
@@ -1023,13 +1023,9 @@ export default function LucrarePage({ params }: { params: { id: string } }) {
     if (!lucrare?.raportGenerat || !lucrare?.id) return
     const url = `/raport/${lucrare.id}?autoDownload=true`
     try {
-      const anchor = document.createElement("a")
-      anchor.href = url
-      anchor.download = ""
-      anchor.rel = "noopener"
-      document.body.appendChild(anchor)
-      anchor.click()
-      document.body.removeChild(anchor)
+      // IMPORTANT: nu folosim atributul `download` pe un URL care servește HTML,
+      // altfel browserul va descărca pagina ca .html în loc să ruleze JS-ul care generează PDF-ul.
+      window.open(url, "_blank", "noopener")
     } catch {
       window.open(url, "_blank", "noopener")
     }
