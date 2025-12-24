@@ -13,6 +13,7 @@ import { ClampedText } from "@/components/history/clamped-text"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { formatUiDate } from "@/lib/utils/time-format"
+import { useAuth } from "@/contexts/AuthContext"
 
 type Row = {
   id: string
@@ -37,11 +38,94 @@ const extractNr = (value?: string | null) => {
   return Number.isFinite(n) ? n : Number.NEGATIVE_INFINITY
 }
 
+function TechnicianHistoryCard({ r }: { r: Row }) {
+  const data = r.dataInterventie ? formatUiDate(r.dataInterventie) : "-"
+  const ore = r.durataInterventie || "-"
+  const echipament = r.echipament || "-"
+  const locatie = r.locatie || "-"
+  const tehnicieni = (r.tehnicieni || []).length ? r.tehnicieni : ["-"]
+
+  return (
+    <Card className="border-gray-200">
+      <CardContent className="p-0">
+        <div className="border border-gray-300">
+          {/* Row 1: Nr. Lucrare + Data */}
+          <div className="grid grid-cols-2 border-b border-gray-300">
+            <div className="border-r border-gray-300 p-3">
+              <div className="font-semibold text-gray-900">Nr. Lucrare:</div>
+              <div className="mt-1 text-gray-900">{r.nrLucrare || "-"}</div>
+            </div>
+            <div className="p-3 text-right">
+              <div className="font-semibold text-gray-900">Data</div>
+              <div className="mt-1 text-gray-900">{data}</div>
+            </div>
+          </div>
+
+          {/* Row 2: Locatie + Echipament */}
+          <div className="grid grid-cols-2 border-b border-gray-300">
+            <div className="border-r border-gray-300 p-3">
+              <div className="font-semibold text-gray-900">Locatie:</div>
+              <div className="mt-1 text-gray-900">{locatie}</div>
+            </div>
+            <div className="p-3 text-right">
+              <div className="font-semibold text-gray-900">Echipament:</div>
+              <div className="mt-1 text-gray-900 text-left sm:text-right">{echipament}</div>
+            </div>
+          </div>
+
+          {/* Defect */}
+          <div className="border-b border-gray-300 p-3">
+            <div className="font-semibold text-gray-900">Defect reclamat:</div>
+            <div className="mt-1 text-gray-900 whitespace-pre-wrap">{r.defectReclamat || "-"}</div>
+          </div>
+
+          {/* Constatare */}
+          <div className="border-b border-gray-300 p-3">
+            <div className="font-semibold text-gray-900">Constatare la locatie:</div>
+            <div className="mt-1 text-gray-900 whitespace-pre-wrap">{r.constatareLaLocatie || "-"}</div>
+          </div>
+
+          {/* Interventie */}
+          <div className="border-b border-gray-300 p-3">
+            <div className="font-semibold text-gray-900">Interventie:</div>
+            <div className="mt-1 text-gray-900 whitespace-pre-wrap">{r.descriereInterventie || "-"}</div>
+          </div>
+
+          {/* Tehnician + Ore */}
+          <div className="grid grid-cols-2 border-b border-gray-300">
+            <div className="border-r border-gray-300 p-3">
+              <div className="font-semibold text-gray-900">Tehnician:</div>
+              <div className="mt-1 space-y-0.5 text-gray-900">
+                {tehnicieni.map((t, idx) => (
+                  <div key={`${t}-${idx}`}>{t}</div>
+                ))}
+              </div>
+            </div>
+            <div className="p-3 text-right">
+              <div className="font-semibold text-gray-900">Ore lucrate:</div>
+              <div className="mt-1 text-gray-900">{ore}</div>
+            </div>
+          </div>
+
+          {/* Link */}
+          <div className="p-3 text-center">
+            <Link href={`/dashboard/lucrari/${r.id}`} className="text-blue-700 underline font-medium">
+              Vezi lucrarea
+            </Link>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 export default function IstoricEchipamentPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const codRaw = (searchParams.get("cod") || "").trim()
   const cod = codRaw.toUpperCase()
+  const { userData } = useAuth()
+  const isTechnician = userData?.role === "tehnician"
 
   // Folosim query simplu (raportGenerat=true) și filtrăm în memorie după cod,
   // pentru a evita probleme de index Firestore la combinații.
@@ -131,54 +215,58 @@ export default function IstoricEchipamentPage() {
       ) : (
         <div className="mt-3 grid grid-cols-1 gap-3">
           {rows.map((r) => (
-            <Card key={r.id} className="border-gray-200">
-              <CardHeader className="py-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <div className="font-semibold text-gray-900">{r.nrLucrare || "-"}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {r.dataInterventie ? formatUiDate(r.dataInterventie) : "-"}
+            isTechnician ? (
+              <TechnicianHistoryCard key={r.id} r={r} />
+            ) : (
+              <Card key={r.id} className="border-gray-200">
+                <CardHeader className="py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="font-semibold text-gray-900">{r.nrLucrare || "-"}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {r.dataInterventie ? formatUiDate(r.dataInterventie) : "-"}
+                        </div>
+                        <div className="text-xs text-muted-foreground">{r.durataInterventie || "-"}</div>
                       </div>
-                      <div className="text-xs text-muted-foreground">{r.durataInterventie || "-"}</div>
+                      <div className="mt-1 space-y-1">
+                        <div className="text-sm text-gray-900">
+                          <span className="font-medium">Client:</span> {r.client || "-"}
+                        </div>
+                        <div className="text-sm text-gray-900">
+                          <span className="font-medium">Locație:</span> {r.locatie || "-"}
+                        </div>
+                        <div className="text-sm text-gray-900">
+                          <span className="font-medium">Echipament:</span> {r.echipament || "-"}
+                        </div>
+                        <div className="text-sm text-gray-900">
+                          <span className="font-medium">Tehnicieni:</span> {(r.tehnicieni || []).join(", ") || "-"}
+                        </div>
+                      </div>
                     </div>
-                    <div className="mt-1 space-y-1">
-                      <div className="text-sm text-gray-900">
-                        <span className="font-medium">Client:</span> {r.client || "-"}
-                      </div>
-                      <div className="text-sm text-gray-900">
-                        <span className="font-medium">Locație:</span> {r.locatie || "-"}
-                      </div>
-                      <div className="text-sm text-gray-900">
-                        <span className="font-medium">Echipament:</span> {r.echipament || "-"}
-                      </div>
-                      <div className="text-sm text-gray-900">
-                        <span className="font-medium">Tehnicieni:</span> {(r.tehnicieni || []).join(", ") || "-"}
-                      </div>
+                    <Button asChild size="sm" variant="outline" className="shrink-0">
+                      <Link href={`/dashboard/lucrari/${r.id}`}>Vezi lucrarea</Link>
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0 pb-3">
+                  <div className="grid grid-cols-1 gap-3">
+                    <div>
+                      <div className="text-xs font-medium text-muted-foreground mb-1">Defect reclamat</div>
+                      <ClampedText text={r.defectReclamat} />
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium text-muted-foreground mb-1">Constatare la locație</div>
+                      <ClampedText text={r.constatareLaLocatie} />
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium text-muted-foreground mb-1">Intervenție</div>
+                      <ClampedText text={r.descriereInterventie} />
                     </div>
                   </div>
-                  <Button asChild size="sm" variant="outline" className="shrink-0">
-                    <Link href={`/dashboard/lucrari/${r.id}`}>Vezi lucrarea</Link>
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0 pb-3">
-                <div className="grid grid-cols-1 gap-3">
-                  <div>
-                    <div className="text-xs font-medium text-muted-foreground mb-1">Defect reclamat</div>
-                    <ClampedText text={r.defectReclamat} />
-                  </div>
-                  <div>
-                    <div className="text-xs font-medium text-muted-foreground mb-1">Constatare la locație</div>
-                    <ClampedText text={r.constatareLaLocatie} />
-                  </div>
-                  <div>
-                    <div className="text-xs font-medium text-muted-foreground mb-1">Intervenție</div>
-                    <ClampedText text={r.descriereInterventie} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )
           ))}
 
           {!loading && rows.length === 0 ? (

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { where } from "firebase/firestore"
 import html2canvas from "html2canvas"
 import { jsPDF } from "jspdf"
@@ -26,11 +27,14 @@ import { Eye, Search, X } from "lucide-react"
 import { ensurePdfFont } from "@/lib/pdf/font-loader"
 import { drawFooter, drawSimpleHeader } from "@/lib/pdf/common"
 import { Input } from "@/components/ui/input"
+import { EquipmentHistoryCheckDialog } from "@/components/equipment-history-check-dialog"
 
 type HistoryRow = {
   id: string
   nrLucrare: string
-  dataInterventie: string
+  // For export + UI, we keep the raw date-like value (Firestore Timestamp/string/Date)
+  // Data execuției = timpSosire (scanare QR / sosire la intervenție)
+  dataInterventie: any
   locatie: string
   echipamentNume: string
   client?: string
@@ -79,9 +83,11 @@ function escapeCsvCell(v: unknown) {
 
 export default function IstoricInterventiiPage() {
   const { userData } = useAuth()
+  const router = useRouter()
   const role = userData?.role
   const isAdminOrDispatcher = role === "admin" || role === "dispecer"
   const isClient = role === "client"
+  const isTechnician = role === "tehnician"
   const { data: works, loading } = useFirebaseCollection<Lucrare>("lucrari", [where("raportGenerat", "==", true)])
 
   const [table, setTable] = useState<any>(null)
@@ -142,7 +148,8 @@ export default function IstoricInterventiiPage() {
       return {
         id: String(w.id),
         nrLucrare,
-        dataInterventie: String(w.dataInterventie || "").trim(),
+        // Data execuției = data sosirii / scanării QR
+        dataInterventie: w?.timpSosire ?? null,
         locatie,
         echipamentNume,
         client: String(w.client || "").trim(),
@@ -202,6 +209,9 @@ export default function IstoricInterventiiPage() {
 
   const accessFilteredRows = useMemo(() => {
     let out = rows
+
+    // Tehnician: pagina listă trebuie să fie goală; tehnicianul verifică istoricul doar prin scanare QR.
+    if (role === "tehnician") return []
 
     // Client: restricționăm strict după clientul/locațiile arondate în userData.clientAccess (default-deny).
     if (role === "client") {
@@ -518,7 +528,7 @@ export default function IstoricInterventiiPage() {
             className="h-8 w-8"
             onClick={(e) => e.stopPropagation()}
           >
-            <Link href={`/dashboard/lucrari/${row.original.id}`} title="Vezi lucrarea">
+            <Link href={`/dashboard/lucrari/${row.original.id}`} title="Vezi tichetul">
               <Eye className="h-4 w-4" />
             </Link>
           </Button>
@@ -567,17 +577,18 @@ export default function IstoricInterventiiPage() {
       "Constatare la locație",
       "Intervenție",
       "Ore lucrate",
-      "Lucrare (link)",
+      "Tichet (link)",
     ]
 
     const lines = [header.map(escapeCsvCell).join(",")]
     for (const r of visibleRows) {
       const link = `/dashboard/lucrari/${r.id}`
       const echipamentCombined = [r.echipamentNume, r.echipamentCod].filter(Boolean).join("\n").trim()
+      const dExec = toDateSafe(r.dataInterventie)
       lines.push(
         [
           r.nrLucrare,
-          r.dataInterventie ? formatUiDate(r.dataInterventie) : "",
+          dExec ? formatUiDate(dExec) : "",
           r.locatie,
           echipamentCombined,
           (r.tehnicieni || []).join(", "),
@@ -705,7 +716,10 @@ export default function IstoricInterventiiPage() {
     visibleRows.forEach((row, idx) => {
       const cells: string[] = [
         row.nrLucrare || "-",
-        row.dataInterventie ? formatUiDate(row.dataInterventie) : "-",
+        (() => {
+          const d = toDateSafe(row.dataInterventie)
+          return d ? formatUiDate(d) : "-"
+        })(),
         row.locatie || "-",
         [row.echipamentNume, row.echipamentCod].filter(Boolean).join("\n") || "-",
         (row.tehnicieni || []).join("\n") || "-",
@@ -752,29 +766,42 @@ export default function IstoricInterventiiPage() {
   return (
     <DashboardShell>
       <div className="space-y-6 pb-8">
-        <DashboardHeader heading="Istoric intervenții" text="Intervențiile (lucrări cu raport generat). Textul lung este trunchiat la 4 rânduri — vezi detalii în lucrare." />
+        <DashboardHeader
+          heading="Istoric intervenții"
+          text="Intervențiile (tichete cu raport generat). Textul lung este trunchiat la 4 rânduri — vezi detalii în tichet."
+        />
 
         <div className="flex items-center justify-between gap-4 flex-wrap px-1">
-          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)} className="w-auto">
-            <TabsList>
-              <TabsTrigger value="table">Tabel</TabsTrigger>
-              <TabsTrigger value="cards">Carduri</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          {!isTechnician ? (
+            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)} className="w-auto">
+              <TabsList>
+                <TabsTrigger value="table">Tabel</TabsTrigger>
+                <TabsTrigger value="cards">Carduri</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          ) : (
+            <div />
+          )}
 
           <div className="flex items-center gap-2">
+            {isTechnician || isClient ? <EquipmentHistoryCheckDialog triggerVariant="outline" /> : null}
+
             {isAdminOrDispatcher || isClient ? (
               <FilterButton
                 onClick={() => setIsFilterModalOpen(true)}
                 activeFilters={activeFilters.length}
               />
             ) : null}
-            <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={!table}>
-              Export CSV
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleExportPdf} disabled={!rows.length}>
-              Export PDF
-            </Button>
+            {!isTechnician ? (
+              <>
+                <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={!table}>
+                  Export CSV
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleExportPdf} disabled={!rows.length}>
+                  Export PDF
+                </Button>
+              </>
+            ) : null}
           </div>
         </div>
 
@@ -788,7 +815,13 @@ export default function IstoricInterventiiPage() {
           onResetFilters={handleResetFilters}
         />
 
-        {viewMode === "table" ? (
+        {isTechnician ? (
+          <Card className="border-gray-200">
+            <CardContent className="p-4 text-sm text-muted-foreground">
+              Pentru tehnician, lista completă de intervenții este indisponibilă. Folosește butonul <span className="font-medium text-foreground">„Verifică istoric”</span> pentru a scana QR-ul echipamentului și a deschide istoricul.
+            </CardContent>
+          </Card>
+        ) : viewMode === "table" ? (
           <div className="space-y-4" ref={exportRef}>
           {table ? <DataTableFilters table={table} showAdvancedFilters={false} globalPlaceholder="Caută în intervenții..." /> : null}
           <DataTable
@@ -869,7 +902,7 @@ export default function IstoricInterventiiPage() {
                     </div>
                   </div>
                   <Button asChild size="sm" variant="outline" className="shrink-0">
-                    <Link href={`/dashboard/lucrari/${r.id}`}>Vezi lucrarea</Link>
+                    <Link href={`/dashboard/lucrari/${r.id}`}>Vezi tichetul</Link>
                   </Button>
                 </div>
               </CardHeader>

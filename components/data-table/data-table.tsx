@@ -284,6 +284,33 @@ export function DataTable<TData, TValue>({
     setGlobalFilter(value)
   }
 
+  const pageItems = (() => {
+    if (!enablePagination) return []
+    const totalPages = table.getPageCount()
+    const current = pagination.pageIndex + 1
+    if (totalPages <= 1) return [1]
+
+    const siblingCount = 2
+    const items: Array<number | "..."> = []
+
+    if (totalPages <= 7 + siblingCount * 2) {
+      for (let i = 1; i <= totalPages; i++) items.push(i)
+      return items
+    }
+
+    items.push(1)
+
+    const left = Math.max(2, current - siblingCount)
+    const right = Math.min(totalPages - 1, current + siblingCount)
+
+    if (left > 2) items.push("...")
+    for (let i = left; i <= right; i++) items.push(i)
+    if (right < totalPages - 1) items.push("...")
+
+    items.push(totalPages)
+    return items
+  })()
+
   return (
     <div className="space-y-4 w-full">
       <div className="rounded-md border overflow-x-auto">
@@ -390,6 +417,32 @@ export function DataTable<TData, TValue>({
                 </option>
               ))}
             </select>
+
+            <div className="flex items-center gap-1">
+              {pageItems.map((it, idx) => {
+                if (it === "...") {
+                  return (
+                    <span key={`dots-${idx}`} className="px-2 text-sm text-muted-foreground select-none">
+                      ...
+                    </span>
+                  )
+                }
+                const pageNum = it
+                const isActive = pageNum === pagination.pageIndex + 1
+                return (
+                  <Button
+                    key={`p-${pageNum}`}
+                    variant={isActive ? "default" : "outline"}
+                    size="sm"
+                    className={isActive ? "h-9 min-w-9 px-2" : "h-9 min-w-9 px-2"}
+                    onClick={() => table.setPageIndex(pageNum - 1)}
+                    disabled={pageNum < 1 || pageNum > table.getPageCount()}
+                  >
+                    {pageNum}
+                  </Button>
+                )
+              })}
+            </div>
 
             <Button
               variant="outline"

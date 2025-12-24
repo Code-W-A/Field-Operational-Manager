@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { ensurePredefinedSettings, getPredefinedSettingValue } from "@/lib/firebase/predefined-settings"
 
 export type DashboardStatusConfig = {
+  programatorReviziiEnabled: boolean
   intarziateEnabled: boolean
   intarziateRequireExecDate: boolean
   intarziateIncludePastDays: boolean
@@ -42,6 +43,7 @@ export type DashboardStatusConfig = {
 }
 
 const DEFAULTS: DashboardStatusConfig = {
+  programatorReviziiEnabled: true,
   intarziateEnabled: true,
   intarziateRequireExecDate: true,
   intarziateIncludePastDays: true,
@@ -93,6 +95,7 @@ export function useDashboardStatusSettings() {
         await ensurePredefinedSettings()
 
         const [
+          programatorReviziiEnabled,
           intarziateEnabled,
           intarziateRequireExecDate,
           intarziateIncludePastDays,
@@ -131,6 +134,7 @@ export function useDashboardStatusSettings() {
           equipmentStatusIncludeNonFunctional,
           equipmentStatusIncludePartiallyFunctional,
         ] = await Promise.all([
+          getPredefinedSettingValue("dashboard_programator_revizii_enabled"),
           getPredefinedSettingValue("dashboard_intarziate_enabled"),
           getPredefinedSettingValue("dashboard_intarziate_require_exec_date"),
           getPredefinedSettingValue("dashboard_intarziate_include_past_days"),
@@ -173,6 +177,7 @@ export function useDashboardStatusSettings() {
         if (cancelled) return
 
         setConfig({
+          programatorReviziiEnabled: Boolean(programatorReviziiEnabled),
           intarziateEnabled: Boolean(intarziateEnabled),
           intarziateRequireExecDate: Boolean(intarziateRequireExecDate),
           intarziateIncludePastDays: Boolean(intarziateIncludePastDays),

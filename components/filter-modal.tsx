@@ -95,10 +95,30 @@ export function FilterModal({
     })
   }
 
+  const applyHierarchicalClears = (draft: FilterOption[], changedId: string, nextValue: any) => {
+    // Istoric intervenții (and similar screens): if "client" is cleared, dependent filters must be cleared too.
+    // This avoids stale selections (locație/echipament) continuing to filter after client deselection.
+    if (changedId === "client") {
+      const hasClient =
+        Array.isArray(nextValue) ? nextValue.map((x) => String(x || "").trim()).filter(Boolean).length > 0 : !!nextValue
+
+      if (!hasClient) {
+        return draft.map((f) => {
+          if (f.id === "locatie" && Array.isArray(f.value) && f.value.length > 0) return { ...f, value: [] }
+          if (f.id === "echipament" && Array.isArray(f.value) && f.value.length > 0) return { ...f, value: [] }
+          return f
+        })
+      }
+    }
+
+    return draft
+  }
+
   const handleFilterChange = (id: string, value: any) => {
     setFilters((prev) => {
       const updated = prev.map((filter) => (filter.id === id ? { ...filter, value } : filter))
-      return sanitizeDependentSelections(updated)
+      const withClears = applyHierarchicalClears(updated, id, value)
+      return sanitizeDependentSelections(withClears)
     })
   }
 

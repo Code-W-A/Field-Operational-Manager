@@ -151,7 +151,8 @@ export function buildNav(ctx: NavCtx): NavNode[] {
       href: "/dashboard/istoric-interventii",
       icon: History,
       activeMatch: "prefix",
-      visible: () => !isTechnician,
+      // Tehnicianul vede pagina doar cu "Verifică istoric" (QR), fără lista completă.
+      visible: () => true,
     },
     {
       type: "group",

@@ -307,6 +307,19 @@ export default function Dashboard() {
     />
   )
 
+  const programatorReviziiBubble = (color: string) => (it: any) => (
+    <WorkBubbleStatus
+      key={it.id}
+      title={it.locatie}
+      subtitle={it.equipmentLabel}
+      colorClass={color}
+      onClick={() => {
+        if (it.contractId) router.push(`/dashboard/contracte/${it.contractId}`)
+      }}
+      className="mb-2"
+    />
+  )
+
   const assignedBubble = (color: string) => (it: any) => (
     <WorkBubbleAssigned
       key={it.id}
@@ -361,8 +374,8 @@ export default function Dashboard() {
         <DashboardHeader heading="Status Lucrări" text="Vizualizare rapidă a stării lucrărilor active" />
         
         {/* Skeleton pentru status boxes */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9 gap-3">
-          {Array.from({ length: 9 }).map((_, i) => (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 gap-3">
+          {Array.from({ length: 10 }).map((_, i) => (
             <Card key={i} className="overflow-hidden">
               <CardHeader className="py-3">
                 <Skeleton className="h-5 w-24" />
@@ -655,6 +668,16 @@ export default function Dashboard() {
               onClick={() => setMobileDialogOpen("equipmentStatus")}
             />
           )}
+
+          {/* Programator revizii (ultimul) */}
+          {dashboardConfig.programatorReviziiEnabled && (
+            <MobileStatCard
+              title="Programator revizii"
+              count={buckets.programatorRevizii.length}
+              countClassName="text-emerald-700"
+              onClick={() => setMobileDialogOpen("programatorRevizii")}
+            />
+          )}
         </div>
 
         {/* Separator between status cards and personal board (mobile only) */}
@@ -799,6 +822,19 @@ export default function Dashboard() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={mobileDialogOpen === 'programatorRevizii'} onOpenChange={(open) => !open && setMobileDialogOpen(null)}>
+        <DialogContent className="max-w-md max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Programator revizii ({buckets.programatorRevizii.length})</DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="max-h-[60vh]">
+            <div className="space-y-2 pr-4">
+              {buckets.programatorRevizii.map(programatorReviziiBubble("bg-emerald-700"))}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={mobileDialogOpen === 'dispatcher'} onOpenChange={(open) => !open && setMobileDialogOpen(null)}>
         <DialogContent className="max-w-md max-h-[80vh]">
           <DialogHeader>
@@ -831,7 +867,7 @@ export default function Dashboard() {
       <div className="hidden md:flex flex-col h-full min-h-0 gap-4">
         {/* Prima secțiune: Statusuri (50% din înălțime) */}
         <div className="flex-1 min-h-0 overflow-hidden">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9 gap-3 h-full min-w-0">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 gap-3 h-full min-w-0">
             <StatusBox title="Întârziate" count={buckets.intarziate.length} disabled={!dashboardConfig.intarziateEnabled}>
               {buckets.intarziate.map(statusBubble("bg-red-600"))}
             </StatusBox>
@@ -858,6 +894,9 @@ export default function Dashboard() {
             </StatusBox>
             <StatusBox title="Stare echipament" count={buckets.equipmentStatus.length} disabled={!dashboardConfig.equipmentStatusEnabled}>
               {buckets.equipmentStatus.map(equipmentStatusBubble())}
+            </StatusBox>
+            <StatusBox title="Programator revizii" count={buckets.programatorRevizii.length} disabled={!dashboardConfig.programatorReviziiEnabled}>
+              {buckets.programatorRevizii.map(programatorReviziiBubble("bg-emerald-700"))}
             </StatusBox>
           </div>
         </div>

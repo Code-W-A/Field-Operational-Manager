@@ -27,6 +27,13 @@ export const PREDEFINED_SETTINGS: PredefinedSetting[] = [
   },
   // Dashboard: toggle-uri pentru boxurile de status și sub-condițiile lor
   {
+    id: "dashboard_programator_revizii_enabled",
+    name: "Dashboard: Programator revizii (activ)",
+    description: "Dacă este dezactivat, boxul Programator revizii rămâne vizibil dar nu va afișa revizii.",
+    defaultValue: true,
+    valueType: "boolean",
+  },
+  {
     id: "dashboard_intarziate_enabled",
     name: "Dashboard: Întârziate (activ)",
     description: "Dacă este dezactivat, boxul Întârziate rămâne vizibil dar nu va afișa lucrări.",

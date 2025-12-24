@@ -16,12 +16,14 @@ export interface DashboardBubbleItem {
   nrLucrare?: string
   offerStatus?: "accept" | "reject"
   equipmentStatus?: string
+  contractId?: string
   // Câmpuri pentru sortare specifică
   sortDate?: Date
   createdAt?: Date
 }
 
 export interface DashboardBuckets {
+  programatorRevizii: DashboardBubbleItem[]
   intarziate: DashboardBubbleItem[]
   amanate: DashboardBubbleItem[]
   listate: DashboardBubbleItem[]
@@ -42,6 +44,19 @@ function getTodayStart(): Date {
   const d = new Date()
   d.setHours(0, 0, 0, 0)
   return d
+}
+
+function addDays(date: Date, days: number): Date {
+  const d = new Date(date)
+  d.setDate(d.getDate() + days)
+  return d
+}
+
+function formatDateRO(d: Date): string {
+  const dd = String(d.getDate()).padStart(2, "0")
+  const mm = String(d.getMonth() + 1).padStart(2, "0")
+  const yyyy = String(d.getFullYear())
+  return `${dd}.${mm}.${yyyy}`
 }
 
 function getTodayAt(hour: number, minute = 0): Date {
@@ -87,6 +102,22 @@ function buildBubble(l: any, offerStatus?: "accept" | "reject", sortDate?: Date,
     sortDate: sortDate,
     offerStatus: offerStatus,
     equipmentStatus: equipmentStatus,
+  }
+}
+
+function buildRevisionScheduleBubble(params: {
+  id: string
+  contractId: string
+  locatie: string
+  equipmentLabel: string
+  sortDate: Date
+}): DashboardBubbleItem {
+  return {
+    id: params.id,
+    contractId: params.contractId,
+    locatie: params.locatie,
+    equipmentLabel: params.equipmentLabel,
+    sortDate: params.sortDate,
   }
 }
 
@@ -147,6 +178,9 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
     limit(500),
   ])
 
+  // Contracts (for revision schedule preview / programator revizii)
+  const { data: contracts, loading: loadingContracts } = useFirebaseCollection<any>("contracts", [limit(500)])
+
   // Work assignment modifications today (for Intarziate cutoff at 18:00)
   const startOfToday = getTodayStart()
   const { data: modificariAtribuire, loading: loadingModificari } = useFirebaseCollection<any>("work_modifications", [
@@ -185,6 +219,7 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
   const buckets: DashboardBuckets = useMemo(() => {
     const cfg = config || DEFAULT_DASHBOARD_STATUS_CONFIG
     const res: DashboardBuckets = {
+      programatorRevizii: [],
       intarziate: [],
       amanate: [],
       listate: [],
@@ -194,6 +229,56 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
       ofertate: [],
       statusOferte: [],
       equipmentStatus: [],
+    }
+
+    // Programator revizii: din contracts.revisionSchedulePreview, cu generateAt în următoarele 10 zile (azi..azi+10)
+    if (cfg.programatorReviziiEnabled && Array.isArray(contracts) && contracts.length > 0) {
+      const windowStart = startOfToday
+      const windowEnd = addDays(startOfToday, 10)
+      const maxTotal = 120
+      const maxPerContract = 10
+
+      for (const c of contracts) {
+        if (res.programatorRevizii.length >= maxTotal) break
+        const contractId = String((c as any)?.id || (c as any)?.docId || "")
+        const contractNumber = String((c as any)?.number || (c as any)?.numar || "").trim()
+        const contractName = String((c as any)?.name || "").trim()
+        const preview = (c as any)?.revisionSchedulePreview
+        if (!contractId || !Array.isArray(preview) || preview.length === 0) continue
+
+        let added = 0
+        for (const raw of preview) {
+          if (res.programatorRevizii.length >= maxTotal) break
+          if (added >= maxPerContract) break
+          const scheduledIso = (raw as any)?.scheduledIso
+          const generateIso = (raw as any)?.generateIso
+          const locationName = String((raw as any)?.locationName || (raw as any)?.location || "-")
+          const scheduledAt = scheduledIso ? new Date(String(scheduledIso)) : null
+          const generateAt = generateIso ? new Date(String(generateIso)) : null
+          if (!generateAt || Number.isNaN(generateAt.getTime())) continue
+          if (generateAt < windowStart || generateAt > windowEnd) continue
+
+          const scheduledOk = scheduledAt && !Number.isNaN(scheduledAt.getTime()) ? scheduledAt : null
+
+          const genLabel = formatDateRO(generateAt)
+          const schedLabel = scheduledOk ? formatDateRO(scheduledOk) : "-"
+          const contractLabel = contractNumber ? contractNumber : contractName ? contractName : contractId
+          const subtitle = `Gen: ${genLabel} • Rev: ${schedLabel} (${contractLabel})`
+          const id = `${contractId}:${String(generateIso || scheduledIso || "")}:${locationName}`
+          res.programatorRevizii.push(
+            buildRevisionScheduleBubble({
+              id,
+              contractId,
+              locatie: locationName,
+              equipmentLabel: subtitle,
+              sortDate: generateAt,
+            })
+          )
+          added += 1
+        }
+      }
+
+      res.programatorRevizii = sortByDate(res.programatorRevizii)
     }
 
     if (!Array.isArray(activeLucrari) || activeLucrari.length === 0) return res
@@ -345,7 +430,7 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
     res.equipmentStatus = sortByDate(res.equipmentStatus)
 
     return res
-  }, [activeLucrari, modificariAtribuire, modificariStatus, startOfToday, config])
+  }, [activeLucrari, contracts, modificariAtribuire, modificariStatus, startOfToday, config])
 
   const personal: PersonalBoard = useMemo(() => {
     const active = activeLucrari || []
@@ -411,7 +496,7 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
     }
   }, [activeLucrari, users, modificariAtribuire])
 
-  const loading = loadingLucrari || loadingModificari || loadingStatusModificari || loadingUsers
+  const loading = loadingLucrari || loadingContracts || loadingModificari || loadingStatusModificari || loadingUsers
 
   return { buckets, personal, loading }
 }

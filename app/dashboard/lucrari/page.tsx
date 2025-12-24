@@ -1,6 +1,5 @@
 "use client"
 
-import { DialogTrigger } from "@/components/ui/dialog"
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -11,6 +10,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { DashboardHeader } from "@/components/dashboard-header"
@@ -18,7 +18,6 @@ import { DashboardShell } from "@/components/dashboard-shell"
 import { format, parse, isAfter, isBefore, addMonths, addDays } from "date-fns"
 import { ro } from "date-fns/locale"
 import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check, Info, RefreshCw, Archive, History } from "lucide-react"
-import { Scanner } from "@yudiel/react-qr-scanner"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { addLucrare, deleteLucrare, updateLucrare, getLucrareById, type Lucrare } from "@/lib/firebase/firestore"
@@ -43,6 +42,7 @@ import { sendWorkOrderNotifications } from "@/components/work-order-notification
 import { getNextReportNumber } from "@/lib/firebase/firestore"
 import { LucrariNotificationsBell } from "@/components/lucrari-notifications-bell"
 import { ReinterventionReasonDialog } from "@/components/reintervention-reason-dialog"
+import { EquipmentHistoryCheckDialog } from "@/components/equipment-history-check-dialog"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -112,10 +112,6 @@ export default function Lucrari() {
   const reinterventionId = searchParams.get("reintervention")
   const { userData } = useAuth()
   const isTechnician = userData?.role === "tehnician"
-  const [isHistoryCheckOpen, setIsHistoryCheckOpen] = useState(false)
-  const [historyCode, setHistoryCode] = useState("")
-  const [historyFailedScanAttempts, setHistoryFailedScanAttempts] = useState(0)
-  const [showHistoryManualInput, setShowHistoryManualInput] = useState(false)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editLucrareId, setEditLucrareId] = useState<string | null>(null)
@@ -177,40 +173,6 @@ export default function Lucrari() {
   // State pentru sorting (folosit intern de DataTable prin defaultSort). Nu mai controlăm sorting-ul din exterior
   // pentru a permite sortarea liberă pe toate coloanele.
   const [tableSorting] = useState([{ id: "nrLucrareDisplay", desc: true }])
-
-  const isValidEquipmentCode = (code: string) => {
-    const c = (code || "").trim()
-    if (!c) return false
-    if (c.length > 10) return false
-    if (!(/[a-zA-Z]/.test(c) && /[0-9]/.test(c))) return false
-    return true
-  }
-
-  // Tehnician: după 3 încercări eșuate de scanare, afișăm introducerea manuală (similar cu `components/qr-code-scanner.tsx`)
-  useEffect(() => {
-    if (!isHistoryCheckOpen) {
-      setHistoryFailedScanAttempts(0)
-      setShowHistoryManualInput(false)
-      return
-    }
-
-    // Dacă e activă introducerea manuală, nu mai numărăm încercări eșuate
-    if (showHistoryManualInput) return
-
-    // Dacă avem deja un cod (scanat), nu mai numărăm încercări eșuate
-    if (historyCode.trim()) return
-
-    if (historyFailedScanAttempts >= 3) {
-      setShowHistoryManualInput(true)
-      return
-    }
-
-    const t = window.setTimeout(() => {
-      setHistoryFailedScanAttempts((prev) => prev + 1)
-    }, 5000)
-
-    return () => window.clearTimeout(t)
-  }, [isHistoryCheckOpen, historyCode, historyFailedScanAttempts, showHistoryManualInput])
 
   // Încărcăm setările salvate la inițializare
   useEffect(() => {
@@ -2292,118 +2254,12 @@ export default function Lucrari() {
           text="Gestionați toate lucrările și intervențiile"
           headerAction={!isTechnician ? <LucrariNotificationsBell lucrari={rawLucrari || []} /> : undefined}
         >
-        {isTechnician && (
-          <Dialog
-            open={isHistoryCheckOpen}
-            onOpenChange={(open) => {
-              setIsHistoryCheckOpen(open)
-              if (!open) {
-                setHistoryCode("")
-                setHistoryFailedScanAttempts(0)
-                setShowHistoryManualInput(false)
-              } else {
-                setHistoryFailedScanAttempts(0)
-                setShowHistoryManualInput(false)
-              }
-            }}
-          >
-            <DialogTrigger asChild>
-              <Button variant="outline">
-                <History className="mr-2 h-4 w-4" />
-                Verifică istoric
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="w-[calc(100%-2rem)] max-w-[680px] max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Verifică istoric echipament</DialogTitle>
-                <DialogDescription>
-                  Scanează QR-ul echipamentului. Dacă nu se detectează codul după 3 încercări, se activează introducerea manuală. Istoricul se caută după <span className="font-medium">echipamentCod</span>.
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="space-y-4">
-                <div className="rounded-md border p-3">
-                  <div className="text-sm font-medium mb-2">Scanare QR</div>
-                  <div className="relative w-full overflow-hidden rounded-md">
-                    <Scanner
-                      onScan={(detectedCodes: any[]) => {
-                        if (!detectedCodes?.length) return
-                        const raw = String(detectedCodes[0]?.rawValue || "").trim()
-                        if (!raw) return
-                        let code = raw
-                        try {
-                          const parsed = JSON.parse(raw)
-                          if (parsed?.code) code = String(parsed.code).trim()
-                        } catch {
-                          // raw string (simple format)
-                        }
-                        setHistoryCode(code)
-                        setHistoryFailedScanAttempts(0)
-                        setShowHistoryManualInput(false)
-                      }}
-                      onError={(e: any) => {
-                        console.error("Eroare scanare QR:", e)
-                        setHistoryFailedScanAttempts((prev) => {
-                          const next = Math.min(3, prev + 1)
-                          if (next >= 3) setShowHistoryManualInput(true)
-                          return next
-                        })
-                      }}
-                    />
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-2">
-                    Încercări eșuate: {Math.min(historyFailedScanAttempts, 3)}/3
-                  </div>
-                  {historyCode.trim() ? (
-                    <div className="text-xs mt-2">
-                      Cod detectat: <span className="font-medium">{historyCode.trim()}</span>
-                    </div>
-                  ) : null}
-                </div>
-
-                {showHistoryManualInput || historyFailedScanAttempts >= 3 ? (
-                  <div className="rounded-md border p-3">
-                    <div className="text-sm font-medium mb-2">Cod manual</div>
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <Input
-                        placeholder="Cod echipament (ex: R72A123)"
-                        value={historyCode}
-                        onChange={(e) => setHistoryCode(e.target.value)}
-                      />
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-2">
-                      Introdu codul manual și apasă „Deschide istoricul”.
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsHistoryCheckOpen(false)}>
-                  Închide
-                </Button>
-                <Button
-                  onClick={() => {
-                    const code = historyCode.trim()
-                    if (!isValidEquipmentCode(code)) {
-                      toast({
-                        title: "Cod invalid",
-                        description: "Codul trebuie să aibă maxim 10 caractere și să conțină litere și cifre.",
-                        variant: "destructive",
-                      })
-                      return
-                    }
-                    setIsHistoryCheckOpen(false)
-                    router.push(`/dashboard/istoric-interventii/echipament?cod=${encodeURIComponent(code)}`)
-                  }}
-                  disabled={!isValidEquipmentCode(historyCode)}
-                >
-                  Deschide istoricul
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        )}
+        {isTechnician ? (
+          <EquipmentHistoryCheckDialog
+            triggerVariant="outline"
+            triggerIcon={<History className="h-4 w-4" />}
+          />
+        ) : null}
         {!isTechnician && (
           <Dialog
             open={isAddDialogOpen}
