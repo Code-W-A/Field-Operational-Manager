@@ -265,7 +265,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
         <DashboardHeader
           heading={
             <span className="flex items-center gap-2">
-              Detalii Lucrare Arhivată
+              Detalii Tichet Arhivată
               {lucrare.nrLucrare && (
                 <Badge className="bg-purple-100 text-purple-800 border border-purple-200 hover:bg-purple-100 text-base font-semibold px-3 py-1 rounded-md">
                   {lucrare.nrLucrare}
@@ -316,7 +316,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
           <Alert className="border-orange-200 bg-orange-50">
             <Archive className="h-4 w-4 text-orange-600" />
             <AlertDescription className="text-orange-800">
-              <strong>Lucrare Arhivată:</strong> Această lucrare este arhivată și poate fi doar vizualizată. 
+              <strong>Tichet Arhivat:</strong> Acest tichet este arhivat și poate fi doar vizualizată. 
               Pentru a face modificări, dezarhivați-o mai întâi.
             </AlertDescription>
           </Alert>
@@ -327,7 +327,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
                   <FileText className="h-5 w-5" />
-                  Informații Generale Lucrare
+                  Informații Generale Tichet
                 </CardTitle>
                 <Badge className={getWorkStatusClass(lucrare.statusLucrare)}>
                   {lucrare.statusLucrare === "Finalizat" ? "Raport generat" : lucrare.statusLucrare}
@@ -363,7 +363,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
 
                 <div className="space-y-4">
                   <div>
-                    <label className="text-sm font-medium text-gray-500">Tip Lucrare</label>
+                    <label className="text-sm font-medium text-gray-500">Tip Tichet</label>
                     <p className="text-sm">{lucrare.tipLucrare}</p>
                   </div>
                   <div>
@@ -763,7 +763,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <label className="text-sm font-medium text-gray-500">Descriere Lucrare</label>
+                <label className="text-sm font-medium text-gray-500">Descriere Tichet</label>
                 <p className="text-sm mt-1 whitespace-pre-line border rounded p-3 bg-gray-50">
                   {lucrare.descriere || "Nu a fost specificată o descriere."}
                 </p>
@@ -1045,7 +1045,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
               <CardContent className="space-y-3">
                 {lucrare.lucrareOriginala && (
                   <div>
-                    <label className="text-sm font-medium text-gray-500">Lucrare Originală</label>
+                    <label className="text-sm font-medium text-gray-500">Tichet Original</label>
                     <p className="text-sm font-mono">{lucrare.lucrareOriginala}</p>
                   </div>
                 )}
@@ -1117,7 +1117,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                 </div>
                 {lucrare.nrLucrare && (
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-500">Număr Lucrare:</span>
+                    <span className="text-sm text-gray-500">Număr Tichet:</span>
                     <span className="text-sm font-mono">{lucrare.nrLucrare}</span>
                   </div>
                 )}

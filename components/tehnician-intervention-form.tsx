@@ -626,7 +626,7 @@ export function TehnicianInterventionForm({
             {formDisabled ? (
               <Alert variant="default">
                 <Info className="h-4 w-4" />
-                <AlertTitle>Lucrare finalizată</AlertTitle>
+                <AlertTitle>Tichet finalizată</AlertTitle>
                 <AlertDescription>
                   Această lucrare este finalizată și raportul a fost generat. Nu mai puteți face modificări.
                 </AlertDescription>

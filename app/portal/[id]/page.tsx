@@ -91,7 +91,7 @@ export default function PortalWorkDetail() {
           <div style="font-family:Arial,sans-serif;line-height:1.5">
             <h2 style="margin:0 0 12px;color:#0f56b3">Răspuns ofertă</h2>
             <p>Clientul a <strong>${accepted ? 'ACCEPTAT' : 'RESPINS'}</strong> oferta.</p>
-            <p><strong>Lucrare:</strong> ${id}</p>
+            <p><strong>Tichet:</strong> ${id}</p>
             <p><strong>Client:</strong> ${w?.client || '-'} • <strong>Locație:</strong> ${w?.locatie || '-'}</p>
             ${reason ? `<p><strong>Motiv:</strong> ${reason}</p>` : ''}
             <p><a href="${origin}/dashboard/lucrari/${id}" target="_blank">Deschide lucrarea</a></p>

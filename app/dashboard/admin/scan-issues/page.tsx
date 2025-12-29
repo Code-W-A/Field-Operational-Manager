@@ -91,7 +91,7 @@ export default function ScanIssuesAdminPage() {
               <Card key={it.id} className={it.status === "pending" ? "border-red-300" : ""}>
                 <CardHeader>
                   <CardTitle className="flex justify-between items-center">
-                    <span>Lucrare #{it.lucrareId}</span>
+                    <span>Tichet #{it.lucrareId}</span>
                     <Badge variant={it.status === "pending" ? "destructive" : "default"}>{it.status}</Badge>
                   </CardTitle>
                 </CardHeader>

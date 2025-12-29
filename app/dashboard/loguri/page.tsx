@@ -1186,7 +1186,7 @@ export default function Loguri() {
                           <span className="text-xs text-muted-foreground">{(ev as any)?.createdAt?.toDate ? (ev as any).createdAt.toDate().toLocaleString('ro-RO') : '-'}</span>
                         </div>
                         <div className="grid grid-cols-1 gap-1 text-sm">
-                          {ev.lucrareId && <div>Lucrare: <span className="font-mono">{ev.lucrareId}</span></div>}
+                          {ev.lucrareId && <div>Tichet: <span className="font-mono">{ev.lucrareId}</span></div>}
                           {Array.isArray(ev.to) && ev.to.length > 0 && <div>Către: <span className="truncate inline-block max-w-full align-top">{ev.to.join(', ')}</span></div>}
                           {ev.subject && <div>Subiect: <span className="truncate inline-block max-w-full align-top">{ev.subject}</span></div>}
                           <div>Status: <Badge variant="outline" className="ml-1">{ev.status}</Badge></div>

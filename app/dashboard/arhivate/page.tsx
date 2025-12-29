@@ -470,7 +470,7 @@ export default function LucrariArhivate() {
     },
     {
       accessorKey: "tipLucrare",
-      header: "Tip Lucrare",
+      header: "Tip Tichet",
       enableSorting: true,
       enableHiding: true,
       cell: ({ row }: { row: any }) => (

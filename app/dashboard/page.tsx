@@ -433,12 +433,12 @@ export default function Dashboard() {
             >
               <DialogTrigger asChild>
                 <Button className="bg-blue-600 hover:bg-blue-700">
-                  <Plus className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Adaugă</span> Lucrare
+                  <Plus className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Adaugă</span> Tichet
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>Adaugă Lucrare Nouă</DialogTitle>
+                  <DialogTitle>Adaugă Tichet Nou</DialogTitle>
                 </DialogHeader>
 
                 <LucrareForm
@@ -887,27 +887,14 @@ export default function Dashboard() {
               {buckets.necesitaOferta.map(statusBubble("bg-sky-600"))}
             </StatusBox>
             <StatusBox
-              title="Ofertate + Status oferte"
+              title="Ofertate"
               count={(dashboardConfig.ofertateEnabled ? buckets.ofertate.length : 0) + (dashboardConfig.statusOferteEnabled ? buckets.statusOferte.length : 0)}
               disabled={!dashboardConfig.ofertateEnabled && !dashboardConfig.statusOferteEnabled}
             >
-              {dashboardConfig.ofertateEnabled && (
-                <div className="space-y-2">
-                  <div className="text-xs font-semibold text-muted-foreground">
-                    Ofertate (în așteptare) ({buckets.ofertate.length})
-                  </div>
-                  {buckets.ofertate.map(statusBubble("bg-indigo-600"))}
-                </div>
-              )}
-
-              {dashboardConfig.statusOferteEnabled && (
-                <div className="space-y-2 pt-2">
-                  <div className="text-xs font-semibold text-muted-foreground">
-                    Status oferte ({buckets.statusOferte.length})
-                  </div>
-                  {buckets.statusOferte.map(offerStatusBubble())}
-                </div>
-              )}
+              <div className="flex flex-wrap gap-1">
+                {dashboardConfig.ofertateEnabled && buckets.ofertate.map(statusBubble("bg-indigo-600"))}
+                {dashboardConfig.statusOferteEnabled && buckets.statusOferte.map(offerStatusBubble())}
+              </div>
             </StatusBox>
             <StatusBox title="Stare echipament" count={buckets.equipmentStatus.length} disabled={!dashboardConfig.equipmentStatusEnabled}>
               {buckets.equipmentStatus.map(equipmentStatusBubble())}

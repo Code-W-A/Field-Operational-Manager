@@ -39,7 +39,7 @@ export async function GET(request: Request) {
     const workSnap = await adminDb.collection("lucrari").doc(lucrareId).get()
     if (!workSnap.exists) {
       console.warn(`[DOWNLOAD] [${requestId}] Work not found`, { lucrareId })
-      return NextResponse.json({ error: "Lucrare inexistentă" }, { status: 404 })
+      return NextResponse.json({ error: "Tichet inexistentă" }, { status: 404 })
     }
     const workData = workSnap.data() as any
 

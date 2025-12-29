@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     const lucrareId = requestData.lucrareId
     const workRef = adminDb.collection("lucrari").doc(String(lucrareId))
     const workSnap = await workRef.get()
-    if (!workSnap.exists) return NextResponse.json({ error: "Lucrare inexistentă" }, { status: 404 })
+    if (!workSnap.exists) return NextResponse.json({ error: "Tichet inexistent" }, { status: 404 })
     const now = new Date()
 
     // Mark work as verified and set arrival time/status like successful scan

@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     // Fetch work document for context
     const workRef = adminDb.collection("lucrari").doc(String(lucrareId))
     const workSnap = await workRef.get()
-    if (!workSnap.exists) return NextResponse.json({ error: "Lucrare inexistentă" }, { status: 404 })
+    if (!workSnap.exists) return NextResponse.json({ error: "Tichet inexistent" }, { status: 404 })
     const workData = workSnap.data() as any
 
     // Create a scan issue request document

@@ -335,7 +335,7 @@ export async function POST(request: NextRequest) {
               "Sending email to technician",
               {
                 recipient: `${tech.name} <${tech.email}>`,
-                subject: `Lucrare nouă: ${client?.name}`,
+                subject: `Tichet nouă: ${client?.name}`,
               },
               { category: "email", context: logContext },
             )
@@ -346,7 +346,7 @@ export async function POST(request: NextRequest) {
                 <div style="text-align: center; margin-bottom: 20px;">
                   <img src="cid:company-logo" alt="Logo companie" style="max-width: 200px; max-height: 80px;" />
                 </div>
-                <h2 style="color: #0f56b3;">Lucrare nouă asignată</h2>
+                <h2 style="color: #0f56b3;">Tichet nou asignată</h2>
                 <p>Salut ${tech.name},</p>
                 <p>Ai fost asignat la o nouă lucrare:</p>
                 
@@ -392,7 +392,7 @@ export async function POST(request: NextRequest) {
             const mailOptions = {
               from: `"Field Operational Manager" <${process.env.EMAIL_USER || "fom@nrg-acces.ro"}>`,
               to: tech.email,
-              subject: `Lucrare nouă: ${client?.name}`,
+              subject: `Tichet nou: ${client?.name}`,
               text: `Salut ${tech.name}, ai fost asignat la o nouă lucrare pentru clientul ${client?.name || "N/A"}. Accesează lucrarea la: ${workOrderUrl}`,
               html: htmlContent,
               attachments: [
@@ -529,7 +529,7 @@ export async function POST(request: NextRequest) {
             <div style="text-align: center; margin-bottom: 20px;">
               <img src="cid:company-logo" alt="Logo companie" style="max-width: 200px; max-height: 80px;" />
             </div>
-            <h2 style="color: #0f56b3;">${isPostponed ? "Lucrare amânată" : "Confirmare lucrare"}</h2>
+            <h2 style="color: #0f56b3;">${isPostponed ? "Tichet amânat" : "Confirmare tichet"}</h2>
             <p>Stimate ${client.contactPerson || client.name},</p>
             <p>${isPostponed
               ? "Vă informăm că lucrarea a fost amânată. Mai jos regăsiți detaliile relevante:"

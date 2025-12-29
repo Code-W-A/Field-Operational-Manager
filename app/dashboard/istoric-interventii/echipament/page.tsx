@@ -52,7 +52,7 @@ function TechnicianHistoryCard({ r }: { r: Row }) {
           {/* Row 1: Nr. Lucrare + Data */}
           <div className="grid grid-cols-2 border-b border-gray-300">
             <div className="border-r border-gray-300 p-3">
-              <div className="font-semibold text-gray-900">Nr. Lucrare:</div>
+              <div className="font-semibold text-gray-900">Nr. Tichet:</div>
               <div className="mt-1 text-gray-900">{r.nrLucrare || "-"}</div>
             </div>
             <div className="p-3 text-right">

@@ -1194,8 +1194,8 @@ export default function Lucrari() {
 
       // Afișăm toast de succes pentru adăugarea lucrării
       toast({
-        title: "Lucrare adăugată",
-        description: "Lucrarea a fost adăugată cu succes.",
+        title: "Tichet adăugat",
+        description: "Tichetul a fost adăugat cu succes.",
         variant: "default",
         icon: <Check className="h-4 w-4" />,
       })
@@ -1354,8 +1354,8 @@ export default function Lucrari() {
 
       // Afișăm toast de succes pentru actualizarea lucrării
       toast({
-        title: "Lucrare actualizată",
-        description: "Lucrarea a fost actualizată cu succes.",
+        title: "Tichet actualizat",
+        description: "Tichetul a fost actualizat cu succes.",
         variant: "default",
         icon: <Check className="h-4 w-4" />,
       })
@@ -1480,8 +1480,8 @@ export default function Lucrari() {
       await updateLucrare(lucrare.id, { preluatDispecer: true, preluatDe: userData?.displayName || userData?.email || "Dispecer" })
 
       toast({
-        title: "Lucrare preluată",
-        description: "Lucrarea a fost marcată ca preluată de dispecer.",
+        title: "Tichetul preluat",
+        description: "Tichetul a fost marcat ca preluată de dispecer.",
         variant: "default",
         icon: <Check className="h-4 w-4" />,
       })
@@ -1800,7 +1800,7 @@ export default function Lucrari() {
     },
     {
       accessorKey: "tipLucrare",
-      header: "Tip Lucrare",
+      header: "Tip Tichet",
       enableHiding: true,
       enableFiltering: true,
       cell: ({ row }) => (
@@ -1886,7 +1886,7 @@ export default function Lucrari() {
     },
     {
       accessorKey: "statusLucrare",
-      header: "Status Lucrare",
+      header: "Status Tichet",
       enableHiding: true,
       enableFiltering: true,
       cell: ({ row }) => (
@@ -2273,12 +2273,12 @@ export default function Lucrari() {
           >
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700">
-                <Plus className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Adaugă</span> Lucrare
+                <Plus className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Adaugă</span> Tichet
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Adaugă Lucrare Nouă</DialogTitle>
+                <DialogTitle>Adaugă Tichet Nou</DialogTitle>
               </DialogHeader>
               
               {/* Banner pentru re-intervenții */}
@@ -2341,8 +2341,8 @@ export default function Lucrari() {
         >
           <DialogContent className="w-[calc(100%-2rem)] max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Editează Lucrare</DialogTitle>
-              <DialogDescription>Modificați detaliile lucrării</DialogDescription>
+              <DialogTitle>Editează Tichet</DialogTitle>
+              <DialogDescription>Modificați detaliile tichetului</DialogDescription>
             </DialogHeader>
             {error && (
               <Alert variant="destructive">
@@ -2818,7 +2818,7 @@ export default function Lucrari() {
                             {/* For technicians, if the work order is completed with report but not picked up, disable actions */}
                             {isTechnician && isCompletedNotPickedUp ? (
                               <DropdownMenuItem disabled className="text-gray-400 cursor-not-allowed">
-                                <Info className="mr-2 h-4 w-4" /> Lucrare în așteptare de preluare
+                                <Info className="mr-2 h-4 w-4" /> Tichet în așteptare de preluare
                               </DropdownMenuItem>
                             ) : (
                               <>
