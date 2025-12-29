@@ -2797,7 +2797,7 @@ export default function Lucrari() {
                         </div>
                       )}
                       <div className="mb-4">
-                        <p className="text-sm font-medium text-muted-foreground">Descriere:</p>
+                        <p className="text-sm font-medium text-muted-foreground">Notă internă:</p>
                         <p className="text-sm line-clamp-2" title={lucrare.descriere}>
                           {lucrare.descriere}
                         </p>

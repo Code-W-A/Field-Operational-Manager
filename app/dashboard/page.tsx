@@ -867,7 +867,7 @@ export default function Dashboard() {
       <div className="hidden md:flex flex-col h-full min-h-0 gap-4">
         {/* Prima secțiune: Statusuri (50% din înălțime) */}
         <div className="flex-1 min-h-0 overflow-hidden">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 gap-3 h-full min-w-0">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9 gap-3 h-full min-w-0">
             <StatusBox title="Întârziate" count={buckets.intarziate.length} disabled={!dashboardConfig.intarziateEnabled}>
               {buckets.intarziate.map(statusBubble("bg-red-600"))}
             </StatusBox>
@@ -886,11 +886,28 @@ export default function Dashboard() {
             <StatusBox title="Necesită ofertă" count={buckets.necesitaOferta.length} disabled={!dashboardConfig.necesitaOfertaEnabled}>
               {buckets.necesitaOferta.map(statusBubble("bg-sky-600"))}
             </StatusBox>
-            <StatusBox title="Ofertate (în așteptare)" count={buckets.ofertate.length} disabled={!dashboardConfig.ofertateEnabled}>
-              {buckets.ofertate.map(statusBubble("bg-indigo-600"))}
-            </StatusBox>
-            <StatusBox title="Status oferte" count={buckets.statusOferte.length} disabled={!dashboardConfig.statusOferteEnabled}>
-              {buckets.statusOferte.map(offerStatusBubble())}
+            <StatusBox
+              title="Ofertate + Status oferte"
+              count={(dashboardConfig.ofertateEnabled ? buckets.ofertate.length : 0) + (dashboardConfig.statusOferteEnabled ? buckets.statusOferte.length : 0)}
+              disabled={!dashboardConfig.ofertateEnabled && !dashboardConfig.statusOferteEnabled}
+            >
+              {dashboardConfig.ofertateEnabled && (
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold text-muted-foreground">
+                    Ofertate (în așteptare) ({buckets.ofertate.length})
+                  </div>
+                  {buckets.ofertate.map(statusBubble("bg-indigo-600"))}
+                </div>
+              )}
+
+              {dashboardConfig.statusOferteEnabled && (
+                <div className="space-y-2 pt-2">
+                  <div className="text-xs font-semibold text-muted-foreground">
+                    Status oferte ({buckets.statusOferte.length})
+                  </div>
+                  {buckets.statusOferte.map(offerStatusBubble())}
+                </div>
+              )}
             </StatusBox>
             <StatusBox title="Stare echipament" count={buckets.equipmentStatus.length} disabled={!dashboardConfig.equipmentStatusEnabled}>
               {buckets.equipmentStatus.map(equipmentStatusBubble())}
