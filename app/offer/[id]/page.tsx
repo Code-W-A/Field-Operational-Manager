@@ -116,7 +116,9 @@ export default function OfferActionPage() {
                     : undefined,
                   equipmentName: String((fresh as any)?.echipament || ''),
                   locationName: String((fresh as any)?.locatie || ''),
-                  preparedBy: String((fresh as any)?.offerPreparedBy || (fresh as any)?.updatedByName || (fresh as any)?.createdByName || ''),
+                  // Cerință: pe PDF să apară dispecerul/adminul care a preluat lucrarea (preluatDe),
+                  // altfel păstrăm fallback-urile existente.
+                  preparedBy: String((fresh as any)?.preluatDe || (fresh as any)?.offerPreparedBy || (fresh as any)?.updatedByName || (fresh as any)?.createdByName || ''),
                   preparedAt: ((fresh as any)?.offerPreparedAt ? (() => {
                     try { const d = (fresh as any).offerPreparedAt?.toDate ? (fresh as any).offerPreparedAt.toDate() : new Date((fresh as any).offerPreparedAt); return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}` } catch { return new Date().toISOString().slice(0,10).split('-').reverse().join('.') }
                   })() : new Date().toISOString().slice(0,10).split('-').reverse().join('.')),

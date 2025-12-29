@@ -568,7 +568,9 @@ useEffect(() => {
             conditions: Array.isArray((freshWork as any)?.conditiiOferta) ? (freshWork as any).conditiiOferta : undefined,
             equipmentName: String((freshWork as any)?.echipament || ''),
             locationName: String((freshWork as any)?.locatie || ''),
-            preparedBy: String(userData?.displayName || userData?.email || ''),
+            // Cerință: pe PDF să apară dispecerul/adminul care a preluat lucrarea (preluatDe),
+            // nu neapărat utilizatorul curent care trimite oferta.
+            preparedBy: String((freshWork as any)?.preluatDe || (currentWork as any)?.preluatDe || userData?.displayName || userData?.email || ''),
             preparedAt: new Date().toISOString().slice(0,10).split('-').reverse().join('.'),
             beneficiar: {
               name: String((freshWork as any)?.client || (freshWork as any)?.clientInfo?.nume || ''),
