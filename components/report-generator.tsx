@@ -756,7 +756,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         currentY += 6
         
         const subtotal = normalizedProducts.reduce((s, p) => s + (p.quantity || 0) * (p.price || 0), 0)
-        const total = subtotal // fără ajustare
+        const total = subtotal // fără discount
         
         const rowHeight = 5
         const verticalPad = 1
@@ -780,7 +780,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         doc.text(`${subtotal.toLocaleString("ro-RO")}`, valueX, currentY, { align: "right" })
         currentY += rowHeight
         
-        // Total lei fara TVA (bold) - fără ajustare
+        // Total lei fara TVA (bold) - fără discount
         doc.setFont("NotoSans", "bold").setFontSize(11)
         doc.text("Total LEI fara TVA:", labelColonX, currentY, { align: "right" })
         doc.text(`${total.toLocaleString("ro-RO")}`, valueX, currentY, { align: "right" })

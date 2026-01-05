@@ -220,7 +220,7 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   // Add spacing between table and totals
   y += 6
   
-  // Subtotal / Ajustare / Total (blue band background)
+  // Subtotal / discount / Total (blue band background)
   const lineH2 = 7
   const adj = typeof input.adjustmentPercent === 'number' ? Number(input.adjustmentPercent) : 0
   const totalNoVat = subtotal * (1 - (adj || 0) / 100)
@@ -247,9 +247,9 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   doc.text("Subtotal:", labelColonX, y, { align: "right" })
   doc.text(`${subtotal.toLocaleString("ro-RO")}`, valueX, y, { align: "right" })
   y += rowHeight
-  // Ajustare
+  // Discount
   checkPage(lineH2)
-  doc.text("Ajustare:", labelColonX, y, { align: "right" })
+  doc.text("Discount:", labelColonX, y, { align: "right" })
   doc.text(`${(adj || 0)}%`, valueX, y, { align: "right" })
   y += rowHeight
   // Total lei fara TVA (accentuat)

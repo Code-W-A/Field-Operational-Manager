@@ -17,7 +17,7 @@ export function DashboardShell({ children, className }: DashboardShellProps) {
   return (
     <div className="flex flex-col h-screen w-full overflow-hidden">
       <header className="flex-shrink-0 z-40 border-b bg-background">
-        <div className="w-full flex h-16 items-center justify-between py-4 px-6">
+        <div className="w-full flex h-16 items-center justify-between py-4 px-3 sm:px-6 lg:px-10">
           <div className="flex items-center gap-2">
             <MobileNav className="md:hidden" />
             <MainNav className="hidden md:flex" />
@@ -28,7 +28,7 @@ export function DashboardShell({ children, className }: DashboardShellProps) {
         </div>
       </header>
       <main className="flex-1 w-full overflow-auto min-h-0">
-        <div className="w-full h-full min-h-0 flex flex-col px-6 sm:px-8 lg:px-10 py-4">{children}</div>
+        <div className="w-full h-full min-h-0 flex flex-col px-3 sm:px-6 lg:px-10 py-4">{children}</div>
       </main>
       
       {/* Debug component for auto logout - only visible to admin/dispatcher in development */}

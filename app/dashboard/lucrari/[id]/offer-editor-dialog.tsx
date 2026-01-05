@@ -822,7 +822,7 @@ useEffect(() => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Ajustare (%)</label>
+                  <label className="block text-xs text-muted-foreground mb-1">Discount (%)</label>
                   <input
                     type="text"
                     inputMode="decimal"
@@ -846,8 +846,8 @@ useEffect(() => {
               <div className="flex items-center justify-end">
                 <div className="text-right text-sm">
                   <div>Subtotal: <strong>{total.toFixed(2)} lei</strong></div>
-                  <div>Ajustare: <strong>-{(Number(adjustmentPercent)||0).toFixed(0)}%</strong></div>
-                  <div>Total după ajustare: <strong>{discountedTotal.toFixed(2)} lei</strong></div>
+                  <div>Discount: <strong>-{(Number(adjustmentPercent)||0).toFixed(0)}%</strong></div>
+                  <div>Total după discount: <strong>{discountedTotal.toFixed(2)} lei</strong></div>
                 </div>
               </div>
 
