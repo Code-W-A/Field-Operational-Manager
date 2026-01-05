@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { where } from "firebase/firestore"
 import html2canvas from "html2canvas"
 import { jsPDF } from "jspdf"
@@ -84,6 +84,7 @@ function escapeCsvCell(v: unknown) {
 export default function IstoricInterventiiPage() {
   const { userData } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const role = userData?.role
   const isAdminOrDispatcher = role === "admin" || role === "dispecer"
   const isClient = role === "client"
@@ -92,6 +93,7 @@ export default function IstoricInterventiiPage() {
 
   const [table, setTable] = useState<any>(null)
   const exportRef = useRef<HTMLDivElement | null>(null)
+  const prefilterAppliedRef = useRef<string>("")
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
   const [activeFilters, setActiveFilters] = useState<FilterOption[]>([])
@@ -102,6 +104,9 @@ export default function IstoricInterventiiPage() {
   const [cardsPageIndex, setCardsPageIndex] = useState(0)
   const [cardsPageSize, setCardsPageSize] = useState(10)
 
+  const urlClientId = (searchParams.get("clientId") || "").trim()
+  const urlClientName = (searchParams.get("clientName") || "").trim()
+
   useEffect(() => {
     const saved = loadSettings()
     const list = Array.isArray(saved?.activeFilters) ? saved.activeFilters : []
@@ -110,6 +115,22 @@ export default function IstoricInterventiiPage() {
     const uiFilters = list.filter((f: any) => f?.id && f.id !== "viewMode")
     setActiveFilters(uiFilters)
   }, [loadSettings])
+
+  // URL prefilter (override): dacă venim din pagina Client cu clientId/clientName, suprascriem filtrele salvate.
+  useEffect(() => {
+    if (!urlClientId && !urlClientName) return
+    const key = `${urlClientId}|${urlClientName}`
+    if (prefilterAppliedRef.current === key) return
+    prefilterAppliedRef.current = key
+
+    const nextFilters: FilterOption[] = []
+    // UI-ul filtrează după nume client; păstrăm selecția vizibilă în UI.
+    if (urlClientName) nextFilters.push({ id: "client", value: [urlClientName] } as any)
+
+    setActiveFilters(nextFilters)
+    // Persistăm imediat ca să nu revină filtrele vechi (suprascriere).
+    saveFilters([...nextFilters, { id: "viewMode", value: viewMode } as any])
+  }, [urlClientId, urlClientName, saveFilters, viewMode])
 
   useEffect(() => {
     // Persist both viewMode and active filters
@@ -133,6 +154,13 @@ export default function IstoricInterventiiPage() {
   const handleResetFilters = () => {
     setActiveFilters([])
     saveFilters([{ id: "viewMode", value: viewMode }])
+
+    // Dacă pagina e pre-filtrată din URL (ex: din pagina Client),
+    // resetul trebuie să scoată și query param-urile, altfel rezultatele rămân filtrate.
+    if (urlClientId || urlClientName) {
+      prefilterAppliedRef.current = ""
+      router.replace("/dashboard/istoric-interventii")
+    }
   }
 
   const rows = useMemo<HistoryRow[]>(() => {
@@ -242,6 +270,28 @@ export default function IstoricInterventiiPage() {
     return out
   }, [rows, role, allowedClientIds, allowedLocationsByClientId, allowedLocationsUnion])
 
+  const urlPrefilteredRows = useMemo(() => {
+    if (!urlClientId && !urlClientName) return accessFilteredRows
+
+    const id = urlClientId
+    const name = urlClientName.trim().toLowerCase()
+
+    return accessFilteredRows.filter((r) => {
+      const rowClientId = String(r.clientId || "").trim()
+      const rowClientName = String(r.client || "").trim().toLowerCase()
+
+      // Preferăm clientId; fallback pe nume pentru lucrări legacy fără clientId.
+      if (id) {
+        if (rowClientId) return rowClientId === id
+        if (name) return rowClientName === name
+        return false
+      }
+
+      if (name) return rowClientName === name
+      return true
+    })
+  }, [accessFilteredRows, urlClientId, urlClientName])
+
   const filterOptions = useMemo<FilterOption[]>(() => {
     const uniq = (xs: string[]) =>
       Array.from(new Set(xs.map((x) => String(x || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ro"))
@@ -255,7 +305,7 @@ export default function IstoricInterventiiPage() {
       return s ? [s] : []
     }
 
-    const clientOptions = uniq(accessFilteredRows.map((r) => String(r.client || ""))).map((v) => ({ label: v, value: v }))
+    const clientOptions = uniq(urlPrefilteredRows.map((r) => String(r.client || ""))).map((v) => ({ label: v, value: v }))
 
     const computeLocatieOptions = (filters: FilterOption[]) => {
       const selectedClients = getMulti(filters, "client").map(norm)
@@ -264,8 +314,8 @@ export default function IstoricInterventiiPage() {
       if (isClient && selectedClients.length === 0) return []
 
       const base = selectedClients.length
-        ? accessFilteredRows.filter((r) => selectedClients.includes(norm(r.client || "")))
-        : accessFilteredRows
+        ? urlPrefilteredRows.filter((r) => selectedClients.includes(norm(r.client || "")))
+        : urlPrefilteredRows
       return uniq(base.map((r) => String(r.locatie || ""))).map((v) => ({ label: v, value: v }))
     }
 
@@ -276,7 +326,7 @@ export default function IstoricInterventiiPage() {
       // Client portal: enforce hierarchy -> no client OR no location => no equipment
       if (isClient && (selectedClients.length === 0 || selectedLocatii.length === 0)) return []
 
-      let base = accessFilteredRows
+      let base = urlPrefilteredRows
       if (selectedClients.length) base = base.filter((r) => selectedClients.includes(norm(r.client || "")))
       if (selectedLocatii.length) base = base.filter((r) => selectedLocatii.includes(norm(r.locatie || "")))
 
@@ -316,10 +366,10 @@ export default function IstoricInterventiiPage() {
         getOptions: computeEchipamentOptions,
       },
     ]
-  }, [accessFilteredRows, isClient])
+  }, [urlPrefilteredRows, isClient])
 
   const visibleRows = useMemo(() => {
-    let out = accessFilteredRows
+    let out = urlPrefilteredRows
 
     // Filtre UI (perioadă, client, locație, echipament) — aplicăm pentru rolurile care au UI de filtrare.
     // (înainte era doar pentru admin/dispecer, ceea ce făcea "Filtrare" inutilă pentru client)
@@ -365,7 +415,7 @@ export default function IstoricInterventiiPage() {
 
     return out
   }, [
-    accessFilteredRows,
+    urlPrefilteredRows,
     isAdminOrDispatcher,
     isClient,
     activeFilters,

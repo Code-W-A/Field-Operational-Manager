@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { LucrareForm } from "@/components/lucrare-form"
 import { addLucrare, getNextReportNumber, type PersoanaContact } from "@/lib/firebase/firestore"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
 import { format } from "date-fns"
 import { Scanner } from "@yudiel/react-qr-scanner"
 import { Input } from "@/components/ui/input"
@@ -314,7 +314,14 @@ export default function Dashboard() {
       subtitle={it.equipmentLabel}
       colorClass={color}
       onClick={() => {
-        if (it.contractId) router.push(`/dashboard/contracte/${it.contractId}`)
+        if (it.lucrareId) {
+          router.push(`/dashboard/lucrari/${it.lucrareId}`)
+          return
+        }
+        toast({
+          title: "Revizia nu este încă generată ca lucrare",
+          description: it.equipmentLabel || "Încă nu există o lucrare asociată acestei revizii.",
+        })
       }}
       className="mb-2"
     />

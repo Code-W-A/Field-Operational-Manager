@@ -14,7 +14,7 @@ import type { Lucrare } from "@/lib/firebase/firestore"
 import { Mail, AlertCircle } from "lucide-react"
 import { toDateSafe } from "@/lib/utils/time-format"
 import { useAuth } from "@/contexts/AuthContext"
-import { useToast } from "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
 import {
   AlertDialog,
   AlertDialogAction,

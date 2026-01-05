@@ -43,7 +43,7 @@ import {
 // Import pentru verificarea CUI
 import { collection, query, where, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
 import { DynamicDialogFields } from "@/components/DynamicDialogFields"
 import { subscribeRevisionChecklistTemplates, subscribeToSettings } from "@/lib/firebase/settings"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"

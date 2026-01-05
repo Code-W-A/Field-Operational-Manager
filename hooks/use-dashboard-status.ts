@@ -10,6 +10,7 @@ import type { DashboardStatusConfig } from "@/hooks/use-dashboard-status-setting
 
 export interface DashboardBubbleItem {
   id: string
+  lucrareId?: string
   locatie: string
   equipmentLabel: string
   client?: string
@@ -85,6 +86,21 @@ function toDate(input: any | undefined): Date | null {
   return null
 }
 
+function dateKeyFromAny(input: any | undefined): string | null {
+  if (!input) return null
+  if (typeof input === "string") {
+    // ISO-ish date (YYYY-MM-DD...)
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(input)
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`
+  }
+  const d = toDate(input)
+  if (!d || Number.isNaN(d.getTime())) return null
+  const yyyy = String(d.getFullYear())
+  const mm = String(d.getMonth() + 1).padStart(2, "0")
+  const dd = String(d.getDate()).padStart(2, "0")
+  return `${yyyy}-${mm}-${dd}`
+}
+
 function eqInsensitive(a?: string, ...candidates: string[]): boolean {
   const x = String(a || "").toLowerCase()
   return candidates.some((y) => x === String(y || "").toLowerCase())
@@ -108,12 +124,14 @@ function buildBubble(l: any, offerStatus?: "accept" | "reject", sortDate?: Date,
 function buildRevisionScheduleBubble(params: {
   id: string
   contractId: string
+  lucrareId?: string
   locatie: string
   equipmentLabel: string
   sortDate: Date
 }): DashboardBubbleItem {
   return {
     id: params.id,
+    lucrareId: params.lucrareId,
     contractId: params.contractId,
     locatie: params.locatie,
     equipmentLabel: params.equipmentLabel,
@@ -233,6 +251,24 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
 
     // Programator revizii: din contracts.revisionSchedulePreview, cu generateAt în următoarele 10 zile (azi..azi+10)
     if (cfg.programatorReviziiEnabled && Array.isArray(contracts) && contracts.length > 0) {
+      // Dacă lucrările de revizie există deja, vrem să navigăm către lucrare (nu către contract).
+      // Mapăm după contract + data intervenției (zi).
+      const revizieWorkByContractAndDate: Record<string, string> = {}
+      if (Array.isArray(activeLucrari) && activeLucrari.length > 0) {
+        for (const l of activeLucrari) {
+          const lucrareId = String((l as any)?.id || "")
+          const contractId = String((l as any)?.contract || "")
+          const tip = String((l as any)?.tipLucrare || "").toLowerCase()
+          if (!lucrareId || !contractId) continue
+          if (!tip.includes("reviz")) continue
+          const dk = dateKeyFromAny((l as any)?.dataInterventie)
+          if (!dk) continue
+          const key = `${contractId}|${dk}`
+          // păstrăm prima lucrare găsită pentru cheie
+          if (!revizieWorkByContractAndDate[key]) revizieWorkByContractAndDate[key] = lucrareId
+        }
+      }
+
       const windowStart = startOfToday
       const windowEnd = addDays(startOfToday, 10)
       const maxTotal = 120
@@ -265,10 +301,15 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
           const contractLabel = contractNumber ? contractNumber : contractName ? contractName : contractId
           const subtitle = `Gen: ${genLabel} • Rev: ${schedLabel} (${contractLabel})`
           const id = `${contractId}:${String(generateIso || scheduledIso || "")}:${locationName}`
+
+          const scheduledKey = dateKeyFromAny(scheduledIso)
+          const lucrareId = scheduledKey ? revizieWorkByContractAndDate[`${contractId}|${scheduledKey}`] : undefined
+
           res.programatorRevizii.push(
             buildRevisionScheduleBubble({
               id,
               contractId,
+              lucrareId,
               locatie: locationName,
               equipmentLabel: subtitle,
               sortDate: generateAt,

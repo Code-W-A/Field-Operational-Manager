@@ -10,7 +10,7 @@ import { Clock, AlertTriangle } from "lucide-react"
 import { updateLucrare, getLucrareById } from "@/lib/firebase/firestore"
 import { sendWorkOrderPostponedNotification } from "@/components/work-order-notification-service"
 import { WORK_STATUS } from "@/lib/utils/constants"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/AuthContext"
 import { serverTimestamp } from "firebase/firestore"
 

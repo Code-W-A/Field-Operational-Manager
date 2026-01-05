@@ -39,7 +39,7 @@ import { FilterModal, type FilterOption } from "@/components/filter-modal"
 import { useTablePersistence } from "@/hooks/use-table-persistence"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { useToast } from "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
 import {
   AlertDialog,
   AlertDialogAction,

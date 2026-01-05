@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { RefreshCw, AlertTriangle, Clock, Package, Wrench } from "lucide-react"
 import { updateLucrare } from "@/lib/firebase/firestore"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/AuthContext"
 import { useTargetList } from "@/hooks/use-settings"
 

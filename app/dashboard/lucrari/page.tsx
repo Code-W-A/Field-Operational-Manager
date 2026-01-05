@@ -32,7 +32,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { WORK_TYPES, WORK_STATUS } from "@/lib/utils/constants"
 import { doc, getDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
 import { UniversalSearch } from "@/components/universal-search"
 import { FilterButton } from "@/components/filter-button"
 import { FilterModal, type FilterOption } from "@/components/filter-modal"
@@ -2527,7 +2527,7 @@ export default function Lucrari() {
             </div>
 
             {/* Grid cu cards */}
-            <div className="grid gap-4 px-4 sm:px-0 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 w-full overflow-auto">
+            <div className="grid gap-4 px-4 sm:px-0 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 w-full overflow-x-hidden">
               {paginatedCardsData.map((lucrare) => {
               // Check if the work order is completed with report but not picked up
               const isCompletedNotPickedUp = isCompletedWithReportNotPickedUp(lucrare)
@@ -2619,7 +2619,7 @@ export default function Lucrari() {
               return (
                 <Card
                   key={lucrare.id}
-                  className={`overflow-hidden ${
+                  className={`overflow-hidden min-w-0 w-full ${
                     isTechnician && isCompletedNotPickedUp ? "cursor-default" : "cursor-pointer hover:shadow-md"
                   } ${lucrare ? getWorkStatusRowClass(lucrare) : ""}`}
                   onClick={() => {
@@ -2629,11 +2629,13 @@ export default function Lucrari() {
                   }}
                 >
                   <CardContent className="p-0">
-                    <div className="flex items-center justify-between border-b p-4">
-                      <div>
-                        <h3 className="font-medium flex items-center gap-2">
-                          {lucrare.client}
-                          <Badge className="bg-purple-100 text-purple-800 font-mono text-xs">
+                    <div className="flex items-start justify-between gap-3 border-b p-4 min-w-0">
+                      <div className="min-w-0">
+                        <h3 className="font-medium flex flex-wrap items-center gap-2 min-w-0">
+                          <span className="min-w-0 break-words">
+                            {lucrare.client}
+                          </span>
+                          <Badge className="bg-purple-100 text-purple-800 font-mono text-xs shrink-0 whitespace-nowrap">
                             {String(lucrare.nrLucrare || lucrare.numarRaport || "-")}{Number((lucrare as any)?.offerSendCount || 0) > 0 ? `-${Number((lucrare as any)?.offerSendCount || 0)}` : ""}
                           </Badge>
                         </h3>
@@ -2646,7 +2648,7 @@ export default function Lucrari() {
                         )}
                         {revEquipNode}
                       </div>
-                      <div className="flex flex-col items-end gap-2">
+                      <div className="flex flex-col items-end gap-2 shrink-0">
                         <Badge className={getWorkStatusClass(lucrare.statusLucrare)}>
                           {lucrare.statusLucrare === "Finalizat" ? "Raport generat" : lucrare.statusLucrare}
                         </Badge>

@@ -33,7 +33,7 @@ import { Plus, Pencil, Trash2, Loader2, AlertCircle, MoreHorizontal, FileText, D
 import { getFunctions, httpsCallable } from "firebase/functions"
 import app from "@/lib/firebase/config"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
 import { DynamicDialogFields } from "@/components/DynamicDialogFields"
 import { format } from "date-fns"
 import { ro } from "date-fns/locale"

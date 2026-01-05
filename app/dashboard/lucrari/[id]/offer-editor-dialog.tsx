@@ -42,6 +42,8 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
   const [acceptedSavedAt, setAcceptedSavedAt] = useState<string | null>(null)
   const [rejectedSavedAt, setRejectedSavedAt] = useState<string | null>(null)
   const [rejectionReason, setRejectionReason] = useState<string | null>(null)
+  // last send diagnostics (for screenshots / support)
+  const [lastEmailDebug, setLastEmailDebug] = useState<any>(null)
   // read-only suggested recipient
   const suggestedRecipient = useMemo(() => {
     try {
@@ -441,6 +443,14 @@ useEffect(() => {
         throw new Error('Nu există un email valid disponibil pentru această lucrare.')
       }
 
+      setLastEmailDebug({
+        at: new Date().toISOString(),
+        status: "sending",
+        suggestedRecipientAtUi: suggestedRecipient || null,
+        candidateRaw: candidate ?? null,
+        recipient,
+      })
+
       // Lazy backfill (non-blocking): dacă putem deduce `clientId`/`locationId`, le salvăm pe lucrare
       // astfel încât pe viitor să nu mai depindem de nume (care se pot schimba).
       try {
@@ -608,7 +618,7 @@ useEffect(() => {
       const resp = await fetch('/api/users/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: [recipient], subject, html, attachments: attachmentData })
+        body: JSON.stringify({ to: [recipient], subject, html, attachments: attachmentData, type: "OFFER" })
       })
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}))
@@ -616,8 +626,20 @@ useEffect(() => {
           ? ` | Destinatari invalizi: ${err.invalidRecipients.join(", ")}`
           : ""
         const apiMsg = err?.error || err?.message || `Cerere invalidă (${resp.status})`
+        setLastEmailDebug((prev: any) => ({
+          ...(prev || {}),
+          status: "error",
+          apiStatus: resp.status,
+          apiError: err,
+        }))
         throw new Error(`${apiMsg}${invalidList}${recipient ? ` | către: ${recipient}` : ""}`)
       }
+      const okJson = await resp.json().catch(() => ({}))
+      setLastEmailDebug((prev: any) => ({
+        ...(prev || {}),
+        status: "success",
+        api: okJson,
+      }))
   
       // marchează ca ofertat și salvează autorul/datele pregătirii ofertei
       await updateLucrare(lucrareId, {
@@ -842,9 +864,24 @@ useEffect(() => {
                 ) : (!currentWork || clientData === null) ? (
                   <span>Se identifică adresa de email a persoanei de contact din locația lucrării...</span>
                 ) : (
-                  <span>Nu există email valid pentru persoana de contact din locația lucrării.</span>
+                  <span>Nu există email valid pentru persoana de contact din locația lucrării. La trimitere se caută și fallback-uri (lucrare/client).</span>
                 )}
               </div>
+              {lastEmailDebug && (
+                <div className="text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded px-2 py-2">
+                  <div className="font-medium mb-1">Detalii trimitere (pentru screenshot)</div>
+                  <div>Status: <span className="font-mono">{String(lastEmailDebug.status)}</span></div>
+                  {lastEmailDebug.recipient ? <div>Către: <span className="font-mono">{String(lastEmailDebug.recipient)}</span></div> : null}
+                  {lastEmailDebug.candidateRaw ? <div>Candidate raw: <span className="font-mono">{String(lastEmailDebug.candidateRaw)}</span></div> : null}
+                  {lastEmailDebug.api?.messageId ? <div>MessageID: <span className="font-mono">{String(lastEmailDebug.api.messageId)}</span></div> : null}
+                  {lastEmailDebug.api?.emailEventId ? <div>EventID: <span className="font-mono">{String(lastEmailDebug.api.emailEventId)}</span></div> : null}
+                  {lastEmailDebug.apiError ? (
+                    <div className="mt-1">
+                      API error: <span className="font-mono">{JSON.stringify(lastEmailDebug.apiError)}</span>
+                    </div>
+                  ) : null}
+                </div>
+              )}
             </div>
             </div>
 

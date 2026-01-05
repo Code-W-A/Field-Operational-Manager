@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { uploadFile, deleteFile } from "@/lib/firebase/storage"
 import { updateLucrare } from "@/lib/firebase/firestore"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
 import { Upload, Camera, X, AlertCircle, Image as ImageIcon, Trash2 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 

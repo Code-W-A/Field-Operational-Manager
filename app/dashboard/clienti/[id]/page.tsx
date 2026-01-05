@@ -85,7 +85,16 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
   // Filtrăm lucrările pentru acest client
   useEffect(() => {
     if (client && toateLucrarile.length > 0) {
-      const lucrari = toateLucrarile.filter((lucrare) => lucrare.client === client.nume)
+      const lucrari = toateLucrarile
+        .filter((lucrare) => lucrare.client === client.nume)
+        .sort((a: any, b: any) => {
+          // Sortăm după data intervenției (desc). Fallback: timpSosire / dataEmiterii.
+          const da = toDateSafe(a?.dataInterventie ?? a?.timpSosire ?? a?.dataEmiterii)
+          const db = toDateSafe(b?.dataInterventie ?? b?.timpSosire ?? b?.dataEmiterii)
+          const ta = da ? da.getTime() : Number.NEGATIVE_INFINITY
+          const tb = db ? db.getTime() : Number.NEGATIVE_INFINITY
+          return tb - ta
+        })
       setLucrariClient(lucrari)
     }
   }, [client, toateLucrarile])
@@ -285,7 +294,7 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
 
                 <Card>
                   <CardHeader className="pb-3 border-b">
-                    <CardTitle className="text-sm">Lucrări recente</CardTitle>
+                    <CardTitle className="text-sm">Ultimele tichete</CardTitle>
                   </CardHeader>
                   <CardContent className="pt-3">
                     {lucrariClient.length > 0 ? (
@@ -298,7 +307,10 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
                           >
                             <p className="text-sm font-medium line-clamp-1">{lucrare.tipLucrare}</p>
                             <p className="text-xs text-muted-foreground mt-1">
-                              {(() => { try { const { formatUiDate, toDateSafe } = require("@/lib/utils/time-format"); return formatUiDate(toDateSafe((lucrare as any).dataInterventie)) } catch { return String((lucrare as any).dataInterventie || "") } })()}
+                              {(() => {
+                                const d = toDateSafe((lucrare as any).dataInterventie ?? (lucrare as any).timpSosire ?? (lucrare as any).dataEmiterii)
+                                return d ? formatUiDate(d) : String((lucrare as any).dataInterventie || "")
+                              })()}
                             </p>
                           </div>
                         ))}
@@ -307,7 +319,12 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
                             variant="ghost"
                             size="sm"
                             className="w-full mt-2"
-                            onClick={() => router.push(`/dashboard/lucrari?client=${client?.nume}`)}
+                            onClick={() => {
+                              const qs = new URLSearchParams()
+                              qs.set("clientId", String(id))
+                              if (client?.nume) qs.set("clientName", String(client.nume))
+                              router.push(`/dashboard/istoric-interventii?${qs.toString()}`)
+                            }}
                           >
                             Vezi toate ({lucrariClient.length})
                           </Button>

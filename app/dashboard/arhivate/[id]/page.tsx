@@ -37,7 +37,7 @@ import {
 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { getLucrareById, updateLucrare, getClientById, type Lucrare, type Client } from "@/lib/firebase/firestore"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
 import { WORK_STATUS } from "@/lib/utils/constants"
 import { formatDate } from "@/lib/utils/date-formatter"
 import { formatDate as formatISODate, formatTime, formatDateTime } from "@/lib/utils/time-format"

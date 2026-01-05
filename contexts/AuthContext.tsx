@@ -6,7 +6,7 @@ import { doc, getDoc } from "firebase/firestore"
 import { auth, db } from "@/lib/firebase/config"
 import type { UserData } from "@/lib/firebase/auth"
 import { useMockData } from "./MockDataContext"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
 
 interface AuthContextType {
   user: User | null

@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, where } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { validateContractAssignment } from "@/lib/firebase/firestore"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
 import {
   AlertDialog,
   AlertDialogContent,

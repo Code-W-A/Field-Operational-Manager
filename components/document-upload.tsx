@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { uploadFile, deleteFile } from "@/lib/firebase/storage"
 import { updateLucrare } from "@/lib/firebase/firestore"
 import { deleteField } from "firebase/firestore"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
 import { Upload, FileText, Download, Trash2, AlertCircle, Check, Eye } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { ReportGenerator } from "@/components/report-generator"

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Clock, Eye, EyeOff } from "lucide-react"
 import { signOut } from "@/lib/firebase/auth"
 import { useAuth } from "@/contexts/AuthContext"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
 
 export function AutoLogoutDebug() {
   const [isVisible, setIsVisible] = useState(false)

@@ -31,7 +31,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 // Înlocuim importul pentru componenta EquipmentSelect cu CustomEquipmentSelect
 import { CustomEquipmentSelect } from "@/components/custom-equipment-select"
 import { Input } from "@/components/ui/input"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes"
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
 // Adăugați aceste importuri la începutul fișierului
