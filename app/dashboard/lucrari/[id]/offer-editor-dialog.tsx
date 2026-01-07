@@ -44,14 +44,6 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
   const [rejectionReason, setRejectionReason] = useState<string | null>(null)
   // last send diagnostics (for screenshots / support)
   const [lastEmailDebug, setLastEmailDebug] = useState<any>(null)
-  // read-only suggested recipient
-  const suggestedRecipient = useMemo(() => {
-    try {
-      return presetRecipientEmail || resolveRecipientEmailForLocation(clientData, currentWork)
-    } catch {
-      return null
-    }
-  }, [presetRecipientEmail, clientData, currentWork])
   const [termsPayment, setTermsPayment] = useState<string>("")
   const [termsDelivery, setTermsDelivery] = useState<string>("")
   const [termsInstallation, setTermsInstallation] = useState<string>("")
@@ -177,7 +169,7 @@ useEffect(() => {
   }
 
   // Helper: resolve best email for the work's location/contact with robust fallbacks
-  const resolveRecipientEmailForLocation = (client: any, work: any): string | null => {
+  function resolveRecipientEmailForLocation(client: any, work: any): string | null {
     const isValid = (e?: any) => {
       const v = normalizeEmail(e)
       return !!v && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
@@ -259,6 +251,15 @@ useEffect(() => {
     dbg("resolveRecipientEmailForLocation result", null)
     return null
   }
+
+  // read-only suggested recipient
+  const suggestedRecipient = useMemo(() => {
+    try {
+      return presetRecipientEmail || resolveRecipientEmailForLocation(clientData, currentWork)
+    } catch {
+      return null
+    }
+  }, [presetRecipientEmail, clientData, currentWork])
 
   // Helper: găsește locația în client (preferă ID, altfel fuzzy pe nume/adresă).
   // Folosit pentru "lazy backfill" (lucrări vechi fără locationId/clientId).
