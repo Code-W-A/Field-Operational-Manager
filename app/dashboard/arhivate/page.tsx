@@ -84,7 +84,7 @@ export default function LucrariArhivate() {
     }
   }, [loadSettings])
 
-  // Funcție pentru încărcarea lucrărilor arhivate
+  // Funcție pentru încărcarea tichetelor arhivate
   const fetchArchivedWorks = useCallback(async () => {
     if (!hasAccess) {
       router.push("/dashboard")
@@ -119,11 +119,11 @@ export default function LucrariArhivate() {
 
       setLucrariArhivate(lucrari)
     } catch (error) {
-      console.error("Eroare la încărcarea lucrărilor arhivate:", error)
-      setError("Nu s-au putut încărca lucrările arhivate")
+      console.error("Eroare la încărcarea tichetelor arhivate:", error)
+      setError("Nu s-au putut încărca tichetele arhivate")
       toast({
         title: "Eroare",
-        description: "Nu s-au putut încărca lucrările arhivate.",
+        description: "Nu s-au putut încărca tichetele arhivate.",
         variant: "destructive",
       })
     } finally {
@@ -202,7 +202,7 @@ export default function LucrariArhivate() {
       },
       {
         id: "tipLucrare",
-        label: "Tip lucrare",
+        label: "Tip tichet",
         type: "multiselect" as const,
         options: tipuriLucrare,
         value: [],
@@ -411,7 +411,7 @@ export default function LucrariArhivate() {
       })
       toast({
         title: "Succes",
-        description: "Lucrarea a fost dezarhivată cu succes.",
+        description: "Tichetul a fost dezarhivat cu succes.",
       })
       
       // Reîncărcăm datele
@@ -420,7 +420,7 @@ export default function LucrariArhivate() {
       console.error("Eroare la dezarhivare:", error)
       toast({
         title: "Eroare",
-        description: "Nu s-a putut dezarhiva lucrarea.",
+        description: "Nu s-a putut dezarhiva tichetul.",
         variant: "destructive",
       })
     }
@@ -597,7 +597,7 @@ export default function LucrariArhivate() {
                   <ArchiveRestore className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Dezarhivează lucrarea</TooltipContent>
+              <TooltipContent>Dezarhivează tichetul</TooltipContent>
             </Tooltip>
           </TooltipProvider>
 
@@ -630,11 +630,11 @@ export default function LucrariArhivate() {
     return (
       <TooltipProvider>
         <DashboardShell>
-          <DashboardHeader heading="Lucrări Arhivate" text="Se încarcă lucrările arhivate..." />
+          <DashboardHeader heading="Tichete Arhivate" text="Se încarcă tichetele arhivate..." />
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-gray-500">Se încarcă lucrările arhivate...</p>
+              <p className="text-gray-500">Se încarcă tichetele arhivate...</p>
             </div>
           </div>
         </DashboardShell>
@@ -646,7 +646,7 @@ export default function LucrariArhivate() {
     return (
       <TooltipProvider>
         <DashboardShell>
-          <DashboardHeader heading="Lucrări Arhivate" text="Eroare la încărcarea datelor" />
+          <DashboardHeader heading="Tichete Arhivate" text="Eroare la încărcarea datelor" />
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Archive className="h-12 w-12 text-red-400 mb-4" />
@@ -664,8 +664,8 @@ export default function LucrariArhivate() {
     <TooltipProvider>
       <DashboardShell>
         <DashboardHeader 
-          heading="Lucrări Arhivate" 
-          text={`${filteredLucrari.length} ${searchTerm || activeFilters.length ? 'rezultate filtrate' : 'lucrări arhivate'} din ${lucrariArhivate.length} total`}
+          heading="Tichete Arhivate" 
+          text={`${filteredLucrari.length} ${searchTerm || activeFilters.length ? 'rezultate filtrate' : 'tichete arhivate'} din ${lucrariArhivate.length} total`}
         />
 
 
@@ -751,7 +751,7 @@ export default function LucrariArhivate() {
 
               {/* Informații despre filtrare - pe mobil sub butoane */}
               <div className="text-sm text-gray-500 order-last sm:order-none">
-                {filteredLucrari.length} din {lucrariArhivate.length} lucrări
+                {filteredLucrari.length} din {lucrariArhivate.length} tichete
               </div>
             </div>
 
@@ -813,12 +813,12 @@ export default function LucrariArhivate() {
                 <CardContent className="flex flex-col items-center justify-center py-12">
                   <Archive className="h-12 w-12 text-gray-400 mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    Nu există lucrări arhivate
+                    Nu există tichete arhivate
                   </h3>
                   <p className="text-gray-500 text-center max-w-md">
                     {searchTerm || activeFilters.length
-                      ? "Nu s-au găsit lucrări arhivate care să corespundă criteriilor de căutare."
-                      : "Încă nu aveți lucrări arhivate. Lucrările finalizate pot fi arhivate pentru organizare."
+                      ? "Nu s-au găsit tichete arhivate care să corespundă criteriilor de căutare."
+                      : "Încă nu aveți tichete arhivate. Tichetele finalizate pot fi arhivate pentru organizare."
                     }
                   </p>
                   {(searchTerm || activeFilters.length > 0) && (
@@ -919,7 +919,7 @@ export default function LucrariArhivate() {
                                   <ArchiveRestore className="h-4 w-4" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>Dezarhivează lucrarea</TooltipContent>
+                              <TooltipContent>Dezarhivează tichetul</TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
                         </div>
@@ -955,12 +955,12 @@ export default function LucrariArhivate() {
                 <CardContent className="flex flex-col items-center justify-center py-12">
                   <Archive className="h-12 w-12 text-gray-400 mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    Nu există lucrări arhivate
+                    Nu există tichete arhivate
                   </h3>
                   <p className="text-gray-500 text-center max-w-md">
                     {searchTerm || activeFilters.length
-                      ? "Nu s-au găsit lucrări arhivate care să corespundă criteriilor de căutare."
-                      : "Încă nu aveți lucrări arhivate."
+                      ? "Nu s-au găsit tichete arhivate care să corespundă criteriilor de căutare."
+                      : "Încă nu aveți tichete arhivate."
                     }
                   </p>
                   {(searchTerm || activeFilters.length > 0) && (
@@ -998,7 +998,7 @@ export default function LucrariArhivate() {
         <FilterModal
           isOpen={isFilterModalOpen}
           onClose={() => setIsFilterModalOpen(false)}
-          title="Filtrează lucrările arhivate"
+          title="Filtrează tichetele arhivate"
           filterOptions={filterOptions}
           activeFilters={activeFilters}
           onApplyFilters={handleFiltersChange}

@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: "invalid", message: "Parametri lipsă sau nevalizi." }, { status: 400 })
     }
 
-    const workRef = adminDb.collection("lucrari").doc(String(lucrareId))
+    const workRef = adminDb.collection("tichete").doc(String(lucrareId))
     const workSnap = await workRef.get()
     if (!workSnap.exists) {
       return NextResponse.json({ status: "invalid", message: "Lucrarea nu există." }, { status: 404 })

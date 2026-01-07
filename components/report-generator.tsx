@@ -116,7 +116,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
     }
     
     console.log("🚀 PORNIRE GENERARE RAPORT")
-    console.log("📋 Lucrare inițială:", {
+    console.log("📋 Tichet inițială:", {
       id: lucrare.id,
       raportGenerat: lucrare.raportGenerat,
       raportDataLocked: lucrare.raportDataLocked,
@@ -326,7 +326,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         }
       }
 
-      console.log("Generating PDF with lucrare:", lucrareForPDF)
+      console.log("Generating PDF with tichet:", lucrareForPDF)
       console.log("Products:", lucrareForPDF.products || products)
       console.log("Signatures:", {
         tech: lucrareForPDF.semnaturaTehnician ? "Present" : "Missing",
@@ -1048,13 +1048,13 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
               console.log("🚨 Această problemă va corupe datele în Firestore!")
             }
             
-            await updateDoc(doc(db, "lucrari", lucrare.id), updateData)
+            await updateDoc(doc(db, "tichete", lucrare.id), updateData)
             // LOG DEBUG – confirmare că update-ul a fost trimis în Firestore
             console.log("🔍 Firestore UPDATE (prima generare) – payload trimis:", updateData)
             console.log("✅ SUCCES - Prima generare salvată în Firestore cu statusLucrare: Finalizat")
           } else if (isOldFinalizedReport) {
             console.log("🏛️ RAPORT VECHI FINALIZAT - Nu salvez nimic în baza de date")
-            console.log("📋 Folosesc doar datele existente pentru PDF fără a modifica starea lucrării")
+            console.log("📋 Folosesc doar datele existente pentru PDF fără a modifica starea tichetului")
           } else {
             console.log("🔄 REGENERARE - Actualizez timestamp-ul și atribui număr dacă lipsea")
             const payload: any = { updatedAt: serverTimestamp() }
@@ -1063,7 +1063,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
               payload.nrLucrare = String(numarRaport)
               console.log("✅ Atribui numarRaport/nrLucrare la regenerare:", numarRaport)
             }
-            await updateDoc(doc(db, "lucrari", lucrare.id), payload)
+            await updateDoc(doc(db, "tichete", lucrare.id), payload)
             // LOG DEBUG – confirmare regenerare
             console.log("🔍 Firestore UPDATE (regenerare) – payload:", payload)
             console.log("✅ SUCCES - Regenerare confirmată în Firestore")
@@ -1072,7 +1072,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           console.error("❌ EROARE la salvarea în Firestore:", e)
         }
       } else {
-        console.log("⚠️ Nu pot salva - ID lucrare lipsește")
+        console.log("⚠️ Nu pot salva - ID tichet lipsește")
       }
 
       console.log("🎉 PROCES COMPLET - PDF generat și stare salvată")

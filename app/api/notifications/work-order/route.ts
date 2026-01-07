@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import nodemailer from "nodemailer"
 import { logEmailEvent, updateEmailEvent, addUserLogEntry } from "@/lib/firebase/firestore"
 import { logDebug, logInfo, logWarning, logError } from "@/lib/utils/logging-service"
+import { getEmailFrom } from "@/lib/email/from"
 import path from "path"
 import fs from "fs"
 
@@ -53,7 +54,7 @@ async function safeAddLog(action: string, details: string, type: "Informație" |
   }
 }
 
-// Funcție pentru a extrage ID-ul lucrării în mod sigur
+// Funcție pentru a extrage ID-ul tichetului în mod sigur
 function extractWorkOrderId(workOrderId: any): string {
   // Verificăm dacă este string
   if (typeof workOrderId === "string") {
@@ -131,7 +132,7 @@ export async function POST(request: NextRequest) {
     if (!data.workOrderId) {
       console.log(`[WORK-ORDER-API] [${requestId}] EROARE: Lipsește workOrderId`)
       logWarning("Missing required field: workOrderId", { data }, { category: "api", context: logContext })
-      return NextResponse.json({ error: "ID-ul lucrării este obligatoriu" }, { status: 400 })
+      return NextResponse.json({ error: "ID-ul tichetului este obligatoriu" }, { status: 400 })
     }
 
     // Extract data
@@ -251,7 +252,7 @@ export async function POST(request: NextRequest) {
       <ul style="list-style-type: none; padding-left: 0;">
         <li><strong>Data emiterii:</strong> ${(details?.issueDate || "N/A").split(' ')[0]}</li>
         <li><strong>Data intervenție:</strong> ${(details?.interventionDate || "N/A").split(' ')[0]}</li>
-        <li><strong>Tip lucrare:</strong> ${details?.workType || "N/A"}</li>
+        <li><strong>Tip tichet:</strong> ${details?.workType || "N/A"}</li>
         <li><strong>Locație:</strong> ${details?.location || "N/A"}</li>
         <li><strong>Echipament:</strong> ${details?.equipment || "N/A"}</li>
         <li><strong>Model echipament:</strong> ${details?.equipmentModel || "N/A"}</li>
@@ -289,7 +290,7 @@ export async function POST(request: NextRequest) {
     const clientWorkOrderInfo = isPostponed
       ? `
       <div style="padding: 10px 12px; border-left: 4px solid #8b5cf6; background:#f5f3ff; border-radius:4px; margin-bottom: 12px;">
-        <div style="font-weight:600; color:#53389e; margin-bottom:6px;">Stare lucrare: Amânată</div>
+        <div style="font-weight:600; color:#53389e; margin-bottom:6px;">Stare tichet: Amânată</div>
         ${details?.postponeReason ? `<div><strong>Motiv:</strong> ${details.postponeReason}</div>` : ''}
         
       </div>
@@ -303,7 +304,7 @@ export async function POST(request: NextRequest) {
       <ul style="list-style-type: none; padding-left: 0;">
         <li><strong>Data emiterii:</strong> ${(details?.issueDate || "N/A").split(' ')[0]}</li>
         <li><strong>Data intervenție:</strong> ${(details?.interventionDate || "N/A").split(' ')[0]}</li>
-        <li><strong>Tip lucrare:</strong> ${details?.workType || "N/A"}</li>
+        <li><strong>Tip tichet:</strong> ${details?.workType || "N/A"}</li>
         <li><strong>Locație:</strong> ${details?.location || "N/A"}</li>
         <li><strong>Status:</strong> ${details?.status || "N/A"}</li>
         ${revisionEquipmentsHtml || `<li><strong>Echipament:</strong> ${details?.equipment || "N/A"}</li>`}
@@ -313,13 +314,13 @@ export async function POST(request: NextRequest) {
     // Asigurăm că URL-ul aplicației este complet
     const appBaseUrl = ensureCompleteUrl(process.env.NEXT_PUBLIC_APP_URL || "fom.nrg-acces.ro")
 
-    // Extragem ID-ul lucrării în mod sigur
+    // Extragem ID-ul tichetului în mod sigur
     const safeWorkOrderId = extractWorkOrderId(workOrderId)
-    console.log(`[WORK-ORDER-API] [${requestId}] ID lucrare extras: ${safeWorkOrderId}`)
+    console.log(`[WORK-ORDER-API] [${requestId}] ID tichet extras: ${safeWorkOrderId}`)
 
     // Construim URL-ul corect pentru lucrare
     const workOrderUrl = `${appBaseUrl}/dashboard/lucrari/${safeWorkOrderId}`
-    console.log(`[WORK-ORDER-API] [${requestId}] URL lucrare generat: ${workOrderUrl}`)
+    console.log(`[WORK-ORDER-API] [${requestId}] URL tichet generat: ${workOrderUrl}`)
 
     // Send emails to technicians
     const technicianEmails = []
@@ -348,9 +349,9 @@ export async function POST(request: NextRequest) {
                 </div>
                 <h2 style="color: #0f56b3;">Tichet nou asignată</h2>
                 <p>Salut ${tech.name},</p>
-                <p>Ai fost asignat la o nouă lucrare:</p>
+                <p>Ai fost asignat la o nouă tichet:</p>
                 
-                <!-- Buton de acces lucrare -->
+                <!-- Buton de acces tichet -->
                 <table cellspacing="0" cellpadding="0" border="0" style="margin: 20px 0;">
                   <tr>
                     <td align="center" bgcolor="#0f56b3" style="border-radius: 4px;">
@@ -371,7 +372,7 @@ export async function POST(request: NextRequest) {
                 </p>
                 
                 <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 15px 0;">
-                  <h3 style="margin-top: 0;">Detalii lucrare</h3>
+                  <h3 style="margin-top: 0;">Detalii tichet</h3>
                   ${technicianWorkOrderInfo}
                 </div>
                 
@@ -390,10 +391,10 @@ export async function POST(request: NextRequest) {
 
             // Configurăm opțiunile emailului (similar cu api/send-email/route.ts)
             const mailOptions = {
-              from: `"Field Operational Manager" <${process.env.EMAIL_USER || "fom@nrg-acces.ro"}>`,
+              from: getEmailFrom(),
               to: tech.email,
               subject: `Tichet nou: ${client?.name}`,
-              text: `Salut ${tech.name}, ai fost asignat la o nouă lucrare pentru clientul ${client?.name || "N/A"}. Accesează lucrarea la: ${workOrderUrl}`,
+              text: `Salut ${tech.name}, ai fost asignat la o nouă tichet pentru clientul ${client?.name || "N/A"}. Accesează lucrarea la: ${workOrderUrl}`,
               html: htmlContent,
               attachments: [
                 {
@@ -518,7 +519,7 @@ export async function POST(request: NextRequest) {
           "Sending email to client",
           {
             recipient: uniqueRecipients.join(", "),
-            subject: isPostponed ? `Anunț amânare lucrare: ${details?.location || "Locație nedefinită"}` : `Confirmare lucrare: ${client?.name}`,
+            subject: isPostponed ? `Anunț amânare tichet: ${details?.location || "Locație nedefinită"}` : `Confirmare tichet: ${client?.name}`,
           },
           { category: "email", context: logContext },
         )
@@ -537,7 +538,7 @@ export async function POST(request: NextRequest) {
             </p>
             
             <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 15px 0;">
-              <h3 style="margin-top: 0;">Detalii lucrare</h3>
+              <h3 style="margin-top: 0;">Detalii tichet</h3>
               ${clientWorkOrderInfo}
             </div>
             ${!isPostponed ? `
@@ -555,10 +556,10 @@ export async function POST(request: NextRequest) {
 
         // Configurăm opțiunile emailului (similar cu api/send-email/route.ts)
         const mailOptions = {
-          from: `"Field Operational Manager" <${process.env.EMAIL_USER || "fom@nrg-acces.ro"}>`,
+          from: getEmailFrom(),
           to: uniqueRecipients,
           subject: isPostponed
-            ? `Anunț amânare lucrare: ${details?.location || "Locație nedefinită"}`
+            ? `Anunț amânare tichet: ${details?.location || "Locație nedefinită"}`
             : `Confirmare intervenție: ${details?.location || "Locație nedefinită"}`,
           text: isPostponed
             ? `Stimate ${client.contactPerson || client.name}, vă informăm că lucrarea a fost amânată.${details?.postponeReason ? ` Motiv: ${details.postponeReason}.` : ''}`

@@ -249,11 +249,15 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
       equipmentStatus: [],
     }
 
-    // Programator revizii: din contracts.revisionSchedulePreview, cu generateAt în următoarele 10 zile (azi..azi+10)
+    // Programator revizii (UI): afișăm DOAR tichetele de revizie deja generate (există lucrareId),
+    // și le păstrăm în această coloană până când sunt atribuite unui tehnician.
+    //
+    // IMPORTANT: Nu afișăm intrările care nu au încă tichet generat (fără lucrareId),
+    // ca să evităm confuzia / navigarea la contract în loc de tichet.
     if (cfg.programatorReviziiEnabled && Array.isArray(contracts) && contracts.length > 0) {
-      // Dacă lucrările de revizie există deja, vrem să navigăm către lucrare (nu către contract).
-      // Mapăm după contract + data intervenției (zi).
-      const revizieWorkByContractAndDate: Record<string, string> = {}
+      // Dacă tichetele de revizie există deja, vrem să navigăm către tichet (nu către contract).
+      // Mapăm după contract + data intervenției (zi) și reținem dacă e deja atribuit.
+      const revizieWorkByContractAndDate: Record<string, { lucrareId: string; hasTechnicians: boolean }> = {}
       if (Array.isArray(activeLucrari) && activeLucrari.length > 0) {
         for (const l of activeLucrari) {
           const lucrareId = String((l as any)?.id || "")
@@ -263,13 +267,14 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
           if (!tip.includes("reviz")) continue
           const dk = dateKeyFromAny((l as any)?.dataInterventie)
           if (!dk) continue
+          const technicians = Array.isArray((l as any)?.tehnicieni) ? (l as any).tehnicieni : []
+          const hasTechnicians = technicians.length > 0
           const key = `${contractId}|${dk}`
           // păstrăm prima lucrare găsită pentru cheie
-          if (!revizieWorkByContractAndDate[key]) revizieWorkByContractAndDate[key] = lucrareId
+          if (!revizieWorkByContractAndDate[key]) revizieWorkByContractAndDate[key] = { lucrareId, hasTechnicians }
         }
       }
 
-      const windowStart = startOfToday
       const windowEnd = addDays(startOfToday, 10)
       const maxTotal = 120
       const maxPerContract = 10
@@ -292,7 +297,6 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
           const scheduledAt = scheduledIso ? new Date(String(scheduledIso)) : null
           const generateAt = generateIso ? new Date(String(generateIso)) : null
           if (!generateAt || Number.isNaN(generateAt.getTime())) continue
-          if (generateAt < windowStart || generateAt > windowEnd) continue
 
           const scheduledOk = scheduledAt && !Number.isNaN(scheduledAt.getTime()) ? scheduledAt : null
 
@@ -303,7 +307,17 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
           const id = `${contractId}:${String(generateIso || scheduledIso || "")}:${locationName}`
 
           const scheduledKey = dateKeyFromAny(scheduledIso)
-          const lucrareId = scheduledKey ? revizieWorkByContractAndDate[`${contractId}|${scheduledKey}`] : undefined
+          const meta = scheduledKey ? revizieWorkByContractAndDate[`${contractId}|${scheduledKey}`] : undefined
+          const lucrareId = meta?.lucrareId
+
+          // Cerință: afișăm DOAR tichetele deja generate; cele ne-generate (fără lucrareId) NU apar.
+          if (!lucrareId) continue
+
+          // Cerință: rămân aici până sunt atribuite unui tehnician.
+          if (meta?.hasTechnicians) continue
+
+          // Menținem limitarea de volum: nu listăm la nesfârșit – doar până la 10 zile în viitor.
+          if (generateAt > windowEnd) continue
 
           res.programatorRevizii.push(
             buildRevisionScheduleBubble({
@@ -412,10 +426,16 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
 
       // Necesită ofertă - sortate după data generării raportului
       if (cfg.necesitaOfertaEnabled) {
+        const hasOffer = ((l as any).offerVersions && (l as any).offerVersions.length > 0) || (l as any).offerTotal
+        const offerSentAt = toDate((l as any).lastOfferEmail?.sentAt) || toDate((l as any).offerPreparedAt)
+        const hasOfferAlready = Boolean(hasOffer) || Boolean(offerSentAt)
+
         const flagOk = cfg.necesitaOfertaRequireFlag ? Boolean((l as any).necesitaOferta) : true
         const noRespOk = cfg.necesitaOfertaRequireNoResponse ? !(l as any).offerResponse : true
-        if (flagOk && noRespOk) {
-        res.necesitaOferta.push(buildBubble(l, undefined, toDate(l.createdAt) || undefined))
+        // IMPORTANT: dacă un tichet a fost deja ofertat (ofertă existentă / trimisă),
+        // nu trebuie să mai apară în "Necesită ofertă".
+        if (flagOk && noRespOk && !hasOfferAlready) {
+          res.necesitaOferta.push(buildBubble(l, undefined, toDate(l.createdAt) || undefined))
         }
       }
 

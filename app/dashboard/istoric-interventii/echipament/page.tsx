@@ -109,7 +109,10 @@ function TechnicianHistoryCard({ r }: { r: Row }) {
 
           {/* Link */}
           <div className="p-3 text-center">
-            <Link href={`/dashboard/lucrari/${r.id}`} className="text-blue-700 underline font-medium">
+            <Link
+              href={`/dashboard/lucrari/${r.id}?from=istoric-echipament`}
+              className="text-blue-700 underline font-medium"
+            >
               Vezi lucrarea
             </Link>
           </div>
@@ -129,7 +132,7 @@ export default function IstoricEchipamentPage() {
 
   // Folosim query simplu (raportGenerat=true) și filtrăm în memorie după cod,
   // pentru a evita probleme de index Firestore la combinații.
-  const { data: works, loading } = useFirebaseCollection<Lucrare>("lucrari", [where("raportGenerat", "==", true)])
+  const { data: works, loading } = useFirebaseCollection<Lucrare>("tichete", [where("raportGenerat", "==", true)])
 
   const rows = useMemo<Row[]>(() => {
     if (!cod) return []
@@ -197,7 +200,7 @@ export default function IstoricEchipamentPage() {
             else router.push("/dashboard/lucrari")
           }}
         >
-          Înapoi la lucrări
+          Înapoi la tichete
         </Button>
         {cod ? (
           <div className="text-sm text-muted-foreground">
@@ -245,7 +248,7 @@ export default function IstoricEchipamentPage() {
                       </div>
                     </div>
                     <Button asChild size="sm" variant="outline" className="shrink-0">
-                      <Link href={`/dashboard/lucrari/${r.id}`}>Vezi lucrarea</Link>
+                      <Link href={`/dashboard/lucrari/${r.id}?from=istoric-echipament`}>Vezi lucrarea</Link>
                     </Button>
                   </div>
                 </CardHeader>

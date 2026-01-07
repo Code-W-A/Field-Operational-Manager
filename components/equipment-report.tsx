@@ -288,7 +288,7 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
         console.error("Error loading work orders:", error)
         toast({
           title: "Eroare",
-          description: "Nu s-au putut încărca datele lucrărilor",
+          description: "Nu s-au putut încărca datele tichetelor",
           variant: "destructive",
         })
       } finally {

@@ -116,7 +116,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
     try {
       // Încărcăm în Firebase Storage (acceptăm orice tip de fișier)
       const fileExtension = file.name.split('.').pop() || 'file'
-      const storagePath = `lucrari/${lucrareId}/factura_${Date.now()}.${fileExtension}`
+      const storagePath = `tichete/${lucrareId}/factura_${Date.now()}.${fileExtension}`
       const { url, fileName } = await uploadFile(file, storagePath)
 
       // Actualizăm Firestore
@@ -163,7 +163,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
     try {
       // Încărcăm în Firebase Storage (acceptăm orice tip de fișier)
       const fileExtension = file.name.split('.').pop() || 'file'
-      const storagePath = `lucrari/${lucrareId}/oferta_${Date.now()}.${fileExtension}`
+      const storagePath = `tichete/${lucrareId}/oferta_${Date.now()}.${fileExtension}`
       const { url, fileName } = await uploadFile(file, storagePath)
 
       // Actualizăm Firestore
@@ -338,7 +338,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
         </CardTitle>
         <CardDescription>
           {isArchived 
-            ? "Documentele pot fi doar vizualizate și descărcate pentru lucrările arhivate"
+            ? "Documentele pot fi doar vizualizate și descărcate pentru tichetele arhivate"
             : "Facturare: Încărcați factura sau marcați 'Nu se facturează' și adăugați motivul"
           }
         </CardDescription>
@@ -433,7 +433,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
                     className="w-full sm:w-auto"
                   >
                     <Upload className="h-4 w-4 mr-2" />
-                    {isArchived ? "Indisponibil pentru lucrări arhivate" : (isUploading.factura ? "Se încarcă..." : "Încarcă factură")}
+                    {isArchived ? "Indisponibil pentru tichete arhivate" : (isUploading.factura ? "Se încarcă..." : "Încarcă factură")}
                   </Button>
                 </div>
               )}
@@ -540,7 +540,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
                     className="w-full"
                   >
                     <Upload className="h-4 w-4 mr-2" />
-                    {isArchived ? "Indisponibil pentru lucrări arhivate" : (isUploading.oferta ? "Se încarcă..." : "Selectează și încarcă fișier ofertă")}
+                    {isArchived ? "Indisponibil pentru tichete arhivate" : (isUploading.oferta ? "Se încarcă..." : "Selectează și încarcă fișier ofertă")}
                   </Button>
                 </div>
               </div>
@@ -552,7 +552,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
                   {!needsOffer 
-                    ? "Încărcarea ofertei este dezactivată. Tehnicianul nu a marcat că această lucrare necesită ofertă."
+                    ? "Încărcarea ofertei este dezactivată. Tehnicianul nu a marcat că această tichet necesită ofertă."
                     : "Încărcarea ofertei este disponibilă doar când statusul ofertei este setat pe \"OFERTAT\"."
                   }
                 </AlertDescription>

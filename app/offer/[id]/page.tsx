@@ -62,7 +62,7 @@ export default function OfferActionPage() {
         }
 
         // Continuăm cu pașii opționali (email/PDF) non-blocanți
-        const ref = doc(db, "lucrari", id)
+        const ref = doc(db, "tichete", id)
         const snap = await getDoc(ref)
         const data: any = snap.exists() ? snap.data() : null
         // Helper: return ONLY the email for the exact contact of the work's location
@@ -131,7 +131,7 @@ export default function OfferActionPage() {
                 })
                 const fileName = `oferta_${id}.pdf`
                 const file = new File([blob], fileName, { type: "application/pdf" })
-                const path = `lucrari/${id}/oferta/${fileName}`
+                const path = `tichete/${id}/oferta/${fileName}`
                 const uploaded = await uploadFile(file, path)
                 ofertaUrl = uploaded.url
                 await updateDoc(ref, {
@@ -158,7 +158,7 @@ export default function OfferActionPage() {
 
             if (recipient) {
               const to = [recipient]
-              const subject = `${action === "accept" ? "Confirmare acceptare ofertă" : "Confirmare răspuns – refuz ofertă"} – lucrare ${fresh?.numarRaport || String(id)}`
+              const subject = `${action === "accept" ? "Confirmare acceptare ofertă" : "Confirmare răspuns – refuz ofertă"} – tichet ${fresh?.numarRaport || String(id)}`
               const base = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "")
               const downloadLink = ofertaUrl ? `${base}/api/download?lucrareId=${encodeURIComponent(String(id))}&type=oferta&url=${encodeURIComponent(ofertaUrl)}&recipient=${encodeURIComponent(String(recipient))}` : ""
 
@@ -244,7 +244,7 @@ export default function OfferActionPage() {
 
       // Trimite emailul de confirmare (secțiunea existentă reutilizată)
       try {
-        const ref = doc(db, "lucrari", id)
+        const ref = doc(db, "tichete", id)
         const freshSnap = await getDoc(ref)
         const fresh = freshSnap.exists() ? (freshSnap.data() as any) : null
         if (fresh) {
@@ -271,7 +271,7 @@ export default function OfferActionPage() {
           const recipient = resolveRecipientEmailForLocation(clientData, fresh)
           if (recipient) {
             const to = [recipient]
-            const subject = `Confirmare răspuns – refuz ofertă – lucrare ${fresh?.numarRaport || String(id)}`
+            const subject = `Confirmare răspuns – refuz ofertă – tichet ${fresh?.numarRaport || String(id)}`
             const html = `
               <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0b1220">
                 <p>Am înregistrat refuzul ofertei.</p>
@@ -361,7 +361,7 @@ export default function OfferActionPage() {
                   <Button onClick={async () => {
                     try {
                       setDownloading(true)
-                      const ref = doc(db, "lucrari", id)
+                      const ref = doc(db, "tichete", id)
                       const freshSnap = await getDoc(ref)
                       const fresh = freshSnap.exists() ? (freshSnap.data() as any) : null
                       const products = Array.isArray(fresh?.products) ? fresh.products : []

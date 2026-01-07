@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import nodemailer from "nodemailer"
 import { logEmailEvent, updateEmailEvent, updateLucrare, addUserLogEntry } from "@/lib/firebase/firestore"
+import { getEmailFrom } from "@/lib/email/from"
 import path from "path"
 
 export async function POST(request: NextRequest) {
@@ -10,7 +11,6 @@ export async function POST(request: NextRequest) {
     const to = formData.get("to") as string
     const subject = formData.get("subject") as string
     const message = formData.get("message") as string
-    const senderName = formData.get("senderName") as string
     const pdfFile = formData.get("pdfFile") as File
 
     if (!to || !subject || !pdfFile) {
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
 
     // Configurăm opțiunile emailului
     const mailOptions = {
-      from: `"${senderName || "Field Operational Manager"}" <fom@nrg-acces.ro>`,
+      from: getEmailFrom(),
       to,
       subject,
       text: message || "Va transmitem atasat raportul de interventie.",

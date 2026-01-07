@@ -14,7 +14,7 @@ const inter = Inter({ subsets: ["latin"] })
 // Actualizăm titlul în metadata
 export const metadata: Metadata = {
   title: "Field Operational Manager",
-  description: "Aplicație pentru gestionarea lucrărilor de service",
+  description: "Aplicație pentru gestionarea tichetelor de service",
   manifest: "/manifest.json",
     generator: 'v0.dev'
 }

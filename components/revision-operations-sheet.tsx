@@ -390,7 +390,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
       console.log("✅ Pas 1 completat: Document revizie salvat")
       
       // Mark equipment as done in lucrare (update nested path to avoid overwriting other statuses)
-      console.log("📝 Pas 2: Marcare echipament ca done în lucrare...")
+      console.log("📝 Pas 2: Marcare echipament ca done în tichet...")
       await updateLucrare(
         workId,
         {

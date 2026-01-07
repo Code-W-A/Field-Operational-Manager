@@ -77,7 +77,7 @@ export default function PortalWorkDetail() {
           utilizator: 'Client portal',
           utilizatorId: 'portal',
           actiune: 'Răspuns ofertă',
-          detalii: `lucrare: ${id}; status: ${accepted ? 'accept' : 'reject'}; reason: ${reason || '-'}`,
+          detalii: `tichet: ${id}; status: ${accepted ? 'accept' : 'reject'}; reason: ${reason || '-'}`,
           tip: 'Informație',
           categorie: 'Ofertă',
         })
@@ -86,7 +86,7 @@ export default function PortalWorkDetail() {
       // Best-effort: email admins/dispeceri despre răspunsul clientului
       try {
         const origin = typeof window !== 'undefined' ? window.location.origin : ''
-        const subject = `Răspuns ofertă (${accepted ? 'ACCEPTAT' : 'RESPINS'}) – lucrare ${id}`
+        const subject = `Răspuns ofertă (${accepted ? 'ACCEPTAT' : 'RESPINS'}) – tichet ${id}`
         const html = `
           <div style="font-family:Arial,sans-serif;line-height:1.5">
             <h2 style="margin:0 0 12px;color:#0f56b3">Răspuns ofertă</h2>
@@ -137,7 +137,7 @@ export default function PortalWorkDetail() {
             const base = typeof window !== 'undefined' ? window.location.origin : ''
             const ofertaUrl = (fresh as any)?.ofertaDocument?.url
             const downloadLink = ofertaUrl ? `${base}/api/download?lucrareId=${encodeURIComponent(String(id))}&type=oferta&url=${encodeURIComponent(ofertaUrl)}` : ''
-            const subject = accepted ? `Confirmare acceptare ofertă – lucrare ${String(id)}` : `Confirmare răspuns – refuz ofertă – lucrare ${String(id)}`
+            const subject = accepted ? `Confirmare acceptare ofertă – tichet ${String(id)}` : `Confirmare răspuns – refuz ofertă – tichet ${String(id)}`
             const messageParagraph = accepted
               ? 'Va multumim pentru acceptarea ofertei noastre. In continuare veti fi contactat de un reprezentant NRG pt a stabili urmatorii pasi.'
               : 'Va multumim pentru raspunsul dvs. In continuare veti fi contactat de un reprezentant NRG pt a stabili urmatorii pasi.'

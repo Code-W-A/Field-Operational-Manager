@@ -129,7 +129,7 @@ export function TehnicianInterventionForm({
           setFormDisabled(true)
         }
       } catch (error) {
-        console.error("Eroare la verificarea stării lucrării:", error)
+        console.error("Eroare la verificarea stării tichetului:", error)
       }
     }
 
@@ -330,7 +330,7 @@ export function TehnicianInterventionForm({
     const uploadPromises = selectedImages.map(async (file) => {
       const timestamp = Date.now()
       const fileExtension = 'jpg' // Imaginile sunt deja comprimată în format JPG
-      const storagePath = `lucrari/${lucrareId}/imagini_defecte/img_${timestamp}_${Math.random().toString(36).substr(2, 9)}.${fileExtension}`
+      const storagePath = `tichete/${lucrareId}/imagini_defecte/img_${timestamp}_${Math.random().toString(36).substr(2, 9)}.${fileExtension}`
       
       const { url, fileName } = await uploadFile(file, storagePath)
 

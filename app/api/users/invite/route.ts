@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import nodemailer from "nodemailer"
 import { logEmailEvent, updateEmailEvent, updateLucrare, addUserLogEntry } from "@/lib/firebase/firestore"
+import { getEmailFrom } from "@/lib/email/from"
 
 export async function POST(request: Request) {
   // IMPORTANT: Request body can be read only once. Keep a copy for both success + error logging.
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
       // Log în colecția logs pentru vizualizare în EmailLogViewer
       await addUserLogEntry({
         actiune: inferredType === "OFFER" ? "Email ofertă (în coadă)" : inferredType === "REPORT" ? "Email raport (în coadă)" : "Email (în coadă)",
-        detalii: `Email în coadă: "${subject || "Email – FOM"}" către ${(to as string[]).join(", ")}${inferredLucrareId ? ` | Lucrare: ${String(inferredLucrareId)}` : ""}`,
+        detalii: `Email în coadă: "${subject || "Email – FOM"}" către ${(to as string[]).join(", ")}${inferredLucrareId ? ` | Tichet: ${String(inferredLucrareId)}` : ""}`,
         tip: "Informație",
         categorie: "Email",
       })
@@ -62,7 +63,7 @@ export async function POST(request: Request) {
     }
 
     const info = await transporter.sendMail({
-      from: `Field Operational Manager <${process.env.EMAIL_USER || "fom@nrg-acces.ro"}>`,
+      from: getEmailFrom(),
       to,
       subject: subject || "Invitație acces Portal Client – FOM",
       text: content || "Vă-am creat acces în Portalul Client FOM.",

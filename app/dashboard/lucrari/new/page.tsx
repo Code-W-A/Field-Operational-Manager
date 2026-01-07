@@ -185,9 +185,9 @@ export default function NewLucrarePage() {
       // Adăugăm un log pentru crearea lucrării
       const logMessage = isReassignment 
         ? `A fost adăugată o re-intervenție pentru clientul "${formData.client}" cu ID-ul ${lucrareId} (din lucrarea originală ${originalWorkOrderId})`
-        : `A fost adăugată o nouă lucrare pentru clientul "${formData.client}" cu ID-ul ${lucrareId}`
+        : `A fost adăugată o nouă tichet pentru clientul "${formData.client}" cu ID-ul ${lucrareId}`
       
-      await addLog("Adăugare", logMessage, "Informație", "Lucrări")
+      await addLog("Adăugare", logMessage, "Informație", "Tichete")
 
       // Afișăm un mesaj de succes
       const successMessage = isReassignment 
@@ -195,7 +195,7 @@ export default function NewLucrarePage() {
         : "Lucrarea a fost adăugată cu succes."
       
       toast({
-        title: isReassignment ? "Re-intervenție adăugată" : "Lucrare adăugată",
+        title: isReassignment ? "Re-intervenție adăugată" : "Tichet adăugată",
         description: successMessage,
       })
 
@@ -285,10 +285,10 @@ export default function NewLucrarePage() {
       // Revenim la ecranul anterior (de obicei dashboard sau lista de lucrări)
       router.back()
     } catch (error) {
-      console.error("Eroare la adăugarea lucrării:", error)
+      console.error("Eroare la adăugarea tichetului:", error)
       toast({
         title: "Eroare",
-        description: "A apărut o eroare la adăugarea lucrării. Vă rugăm să încercați din nou.",
+        description: "A apărut o eroare la adăugarea tichetului. Vă rugăm să încercați din nou.",
         variant: "destructive",
         icon: <AlertCircle className="h-4 w-4" />,
       })
@@ -298,11 +298,11 @@ export default function NewLucrarePage() {
   return (
     <Card className="w-full max-w-4xl mx-auto">
         <CardHeader>
-        <CardTitle>{isReassignment ? "Re-intervenție" : "Adaugă lucrare nouă"}</CardTitle>
+        <CardTitle>{isReassignment ? "Re-intervenție" : "Adaugă tichet nouă"}</CardTitle>
         <CardDescription>
           {isReassignment 
             ? `Crearea unei re-intervenții bazate pe lucrarea ${originalWorkOrderId}` 
-            : "Completați informațiile pentru a adăuga o lucrare nouă în sistem"
+            : "Completați informațiile pentru a adăuga o tichet nouă în sistem"
           }
         </CardDescription>
         </CardHeader>

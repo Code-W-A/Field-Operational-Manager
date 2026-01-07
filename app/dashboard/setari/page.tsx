@@ -998,7 +998,7 @@ export default function SetariPage() {
                           <Info className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-gray-500" />
                           <p>
                             Dacă dezactivezi o stare, boxul rămâne vizibil pe dashboard (marcat „Dezactivat"), dar nu mai
-                            afișează lucrări.
+                            afișează tichete.
                           </p>
                         </div>
                       </div>

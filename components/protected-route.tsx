@@ -17,6 +17,15 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   const router = useRouter()
   const pathname = usePathname()
 
+  const isClient = userData?.role === "client"
+  const isTechnician = userData?.role === "tehnician"
+  const isDashboard = pathname?.startsWith("/dashboard")
+  const isAllowedLucrari = pathname === "/dashboard/lucrari" || pathname?.startsWith("/dashboard/lucrari/")
+  const isAllowedHistory = pathname === "/dashboard/istoric-interventii" || pathname?.startsWith("/dashboard/istoric-interventii/")
+
+  const shouldRedirectClientToPortal = !!user && isClient && isDashboard && !isAllowedLucrari && !isAllowedHistory
+  const shouldRedirectTechnicianToLucrari = !!user && isTechnician && pathname === "/dashboard"
+
   useEffect(() => {
     if (!loading) {
       // Adăugăm logging pentru debugging
@@ -35,19 +44,14 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
         router.push("/dashboard")
       } else if (userData?.role === "tehnician" && pathname === "/dashboard") {
         // Redirect technicians from /dashboard to /dashboard/lucrari
-        console.log("Technician accessing dashboard, redirecting to lucrari")
+        console.log("Technician accessing dashboard, redirecting to tichete")
         router.push("/dashboard/lucrari")
       } else if (userData?.role === "tehnician" && pathname?.includes("/dashboard/clienti")) {
         // Prevent technicians from accessing the Clients page
-        console.log("Technician attempting to access Clients page, redirecting to dashboard/lucrari")
+        console.log("Technician attempting to access Clients page, redirecting to dashboard/tichete")
         router.push("/dashboard/lucrari")
       } else if (userData?.role === "client") {
         // Clients: allow only /dashboard/lucrari and its subroutes; redirect others to /portal
-        const isDashboard = pathname?.startsWith("/dashboard")
-        const isAllowedLucrari = pathname === "/dashboard/lucrari" || pathname?.startsWith("/dashboard/lucrari/")
-        // Allow history list + equipment-specific history check page(s)
-        const isAllowedHistory =
-          pathname === "/dashboard/istoric-interventii" || pathname?.startsWith("/dashboard/istoric-interventii/")
         if (isDashboard && !isAllowedLucrari && !isAllowedHistory) {
           router.push("/portal")
         }
@@ -56,6 +60,18 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   }, [user, userData, loading, router, allowedRoles, pathname])
 
   if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Se încarcă...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Prevent UI flashes before role-based redirects.
+  if (shouldRedirectClientToPortal || shouldRedirectTechnicianToLucrari) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">

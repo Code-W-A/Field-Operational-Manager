@@ -149,6 +149,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const role = userData?.role || "tehnician"
   const isAdminOrDispatcher = role === "admin" || role === "dispecer"
   const fromArhivate = searchParams.get('from') === 'arhivate'
+  const fromIstoricEchipament = searchParams.get("from") === "istoric-echipament"
   
   const { id: paramsId } = React.use(params)
   
@@ -158,6 +159,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   
   const [lucrare, setLucrare] = useState<Lucrare | null>(null)
   const [loading, setLoading] = useState(true)
+  const isAssignedTehnician =
+    role === "tehnician" && !!userData?.displayName && !!lucrare?.tehnicieni?.includes(userData.displayName)
+  const isReadOnlyTechView = role === "tehnician" && fromIstoricEchipament && !isAssignedTehnician
   const [activeTab, setActiveTab] = useState("detalii")
   const [isReinterventionReasonDialogOpen, setIsReinterventionReasonDialogOpen] = useState(false)
 
@@ -285,7 +289,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 notificationRead: true
               }, undefined, undefined, true) // silent = true
               
-              console.log(`✅ Lucrare ${paramsId} marcată ca citită automat pentru ${userData.uid}`)
+              console.log(`✅ Tichet ${paramsId} marcată ca citită automat pentru ${userData.uid}`)
             } catch (error) {
               // Nu afișăm eroarea utilizatorului - e o operațiune de background
               console.warn("Nu s-a putut marca lucrarea ca citită:", error)
@@ -468,7 +472,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           }
         }
       } catch (error) {
-        console.error("Eroare la încărcarea lucrării:", error)
+        console.error("Eroare la încărcarea tichetului:", error)
         toast({
           title: "Eroare",
           description: "Nu s-a putut încărca lucrarea.",
@@ -488,21 +492,27 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       !loading &&
       lucrare &&
       userData?.role === "tehnician" &&
-      ((userData?.displayName && !lucrare.tehnicieni.includes(userData.displayName)) ||
-        (lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true))
+      (userData?.displayName && !lucrare.tehnicieni.includes(userData.displayName))
     ) {
-      // Tehnicianul nu este alocat la această lucrare sau lucrarea este finalizată cu raport generat
-      // redirecționăm la dashboard
+      // Tehnicianul nu este alocat la această lucrare.
+      // Permitem vizualizarea DOAR din fluxul de „Istoric echipament” (scan QR),
+      // dar păstrăm restricția pe restul navigației.
+      if (!fromIstoricEchipament) {
+        toast({
+          title: "Acces restricționat",
+          description: "Nu aveți acces la această tichet.",
+          variant: "destructive",
+        })
+        router.push("/dashboard/lucrari")
+        return
+      }
+
       toast({
-        title: "Acces restricționat",
-        description: lucrare.tehnicieni.includes(userData.displayName || "")
-          ? "Lucrarea este finalizată și raportul a fost generat. Nu mai puteți face modificări."
-          : "Nu aveți acces la această lucrare.",
-        variant: "destructive",
+        title: "Vizualizare istoric",
+        description: "Poți vedea detaliile tichetului, dar nu poți face modificări (nu ești alocat pe tichet).",
       })
-      router.push("/dashboard/lucrari")
     }
-  }, [loading, lucrare, userData, router])
+  }, [loading, lucrare, userData, router, fromIstoricEchipament])
 
   // Funcție pentru a șterge o lucrare
   const handleDeleteLucrare = useStableCallback(async () => {
@@ -516,10 +526,10 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       })
       router.push("/dashboard/lucrari")
     } catch (error) {
-      console.error("Eroare la ștergerea lucrării:", error)
+      console.error("Eroare la ștergerea tichetului:", error)
       toast({
         title: "Eroare",
-        description: "A apărut o eroare la ștergerea lucrării.",
+        description: "A apărut o eroare la ștergerea tichetului.",
         variant: "destructive",
       })
     }
@@ -536,10 +546,10 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   // Modificăm funcția handleGenerateReport pentru a descărca direct raportul dacă este generat
   const handleGenerateReport = useCallback(() => {
     if (!lucrare?.id) {
-      console.error("ID-ul lucrării lipsește:", lucrare)
+      console.error("ID-ul tichetului lipsește:", lucrare)
       toast({
         title: "Eroare",
-        description: "ID-ul lucrării nu este valid",
+        description: "ID-ul tichetului nu este valid",
         variant: "destructive",
       })
       return
@@ -607,20 +617,20 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         }
       }
 
-      console.log("Refreshed lucrare data:", data)
+      console.log("Refreshed tichet data:", data)
 
       // Toast doar dacă nu păstrăm tab-ul (pentru a evita notificări inutile)
       if (!preserveActiveTab) {
         toast({
           title: "Actualizat",
-          description: "Datele lucrării au fost actualizate.",
+          description: "Datele tichetului au fost actualizate.",
         })
       }
     } catch (error) {
-      console.error("Eroare la reîncărcarea lucrării:", error)
+      console.error("Eroare la reîncărcarea tichetului:", error)
       toast({
         title: "Eroare",
-        description: "Nu s-au putut reîncărca datele lucrării.",
+        description: "Nu s-au putut reîncărca datele tichetului.",
         variant: "destructive",
       })
     }
@@ -641,7 +651,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       })
       return
     }
-    if (!window.confirm(`Finalizezi parțial revizia? Echipamente finalizate: ${done.length}. Se creează o lucrare nouă pentru ${remaining.length} echipament(e) rămas(e).`)) {
+    if (!window.confirm(`Finalizezi parțial revizia? Echipamente finalizate: ${done.length}. Se creează o tichet nouă pentru ${remaining.length} echipament(e) rămas(e).`)) {
       return
     }
     setIsFinalizingPartial(true)
@@ -685,7 +695,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       const created = await addLucrare(newWork as any)
       toast({
         title: "Finalizare parțială reușită",
-        description: `Am creat o lucrare nouă pentru echipamentele rămase (ID: ${created.id}).`,
+        description: `Am creat o tichet nouă pentru echipamentele rămase (ID: ${created.id}).`,
       })
       // Navigăm direct la generarea raportului pentru lucrarea curentă (doar echipamentele finalizate)
       router.push(`/raport/${lucrare.id}`)
@@ -803,7 +813,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       }
       return null
     } catch (e) {
-      console.warn("Nu s-a putut verifica existența unei alte lucrări active:", e)
+      console.warn("Nu s-a putut verifica existența unei alte tichete active:", e)
       return null
     }
   })
@@ -844,7 +854,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           otherActive.locatie ? `Locație: ${otherActive.locatie}` : null,
         ].filter(Boolean).join(" | ")
         toast({
-          title: "Ai deja o lucrare deschisă",
+          title: "Ai deja o tichet deschisă",
           description: `${context ? context + "\n" : ""}Finalizează sau închide lucrarea deschisă înainte de a începe alta. Link: ${url}`,
         })
         return
@@ -962,7 +972,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       setEquipmentVerified(false)
       toast({
         title: "Verificare eșuată",
-        description: "Echipamentul scanat nu corespunde cu cel din lucrare. Nu puteți continua intervenția.",
+        description: "Echipamentul scanat nu corespunde cu cel din tichet. Nu puteți continua intervenția.",
         variant: "destructive",
       })
     }
@@ -1044,7 +1054,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         a.href = url
         const finalLabel = headerOverride || equipmentLabel || equipmentId || "Echipament"
         const safeLabel = finalLabel.replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
-        const workNumRaw = String(lucrare.nrLucrare || lucrare.numarRaport || lucrare.id || "")
+        const workNumRaw = String(tichet.nrLucrare || tichet.numarRaport || tichet.id || "")
         const workNum = workNumRaw.replace(/^#\s*/, "").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
         a.download = `Fisa_Operatiuni_${safeLabel}_${workNum}.pdf`
         document.body.appendChild(a)
@@ -1202,7 +1212,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               variant="default"
               className="bg-green-600 hover:bg-green-700 text-white"
               onClick={async () => {
-                if (!window.confirm("Sigur doriți să dezarhivați această lucrare? Va reveni la statusul 'Finalizat'.")) return
+                if (!window.confirm("Sigur doriți să dezarhivați această tichet? Va reveni la statusul 'Finalizat'.")) return
                 try {
                   setIsUpdating(true)
                   await updateLucrare(paramsId, {
@@ -1301,7 +1311,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       disabled={!canArchive}
                       onClick={async () => {
                         if (!canArchive) return
-                        if (window.confirm("Sigur doriți să arhivați această lucrare? Lucrarea va fi mutată în secțiunea Arhivate.")) {
+                        if (window.confirm("Sigur doriți să arhivați această tichet? Lucrarea va fi mutată în secțiunea Arhivate.")) {
                           try {
                             await updateLucrare(paramsId, { statusLucrare: WORK_STATUS.ARCHIVED })
                             toast({ title: "Succes", description: "Lucrarea a fost arhivată cu succes." })
@@ -1427,7 +1437,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   variant="destructive"
                   size="icon"
                   onClick={() => {
-                    if (window.confirm("Sigur doriți să ștergeți această lucrare?")) {
+                    if (window.confirm("Sigur doriți să ștergeți această tichet?")) {
                       handleDeleteLucrare()
                     }
                   }}
@@ -1447,6 +1457,16 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           modification={modification}
           onDismiss={() => setShowModificationBanner(false)}
         />
+      )}
+
+      {isReadOnlyTechView && (
+        <Alert variant="default" className="mb-4 bg-amber-50 border-amber-200">
+          <AlertCircle className="h-4 w-4 text-amber-600" />
+          <AlertTitle>Vizualizare doar</AlertTitle>
+          <AlertDescription>
+            Vizualizare doar – nu ești alocat pe tichet. Poți vedea detaliile și documentele, dar nu poți face modificări.
+          </AlertDescription>
+        </Alert>
       )}
 
       {role === "tehnician" && lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true && (
@@ -1508,14 +1528,22 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
           {/* ------------ 3. Verificare Echipament (100 % pe mobil) ------- */}
           {/* ASCUNS pentru revizii - verificarea se face per echipament în fișa de operațiuni */}
-          {role === "tehnician" && !lucrare.raportGenerat && lucrare.statusLucrare !== WORK_STATUS.POSTPONED && lucrare.tipLucrare !== "Revizie" && (
+          {role === "tehnician" &&
+            isAssignedTehnician &&
+            !lucrare.raportGenerat &&
+            lucrare.statusLucrare !== WORK_STATUS.POSTPONED &&
+            lucrare.tipLucrare !== "Revizie" && (
             <TabsTrigger value="verificare" className="basis-full md:basis-auto text-center whitespace-normal">
               Verificare echipament
             </TabsTrigger>
           )}
           {/* ------------ 2. Intervenție (50 %) --------------------------- */}
           {/* ASCUNS pentru revizii - intervenția se face per echipament în fișa de operațiuni */}
-          {role === "tehnician" && !lucrare.raportGenerat && lucrare.statusLucrare !== WORK_STATUS.POSTPONED && lucrare.tipLucrare !== "Revizie" && (
+          {role === "tehnician" &&
+            isAssignedTehnician &&
+            !lucrare.raportGenerat &&
+            lucrare.statusLucrare !== WORK_STATUS.POSTPONED &&
+            lucrare.tipLucrare !== "Revizie" && (
             <TabsTrigger
               value="interventie"
               disabled={
@@ -1851,7 +1879,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                         // Construim numele fișierului pe baza selecției (headerOverride) sau fallback
                                         const fileLabel = headerOverride || eq?.nume || eq?.name || eq?.model || eid || "Echipament"
                                         const safeLabel = String(fileLabel).replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
-                                        const workNumRaw = String(lucrare?.nrLucrare || lucrare?.numarRaport || lucrare?.id || "")
+                                        const workNumRaw = String(tichet?.nrLucrare || tichet?.numarRaport || tichet?.id || "")
                                         const workNum = workNumRaw.replace(/^#\s*/, "").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
                                         a.download = `Fisa_Operatiuni_${safeLabel}_${workNum}.pdf`
                                         document.body.appendChild(a)
@@ -2615,7 +2643,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   
                   toast({ 
                     title: "Succes", 
-                    description: `Statusul lucrării a fost schimbat în "${newStatus}"` 
+                    description: `Statusul tichetului a fost schimbat în "${newStatus}"` 
                   })
                   
                   // Reîncarcăm datele complete din baza de date pentru sincronizare
@@ -2627,7 +2655,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   console.error("Eroare la actualizarea statusului:", error)
                   toast({ 
                     title: "Eroare", 
-                    description: "Nu s-a putut actualiza statusul lucrării", 
+                    description: "Nu s-a putut actualiza statusul tichetului", 
                     variant: "destructive" 
                   })
                 } finally {
@@ -2785,7 +2813,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                               size="sm"
                               onClick={() => {
                                 if (lucrare.statusLucrare === "Arhivată") {
-                                  toast({ title: 'Editor indisponibil', description: 'Editorul de ofertă nu este disponibil pentru lucrări arhivate.', variant: 'destructive' })
+                                  toast({ title: 'Editor indisponibil', description: 'Editorul de ofertă nu este disponibil pentru tichete arhivate.', variant: 'destructive' })
                                   return
                                 }
                                 if (!lucrare.preluatDispecer) {
@@ -2847,7 +2875,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                 setIsUpdating(false)
                               }
                             }}
-                            placeholder={!lucrare.preluatDispecer ? "Indisponibil până la preluarea lucrării..." : "Detalii relevante pentru ofertă..."}
+                            placeholder={!lucrare.preluatDispecer ? "Indisponibil până la preluarea tichetului..." : "Detalii relevante pentru ofertă..."}
                             className={`min-h-[80px] text-sm ${!lucrare.preluatDispecer ? 'bg-gray-50 text-gray-500 border-gray-300 cursor-not-allowed' : ''}`}
                             disabled={isUpdating || !lucrare.preluatDispecer}
                           />
@@ -3048,7 +3076,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           </div>
         </TabsContent>
 
-        {role === "tehnician" && lucrare.statusLucrare !== WORK_STATUS.POSTPONED && (
+        {role === "tehnician" && isAssignedTehnician && lucrare.statusLucrare !== WORK_STATUS.POSTPONED && (
           <TabsContent value="interventie" className="mt-4">
             {!equipmentVerified ? (
               <Card>
@@ -3127,7 +3155,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           </TabsContent>
         )}
 
-        {role === "tehnician" && (
+        {role === "tehnician" && isAssignedTehnician && (
           <TabsContent value="verificare" className="mt-4">
             <Card>
               <CardHeader>
@@ -3137,7 +3165,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                     <CardTitle>Verificare Echipament</CardTitle>
                     <CardDescription>
                       {otherActiveWork
-                        ? "Ai deja o lucrare în lucru. Finalizează sau închide lucrarea deschisă înainte de a începe alta."
+                        ? "Ai deja o tichet în lucru. Finalizează sau închide lucrarea deschisă înainte de a începe alta."
                         : "Scanați QR code-ul echipamentului pentru a verifica dacă corespunde cu lucrarea."}
                     </CardDescription>
                   </div>
@@ -3148,8 +3176,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         lucrareId={lucrare.id!}
                         onSuccess={() => {
                           toast({
-                            title: "Lucrare amânată",
-                            description: "Vei fi redirecționat către lista de lucrări.",
+                            title: "Tichet amânată",
+                            description: "Vei fi redirecționat către lista de tichete.",
                           })
                           setTimeout(() => {
                             router.push("/dashboard/lucrari")

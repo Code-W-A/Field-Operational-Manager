@@ -89,8 +89,8 @@ export function PostponeWorkDialog({ lucrareId, onSuccess, className }: Postpone
       }
 
       toast({
-        title: "Lucrare amânată",
-        description: "Lucrarea a fost amânată cu succes. Nu va mai apărea în lista ta de lucrări.",
+        title: "Tichet amânată",
+        description: "Lucrarea a fost amânată cu succes. Nu va mai apărea în lista ta de tichete.",
       })
 
       setIsOpen(false)
@@ -100,10 +100,10 @@ export function PostponeWorkDialog({ lucrareId, onSuccess, className }: Postpone
         onSuccess()
       }
     } catch (error) {
-      console.error("Eroare la amânarea lucrării:", error)
+      console.error("Eroare la amânarea tichetului:", error)
       toast({
         title: "Eroare",
-        description: "A apărut o eroare la amânarea lucrării. Te rog să încerci din nou.",
+        description: "A apărut o eroare la amânarea tichetului. Te rog să încerci din nou.",
         variant: "destructive",
       })
     } finally {
@@ -161,7 +161,7 @@ export function PostponeWorkDialog({ lucrareId, onSuccess, className }: Postpone
             </Label>
             <Textarea
               id="motiv-amanare"
-              placeholder="Descrie motivul pentru care amâni această lucrare"
+              placeholder="Descrie motivul pentru care amâni această tichet"
               value={motiv}
               onChange={(e) => setMotiv(e.target.value)}
               className="min-h-[100px] resize-none"

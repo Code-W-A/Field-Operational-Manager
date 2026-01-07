@@ -574,7 +574,7 @@ export function QRCodeScanner({
       setVerificationResult({
         success: true,
         message: "Verificare reușită!",
-        details: ["Codul introdus manual corespunde cu echipamentul din lucrare."],
+        details: ["Codul introdus manual corespunde cu echipamentul din tichet."],
       })
 
       if (onScanSuccess) onScanSuccess(manualData)
@@ -585,7 +585,7 @@ export function QRCodeScanner({
         setIsOpen(false)
         toast({
           title: "Verificare reușită",
-          description: "Codul introdus manual corespunde cu echipamentul din lucrare. Puteți continua intervenția.",
+          description: "Codul introdus manual corespunde cu echipamentul din tichet. Puteți continua intervenția.",
         })
       }, 2000)
     } else {
@@ -719,7 +719,7 @@ export function QRCodeScanner({
   const handleReportScanIssue = async () => {
     try {
       if (!workId) {
-        toast({ title: "Lipsă context lucrare", description: "ID-ul lucrării nu este disponibil.", variant: "destructive" })
+        toast({ title: "Lipsă context tichet", description: "ID-ul tichetului nu este disponibil.", variant: "destructive" })
         return
       }
       setReporting(true)

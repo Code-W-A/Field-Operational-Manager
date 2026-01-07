@@ -79,7 +79,7 @@ export function ProductionHealthMonitor() {
         name: "Query Optimization",
         status: 'healthy',
         message: `✓ Limit ${queryLimit} înregistrări`,
-        details: "Previne încărcarea miilor de lucrări"
+        details: "Previne încărcarea miilor de tichete"
       })
 
       setHealthChecks(checks)

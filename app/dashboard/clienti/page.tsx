@@ -256,7 +256,7 @@ export default function Clienti() {
     // Create options for the multiselect filter
     const numarLucrariOptions = uniqueWorkCounts.map((count) => ({
       value: count.toString(),
-      label: count === 0 ? "0 lucrari" : count === 1 ? "1 lucrare" : `${count} lucrari`,
+      label: count === 0 ? "0 tichete" : count === 1 ? "1 tichet" : `${count} tichete`,
     }))
 
     return [
@@ -269,7 +269,7 @@ export default function Clienti() {
       },
       {
         id: "numarLucrari",
-        label: "Număr lucrări",
+        label: "Număr tichete",
         type: "multiselect" as const,
         options: numarLucrariOptions,
         value: [] as string[],
@@ -704,7 +704,7 @@ export default function Clienti() {
     },
     {
       accessorKey: "numarLucrari",
-      header: "Lucrări",
+      header: "Tichete",
       enableFiltering: true,
       cell: ({ row }: any) => <span>{row.original.numarLucrari || 0}</span>,
     },
@@ -936,10 +936,10 @@ export default function Clienti() {
                     <div className="flex flex-col items-end gap-1">
                       <Badge variant="outline">
                         {client.numarLucrari === 0
-                          ? "Fără lucrări"
+                          ? "Fără tichete"
                           : client.numarLucrari === 1
-                            ? "1 lucrare"
-                            : `${client.numarLucrari} lucrari`}
+                            ? "1 tichet"
+                            : `${client.numarLucrari} tichete`}
                       </Badge>
                       {client.locatii && client.locatii.length > 0 && (
                         <Badge variant="secondary" className="bg-blue-100 text-blue-800">

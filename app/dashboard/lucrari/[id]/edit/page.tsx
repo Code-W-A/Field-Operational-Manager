@@ -39,7 +39,7 @@ export default function EditLucrarePage({ params }: { params: Promise<{ id: stri
     if (userData?.role === "tehnician") {
       toast({
         title: "Acces restricționat",
-        description: "Nu aveți permisiunea de a edita lucrări.",
+        description: "Nu aveți permisiunea de a edita tichete.",
         variant: "destructive",
       })
       router.push("/dashboard/lucrari")
@@ -54,13 +54,13 @@ export default function EditLucrarePage({ params }: { params: Promise<{ id: stri
         if (lucrare && lucrare.statusLucrare === "Finalizat") {
           toast({
             title: "Editare blocată",
-            description: "Lucrările finalizate nu pot fi editate.",
+            description: "Tichetele finalizate nu pot fi editate.",
             variant: "destructive",
           })
           router.push(`/dashboard/lucrari/${id}`)
         }
       } catch (error) {
-        console.error("Eroare la verificarea statusului lucrării:", error)
+        console.error("Eroare la verificarea statusului tichetului:", error)
       }
     }
     
@@ -108,7 +108,7 @@ export default function EditLucrarePage({ params }: { params: Promise<{ id: stri
         setIsLoading(true)
         const lucrare = await getLucrareById(id)
         if (lucrare) {
-          console.log("Lucrare încărcată pentru editare:", lucrare)
+          console.log("Tichet încărcată pentru editare:", lucrare)
           setInitialData(lucrare)
 
           // Set dates (robust parsing for Timestamp | ISO | date-only | dd.MM.yyyy)
@@ -149,10 +149,10 @@ export default function EditLucrarePage({ params }: { params: Promise<{ id: stri
         setLoading(false)
         setIsLoading(false)
       } catch (error) {
-        console.error("Eroare la încărcarea lucrării:", error)
+        console.error("Eroare la încărcarea tichetului:", error)
         toast({
           title: "Eroare",
-          description: "A apărut o eroare la încărcarea lucrării. Vă rugăm să încercați din nou.",
+          description: "A apărut o eroare la încărcarea tichetului. Vă rugăm să încercați din nou.",
           variant: "destructive",
         })
         setLoading(false)
@@ -260,12 +260,12 @@ export default function EditLucrarePage({ params }: { params: Promise<{ id: stri
         "Actualizare",
         `A fost actualizată lucrarea pentru clientul "${data.client}" cu ID-ul ${id}`,
         "Informație",
-        "Lucrări",
+        "Tichete",
       )
 
       // Afișăm un mesaj de succes
       toast({
-        title: "Lucrare actualizată",
+        title: "Tichet actualizată",
         description: "Lucrarea a fost actualizată cu succes.",
       })
 
@@ -351,10 +351,10 @@ export default function EditLucrarePage({ params }: { params: Promise<{ id: stri
       // Redirecționăm către pagina de lucrări
       router.push("/dashboard/lucrari")
     } catch (error) {
-      console.error("Eroare la actualizarea lucrării:", error)
+      console.error("Eroare la actualizarea tichetului:", error)
       toast({
         title: "Eroare",
-        description: "A apărut o eroare la actualizarea lucrării. Vă rugăm să încercați din nou.",
+        description: "A apărut o eroare la actualizarea tichetului. Vă rugăm să încercați din nou.",
         variant: "destructive",
       })
     } finally {

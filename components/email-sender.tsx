@@ -127,7 +127,7 @@ Echipa de interventie`,
   return (
     <div className="space-y-4">
       <div className="hidden">
-        <ReportGenerator lucrare={lucrare} onGenerate={handleGeneratePDF} ref={reportGeneratorRef} />
+        <ReportGenerator tichet={tichet} onGenerate={handleGeneratePDF} ref={reportGeneratorRef} />
       </div>
 
       <div className="space-y-2">
@@ -171,7 +171,7 @@ Echipa de interventie`,
             const generatorButton = document.createElement("button")
             generatorButton.onclick = () => {
               const reportGenerator = new ReportGenerator({
-                lucrare,
+                tichet,
                 onGenerate: (blob) => {
                   setPdfBlob(blob)
                   setIsGenerating(false)

@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Card, CardContent } from "@/components/ui/card"
-import { useLucrariWelcomeNotifications, WorkNotification } from "@/hooks/use-lucrari-welcome-notifications"
+import { useLucrariWelcomeNotifications, WorkNotification } from "@/hooks/use-tichete-welcome-notifications"
 import { useRouter } from "next/navigation"
 import type { Lucrare } from "@/lib/firebase/firestore"
 

@@ -144,7 +144,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
           if (lucrareData.statusLucrare !== WORK_STATUS.ARCHIVED) {
             toast({
               title: "Eroare",
-              description: "Această lucrare nu este arhivată.",
+              description: "Această tichet nu este arhivată.",
               variant: "destructive",
             })
             router.push("/dashboard/arhivate")
@@ -195,7 +195,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
       })
       toast({
         title: "Succes",
-        description: "Lucrarea a fost dezarhivată cu succes și a fost mutată în lucrările active.",
+        description: "Lucrarea a fost dezarhivată cu succes și a fost mutată în tichetele active.",
       })
       
       // Refresh cache-ul Next.js pentru a actualiza toate paginile

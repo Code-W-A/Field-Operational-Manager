@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import nodemailer from "nodemailer"
 import { addUserLogEntry } from "@/lib/firebase/firestore"
+import { getEmailFrom } from "@/lib/email/from"
 
 export async function POST(request: NextRequest) {
   let errorRecipient = "unknown"
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
 
     // Send test email
     const mailOptions = {
-      from: `"Field Operational Manager" <${process.env.EMAIL_USER}>`,
+      from: getEmailFrom(),
       to: recipient,
       subject: subject,
       html: `

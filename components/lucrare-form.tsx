@@ -746,7 +746,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         
         setExistingWorkOnEquipment(existingWorks)
       } catch (error) {
-        console.error("Eroare la verificarea lucrărilor existente:", error)
+        console.error("Eroare la verificarea tichetelor existente:", error)
       } finally {
         setCheckingEquipment(false)
       }
@@ -1560,10 +1560,10 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
       // Verificăm dacă există lucrări active pe echipamentul selectat
       if (!isEdit && existingWorkOnEquipment.length > 0) {
-        setError("Nu puteți crea o lucrare nouă pe acest echipament. Există deja lucrări active pe acest echipament.")
+        setError("Nu puteți crea o tichet nouă pe acest echipament. Există deja tichete active pe acest echipament.")
         toast({
           title: "Eroare",
-          description: "Nu puteți crea o lucrare nouă pe acest echipament. Există deja lucrări active pe acest echipament.",
+          description: "Nu puteți crea o tichet nouă pe acest echipament. Există deja tichete active pe acest echipament.",
           variant: "destructive",
         })
         return
@@ -1582,7 +1582,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
               setError(`Contractul selectat este valid doar pentru locația "${contractLocation}". Lucrarea are setată locația "${formData.locatie}".`)
               toast({
                 title: "Eroare - Locație incorectă",
-                description: `Contractul selectat este valid doar pentru locația "${contractLocation}". Nu puteți crea o lucrare cu acest contract pentru o altă locație.`,
+                description: `Contractul selectat este valid doar pentru locația "${contractLocation}". Nu puteți crea o tichet cu acest contract pentru o altă locație.`,
                 variant: "destructive",
               })
               return
@@ -2174,7 +2174,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                   <AlertDescription>
                     <div className="space-y-2">
                       <p className="font-semibold">
-                        ⚠️ ATENȚIE: Există {existingWorkOnEquipment.length} {existingWorkOnEquipment.length === 1 ? 'lucrare activă' : 'lucrări active'} pe acest echipament!
+                        ⚠️ ATENȚIE: Există {existingWorkOnEquipment.length} {existingWorkOnEquipment.length === 1 ? 'tichet activă' : 'tichete active'} pe acest echipament!
                       </p>
                       <p className="text-sm">
                         Nu puteți crea o lucrare nouă pe acest echipament până când lucrările active nu sunt finalizate.

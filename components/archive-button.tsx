@@ -59,7 +59,7 @@ export function ArchiveButton({
       return
     }
 
-    const confirmMessage = "Sigur doriți să arhivați această lucrare? Lucrarea va fi mutată în secțiunea Arhivate."
+    const confirmMessage = "Sigur doriți să arhivați această tichet? Lucrarea va fi mutată în secțiunea Arhivate."
     
     if (!window.confirm(confirmMessage)) {
       return

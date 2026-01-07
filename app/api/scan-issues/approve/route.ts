@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     if (requestData.status === "approved") return NextResponse.json({ ok: true })
 
     const lucrareId = requestData.lucrareId
-    const workRef = adminDb.collection("lucrari").doc(String(lucrareId))
+    const workRef = adminDb.collection("tichete").doc(String(lucrareId))
     const workSnap = await workRef.get()
     if (!workSnap.exists) return NextResponse.json({ error: "Tichet inexistent" }, { status: 404 })
     const now = new Date()
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
       utilizator: "Admin",
       utilizatorId: userId || "admin",
       actiune: "Aprobare problemă scanare",
-      detalii: `lucrare: ${lucrareId}; requestId: ${requestId}`,
+      detalii: `tichet: ${lucrareId}; requestId: ${requestId}`,
       tip: "Informație",
       categorie: "Scanare",
     })

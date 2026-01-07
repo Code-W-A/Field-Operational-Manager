@@ -12,7 +12,6 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { ArrowUpDown, ArrowUp, ArrowDown, LayoutGrid, Table as TableIcon, Calendar, MapPin } from "lucide-react"
 import Link from "next/link"
@@ -24,7 +23,8 @@ export default function ClientPortalPage() {
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [activeOnly, setActiveOnly] = useState<boolean>(false)
+  // Portalul clientului trebuie să afișeze doar tichete active.
+  const [activeOnly] = useState<boolean>(true)
   const [search, setSearch] = useState("")
   const [locationFilter, setLocationFilter] = useState<string>("all")
   const [clientFilter, setClientFilter] = useState<string>("all")
@@ -45,7 +45,6 @@ export default function ClientPortalPage() {
       return list.find((f: any) => f?.id === id)?.value
     }
     const s = getFilterVal("status"); if (typeof s === "string") setStatusFilter(s)
-    const a = getFilterVal("activeOnly"); if (typeof a === "boolean") setActiveOnly(a)
     const l = getFilterVal("location"); if (typeof l === "string") setLocationFilter(l)
     const c = getFilterVal("client"); if (typeof c === "string") setClientFilter(c)
     const sf = getFilterVal("sortField"); if (typeof sf === "string") setSortField(sf)
@@ -57,14 +56,14 @@ export default function ClientPortalPage() {
   useEffect(() => {
     saveFilters([
       { id: "status", value: statusFilter },
-      { id: "activeOnly", value: activeOnly },
+      { id: "activeOnly", value: true },
       { id: "location", value: locationFilter },
       { id: "client", value: clientFilter },
       { id: "sortField", value: sortField },
       { id: "sortDirection", value: sortDirection },
       { id: "viewMode", value: viewMode },
     ])
-  }, [statusFilter, activeOnly, locationFilter, clientFilter, sortField, sortDirection, viewMode, saveFilters])
+  }, [statusFilter, locationFilter, clientFilter, sortField, sortDirection, viewMode, saveFilters])
 
   // Save search text whenever it changes
   useEffect(() => {
@@ -128,11 +127,11 @@ export default function ClientPortalPage() {
         if (!byClientId && !byClientName) return false
       }
       if (locationFilter !== "all" && w.locatie !== locationFilter) return false
-      if (activeOnly && !isActiveStatus(w.statusLucrare)) return false
+      if (!isActiveStatus(w.statusLucrare)) return false
       if (search && !(`${w.client} ${w.locatie} ${w.tipLucrare}`.toLowerCase().includes(search.toLowerCase()))) return false
       return true
     })
-  }, [items, statusFilter, clientFilter, locationFilter, search, activeOnly, clients])
+  }, [items, statusFilter, clientFilter, locationFilter, search, clients])
 
   const visibleSorted = useMemo(() => {
     const asDate = (v: any): number => {
@@ -221,8 +220,8 @@ export default function ClientPortalPage() {
         <div className="w-full h-full min-h-0 flex flex-col px-6 sm:px-8 lg:px-10 py-4">
           <div className="space-y-6 pb-8">
             <DashboardHeader
-              heading="Lucrările mele"
-              text="Lucrările disponibile pentru locațiile asociate contului tău."
+              heading="Tichetele mele"
+              text="Tichetele disponibile pentru locațiile asociate contului tău."
             />
 
             <div className="w-full max-w-7xl mx-auto">
@@ -251,10 +250,6 @@ export default function ClientPortalPage() {
             ))}
           </SelectContent>
         </Select>
-        <div className="flex items-center justify-between sm:justify-end gap-3 px-2 py-2 border rounded">
-          <span className="text-sm text-muted-foreground">Doar active</span>
-          <Switch checked={activeOnly} onCheckedChange={setActiveOnly} />
-        </div>
         </div>
         <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg border">
           <span className="text-sm font-medium text-muted-foreground">Sortare:</span>
@@ -307,7 +302,7 @@ export default function ClientPortalPage() {
             </Button>
           </div>
           <div className="text-sm text-muted-foreground">
-            {visibleSorted.length} {visibleSorted.length === 1 ? "lucrare" : "lucrări"}
+            {visibleSorted.length} {visibleSorted.length === 1 ? "tichet" : "tichete"}
           </div>
         </div>
       </div>

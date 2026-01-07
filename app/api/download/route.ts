@@ -36,7 +36,7 @@ export async function GET(request: Request) {
 
     // Authorization simplified: allow admins/dispeceri; otherwise allow if the requested URL matches the stored document URL for the lucrare
     // Load work order (required for both paths)
-    const workSnap = await adminDb.collection("lucrari").doc(lucrareId).get()
+    const workSnap = await adminDb.collection("tichete").doc(lucrareId).get()
     if (!workSnap.exists) {
       console.warn(`[DOWNLOAD] [${requestId}] Work not found`, { lucrareId })
       return NextResponse.json({ error: "Tichet inexistentă" }, { status: 404 })
@@ -106,7 +106,7 @@ export async function GET(request: Request) {
     if (shouldLog) {
       try {
         await adminDb
-          .collection("lucrari")
+          .collection("tichete")
           .doc(lucrareId)
           .collection("downloads")
           .add({
@@ -133,7 +133,7 @@ export async function GET(request: Request) {
           utilizator: userEmail || "Portal client",
           utilizatorId: userId || "portal",
           actiune: "Descărcare document",
-          detalii: `lucrare: ${lucrareId}; tip: ${docType}; url: ${url}`,
+          detalii: `tichet: ${lucrareId}; tip: ${docType}; url: ${url}`,
           tip: "Informație",
           categorie: "Descărcări",
         })

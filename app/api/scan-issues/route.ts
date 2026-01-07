@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     } catch {}
 
     // Fetch work document for context
-    const workRef = adminDb.collection("lucrari").doc(String(lucrareId))
+    const workRef = adminDb.collection("tichete").doc(String(lucrareId))
     const workSnap = await workRef.get()
     if (!workSnap.exists) return NextResponse.json({ error: "Tichet inexistent" }, { status: 404 })
     const workData = workSnap.data() as any
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
       utilizator: userEmail || "Utilizator",
       utilizatorId: userId || "unknown",
       actiune: "Raportare problemă scanare",
-      detalii: `lucrare: ${lucrareId}; expected: ${requestData.context.expectedEquipmentCode || '-'}; raw: ${latestDetectedCodeRaw || '-'}; încercări: ${requestData.lastScan.failedScanAttempts}`,
+      detalii: `tichet: ${lucrareId}; expected: ${requestData.context.expectedEquipmentCode || '-'}; raw: ${latestDetectedCodeRaw || '-'}; încercări: ${requestData.lastScan.failedScanAttempts}`,
       tip: "Eroare",
       categorie: "Scanare",
       extra: {

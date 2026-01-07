@@ -440,7 +440,7 @@ useEffect(() => {
       const recipient = normalizeEmail(candidate)
       dbg("recipient resolution", { candidateRaw: candidate, recipientNormalized: recipient })
       if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
-        throw new Error('Nu există un email valid disponibil pentru această lucrare.')
+        throw new Error('Nu există un email valid disponibil pentru această tichet.')
       }
 
       setLastEmailDebug({
@@ -490,7 +490,7 @@ useEffect(() => {
         <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0b1220"> 
           <h2 style="margin:0 0 12px;color:#0f56b3">Ofertă lucrarea ${currentWork?.numarRaport || currentWork?.id}</h2>
 
-          <p style="margin:8px 0 6px;color:#0b1220">În vederea finalizării lucrării ${currentWork?.numarRaport || currentWork?.id} am constatat că sunt necesare următoarele echipamente și servicii:</p>
+          <p style="margin:8px 0 6px;color:#0b1220">În vederea finalizării tichetului ${currentWork?.numarRaport || currentWork?.id} am constatat că sunt necesare următoarele echipamente și servicii:</p>
  
 
           <table style="border-collapse:collapse;width:100%;margin-top:8px;font-size:14px">
@@ -887,7 +887,7 @@ useEffect(() => {
 
             <div className="flex items-center justify-end gap-2">
               {(!isPickedUp || statusOferta === "OFERTAT") && (
-                <span className="text-xs text-muted-foreground mr-auto">{!isPickedUp ? "Editorul este disponibil după preluarea lucrării de către dispecer." : "Oferta trimisă este înghețată. Creați o versiune nouă pentru modificări."}</span>
+                <span className="text-xs text-muted-foreground mr-auto">{!isPickedUp ? "Editorul este disponibil după preluarea tichetului de către dispecer." : "Oferta trimisă este înghețată. Creați o versiune nouă pentru modificări."}</span>
               )}
               {statusOferta === "OFERTAT" && !editingNewVersion ? (
                 <Button onClick={startNewVersion} disabled={saving}>Începe versiune nouă</Button>

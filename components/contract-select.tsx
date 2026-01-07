@@ -152,7 +152,7 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
     if (!selectedContract) {
       toast({
         title: "Contract indisponibil",
-        description: "Acest contract nu poate fi selectat pentru acest tip de lucrare.",
+        description: "Acest contract nu poate fi selectat pentru acest tip de tichet.",
         variant: "destructive",
       })
       return
@@ -162,7 +162,7 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
     if (normalizedExcluded.includes(typeNormalized)) {
       toast({
         title: "Contract indisponibil",
-        description: `Contractele de tip "${resolvedType || selectedContract.type}" nu pot fi selectate pentru această lucrare.`,
+        description: `Contractele de tip "${resolvedType || selectedContract.type}" nu pot fi selectate pentru această tichet.`,
         variant: "destructive",
       })
       return

@@ -397,7 +397,7 @@ export default function Lucrari() {
       },
       {
         id: "tipLucrare",
-        label: "Tip lucrare",
+        label: "Tip tichet",
         type: "multiselect",
         options: tipuriLucrare,
         value: [],
@@ -425,7 +425,7 @@ export default function Lucrari() {
       },
       {
         id: "statusLucrare",
-        label: "Status lucrare",
+        label: "Status tichet",
         type: "multiselect",
         options: statusuriLucrare,
         value: [],
@@ -753,7 +753,7 @@ export default function Lucrari() {
           if (isTechnician) {
             toast({
               title: "Acces restricționat",
-              description: "Nu aveți permisiunea de a edita lucrări.",
+              description: "Nu aveți permisiunea de a edita tichete.",
               variant: "destructive",
             })
             router.push("/dashboard/lucrari")
@@ -765,7 +765,7 @@ export default function Lucrari() {
             handleEdit(lucrare)
           }
         } catch (err) {
-          console.error("Eroare la încărcarea lucrării pentru editare:", err)
+          console.error("Eroare la încărcarea tichetului pentru editare:", err)
         }
       }
     }
@@ -1050,10 +1050,10 @@ export default function Lucrari() {
         description: isReassignment ? "Re-intervenția a fost creată cu succes." : "Lucrarea a fost adăugată cu succes.",
       })
     } catch (error) {
-      console.error("Eroare la adăugarea lucrării:", error)
+      console.error("Eroare la adăugarea tichetului:", error)
       toast({
         title: "Eroare",
-        description: "A apărut o eroare la adăugarea lucrării.",
+        description: "A apărut o eroare la adăugarea tichetului.",
         variant: "destructive",
       })
     }
@@ -1200,8 +1200,8 @@ export default function Lucrari() {
         icon: <Check className="h-4 w-4" />,
       })
     } catch (err) {
-      console.error("Eroare la adăugarea lucrării:", err)
-      setError("A apărut o eroare la adăugarea lucrării. Încercați din nou.")
+      console.error("Eroare la adăugarea tichetului:", err)
+      setError("A apărut o eroare la adăugarea tichetului. Încercați din nou.")
       setIsSubmitting(false)
     } finally {
       setIsSubmitting(false)
@@ -1365,20 +1365,20 @@ export default function Lucrari() {
         router.push("/dashboard/lucrari")
       }
     } catch (err) {
-      console.error("Eroare la actualizarea lucrării:", err)
-      setError("A apărut o eroare la actualizarea lucrării. Încercați din nou.")
+      console.error("Eroare la actualizarea tichetului:", err)
+      setError("A apărut o eroare la actualizarea tichetului. Încercați din nou.")
     } finally {
       setIsSubmitting(false)
     }
   }
 
   const handleDelete = async (id) => {
-    if (window.confirm("Sunteți sigur că doriți să ștergeți această lucrare?")) {
+    if (window.confirm("Sunteți sigur că doriți să ștergeți această tichet?")) {
       try {
         await deleteLucrare(id)
       } catch (err) {
-        console.error("Eroare la ștergerea lucrării:", err)
-        alert("A apărut o eroare la ștergerea lucrării.")
+        console.error("Eroare la ștergerea tichetului:", err)
+        alert("A apărut o eroare la ștergerea tichetului.")
       }
     }
   }
@@ -1397,10 +1397,10 @@ export default function Lucrari() {
     }
 
     if (!lucrare || !lucrare.id) {
-      console.error("ID-ul lucrării nu este valid:", lucrare)
+      console.error("ID-ul tichetului nu este valid:", lucrare)
       toast({
         title: "Eroare",
-        description: "ID-ul lucrării nu este valid",
+        description: "ID-ul tichetului nu este valid",
         variant: "destructive",
       })
       return
@@ -1424,10 +1424,10 @@ export default function Lucrari() {
 
       // Verificăm că lucrare și lucrare.id sunt valide
       if (!lucrare || !lucrare.id) {
-        console.error("ID-ul lucrării nu este valid:", lucrare)
+        console.error("ID-ul tichetului nu este valid:", lucrare)
         toast({
           title: "Eroare",
-          description: "ID-ul lucrării nu este valid",
+          description: "ID-ul tichetului nu este valid",
           variant: "destructive",
         })
         return
@@ -1464,10 +1464,10 @@ export default function Lucrari() {
   // Modificăm funcția handleDispatcherPickup pentru a permite doar preluarea, nu și anularea
   const handleDispatcherPickup = async (lucrare) => {
     if (!lucrare || !lucrare.id) {
-      console.error("ID-ul lucrării nu este valid:", lucrare)
+      console.error("ID-ul tichetului nu este valid:", lucrare)
       toast({
         title: "Eroare",
-        description: "ID-ul lucrării nu este valid",
+        description: "ID-ul tichetului nu este valid",
         variant: "destructive",
       })
       return
@@ -1589,7 +1589,7 @@ export default function Lucrari() {
             handleReassign(lucrare)
           }
         } catch (err) {
-          console.error("Eroare la încărcarea lucrării pentru reintervenție:", err)
+          console.error("Eroare la încărcarea tichetului pentru reintervenție:", err)
         }
       }
     }
@@ -1668,7 +1668,7 @@ export default function Lucrari() {
   const columns = [
     {
       accessorKey: "nrLucrareDisplay",
-      header: "Număr lucrare",
+      header: "Număr tichet",
       enableHiding: false,
       enableFiltering: false,
       sortingFn: (rowA: any, rowB: any) => {
@@ -2250,8 +2250,8 @@ export default function Lucrari() {
     <TooltipProvider>
       <DashboardShell>
         <DashboardHeader 
-          heading="Lucrări" 
-          text="Gestionați toate lucrările și intervențiile"
+          heading="Tichete" 
+          text="Gestionați toate tichetele și intervențiile"
           headerAction={!isTechnician ? <LucrariNotificationsBell lucrari={rawLucrari || []} /> : undefined}
         >
         {isTechnician ? (
@@ -2457,7 +2457,7 @@ export default function Lucrari() {
         <FilterModal
           isOpen={isFilterModalOpen}
           onClose={() => setIsFilterModalOpen(false)}
-          title="Filtrare lucrări"
+          title="Filtrare tichete"
           filterOptions={filterOptions}
           activeFilters={activeFilters}
           onApplyFilters={handleApplyFilters}
@@ -2497,7 +2497,7 @@ export default function Lucrari() {
               setTable={setTableInstance}
               showFilters={false}
               getRowClassName={getRowClassName}
-              persistenceKey="lucrari"
+              persistenceKey="tichete"
             />
         ) : (
           <div className="space-y-4">

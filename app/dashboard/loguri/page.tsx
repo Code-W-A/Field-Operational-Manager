@@ -285,13 +285,13 @@ export default function Loguri() {
       },
       {
         id: "lucrareId",
-        label: "Lucrare ID",
+        label: "Tichet ID",
         type: "text",
         value: "",
       },
       {
         id: "nrLucrare",
-        label: "Număr lucrare",
+        label: "Număr tichet",
         type: "text",
         value: "",
       },
@@ -317,7 +317,7 @@ export default function Loguri() {
       },
       {
         id: "hasLucrare",
-        label: "Doar loguri cu lucrare",
+        label: "Doar loguri cu tichet",
         type: "checkbox",
         value: false,
       },
@@ -746,8 +746,8 @@ export default function Loguri() {
       cell: ({ row }: any) => <span className="font-mono text-sm">{formatDate(row.original.timestamp)}</span>,
     },
     {
-      accessorKey: "lucrare",
-      header: "Lucrare",
+      accessorKey: "tichet",
+      header: "Tichet",
       enableFiltering: true,
       cell: ({ row }: any) => {
         const lId = row.original.lucrareId || undefined

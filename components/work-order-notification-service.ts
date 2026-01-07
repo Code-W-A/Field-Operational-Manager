@@ -432,7 +432,7 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
       clientEmails: Array.from(clientRecipientSet),
     }
 
-    console.log("ID-ul lucrării pentru notificare:", workOrderData.id || "nedefinit")
+    console.log("ID-ul tichetului pentru notificare:", workOrderData.id || "nedefinit")
     // Send notifications
     console.log("Sending notification data to API:", JSON.stringify(notificationData, null, 2))
     const response = await fetch("/api/notifications/work-order", {

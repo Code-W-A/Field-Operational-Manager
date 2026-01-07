@@ -227,7 +227,7 @@ export default function Dashboard() {
     if (!formData.tipLucrare) errors.push("tipLucrare")
     if (!formData.client) errors.push("client")
 
-    // Validăm câmpul contract doar dacă tipul lucrării este "Intervenție în contract"
+    // Validăm câmpul contract doar dacă tipul tichetului este "Intervenție în contract"
     if (formData.tipLucrare === "Intervenție în contract" && !formData.contract) {
       errors.push("contract")
     }
@@ -251,7 +251,7 @@ export default function Dashboard() {
       // Narrow types for TS (validateForm already ensures these exist)
       if (!dataEmiterii || !dataInterventie) return
 
-      // Setăm automat statusul lucrării în funcție de prezența tehnicienilor
+      // Setăm automat statusul tichetului în funcție de prezența tehnicienilor
       const statusLucrare = (formData.tehnicieni && formData.tehnicieni.length > 0) ? "Atribuită" : "Listată"
 
       const newLucrare = {
@@ -287,10 +287,10 @@ export default function Dashboard() {
         description: "Lucrarea a fost adăugată cu succes.",
       })
     } catch (error) {
-      console.error("Eroare la adăugarea lucrării:", error)
+      console.error("Eroare la adăugarea tichetului:", error)
       toast({
         title: "Eroare",
-        description: "A apărut o eroare la adăugarea lucrării.",
+        description: "A apărut o eroare la adăugarea tichetului.",
         variant: "destructive",
       })
     }
@@ -319,8 +319,8 @@ export default function Dashboard() {
           return
         }
         toast({
-          title: "Revizia nu este încă generată ca lucrare",
-          description: it.equipmentLabel || "Încă nu există o lucrare asociată acestei revizii.",
+          title: "Revizia nu este încă generată ca tichet",
+          description: it.equipmentLabel || "Încă nu există o tichet asociată acestei revizii.",
         })
       }}
       className="mb-2"
@@ -378,7 +378,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <DashboardShell>
-        <DashboardHeader heading="Status Lucrări" text="Vizualizare rapidă a stării lucrărilor active" />
+        <DashboardHeader heading="Status Tichet" text="Vizualizare rapidă a stării tichetelor active" />
         
         {/* Skeleton pentru status boxes */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 gap-3">
@@ -894,7 +894,7 @@ export default function Dashboard() {
               {buckets.necesitaOferta.map(statusBubble("bg-sky-600"))}
             </StatusBox>
             <StatusBox
-              title="Ofertate"
+              title="Oferte"
               count={(dashboardConfig.ofertateEnabled ? buckets.ofertate.length : 0) + (dashboardConfig.statusOferteEnabled ? buckets.statusOferte.length : 0)}
               disabled={!dashboardConfig.ofertateEnabled && !dashboardConfig.statusOferteEnabled}
             >

@@ -657,7 +657,7 @@ export function FilterModal({
       }}
     >
       <DialogContent
-        className="w-[calc(100%-2rem)] max-w-[500px] max-h-[90vh] overflow-hidden bg-white"
+        className="w-[calc(100vw-1rem)] sm:w-[calc(100%-2rem)] max-w-[500px] max-h-[90vh] overflow-hidden bg-white"
         onEscapeKeyDown={handleClose}
         onInteractOutside={handleClose}
         onPointerDownOutside={handleClose}
@@ -665,7 +665,7 @@ export function FilterModal({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <ScrollArea className="max-h-[60vh] pr-4">
+        <ScrollArea className="max-h-[60vh] pr-2 sm:pr-4">
           <div className="space-y-6 py-4">
             {filters.map((filter) => (
               <div key={filter.id} className="space-y-2">

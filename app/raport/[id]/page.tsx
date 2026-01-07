@@ -177,25 +177,25 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
           // DEBUGGING SUPLIMENTAR pentru această problemă specifică
           if (isDispatcherOrAdmin && processedData.raportGenerat) {
             console.log("🔍 DEBUGGING PENTRU ADMIN/DISPECER:")
-            console.log("📊 Produse în lucrare principală:", processedData.products?.length || 0)
+            console.log("📊 Produse în tichet principală:", processedData.products?.length || 0)
             console.log("📊 Produse în snapshot:", processedData.raportSnapshot?.products?.length || 0)
-            console.log("🖊️ Semnătura tehnician în lucrare:", !!processedData.semnaturaTehnician)
+            console.log("🖊️ Semnătura tehnician în tichet:", !!processedData.semnaturaTehnician)
             console.log("🖊️ Semnătura tehnician în snapshot:", !!processedData.raportSnapshot?.semnaturaTehnician)
-            console.log("🖊️ Semnătura beneficiar în lucrare:", !!processedData.semnaturaBeneficiar)
+            console.log("🖊️ Semnătura beneficiar în tichet:", !!processedData.semnaturaBeneficiar)
             console.log("🖊️ Semnătura beneficiar în snapshot:", !!processedData.raportSnapshot?.semnaturaBeneficiar)
-            console.log("⏱️ Durata în lucrare:", processedData.durataInterventie || "N/A")
+            console.log("⏱️ Durata în tichet:", processedData.durataInterventie || "N/A")
             console.log("⏱️ Durata în snapshot:", processedData.raportSnapshot?.durataInterventie || "N/A")
             console.log("📅 Data generare snapshot:", processedData.raportSnapshot?.dataGenerare || "LIPSEȘTE")
             
             // DEBUGGING SPECIFIC PENTRU TIMPUL DE SOSIRE ȘI PLECARE
             console.log("🕐 DEBUGGING TIMPI INTERVENȚIE:")
-            console.log("⏰ timpSosire în lucrare:", processedData.timpSosire || "LIPSEȘTE")
-            console.log("⏰ timpPlecare în lucrare:", processedData.timpPlecare || "LIPSEȘTE")
+            console.log("⏰ timpSosire în tichet:", processedData.timpSosire || "LIPSEȘTE")
+            console.log("⏰ timpPlecare în tichet:", processedData.timpPlecare || "LIPSEȘTE")
             console.log("⏰ timpPlecare în snapshot:", processedData.raportSnapshot?.timpPlecare || "LIPSEȘTE")
-            console.log("📅 dataSosire în lucrare:", processedData.dataSosire || "LIPSEȘTE")
-            console.log("📅 dataPlecare în lucrare:", processedData.dataPlecare || "LIPSEȘTE") 
-            console.log("🕒 oraSosire în lucrare:", processedData.oraSosire || "LIPSEȘTE")
-            console.log("🕒 oraPlecare în lucrare:", processedData.oraPlecare || "LIPSEȘTE")
+            console.log("📅 dataSosire în tichet:", processedData.dataSosire || "LIPSEȘTE")
+            console.log("📅 dataPlecare în tichet:", processedData.dataPlecare || "LIPSEȘTE") 
+            console.log("🕒 oraSosire în tichet:", processedData.oraSosire || "LIPSEȘTE")
+            console.log("🕒 oraPlecare în tichet:", processedData.oraPlecare || "LIPSEȘTE")
             
             // Încercăm să calculăm durata în timp real dacă timpii există
             if (processedData.timpSosire && processedData.timpPlecare) {
@@ -314,8 +314,8 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
           setError("Lucrarea nu a fost găsită")
         }
       } catch (err) {
-        console.error("Eroare la încărcarea lucrării:", err)
-        setError("A apărut o eroare la încărcarea lucrării")
+        console.error("Eroare la încărcarea tichetului:", err)
+        setError("A apărut o eroare la încărcarea tichetului")
       } finally {
         setLoading(false)
       }
@@ -336,7 +336,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
         !lucrare.tehnicieni.includes(userData.displayName)
       ) {
         // Tehnicianul nu este alocat la această lucrare, redirecționăm la dashboard
-        alert("Nu aveți acces la raportul acestei lucrări.")
+        alert("Nu aveți acces la raportul acestei tichete.")
         router.push("/dashboard")
       }
     }
@@ -390,7 +390,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
     async (pdfBlob: Blob) => {
       try {
         if (!updatedLucrare) {
-          throw new Error("Datele lucrării nu sunt disponibile")
+          throw new Error("Datele tichetului nu sunt disponibile")
         }
 
         // Prevent double email sending
@@ -675,13 +675,13 @@ FOM by NRG`,
         setClientSignatureData(semnaturaBeneficiar)
       }
 
-      // Create updated lucrare object with all necessary data
-      console.log("🔍 ÎNAINTE de actualizare - statusul curent:", lucrare.statusLucrare)
-      console.log("🔍 ÎNAINTE de actualizare - raportGenerat curent:", lucrare.raportGenerat)
-      console.log("🔍 ÎNAINTE de actualizare - numarRaport curent:", lucrare.numarRaport)
+      // Create updated tichet object with all necessary data
+      console.log("🔍 ÎNAINTE de actualizare - statusul curent:", tichet.statusLucrare)
+      console.log("🔍 ÎNAINTE de actualizare - raportGenerat curent:", tichet.raportGenerat)
+      console.log("🔍 ÎNAINTE de actualizare - numarRaport curent:", tichet.numarRaport)
       
       const updatedLucrareData = {
-        ...lucrare,
+        ...tichet,
         semnaturaTehnician,
         semnaturaBeneficiar,
         numeTehnician,
@@ -795,7 +795,7 @@ FOM by NRG`,
     }
   }, [techSignatureData, clientSignatureData, isTechDrawing, isClientDrawing])
 
-  // Actualizăm statusul lucrării și marcăm raportul ca generat
+  // Actualizăm statusul tichetului și marcăm raportul ca generat
   const updateWorkOrderStatus = async (lucrareId: string) => {
     try {
       if (!lucrareId) {
@@ -830,7 +830,7 @@ FOM by NRG`,
 
   // Funcție pentru salvarea timpului de plecare manual
   const handleSaveDepartureTime = async () => {
-    if (!lucrare?.id || !editingDepartureDate || !editingDepartureTime) {
+    if (!tichet?.id || !editingDepartureDate || !editingDepartureTime) {
       toast({
         title: "Eroare",
         description: "Vă rugăm să completați atât data cât și ora de plecare.",
@@ -853,8 +853,8 @@ FOM by NRG`,
       }
 
       // Verificăm dacă plecare este după sosire
-      if (lucrare.timpSosire) {
-        const arrivalTime = new Date(lucrare.timpSosire)
+      if (tichet.timpSosire) {
+        const arrivalTime = new Date(tichet.timpSosire)
         if (departureDateTime <= arrivalTime) {
           toast({
             title: "Eroare",
@@ -872,8 +872,8 @@ FOM by NRG`,
       
       // Calculăm durata dacă avem și timpul de sosire
       let durataInterventie = "-"
-      if (lucrare.timpSosire) {
-        durataInterventie = calculateDuration(lucrare.timpSosire, timpPlecare)
+      if (tichet.timpSosire) {
+        durataInterventie = calculateDuration(tichet.timpSosire, timpPlecare)
       }
 
       // Salvăm în Firestore
@@ -884,11 +884,11 @@ FOM by NRG`,
         durataInterventie
       }
 
-      await updateLucrare(lucrare.id, updateData)
+      await updateLucrare(tichet.id, updateData)
 
       // Actualizăm starea locală
       const updatedLucrareData = {
-        ...lucrare,
+        ...tichet,
         ...updateData
       }
       setLucrare(updatedLucrareData)
@@ -931,7 +931,7 @@ FOM by NRG`,
 
   // Funcție pentru salvarea timpului de sosire manual
   const handleSaveArrivalTime = async () => {
-    if (!lucrare?.id || !editingArrivalDate || !editingArrivalTime) {
+    if (!tichet?.id || !editingArrivalDate || !editingArrivalTime) {
       toast({
         title: "Eroare",
         description: "Vă rugăm să completați atât data cât și ora de sosire.",
@@ -964,11 +964,11 @@ FOM by NRG`,
         oraSosire
       }
 
-      await updateLucrare(lucrare.id, updateData)
+      await updateLucrare(tichet.id, updateData)
 
       // Actualizăm starea locală
       const updatedLucrareData = {
-        ...lucrare,
+        ...tichet,
         ...updateData
       }
       setLucrare(updatedLucrareData)
@@ -1000,7 +1000,7 @@ FOM by NRG`,
   // Funcție pentru inițierea editării timpului de sosire
   const handleStartEditingArrivalTime = () => {
     // Setăm valorile implicite la data intervenției sau data curentă
-    const interventionDate = lucrare?.dataInterventie?.split(' ')[0] || new Date().toLocaleDateString('ro-RO').split('.').map(part => part.padStart(2, '0')).join('.')
+    const interventionDate = tichet?.dataInterventie?.split(' ')[0] || new Date().toLocaleDateString('ro-RO').split('.').map(part => part.padStart(2, '0')).join('.')
     const currentTime = "09:00" // Ora implicită de sosire
     
     setEditingArrivalDate(interventionDate)
@@ -1010,7 +1010,7 @@ FOM by NRG`,
 
   // Funcție pentru salvarea datelor lipsă din raport
   const handleSaveMissingData = async () => {
-    if (!lucrare?.id) {
+    if (!tichet?.id) {
       toast({
         title: "Eroare",
         description: "Nu s-a putut identifica lucrarea.",
@@ -1053,11 +1053,11 @@ FOM by NRG`,
       }
 
       // Salvăm în Firestore
-      await updateLucrare(lucrare.id, updateData)
+      await updateLucrare(tichet.id, updateData)
 
       // Actualizăm starea locală
       const updatedLucrareData = {
-        ...lucrare,
+        ...tichet,
         ...updateData
       }
       setLucrare(updatedLucrareData)
@@ -1101,10 +1101,10 @@ FOM by NRG`,
   // Funcție pentru inițierea editării datelor lipsă
   const handleStartEditingMissingData = () => {
     // Pre-completăm cu valorile existente (dacă sunt)
-    setEditingTechnicianName(lucrare?.numeTehnician || "")
-    setEditingBeneficiaryName(lucrare?.numeBeneficiar || "")
-    setEditingFindingsOnSite(lucrare?.constatareLaLocatie || "")
-    setEditingInterventionDescription(lucrare?.descriereInterventie || "")
+    setEditingTechnicianName(tichet?.numeTehnician || "")
+    setEditingBeneficiaryName(tichet?.numeBeneficiar || "")
+    setEditingFindingsOnSite(tichet?.constatareLaLocatie || "")
+    setEditingInterventionDescription(tichet?.descriereInterventie || "")
     setIsEditingMissingData(true)
   }
 
@@ -1112,12 +1112,12 @@ FOM by NRG`,
   const getMissingDataInfo = () => {
     const missing = []
     
-    if (!lucrare?.timpSosire) missing.push("Timpul de sosire")
-    if (!lucrare?.timpPlecare && !lucrare?.raportSnapshot?.timpPlecare) missing.push("Timpul de plecare")
-    if (!lucrare?.numeTehnician) missing.push("Numele tehnicianului")
-    if (!lucrare?.numeBeneficiar) missing.push("Numele beneficiarului")
-    if (!lucrare?.constatareLaLocatie) missing.push("Constatarea la locație")
-    if (!lucrare?.descriereInterventie) missing.push("Descrierea intervenției")
+    if (!tichet?.timpSosire) missing.push("Timpul de sosire")
+    if (!tichet?.timpPlecare && !tichet?.raportSnapshot?.timpPlecare) missing.push("Timpul de plecare")
+    if (!tichet?.numeTehnician) missing.push("Numele tehnicianului")
+    if (!tichet?.numeBeneficiar) missing.push("Numele beneficiarului")
+    if (!tichet?.constatareLaLocatie) missing.push("Constatarea la locație")
+    if (!tichet?.descriereInterventie) missing.push("Descrierea intervenției")
     
     return missing
   }
@@ -1137,7 +1137,7 @@ FOM by NRG`,
   }
 
   // Show error state
-  if (error || !lucrare) {
+  if (error || !tichet) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
         <Card className="w-full max-w-3xl">
@@ -1630,7 +1630,7 @@ FOM by NRG`,
                             </Label>
                             <Textarea
                               id="interventionDescription"
-                              placeholder="Descrieți ce lucrări ați efectuat..."
+                              placeholder="Descrieți ce tichete ați efectuat..."
                               value={editingInterventionDescription}
                               onChange={(e) => setEditingInterventionDescription(e.target.value)}
                               disabled={isSavingMissingData}
@@ -1770,7 +1770,7 @@ FOM by NRG`,
                   a.href = url
                     const numRaw = String(lucrare?.nrLucrare || lucrare?.numarRaport || paramsId || "")
                     const num = numRaw.replace(/^#\s*/, "").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
-                    const clientPart = String(lucrare?.client || "Interventie").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
+                    const clientPart = String(tichet?.client || "Interventie").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
                     a.download = `Raport_${clientPart}_${num}.pdf`
                   document.body.appendChild(a)
                   a.click()
@@ -2116,7 +2116,7 @@ FOM by NRG`,
                 <div className="hidden">
                   <ReportGenerator
                     ref={reportGeneratorRef}
-                    lucrare={updatedLucrare || lucrare}
+                    tichet={updatedLucrare || tichet}
                     onGenerate={(blob) => {
                       // Send email automatically when PDF is generated
                       sendEmail(blob)
@@ -2129,7 +2129,7 @@ FOM by NRG`,
                               variant: "default",
                             })
 
-                            // Actualizăm statusul lucrării
+                            // Actualizăm statusul tichetului
                             if (updatedLucrare && updatedLucrare.id) {
                               updateWorkOrderStatus(updatedLucrare.id)
                             }
@@ -2185,7 +2185,7 @@ FOM by NRG`,
               >
                 {isSubmitting ? (
                   <>Se procesează...</>
-                ) : lucrare?.raportDataLocked ? (
+                ) : tichet?.raportDataLocked ? (
                   <div className="text-center text-gray-600 p-8">
                     <Lock className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                     <p className="text-lg font-medium">Raportul a fost finalizat și datele sunt blocate</p>

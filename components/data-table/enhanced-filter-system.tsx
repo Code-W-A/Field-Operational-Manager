@@ -597,7 +597,7 @@ export function EnhancedFilterSystem<TData>({ table, persistenceKey }: EnhancedF
     const groups: Record<string, typeof filterableColumns> = {
       Date: [],
       "Informații Client": [],
-      "Detalii Lucrare": [],
+      "Detalii Tichet": [],
       Status: [],
       Altele: [],
     }
@@ -609,8 +609,8 @@ export function EnhancedFilterSystem<TData>({ table, persistenceKey }: EnhancedF
         groups["Date"].push(column)
       } else if (headerText.includes("client") || headerText.includes("contact") || headerText.includes("telefon")) {
         groups["Informații Client"].push(column)
-      } else if (headerText.includes("lucrare") || headerText.includes("descriere") || headerText.includes("tip")) {
-        groups["Detalii Lucrare"].push(column)
+      } else if (headerText.includes("tichet") || headerText.includes("descriere") || headerText.includes("tip")) {
+        groups["Detalii Tichet"].push(column)
       } else if (headerText.includes("status")) {
         groups["Status"].push(column)
       } else {
@@ -1090,7 +1090,7 @@ export function EnhancedFilterSystem<TData>({ table, persistenceKey }: EnhancedF
                 value={newFilterName}
                 onChange={(e) => setNewFilterName(e.target.value)}
                 className="col-span-3"
-                placeholder="Ex: Lucrări în așteptare"
+                placeholder="Ex: Tichete în așteptare"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
