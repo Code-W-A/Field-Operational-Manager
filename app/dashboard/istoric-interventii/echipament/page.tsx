@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { collection, query, where } from "firebase/firestore"
+import { collection, getDocs, limit, orderBy, query, where } from "firebase/firestore"
 
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
@@ -131,6 +131,9 @@ export default function IstoricEchipamentPage() {
   const cod = codRaw.toUpperCase()
   const { userData } = useAuth()
   const isTechnician = userData?.role === "tehnician"
+  const lastLogKeyRef = useRef<string>("")
+  const [fallbackWorks, setFallbackWorks] = useState<any[] | null>(null)
+  const [fallbackLoading, setFallbackLoading] = useState(false)
 
   // Istoricul se caută după `echipamentCod`.
   // Colecția reală pentru work orders este `lucrari` (UI poate afișa "tichet", dar storage rămâne `lucrari`).
@@ -145,16 +148,141 @@ export default function IstoricEchipamentPage() {
   const loading = loadingLucrari
 
   useEffect(() => {
-    if (!cod) return
-    // Debug util
-    console.log(`[ISTORIC_ECHIP ${cod}] matches`, {
-      lucrari: worksLucrari?.length || 0,
+    // Log once per (cod, loading, count) tuple to avoid spam
+    const key = `${cod}|${loading ? "loading" : "ready"}|${worksLucrari?.length || 0}`
+    if (key === lastLogKeyRef.current) return
+    lastLogKeyRef.current = key
+
+    console.log("[ISTORIC_ECHIP] page state", {
+      codRaw,
+      cod,
+      codForQuery,
+      loading,
+      worksCount: worksLucrari?.length || 0,
+      role: userData?.role || null,
     })
-  }, [cod, worksLucrari?.length])
+
+    if (!loading && cod) {
+      const sample = (worksLucrari || []).slice(0, 8).map((w: any) => ({
+        id: w?.id,
+        echipamentCod: String(w?.echipamentCod || ""),
+        nrLucrare: String(w?.nrLucrare || w?.numarRaport || ""),
+        raportGenerat: Boolean(w?.raportGenerat),
+      }))
+      console.log(`[ISTORIC_ECHIP] sample docs for cod=${cod}`, sample)
+
+      if ((worksLucrari || []).length === 0) {
+        console.warn("[ISTORIC_ECHIP] 0 matches from Firestore query", {
+          collection: "lucrari",
+          where: { echipamentCod: cod },
+          hint:
+            "Dacă știi sigur că există istoric, cel mai probabil lucrările vechi NU au câmpul `echipamentCod` setat sau au alt format (spații/litere mici).",
+        })
+      }
+    }
+  }, [codRaw, cod, codForQuery, loading, worksLucrari, userData?.role])
+
+  const normalize = (v: unknown) =>
+    String(v ?? "")
+      .toUpperCase()
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .replace(/\s+/g, "")
+      .trim()
+
+  const deriveEquipmentCode = (w: any): { code: string; source: string } => {
+    const direct = String(w?.echipamentCod || "").trim()
+    if (direct) return { code: direct, source: "echipamentCod" }
+
+    const ci = w?.clientInfo || {}
+    const ciCode = String(ci?.echipamentCod || ci?.equipmentCode || ci?.codEchipament || "").trim()
+    if (ciCode) return { code: ciCode, source: "clientInfo.*cod" }
+
+    const text = String(w?.echipament || "").trim()
+    // Try "(CODE)" pattern
+    const m = text.match(/\(([A-Za-z0-9]{2,10})\)/)
+    if (m?.[1]) return { code: m[1], source: "echipament(text:(CODE))" }
+
+    // Last resort: find any token that looks like equipment code (contains letters+digits, max 10)
+    const tokens = text.split(/[\s,;:/\\|]+/g).map((t) => t.trim()).filter(Boolean)
+    const candidate = tokens.find((t) => t.length <= 10 && /[A-Za-z]/.test(t) && /[0-9]/.test(t))
+    if (candidate) return { code: candidate, source: "echipament(text:token)" }
+
+    return { code: "", source: "none" }
+  }
+
+  // Fallback scan: if strict query returns 0, scan recent works and match by derived code.
+  useEffect(() => {
+    if (!cod) return
+    if (loading) return
+    if ((worksLucrari || []).length > 0) {
+      // We have strict matches; clear fallback to avoid mixing sources.
+      if (fallbackWorks) setFallbackWorks(null)
+      return
+    }
+
+    const codN = normalize(cod)
+    if (!codN) return
+
+    let cancelled = false
+    setFallbackLoading(true)
+    ;(async () => {
+      const SAMPLE = 2000
+      console.log(`[ISTORIC_ECHIP] fallbackScan start for cod=${cod} (sample=${SAMPLE})`)
+      try {
+        const q = query(collection(db, "lucrari"), orderBy("updatedAt", "desc"), limit(SAMPLE))
+        const snap = await getDocs(q)
+        if (cancelled) return
+        const docs = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))
+
+        const hits = docs.filter((w: any) => {
+          const { code } = deriveEquipmentCode(w)
+          return normalize(code) === codN
+        })
+
+        const sampleHits = hits.slice(0, 10).map((w: any) => {
+          const derived = deriveEquipmentCode(w)
+          return {
+            id: w?.id,
+            nrLucrare: String(w?.nrLucrare || w?.numarRaport || ""),
+            echipamentCod: String(w?.echipamentCod || ""),
+            derivedCode: derived.code,
+            derivedFrom: derived.source,
+            echipament: String(w?.echipament || ""),
+          }
+        })
+
+        console.warn(`[ISTORIC_ECHIP] fallbackScan results for cod=${cod}`, {
+          sampled: docs.length,
+          hits: hits.length,
+          sample: sampleHits,
+          hint:
+            hits.length > 0
+              ? "Aha: există lucrări care corespund, dar `echipamentCod` lipsește/nu e completat. Recomand backfill/migrare pentru câmpul `echipamentCod`."
+              : "Nicio potrivire în eșantion. Ori codul e diferit, ori lucrarea e prea veche (în afara eșantionului).",
+        })
+
+        setFallbackWorks(hits)
+      } catch (e) {
+        if (cancelled) return
+        console.warn(`[ISTORIC_ECHIP] fallbackScan failed for cod=${cod}`, e)
+        setFallbackWorks([])
+      } finally {
+        if (cancelled) return
+        setFallbackLoading(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [cod, loading, worksLucrari, fallbackWorks])
 
   const rows = useMemo<Row[]>(() => {
     if (!cod) return []
-    const mappedLucrari = (worksLucrari || []).map((w: any) => {
+    const sourceWorks = (worksLucrari && worksLucrari.length > 0) ? worksLucrari : (fallbackWorks || [])
+    const mappedLucrari = (sourceWorks || []).map((w: any) => {
+        const derived = deriveEquipmentCode(w)
       const echipamentCod = String(w.echipamentCod || "").trim()
       const echipament =
         String(
@@ -173,7 +301,7 @@ export default function IstoricEchipamentPage() {
         dataInterventie: String(w.dataInterventie || "").trim(),
         locatie: String(w.locationName || w.locatie || "").trim(),
         client: String(w.client || "").trim(),
-        echipamentCod: echipamentCod.toUpperCase(),
+          echipamentCod: (echipamentCod || derived.code || "").toUpperCase(),
         echipament,
         tehnicieni: Array.isArray(w.tehnicieni) ? w.tehnicieni : [],
         defectReclamat: w.defectReclamat,
@@ -186,7 +314,19 @@ export default function IstoricEchipamentPage() {
     const out = [...mappedLucrari].filter((r) => r.echipamentCod && r.echipamentCod === cod)
     out.sort((a, b) => extractNr(b.nrLucrare) - extractNr(a.nrLucrare))
     return out
-  }, [worksLucrari, cod])
+  }, [worksLucrari, fallbackWorks, cod])
+
+  useEffect(() => {
+    if (!cod) return
+    if (loading) return
+    console.log("[ISTORIC_ECHIP] computed rows", {
+      cod,
+      rowsCount: rows.length,
+      firstRow: rows[0] ? { id: rows[0].id, nrLucrare: rows[0].nrLucrare, echipamentCod: rows[0].echipamentCod } : null,
+      usedFallback: (worksLucrari || []).length === 0 && (fallbackWorks || []).length > 0,
+      fallbackLoading,
+    })
+  }, [cod, loading, rows, worksLucrari, fallbackWorks, fallbackLoading])
 
   const equipmentHeaderLabel = useMemo(() => {
     if (!cod) return ""

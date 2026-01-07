@@ -84,6 +84,7 @@ export function EquipmentHistoryCheckDialog({
 
   const openHistory = (code: string) => {
     if (onOpenHistory) return onOpenHistory(code)
+    console.log("[ISTORIC_ECHIP] openHistory()", { code, url: `/dashboard/istoric-interventii/echipament?cod=${code}` })
     router.push(`/dashboard/istoric-interventii/echipament?cod=${encodeURIComponent(code)}`)
   }
 
@@ -130,6 +131,11 @@ export function EquipmentHistoryCheckDialog({
                   } catch {
                     // raw string
                   }
+                  console.log("[ISTORIC_ECHIP] QR detected", {
+                    raw,
+                    extractedCode: code,
+                    isValid: isValidEquipmentCode(code),
+                  })
                   setHistoryCode(code)
                   setHistoryFailedScanAttempts(0)
                   setShowHistoryManualInput(false)
@@ -184,6 +190,7 @@ export function EquipmentHistoryCheckDialog({
                 })
                 return
               }
+              console.log("[ISTORIC_ECHIP] Open history clicked", { code })
               setIsOpen(false)
               openHistory(code)
             }}
