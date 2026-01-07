@@ -638,7 +638,10 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   }, [router, lucrare, toast])
 
   // Funcție pentru a reîncărca datele lucrării
-  const refreshLucrare = useStableCallback(async (preserveActiveTab = false) => {
+  // Important UX: toast "Actualizat" doar pentru acțiuni explicite (ex: salvare), nu la refresh automat (ex: focus).
+  const refreshLucrare = useStableCallback(async (options?: { preserveActiveTab?: boolean; showToast?: boolean }) => {
+    const preserveActiveTab = options?.preserveActiveTab ?? false
+    const showToast = options?.showToast ?? false
     try {
       const data = await getLucrareById(paramsId)
       setLucrare(data)
@@ -657,8 +660,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
       console.log("Refreshed tichet data:", data)
 
-      // Toast doar dacă nu păstrăm tab-ul (pentru a evita notificări inutile)
-      if (!preserveActiveTab) {
+      // Toast doar pentru acțiuni explicite (avoid spam)
+      if (showToast) {
         toast({
           title: "Actualizat",
           description: "Datele tichetului au fost actualizate.",
@@ -802,7 +805,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       if (!hasFocus) {
         // Delay scurt pentru a permite actualizarea în Firebase
         setTimeout(() => {
-          refreshLucrare()
+          refreshLucrare({ showToast: false })
         }, 500)
       }
       hasFocus = true
@@ -3191,7 +3194,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   // Notă internă tehnician
                   notaInternaTehnician: lucrare.notaInternaTehnician
                 }}
-                onUpdate={(preserveActiveTab) => refreshLucrare(preserveActiveTab)}
+                // onUpdate primește `preserveActiveTab`; aici vrem toast (e o acțiune explicită de salvare)
+                onUpdate={(preserveActiveTab) => refreshLucrare({ preserveActiveTab, showToast: true })}
                 isCompleted={lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true}
               />
             )}
