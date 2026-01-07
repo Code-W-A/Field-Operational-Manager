@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
-import { Loader2, AlertCircle } from "lucide-react"
+import { Loader2, AlertCircle, Info } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 // Tipurile din colecția `logs` folosesc câmpuri RO; folosim any pentru flexibilitate aici
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -29,6 +29,7 @@ import { FilterButton } from "@/components/filter-button"
 import { FilterModal, type FilterOption } from "@/components/filter-modal"
 import { useTablePersistence } from "@/hooks/use-table-persistence"
 import { LogDetailsDialog } from "@/components/log-details-dialog"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 export default function Loguri() {
   const [activeTab, setActiveTab] = useState("tabel")
@@ -1167,6 +1168,27 @@ export default function Loguri() {
                 <UniversalSearch onSearch={(v) => { setEmailSearchText(v); emailPersistence.saveSearchText(v) }} initialValue={emailSearchText} className="flex-1" />
                 <div className="flex gap-2">
                   <FilterButton onClick={() => setIsEmailFilterModalOpen(true)} activeFilters={emailFilters.length} />
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="outline" size="icon" aria-label="Explicație status email">
+                          <Info className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-[360px]">
+                        <div className="space-y-2 text-sm">
+                          <div className="font-medium">Ce înseamnă statusurile</div>
+                          <div><span className="font-mono">queued</span>: email în coadă / înainte de trimitere</div>
+                          <div><span className="font-mono">sent</span>: acceptat de serverul SMTP (nu garantează livrarea)</div>
+                          <div><span className="font-mono">failed</span>: a eșuat trimiterea (eroare SMTP/validare)</div>
+                          <div><span className="font-mono">skipped</span>: nu existau destinatari validați</div>
+                          <div className="text-muted-foreground">
+                            Notă: livrare/bounce sunt evenimente ulterioare și pot lipsi fără un provider cu webhook.
+                          </div>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
               </div>
               <FilterModal
@@ -1202,7 +1224,29 @@ export default function Loguri() {
                           {Array.isArray((ev as any).cc) && (ev as any).cc.length > 0 && <div>CC: <span className="truncate inline-block max-w-full align-top">{(ev as any).cc.join(', ')}</span></div>}
                           {Array.isArray((ev as any).bcc) && (ev as any).bcc.length > 0 && <div>BCC: <span className="truncate inline-block max-w-full align-top">{(ev as any).bcc.join(', ')}</span></div>}
                           {ev.subject && <div>Subiect: <span className="truncate inline-block max-w-full align-top">{ev.subject}</span></div>}
-                          <div>Status: <Badge variant="outline" className="ml-1">{ev.status}</Badge></div>
+                          <div className="flex items-center gap-2">
+                            <span>Status:</span>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="outline" className="ml-1 cursor-help">{ev.status}</Badge>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-[320px]">
+                                  <div className="text-sm">
+                                    {ev.status === "sent"
+                                      ? "Acceptat de serverul SMTP. Livrarea/bounce pot apărea ulterior (dacă există webhook/provider)."
+                                      : ev.status === "queued"
+                                        ? "Email în coadă / înainte de trimitere."
+                                        : ev.status === "failed"
+                                          ? "Trimiterea a eșuat (vezi câmpul Eroare / Meta)."
+                                          : ev.status === "skipped"
+                                            ? "S-a sărit trimiterea (nu existau destinatari validați)."
+                                            : "Status email."}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
                           {(ev as any).provider && <div>Provider: <span className="font-mono text-xs">{(ev as any).provider}</span></div>}
                           {ev.messageId && <div>MsgID: <span className="font-mono text-xs">{ev.messageId}</span></div>}
                           {ev.error && <div>Eroare: <span className="text-xs text-red-600 line-clamp-2">{String(ev.error)}</span></div>}
