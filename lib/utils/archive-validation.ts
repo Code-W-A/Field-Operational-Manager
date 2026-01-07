@@ -118,7 +118,10 @@ export function getArchiveValidationDetails(lucrare: any, config?: Partial<Archi
       const hasReinterventionLaunched =
         lucrare?.reinterventieLansata === true ||
         Boolean(lucrare?.reinterventieLansataAt) ||
-        Boolean(lucrare?.reinterventieLucrareId)
+        Boolean(lucrare?.reinterventieLucrareId) ||
+        // Backward compatibility: unele lucrări vechi au reintervenții create, dar nu au flag-urile backfilled.
+        (Array.isArray(lucrare?.reinterventii) && lucrare.reinterventii.length > 0) ||
+        (typeof lucrare?.reinterventiiCount === "number" && lucrare.reinterventiiCount > 0)
 
       if (!hasReinterventionLaunched) {
         blockingReasons.push("Oferta a fost acceptată. Se poate arhiva doar după lansarea reintervenției (crearea reintervenției în sistem)")

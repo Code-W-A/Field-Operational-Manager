@@ -60,7 +60,7 @@ import { PostponeWorkDialog } from "@/components/postpone-work-dialog"
 import { ModificationBanner } from "@/components/modification-banner"
 import { useModificationDetails } from "@/hooks/use-modification-details"
 import { db } from "@/lib/firebase/config"
-import { collection, query, where, getDocs, limit } from "firebase/firestore"
+import { collection, query, where, getDocs, limit, serverTimestamp } from "firebase/firestore"
 import { getArchiveValidationDetails } from "@/lib/utils/archive-validation"
 import { useArchiveRulesSettings } from "@/hooks/use-archive-rules-settings"
 import { deleteField } from "firebase/firestore"
@@ -222,6 +222,44 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       loadReinterventii(lucrare.id)
     }
   }, [lucrare?.id, loadReinterventii])
+
+  // Backfill: pentru lucrări vechi, setăm flag-ul de reintervenție pe lucrarea originală
+  // ca regulile de arhivare să recunoască faptul că există deja o reintervenție creată.
+  useEffect(() => {
+    if (!isAdminOrDispatcher) return
+    if (!lucrare?.id) return
+    if (!Array.isArray(reinterventii) || reinterventii.length === 0) return
+
+    const hasReinterventionFlag =
+      (lucrare as any)?.reinterventieLansata === true ||
+      Boolean((lucrare as any)?.reinterventieLansataAt) ||
+      Boolean((lucrare as any)?.reinterventieLucrareId)
+
+    if (hasReinterventionFlag) return
+
+    const firstReinterventieId = String(reinterventii[0]?.id || "")
+    if (!firstReinterventieId) return
+
+    // Optimistic update în UI
+    setLucrare((prev) => {
+      if (!prev) return prev
+      return {
+        ...(prev as any),
+        reinterventieLansata: true,
+        reinterventieLucrareId: firstReinterventieId,
+        reinterventieLansataAt: new Date(),
+      } as any
+    })
+
+    // Persistăm în Firestore (o singură dată / lucrare)
+    updateLucrare(lucrare.id, {
+      reinterventieLansata: true,
+      reinterventieLucrareId: firstReinterventieId,
+      reinterventieLansataAt: serverTimestamp() as any,
+    }).catch((e) => {
+      console.error("Eroare la backfill reinterventieLansata:", e)
+    })
+  }, [isAdminOrDispatcher, lucrare?.id, reinterventii])
 
   // Această funcție nu mai este folosită - reviziile se finalizează prin "Generează raport"
   // Păstrăm funcția pentru compatibilitate dar va fi ștearsă în viitor
@@ -1250,7 +1288,12 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
           {/* Buton pentru arhivare - vizibil întotdeauna pentru admin/dispecer, disabled când nu sunt îndeplinite condițiile */}
           {isAdminOrDispatcher && (() => {
-            const details = getArchiveValidationDetails(lucrare, archiveRulesConfig)
+            const lucrareForArchiveValidation: any = {
+              ...(lucrare as any),
+              // ajută regulile să recunoască reintervențiile fără a depinde exclusiv de flag-uri
+              reinterventiiCount: Array.isArray(reinterventii) ? reinterventii.length : 0,
+            }
+            const details = getArchiveValidationDetails(lucrareForArchiveValidation, archiveRulesConfig)
             const canArchive = details.canArchive
             const disableReason = !canArchive ? (details.blockingReasons?.[0] || "Nu se poate arhiva încă") : ""
             
