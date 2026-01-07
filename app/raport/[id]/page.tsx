@@ -63,6 +63,10 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
   const [updatedLucrare, setUpdatedLucrare] = useState<any>(null)
   // Toggle for manual multiple recipients
   const [useManualRecipients, setUseManualRecipients] = useState(false)
+
+  // Back-compat alias used throughout this file (older code paths reference `tichet`)
+  // Always treat the latest local version as the source of truth.
+  const tichet = updatedLucrare ?? lucrare
   
   // Add name states for signers
   const [numeTehnician, setNumeTehnician] = useState("")
@@ -347,7 +351,14 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
   // Effect to trigger PDF generation when updatedLucrare changes
   useEffect(() => {
     if (updatedLucrare && reportGeneratorRef.current) {
+      console.log(`[RAPORT_FLOW ${paramsId}] updatedLucrare set -> trigger ReportGenerator.click()`, {
+        id: updatedLucrare?.id,
+        raportGenerat: updatedLucrare?.raportGenerat,
+        raportDataLocked: updatedLucrare?.raportDataLocked,
+      })
       reportGeneratorRef.current.click()
+    } else if (updatedLucrare && !reportGeneratorRef.current) {
+      console.warn(`[RAPORT_FLOW ${paramsId}] updatedLucrare set but reportGeneratorRef is missing (cannot click)`)
     }
   }, [updatedLucrare])
 
@@ -398,6 +409,13 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
           console.log("Email sending already in progress, skipping...")
           return false
         }
+
+        console.log(`[RAPORT_FLOW ${paramsId}] sendEmail() start`, {
+          lucrareId: updatedLucrare?.id || paramsId,
+          pdfBytes: pdfBlob?.size,
+          useManualRecipients,
+          manualEmailsCount: manualEmails?.length || 0,
+        })
 
         setIsEmailSending(true)
 
@@ -585,9 +603,23 @@ FOM by NRG`,
             formData.append("companyLogo", "/logo-placeholder.png")
 
             // Send request to API
+            console.log(`[RAPORT_FLOW ${paramsId}] POST /api/send-email -> start`, {
+              to: emailInfo.email,
+              label: emailInfo.label,
+              lucrareId: updatedLucrare.id || paramsId,
+            })
+            const controller = new AbortController()
+            const timeoutMs = 45_000
+            const timer = setTimeout(() => controller.abort(), timeoutMs)
             const response = await fetch("/api/send-email", {
               method: "POST",
               body: formData,
+              signal: controller.signal,
+            }).finally(() => clearTimeout(timer))
+            console.log(`[RAPORT_FLOW ${paramsId}] POST /api/send-email -> response`, {
+              ok: response.ok,
+              status: response.status,
+              to: emailInfo.email,
             })
 
             if (!response.ok) {
@@ -625,6 +657,7 @@ FOM by NRG`,
 
       } catch (error) {
         console.error("Eroare la trimiterea emailului:", error)
+        console.error(`[RAPORT_FLOW ${paramsId}] sendEmail() failed`, error)
         toast({
           title: "Eroare",
           description: error instanceof Error ? error.message : "A aparut o eroare la trimiterea emailului",
@@ -640,6 +673,12 @@ FOM by NRG`,
   // Use useStableCallback to ensure we have access to the latest state values
   // without causing unnecessary re-renders
   const handleSubmit = useStableCallback(async () => {
+    console.log(`[RAPORT_FLOW ${paramsId}] handleSubmit() start`, {
+      lucrareId: tichet?.id || paramsId,
+      hasTechSig: Boolean(techSignatureData) || Boolean(techSignatureRef.current && !techSignatureRef.current.isEmpty()),
+      hasClientSig: Boolean(clientSignatureData) || Boolean(clientSignatureRef.current && !clientSignatureRef.current.isEmpty()),
+      productsCount: products?.length || 0,
+    })
     // Check for tech signature - transformăm în avertisment, nu blocaj
     if (!techSignatureData && (!techSignatureRef.current || techSignatureRef.current.isEmpty())) {
       toast({
@@ -705,6 +744,7 @@ FOM by NRG`,
       await updateLucrare(paramsId, updatedLucrareData)
       console.log("✅ SALVAT în Firestore (handleSubmit) - raportGenerat:", updatedLucrareData.raportGenerat || "UNDEFINED")
       console.log("✅ SALVAT în Firestore (handleSubmit) - numarRaport:", updatedLucrareData.numarRaport || "UNDEFINED")
+      console.log(`[RAPORT_FLOW ${paramsId}] handleSubmit() saved -> setUpdatedLucrare()`)
 
       // Update local state with the updated data
       setUpdatedLucrare(updatedLucrareData)
@@ -2116,8 +2156,12 @@ FOM by NRG`,
                 <div className="hidden">
                   <ReportGenerator
                     ref={reportGeneratorRef}
-                    tichet={updatedLucrare || tichet}
+                    lucrare={tichet}
                     onGenerate={(blob) => {
+                      console.log(`[RAPORT_FLOW ${paramsId}] ReportGenerator.onGenerate()`, {
+                        lucrareId: (updatedLucrare?.id || tichet?.id || paramsId),
+                        pdfBytes: blob?.size,
+                      })
                       // Send email automatically when PDF is generated
                       sendEmail(blob)
                         .then((success) => {
