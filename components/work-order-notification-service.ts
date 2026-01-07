@@ -14,6 +14,10 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
   try {
     console.log("Starting work order notification process for:", workOrderData.id || "new work order")
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/463e4a9a-5f7b-4a0d-b89f-2f0e950b2091',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'email-debug-pre',hypothesisId:'H2',location:'components/work-order-notification-service.ts:sendWorkOrderNotifications:entry',message:'sendWorkOrderNotifications entry',data:{workId:String(workOrderData?.id||''),clientType:typeof workOrderData?.client,hasClientId:Boolean(workOrderData?.clientId||workOrderData?.client?.id),hasLocationId:Boolean(workOrderData?.locationId||workOrderData?.clientInfo?.locationId||workOrderData?.clientInfo?.locatieId),tehnicieniCount:Array.isArray(workOrderData?.tehnicieni)?workOrderData.tehnicieni.length:0,hasPersoaneContact:Array.isArray(workOrderData?.persoaneContact)&&workOrderData.persoaneContact.length>0,necesitaOferta:Boolean(workOrderData?.necesitaOferta)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion agent log
+
     // Extract client information
     let clientEmail = ""
     let clientName = workOrderData.client
@@ -354,21 +358,25 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
     } catch {}
 
     // Prepare combined recipients:
-    // - If we have location contact emails, send ONLY to those (and location email)
-    // - Else, fallback to client's main email
+    // - Prefer VALID location contact emails (and location email)
+    // - If none of those are valid, fallback to client's main email (if valid)
     const clientRecipientSet = new Set<string>()
     const addIfValid = (e?: string) => {
       if (!e) return
       const s = String(e).trim().toLowerCase()
       if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) clientRecipientSet.add(s)
     }
-    if ((locationContactEmails || []).length > 0) {
-      ;(locationContactEmails || []).forEach((e) => addIfValid(e))
-      // When sending to location contacts, do NOT include client main email
-      try { console.log("[WorkOrderNotify] Using LOCATION CONTACT recipients only.") } catch {}
+    const locationCandidates = Array.isArray(locationContactEmails) ? locationContactEmails : []
+    locationCandidates.forEach((e) => addIfValid(e))
+
+    // Important edge case:
+    // sometimes we have "locationContactEmails" present, but ALL are invalid (bad format / empty).
+    // In that case, we MUST fallback to clientEmail, otherwise no client email will be sent.
+    if (clientRecipientSet.size > 0) {
+      try { console.log("[WorkOrderNotify] Using VALID location contact recipients only.") } catch {}
     } else {
       addIfValid(clientEmail || undefined)
-      try { console.log("[WorkOrderNotify] Fallback to CLIENT email (no location contact emails found).") } catch {}
+      try { console.log("[WorkOrderNotify] Fallback to CLIENT email (no valid location contact emails).") } catch {}
     }
 
     // Prepare notification data
@@ -377,6 +385,10 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
       console.log("[WorkOrderNotify] Final client recipients:", Array.from(clientRecipientSet))
       console.log("[WorkOrderNotify] Client email fallback:", clientEmail)
     } catch {}
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/463e4a9a-5f7b-4a0d-b89f-2f0e950b2091',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'email-debug-pre',hypothesisId:'H2',location:'components/work-order-notification-service.ts:sendWorkOrderNotifications:resolvedRecipients',message:'Resolved recipients before API call (counts only)',data:{workId:String(workOrderData?.id||''),clientEmailPresent:Boolean(clientEmail),locationContactEmailsCount:(locationContactEmails||[]).length,clientRecipientSetCount:(clientRecipientSet as any)?.size ?? null,techniciansCount:Array.isArray(technicians)?technicians.length:0,techEmailPresentCount:Array.isArray(technicians)?technicians.filter((t:any)=>Boolean(t?.email)).length:0},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion agent log
 
     // Build revision equipment list if applicable
     let revisionEquipmentNames: string[] = []
@@ -403,7 +415,8 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
       client: {
         name: clientName,
         // If we use location contacts, do not pass client email to avoid API preferring it
-        email: (locationContactEmails || []).length > 0 ? "" : clientEmail,
+        // Use the *validated* recipient set to decide; don't rely on raw locationContactEmails length.
+        email: clientRecipientSet.size > 0 && String(clientEmail || "").trim() ? "" : clientEmail,
         contactPerson: contactPerson,
       },
       technicians: technicians,
@@ -435,6 +448,11 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
     console.log("ID-ul tichetului pentru notificare:", workOrderData.id || "nedefinit")
     // Send notifications
     console.log("Sending notification data to API:", JSON.stringify(notificationData, null, 2))
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/463e4a9a-5f7b-4a0d-b89f-2f0e950b2091',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'email-debug-pre',hypothesisId:'H5',location:'components/work-order-notification-service.ts:sendWorkOrderNotifications:beforeFetch',message:'POST /api/notifications/work-order about to send',data:{workId:String(notificationData?.workOrderId||''),clientEmailsCount:Array.isArray(notificationData?.clientEmails)?notificationData.clientEmails.length:0,techniciansCount:Array.isArray(notificationData?.technicians)?notificationData.technicians.length:0,techniciansWithEmailCount:Array.isArray(notificationData?.technicians)?notificationData.technicians.filter((t:any)=>Boolean(t?.email)).length:0},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion agent log
+
     const response = await fetch("/api/notifications/work-order", {
       method: "POST",
       headers: {
@@ -442,6 +460,10 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
       },
       body: JSON.stringify(notificationData),
     })
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/463e4a9a-5f7b-4a0d-b89f-2f0e950b2091',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'email-debug-pre',hypothesisId:'H5',location:'components/work-order-notification-service.ts:sendWorkOrderNotifications:afterFetch',message:'POST /api/notifications/work-order response',data:{workId:String(notificationData?.workOrderId||''),ok:Boolean(response?.ok),status:Number((response as any)?.status||0)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion agent log
 
     if (!response.ok) {
       const errorData = await response.json()

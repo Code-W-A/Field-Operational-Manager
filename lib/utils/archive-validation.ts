@@ -15,7 +15,6 @@ export interface ArchiveRulesConfig {
   offerRequireOfferSentWhenNeeded: boolean
   offerBlockWhenAccepted: boolean
   offerWait30DaysWhenNoResponse: boolean
-  offerAllowImmediateWhenReportAndInvoicingDone: boolean
 }
 
 const DEFAULT_RULES: ArchiveRulesConfig = {
@@ -26,7 +25,6 @@ const DEFAULT_RULES: ArchiveRulesConfig = {
   offerRequireOfferSentWhenNeeded: true,
   offerBlockWhenAccepted: true,
   offerWait30DaysWhenNoResponse: true,
-  offerAllowImmediateWhenReportAndInvoicingDone: true,
 }
 
 export interface ArchiveValidationDetails {
@@ -116,7 +114,15 @@ export function getArchiveValidationDetails(lucrare: any, config?: Partial<Archi
 
   if (rules.offerBlockWhenAccepted) {
     if (lucrare?.offerResponse?.status === "accept") {
-      blockingReasons.push("Oferta a fost acceptată. Următoarea acțiune trebuie să fie reintervenție înainte de arhivare")
+      // Noua regulă: acceptată => se permite arhivarea doar după ce există o reintervenție lansată (lucrare nouă creată).
+      const hasReinterventionLaunched =
+        lucrare?.reinterventieLansata === true ||
+        Boolean(lucrare?.reinterventieLansataAt) ||
+        Boolean(lucrare?.reinterventieLucrareId)
+
+      if (!hasReinterventionLaunched) {
+        blockingReasons.push("Oferta a fost acceptată. Se poate arhiva doar după lansarea reintervenției (crearea reintervenției în sistem)")
+      }
     }
   } else {
     ignoredRules.push("Blocare când oferta este acceptată")
@@ -125,43 +131,24 @@ export function getArchiveValidationDetails(lucrare: any, config?: Partial<Archi
   // Dacă oferta este refuzată, nu blocăm niciodată (rămâne permis).
   // Dacă oferta a fost trimisă fără răspuns, aplicăm regula de 30 zile (sau excepția) dacă e activată.
   if (hasOfferSent && !lucrare?.offerResponse) {
-    const isReportDone = lucrare?.raportGenerat === true
-
-    if (rules.offerAllowImmediateWhenReportAndInvoicingDone) {
-      // Excepție: raport + facturare rezolvată => permis imediat
-      if (isReportDone && (hasInvoiceDoc || noInvoicingSelected)) {
-        // allowed (no reason)
-      } else if (rules.offerWait30DaysWhenNoResponse) {
-        // continuă cu regula de 30 zile
-        const expirationDate = toDateSafe(lucrare?.offerActionExpiresAt)
-        if (expirationDate) {
-          const now = new Date()
-          if (now < expirationDate) {
-            const daysRemaining = Math.ceil((expirationDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-            blockingReasons.push(
-              `Oferta a fost transmisă fără răspuns. Se poate arhiva după expirarea perioadei de 30 de zile (mai rămân ${daysRemaining} zile)`
-            )
-          }
+    // Regula nouă: fără răspuns => se poate arhiva doar după 30 zile de la trimitere.
+    // Dacă răspunsul vine mai devreme (accept/refuz), regula de 30 zile se anulează automat (nu mai intrăm aici).
+    if (rules.offerWait30DaysWhenNoResponse) {
+      const expirationDate = toDateSafe(lucrare?.offerActionExpiresAt)
+      if (expirationDate) {
+        const now = new Date()
+        if (now < expirationDate) {
+          const daysRemaining = Math.ceil((expirationDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+          blockingReasons.push(
+            `Oferta a fost transmisă fără răspuns. Se poate arhiva după expirarea perioadei de 30 de zile (mai rămân ${daysRemaining} zile)`
+          )
         }
       } else {
-        ignoredRules.push("Așteptare 30 zile fără răspuns la ofertă")
+        // Backward compatibility: dacă nu avem data, blocăm cu instrucțiune clară.
+        blockingReasons.push("Oferta a fost transmisă, dar nu există data de expirare (30 zile). Retrimite oferta pentru a seta perioada de așteptare.")
       }
     } else {
-      ignoredRules.push("Permite imediat dacă raport + facturare sunt gata (fără răspuns)")
-      if (rules.offerWait30DaysWhenNoResponse) {
-        const expirationDate = toDateSafe(lucrare?.offerActionExpiresAt)
-        if (expirationDate) {
-          const now = new Date()
-          if (now < expirationDate) {
-            const daysRemaining = Math.ceil((expirationDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-            blockingReasons.push(
-              `Oferta a fost transmisă fără răspuns. Se poate arhiva după expirarea perioadei de 30 de zile (mai rămân ${daysRemaining} zile)`
-            )
-          }
-        }
-      } else {
-        ignoredRules.push("Așteptare 30 zile fără răspuns la ofertă")
-      }
+      ignoredRules.push("Așteptare 30 zile fără răspuns la ofertă")
     }
   }
 

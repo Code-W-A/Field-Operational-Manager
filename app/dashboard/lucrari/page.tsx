@@ -20,9 +20,9 @@ import { ro } from "date-fns/locale"
 import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check, Info, RefreshCw, Archive, History } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
-import { addLucrare, deleteLucrare, updateLucrare, getLucrareById, type Lucrare } from "@/lib/firebase/firestore"
+import { addLucrare, deleteLucrare, updateLucrare, getLucrareById, getNextReportNumber, type Lucrare } from "@/lib/firebase/firestore"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { orderBy, where, collection, getDocs } from "firebase/firestore"
+import { orderBy, where, collection, getDocs, serverTimestamp } from "firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import { LucrareForm, type LucrareFormRef } from "@/components/lucrare-form"
 import { ArchiveButton } from "@/components/archive-button"
@@ -39,7 +39,6 @@ import { FilterModal, type FilterOption } from "@/components/filter-modal"
 import { ColumnSelectionButton } from "@/components/column-selection-button"
 import { ColumnSelectionModal } from "@/components/column-selection-modal"
 import { sendWorkOrderNotifications } from "@/components/work-order-notification-service"
-import { getNextReportNumber } from "@/lib/firebase/firestore"
 import { LucrariNotificationsBell } from "@/components/lucrari-notifications-bell"
 import { ReinterventionReasonDialog } from "@/components/reintervention-reason-dialog"
 import { EquipmentHistoryCheckDialog } from "@/components/equipment-history-check-dialog"
@@ -1107,6 +1106,25 @@ export default function Lucrari() {
         createdByName: userData?.displayName || userData?.email || "Utilizator necunoscut",
       })
 
+      // Dacă este re-intervenție, marcăm lucrarea originală ca având reintervenție lansată,
+      // ca regulile de arhivare să poată valida fără query-uri suplimentare.
+      if (isReassignment && originalWorkOrderId) {
+        try {
+          await updateLucrare(
+            String(originalWorkOrderId),
+            {
+              reinterventieLansata: true,
+              reinterventieLansataAt: serverTimestamp() as any,
+              reinterventieLucrareId: String(lucrareId),
+            } as any,
+            userData?.uid,
+            userData?.displayName || userData?.email || "Utilizator",
+          )
+        } catch (e) {
+          console.warn("Nu s-a putut marca lucrarea originală cu reintervenție lansată (non-blocking):", e)
+        }
+      }
+
       // Resetăm starea de re-intervenție
       if (isReassignment) {
         setIsReassignment(false)
@@ -1117,6 +1135,10 @@ export default function Lucrari() {
       try {
         // Obținem lucrarea completă cu ID pentru a o trimite la notificări
         const lucrareCompleta = { id: lucrareId, ...newLucrare }
+
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/463e4a9a-5f7b-4a0d-b89f-2f0e950b2091',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'email-debug-pre',hypothesisId:'H2',location:'app/dashboard/lucrari/page.tsx:createWork:beforeSendWorkOrderNotifications',message:'CreateWork about to call sendWorkOrderNotifications',data:{lucrareId:String(lucrareId||''),nrLucrare:String(nrLucrareGenerated||''),hasClientId:Boolean((newLucrare as any)?.clientId),hasLocationId:Boolean((newLucrare as any)?.locationId),hasPersoanaContactEmail:Boolean((newLucrare as any)?.persoanaContactEmail),tehnicieniCount:Array.isArray((newLucrare as any)?.tehnicieni)?(newLucrare as any).tehnicieni.length:0,necesitaOferta:Boolean((newLucrare as any)?.necesitaOferta)},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion agent log
 
         // DEBUG LOG: Snapshot înainte de trimitere
         console.log("[CreateWork] Sending notifications snapshot:", {
@@ -1133,6 +1155,10 @@ export default function Lucrari() {
 
         // Trimitem notificările
         const notificationResult = await sendWorkOrderNotifications(lucrareCompleta)
+
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/463e4a9a-5f7b-4a0d-b89f-2f0e950b2091',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'email-debug-pre',hypothesisId:'H3',location:'app/dashboard/lucrari/page.tsx:createWork:afterSendWorkOrderNotifications',message:'CreateWork got sendWorkOrderNotifications result',data:{lucrareId:String(lucrareId||''),success:Boolean((notificationResult as any)?.success),hasResult:Boolean((notificationResult as any)?.result),errorPresent:Boolean((notificationResult as any)?.error),errorLen:String((notificationResult as any)?.error||'').length,techEmailsCount:Array.isArray((notificationResult as any)?.result?.technicianEmails)?(notificationResult as any).result.technicianEmails.length:0,clientEmailStatus:String((notificationResult as any)?.result?.clientEmail?.success)},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion agent log
 
         if (notificationResult.success) {
           // DEBUG LOG: Rezultate email

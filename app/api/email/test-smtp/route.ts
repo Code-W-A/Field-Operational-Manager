@@ -1,7 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
 import nodemailer from "nodemailer"
+import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-events.server"
 
 export async function POST(request: NextRequest) {
+  let emailEventId: string | null = null
   try {
     const data = await request.json()
 
@@ -28,8 +30,24 @@ export async function POST(request: NextRequest) {
     // Create test transporter
     const transporter = nodemailer.createTransport(config)
 
+    // Log queued for SMTP test (even though we don't send an email)
+    try {
+      emailEventId = await logEmailEventServer({
+        type: "TEST",
+        to: [String(config?.auth?.user || "")].filter(Boolean),
+        subject: "SMTP connection test",
+        status: "queued",
+        provider: "smtp",
+        meta: { route: "/api/email/test-smtp", host: config.host, port: config.port, secure: config.secure },
+      })
+    } catch {}
+
     // Verify connection
     await transporter.verify()
+
+    try {
+      if (emailEventId) await updateEmailEventServer(emailEventId, { status: "sent" })
+    } catch {}
 
     return NextResponse.json({
       success: true,
@@ -37,6 +55,22 @@ export async function POST(request: NextRequest) {
     })
   } catch (error: any) {
     console.error("[SMTP Test] Connection test failed:", error)
+
+    try {
+      if (emailEventId) {
+        await updateEmailEventServer(emailEventId, { status: "failed", error: String(error?.message || error || "unknown") })
+      } else {
+        await logEmailEventServer({
+          type: "TEST",
+          to: [],
+          subject: "SMTP connection test",
+          status: "failed",
+          provider: "smtp",
+          error: String(error?.message || error || "unknown"),
+          meta: { route: "/api/email/test-smtp" },
+        })
+      }
+    } catch {}
 
     return NextResponse.json(
       {

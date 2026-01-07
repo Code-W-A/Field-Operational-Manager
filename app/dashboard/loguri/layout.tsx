@@ -6,5 +6,5 @@ export default function LoguriLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  return <ProtectedRoute allowedRoles={["admin"]}>{children}</ProtectedRoute>
+  return <ProtectedRoute allowedRoles={["admin", "dispecer"]}>{children}</ProtectedRoute>
 }

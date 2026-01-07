@@ -239,12 +239,14 @@ export interface Lucrare {
 // Email events tracking
 export interface EmailEvent {
   id?: string
-  type: "REPORT" | "OFFER" | "GENERIC" | "TECH_NOTIFY"
+  type: "REPORT" | "OFFER" | "GENERIC" | "TECH_NOTIFY" | "INVITE" | "TEST"
   lucrareId?: string
   clientId?: string
   to: string[]
+  cc?: string[]
+  bcc?: string[]
   subject?: string
-  status: "queued" | "sent" | "failed" | "bounced" | "delivered"
+  status: "queued" | "sent" | "failed" | "bounced" | "delivered" | "skipped"
   messageId?: string
   error?: string
   provider?: string

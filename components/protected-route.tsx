@@ -25,9 +25,20 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
 
   const shouldRedirectClientToPortal = !!user && isClient && isDashboard && !isAllowedLucrari && !isAllowedHistory
   const shouldRedirectTechnicianToLucrari = !!user && isTechnician && pathname === "/dashboard"
+  const shouldBlockUntilRoleKnown = !!user && !loading && !userData
 
   useEffect(() => {
     if (!loading) {
+      // Keep a lightweight role cookie for middleware-based redirects (non-sensitive).
+      // This avoids flashing protected pages before client-side redirect runs.
+      try {
+        if (user && userData?.role) {
+          document.cookie = `userRole=${encodeURIComponent(String(userData.role))}; Path=/; Max-Age=${60 * 60 * 24 * 7}; SameSite=Lax`
+        } else if (!user) {
+          document.cookie = "userRole=; Path=/; Max-Age=0; SameSite=Lax"
+        }
+      } catch {}
+
       // Adăugăm logging pentru debugging
       console.log("ProtectedRoute check:", {
         user: !!user,
@@ -71,7 +82,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   }
 
   // Prevent UI flashes before role-based redirects.
-  if (shouldRedirectClientToPortal || shouldRedirectTechnicianToLucrari) {
+  if (shouldBlockUntilRoleKnown || shouldRedirectClientToPortal || shouldRedirectTechnicianToLucrari) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">

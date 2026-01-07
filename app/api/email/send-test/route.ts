@@ -1,10 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
 import nodemailer from "nodemailer"
-import { addUserLogEntry } from "@/lib/firebase/firestore"
 import { getEmailFrom } from "@/lib/email/from"
+import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-events.server"
 
 export async function POST(request: NextRequest) {
   let errorRecipient = "unknown"
+  let emailEventId: string | null = null
   try {
     const data = await request.json()
     const { recipient, subject = "Test Email", message = "Acesta este un email de test." } = data
@@ -14,13 +15,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Adresa de email a destinatarului este obligatorie" }, { status: 400 })
     }
 
-    // Log the test attempt
+    // Log queued (server)
     try {
-      await addUserLogEntry({
-        actiune: "Test Email",
-        detalii: `Încercare trimitere email de test către ${recipient}`,
-        tip: "Informație",
-        categorie: "Email",
+      emailEventId = await logEmailEventServer({
+        type: "TEST",
+        to: [String(recipient)],
+        subject,
+        status: "queued",
+        provider: "smtp",
+        meta: { route: "/api/email/send-test" },
       })
     } catch (logError) {
       console.error("[Email Test] Failed to log test attempt:", logError)
@@ -68,14 +71,8 @@ export async function POST(request: NextRequest) {
     const info = await transporter.sendMail(mailOptions)
     console.log(`[Email Test] Email sent successfully, messageId: ${info.messageId}`)
 
-    // Log the success
     try {
-      await addUserLogEntry({
-        actiune: "Test Email Trimis",
-        detalii: `Email de test trimis cu succes către ${recipient}\nMessageID: ${info.messageId}`,
-        tip: "Informație",
-        categorie: "Email",
-      })
+      if (emailEventId) await updateEmailEventServer(emailEventId, { status: "sent", messageId: info.messageId })
     } catch (logError) {
       console.error("[Email Test] Failed to log success:", logError)
     }
@@ -88,14 +85,24 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error("[Email Test] Failed to send test email:", error)
 
-    // Log the error
     try {
-      await addUserLogEntry({
-        actiune: "Eroare Test Email",
-        detalii: `Eroare la trimiterea email-ului de test către ${errorRecipient}\nEroare: ${error.message}\nStack: ${error.stack || 'N/A'}`,
-        tip: "Eroare",
-        categorie: "Email",
-      })
+      if (emailEventId) {
+        await updateEmailEventServer(emailEventId, {
+          status: "failed",
+          error: String(error?.message || error || "unknown error"),
+          meta: { stack: error?.stack ? String(error.stack).slice(0, 2000) : undefined },
+        })
+      } else {
+        await logEmailEventServer({
+          type: "TEST",
+          to: [String(errorRecipient)],
+          subject: "Test Email",
+          status: "failed",
+          provider: "smtp",
+          error: String(error?.message || error || "unknown error"),
+          meta: { route: "/api/email/send-test", stack: error?.stack ? String(error.stack).slice(0, 2000) : undefined },
+        })
+      }
     } catch (logError) {
       console.error("[Email Test] Failed to log error:", logError)
     }

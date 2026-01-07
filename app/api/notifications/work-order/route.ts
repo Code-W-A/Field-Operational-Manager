@@ -1,10 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
 import nodemailer from "nodemailer"
-import { logEmailEvent, updateEmailEvent, addUserLogEntry } from "@/lib/firebase/firestore"
 import { logDebug, logInfo, logWarning, logError } from "@/lib/utils/logging-service"
 import { getEmailFrom } from "@/lib/email/from"
 import path from "path"
 import fs from "fs"
+import { adminDb } from "@/lib/firebase/admin"
+import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-events.server"
 
 // Add this function at the top of the file
 async function validateEmails(data: any) {
@@ -40,8 +41,11 @@ function isValidEmail(email: string): boolean {
 // Funcție de logging sigură care nu va întrerupe execuția API-ului
 async function safeAddLog(action: string, details: string, type: "Informație" | "Avertisment" | "Eroare" = "Informație", category = "Email") {
   try {
-    // Salvăm în Firebase folosind addUserLogEntry
-    await addUserLogEntry({
+    // Salvăm în Firebase folosind Admin SDK (evită PERMISSION_DENIED în API routes)
+    await adminDb.collection("logs").add({
+      timestamp: new Date(),
+      utilizator: "SYSTEM",
+      utilizatorId: "system",
       actiune: action,
       detalii: details,
       tip: type,
@@ -118,6 +122,10 @@ export async function POST(request: NextRequest) {
 
     // Validate and sanitize email addresses
     data = await validateEmails(data)
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/463e4a9a-5f7b-4a0d-b89f-2f0e950b2091',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'email-debug-pre',hypothesisId:'H1',location:'app/api/notifications/work-order/route.ts:POST:afterValidateEmails',message:'API received notification request (sanitized counts only)',data:{requestId,workOrderId:String(data?.workOrderId||''),techCount:Array.isArray(data?.technicians)?data.technicians.length:0,techWithEmailCount:Array.isArray(data?.technicians)?data.technicians.filter((t:any)=>Boolean(t?.email)).length:0,clientEmailsCount:Array.isArray(data?.clientEmails)?data.clientEmails.length:(data?.clientEmails?1:0),clientEmailPresent:Boolean(data?.client?.email),smtpUserPresent:Boolean(process.env.EMAIL_USER),smtpPassPresent:Boolean(process.env.EMAIL_PASSWORD)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion agent log
 
     // Log the data after validation (key fields for debugging)
     try {
@@ -201,6 +209,9 @@ export async function POST(request: NextRequest) {
       await transporter.verify()
       console.log(`[WORK-ORDER-API] [${requestId}] Conexiune SMTP verificată cu succes!`)
       logInfo("SMTP connection verified successfully", null, { category: "email", context: logContext })
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/463e4a9a-5f7b-4a0d-b89f-2f0e950b2091',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'email-debug-pre',hypothesisId:'H3',location:'app/api/notifications/work-order/route.ts:POST:smtpVerify',message:'SMTP verify OK',data:{requestId},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion agent log
     } catch (error: any) {
       console.error(`[WORK-ORDER-API] [${requestId}] EROARE la verificarea conexiunii SMTP:`, error)
       console.error(`- Mesaj: ${error.message}`)
@@ -218,6 +229,9 @@ export async function POST(request: NextRequest) {
         },
         { category: "email", context: logContext },
       )
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/463e4a9a-5f7b-4a0d-b89f-2f0e950b2091',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'email-debug-pre',hypothesisId:'H3',location:'app/api/notifications/work-order/route.ts:POST:smtpVerify',message:'SMTP verify FAILED',data:{requestId,code:String(error?.code||''),command:String(error?.command||''),msgLen:String(error?.message||'').length},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion agent log
       return NextResponse.json({ error: `Eroare la verificarea conexiunii SMTP: ${error.message}` }, { status: 500 })
     }
 
@@ -428,13 +442,14 @@ export async function POST(request: NextRequest) {
             // log queued
             let evId: string | null = null
             try {
-              evId = await logEmailEvent({
+              evId = await logEmailEventServer({
                 type: "TECH_NOTIFY",
-                lucrareId: (requestBody as any)?.workOrderId,
+                lucrareId: safeWorkOrderId || undefined,
                 to: [String(tech.email || "")],
                 subject: String(mailOptions.subject || ""),
                 status: "queued",
                 provider: "smtp",
+                meta: { route: "/api/notifications/work-order", requestId, target: "technician", techName: tech.name || undefined },
               })
             } catch {}
 
@@ -455,7 +470,7 @@ export async function POST(request: NextRequest) {
             )
 
             technicianEmails.push({ name: tech.name, email: tech.email, success: true, messageId: info.messageId })
-            try { if (evId) await updateEmailEvent(evId, { status: "sent", messageId: info.messageId }) } catch {}
+            try { if (evId) await updateEmailEventServer(evId, { status: "sent", messageId: info.messageId }) } catch {}
           } catch (error: any) {
             console.error(
               `[WORK-ORDER-API] [${requestId}] EROARE la trimiterea email-ului către tehnician ${tech.name}:`,
@@ -594,6 +609,20 @@ export async function POST(request: NextRequest) {
         )
 
         console.log(`[WORK-ORDER-API] [${requestId}] Trimitere email către client...`)
+        // Log queued for client recipients
+        let clientEvId: string | null = null
+        try {
+          clientEvId = await logEmailEventServer({
+            type: "GENERIC",
+            lucrareId: safeWorkOrderId || undefined,
+            to: uniqueRecipients,
+            subject: String(mailOptions.subject || ""),
+            status: "queued",
+            provider: "smtp",
+            meta: { route: "/api/notifications/work-order", requestId, target: "client", location: details?.location || undefined },
+          })
+        } catch {}
+
         const info = await transporter.sendMail(mailOptions)
 
         console.log(`[WORK-ORDER-API] [${requestId}] Email trimis cu succes către destinatari!`)
@@ -611,6 +640,7 @@ export async function POST(request: NextRequest) {
         )
 
         clientEmailResult = { success: true, messageId: info.messageId, recipient: uniqueRecipients.join(", ") }
+        try { if (clientEvId) await updateEmailEventServer(clientEvId, { status: "sent", messageId: info.messageId }) } catch {}
       } catch (error: any) {
         console.error(
           `[WORK-ORDER-API] [${requestId}] EROARE la trimiterea email-ului către client ${client.name}:`,
@@ -633,9 +663,35 @@ export async function POST(request: NextRequest) {
         )
 
         clientEmailResult = { success: false, error: error.message }
+        // Mark failed event if we have one
+        try {
+          await logEmailEventServer({
+            type: "GENERIC",
+            lucrareId: safeWorkOrderId || undefined,
+            to: uniqueRecipients,
+            subject: isPostponed ? `Anunț amânare tichet: ${details?.location || ""}` : `Confirmare intervenție: ${details?.location || ""}`,
+            status: "failed",
+            provider: "smtp",
+            error: String(error?.message || error || "unknown"),
+            meta: { route: "/api/notifications/work-order", requestId, target: "client" },
+          })
+        } catch {}
       }
     } else {
       console.log(`[WORK-ORDER-API] [${requestId}] Clientul nu are adresă de email, se omite notificarea`)
+      // Log skipped event (no valid recipients)
+      try {
+        await logEmailEventServer({
+          type: "GENERIC",
+          lucrareId: safeWorkOrderId || undefined,
+          to: [],
+          subject: isPostponed ? `Anunț amânare tichet: ${details?.location || ""}` : `Confirmare intervenție: ${details?.location || ""}`,
+          status: "skipped",
+          provider: "smtp",
+          error: "No valid client recipients",
+          meta: { route: "/api/notifications/work-order", requestId, target: "client" },
+        })
+      } catch {}
       logWarning(
         "Client email not available, skipping client notification",
         { client },
@@ -647,6 +703,30 @@ export async function POST(request: NextRequest) {
     console.log(`[WORK-ORDER-API] [${requestId}] Rezultate trimitere email-uri:`)
     console.log(`- Tehnicieni: ${technicianEmails.length} email-uri trimise`)
     console.log(`- Client: ${clientEmailResult?.success ? "Succes" : "Eșec sau omis"}`)
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/463e4a9a-5f7b-4a0d-b89f-2f0e950b2091',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'email-debug-pre',hypothesisId:'H2',location:'app/api/notifications/work-order/route.ts:POST:sendResults',message:'Send results summary (counts only)',data:{requestId,techAttempted:Array.isArray(technicians)?technicians.length:0,techSentCount:Array.isArray(technicianEmails)?technicianEmails.filter((t:any)=>t?.success).length:0,clientRecipientsCount:(typeof uniqueRecipients?.length==='number'?uniqueRecipients.length:0),clientSentSuccess:Boolean(clientEmailResult?.success)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion agent log
+
+    // If absolutely nothing was sent (no valid recipients, or all sends failed), return a clear error.
+    // This fixes the confusing "success toast but no emails" scenario.
+    const techSuccessCount = Array.isArray(technicianEmails) ? technicianEmails.filter((t: any) => t?.success).length : 0
+    const clientSuccess = Boolean(clientEmailResult?.success)
+    const anySuccess = techSuccessCount > 0 || clientSuccess
+    if (!anySuccess) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Nu există destinatari validați sau trimiterea a eșuat pentru toți destinatarii",
+          details: {
+            techniciansTotal: Array.isArray(technicians) ? technicians.length : 0,
+            techniciansWithEmail: Array.isArray(technicians) ? technicians.filter((t: any) => Boolean(t?.email)).length : 0,
+            clientRecipients: uniqueRecipients,
+          },
+        },
+        { status: 422 },
+      )
+    }
 
     // Folosim funcția sigură de logging în loc de addLog
     await safeAddLog(

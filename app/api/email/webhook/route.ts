@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { updateEmailEvent } from "@/lib/firebase/firestore"
+import { updateEmailEventServer } from "@/lib/email/email-events.server"
 
 // Basic webhook scaffold for providers (SendGrid/Mailgun/Postmark)
 export async function POST(request: Request) {
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     else if (status.includes("fail")) mapped.status = "failed"
 
     if (emailEventId && Object.keys(mapped).length) {
-      await updateEmailEvent(emailEventId, mapped)
+      await updateEmailEventServer(emailEventId, mapped)
     }
 
     return NextResponse.json({ ok: true })

@@ -290,14 +290,7 @@ export const PREDEFINED_SETTINGS: PredefinedSetting[] = [
   {
     id: "archive_offer_wait_30_days_when_no_response",
     name: "Arhivare: așteaptă 30 zile dacă nu există răspuns la ofertă",
-    description: "Dacă este activ, după trimiterea ofertei fără răspuns, arhivarea e permisă doar după expirarea perioadei (30 zile).",
-    defaultValue: true,
-    valueType: "boolean",
-  },
-  {
-    id: "archive_offer_allow_immediate_when_report_and_invoicing_done",
-    name: "Arhivare: permite imediat dacă raport + facturare sunt gata (fără răspuns la ofertă)",
-    description: "Dacă este activ, permite arhivarea imediat după raport generat și facturare rezolvată, chiar dacă oferta nu are încă răspuns.",
+    description: "Dacă este activ, după trimiterea ofertei fără răspuns, arhivarea e permisă doar după expirarea perioadei (30 zile). Dacă răspunsul vine mai devreme (accept/refuz), regula de 30 zile se anulează.",
     defaultValue: true,
     valueType: "boolean",
   },

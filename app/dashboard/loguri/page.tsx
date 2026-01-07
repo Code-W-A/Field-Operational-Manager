@@ -38,6 +38,9 @@ export default function Loguri() {
   const [emailFiltered, setEmailFiltered] = useState<EmailEvent[]>([])
   const [emailFilters, setEmailFilters] = useState<FilterOption[]>([])
   const [emailSearchText, setEmailSearchText] = useState("")
+  const [isEmailFilterModalOpen, setIsEmailFilterModalOpen] = useState(false)
+  const [selectedEmailEvent, setSelectedEmailEvent] = useState<EmailEvent | null>(null)
+  const [isEmailDetailsOpen, setIsEmailDetailsOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [table, setTable] = useState<any>(null)
@@ -1163,12 +1166,12 @@ export default function Loguri() {
               <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center justify-between">
                 <UniversalSearch onSearch={(v) => { setEmailSearchText(v); emailPersistence.saveSearchText(v) }} initialValue={emailSearchText} className="flex-1" />
                 <div className="flex gap-2">
-                  <FilterButton onClick={() => setIsFilterModalOpen(true)} activeFilters={activeFilters.length} />
+                  <FilterButton onClick={() => setIsEmailFilterModalOpen(true)} activeFilters={emailFilters.length} />
                 </div>
               </div>
               <FilterModal
-                isOpen={isFilterModalOpen}
-                onClose={() => setIsFilterModalOpen(false)}
+                isOpen={isEmailFilterModalOpen}
+                onClose={() => setIsEmailFilterModalOpen(false)}
                 title="Filtrare emailuri"
                 filterOptions={emailFilterOptions}
                 onApplyFilters={(filters) => { setEmailFilters(filters); emailPersistence.saveFilters(filters) }}
@@ -1179,7 +1182,14 @@ export default function Loguri() {
               ) : (
                 <div className="grid gap-3 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3">
                   {emailFiltered.map((ev) => (
-                    <Card key={ev.id}>
+                    <Card
+                      key={ev.id}
+                      className="cursor-pointer hover:bg-muted/40"
+                      onClick={() => {
+                        setSelectedEmailEvent(ev)
+                        setIsEmailDetailsOpen(true)
+                      }}
+                    >
                       <CardContent className="p-4 space-y-2">
                         <div className="flex items-center justify-between">
                           <Badge variant="outline">{ev.type}</Badge>
@@ -1187,10 +1197,15 @@ export default function Loguri() {
                         </div>
                         <div className="grid grid-cols-1 gap-1 text-sm">
                           {ev.lucrareId && <div>Tichet: <span className="font-mono">{ev.lucrareId}</span></div>}
+                          {ev.clientId && <div>ClientID: <span className="font-mono text-xs">{ev.clientId}</span></div>}
                           {Array.isArray(ev.to) && ev.to.length > 0 && <div>Către: <span className="truncate inline-block max-w-full align-top">{ev.to.join(', ')}</span></div>}
+                          {Array.isArray((ev as any).cc) && (ev as any).cc.length > 0 && <div>CC: <span className="truncate inline-block max-w-full align-top">{(ev as any).cc.join(', ')}</span></div>}
+                          {Array.isArray((ev as any).bcc) && (ev as any).bcc.length > 0 && <div>BCC: <span className="truncate inline-block max-w-full align-top">{(ev as any).bcc.join(', ')}</span></div>}
                           {ev.subject && <div>Subiect: <span className="truncate inline-block max-w-full align-top">{ev.subject}</span></div>}
                           <div>Status: <Badge variant="outline" className="ml-1">{ev.status}</Badge></div>
+                          {(ev as any).provider && <div>Provider: <span className="font-mono text-xs">{(ev as any).provider}</span></div>}
                           {ev.messageId && <div>MsgID: <span className="font-mono text-xs">{ev.messageId}</span></div>}
+                          {ev.error && <div>Eroare: <span className="text-xs text-red-600 line-clamp-2">{String(ev.error)}</span></div>}
                         </div>
                       </CardContent>
                     </Card>
@@ -1198,6 +1213,49 @@ export default function Loguri() {
                 </div>
               )}
             </div>
+
+            <Dialog open={isEmailDetailsOpen} onOpenChange={(open) => { setIsEmailDetailsOpen(open); if (!open) setSelectedEmailEvent(null) }}>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Detalii email</DialogTitle>
+                </DialogHeader>
+                {selectedEmailEvent ? (
+                  <div className="space-y-3 text-sm">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="outline">{selectedEmailEvent.type}</Badge>
+                      <Badge variant="outline">{selectedEmailEvent.status}</Badge>
+                      {(selectedEmailEvent as any).provider && <Badge variant="outline">{(selectedEmailEvent as any).provider}</Badge>}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div><span className="text-muted-foreground">Tichet:</span> <span className="font-mono">{selectedEmailEvent.lucrareId || "-"}</span></div>
+                      <div><span className="text-muted-foreground">ClientID:</span> <span className="font-mono">{selectedEmailEvent.clientId || "-"}</span></div>
+                      <div className="sm:col-span-2"><span className="text-muted-foreground">Către:</span> {(selectedEmailEvent.to || []).join(", ") || "-"}</div>
+                      <div className="sm:col-span-2"><span className="text-muted-foreground">CC:</span> {((selectedEmailEvent as any).cc || []).join(", ") || "-"}</div>
+                      <div className="sm:col-span-2"><span className="text-muted-foreground">BCC:</span> {((selectedEmailEvent as any).bcc || []).join(", ") || "-"}</div>
+                      <div className="sm:col-span-2"><span className="text-muted-foreground">Subiect:</span> {selectedEmailEvent.subject || "-"}</div>
+                      <div className="sm:col-span-2"><span className="text-muted-foreground">MessageId:</span> <span className="font-mono text-xs">{selectedEmailEvent.messageId || "-"}</span></div>
+                      <div className="sm:col-span-2"><span className="text-muted-foreground">Creat:</span> {(selectedEmailEvent as any)?.createdAt?.toDate ? (selectedEmailEvent as any).createdAt.toDate().toLocaleString("ro-RO") : "-"}</div>
+                    </div>
+                    {selectedEmailEvent.error ? (
+                      <div className="rounded border bg-red-50 p-3 text-red-700 whitespace-pre-wrap">
+                        {String(selectedEmailEvent.error)}
+                      </div>
+                    ) : null}
+                    {(selectedEmailEvent as any).meta ? (
+                      <div>
+                        <div className="text-muted-foreground mb-1">Meta (debug)</div>
+                        <pre className="max-h-[260px] overflow-auto rounded bg-muted p-3 text-xs">
+{JSON.stringify((selectedEmailEvent as any).meta, null, 2)}
+                        </pre>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => { setIsEmailDetailsOpen(false); setSelectedEmailEvent(null) }}>Închide</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
         </Tabs>
       </div>

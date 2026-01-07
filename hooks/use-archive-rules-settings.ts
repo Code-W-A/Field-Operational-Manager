@@ -10,7 +10,6 @@ const DEFAULTS: ArchiveRulesConfig = {
   offerRequireOfferSentWhenNeeded: true,
   offerBlockWhenAccepted: true,
   offerWait30DaysWhenNoResponse: true,
-  offerAllowImmediateWhenReportAndInvoicingDone: true,
 }
 
 export function useArchiveRulesSettings() {
@@ -33,7 +32,6 @@ export function useArchiveRulesSettings() {
           offerRequireOfferSentWhenNeeded,
           offerBlockWhenAccepted,
           offerWait30DaysWhenNoResponse,
-          offerAllowImmediateWhenReportAndInvoicingDone,
         ] = await Promise.all([
           getPredefinedSettingValue("archive_require_finalized_status"),
           getPredefinedSettingValue("archive_require_dispatcher_pickup"),
@@ -42,7 +40,6 @@ export function useArchiveRulesSettings() {
           getPredefinedSettingValue("archive_offer_require_offer_sent_when_needed"),
           getPredefinedSettingValue("archive_offer_block_when_accepted"),
           getPredefinedSettingValue("archive_offer_wait_30_days_when_no_response"),
-          getPredefinedSettingValue("archive_offer_allow_immediate_when_report_and_invoicing_done"),
         ])
 
         if (cancelled) return
@@ -54,7 +51,6 @@ export function useArchiveRulesSettings() {
           offerRequireOfferSentWhenNeeded: Boolean(offerRequireOfferSentWhenNeeded),
           offerBlockWhenAccepted: Boolean(offerBlockWhenAccepted),
           offerWait30DaysWhenNoResponse: Boolean(offerWait30DaysWhenNoResponse),
-          offerAllowImmediateWhenReportAndInvoicingDone: Boolean(offerAllowImmediateWhenReportAndInvoicingDone),
         })
       } catch (e) {
         console.warn("[useArchiveRulesSettings] failed to load predefined settings; using defaults", e)

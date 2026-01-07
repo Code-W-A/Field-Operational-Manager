@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
 import nodemailer from "nodemailer"
-import { logEmailEvent, updateEmailEvent, updateLucrare, addUserLogEntry } from "@/lib/firebase/firestore"
 import { getEmailFrom } from "@/lib/email/from"
+import { adminDb } from "@/lib/firebase/admin"
+import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-events.server"
 
 export async function POST(request: Request) {
   // IMPORTANT: Request body can be read only once. Keep a copy for both success + error logging.
@@ -42,21 +43,18 @@ export async function POST(request: Request) {
             ? "OFFER"
             : "GENERIC"
 
-      emailEventId = await logEmailEvent({
-        type: inferredType as any,
+      emailEventId = await logEmailEventServer({
+        type: inferredType === "REPORT" ? "REPORT" : inferredType === "OFFER" ? "OFFER" : "INVITE",
         lucrareId: inferredLucrareId,
-        to: to as string[],
+        to: (to as string[]) || [],
         subject: subject || "Email – FOM",
         status: "queued",
         provider: "smtp",
-      })
-      
-      // Log în colecția logs pentru vizualizare în EmailLogViewer
-      await addUserLogEntry({
-        actiune: inferredType === "OFFER" ? "Email ofertă (în coadă)" : inferredType === "REPORT" ? "Email raport (în coadă)" : "Email (în coadă)",
-        detalii: `Email în coadă: "${subject || "Email – FOM"}" către ${(to as string[]).join(", ")}${inferredLucrareId ? ` | Tichet: ${String(inferredLucrareId)}` : ""}`,
-        tip: "Informație",
-        categorie: "Email",
+        meta: {
+          route: "/api/users/invite",
+          inviteType: inferredType,
+          attachmentsCount: Array.isArray(attachments) ? attachments.length : 0,
+        },
       })
     } catch (error) {
       console.error("Eroare la logging eveniment email queued:", error)
@@ -78,30 +76,21 @@ export async function POST(request: Request) {
 
     // mark sent
     try {
-      if (emailEventId) await updateEmailEvent(emailEventId, { status: "sent", messageId: info.messageId })
+      if (emailEventId) await updateEmailEventServer(emailEventId, { status: "sent", messageId: info.messageId })
       const lucrareId = (Array.isArray((attachments as any)) && (attachments as any)[0]?.lucrareId) || undefined
       if (lucrareId) {
-        await updateLucrare(lucrareId, {
-          lastOfferEmail: {
-            sentAt: new Date().toISOString(),
-            to: to as string[],
-            status: "sent",
-            messageId: info.messageId,
-          }
-        } as any, undefined, undefined, true)
+        await adminDb.collection("lucrari").doc(String(lucrareId)).set(
+          {
+            lastOfferEmail: {
+              sentAt: new Date().toISOString(),
+              to: (to as string[]) || [],
+              status: "sent",
+              messageId: info.messageId,
+            },
+          },
+          { merge: true },
+        )
       }
-      
-      // Log succes în colecția logs
-      await addUserLogEntry({
-        actiune: (String(type || "").toUpperCase() === "OFFER" || ((Array.isArray((attachments as any)) && (attachments as any)[0]?.lucrareId)))
-          ? "Email ofertă (trimis)"
-          : String(type || "").toUpperCase() === "REPORT"
-            ? "Email raport (trimis)"
-            : "Email (trimis)",
-        detalii: `Email trimis (acceptat de serverul SMTP): "${subject || "Email – FOM"}" către ${(to as string[]).join(", ")}\nMessageID: ${info.messageId}${emailEventId ? `\nEventID: ${emailEventId}` : ""}`,
-        tip: "Informație",
-        categorie: "Email",
-      })
     } catch (error) {
       console.error("Eroare la logging eveniment email sent:", error)
     }
@@ -131,13 +120,16 @@ export async function POST(request: Request) {
       
       const lucrareId = (Array.isArray((body?.attachments as any)) && (body?.attachments as any)[0]?.lucrareId) || undefined
       if (lucrareId) {
-        await updateLucrare(lucrareId, {
-          lastOfferEmail: {
-            sentAt: new Date().toISOString(),
-            to: errorTo,
-            status: "failed",
-          }
-        } as any, undefined, undefined, true)
+        await adminDb.collection("lucrari").doc(String(lucrareId)).set(
+          {
+            lastOfferEmail: {
+              sentAt: new Date().toISOString(),
+              to: errorTo,
+              status: "failed",
+            },
+          },
+          { merge: true },
+        )
       }
     } catch (parseError) {
       console.error("Eroare la parsarea body pentru logging:", parseError)
@@ -145,21 +137,25 @@ export async function POST(request: Request) {
 
     // Mark failed in emailEvents too (if we managed to create it)
     try {
-      if (emailEventId) await updateEmailEvent(emailEventId, { status: "failed", error: details.message || String(e) })
+      if (emailEventId) await updateEmailEventServer(emailEventId, { status: "failed", error: details.message || String(e) })
+      if (!emailEventId) {
+        await logEmailEventServer({
+          type: String(body?.type || "").toUpperCase() === "REPORT" ? "REPORT" : String(body?.type || "").toUpperCase() === "OFFER" ? "OFFER" : "INVITE",
+          lucrareId: (Array.isArray((body?.attachments as any)) && (body?.attachments as any)[0]?.lucrareId) || undefined,
+          to: errorTo,
+          subject: errorSubject,
+          status: "failed",
+          provider: "smtp",
+          error: details.message || String(e),
+          meta: {
+            route: "/api/users/invite",
+            code: details.code,
+            command: details.command,
+          },
+        })
+      }
     } catch (eventError) {
       console.error("Eroare la update email event failed:", eventError)
-    }
-    
-    // Log eroare în colecția logs
-    try {
-      await addUserLogEntry({
-        actiune: "Eroare trimitere email",
-        detalii: `Eroare la trimitere: "${errorSubject}" către ${errorTo.join(", ")}\nEroare: ${details.message || String(e)}\nCod: ${details.code || "N/A"}\nComandă: ${details.command || "N/A"}\nRăspuns: ${details.response || "N/A"}\nStack: ${e?.stack || "N/A"}${emailEventId ? `\nEventID: ${emailEventId}` : ""}`,
-        tip: "Eroare",
-        categorie: "Email",
-      })
-    } catch (logError) {
-      console.error("Eroare la logging eveniment email failed:", logError)
     }
     
     return NextResponse.json({ 
