@@ -52,7 +52,7 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
   >(undefined)
 
   // Obținem lucrările pentru acest client
-  const { data: toateLucrarile } = useFirebaseCollection<Lucrare>("tichete", [orderBy("dataEmiterii", "desc")])
+  const { data: toateLucrarile } = useFirebaseCollection<Lucrare>("lucrari", [orderBy("dataEmiterii", "desc")])
   const [lucrariClient, setLucrariClient] = useState<Lucrare[]>([])
 
   // Adăugăm hook-ul în componenta ClientPage

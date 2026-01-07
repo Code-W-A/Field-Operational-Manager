@@ -1,9 +1,9 @@
 "use client"
 
-import { useMemo } from "react"
+import { useEffect, useMemo } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { where } from "firebase/firestore"
+import { collection, query, where } from "firebase/firestore"
 
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
@@ -14,9 +14,11 @@ import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { formatUiDate } from "@/lib/utils/time-format"
 import { useAuth } from "@/contexts/AuthContext"
+import { db } from "@/lib/firebase/config"
 
 type Row = {
   id: string
+  source: "lucrari"
   nrLucrare: string
   dataInterventie: string
   locatie: string
@@ -130,45 +132,61 @@ export default function IstoricEchipamentPage() {
   const { userData } = useAuth()
   const isTechnician = userData?.role === "tehnician"
 
-  // Folosim query simplu (raportGenerat=true) și filtrăm în memorie după cod,
-  // pentru a evita probleme de index Firestore la combinații.
-  const { data: works, loading } = useFirebaseCollection<Lucrare>("tichete", [where("raportGenerat", "==", true)])
+  // Istoricul se caută după `echipamentCod`.
+  // Colecția reală pentru work orders este `lucrari` (UI poate afișa "tichet", dar storage rămâne `lucrari`).
+  // Folosim `customQuery` (nu `constraints`) ca să ne asigurăm că se resubscrie când se schimbă codul.
+  const codForQuery = cod || "__NO_MATCH__"
+  const qLucrari = useMemo(
+    () => query(collection(db, "lucrari"), where("echipamentCod", "==", codForQuery)),
+    [codForQuery],
+  )
+
+  const { data: worksLucrari, loading: loadingLucrari } = useFirebaseCollection<Lucrare>("lucrari", [], qLucrari)
+  const loading = loadingLucrari
+
+  useEffect(() => {
+    if (!cod) return
+    // Debug util
+    console.log(`[ISTORIC_ECHIP ${cod}] matches`, {
+      lucrari: worksLucrari?.length || 0,
+    })
+  }, [cod, worksLucrari?.length])
 
   const rows = useMemo<Row[]>(() => {
     if (!cod) return []
-    const mapped = (works || [])
-      .map((w: any) => {
-        const echipamentCod = String(w.echipamentCod || "").trim()
-        const echipament =
-          String(
-            [
-              echipamentCod ? `(${echipamentCod})` : "",
-              w.echipament || "",
-            ]
-              .filter(Boolean)
-              .join(" "),
-          ).trim() || String(w.echipament || "").trim()
+    const mappedLucrari = (worksLucrari || []).map((w: any) => {
+      const echipamentCod = String(w.echipamentCod || "").trim()
+      const echipament =
+        String(
+          [
+            echipamentCod ? `(${echipamentCod})` : "",
+            w.echipament || "",
+          ]
+            .filter(Boolean)
+            .join(" "),
+        ).trim() || String(w.echipament || "").trim()
 
-        return {
-          id: String(w.id),
-          nrLucrare: String(w.nrLucrare || w.numarRaport || "").trim(),
-          dataInterventie: String(w.dataInterventie || "").trim(),
-          locatie: String(w.locationName || w.locatie || "").trim(),
-          client: String(w.client || "").trim(),
-          echipamentCod: echipamentCod.toUpperCase(),
-          echipament,
-          tehnicieni: Array.isArray(w.tehnicieni) ? w.tehnicieni : [],
-          defectReclamat: w.defectReclamat,
-          constatareLaLocatie: w.constatareLaLocatie,
-          descriereInterventie: w.descriereInterventie,
-          durataInterventie: String(w.durataInterventie || "").trim(),
-        } as Row
-      })
-      .filter((r) => r.echipamentCod && r.echipamentCod === cod)
+      return {
+        id: String(w.id),
+        source: "lucrari" as const,
+        nrLucrare: String(w.nrLucrare || w.numarRaport || "").trim(),
+        dataInterventie: String(w.dataInterventie || "").trim(),
+        locatie: String(w.locationName || w.locatie || "").trim(),
+        client: String(w.client || "").trim(),
+        echipamentCod: echipamentCod.toUpperCase(),
+        echipament,
+        tehnicieni: Array.isArray(w.tehnicieni) ? w.tehnicieni : [],
+        defectReclamat: w.defectReclamat,
+        constatareLaLocatie: w.constatareLaLocatie,
+        descriereInterventie: w.descriereInterventie,
+        durataInterventie: String(w.durataInterventie || "").trim(),
+      } as Row
+    })
 
-    mapped.sort((a, b) => extractNr(b.nrLucrare) - extractNr(a.nrLucrare))
-    return mapped
-  }, [works, cod])
+    const out = [...mappedLucrari].filter((r) => r.echipamentCod && r.echipamentCod === cod)
+    out.sort((a, b) => extractNr(b.nrLucrare) - extractNr(a.nrLucrare))
+    return out
+  }, [worksLucrari, cod])
 
   const equipmentHeaderLabel = useMemo(() => {
     if (!cod) return ""
@@ -200,7 +218,7 @@ export default function IstoricEchipamentPage() {
             else router.push("/dashboard/lucrari")
           }}
         >
-          Înapoi la tichete
+          Înapoi la lucrări
         </Button>
         {cod ? (
           <div className="text-sm text-muted-foreground">

@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Parametri lipsă." }, { status: 400 })
     }
 
-    const workRef = adminDb.collection("tichete").doc(String(lucrareId))
+    const workRef = adminDb.collection("lucrari").doc(String(lucrareId))
     const workSnap = await workRef.get()
     if (!workSnap.exists) {
       return NextResponse.json({ error: "Lucrarea nu există." }, { status: 404 })

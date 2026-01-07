@@ -21,7 +21,7 @@ export function DownloadHistory({ lucrareId, locationEmail }: { lucrareId: strin
         // Derivăm emailul persoanei de contact a locației doar dacă nu este furnizat de părinte
         if (!locationEmail) {
           try {
-            const workRef = doc(db, "tichete", lucrareId)
+            const workRef = doc(db, "lucrari", lucrareId)
             const workSnap = await getDoc(workRef)
             const work = workSnap.exists() ? (workSnap.data() as any) : null
             const clientId = work?.clientId || work?.clientInfo?.id
