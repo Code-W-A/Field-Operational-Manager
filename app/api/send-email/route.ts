@@ -173,15 +173,15 @@ export async function POST(request: NextRequest) {
       if (lucrareId) {
         await adminDb.collection("lucrari").doc(String(lucrareId)).set(
           {
-            lastReportEmail: {
-              sentAt: new Date().toISOString(),
+          lastReportEmail: {
+            sentAt: new Date().toISOString(),
               to: String(to || "")
                 .split(/[;,]+/)
                 .map((s) => s.trim())
                 .filter(Boolean),
-              status: "sent",
-              messageId: info.messageId,
-            },
+            status: "sent",
+            messageId: info.messageId,
+          },
           },
           { merge: true },
         )
@@ -211,13 +211,13 @@ export async function POST(request: NextRequest) {
       if (errorLucrareId) {
         await adminDb.collection("lucrari").doc(String(errorLucrareId)).set(
           {
-            lastReportEmail: {
-              sentAt: new Date().toISOString(),
+          lastReportEmail: {
+            sentAt: new Date().toISOString(),
               to: String(errorTo || "")
                 .split(/[;,]+/)
                 .map((s) => s.trim())
                 .filter(Boolean),
-              status: "failed",
+            status: "failed",
             },
           },
           { merge: true },

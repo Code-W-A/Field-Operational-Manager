@@ -283,33 +283,33 @@ export default function IstoricEchipamentPage() {
     const sourceWorks = (worksLucrari && worksLucrari.length > 0) ? worksLucrari : (fallbackWorks || [])
     const mappedLucrari = (sourceWorks || []).map((w: any) => {
         const derived = deriveEquipmentCode(w)
-      const echipamentCod = String(w.echipamentCod || "").trim()
-      const echipament =
-        String(
-          [
-            echipamentCod ? `(${echipamentCod})` : "",
-            w.echipament || "",
-          ]
-            .filter(Boolean)
-            .join(" "),
-        ).trim() || String(w.echipament || "").trim()
+        const echipamentCod = String(w.echipamentCod || "").trim()
+        const echipament =
+          String(
+            [
+              echipamentCod ? `(${echipamentCod})` : "",
+              w.echipament || "",
+            ]
+              .filter(Boolean)
+              .join(" "),
+          ).trim() || String(w.echipament || "").trim()
 
-      return {
-        id: String(w.id),
+        return {
+          id: String(w.id),
         source: "lucrari" as const,
-        nrLucrare: String(w.nrLucrare || w.numarRaport || "").trim(),
-        dataInterventie: String(w.dataInterventie || "").trim(),
-        locatie: String(w.locationName || w.locatie || "").trim(),
-        client: String(w.client || "").trim(),
+          nrLucrare: String(w.nrLucrare || w.numarRaport || "").trim(),
+          dataInterventie: String(w.dataInterventie || "").trim(),
+          locatie: String(w.locationName || w.locatie || "").trim(),
+          client: String(w.client || "").trim(),
           echipamentCod: (echipamentCod || derived.code || "").toUpperCase(),
-        echipament,
-        tehnicieni: Array.isArray(w.tehnicieni) ? w.tehnicieni : [],
-        defectReclamat: w.defectReclamat,
-        constatareLaLocatie: w.constatareLaLocatie,
-        descriereInterventie: w.descriereInterventie,
-        durataInterventie: String(w.durataInterventie || "").trim(),
-      } as Row
-    })
+          echipament,
+          tehnicieni: Array.isArray(w.tehnicieni) ? w.tehnicieni : [],
+          defectReclamat: w.defectReclamat,
+          constatareLaLocatie: w.constatareLaLocatie,
+          descriereInterventie: w.descriereInterventie,
+          durataInterventie: String(w.durataInterventie || "").trim(),
+        } as Row
+      })
 
     const out = [...mappedLucrari].filter((r) => r.echipamentCod && r.echipamentCod === cod)
     out.sort((a, b) => extractNr(b.nrLucrare) - extractNr(a.nrLucrare))

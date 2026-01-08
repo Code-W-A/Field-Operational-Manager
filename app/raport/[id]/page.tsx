@@ -63,7 +63,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
   const [updatedLucrare, setUpdatedLucrare] = useState<any>(null)
   // Toggle for manual multiple recipients
   const [useManualRecipients, setUseManualRecipients] = useState(false)
-
+  
   // Back-compat alias used throughout this file (older code paths reference `tichet`)
   // Always treat the latest local version as the source of truth.
   const tichet = updatedLucrare ?? lucrare

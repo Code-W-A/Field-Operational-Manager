@@ -10,6 +10,7 @@ import {
   Sliders,
   StickyNote,
   Users,
+  UserRound,
 } from "lucide-react"
 
 export type UserRole = "admin" | "dispecer" | "tehnician" | "client" | (string & {})
@@ -178,6 +179,39 @@ export function buildNav(ctx: NavCtx): NavNode[] {
           icon: FileCodeIcon,
           activeMatch: "prefix",
           visible: () => isAdmin,
+        },
+      ],
+    },
+    {
+      type: "group",
+      id: "resurse-umane",
+      label: "Resurse umane",
+      icon: UserRound,
+      visible: () => isAdminOrDispatcher,
+      items: [
+        {
+          type: "link",
+          id: "hr-salariati",
+          label: "Salariați",
+          href: "/dashboard/resurse-umane/salariati",
+          icon: Users,
+          activeMatch: "prefix",
+        },
+        {
+          type: "link",
+          id: "hr-pontaj",
+          label: "Pontaj",
+          href: "/dashboard/resurse-umane/pontaj",
+          icon: ClipboardList,
+          activeMatch: "prefix",
+        },
+        {
+          type: "link",
+          id: "hr-rapoarte",
+          label: "Rapoarte",
+          href: "/dashboard/resurse-umane/rapoarte",
+          icon: BarChart3,
+          activeMatch: "prefix",
         },
       ],
     },

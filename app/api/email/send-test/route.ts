@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
           provider: "smtp",
           error: String(error?.message || error || "unknown error"),
           meta: { route: "/api/email/send-test", stack: error?.stack ? String(error.stack).slice(0, 2000) : undefined },
-        })
+      })
       }
     } catch (logError) {
       console.error("[Email Test] Failed to log error:", logError)

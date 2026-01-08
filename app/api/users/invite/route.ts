@@ -81,11 +81,11 @@ export async function POST(request: Request) {
       if (lucrareId) {
         await adminDb.collection("lucrari").doc(String(lucrareId)).set(
           {
-            lastOfferEmail: {
-              sentAt: new Date().toISOString(),
+          lastOfferEmail: {
+            sentAt: new Date().toISOString(),
               to: (to as string[]) || [],
-              status: "sent",
-              messageId: info.messageId,
+            status: "sent",
+            messageId: info.messageId,
             },
           },
           { merge: true },
@@ -122,10 +122,10 @@ export async function POST(request: Request) {
       if (lucrareId) {
         await adminDb.collection("lucrari").doc(String(lucrareId)).set(
           {
-            lastOfferEmail: {
-              sentAt: new Date().toISOString(),
-              to: errorTo,
-              status: "failed",
+          lastOfferEmail: {
+            sentAt: new Date().toISOString(),
+            to: errorTo,
+            status: "failed",
             },
           },
           { merge: true },
