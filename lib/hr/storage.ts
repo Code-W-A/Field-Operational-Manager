@@ -1,7 +1,22 @@
 "use client"
 
 import type { Employee, TimesheetCell, TimesheetMonth, TimesheetMonthKey } from "./types"
-import { collection, deleteDoc, doc, getDocs, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc, where, writeBatch } from "firebase/firestore"
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+  writeBatch,
+  deleteField,
+} from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { HR_SEED_EMPLOYEES, buildSeedTimesheets } from "./mock"
 
@@ -177,6 +192,46 @@ export function upsertTimesheetCell(params: {
     },
     { merge: true }
   )
+}
+
+export async function deleteTimesheetDay(params: { monthKey: TimesheetMonthKey; employeeId: string; day: number }) {
+  const ref = doc(db, "hrTimesheets", timesheetDocId(params.employeeId, params.monthKey))
+  const dayKey = String(params.day)
+  await updateDoc(ref, {
+    [`days.${dayKey}`]: deleteField(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function deleteTimesheetRange(params: {
+  monthKey: TimesheetMonthKey
+  employeeId: string
+  startDay: number
+  endDay: number
+  deleteEntries: boolean
+  deleteBreaks: boolean
+}) {
+  if (!params.deleteEntries && !params.deleteBreaks) return
+  if (!Number.isFinite(params.startDay) || !Number.isFinite(params.endDay)) return
+  if (params.startDay < 1 || params.endDay < 1) return
+  const start = Math.min(params.startDay, params.endDay)
+  const end = Math.max(params.startDay, params.endDay)
+
+  const updates: Record<string, unknown> = { updatedAt: serverTimestamp() }
+  for (let d = start; d <= end; d++) {
+    const dayKey = String(d)
+    if (params.deleteEntries) updates[`days.${dayKey}.entries`] = deleteField()
+    if (params.deleteBreaks) updates[`days.${dayKey}.breaks`] = deleteField()
+  }
+
+  const ref = doc(db, "hrTimesheets", timesheetDocId(params.employeeId, params.monthKey))
+  try {
+    await updateDoc(ref, updates)
+  } catch (err: any) {
+    // If the doc doesn't exist, there's nothing to delete.
+    if (err?.code === "not-found") return
+    throw err
+  }
 }
 
 /** Optional migration support: read legacy HR data from localStorage. */

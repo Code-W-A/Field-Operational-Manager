@@ -1,9 +1,20 @@
-export type TimesheetCode = "WORK" | "WE" | "CO" | "SL" | "EMPTY"
+export type TimesheetCode = "WORK" | "WE" | "CO" | "DEL" | "IN" | "SL" | "EMPTY"
 
 export type TimesheetCell = {
   code: TimesheetCode
-  /** Only relevant for WORK. */
+  /** Relevant for WORK / IN / SL when tracking hours. */
   hours?: number
+  entries?: Array<{
+    start: string // "HH:mm"
+    end: string // "HH:mm"
+    methodStart?: string
+    methodEnd?: string
+    project?: string
+  }>
+  breaks?: Array<{
+    start: string // "HH:mm"
+    end: string // "HH:mm"
+  }>
 }
 
 export type Employee = {

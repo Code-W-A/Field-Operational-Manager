@@ -200,8 +200,8 @@ export function buildNav(ctx: NavCtx): NavNode[] {
         {
           type: "link",
           id: "hr-pontaj",
-          label: "Pontaj",
-          href: "/dashboard/resurse-umane/pontaj",
+          label: "Condică prezență",
+          href: "/dashboard/resurse-umane/condica-prezenta",
           icon: ClipboardList,
           activeMatch: "prefix",
         },

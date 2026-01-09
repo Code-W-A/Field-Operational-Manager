@@ -304,10 +304,14 @@ export default function HrEmployeeDetailsPage() {
           <CardContent className="space-y-2">
             <Button
               className="w-full"
-              onClick={() => router.push(`/dashboard/resurse-umane/pontaj?employeeId=${encodeURIComponent(employee.id)}&month=${encodeURIComponent(monthKey)}`)}
+              onClick={() =>
+                router.push(
+                  `/dashboard/resurse-umane/condica-prezenta?employeeId=${encodeURIComponent(employee.id)}&month=${encodeURIComponent(monthKey)}`
+                )
+              }
             >
               <ClipboardList className="h-4 w-4 mr-2" />
-              Vezi pontaj
+              Vezi condică
             </Button>
             <Button variant="outline" className="w-full" onClick={() => router.push(`/dashboard/resurse-umane/rapoarte?month=${encodeURIComponent(monthKey)}`)}>
               Rapoarte HR
