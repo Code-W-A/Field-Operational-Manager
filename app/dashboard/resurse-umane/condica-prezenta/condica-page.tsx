@@ -8,23 +8,31 @@ import { DashboardShell } from "@/components/dashboard-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 import { TimesheetLegend } from "@/components/hr/timesheet-legend"
 import { TimesheetGrid } from "@/components/hr/timesheet-grid"
+import { TimesheetListView } from "@/components/hr/timesheet-list-view"
 import { DayEntryPopover } from "@/components/hr/day-entry-popover"
 import { AddDayEntryDialog } from "@/components/hr/add-day-entry-dialog"
 import { DeleteTimesheetDialog } from "@/components/hr/delete-timesheet-dialog"
+import { LeaveRequestsSection } from "@/components/hr/leave-requests-section"
+import { CreateLeaveRequestDialog } from "@/components/hr/create-leave-request-dialog"
 import type { TimesheetExtraColumn } from "@/components/hr/timesheet-grid"
-import type { Employee, TimesheetCell, TimesheetCode, TimesheetMonth, TimesheetMonthKey } from "@/lib/hr/types"
+import type { Employee, LeaveRequest, TimesheetCell, TimesheetCode, TimesheetMonth, TimesheetMonthKey } from "@/lib/hr/types"
 import {
   deleteTimesheetRange,
+  daysInMonth,
   getCurrentMonthKey,
   seedHrIfEmpty,
   subscribeEmployees,
+  subscribeLeaveRequests,
   subscribeTimesheetsForMonth,
   upsertTimesheetCell,
 } from "@/lib/hr/storage"
-import { Plus, Trash2 } from "lucide-react"
+import { Plus, Trash2, LayoutGrid, List, Download } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { exportTimesheetsToCSV } from "@/lib/hr/export"
 
 function toMonthInputValue(monthKey: TimesheetMonthKey) {
   return monthKey
@@ -33,6 +41,51 @@ function toMonthInputValue(monthKey: TimesheetMonthKey) {
 function fromMonthInputValue(v: string): TimesheetMonthKey {
   // HTML month input returns yyyy-MM
   return v as TimesheetMonthKey
+}
+
+function calculateMonthKPIs(monthKey: TimesheetMonthKey, employees: Employee[], timesheets: TimesheetMonth[]) {
+  const dim = daysInMonth(monthKey)
+  const today = new Date().getDate()
+  const currentMonth = getCurrentMonthKey()
+  const isCurrentMonth = monthKey === currentMonth
+  
+  let totalHoursMonth = 0
+  let totalWorkDays = 0
+  let employeesOnLeave = 0
+  let activeEmployeesToday = new Set<string>()
+  
+  for (const emp of employees) {
+    const ts = timesheets.find((t) => t.monthKey === monthKey && t.employeeId === emp.id)
+    
+    for (let d = 1; d <= dim; d++) {
+      const cell = ts?.days?.[String(d)]
+      if (!cell) continue
+      
+      if (cell.code === "WORK") {
+        totalHoursMonth += Number(cell.hours ?? 8)
+        totalWorkDays++
+        
+        if (isCurrentMonth && d === today) {
+          activeEmployeesToday.add(emp.id)
+        }
+      } else if (cell.code === "CO") {
+        if (isCurrentMonth && d === today) {
+          employeesOnLeave++
+        }
+      }
+    }
+  }
+  
+  const expectedHours = totalWorkDays * 8
+  const diffHours = totalHoursMonth - expectedHours
+  
+  return {
+    totalHoursMonth: Math.round(totalHoursMonth),
+    avgHoursPerEmployee: employees.length > 0 ? totalHoursMonth / employees.length : 0,
+    activeEmployeesToday: activeEmployeesToday.size,
+    employeesOnLeave,
+    diffHours: Math.round(diffHours),
+  }
 }
 
 export default function CondicaPrezentaPage() {
@@ -44,6 +97,7 @@ export default function CondicaPrezentaPage() {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [employeeFilter, setEmployeeFilter] = useState<string>(initialEmployeeId)
   const [timesheets, setTimesheets] = useState<TimesheetMonth[]>([])
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([])
 
   const [cellOpen, setCellOpen] = useState(false)
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
@@ -53,6 +107,8 @@ export default function CondicaPrezentaPage() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [addDefaults, setAddDefaults] = useState<{ employeeId?: string; startDate?: string } | null>(null)
   const [deleteDefaults, setDeleteDefaults] = useState<{ employeeId?: string; startDate?: string; endDate?: string } | null>(null)
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
+  const [leaveDialogOpen, setLeaveDialogOpen] = useState(false)
 
   useEffect(() => {
     let unsub: null | (() => void) = null
@@ -74,6 +130,15 @@ export default function CondicaPrezentaPage() {
     unsub = subscribeTimesheetsForMonth({
       monthKey,
       onChange: setTimesheets,
+    })
+    return () => unsub?.()
+  }, [monthKey])
+
+  useEffect(() => {
+    let unsub: null | (() => void) = null
+    unsub = subscribeLeaveRequests({
+      monthKey,
+      onChange: setLeaveRequests,
     })
     return () => unsub?.()
   }, [monthKey])
@@ -190,11 +255,53 @@ export default function CondicaPrezentaPage() {
     return `${yStr}-${mStr}-${dd}`
   }, [monthKey, selectedDay])
 
+  const calculateOvertimeBank = (employeeId: string) => {
+    const ts = timesheets.find(t => t.employeeId === employeeId && t.monthKey === monthKey)
+    const dim = daysInMonth(monthKey)
+    
+    let totalWorked = 0
+    let workDays = 0
+    
+    for (let d = 1; d <= dim; d++) {
+      const cell = ts?.days?.[String(d)]
+      if (cell?.code === "WORK") {
+        totalWorked += Number(cell.hours ?? 8)
+        workDays++
+      }
+    }
+    
+    const expected = workDays * 8
+    const overtime = totalWorked - expected
+    
+    return {
+      overtime,
+      display: `${overtime >= 0 ? '+' : ''}${overtime.toFixed(1)}h`
+    }
+  }
+
+  const kpis = useMemo(() => calculateMonthKPIs(monthKey, employees, timesheets), [monthKey, employees, timesheets])
+
   const extraColumns: TimesheetExtraColumn[] = useMemo(
     () => [
       { id: "zile_lucrate", label: "Zile lucrate", widthPx: 90, render: (e) => getSummary(e.id).zileLucrate },
       { id: "tichete_masa", label: "Tichete de masă", widthPx: 110, render: (e) => getSummary(e.id).ticheteMasa },
       { id: "total_ore", label: "Total ore", widthPx: 90, render: (e) => getSummary(e.id).totalOre },
+      { 
+        id: "banca_ore", 
+        label: "Bancă de ore", 
+        widthPx: 110, 
+        render: (e) => {
+          const bank = calculateOvertimeBank(e.id)
+          return (
+            <span className={cn(
+              "font-semibold",
+              bank.overtime > 0 ? "text-emerald-600" : bank.overtime < 0 ? "text-rose-600" : "text-muted-foreground"
+            )}>
+              {bank.display}
+            </span>
+          )
+        }
+      },
       { id: "traseu_la", label: "Ore traseu la client", widthPx: 130, render: (e) => getSummary(e.id).oreTraseuLaClient },
       { id: "traseu_de", label: "Ore traseu de la client", widthPx: 140, render: (e) => getSummary(e.id).oreTraseuDeLaClient },
       { id: "co", label: "CO", widthPx: 70, render: (e) => getSummary(e.id).co },
@@ -221,6 +328,22 @@ export default function CondicaPrezentaPage() {
         text="Condică prezență lunară (stil tabel) cu pop-up pe zi și dialog de adăugare, persistent în Firebase."
         headerAction={
           <div className="flex flex-col sm:flex-row gap-2">
+            <Button
+              variant={viewMode === "grid" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
+            >
+              {viewMode === "grid" ? <LayoutGrid className="h-4 w-4 mr-2" /> : <List className="h-4 w-4 mr-2" />}
+              {viewMode === "grid" ? "Grid" : "Listă"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => exportTimesheetsToCSV(monthKey, filteredEmployees, timesheets)}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
+            </Button>
             <Button
               variant="outline"
               onClick={() => {
@@ -268,17 +391,77 @@ export default function CondicaPrezentaPage() {
         }
       />
 
+      {/* KPI Dashboard Cards */}
+      <div className="grid gap-3 md:grid-cols-5 mb-4">
+        <Card className="border-l-4 border-l-emerald-500">
+          <CardHeader className="pb-1 pt-3">
+            <CardTitle className="text-xs text-muted-foreground">Ore lucrate luna</CardTitle>
+          </CardHeader>
+          <CardContent className="pb-3">
+            <div className="text-xl font-bold text-emerald-700">{kpis.totalHoursMonth}h</div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-l-4 border-l-blue-500">
+          <CardHeader className="pb-1 pt-3">
+            <CardTitle className="text-xs text-muted-foreground">Angajați activi azi</CardTitle>
+          </CardHeader>
+          <CardContent className="pb-3">
+            <div className="text-xl font-bold text-blue-700">{kpis.activeEmployeesToday}</div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-l-4 border-l-amber-500">
+          <CardHeader className="pb-1 pt-3">
+            <CardTitle className="text-xs text-muted-foreground">În concediu (CO)</CardTitle>
+          </CardHeader>
+          <CardContent className="pb-3">
+            <div className="text-xl font-bold text-amber-700">{kpis.employeesOnLeave}</div>
+          </CardContent>
+        </Card>
+        
+        <Card className={`border-l-4 ${kpis.diffHours >= 0 ? 'border-l-emerald-500' : 'border-l-rose-500'}`}>
+          <CardHeader className="pb-1 pt-3">
+            <CardTitle className="text-xs text-muted-foreground">Peste/Sub normă</CardTitle>
+          </CardHeader>
+          <CardContent className="pb-3">
+            <div className={`text-xl font-bold ${kpis.diffHours >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+              {kpis.diffHours >= 0 ? '+' : ''}{kpis.diffHours}h
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-l-4 border-l-primary">
+          <CardHeader className="pb-1 pt-3">
+            <CardTitle className="text-xs text-muted-foreground">Medie ore/angajat</CardTitle>
+          </CardHeader>
+          <CardContent className="pb-3">
+            <div className="text-xl font-bold text-primary">{kpis.avgHoursPerEmployee.toFixed(1)}h</div>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="mb-3">
         <TimesheetLegend />
       </div>
 
-      <TimesheetGrid
-        monthKey={monthKey}
-        employees={filteredEmployees}
-        getCell={getCell}
-        onCellClick={openEdit}
-        extraColumns={extraColumns}
-      />
+      {viewMode === "grid" ? (
+        <TimesheetGrid
+          monthKey={monthKey}
+          employees={filteredEmployees}
+          getCell={getCell}
+          onCellClick={openEdit}
+          extraColumns={extraColumns}
+          className="shadow-sm"
+        />
+      ) : (
+        <TimesheetListView
+          monthKey={monthKey}
+          employees={filteredEmployees}
+          getCell={getCell}
+          onCellClick={openEdit}
+        />
+      )}
 
       <DayEntryPopover
         open={cellOpen}
@@ -373,6 +556,20 @@ export default function CondicaPrezentaPage() {
           const endDay = end.getDate()
           await deleteTimesheetRange({ monthKey, employeeId, startDay, endDay, deleteEntries, deleteBreaks })
         }}
+      />
+
+      <LeaveRequestsSection
+        monthKey={monthKey}
+        employees={employees}
+        leaveRequests={leaveRequests}
+        onCreateRequest={() => setLeaveDialogOpen(true)}
+      />
+
+      <CreateLeaveRequestDialog
+        open={leaveDialogOpen}
+        onOpenChange={setLeaveDialogOpen}
+        employees={employees}
+        defaultEmployeeId={employeeFilter !== "all" ? employeeFilter : undefined}
       />
     </DashboardShell>
   )

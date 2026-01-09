@@ -1,6 +1,6 @@
 "use client"
 
-import type { Employee, TimesheetCell, TimesheetMonth, TimesheetMonthKey } from "./types"
+import type { Employee, LeaveRequest, TimesheetCell, TimesheetMonth, TimesheetMonthKey } from "./types"
 import {
   collection,
   deleteDoc,
@@ -129,6 +129,13 @@ export async function doesEmployeesCollectionExist(): Promise<boolean> {
 }
 
 export async function seedHrIfEmpty(params: { monthKey: TimesheetMonthKey }): Promise<boolean> {
+  // IMPORTANT:
+  // - HR "seed" is only for development/demo onboarding.
+  // - In production, we want the UI to reflect ONLY real Firebase data unless explicitly enabled.
+  const enableSeed =
+    process.env.NODE_ENV === "development" || process.env.NEXT_PUBLIC_ENABLE_HR_SEED === "true"
+  if (!enableSeed) return false
+
   const exists = await doesEmployeesCollectionExist()
   if (exists) return false
 
@@ -291,5 +298,70 @@ export async function importLegacyLocalStorageHrDataToFirestore(): Promise<{ emp
   await batch.commit()
   clearLegacyLocalStorageHrData()
   return { employees: legacy.employees.length, timesheets: legacy.timesheets.length }
+}
+
+// ===== Leave Requests =====
+
+export function subscribeLeaveRequests(params: {
+  monthKey: TimesheetMonthKey
+  onChange: (requests: LeaveRequest[]) => void
+  onError?: (err: unknown) => void
+}): Unsubscribe {
+  const [year, month] = params.monthKey.split("-")
+  const startDate = `${year}-${month}-01`
+  const endDate = `${year}-${month}-31`
+  
+  const q = query(
+    collection(db, "hrLeaveRequests"),
+    where("startDate", ">=", startDate),
+    where("startDate", "<=", endDate),
+    orderBy("startDate", "desc")
+  )
+  
+  return onSnapshot(
+    q,
+    (snap) => {
+      const requests = snap.docs.map(d => ({ 
+        id: d.id, 
+        ...d.data(),
+        createdAt: d.data().createdAt?.toMillis?.() ?? Date.now()
+      } as LeaveRequest))
+      params.onChange(requests)
+    },
+    (err) => params.onError?.(err)
+  )
+}
+
+export async function createLeaveRequest(request: Omit<LeaveRequest, "id" | "createdAt">) {
+  const ref = doc(collection(db, "hrLeaveRequests"))
+  await setDoc(ref, {
+    ...request,
+    createdAt: serverTimestamp(),
+  })
+}
+
+export function subscribeEmployeeLeaveRequests(params: {
+  employeeId: string
+  onChange: (requests: LeaveRequest[]) => void
+  onError?: (err: unknown) => void
+}): Unsubscribe {
+  const q = query(
+    collection(db, "hrLeaveRequests"),
+    where("employeeId", "==", params.employeeId),
+    orderBy("startDate", "desc")
+  )
+  
+  return onSnapshot(
+    q,
+    (snap) => {
+      const requests = snap.docs.map(d => ({ 
+        id: d.id, 
+        ...d.data(),
+        createdAt: d.data().createdAt?.toMillis?.() ?? Date.now()
+      } as LeaveRequest))
+      params.onChange(requests)
+    },
+    (err) => params.onError?.(err)
+  )
 }
 

@@ -7,7 +7,7 @@ import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { Trash2, Plus, Pencil, X } from "lucide-react"
+import { Trash2, Plus, Pencil, X, Clock, MapPin, Briefcase, Calendar } from "lucide-react"
 import type { TimesheetCell } from "@/lib/hr/types"
 
 function parseHM(v: string): number | null {
@@ -264,11 +264,114 @@ export function DayEntryPopover({
                 </TabsContent>
 
                 <TabsContent value="verificari">
-              <div className="rounded-md border border-slate-800 bg-slate-900/40 p-4">
-                <div className="text-sm font-semibold mb-2">Verificări</div>
-                <div className="text-sm text-slate-300">
-                  Placeholder pentru verificări (ex: metode start/stop, proiect, validări). Îl extindem în următorul pas.
+              <div className="space-y-3">
+                {/* Status pontaj și date generale */}
+                <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Calendar className="h-4 w-4 text-slate-400" />
+                    <div className="text-sm font-semibold">Informații generale</div>
+                  </div>
+                  <div className="grid gap-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-slate-400">Data</span>
+                      <span className="text-sm font-medium">{subtitle}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-slate-400">Angajat</span>
+                      <span className="text-sm font-medium">{title}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-slate-400">Status</span>
+                      <span className={`text-xs font-semibold px-2 py-1 rounded ${
+                        cell?.code === "WORK" ? "bg-emerald-900/40 text-emerald-300" :
+                        cell?.code === "CO" ? "bg-amber-900/40 text-amber-300" :
+                        cell?.code === "DEL" ? "bg-violet-900/40 text-violet-300" :
+                        cell?.code === "IN" ? "bg-slate-800/40 text-slate-300" :
+                        cell?.code === "SL" ? "bg-blue-900/40 text-blue-300" :
+                        cell?.code === "WE" ? "bg-pink-900/40 text-pink-300" :
+                        "bg-slate-800/40 text-slate-400"
+                      }`}>
+                        {cell?.code === "WORK" ? "Lucrat" :
+                         cell?.code === "CO" ? "Concediu" :
+                         cell?.code === "DEL" ? "Delegație" :
+                         cell?.code === "IN" ? "Invoicing" :
+                         cell?.code === "SL" ? "Sărbătoare legală" :
+                         cell?.code === "WE" ? "Weekend" :
+                         "Necompletat"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-slate-400">Total ore</span>
+                      <span className="text-sm font-semibold">{minutesToHM(minutes)}</span>
+                    </div>
+                  </div>
                 </div>
+
+                {/* Detalii intrări timp */}
+                {entries.length > 0 && (
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Clock className="h-4 w-4 text-slate-400" />
+                      <div className="text-sm font-semibold">Intrări timp înregistrat</div>
+                    </div>
+                    <div className="space-y-3">
+                      {entries.map((entry, idx) => (
+                        <div key={idx} className="rounded-md border border-slate-800/60 bg-slate-950/40 p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-slate-400">Interval #{idx + 1}</span>
+                            <span className="font-mono text-sm font-semibold">{entry.start} – {entry.end}</span>
+                          </div>
+                          
+                          {entry.methodStart && (
+                            <div className="flex items-start gap-2">
+                              <MapPin className="h-3.5 w-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
+                              <div className="flex-1">
+                                <div className="text-xs text-slate-400">Metodă început</div>
+                                <div className="text-sm text-slate-200">{entry.methodStart}</div>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {entry.methodEnd && (
+                            <div className="flex items-start gap-2">
+                              <MapPin className="h-3.5 w-3.5 text-rose-400 mt-0.5 flex-shrink-0" />
+                              <div className="flex-1">
+                                <div className="text-xs text-slate-400">Metodă încheiere</div>
+                                <div className="text-sm text-slate-200">{entry.methodEnd}</div>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {entry.project && (
+                            <div className="flex items-start gap-2">
+                              <Briefcase className="h-3.5 w-3.5 text-blue-400 mt-0.5 flex-shrink-0" />
+                              <div className="flex-1">
+                                <div className="text-xs text-slate-400">Proiect / Client</div>
+                                <div className="text-sm text-slate-200">{entry.project}</div>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {!entry.methodStart && !entry.methodEnd && !entry.project && (
+                            <div className="text-xs text-slate-500 italic">
+                              Nu există detalii suplimentare înregistrate
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {entries.length === 0 && (
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4">
+                    <div className="text-center py-6">
+                      <Clock className="h-8 w-8 text-slate-600 mx-auto mb-2" />
+                      <div className="text-sm text-slate-400">Nu există intrări de timp înregistrate</div>
+                      <div className="text-xs text-slate-500 mt-1">Folosește butonul + pentru a adăuga</div>
+                    </div>
+                  </div>
+                )}
               </div>
                 </TabsContent>
               </div>

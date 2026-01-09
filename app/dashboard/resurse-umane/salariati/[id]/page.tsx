@@ -12,18 +12,29 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ArrowLeft, ClipboardList, Link2, UserRound } from "lucide-react"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ArrowLeft, BarChart3, Calendar, CalendarCheck, CalendarDays, Clock, ClipboardList, Link2, Pencil, Plus, TrendingUp, User, UserCheck, UserRound } from "lucide-react"
 
-import type { Employee, TimesheetMonthKey } from "@/lib/hr/types"
+import type { Employee, LeaveRequest, TimesheetCell, TimesheetMonthKey } from "@/lib/hr/types"
 import {
   createOrUpdateEmployee,
   daysInMonth,
   getCurrentMonthKey,
   seedHrIfEmpty,
   subscribeEmployees,
+  subscribeEmployeeLeaveRequests,
   subscribeTimesheetsForMonth,
 } from "@/lib/hr/storage"
 import type { TimesheetMonth } from "@/lib/hr/types"
+import { toast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
+import { CreateLeaveRequestDialog } from "@/components/hr/create-leave-request-dialog"
+import { generateLeaveRequestPDF } from "@/lib/hr/leave-pdf-generator"
 
 type AppUser = { uid: string; displayName: string | null; email: string | null; role?: string }
 
@@ -34,6 +45,7 @@ function summarizeTimesheetFromTimesheets(monthKey: TimesheetMonthKey, employeeI
   let coDays = 0
   let slDays = 0
   let weDays = 0
+  let delDays = 0
   for (let d = 1; d <= dim; d++) {
     const cell = ts?.days?.[String(d)]
     if (!cell) continue
@@ -41,8 +53,37 @@ function summarizeTimesheetFromTimesheets(monthKey: TimesheetMonthKey, employeeI
     if (cell.code === "CO") coDays += 1
     if (cell.code === "SL") slDays += 1
     if (cell.code === "WE") weDays += 1
+    if (cell.code === "DEL") delDays += 1
   }
-  return { workHours, coDays, slDays, weDays }
+  return { workHours, coDays, slDays, weDays, delDays }
+}
+
+function cellClasses(cell: TimesheetCell | undefined) {
+  const code = cell?.code ?? "EMPTY"
+  if (code === "WORK") return "bg-gradient-to-br from-emerald-50 to-emerald-100 text-emerald-900 border-emerald-300 dark:from-emerald-950 dark:to-emerald-900"
+  if (code === "WE") return "bg-gradient-to-br from-pink-50 to-pink-100 text-pink-900 border-pink-300 dark:from-pink-950 dark:to-pink-900"
+  if (code === "CO") return "bg-gradient-to-br from-amber-50 to-amber-100 text-amber-900 border-amber-300 dark:from-amber-950 dark:to-amber-900"
+  if (code === "DEL") return "bg-gradient-to-br from-violet-50 to-violet-100 text-violet-900 border-violet-300 dark:from-violet-950 dark:to-violet-900"
+  if (code === "IN") return "bg-gradient-to-br from-slate-50 to-slate-100 text-slate-900 border-slate-300 dark:from-slate-950 dark:to-slate-900"
+  if (code === "SL") return "bg-gradient-to-br from-blue-50 to-blue-100 text-blue-900 border-blue-300 dark:from-blue-950 dark:to-blue-900"
+  return "bg-gradient-to-br from-muted/30 to-muted/50 text-muted-foreground border-muted"
+}
+
+function calculateWorkDays(startStr: string, endStr: string): number {
+  const start = new Date(startStr)
+  const end = new Date(endStr)
+  let count = 0
+  const current = new Date(start)
+  
+  while (current <= end) {
+    const day = current.getDay()
+    if (day !== 0 && day !== 6) {
+      count++
+    }
+    current.setDate(current.getDate() + 1)
+  }
+  
+  return count
 }
 
 export default function HrEmployeeDetailsPage() {
@@ -59,6 +100,14 @@ export default function HrEmployeeDetailsPage() {
   const [users, setUsers] = useState<AppUser[]>([])
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [usersError, setUsersError] = useState<string | null>(null)
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([])
+  
+  const [activeTab, setActiveTab] = useState<"detalii" | "pontaj" | "concedii">("detalii")
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editFullName, setEditFullName] = useState("")
+  const [editTitle, setEditTitle] = useState("")
+  const [editActive, setEditActive] = useState(true)
+  const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false)
 
   useEffect(() => {
     let unsub: null | (() => void) = null
@@ -113,6 +162,23 @@ export default function HrEmployeeDetailsPage() {
     load()
   }, [])
 
+  useEffect(() => {
+    if (!employee) return
+    const unsub = subscribeEmployeeLeaveRequests({
+      employeeId: employee.id,
+      onChange: setLeaveRequests,
+    })
+    return () => unsub()
+  }, [employee])
+
+  useEffect(() => {
+    if (isEditDialogOpen && employee) {
+      setEditFullName(employee.fullName)
+      setEditTitle(employee.title || "")
+      setEditActive(employee.active)
+    }
+  }, [isEditDialogOpen, employee])
+
   const suggestionUid = useMemo(() => {
     if (!employee) return null
     const norm = (s: string) => s.toLowerCase().replaceAll(/\s+/g, " ").trim()
@@ -143,6 +209,47 @@ export default function HrEmployeeDetailsPage() {
     }
   }
 
+  const handleSaveEdit = async () => {
+    if (!employee) return
+    const updated: Employee = {
+      ...employee,
+      fullName: editFullName,
+      title: editTitle,
+      active: editActive,
+    }
+    try {
+      await createOrUpdateEmployee(updated)
+      setEmployee(updated)
+      setIsEditDialogOpen(false)
+      toast({ title: "Salariat actualizat", description: "Datele au fost salvate cu succes." })
+    } catch (e: any) {
+      toast({ title: "Eroare", description: e.message || "Nu s-a putut salva.", variant: "destructive" })
+    }
+  }
+
+  const getCell = (day: number): TimesheetCell | undefined => {
+    if (!employee) return undefined
+    const ts = timesheets.find((t) => t.monthKey === monthKey && t.employeeId === employee.id)
+    return ts?.days?.[String(day)]
+  }
+
+  const employeeLeaveThisYear = useMemo(() => {
+    const year = new Date().getFullYear()
+    return leaveRequests.filter((r) => {
+      const startYear = new Date(r.startDate).getFullYear()
+      return startYear === year && r.type === "CO"
+    })
+  }, [leaveRequests])
+
+  const daysConsumed = useMemo(() => {
+    return employeeLeaveThisYear
+      .filter((r) => r.status === "approved")
+      .reduce((acc, r) => acc + calculateWorkDays(r.startDate, r.endDate), 0)
+  }, [employeeLeaveThisYear])
+
+  const daysAvailable = 21
+  const daysRemaining = daysAvailable - daysConsumed
+
   if (!employee) {
     return (
       <DashboardShell>
@@ -161,51 +268,107 @@ export default function HrEmployeeDetailsPage() {
         heading={
           <span className="flex items-center gap-2">
             <UserRound className="h-5 w-5" />
-            Fișa salariat: {employee.fullName}
+            Fișa salariat - {employee.fullName}
           </span>
         }
-        text="Detalii, asociere utilizator și sumar de pontaj."
-        headerAction={
+        text={employee.title || "Angajat"}
+      >
+        <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => router.push("/dashboard/resurse-umane/salariati")}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
+            <ArrowLeft className="mr-2 h-4 w-4" />
             Înapoi
           </Button>
-        }
-      />
+          <Button onClick={() => setIsEditDialogOpen(true)}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Editează
+          </Button>
+        </div>
+      </DashboardHeader>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Detalii</CardTitle>
-            <CardDescription>Informații de bază.</CardDescription>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-3 h-12 p-1">
+          <TabsTrigger value="detalii" className="flex items-center gap-2">
+            <User className="h-4 w-4" />
+            <span className="hidden sm:inline">Detalii generale</span>
+            <span className="sm:hidden">Detalii</span>
+          </TabsTrigger>
+          <TabsTrigger value="pontaj" className="flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            Pontaj
+          </TabsTrigger>
+          <TabsTrigger value="concedii" className="flex items-center gap-2">
+            <CalendarDays className="h-4 w-4" />
+            Concedii
+          </TabsTrigger>
+        </TabsList>
+
+        {/* TAB: DETALII */}
+        <TabsContent value="detalii" className="space-y-6 mt-6">
+          <div className="grid gap-6 md:grid-cols-3">
+            {/* Card 1: Informații de bază - Modern design */}
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-slate-50 to-white dark:from-slate-900 dark:to-slate-800">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-md">
+                    {employee.fullName.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase()}
+                  </div>
+                  <div className="flex-1">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      Informații de bază
+                    </CardTitle>
+                  </div>
+                </div>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-muted-foreground">Status</div>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nume complet</Label>
+                  <div className="text-lg font-bold text-foreground">{employee.fullName}</div>
+                </div>
+                <Separator />
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Funcție</Label>
+                  <div className="text-sm font-semibold text-foreground/80">{employee.title || "—"}</div>
+                </div>
+                <Separator />
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</Label>
+                  <div>
+                    <Badge 
+                      variant={employee.active ? "default" : "secondary"}
+                      className={employee.active ? "bg-emerald-500 hover:bg-emerald-600" : ""}
+                    >
               {employee.active ? (
-                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
-                  Activ
-                </Badge>
+                        <><UserCheck className="h-3 w-3 mr-1" /> Activ</>
               ) : (
-                <Badge variant="outline" className="bg-muted text-muted-foreground">
-                  Inactiv
+                        "Inactiv"
+                      )}
                 </Badge>
-              )}
             </div>
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-muted-foreground">Funcție</div>
-              <div className="font-medium">{employee.title || "—"}</div>
             </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full mt-2 border-2 hover:bg-slate-50 hover:border-slate-400 transition-all" 
+                  onClick={() => setIsEditDialogOpen(true)}
+                >
+                  <Pencil className="h-3 w-3 mr-2" />
+                  Editează detalii
+                </Button>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Link2 className="h-4 w-4" />
-              Asociere utilizator
-            </CardTitle>
-            <CardDescription>Leagă fișa salariatului de un utilizator din aplicație.</CardDescription>
+            {/* Card 2: Asociere utilizator - Modern design */}
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-white dark:from-purple-950 dark:to-slate-800">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-md">
+                    <Link2 className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base">Asociere utilizator</CardTitle>
+                    <CardDescription className="text-xs">Contul de autentificare legat</CardDescription>
+                  </div>
+                </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {usersError && (
@@ -268,57 +431,404 @@ export default function HrEmployeeDetailsPage() {
             </div>
           </CardContent>
         </Card>
-      </div>
 
-      <div className="grid gap-4 md:grid-cols-3 mt-4">
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>Pontaj (sumar)</CardTitle>
-            <CardDescription>Month: {monthKey}</CardDescription>
+            {/* Card 3: Statistici rapide - Modern design */}
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950 dark:to-slate-800">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-md">
+                    <TrendingUp className="h-5 w-5 text-white" />
+                  </div>
+                  <CardTitle className="text-base">Rezumat rapid</CardTitle>
+      </div>
           </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-4">
-            <div className="rounded-md border p-3">
-              <div className="text-xs text-muted-foreground">Ore lucrate</div>
-              <div className="text-2xl font-bold">{summary?.workHours ?? 0}</div>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-white dark:bg-slate-900 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-emerald-600" />
+                    <span className="text-sm font-medium text-muted-foreground">Ore luna curentă</span>
+                  </div>
+                  <span className="text-xl font-bold text-emerald-700">{summary?.workHours ?? 0}h</span>
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-white dark:bg-slate-900 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <CalendarDays className="h-4 w-4 text-amber-600" />
+                    <span className="text-sm font-medium text-muted-foreground">Zile CO</span>
+                  </div>
+                  <span className="text-xl font-bold text-amber-700">{summary?.coDays ?? 0}</span>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="w-full mt-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium" 
+                  onClick={() => setActiveTab("pontaj")}
+                >
+                  Vezi detalii complete →
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* TAB: PONTAJ */}
+        <TabsContent value="pontaj" className="space-y-6 mt-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-lg bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border shadow-sm">
+            <div>
+              <h3 className="text-xl font-bold flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-primary" />
+                Pontaj lunar
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1">Activitate și statistici pentru perioada selectată</p>
             </div>
-            <div className="rounded-md border p-3">
-              <div className="text-xs text-muted-foreground">CO</div>
-              <div className="text-2xl font-bold">{summary?.coDays ?? 0}</div>
+            <Input
+              type="month"
+              value={monthKey}
+              onChange={(e) => {
+                const newMonth = e.target.value as TimesheetMonthKey
+                router.push(`/dashboard/resurse-umane/salariati/${employee.id}?month=${newMonth}`)
+              }}
+              className="w-[180px] border-2"
+            />
+          </div>
+
+          {/* KPI Cards - Modern design */}
+          <div className="grid gap-4 md:grid-cols-5">
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-slate-900 overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/10 rounded-full -mr-10 -mt-10" />
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-emerald-600" />
+                  <CardTitle className="text-xs font-semibold text-emerald-900 dark:text-emerald-100 uppercase tracking-wide">Ore lucrate</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-emerald-700">{summary?.workHours ?? 0}<span className="text-lg">h</span></div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-slate-900 overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-20 h-20 bg-amber-500/10 rounded-full -mr-10 -mt-10" />
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4 text-amber-600" />
+                  <CardTitle className="text-xs font-semibold text-amber-900 dark:text-amber-100 uppercase tracking-wide">Zile CO</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-amber-700">{summary?.coDays ?? 0}</div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-slate-900 overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-20 h-20 bg-blue-500/10 rounded-full -mr-10 -mt-10" />
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <CalendarCheck className="h-4 w-4 text-blue-600" />
+                  <CardTitle className="text-xs font-semibold text-blue-900 dark:text-blue-100 uppercase tracking-wide">Zile SL</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-blue-700">{summary?.slDays ?? 0}</div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-950 dark:to-slate-900 overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-20 h-20 bg-pink-500/10 rounded-full -mr-10 -mt-10" />
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4 text-pink-600" />
+                  <CardTitle className="text-xs font-semibold text-pink-900 dark:text-pink-100 uppercase tracking-wide">Zile WE</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-pink-700">{summary?.weDays ?? 0}</div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950 dark:to-slate-900 overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-20 h-20 bg-violet-500/10 rounded-full -mr-10 -mt-10" />
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <ClipboardList className="h-4 w-4 text-violet-600" />
+                  <CardTitle className="text-xs font-semibold text-violet-900 dark:text-violet-100 uppercase tracking-wide">Zile DEL</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-violet-700">{summary?.delDays ?? 0}</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Calendar vizual - Modern grid */}
+          <Card className="border-0 shadow-lg">
+            <CardHeader className="bg-gradient-to-r from-slate-50 to-white dark:from-slate-900 dark:to-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-sm">
+                  <Calendar className="h-4 w-4 text-white" />
+                </div>
+                <CardTitle>Activitate lunară</CardTitle>
             </div>
-            <div className="rounded-md border p-3">
-              <div className="text-xs text-muted-foreground">SL (sărbătoare legală)</div>
-              <div className="text-2xl font-bold">{summary?.slDays ?? 0}</div>
+              <CardDescription className="mt-2">Calendar vizual cu statusul fiecărei zile</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="grid grid-cols-7 gap-2">
+                {Array.from({ length: daysInMonth(monthKey) }, (_, i) => i + 1).map((d) => {
+                  const cell = getCell(d)
+                  return (
+                    <div
+                      key={d}
+                      className={cn(
+                        "h-14 w-full rounded-lg flex flex-col items-center justify-center text-sm font-bold shadow-sm hover:shadow-md transition-all duration-200 cursor-default border-2",
+                        cellClasses(cell)
+                      )}
+                      title={`Ziua ${d}`}
+                    >
+                      <span className="text-xs opacity-60">Zi</span>
+                      <span>{d}</span>
             </div>
-            <div className="rounded-md border p-3">
-              <div className="text-xs text-muted-foreground">WE</div>
-              <div className="text-2xl font-bold">{summary?.weDays ?? 0}</div>
+                  )
+                })}
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Acțiuni</CardTitle>
-            <CardDescription>Acces rapid.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
+          {/* Acțiuni rapide */}
+          <div className="flex flex-col sm:flex-row gap-3">
             <Button
-              className="w-full"
+              className="flex-1 h-12 shadow-md hover:shadow-lg transition-all"
               onClick={() =>
-                router.push(
-                  `/dashboard/resurse-umane/condica-prezenta?employeeId=${encodeURIComponent(employee.id)}&month=${encodeURIComponent(monthKey)}`
-                )
+                router.push(`/dashboard/resurse-umane/condica-prezenta?employeeId=${encodeURIComponent(employee.id)}&month=${encodeURIComponent(monthKey)}`)
               }
             >
-              <ClipboardList className="h-4 w-4 mr-2" />
-              Vezi condică
+              <ClipboardList className="h-5 w-5 mr-2" />
+              Deschide condica completă
             </Button>
-            <Button variant="outline" className="w-full" onClick={() => router.push(`/dashboard/resurse-umane/rapoarte?month=${encodeURIComponent(monthKey)}`)}>
-              Rapoarte HR
+            <Button 
+              variant="outline" 
+              className="flex-1 h-12 border-2 shadow-md hover:shadow-lg transition-all"
+              onClick={() => router.push(`/dashboard/resurse-umane/rapoarte?month=${encodeURIComponent(monthKey)}`)}
+            >
+              <BarChart3 className="h-5 w-5 mr-2" />
+              Vezi rapoarte
             </Button>
+          </div>
+        </TabsContent>
+
+        {/* TAB: CONCEDII */}
+        <TabsContent value="concedii" className="space-y-6 mt-6">
+          {/* Header cu descriere */}
+          <div className="p-4 rounded-lg bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 border shadow-sm">
+            <h3 className="text-xl font-bold flex items-center gap-2">
+              <CalendarDays className="h-5 w-5 text-primary" />
+              Gestiune concedii
+            </h3>
+            <p className="text-sm text-muted-foreground mt-1">Soldul de zile libere și istoric cereri pentru {new Date().getFullYear()}</p>
+          </div>
+
+          {/* KPI concedii - Modern cards */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-slate-900 overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 rounded-full -mr-12 -mt-12" />
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4 text-blue-600" />
+                  <CardTitle className="text-xs font-semibold text-blue-900 dark:text-blue-100 uppercase tracking-wide">Disponibile {new Date().getFullYear()}</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-4xl font-bold text-blue-600">{daysAvailable}</div>
+                <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">zile</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-slate-900 overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full -mr-12 -mt-12" />
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <CalendarCheck className="h-4 w-4 text-amber-600" />
+                  <CardTitle className="text-xs font-semibold text-amber-900 dark:text-amber-100 uppercase tracking-wide">Consumate</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-4xl font-bold text-amber-600">{daysConsumed}</div>
+                <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">zile</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-slate-900 overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full -mr-12 -mt-12" />
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-emerald-600" />
+                  <CardTitle className="text-xs font-semibold text-emerald-900 dark:text-emerald-100 uppercase tracking-wide">Rămase</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-4xl font-bold text-emerald-600">{daysRemaining}</div>
+                <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">zile</p>
           </CardContent>
         </Card>
       </div>
+
+          {/* Listă cereri concediu - Modern design */}
+          <Card className="border-0 shadow-lg">
+            <CardHeader className="flex flex-row items-center justify-between bg-gradient-to-r from-slate-50 to-white dark:from-slate-900 dark:to-slate-800">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <ClipboardList className="h-5 w-5 text-primary" />
+                  Istoric cereri concediu
+                </CardTitle>
+                <CardDescription className="mt-1">Toate cererile pentru acest angajat</CardDescription>
+              </div>
+              <Button size="sm" className="shadow-md hover:shadow-lg transition-all" onClick={() => setIsLeaveDialogOpen(true)}>
+                <Plus className="h-4 w-4 mr-1" />
+                Cerere nouă
+              </Button>
+            </CardHeader>
+            <CardContent className="pt-6">
+              {leaveRequests.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                    <CalendarDays className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <p className="text-muted-foreground font-medium">Nicio cerere de concediu</p>
+                  <p className="text-sm text-muted-foreground mt-1">Creează prima cerere folosind butonul de mai sus</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {leaveRequests.map((req) => (
+                    <div 
+                      key={req.id} 
+                      className="flex items-center justify-between rounded-xl border-2 p-4 shadow-sm hover:shadow-md transition-all bg-gradient-to-r from-white to-slate-50 dark:from-slate-900 dark:to-slate-800"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className={cn(
+                            "h-10 w-10 rounded-lg flex items-center justify-center shadow-sm",
+                            req.type === "CO" ? "bg-gradient-to-br from-amber-500 to-amber-600" :
+                            req.type === "SL" ? "bg-gradient-to-br from-blue-500 to-blue-600" :
+                            "bg-gradient-to-br from-violet-500 to-violet-600"
+                          )}>
+                            <CalendarDays className="h-5 w-5 text-white" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-base">
+                                {req.type === "CO" ? "Concediu" : req.type === "SL" ? "Sărbătoare" : "Delegație"}
+                              </span>
+                              <Badge 
+                                variant={req.status === "approved" ? "default" : req.status === "pending" ? "secondary" : "destructive"}
+                                className={req.status === "approved" ? "bg-emerald-500" : ""}
+                              >
+                                {req.status === "approved" ? "Aprobat" : req.status === "pending" ? "Pending" : "Respins"}
+                              </Badge>
+                            </div>
+                            <div className="text-sm text-muted-foreground mt-1 font-medium">
+                              {req.startDate} → {req.endDate} • <span className="font-bold">{calculateWorkDays(req.startDate, req.endDate)} zile</span>
+                            </div>
+                          </div>
+                        </div>
+                        {req.reason && (
+                          <div className="ml-13 text-xs text-muted-foreground bg-muted/50 rounded-lg p-2 mt-2">
+                            {req.reason}
+                          </div>
+                        )}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="ml-4 border-2 shadow-sm hover:shadow-md transition-all"
+                        onClick={() => {
+                          generateLeaveRequestPDF(req, employee)
+                        }}
+                        title="Descarcă PDF"
+                      >
+                        <ClipboardList className="h-5 w-5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Edit Dialog - Modern design */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-md">
+                <Pencil className="h-5 w-5 text-white" />
+              </div>
+              Editează salariat
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="grid gap-6 py-4">
+            <div className="grid gap-3">
+              <Label className="text-sm font-semibold flex items-center gap-2">
+                <User className="h-4 w-4" />
+                Nume și prenume
+              </Label>
+              <Input 
+                value={editFullName} 
+                onChange={(e) => setEditFullName(e.target.value)}
+                className="border-2 h-11"
+                placeholder="Ex: Popescu Ion"
+              />
+            </div>
+
+            <div className="grid gap-3">
+              <Label className="text-sm font-semibold flex items-center gap-2">
+                <ClipboardList className="h-4 w-4" />
+                Funcție
+              </Label>
+              <Input 
+                value={editTitle} 
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="border-2 h-11"
+                placeholder="Ex: Manager Proiect"
+              />
+            </div>
+
+            <div className="flex items-center justify-between rounded-xl border-2 p-4 bg-gradient-to-r from-slate-50 to-white dark:from-slate-900 dark:to-slate-800 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "h-10 w-10 rounded-lg flex items-center justify-center shadow-sm",
+                  editActive ? "bg-gradient-to-br from-emerald-500 to-emerald-600" : "bg-gradient-to-br from-slate-400 to-slate-500"
+                )}>
+                  <UserCheck className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold">Status activ</div>
+                  <div className="text-xs text-muted-foreground">Dezactivează pentru a ascunde din liste</div>
+                </div>
+              </div>
+              <Switch checked={editActive} onCheckedChange={setEditActive} />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="border-2">
+              Anulează
+            </Button>
+            <Button onClick={handleSaveEdit} className="shadow-md hover:shadow-lg transition-all">
+              <Pencil className="h-4 w-4 mr-2" />
+              Salvează
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Leave Request Dialog */}
+      <CreateLeaveRequestDialog
+        open={isLeaveDialogOpen}
+        onOpenChange={setIsLeaveDialogOpen}
+        employees={employees}
+        defaultEmployeeId={employee.id}
+      />
     </DashboardShell>
   )
 }

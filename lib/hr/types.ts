@@ -36,4 +36,19 @@ export type TimesheetMonth = {
   updatedAt: number
 }
 
+export type LeaveRequestStatus = "pending" | "approved" | "rejected"
+
+export type LeaveRequest = {
+  id: string
+  employeeId: string
+  startDate: string // yyyy-mm-dd
+  endDate: string // yyyy-mm-dd
+  type: "CO" | "SL" | "DEL" // Concediu / Sărbătoare / Delegație
+  status: LeaveRequestStatus
+  reason?: string
+  createdAt: number
+  approvedBy?: string // userUid
+  approvedAt?: number
+}
+
 
