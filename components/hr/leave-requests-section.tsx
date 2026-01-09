@@ -1,6 +1,7 @@
 "use client"
 
 import type { Employee, LeaveRequest, TimesheetMonthKey } from "@/lib/hr/types"
+import { getEmployeeFullName } from "@/lib/hr/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -54,7 +55,7 @@ export function LeaveRequestsSection({
                 return (
                   <div key={req.id} className="flex items-center justify-between rounded-lg border p-3 bg-muted/20 hover:bg-muted/40 transition-colors">
                     <div className="flex-1">
-                      <div className="font-medium">{employee?.fullName ?? req.employeeId}</div>
+                      <div className="font-medium">{employee ? getEmployeeFullName(employee) : req.employeeId}</div>
                       <div className="text-xs text-muted-foreground mt-1 flex items-center gap-3">
                         <span>{req.startDate} → {req.endDate}</span>
                         <span className="inline-flex items-center gap-1">

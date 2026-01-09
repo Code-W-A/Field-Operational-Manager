@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils"
 import type { Employee, TimesheetCell, TimesheetMonthKey } from "@/lib/hr/types"
+import { getEmployeeFullName } from "@/lib/hr/types"
 import { daysInMonth } from "@/lib/hr/storage"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -48,7 +49,7 @@ export function TimesheetListView({
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-lg">{emp.fullName}</CardTitle>
+                  <CardTitle className="text-lg">{getEmployeeFullName(emp)}</CardTitle>
                   {emp.title && <CardDescription>{emp.title}</CardDescription>}
                 </div>
                 <div className="text-right">
@@ -81,7 +82,7 @@ export function TimesheetListView({
                           anchorRect: { top: r.top, left: r.left, right: r.right, bottom: r.bottom, width: r.width, height: r.height },
                         })
                       }}
-                      title={`${emp.fullName} • Ziua ${d}`}
+                      title={`${getEmployeeFullName(emp)} • Ziua ${d}`}
                     >
                       {d}
                     </button>

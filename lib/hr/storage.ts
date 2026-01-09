@@ -53,12 +53,45 @@ export function daysInMonth(monthKey: TimesheetMonthKey) {
 }
 
 function normalizeEmployee(id: string, data: any): Employee {
+  // Support both old (fullName) and new (nume + prenume) formats
+  let nume = data.nume ? String(data.nume) : ""
+  let prenume = data.prenume ? String(data.prenume) : ""
+  
+  // If we have old fullName but not new fields, split it
+  if (!nume && !prenume && data.fullName) {
+    const parts = String(data.fullName).trim().split(/\s+/)
+    if (parts.length >= 2) {
+      nume = parts[parts.length - 1] // Last word is surname
+      prenume = parts.slice(0, -1).join(" ") // Rest is first name
+    } else if (parts.length === 1) {
+      nume = parts[0]
+      prenume = ""
+    }
+  }
+  
   return {
     id,
-    fullName: String(data.fullName ?? ""),
+    // Identification data
+    nume,
+    prenume,
+    cnp: data.cnp ? String(data.cnp) : undefined,
+    ciSerie: data.ciSerie ? String(data.ciSerie) : undefined,
+    ciNumar: data.ciNumar ? String(data.ciNumar) : undefined,
+    ciDataEmiterii: data.ciDataEmiterii ? String(data.ciDataEmiterii) : undefined,
+    ciEmitent: data.ciEmitent ? String(data.ciEmitent) : undefined,
+    // Workplace data
     title: data.title ? String(data.title) : undefined,
+    poziteCOR: data.poziteCOR ? String(data.poziteCOR) : undefined,
+    superiorIerarhic: data.superiorIerarhic ? String(data.superiorIerarhic) : undefined,
+    loculDeMunca: data.loculDeMunca ? String(data.loculDeMunca) : undefined,
+    programLucruStart: data.programLucruStart ? String(data.programLucruStart) : undefined,
+    programLucruEnd: data.programLucruEnd ? String(data.programLucruEnd) : undefined,
+    zileConcediuAnuale: data.zileConcediuAnuale ? Number(data.zileConcediuAnuale) : undefined,
+    // System fields
     active: Boolean(data.active),
     userUid: data.userUid ? String(data.userUid) : undefined,
+    // Legacy field
+    fullName: data.fullName ? String(data.fullName) : undefined,
   }
 }
 
@@ -75,7 +108,8 @@ export function subscribeEmployees(params: {
   onChange: (employees: Employee[]) => void
   onError?: (err: unknown) => void
 }): Unsubscribe {
-  const q = query(collection(db, "hrEmployees"), orderBy("fullName", "asc"))
+  // Try to order by nume (last name) if available, fallback to fullName for legacy data
+  const q = query(collection(db, "hrEmployees"), orderBy("nume", "asc"))
   return onSnapshot(
     q,
     (snap) => {
@@ -88,18 +122,35 @@ export function subscribeEmployees(params: {
 
 export async function createOrUpdateEmployee(employee: Employee) {
   const ref = doc(db, "hrEmployees", employee.id)
-  await setDoc(
-    ref,
-    {
-      fullName: employee.fullName,
-      title: employee.title ?? null,
-      active: employee.active,
-      userUid: employee.userUid ?? null,
-      updatedAt: serverTimestamp(),
-      createdAt: serverTimestamp(),
-    },
-    { merge: true }
-  )
+  
+  // Prepare data object with all fields
+  const data: any = {
+    // Identification data
+    nume: employee.nume,
+    prenume: employee.prenume,
+    cnp: employee.cnp ?? null,
+    ciSerie: employee.ciSerie ?? null,
+    ciNumar: employee.ciNumar ?? null,
+    ciDataEmiterii: employee.ciDataEmiterii ?? null,
+    ciEmitent: employee.ciEmitent ?? null,
+    // Workplace data
+    title: employee.title ?? null,
+    poziteCOR: employee.poziteCOR ?? null,
+    superiorIerarhic: employee.superiorIerarhic ?? null,
+    loculDeMunca: employee.loculDeMunca ?? null,
+    programLucruStart: employee.programLucruStart ?? null,
+    programLucruEnd: employee.programLucruEnd ?? null,
+    zileConcediuAnuale: employee.zileConcediuAnuale ?? null,
+    // System fields
+    active: employee.active,
+    userUid: employee.userUid ?? null,
+    // Legacy fullName for backward compatibility
+    fullName: `${employee.prenume} ${employee.nume}`.trim(),
+    updatedAt: serverTimestamp(),
+    createdAt: serverTimestamp(),
+  }
+  
+  await setDoc(ref, data, { merge: true })
 }
 
 export async function deleteEmployee(employeeId: string) {
@@ -146,10 +197,23 @@ export async function seedHrIfEmpty(params: { monthKey: TimesheetMonthKey }): Pr
     batch.set(
       ref,
       {
-        fullName: e.fullName,
+        nume: e.nume,
+        prenume: e.prenume,
+        cnp: e.cnp ?? null,
+        ciSerie: e.ciSerie ?? null,
+        ciNumar: e.ciNumar ?? null,
+        ciDataEmiterii: e.ciDataEmiterii ?? null,
+        ciEmitent: e.ciEmitent ?? null,
         title: e.title ?? null,
+        poziteCOR: e.poziteCOR ?? null,
+        superiorIerarhic: e.superiorIerarhic ?? null,
+        loculDeMunca: e.loculDeMunca ?? null,
+        programLucruStart: e.programLucruStart ?? null,
+        programLucruEnd: e.programLucruEnd ?? null,
+        zileConcediuAnuale: e.zileConcediuAnuale ?? null,
         active: e.active,
         userUid: e.userUid ?? null,
+        fullName: `${e.prenume} ${e.nume}`.trim(),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       },
@@ -265,13 +329,40 @@ export async function importLegacyLocalStorageHrDataToFirestore(): Promise<{ emp
   for (const e of legacy.employees) {
     if (!e?.id) continue
     const ref = doc(db, "hrEmployees", e.id)
+    
+    // Split fullName if nume/prenume not available
+    let nume = e.nume || ""
+    let prenume = e.prenume || ""
+    if (!nume && !prenume && e.fullName) {
+      const parts = String(e.fullName).trim().split(/\s+/)
+      if (parts.length >= 2) {
+        nume = parts[parts.length - 1]
+        prenume = parts.slice(0, -1).join(" ")
+      } else if (parts.length === 1) {
+        nume = parts[0]
+      }
+    }
+    
     batch.set(
       ref,
       {
-        fullName: e.fullName,
+        nume,
+        prenume,
+        cnp: e.cnp ?? null,
+        ciSerie: e.ciSerie ?? null,
+        ciNumar: e.ciNumar ?? null,
+        ciDataEmiterii: e.ciDataEmiterii ?? null,
+        ciEmitent: e.ciEmitent ?? null,
         title: e.title ?? null,
+        poziteCOR: e.poziteCOR ?? null,
+        superiorIerarhic: e.superiorIerarhic ?? null,
+        loculDeMunca: e.loculDeMunca ?? null,
+        programLucruStart: e.programLucruStart ?? null,
+        programLucruEnd: e.programLucruEnd ?? null,
+        zileConcediuAnuale: e.zileConcediuAnuale ?? null,
         active: e.active,
         userUid: e.userUid ?? null,
+        fullName: `${prenume} ${nume}`.trim() || e.fullName,
         updatedAt: serverTimestamp(),
         createdAt: serverTimestamp(),
       },
@@ -363,5 +454,80 @@ export function subscribeEmployeeLeaveRequests(params: {
     },
     (err) => params.onError?.(err)
   )
+}
+
+// ===== Data Migration =====
+
+/**
+ * Migrates employees that have fullName but not nume/prenume split fields.
+ * This is a one-time migration that can be run manually or on app initialization.
+ */
+export async function migrateEmployeesFullNameToSplit(): Promise<{ migrated: number; skipped: number; errors: number }> {
+  const snapshot = await getDocs(collection(db, "hrEmployees"))
+  const batch = writeBatch(db)
+  let migrated = 0
+  let skipped = 0
+  let errors = 0
+  
+  for (const docSnap of snapshot.docs) {
+    try {
+      const data = docSnap.data()
+      
+      // Skip if already has nume and prenume
+      if (data.nume && data.prenume) {
+        skipped++
+        continue
+      }
+      
+      // Skip if no fullName to split
+      if (!data.fullName) {
+        errors++
+        continue
+      }
+      
+      // Split fullName into nume and prenume
+      const fullName = String(data.fullName).trim()
+      const parts = fullName.split(/\s+/)
+      
+      let nume = ""
+      let prenume = ""
+      
+      if (parts.length >= 2) {
+        nume = parts[parts.length - 1] // Last word is surname
+        prenume = parts.slice(0, -1).join(" ") // Rest is first name
+      } else if (parts.length === 1) {
+        nume = parts[0]
+        prenume = ""
+      } else {
+        errors++
+        continue
+      }
+      
+      // Update the document
+      const ref = doc(db, "hrEmployees", docSnap.id)
+      batch.update(ref, {
+        nume,
+        prenume,
+        updatedAt: serverTimestamp(),
+      })
+      
+      migrated++
+      
+      // Firestore batch has a limit of 500 operations
+      if (migrated % 500 === 0) {
+        await batch.commit()
+      }
+    } catch (err) {
+      console.error(`Error migrating employee ${docSnap.id}:`, err)
+      errors++
+    }
+  }
+  
+  // Commit any remaining operations
+  if (migrated % 500 !== 0) {
+    await batch.commit()
+  }
+  
+  return { migrated, skipped, errors }
 }
 

@@ -1,12 +1,55 @@
 import type { Employee, TimesheetCell, TimesheetCode, TimesheetMonth } from "./types"
 
 export const HR_SEED_EMPLOYEES: Employee[] = [
-  { id: "emp_stratulat_daniel", fullName: "Stratulat Daniel", title: "Tehnician", active: true },
-  { id: "emp_ionescu_alin", fullName: "Ionescu Alin", title: "Tehnician", active: true },
-  { id: "emp_sima_mihai", fullName: "Sima Mihai", title: "Tehnician", active: true },
-  { id: "emp_voinea_ionut", fullName: "Voinea Ionut", title: "Tehnician", active: true },
-  { id: "emp_rusu_stefan", fullName: "Rusu Stefan", title: "Tehnician", active: true },
-  { id: "emp_staicu_alin", fullName: "Staicu Alin", title: "Tehnician", active: true },
+  { 
+    id: "emp_stratulat_daniel", 
+    prenume: "Daniel", 
+    nume: "Stratulat", 
+    title: "Tehnician", 
+    active: true,
+    zileConcediuAnuale: 21 
+  },
+  { 
+    id: "emp_ionescu_alin", 
+    prenume: "Alin", 
+    nume: "Ionescu", 
+    title: "Tehnician", 
+    active: true,
+    zileConcediuAnuale: 21 
+  },
+  { 
+    id: "emp_sima_mihai", 
+    prenume: "Mihai", 
+    nume: "Sima", 
+    title: "Tehnician", 
+    active: true,
+    zileConcediuAnuale: 21 
+  },
+  { 
+    id: "emp_voinea_ionut", 
+    prenume: "Ionut", 
+    nume: "Voinea", 
+    title: "Tehnician", 
+    active: true,
+    superiorIerarhic: "Manager",
+    zileConcediuAnuale: 21 
+  },
+  { 
+    id: "emp_rusu_stefan", 
+    prenume: "Stefan", 
+    nume: "Rusu", 
+    title: "Tehnician", 
+    active: true,
+    zileConcediuAnuale: 21 
+  },
+  { 
+    id: "emp_staicu_alin", 
+    prenume: "Alin", 
+    nume: "Staicu", 
+    title: "Tehnician", 
+    active: true,
+    zileConcediuAnuale: 21 
+  },
 ]
 
 function cell(code: TimesheetCode, hours?: number): TimesheetCell {

@@ -1,5 +1,6 @@
 import jsPDF from "jspdf"
 import type { Employee, LeaveRequest } from "./types"
+import { getEmployeeFullName } from "./types"
 
 // Font românesc pentru diacritice (folosim font standard care suportă caractere speciale)
 const COMPANY_NAME = "NRG Access Systems SRL"
@@ -47,7 +48,7 @@ export function generateLeaveRequestPDF(
   let yPos = 95
   
   // Text principal
-  const mainText = `Subsemnatul/a ${employee.fullName}, cu functia de ${employee.title || "Tehnician Montaj"}, in cadrul ${COMPANY_NAME}, va rog sa imi aprobati concediul legal de odihna pentru anul ${new Date(request.startDate).getFullYear()}, incepand cu data de ${formatDate(request.startDate)} pana la ${formatDate(request.endDate)}, respectiv ${calculateWorkDays(request.startDate, request.endDate)} zile lucratoare.`
+  const mainText = `Subsemnatul/a ${getEmployeeFullName(employee)}, cu functia de ${employee.title || "Tehnician Montaj"}, in cadrul ${COMPANY_NAME}, va rog sa imi aprobati concediul legal de odihna pentru anul ${new Date(request.startDate).getFullYear()}, incepand cu data de ${formatDate(request.startDate)} pana la ${formatDate(request.endDate)}, respectiv ${calculateWorkDays(request.startDate, request.endDate)} zile lucratoare.`
   
   const splitText = doc.splitTextToSize(mainText, pageWidth - 2 * margin)
   doc.text(splitText, margin, yPos)
@@ -108,7 +109,7 @@ export function generateLeaveRequestPDF(
   doc.text(`Generat automat la ${new Date().toLocaleString('ro-RO')}`, margin, pageHeight - 15)
   
   // Salvare PDF
-  const fileName = `Cerere_Concediu_${employee.fullName.replace(/\s/g, '_')}_${request.startDate}.pdf`
+  const fileName = `Cerere_Concediu_${getEmployeeFullName(employee).replace(/\s/g, '_')}_${request.startDate}.pdf`
   doc.save(fileName)
 }
 

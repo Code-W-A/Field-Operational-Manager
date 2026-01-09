@@ -21,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft, BarChart3, Calendar, CalendarCheck, CalendarDays, Clock, ClipboardList, Link2, Pencil, Plus, TrendingUp, User, UserCheck, UserRound } from "lucide-react"
 
 import type { Employee, LeaveRequest, TimesheetCell, TimesheetMonthKey } from "@/lib/hr/types"
+import { getEmployeeFullName } from "@/lib/hr/types"
 import {
   createOrUpdateEmployee,
   daysInMonth,
@@ -104,9 +105,28 @@ export default function HrEmployeeDetailsPage() {
   
   const [activeTab, setActiveTab] = useState<"detalii" | "pontaj" | "concedii">("detalii")
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [editFullName, setEditFullName] = useState("")
+  
+  // Edit dialog state - basic fields
+  const [editNume, setEditNume] = useState("")
+  const [editPrenume, setEditPrenume] = useState("")
   const [editTitle, setEditTitle] = useState("")
   const [editActive, setEditActive] = useState(true)
+  
+  // Edit dialog state - identification fields
+  const [editCnp, setEditCnp] = useState("")
+  const [editCiSerie, setEditCiSerie] = useState("")
+  const [editCiNumar, setEditCiNumar] = useState("")
+  const [editCiDataEmiterii, setEditCiDataEmiterii] = useState("")
+  const [editCiEmitent, setEditCiEmitent] = useState("")
+  
+  // Edit dialog state - workplace fields
+  const [editPoziteCOR, setEditPoziteCOR] = useState("")
+  const [editSuperiorIerarhic, setEditSuperiorIerarhic] = useState("")
+  const [editLoculDeMunca, setEditLoculDeMunca] = useState("")
+  const [editProgramLucruStart, setEditProgramLucruStart] = useState("")
+  const [editProgramLucruEnd, setEditProgramLucruEnd] = useState("")
+  const [editZileConcediuAnuale, setEditZileConcediuAnuale] = useState("21")
+  
   const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false)
 
   useEffect(() => {
@@ -173,16 +193,28 @@ export default function HrEmployeeDetailsPage() {
 
   useEffect(() => {
     if (isEditDialogOpen && employee) {
-      setEditFullName(employee.fullName)
+      setEditNume(employee.nume)
+      setEditPrenume(employee.prenume)
       setEditTitle(employee.title || "")
       setEditActive(employee.active)
+      setEditCnp(employee.cnp || "")
+      setEditCiSerie(employee.ciSerie || "")
+      setEditCiNumar(employee.ciNumar || "")
+      setEditCiDataEmiterii(employee.ciDataEmiterii || "")
+      setEditCiEmitent(employee.ciEmitent || "")
+      setEditPoziteCOR(employee.poziteCOR || "")
+      setEditSuperiorIerarhic(employee.superiorIerarhic || "")
+      setEditLoculDeMunca(employee.loculDeMunca || "")
+      setEditProgramLucruStart(employee.programLucruStart || "")
+      setEditProgramLucruEnd(employee.programLucruEnd || "")
+      setEditZileConcediuAnuale(String(employee.zileConcediuAnuale || 21))
     }
   }, [isEditDialogOpen, employee])
 
   const suggestionUid = useMemo(() => {
     if (!employee) return null
     const norm = (s: string) => s.toLowerCase().replaceAll(/\s+/g, " ").trim()
-    const target = norm(employee.fullName)
+    const target = norm(getEmployeeFullName(employee))
     const match = users.find((u) => (u.displayName ? norm(u.displayName) === target : false))
     return match?.uid ?? null
   }, [employee, users])
@@ -211,11 +243,29 @@ export default function HrEmployeeDetailsPage() {
 
   const handleSaveEdit = async () => {
     if (!employee) return
+    
+    if (!editNume.trim() || !editPrenume.trim()) {
+      toast({ title: "Eroare", description: "Numele și prenumele sunt obligatorii.", variant: "destructive" })
+      return
+    }
+    
     const updated: Employee = {
       ...employee,
-      fullName: editFullName,
-      title: editTitle,
+      nume: editNume.trim(),
+      prenume: editPrenume.trim(),
+      title: editTitle.trim() || undefined,
       active: editActive,
+      cnp: editCnp.trim() || undefined,
+      ciSerie: editCiSerie.trim() || undefined,
+      ciNumar: editCiNumar.trim() || undefined,
+      ciDataEmiterii: editCiDataEmiterii.trim() || undefined,
+      ciEmitent: editCiEmitent.trim() || undefined,
+      poziteCOR: editPoziteCOR.trim() || undefined,
+      superiorIerarhic: editSuperiorIerarhic.trim() || undefined,
+      loculDeMunca: editLoculDeMunca.trim() || undefined,
+      programLucruStart: editProgramLucruStart.trim() || undefined,
+      programLucruEnd: editProgramLucruEnd.trim() || undefined,
+      zileConcediuAnuale: editZileConcediuAnuale.trim() ? Number(editZileConcediuAnuale) : undefined,
     }
     try {
       await createOrUpdateEmployee(updated)
@@ -247,7 +297,7 @@ export default function HrEmployeeDetailsPage() {
       .reduce((acc, r) => acc + calculateWorkDays(r.startDate, r.endDate), 0)
   }, [employeeLeaveThisYear])
 
-  const daysAvailable = 21
+  const daysAvailable = employee?.zileConcediuAnuale ?? 21
   const daysRemaining = daysAvailable - daysConsumed
 
   if (!employee) {
@@ -268,7 +318,7 @@ export default function HrEmployeeDetailsPage() {
         heading={
           <span className="flex items-center gap-2">
             <UserRound className="h-5 w-5" />
-            Fișa salariat - {employee.fullName}
+            Fișa salariat - {getEmployeeFullName(employee)}
           </span>
         }
         text={employee.title || "Angajat"}
@@ -304,13 +354,13 @@ export default function HrEmployeeDetailsPage() {
 
         {/* TAB: DETALII */}
         <TabsContent value="detalii" className="space-y-6 mt-6">
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-2">
             {/* Card 1: Informații de bază - Modern design */}
             <Card className="border-0 shadow-lg bg-gradient-to-br from-slate-50 to-white dark:from-slate-900 dark:to-slate-800">
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-3">
                   <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-md">
-                    {employee.fullName.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase()}
+                    {(employee.prenume[0] || "") + (employee.nume[0] || "")}
                   </div>
                   <div className="flex-1">
                     <CardTitle className="text-base flex items-center gap-2">
@@ -321,8 +371,13 @@ export default function HrEmployeeDetailsPage() {
           </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nume complet</Label>
-                  <div className="text-lg font-bold text-foreground">{employee.fullName}</div>
+                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Prenume</Label>
+                  <div className="text-lg font-bold text-foreground">{employee.prenume}</div>
+                </div>
+                <Separator />
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nume</Label>
+                  <div className="text-lg font-bold text-foreground">{employee.nume}</div>
                 </div>
                 <Separator />
                 <div className="space-y-2">
@@ -357,7 +412,127 @@ export default function HrEmployeeDetailsPage() {
           </CardContent>
         </Card>
 
-            {/* Card 2: Asociere utilizator - Modern design */}
+            {/* Card 2: Date de identificare */}
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-indigo-50 to-white dark:from-indigo-950 dark:to-slate-800">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-md">
+                    <User className="h-5 w-5 text-white" />
+                  </div>
+                  <CardTitle className="text-base">Date de identificare</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {employee.cnp && (
+                  <>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">CNP</Label>
+                      <div className="text-sm font-semibold text-foreground/80">{employee.cnp}</div>
+                    </div>
+                    <Separator />
+                  </>
+                )}
+                {(employee.ciSerie || employee.ciNumar) && (
+                  <>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Serie și număr CI</Label>
+                      <div className="text-sm font-semibold text-foreground/80">
+                        {employee.ciSerie} {employee.ciNumar}
+                      </div>
+                    </div>
+                    <Separator />
+                  </>
+                )}
+                {employee.ciDataEmiterii && (
+                  <>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Data emiterii CI</Label>
+                      <div className="text-sm font-semibold text-foreground/80">{employee.ciDataEmiterii}</div>
+                    </div>
+                    <Separator />
+                  </>
+                )}
+                {employee.ciEmitent && (
+                  <>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Emitent CI</Label>
+                      <div className="text-sm font-semibold text-foreground/80">{employee.ciEmitent}</div>
+                    </div>
+                  </>
+                )}
+                {!employee.cnp && !employee.ciSerie && !employee.ciNumar && !employee.ciDataEmiterii && !employee.ciEmitent && (
+                  <div className="text-sm text-muted-foreground italic">Nicio informație de identificare</div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Row 2: Workplace data and statistics */}
+          <div className="grid gap-6 md:grid-cols-3">
+            {/* Card: Date despre locul de muncă */}
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-cyan-50 to-white dark:from-cyan-950 dark:to-slate-800">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-cyan-500 to-cyan-600 flex items-center justify-center shadow-md">
+                    <ClipboardList className="h-5 w-5 text-white" />
+                  </div>
+                  <CardTitle className="text-base">Locul de muncă</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {employee.poziteCOR && (
+                  <>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Poziție COR</Label>
+                      <div className="text-sm font-semibold text-foreground/80">{employee.poziteCOR}</div>
+                    </div>
+                    <Separator />
+                  </>
+                )}
+                {employee.superiorIerarhic && (
+                  <>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Superior ierarhic</Label>
+                      <div className="text-sm font-semibold text-foreground/80">{employee.superiorIerarhic}</div>
+                    </div>
+                    <Separator />
+                  </>
+                )}
+                {employee.loculDeMunca && (
+                  <>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Locul de muncă</Label>
+                      <div className="text-sm font-semibold text-foreground/80">{employee.loculDeMunca}</div>
+                    </div>
+                    <Separator />
+                  </>
+                )}
+                {(employee.programLucruStart || employee.programLucruEnd) && (
+                  <>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Program de lucru</Label>
+                      <div className="text-sm font-semibold text-foreground/80">
+                        {employee.programLucruStart || "—"} - {employee.programLucruEnd || "—"}
+                      </div>
+                    </div>
+                    <Separator />
+                  </>
+                )}
+                {employee.zileConcediuAnuale && (
+                  <>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Zile concediu anuale</Label>
+                      <div className="text-sm font-semibold text-foreground/80">{employee.zileConcediuAnuale} zile</div>
+                    </div>
+                  </>
+                )}
+                {!employee.poziteCOR && !employee.superiorIerarhic && !employee.loculDeMunca && !employee.programLucruStart && !employee.programLucruEnd && !employee.zileConcediuAnuale && (
+                  <div className="text-sm text-muted-foreground italic">Nicio informație despre locul de muncă</div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Card: Asociere utilizator - Modern design */}
             <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-white dark:from-purple-950 dark:to-slate-800">
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
@@ -432,7 +607,7 @@ export default function HrEmployeeDetailsPage() {
           </CardContent>
         </Card>
 
-            {/* Card 3: Statistici rapide - Modern design */}
+            {/* Card: Statistici rapide - Modern design */}
             <Card className="border-0 shadow-lg bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950 dark:to-slate-800">
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
@@ -754,9 +929,9 @@ export default function HrEmployeeDetailsPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Edit Dialog - Modern design */}
+      {/* Edit Dialog - Modern design with all fields */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-xl">
               <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-md">
@@ -767,46 +942,178 @@ export default function HrEmployeeDetailsPage() {
           </DialogHeader>
 
           <div className="grid gap-6 py-4">
-            <div className="grid gap-3">
-              <Label className="text-sm font-semibold flex items-center gap-2">
-                <User className="h-4 w-4" />
-                Nume și prenume
-              </Label>
-              <Input 
-                value={editFullName} 
-                onChange={(e) => setEditFullName(e.target.value)}
-                className="border-2 h-11"
-                placeholder="Ex: Popescu Ion"
-              />
-            </div>
-
-            <div className="grid gap-3">
-              <Label className="text-sm font-semibold flex items-center gap-2">
-                <ClipboardList className="h-4 w-4" />
-                Funcție
-              </Label>
-              <Input 
-                value={editTitle} 
-                onChange={(e) => setEditTitle(e.target.value)}
-                className="border-2 h-11"
-                placeholder="Ex: Manager Proiect"
-              />
-            </div>
-
-            <div className="flex items-center justify-between rounded-xl border-2 p-4 bg-gradient-to-r from-slate-50 to-white dark:from-slate-900 dark:to-slate-800 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className={cn(
-                  "h-10 w-10 rounded-lg flex items-center justify-center shadow-sm",
-                  editActive ? "bg-gradient-to-br from-emerald-500 to-emerald-600" : "bg-gradient-to-br from-slate-400 to-slate-500"
-                )}>
-                  <UserCheck className="h-5 w-5 text-white" />
+            {/* Basic Information */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase">Informații de bază</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-2">
+                  <Label htmlFor="editPrenume">Prenume *</Label>
+                  <Input 
+                    id="editPrenume"
+                    value={editPrenume} 
+                    onChange={(e) => setEditPrenume(e.target.value)}
+                    className="border-2 h-11"
+                    placeholder="Ex: Ion"
+                  />
                 </div>
-                <div>
-                  <div className="text-sm font-bold">Status activ</div>
-                  <div className="text-xs text-muted-foreground">Dezactivează pentru a ascunde din liste</div>
+                <div className="grid gap-2">
+                  <Label htmlFor="editNume">Nume *</Label>
+                  <Input 
+                    id="editNume"
+                    value={editNume} 
+                    onChange={(e) => setEditNume(e.target.value)}
+                    className="border-2 h-11"
+                    placeholder="Ex: Popescu"
+                  />
                 </div>
               </div>
-              <Switch checked={editActive} onCheckedChange={setEditActive} />
+
+              <div className="grid gap-2">
+                <Label htmlFor="editTitle">Funcție</Label>
+                <Input 
+                  id="editTitle"
+                  value={editTitle} 
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="border-2 h-11"
+                  placeholder="Ex: Manager Proiect"
+                />
+              </div>
+
+              <div className="flex items-center justify-between rounded-xl border-2 p-4 bg-gradient-to-r from-slate-50 to-white dark:from-slate-900 dark:to-slate-800 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "h-10 w-10 rounded-lg flex items-center justify-center shadow-sm",
+                    editActive ? "bg-gradient-to-br from-emerald-500 to-emerald-600" : "bg-gradient-to-br from-slate-400 to-slate-500"
+                  )}>
+                    <UserCheck className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold">Status activ</div>
+                    <div className="text-xs text-muted-foreground">Dezactivează pentru a ascunde din liste</div>
+                  </div>
+                </div>
+                <Switch checked={editActive} onCheckedChange={setEditActive} />
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Identification Data */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase">Date de identificare</h3>
+              <div className="grid gap-2">
+                <Label htmlFor="editCnp">CNP</Label>
+                <Input 
+                  id="editCnp"
+                  value={editCnp} 
+                  onChange={(e) => setEditCnp(e.target.value)}
+                  placeholder="Ex: 1820620285533"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-2">
+                  <Label htmlFor="editCiSerie">Serie CI</Label>
+                  <Input 
+                    id="editCiSerie"
+                    value={editCiSerie} 
+                    onChange={(e) => setEditCiSerie(e.target.value)}
+                    placeholder="Ex: RT"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="editCiNumar">Număr CI</Label>
+                  <Input 
+                    id="editCiNumar"
+                    value={editCiNumar} 
+                    onChange={(e) => setEditCiNumar(e.target.value)}
+                    placeholder="Ex: 226633"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="editCiDataEmiterii">Data emiterii CI</Label>
+                <Input 
+                  id="editCiDataEmiterii"
+                  type="date"
+                  value={editCiDataEmiterii} 
+                  onChange={(e) => setEditCiDataEmiterii(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="editCiEmitent">Emitent CI</Label>
+                <Input 
+                  id="editCiEmitent"
+                  value={editCiEmitent} 
+                  onChange={(e) => setEditCiEmitent(e.target.value)}
+                  placeholder="Ex: SPCLEP Chiajana"
+                />
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Workplace Data */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase">Date despre locul de muncă</h3>
+              <div className="grid gap-2">
+                <Label htmlFor="editPoziteCOR">Poziție COR</Label>
+                <Input 
+                  id="editPoziteCOR"
+                  value={editPoziteCOR} 
+                  onChange={(e) => setEditPoziteCOR(e.target.value)}
+                  placeholder="Ex: 8114-Montator ansambluri mecanice"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="editSuperiorIerarhic">Superior ierarhic</Label>
+                <Input 
+                  id="editSuperiorIerarhic"
+                  value={editSuperiorIerarhic} 
+                  onChange={(e) => setEditSuperiorIerarhic(e.target.value)}
+                  placeholder="Ex: Voinea Ionut"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="editLoculDeMunca">Locul de muncă</Label>
+                <Input 
+                  id="editLoculDeMunca"
+                  value={editLoculDeMunca} 
+                  onChange={(e) => setEditLoculDeMunca(e.target.value)}
+                  placeholder="Ex: Birou"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-2">
+                  <Label htmlFor="editProgramLucruStart">Program start</Label>
+                  <Input 
+                    id="editProgramLucruStart"
+                    type="time"
+                    value={editProgramLucruStart} 
+                    onChange={(e) => setEditProgramLucruStart(e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="editProgramLucruEnd">Program end</Label>
+                  <Input 
+                    id="editProgramLucruEnd"
+                    type="time"
+                    value={editProgramLucruEnd} 
+                    onChange={(e) => setEditProgramLucruEnd(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="editZileConcediuAnuale">Zile concediu anuale</Label>
+                <Input 
+                  id="editZileConcediuAnuale"
+                  type="number"
+                  min="0"
+                  max="50"
+                  value={editZileConcediuAnuale} 
+                  onChange={(e) => setEditZileConcediuAnuale(e.target.value)}
+                  placeholder="21"
+                />
+              </div>
             </div>
           </div>
 

@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
 import type { Employee, LeaveRequest } from "@/lib/hr/types"
+import { getEmployeeFullName } from "@/lib/hr/types"
 import { createLeaveRequest } from "@/lib/hr/storage"
 import { generateLeaveRequestPDF } from "@/lib/hr/leave-pdf-generator"
 import { CalendarDays, FileText } from "lucide-react"
@@ -168,7 +169,7 @@ export function CreateLeaveRequestDialog({
                 <SelectContent>
                   {sortedEmployees.map(e => (
                     <SelectItem key={e.id} value={e.id}>
-                      {e.fullName} {e.title && `• ${e.title}`}
+                      {getEmployeeFullName(e)} {e.title && `• ${e.title}`}
                     </SelectItem>
                   ))}
                 </SelectContent>

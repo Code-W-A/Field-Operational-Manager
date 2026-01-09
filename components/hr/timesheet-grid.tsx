@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils"
 import type { Employee, TimesheetCell, TimesheetMonthKey } from "@/lib/hr/types"
+import { getEmployeeFullName } from "@/lib/hr/types"
 import { daysInMonth } from "@/lib/hr/storage"
 import type React from "react"
 
@@ -93,7 +94,7 @@ export function TimesheetGrid({
             style={{ gridTemplateColumns }}
           >
             <div className="sticky left-0 z-10 bg-background border-r px-3 py-4 min-h-[64px] flex flex-col justify-center">
-              <div className="text-sm font-semibold truncate">{e.fullName}</div>
+              <div className="text-sm font-semibold truncate">{getEmployeeFullName(e)}</div>
               {e.title && <div className="text-xs text-muted-foreground truncate">{e.title}</div>}
             </div>
             {Array.from({ length: dim }, (_, i) => i + 1).map((d) => {
@@ -106,7 +107,7 @@ export function TimesheetGrid({
                     "h-16 w-full border-l text-xs font-semibold transition-all duration-200 hover:shadow-md hover:z-10 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 focus:z-10",
                     cellClasses(c)
                   )}
-                  title={`${e.fullName} • ${d}`}
+                  title={`${getEmployeeFullName(e)} • ${d}`}
                   onClick={(ev) => {
                     const r = (ev.currentTarget as HTMLElement).getBoundingClientRect()
                     onCellClick({

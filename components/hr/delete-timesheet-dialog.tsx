@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import type { Employee, TimesheetMonthKey } from "@/lib/hr/types"
+import { getEmployeeFullName } from "@/lib/hr/types"
 
 function parseMonthKeyFromDate(dateStr: string): TimesheetMonthKey | null {
   if (!dateStr) return null
@@ -122,7 +123,7 @@ export function DeleteTimesheetDialog({
               <SelectContent>
                 {sortedEmployees.map((e) => (
                   <SelectItem key={e.id} value={e.id}>
-                    {e.fullName}
+                    {getEmployeeFullName(e)}
                   </SelectItem>
                 ))}
               </SelectContent>

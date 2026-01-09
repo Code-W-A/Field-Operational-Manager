@@ -19,11 +19,31 @@ export type TimesheetCell = {
 
 export type Employee = {
   id: string
-  fullName: string
-  title?: string
+  // Identification data (Date de identificare)
+  nume: string // Last name
+  prenume: string // First name
+  cnp?: string // Personal ID Number
+  ciSerie?: string // ID card series
+  ciNumar?: string // ID card number
+  ciDataEmiterii?: string // ID issue date (format: DD.MM.YYYY or YYYY-MM-DD)
+  ciEmitent?: string // ID issuer
+  
+  // Workplace data (Date despre locul de munca)
+  title?: string // Function/role (kept for compatibility)
+  poziteCOR?: string // COR position code (e.g. "8114-Montator ansambluri mecanice")
+  superiorIerarhic?: string // Hierarchical superior
+  loculDeMunca?: string // Workplace location
+  programLucruStart?: string // Work schedule start (HH:mm format, e.g. "8:00")
+  programLucruEnd?: string // Work schedule end (HH:mm format, e.g. "16:30")
+  zileConcediuAnuale?: number // Annual vacation days entitlement (default 21)
+  
+  // System fields
   active: boolean
   /** Optional link to an app user (Firebase Auth / Firestore users doc id = uid). */
   userUid?: string
+  
+  // Computed field for backward compatibility - use getFullName() helper
+  fullName?: string // Deprecated: use nume + prenume
 }
 
 export type TimesheetMonthKey = `${number}-${string}` // e.g. "2026-01"
@@ -49,6 +69,16 @@ export type LeaveRequest = {
   createdAt: number
   approvedBy?: string // userUid
   approvedAt?: number
+}
+
+// Helper function to get full name from Employee
+export function getEmployeeFullName(employee: Employee | null | undefined): string {
+  if (!employee) return ""
+  if (employee.prenume && employee.nume) {
+    return `${employee.prenume} ${employee.nume}`
+  }
+  // Fallback to legacy fullName if present
+  return employee.fullName || ""
 }
 
 

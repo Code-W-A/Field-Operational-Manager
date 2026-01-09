@@ -2,6 +2,7 @@
 
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from "recharts"
 import type { Employee, TimesheetMonthKey, TimesheetMonth } from "@/lib/hr/types"
+import { getEmployeeFullName } from "@/lib/hr/types"
 import { daysInMonth } from "@/lib/hr/storage"
 
 type Row = {
@@ -34,7 +35,7 @@ function buildRows(monthKey: TimesheetMonthKey, employees: Employee[], timesheet
         if (c.code === "SL") SL++
         if (c.code === "WE") WE++
       }
-      return { name: e.fullName, hours, CO, SL, WE }
+      return { name: getEmployeeFullName(e), hours, CO, SL, WE }
     })
     .sort((a, b) => b.hours - a.hours)
 }

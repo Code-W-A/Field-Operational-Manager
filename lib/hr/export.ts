@@ -1,4 +1,5 @@
 import type { Employee, TimesheetMonth, TimesheetMonthKey } from "./types"
+import { getEmployeeFullName } from "./types"
 import { daysInMonth } from "./storage"
 
 export function exportTimesheetsToCSV(
@@ -21,7 +22,7 @@ export function exportTimesheetsToCSV(
   const rows = employees.map(emp => {
     const ts = timesheets.find(t => t.employeeId === emp.id && t.monthKey === monthKey)
     const row = [
-      emp.fullName,
+      getEmployeeFullName(emp),
       emp.title || "-",
     ]
     

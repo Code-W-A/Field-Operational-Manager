@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/data-table/data-table"
 import type { Employee } from "@/lib/hr/types"
+import { getEmployeeFullName } from "@/lib/hr/types"
 import { Pencil, UserRoundSearch } from "lucide-react"
 
 export function EmployeesTable({
@@ -22,9 +23,9 @@ export function EmployeesTable({
   const columns: ColumnDef<Employee, any>[] = useMemo(
     () => [
       {
-        accessorKey: "fullName",
+        accessorKey: "nume",
         header: "Nume",
-        cell: ({ row }) => <div className="font-medium">{row.original.fullName}</div>,
+        cell: ({ row }) => <div className="font-medium">{getEmployeeFullName(row.original)}</div>,
       },
       {
         accessorKey: "title",
@@ -84,7 +85,7 @@ export function EmployeesTable({
       columns={columns}
       data={employees}
       showFilters={true}
-      defaultSort={{ id: "fullName", desc: false }}
+      defaultSort={{ id: "nume", desc: false }}
       onRowClick={(row) => router.push(`/dashboard/resurse-umane/salariati/${(row as Employee).id}`)}
       enablePagination={true}
       initialPageSize={20}

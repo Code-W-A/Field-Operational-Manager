@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { Plus, Trash2 } from "lucide-react"
 import type { Employee, TimesheetCell, TimesheetMonthKey } from "@/lib/hr/types"
+import { getEmployeeFullName } from "@/lib/hr/types"
 
 function parseMonthKeyFromDate(dateStr: string): TimesheetMonthKey | null {
   if (!dateStr) return null
@@ -132,7 +133,7 @@ export function AddDayEntryDialog({
               <SelectContent>
                 {sortedEmployees.map((e) => (
                   <SelectItem key={e.id} value={e.id}>
-                    {e.fullName}
+                    {getEmployeeFullName(e)}
                   </SelectItem>
                 ))}
               </SelectContent>

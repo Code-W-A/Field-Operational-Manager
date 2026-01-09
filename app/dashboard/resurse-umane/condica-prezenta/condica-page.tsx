@@ -20,6 +20,7 @@ import { LeaveRequestsSection } from "@/components/hr/leave-requests-section"
 import { CreateLeaveRequestDialog } from "@/components/hr/create-leave-request-dialog"
 import type { TimesheetExtraColumn } from "@/components/hr/timesheet-grid"
 import type { Employee, LeaveRequest, TimesheetCell, TimesheetCode, TimesheetMonth, TimesheetMonthKey } from "@/lib/hr/types"
+import { getEmployeeFullName } from "@/lib/hr/types"
 import {
   deleteTimesheetRange,
   daysInMonth,
@@ -382,7 +383,7 @@ export default function CondicaPrezentaPage() {
                   .sort((a, b) => a.fullName.localeCompare(b.fullName))
                   .map((e) => (
                     <SelectItem key={e.id} value={e.id}>
-                      {e.fullName}
+                      {getEmployeeFullName(e)}
                     </SelectItem>
                   ))}
               </SelectContent>
