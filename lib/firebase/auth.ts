@@ -10,7 +10,13 @@ import { auth, db } from "./config"
 import { doc, setDoc, serverTimestamp, deleteDoc } from "firebase/firestore"
 
 // Tipuri pentru autentificare
-export type UserRole = "admin" | "dispecer" | "tehnician" | "client"
+export type UserRole = "admin" | "dispecer" | "tehnician" | "client" | "kiosk"
+
+export interface OfficeLocation {
+  lat: number
+  lng: number
+  address: string
+}
 
 export interface UserData {
   uid: string
@@ -21,6 +27,10 @@ export interface UserData {
   telefon?: string
   // Client access: multiple clients with multiple locations
   clientAccess?: Array<{ clientId: string; locationNames: string[] }>
+  // Kiosk mode - prevents auto-logout
+  isKioskMode?: boolean
+  // Office location for GPS verification
+  officeLocation?: OfficeLocation
   createdAt?: Date
   lastLogin?: Date
 }

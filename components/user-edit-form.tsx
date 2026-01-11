@@ -332,6 +332,7 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
                     <SelectItem value="dispecer">Dispecer</SelectItem>
                     <SelectItem value="tehnician">Tehnician</SelectItem>
                     <SelectItem value="client">Client</SelectItem>
+                    <SelectItem value="kiosk">Kiosk Pontaj (nu se delogează)</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />

@@ -42,7 +42,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   // Auto logout at 02:00 function
-  const scheduleAutoLogout = () => {
+  const scheduleAutoLogout = (userDataToCheck?: UserData | null) => {
+    const dataToCheck = userDataToCheck || userData
+    
+    // Don't schedule auto-logout for kiosk mode users
+    if (dataToCheck?.isKioskMode) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log("🏢 Kiosk mode: Auto logout disabled")
+      }
+      return
+    }
+
     // Clear any existing timer first
     if (logoutTimerRef.current) {
       clearTimeout(logoutTimerRef.current)
@@ -188,8 +198,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               setShowWelcomeDialog(true)
             }
             
-            // Schedule auto logout for authenticated users
-            scheduleAutoLogout()
+            // Schedule auto logout for authenticated users (except kiosk mode)
+            scheduleAutoLogout(data)
             setupDailyLogoutCheck()
           } else {
             console.log("No user data found in Firestore")

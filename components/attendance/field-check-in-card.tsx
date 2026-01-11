@@ -1,0 +1,422 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Play, Square, Loader2, MapPin, Clock, AlertCircle } from "lucide-react"
+import { FaceRecognitionCapture } from "./face-recognition-capture"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { createCheckIn, createCheckOut, getActiveSession, canCheckOut, startExtraTimeLog, endExtraTimeLog } from "@/lib/attendance/storage"
+import { getCurrentLocation, determineMode } from "@/lib/attendance/location"
+import { toast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
+import type { AttendanceSession, FaceRecognitionResult, AttendanceLocation } from "@/types/attendance"
+import type { OfficeLocation } from "@/lib/firebase/auth"
+
+interface FieldCheckInCardProps {
+  userId: string
+  userName: string
+  officeLocation?: OfficeLocation
+}
+
+type FlowState = "idle" | "face-recognition" | "processing"
+
+export function FieldCheckInCard({ userId, userName, officeLocation }: FieldCheckInCardProps) {
+  const [activeSession, setActiveSession] = useState<AttendanceSession | null>(null)
+  const [flowState, setFlowState] = useState<FlowState>("idle")
+  const [action, setAction] = useState<"check-in" | "check-out" | null>(null)
+  const [showFaceDialog, setShowFaceDialog] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [checkOutDisabled, setCheckOutDisabled] = useState(false)
+  const [checkOutTimer, setCheckOutTimer] = useState<number>(0)
+  const [currentTime, setCurrentTime] = useState(Date.now())
+
+  // Extra time tracking
+  const [clientRouteActive, setClientRouteActive] = useState(false)
+  const [homeRouteActive, setHomeRouteActive] = useState(false)
+
+  // Load active session on mount
+  useEffect(() => {
+    loadActiveSession()
+  }, [userId])
+
+  // Update current time every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now())
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  // Check if check-out is available (1-minute rule)
+  useEffect(() => {
+    if (activeSession && activeSession.status === "active") {
+      const elapsed = (currentTime - activeSession.sessionStart) / 1000
+      if (elapsed < 60) {
+        setCheckOutDisabled(true)
+        setCheckOutTimer(Math.ceil(60 - elapsed))
+      } else {
+        setCheckOutDisabled(false)
+        setCheckOutTimer(0)
+      }
+    }
+  }, [activeSession, currentTime])
+
+  // Check extra time button visibility
+  useEffect(() => {
+    if (!activeSession) {
+      setClientRouteActive(false)
+      setHomeRouteActive(false)
+      return
+    }
+
+    const now = new Date()
+    const hour = now.getHours()
+
+    // Client route: visible after check-in, until 8 AM
+    const hasClientRouteLog = activeSession.extraTimeLogs?.some(log => log.type === "to_client")
+    setClientRouteActive(hour < 8 && !hasClientRouteLog)
+
+    // Home route: visible after 4:30 PM (16:30), for max 1 hour
+    const workEndHour = 16
+    const workEndMinute = 30
+    const workEndTime = new Date(now)
+    workEndTime.setHours(workEndHour, workEndMinute, 0, 0)
+    const oneHourAfterWorkEnd = new Date(workEndTime.getTime() + 60 * 60 * 1000)
+
+    const hasHomeRouteLog = activeSession.extraTimeLogs?.some(log => log.type === "to_home")
+    setHomeRouteActive(now >= workEndTime && now <= oneHourAfterWorkEnd && !hasHomeRouteLog)
+  }, [activeSession, currentTime])
+
+  const loadActiveSession = async () => {
+    try {
+      setLoading(true)
+      const session = await getActiveSession(userId)
+      setActiveSession(session)
+    } catch (error) {
+      console.error("Failed to load active session:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCheckIn = () => {
+    setAction("check-in")
+    setShowFaceDialog(true)
+    setFlowState("face-recognition")
+  }
+
+  const handleCheckOut = async () => {
+    // Double-check 1-minute rule
+    if (activeSession) {
+      const check = await canCheckOut(activeSession.id)
+      if (!check.allowed) {
+        toast({
+          title: "Prea devreme",
+          description: `Te rugăm să aștepți încă ${check.remainingSeconds} secunde.`,
+          variant: "destructive",
+        })
+        return
+      }
+    }
+
+    setAction("check-out")
+    setShowFaceDialog(true)
+    setFlowState("face-recognition")
+  }
+
+  const handleFaceRecognitionSuccess = async (result: FaceRecognitionResult) => {
+    setFlowState("processing")
+
+    try {
+      const location: AttendanceLocation = await getCurrentLocation()
+      const mode = determineMode(location, officeLocation)
+
+      if (action === "check-in") {
+        await createCheckIn({
+          userId,
+          userName,
+          mode,
+          location,
+          faceRecognitionId: result.faceId,
+          deviceInfo: {
+            type: "field",
+            userAgent: navigator.userAgent,
+          },
+        })
+
+        toast({
+          title: "Check-In Reușit!",
+          description: `Bun venit, ${userName}!`,
+        })
+
+        // Reload session
+        await loadActiveSession()
+      } else if (action === "check-out") {
+        if (!activeSession) {
+          throw new Error("Nu există o sesiune activă")
+        }
+
+        await createCheckOut({
+          sessionId: activeSession.id,
+          location,
+          faceRecognitionId: result.faceId,
+        })
+
+        toast({
+          title: "Check-Out Reușit!",
+          description: `La revedere, ${userName}!`,
+        })
+
+        setActiveSession(null)
+      }
+
+      setShowFaceDialog(false)
+      setFlowState("idle")
+      setAction(null)
+    } catch (error) {
+      console.error("Field check-in/out error:", error)
+      toast({
+        title: "Eroare",
+        description: error instanceof Error ? error.message : "A apărut o eroare",
+        variant: "destructive",
+      })
+      setShowFaceDialog(false)
+      setFlowState("idle")
+      setAction(null)
+    }
+  }
+
+  const handleFaceRecognitionError = (error: string) => {
+    console.log("Face recognition attempt failed:", error)
+  }
+
+  const handleStartClientRoute = async () => {
+    if (!activeSession) return
+
+    try {
+      await startExtraTimeLog({
+        sessionId: activeSession.id,
+        type: "to_client",
+      })
+
+      toast({
+        title: "Traseu Către Client Activat",
+        description: "Timpul extra va fi contorizat.",
+      })
+
+      await loadActiveSession()
+    } catch (error) {
+      toast({
+        title: "Eroare",
+        description: error instanceof Error ? error.message : "Nu s-a putut activa traseul",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleStartHomeRoute = async () => {
+    if (!activeSession) return
+
+    try {
+      await startExtraTimeLog({
+        sessionId: activeSession.id,
+        type: "to_home",
+      })
+
+      toast({
+        title: "Traseu Către Casă Activat",
+        description: "Timpul extra va fi contorizat.",
+      })
+
+      await loadActiveSession()
+    } catch (error) {
+      toast({
+        title: "Eroare",
+        description: error instanceof Error ? error.message : "Nu s-a putut activa traseul",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const formatDuration = (start: number) => {
+    const duration = Math.floor((currentTime - start) / 1000)
+    const hours = Math.floor(duration / 3600)
+    const minutes = Math.floor((duration % 3600) / 60)
+    const seconds = duration % 60
+    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
+  }
+
+  if (loading) {
+    return (
+      <Card className="border shadow-sm">
+        <CardContent className="pt-6 flex items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const isCheckedIn = activeSession && activeSession.status === "active"
+
+  return (
+    <>
+      <Card className="relative overflow-hidden border border-gray-100 shadow-lg shadow-gray-200/50 bg-white max-w-xl transition-all duration-300 hover:shadow-xl hover:shadow-gray-200/60 border-l-4 border-l-emerald-500">
+        {/* Single decorative circle in top right corner - only visible part inside card */}
+        <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-emerald-100 to-blue-100 rounded-full -mr-20 -mt-20 opacity-50" />
+        
+        <CardContent className="p-6 relative z-10">
+          <div className="flex items-start justify-between gap-6">
+            {/* Left column - Welcome, Time, and Button */}
+            <div className="flex-1 space-y-4 pb-8">
+              {/* Welcome message */}
+              <div className="space-y-0.5">
+                <p className="text-gray-400 text-sm font-medium tracking-wide">Bun venit,</p>
+                <p className="text-gray-900 text-2xl font-bold tracking-tight">{userName}</p>
+              </div>
+
+              {/* Current time - large display (24h format, HH:mm only) */}
+              <div className="space-y-1.5">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-5xl font-bold text-gray-900 tracking-tight tabular-nums">
+                    {new Date(currentTime).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                {isCheckedIn && (
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 rounded-full border border-emerald-100">
+                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-xs text-emerald-700 font-semibold">ACTIV • {formatDuration(activeSession.sessionStart)}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Action button - Play/Stop */}
+              {!isCheckedIn ? (
+                <Button
+                  className="w-full max-w-[200px] h-12 font-semibold shadow-md hover:shadow-lg transition-all duration-300 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-xl flex items-center justify-center gap-2 group"
+                  onClick={handleCheckIn}
+                  disabled={flowState !== "idle"}
+                >
+                  {flowState === "processing" && action === "check-in" ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <span>Procesare...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-5 w-5 transition-transform group-hover:scale-110" fill="currentColor" />
+                      <span>Play</span>
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <Button
+                  className={cn(
+                    "w-full max-w-[200px] h-12 font-semibold shadow-md hover:shadow-lg transition-all duration-300 rounded-xl flex items-center justify-center gap-2 group",
+                    checkOutDisabled 
+                      ? "bg-gray-300 cursor-not-allowed text-gray-500" 
+                      : "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
+                  )}
+                  onClick={handleCheckOut}
+                  disabled={checkOutDisabled || flowState !== "idle"}
+                >
+                  {flowState === "processing" && action === "check-out" ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <span>Procesare...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Square className="h-5 w-5 transition-transform group-hover:scale-110" fill="currentColor" />
+                      <span>Stop{checkOutTimer > 0 && ` (${checkOutTimer}s)`}</span>
+                    </>
+                  )}
+                </Button>
+              )}
+
+              {/* Warning message for 1-minute rule */}
+              {checkOutDisabled && (
+                <div className="flex items-center gap-2 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-3 text-xs text-orange-700 max-w-[350px] animate-in fade-in slide-in-from-top duration-300">
+                  <AlertCircle className="h-4 w-4 shrink-0 animate-pulse" />
+                  <span className="font-medium">Așteptați <span className="font-bold">{checkOutTimer}s</span> pentru check-out</span>
+                </div>
+              )}
+
+              {/* Extra Time Buttons */}
+              {isCheckedIn && (clientRouteActive || homeRouteActive) && (
+                <div className="flex gap-2 pt-2 animate-in fade-in slide-in-from-bottom duration-500">
+                  {clientRouteActive && (
+                    <Button
+                      onClick={handleStartClientRoute}
+                      className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-sm h-10 px-4 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 group"
+                      size="sm"
+                    >
+                      <MapPin className="mr-2 h-4 w-4 transition-transform group-hover:scale-110" />
+                      Traseu Client
+                    </Button>
+                  )}
+                  {homeRouteActive && (
+                    <Button
+                      onClick={handleStartHomeRoute}
+                      className="bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white text-sm h-10 px-4 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 group"
+                      size="sm"
+                    >
+                      <MapPin className="mr-2 h-4 w-4 transition-transform group-hover:scale-110" />
+                      Traseu Casă
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Right column - Worker illustration with adjustable position */}
+            <div className="shrink-0 opacity-90 transition-opacity duration-300 hover:opacity-100">
+              <img 
+                src="/worker-image.png" 
+                alt="Worker" 
+                className="h-48 w-48 object-contain relative bottom-[-45px] drop-shadow-lg"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Face Recognition Dialog */}
+      <Dialog open={showFaceDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowFaceDialog(false)
+          setFlowState("idle")
+          setAction(null)
+        }
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-center text-2xl">
+              Recunoaștere Facială
+            </DialogTitle>
+            <DialogDescription className="text-center">
+              Pentru {action === "check-in" ? "Check-In" : "Check-Out"}
+            </DialogDescription>
+          </DialogHeader>
+
+          {flowState === "face-recognition" && (
+            <FaceRecognitionCapture
+              onSuccess={handleFaceRecognitionSuccess}
+              onError={handleFaceRecognitionError}
+              userId={userId}
+              userName={userName}
+              autoStart={true}
+            />
+          )}
+
+          {flowState === "processing" && (
+            <div className="py-12 text-center">
+              <div className="w-16 h-16 mx-auto border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
+              <p className="text-lg">Procesăm...</p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}

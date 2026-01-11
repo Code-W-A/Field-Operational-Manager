@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { FieldCheckInCard } from "@/components/attendance/field-check-in-card"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -30,6 +31,7 @@ import { DataTable } from "@/components/data-table/data-table"
 import { useTablePersistence } from "@/hooks/use-table-persistence"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { WORK_TYPES, WORK_STATUS } from "@/lib/utils/constants"
+import { cn } from "@/lib/utils"
 import { doc, getDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { toast } from "@/hooks/use-toast"
@@ -2275,6 +2277,16 @@ export default function Lucrari() {
   return (
     <TooltipProvider>
       <DashboardShell>
+        {/* Check-in card for technicians - appears BEFORE header */}
+        {isTechnician && userData?.uid && userData?.displayName && (
+          <div className="mb-4">
+            <FieldCheckInCard
+              userId={userData.uid}
+              userName={userData.displayName}
+            />
+          </div>
+        )}
+
         <DashboardHeader 
           heading="Tichete" 
           text="Gestionați toate tichetele și intervențiile"
@@ -2286,6 +2298,7 @@ export default function Lucrari() {
             triggerIcon={<History className="h-4 w-4" />}
           />
         ) : null}
+
         {!isTechnician && (
           <Dialog
             open={isAddDialogOpen}
@@ -2645,37 +2658,53 @@ export default function Lucrari() {
               return (
                 <Card
                   key={lucrare.id}
-                  className={`overflow-hidden min-w-0 w-full ${
-                    isTechnician && isCompletedNotPickedUp ? "cursor-default" : "cursor-pointer hover:shadow-md"
-                  } ${lucrare ? getWorkStatusRowClass(lucrare) : ""}`}
+                  className={cn(
+                    "relative overflow-hidden min-w-0 w-full transition-all duration-300 border-l-4",
+                    isTechnician && isCompletedNotPickedUp 
+                      ? "cursor-default border-gray-200" 
+                      : "cursor-pointer hover:shadow-lg hover:shadow-gray-200/50 border-gray-100 hover:border-gray-200",
+                    lucrare ? getWorkStatusRowClass(lucrare) : "",
+                    // Add left border color based on status
+                    lucrare.statusLucrare === "Atribuită" && "border-l-yellow-500",
+                    lucrare.statusLucrare === "În lucru" && "border-l-blue-500",
+                    lucrare.statusLucrare === "Finalizat" && "border-l-green-500",
+                    lucrare.statusLucrare === WORK_STATUS.POSTPONED && "border-l-violet-500",
+                  )}
                   onClick={() => {
                     if (!(isTechnician && isCompletedNotPickedUp)) {
                       handleViewDetails(lucrare)
                     }
                   }}
                 >
-                  <CardContent className="p-0">
-                    <div className="flex items-start justify-between gap-3 border-b p-4 min-w-0">
+                  {/* Decorative bubble - subtle */}
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-gray-50 to-gray-100 rounded-full -mr-12 -mt-12 opacity-50" />
+                  
+                  <CardContent className="p-0 relative z-10">
+                    <div className="flex items-start justify-between gap-3 border-b border-gray-100 p-4 min-w-0">
                       <div className="min-w-0">
-                        <h3 className="font-medium flex flex-wrap items-center gap-2 min-w-0">
+                        <h3 className="font-semibold flex flex-wrap items-center gap-2 min-w-0 text-gray-900">
                           <span className="min-w-0 break-words">
                             {lucrare.client}
                           </span>
-                          <Badge className="bg-purple-100 text-purple-800 font-mono text-xs shrink-0 whitespace-nowrap">
-                            {String(lucrare.nrLucrare || lucrare.numarRaport || "-")}{Number((lucrare as any)?.offerSendCount || 0) > 0 ? `-${Number((lucrare as any)?.offerSendCount || 0)}` : ""}
+                          <Badge className="bg-purple-100 text-purple-800 border border-purple-200 font-mono text-xs shrink-0 whitespace-nowrap font-semibold shadow-sm">
+                            #{String(lucrare.nrLucrare || lucrare.numarRaport || "-")}{Number((lucrare as any)?.offerSendCount || 0) > 0 ? `-${Number((lucrare as any)?.offerSendCount || 0)}` : ""}
                           </Badge>
                         </h3>
-                        <p className="text-sm text-muted-foreground">Locație: {lucrare.locatie}</p>
+                        <p className="text-sm text-gray-600 mt-1">📍 {lucrare.locatie}</p>
                         {(lucrare.echipament || (lucrare as any).echipamentModel || lucrare.echipamentCod) && (
-                          <p className="text-xs text-gray-600">
-                            Echipament: {lucrare.echipament || (lucrare as any).echipamentModel || "-"}
-                            {lucrare.echipamentCod ? ` (cod: ${lucrare.echipamentCod})` : ""}
+                          <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                            <span className="font-medium">⚙️</span>
+                            {lucrare.echipament || (lucrare as any).echipamentModel || "-"}
+                            {lucrare.echipamentCod && <span className="text-gray-400">({lucrare.echipamentCod})</span>}
                           </p>
                         )}
                         {revEquipNode}
                       </div>
                       <div className="flex flex-col items-end gap-2 shrink-0">
-                        <Badge className={getWorkStatusClass(lucrare.statusLucrare)}>
+                        <Badge className={cn(
+                          "shadow-sm font-semibold transition-all",
+                          getWorkStatusClass(lucrare.statusLucrare)
+                        )}>
                           {lucrare.statusLucrare === "Finalizat" ? "Raport generat" : lucrare.statusLucrare}
                         </Badge>
 

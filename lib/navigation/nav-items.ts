@@ -13,7 +13,7 @@ import {
   UserRound,
 } from "lucide-react"
 
-export type UserRole = "admin" | "dispecer" | "tehnician" | "client" | (string & {})
+export type UserRole = "admin" | "dispecer" | "tehnician" | "client" | "kiosk" | (string & {})
 
 export type NavActiveMatch = "exact" | "prefix"
 
@@ -50,9 +50,10 @@ export function getRoleFlags(ctx: NavCtx) {
   const isTechnician = role === "tehnician"
   const isDispatcher = role === "dispecer"
   const isClient = role === "client"
+  const isKiosk = role === "kiosk"
   const isAdminOrDispatcher = isAdmin || isDispatcher
 
-  return { role, isAdmin, isTechnician, isDispatcher, isClient, isAdminOrDispatcher }
+  return { role, isAdmin, isTechnician, isDispatcher, isClient, isKiosk, isAdminOrDispatcher }
 }
 
 export function isHrefActive(pathname: string, href: string, match: NavActiveMatch = "prefix") {

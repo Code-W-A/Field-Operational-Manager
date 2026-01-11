@@ -245,11 +245,21 @@ export function DayEntryPopover({
                         <div className="grid gap-3 md:grid-cols-2">
                           <div className="grid gap-1">
                             <Label className="text-slate-200">Timp de început</Label>
-                            <Input value={start} onChange={(e) => setStart(e.target.value)} placeholder="HH:mm" className="bg-slate-950 border-slate-800" />
+                            <Input 
+                              type="time" 
+                              value={start} 
+                              onChange={(e) => setStart(e.target.value)} 
+                              className="bg-slate-950 border-slate-800" 
+                            />
                           </div>
                           <div className="grid gap-1">
                             <Label className="text-slate-200">Timp de încheiere</Label>
-                            <Input value={end} onChange={(e) => setEnd(e.target.value)} placeholder="HH:mm" className="bg-slate-950 border-slate-800" />
+                            <Input 
+                              type="time" 
+                              value={end} 
+                              onChange={(e) => setEnd(e.target.value)} 
+                              className="bg-slate-950 border-slate-800" 
+                            />
                           </div>
                         </div>
                         <div className="flex justify-end gap-2 mt-3">

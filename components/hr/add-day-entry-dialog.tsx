@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -63,15 +63,38 @@ export function AddDayEntryDialog({
     monthKey: TimesheetMonthKey
   }) => Promise<void>
 }) {
-  const sortedEmployees = useMemo(() => [...employees].sort((a, b) => a.fullName.localeCompare(b.fullName)), [employees])
+  const sortedEmployees = useMemo(() => {
+    const sorted = [...employees].sort((a, b) => {
+      const nameA = getEmployeeFullName(a)
+      const nameB = getEmployeeFullName(b)
+      return nameA.localeCompare(nameB)
+    })
+    console.log('📋 Sortarea angajaților:', sorted.length, 'angajați găsiți')
+    return sorted
+  }, [employees])
 
-  const [employeeId, setEmployeeId] = useState(defaultEmployeeId ?? (sortedEmployees[0]?.id ?? ""))
+  const [employeeId, setEmployeeId] = useState(defaultEmployeeId ?? "")
   const [startDate, setStartDate] = useState(defaultStartDate ?? new Date().toISOString().slice(0, 10))
   const [endDate, setEndDate] = useState(defaultStartDate ?? new Date().toISOString().slice(0, 10))
   const [project, setProject] = useState("")
+  
+  // Auto-selectează primul angajat când se încarcă lista SAU se deschide dialogul
+  useEffect(() => {
+    if (open && sortedEmployees.length > 0) {
+      const targetId = defaultEmployeeId || sortedEmployees[0].id
+      console.log('👤 Setez angajatul:', targetId, '(defaultEmployeeId:', defaultEmployeeId, ')')
+      setEmployeeId(targetId)
+      
+      // Setează și datele dacă sunt provide
+      if (defaultStartDate) {
+        setStartDate(defaultStartDate)
+        setEndDate(defaultStartDate)
+      }
+    }
+  }, [open, sortedEmployees, defaultEmployeeId, defaultStartDate])
 
-  const [entries, setEntries] = useState<Array<{ start: string; end: string }>>([{ start: "", end: "" }])
-  const [breaks, setBreaks] = useState<Array<{ start: string; end: string }>>([{ start: "", end: "" }])
+  const [entries, setEntries] = useState<Array<{ start: string; end: string }>>([{ start: "08:00", end: "16:00" }])
+  const [breaks, setBreaks] = useState<Array<{ start: string; end: string }>>([{ start: "12:00", end: "12:30" }])
 
   const [includeConcediu, setIncludeConcediu] = useState(false)
   const [includeEvenimente, setIncludeEvenimente] = useState(false)
@@ -84,8 +107,8 @@ export function AddDayEntryDialog({
 
   const reset = () => {
     setProject("")
-    setEntries([{ start: "", end: "" }])
-    setBreaks([{ start: "", end: "" }])
+    setEntries([{ start: "08:00", end: "16:00" }])
+    setBreaks([{ start: "12:00", end: "12:30" }])
     setIncludeConcediu(false)
     setIncludeEvenimente(false)
     setIncludeSarbatori(false)
@@ -93,27 +116,77 @@ export function AddDayEntryDialog({
   }
 
   const submit = async () => {
-    if (!employeeId || !startDate || !endDate || !monthKey) return
+    console.log('🔍 Submit apăsat - verificare validări:', {
+      employeeId: employeeId || '❌ LIPSĂ',
+      startDate: startDate || '❌ LIPSĂ',
+      endDate: endDate || '❌ LIPSĂ',
+      monthKey: monthKey || '❌ LIPSĂ',
+      entries,
+      hasValidEntries: entries.some(e => e.start && e.end),
+      employeesCount: employees.length,
+      sortedEmployeesCount: sortedEmployees.length
+    })
+    
+    if (!employeeId) {
+      console.error('❌ Lipsește employeeId - verifică dacă ai angajați în listă!')
+      alert('Nu ai selectat un angajat! Verifică dacă există angajați în listă.')
+      return
+    }
+    if (!startDate) {
+      console.error('❌ Lipsește startDate')
+      alert('Selectează data de început!')
+      return
+    }
+    if (!endDate) {
+      console.error('❌ Lipsește endDate')
+      alert('Selectează data de sfârșit!')
+      return
+    }
+    if (!monthKey) {
+      console.error('❌ monthKey nu s-a putut calcula din startDate:', startDate)
+      alert('Data de început este invalidă!')
+      return
+    }
+    
     const payloadEntries = entries
       .filter((e) => e.start && e.end)
       .map((e) => ({ ...e, project: project || undefined, methodStart: "Introdus manual de către manager", methodEnd: "Introdus manual de către manager" }))
     const payloadBreaks = breaks.filter((b) => b.start && b.end)
-    await onSubmitRange({
+    
+    if (payloadEntries.length === 0) {
+      console.warn('⚠️ Atenție: Nu ai completat ore de lucru (entries)!')
+    }
+    
+    console.log('✅ Validare OK - trimit la Firebase:', {
       employeeId,
       startDate,
       endDate,
-      project: project || undefined,
-      entries: payloadEntries,
-      breaks: payloadBreaks,
-      includeConcediu,
-      includeEvenimente,
-      includeSarbatori,
-      includeWeekend,
-      hours,
-      monthKey,
+      payloadEntries,
+      payloadBreaks,
+      hours
     })
-    reset()
-    onOpenChange(false)
+    
+    try {
+      await onSubmitRange({
+        employeeId,
+        startDate,
+        endDate,
+        project: project || undefined,
+        entries: payloadEntries,
+        breaks: payloadBreaks,
+        includeConcediu,
+        includeEvenimente,
+        includeSarbatori,
+        includeWeekend,
+        hours,
+        monthKey,
+      })
+      console.log('✅ Salvat cu succes în Firebase!')
+      reset()
+      onOpenChange(false)
+    } catch (error) {
+      console.error('❌ Eroare la salvare:', error)
+    }
   }
 
   return (
@@ -161,32 +234,44 @@ export function AddDayEntryDialog({
             <div className="space-y-2">
               {entries.map((e, idx) => (
                 <div key={idx} className="grid grid-cols-2 gap-2 items-end">
-                  <Input
-                    value={e.start}
-                    onChange={(ev) => setEntries((prev) => prev.map((x, i) => (i === idx ? { ...x, start: ev.target.value } : x)))}
-                    placeholder="Timp de început (HH:mm)"
-                  />
-                  <div className="flex gap-2">
+                  <div className="grid gap-1.5">
+                    <Label htmlFor={`entry-start-${idx}`} className="text-xs text-muted-foreground">Început</Label>
                     <Input
-                      value={e.end}
-                      onChange={(ev) => setEntries((prev) => prev.map((x, i) => (i === idx ? { ...x, end: ev.target.value } : x)))}
-                      placeholder="Timp de încheiere (HH:mm)"
+                      id={`entry-start-${idx}`}
+                      type="time"
+                      value={e.start}
+                      onChange={(ev) => setEntries((prev) => prev.map((x, i) => (i === idx ? { ...x, start: ev.target.value } : x)))}
+                      className="h-10"
                     />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setEntries((prev) => prev.filter((_, i) => i !== idx))}
-                      aria-label="Șterge interval"
-                      disabled={entries.length === 1}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="grid gap-1.5 flex-1">
+                      <Label htmlFor={`entry-end-${idx}`} className="text-xs text-muted-foreground">Sfârșit</Label>
+                      <Input
+                        id={`entry-end-${idx}`}
+                        type="time"
+                        value={e.end}
+                        onChange={(ev) => setEntries((prev) => prev.map((x, i) => (i === idx ? { ...x, end: ev.target.value } : x)))}
+                        className="h-10"
+                      />
+                    </div>
+                    <div className="pt-6">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setEntries((prev) => prev.filter((_, i) => i !== idx))}
+                        aria-label="Șterge interval"
+                        disabled={entries.length === 1}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}
-              <Button variant="outline" onClick={() => setEntries((prev) => [...prev, { start: "", end: "" }])}>
+              <Button variant="outline" onClick={() => setEntries((prev) => [...prev, { start: "08:00", end: "16:00" }])}>
                 <Plus className="h-4 w-4 mr-2" />
-                Adaugă timp
+                Adaugă interval de lucru
               </Button>
             </div>
           </div>
@@ -196,30 +281,42 @@ export function AddDayEntryDialog({
             <div className="space-y-2">
               {breaks.map((b, idx) => (
                 <div key={idx} className="grid grid-cols-2 gap-2 items-end">
-                  <Input
-                    value={b.start}
-                    onChange={(ev) => setBreaks((prev) => prev.map((x, i) => (i === idx ? { ...x, start: ev.target.value } : x)))}
-                    placeholder="Timp de început (HH:mm)"
-                  />
-                  <div className="flex gap-2">
+                  <div className="grid gap-1.5">
+                    <Label htmlFor={`break-start-${idx}`} className="text-xs text-muted-foreground">Început pauză</Label>
                     <Input
-                      value={b.end}
-                      onChange={(ev) => setBreaks((prev) => prev.map((x, i) => (i === idx ? { ...x, end: ev.target.value } : x)))}
-                      placeholder="Timp de încheiere (HH:mm)"
+                      id={`break-start-${idx}`}
+                      type="time"
+                      value={b.start}
+                      onChange={(ev) => setBreaks((prev) => prev.map((x, i) => (i === idx ? { ...x, start: ev.target.value } : x)))}
+                      className="h-10"
                     />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setBreaks((prev) => prev.filter((_, i) => i !== idx))}
-                      aria-label="Șterge pauză"
-                      disabled={breaks.length === 1}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="grid gap-1.5 flex-1">
+                      <Label htmlFor={`break-end-${idx}`} className="text-xs text-muted-foreground">Sfârșit pauză</Label>
+                      <Input
+                        id={`break-end-${idx}`}
+                        type="time"
+                        value={b.end}
+                        onChange={(ev) => setBreaks((prev) => prev.map((x, i) => (i === idx ? { ...x, end: ev.target.value } : x)))}
+                        className="h-10"
+                      />
+                    </div>
+                    <div className="pt-6">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setBreaks((prev) => prev.filter((_, i) => i !== idx))}
+                        aria-label="Șterge pauză"
+                        disabled={breaks.length === 1}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}
-              <Button variant="outline" onClick={() => setBreaks((prev) => [...prev, { start: "", end: "" }])}>
+              <Button variant="outline" onClick={() => setBreaks((prev) => [...prev, { start: "12:00", end: "12:30" }])}>
                 <Plus className="h-4 w-4 mr-2" />
                 Adaugă pauză
               </Button>
