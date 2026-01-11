@@ -155,16 +155,6 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
   }
 
   const handleCheckOut = async () => {
-    // Strict kiosk policy: if the active session was started from kiosk, it must be stopped from kiosk.
-    if (activeSession?.status === "active" && activeSession?.deviceInfo?.type === "kiosk") {
-      toast({
-        title: "Tură pornită la birou (Kiosk)",
-        description: "Oprește din Kiosk pentru a putea începe o nouă tură.",
-        variant: "destructive",
-      })
-      return
-    }
-
     // Double-check 1-minute rule
     if (activeSession) {
       const check = await canCheckOut(activeSession.id)
@@ -400,7 +390,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
                 <Button
                   className="w-full max-w-[200px] h-12 font-semibold shadow-md hover:shadow-lg transition-all duration-300 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-xl flex items-center justify-center gap-2 group"
                   onClick={handleCheckIn}
-                  disabled={flowState !== "idle" || isKioskStartedActive}
+                  disabled={flowState !== "idle"}
                 >
                   {flowState === "processing" && action === "check-in" ? (
                     <>
@@ -418,12 +408,12 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
                 <Button
                   className={cn(
                     "w-full max-w-[200px] h-12 font-semibold shadow-md hover:shadow-lg transition-all duration-300 rounded-xl flex items-center justify-center gap-2 group",
-                    checkOutDisabled || isKioskStartedActive
+                    checkOutDisabled
                       ? "bg-gray-300 cursor-not-allowed text-gray-500" 
                       : "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
                   )}
                   onClick={handleCheckOut}
-                  disabled={checkOutDisabled || isKioskStartedActive || flowState !== "idle"}
+                  disabled={checkOutDisabled || flowState !== "idle"}
                 >
                   {flowState === "processing" && action === "check-out" ? (
                     <>
@@ -446,14 +436,14 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
                   <div className="space-y-0.5">
                     <div className="font-semibold">Tură pornită la birou (Kiosk)</div>
                     <div className="text-slate-600">
-                      Play/Stop din aplicație sunt blocate. Oprește tura din Kiosk pentru a putea începe o nouă tură.
+                      Poți încheia tura de aici sau din Kiosk.
                     </div>
                   </div>
                 </div>
               )}
 
               {/* Warning message for 1-minute rule */}
-              {checkOutDisabled && !isKioskStartedActive && (
+              {checkOutDisabled && (
                 <div className="flex items-center gap-2 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-3 text-xs text-orange-700 max-w-[350px] animate-in fade-in slide-in-from-top duration-300">
                   <AlertCircle className="h-4 w-4 shrink-0 animate-pulse" />
                   <span className="font-medium">Așteptați <span className="font-bold">{checkOutTimer}s</span> pentru check-out</span>

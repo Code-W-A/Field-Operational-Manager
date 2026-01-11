@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Play, Square, UserCircle2 } from "lucide-react"
+import { Play, Square, UserCircle2, LogOut } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { FaceRecognitionCapture } from "./face-recognition-capture"
 import { createCheckIn, createCheckOut, getActiveSession } from "@/lib/attendance/storage"
@@ -12,6 +12,9 @@ import { toast } from "@/hooks/use-toast"
 import type { FaceRecognitionResult, AttendanceLocation } from "@/types/attendance"
 import type { OfficeLocation } from "@/lib/firebase/auth"
 import { verifyUserPassword } from "@/lib/firebase/kiosk-verifier-auth"
+import { useAuth } from "@/contexts/AuthContext"
+import { signOut } from "@/lib/firebase/auth"
+import { useRouter } from "next/navigation"
 
 export interface KioskUser {
   uid: string
@@ -28,6 +31,9 @@ export interface KioskCheckInProps {
 type FlowState = "idle" | "select-action" | "select-user" | "verify-password" | "face-recognition" | "processing" | "success"
 
 export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
+  const { user, userData } = useAuth()
+  const router = useRouter()
+
   const [flowState, setFlowState] = useState<FlowState>("idle")
   const [action, setAction] = useState<"check-in" | "check-out" | null>(null)
   const [selectedUser, setSelectedUser] = useState<KioskUser | null>(null)
@@ -43,6 +49,12 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
   const [noActiveOpen, setNoActiveOpen] = useState(false)
 
   const [confirmOpen, setConfirmOpen] = useState(false)
+
+  // Kiosk logout flow
+  const [logoutOpen, setLogoutOpen] = useState(false)
+  const [logoutStep, setLogoutStep] = useState<"password" | "confirm">("password")
+  const [logoutPassword, setLogoutPassword] = useState("")
+  const [logoutSubmitting, setLogoutSubmitting] = useState(false)
 
   // Auto-reset to idle after inactivity or success
   useEffect(() => {
@@ -79,6 +91,58 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
     setAlreadyStartedAt(null)
     setNoActiveOpen(false)
     setConfirmOpen(false)
+  }
+
+  const resetLogout = () => {
+    setLogoutOpen(false)
+    setLogoutStep("password")
+    setLogoutPassword("")
+    setLogoutSubmitting(false)
+  }
+
+  const handleLogoutVerifyPassword = async () => {
+    const email = (user?.email || userData?.email || "").trim()
+    if (!email) {
+      toast({
+        title: "Email lipsă",
+        description: "Contul Kiosk nu are email disponibil. Nu se poate valida parola.",
+        variant: "destructive",
+      })
+      return
+    }
+    try {
+      setLogoutSubmitting(true)
+      await verifyUserPassword(email, logoutPassword)
+      setLogoutStep("confirm")
+    } catch (error) {
+      toast({
+        title: "Parolă invalidă",
+        description: error instanceof Error ? error.message : "Nu s-a putut verifica parola.",
+        variant: "destructive",
+      })
+    } finally {
+      setLogoutSubmitting(false)
+    }
+  }
+
+  const handleLogoutConfirm = async () => {
+    try {
+      setLogoutSubmitting(true)
+      await signOut()
+      // Best-effort: clear role cookie so middleware won't redirect.
+      try {
+        document.cookie = "userRole=; Path=/; Max-Age=0; SameSite=Lax"
+      } catch {}
+      router.replace("/login")
+      resetLogout()
+    } catch (error) {
+      toast({
+        title: "Eroare deconectare",
+        description: error instanceof Error ? error.message : "Nu s-a putut deconecta.",
+        variant: "destructive",
+      })
+      setLogoutSubmitting(false)
+    }
   }
 
   const handleActionSelect = (selectedAction: "check-in" | "check-out") => {
@@ -248,7 +312,24 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-8">
-      <div className="w-full max-w-4xl">
+      <div className="w-full max-w-4xl relative">
+        {/* Top-right logout */}
+        <div className="absolute -top-2 right-0">
+          <Button
+            variant="secondary"
+            className="bg-white/10 text-white hover:bg-white/20 border border-white/10"
+            onClick={() => {
+              setLogoutOpen(true)
+              setLogoutStep("password")
+              setLogoutPassword("")
+              setLogoutSubmitting(false)
+            }}
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            Deconectare
+          </Button>
+        </div>
+
         {/* Idle State - Show Action Selection */}
         {flowState === "idle" && (
           <div className="text-center space-y-8 animate-in fade-in duration-500">
@@ -616,6 +697,67 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
               {passwordSubmitting ? "Verific..." : "Continuă"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Kiosk logout dialog: password -> confirm */}
+      <Dialog
+        open={logoutOpen}
+        onOpenChange={(open) => {
+          if (!open) resetLogout()
+          else setLogoutOpen(true)
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-center text-2xl">Deconectare Kiosk</DialogTitle>
+            <DialogDescription className="text-center">
+              {logoutStep === "password"
+                ? "Introduce parola contului Kiosk pentru a continua."
+                : "Ești sigur că vrei să te deconectezi?"}
+            </DialogDescription>
+          </DialogHeader>
+
+          {logoutStep === "password" ? (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Parolă</label>
+              <Input
+                type="password"
+                value={logoutPassword}
+                onChange={(e) => setLogoutPassword(e.target.value)}
+                placeholder="Parola contului Kiosk"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleLogoutVerifyPassword()
+                }}
+                disabled={logoutSubmitting}
+              />
+              <DialogFooter className="pt-2">
+                <Button variant="outline" onClick={resetLogout} disabled={logoutSubmitting}>
+                  Anulează
+                </Button>
+                <Button onClick={handleLogoutVerifyPassword} disabled={!logoutPassword || logoutSubmitting}>
+                  {logoutSubmitting ? "Verific..." : "Continuă"}
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setLogoutStep("password")
+                  setLogoutPassword("")
+                }}
+                disabled={logoutSubmitting}
+              >
+                Înapoi
+              </Button>
+              <Button onClick={handleLogoutConfirm} disabled={logoutSubmitting}>
+                {logoutSubmitting ? "Deconectez..." : "Da, deconectează"}
+              </Button>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
     </div>
