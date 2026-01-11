@@ -35,6 +35,14 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
   const [showPasswordDialog, setShowPasswordDialog] = useState(false)
   const [password, setPassword] = useState("")
   const [passwordSubmitting, setPasswordSubmitting] = useState(false)
+  const [userSelectBusyUid, setUserSelectBusyUid] = useState<string | null>(null)
+
+  const [alreadyStartedOpen, setAlreadyStartedOpen] = useState(false)
+  const [alreadyStartedAt, setAlreadyStartedAt] = useState<number | null>(null)
+
+  const [noActiveOpen, setNoActiveOpen] = useState(false)
+
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   // Auto-reset to idle after inactivity or success
   useEffect(() => {
@@ -66,6 +74,11 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
     setShowPasswordDialog(false)
     setPassword("")
     setPasswordSubmitting(false)
+    setUserSelectBusyUid(null)
+    setAlreadyStartedOpen(false)
+    setAlreadyStartedAt(null)
+    setNoActiveOpen(false)
+    setConfirmOpen(false)
   }
 
   const handleActionSelect = (selectedAction: "check-in" | "check-out") => {
@@ -73,9 +86,48 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
     setFlowState("select-user")
   }
 
-  const handleUserSelect = (user: KioskUser) => {
+  const handleUserSelect = async (user: KioskUser) => {
+    if (!action) return
+    if (userSelectBusyUid) return
+
+    setUserSelectBusyUid(user.uid)
     setSelectedUser(user)
     setPassword("")
+
+    try {
+      // Double-start guard: if Start selected but user already has an active session, offer Stop.
+      if (action === "check-in") {
+        const active = await getActiveSession(user.uid)
+        if (active) {
+          setAlreadyStartedAt(active.sessionStart)
+          setAlreadyStartedOpen(true)
+          return
+        }
+      } else if (action === "check-out") {
+        // Symmetric guard: if Stop selected but user has no active session, offer Start.
+        const active = await getActiveSession(user.uid)
+        if (!active) {
+          setNoActiveOpen(true)
+          return
+        }
+      }
+
+      // Confirmation comes before password (per requirement)
+      setConfirmOpen(true)
+    } catch (error) {
+      toast({
+        title: "Eroare",
+        description: error instanceof Error ? error.message : "Nu s-a putut verifica starea pontajului.",
+        variant: "destructive",
+      })
+      setSelectedUser(null)
+    } finally {
+      setUserSelectBusyUid(null)
+    }
+  }
+
+  const proceedAfterConfirm = () => {
+    setConfirmOpen(false)
     setShowPasswordDialog(true)
     setFlowState("verify-password")
   }
@@ -265,7 +317,8 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
                   <button
                     key={user.uid}
                     onClick={() => handleUserSelect(user)}
-                    className="p-6 bg-gradient-to-br from-slate-50 to-slate-100 hover:from-slate-100 hover:to-slate-200 rounded-2xl transition-all hover:scale-105 shadow-md hover:shadow-lg"
+                    disabled={Boolean(userSelectBusyUid)}
+                    className="p-6 bg-gradient-to-br from-slate-50 to-slate-100 hover:from-slate-100 hover:to-slate-200 rounded-2xl transition-all hover:scale-105 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-16 h-16 rounded-full bg-slate-500 flex items-center justify-center shadow-md">
@@ -360,6 +413,145 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
               <p className="text-lg">Procesăm...</p>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Already started dialog (Start selected but user already active) */}
+      <Dialog
+        open={alreadyStartedOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAlreadyStartedOpen(false)
+            setAlreadyStartedAt(null)
+            // Stay in select-user so operator can choose someone else.
+            setSelectedUser(null)
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-center text-2xl">Pontaj deja pornit</DialogTitle>
+            <DialogDescription className="text-center">
+              Acest utilizator are deja tura pornită.
+              {alreadyStartedAt ? ` (Start: ${new Date(alreadyStartedAt).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" })})` : ""}
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setAlreadyStartedOpen(false)
+                setAlreadyStartedAt(null)
+                setSelectedUser(null)
+              }}
+            >
+              Anulează
+            </Button>
+            <Button
+              onClick={() => {
+                // Switch flow to Stop
+                setAlreadyStartedOpen(false)
+                setAlreadyStartedAt(null)
+                setAction("check-out")
+                // Confirmation before password
+                setConfirmOpen(true)
+              }}
+            >
+              Stop acum
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* No active session dialog (Stop selected but user not active) */}
+      <Dialog
+        open={noActiveOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setNoActiveOpen(false)
+            setSelectedUser(null)
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-center text-2xl">Nu există tură activă</DialogTitle>
+            <DialogDescription className="text-center">
+              Acest utilizator nu are o tură pornită în acest moment.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setNoActiveOpen(false)
+                setSelectedUser(null)
+              }}
+            >
+              Anulează
+            </Button>
+            <Button
+              onClick={() => {
+                // Switch flow to Start
+                setNoActiveOpen(false)
+                setAction("check-in")
+                setConfirmOpen(true)
+              }}
+            >
+              Start acum
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm Start/Stop dialog (before password) */}
+      <Dialog
+        open={confirmOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmOpen(false)
+            setSelectedUser(null)
+            setPassword("")
+            setFlowState("select-user")
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-center text-2xl">
+              {action === "check-in" ? "Confirmare Start" : "Confirmare Stop"}
+            </DialogTitle>
+            <DialogDescription className="text-center">
+              {action === "check-in"
+                ? "Confirmi că vrei să începi tura?"
+                : "Confirmi că vrei să închei tura?"}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedUser && (
+            <div className="text-center -mt-1">
+              <p className="text-sm text-muted-foreground">
+                Pentru: <span className="font-semibold text-foreground">{selectedUser.displayName}</span>
+              </p>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setConfirmOpen(false)
+                setSelectedUser(null)
+                setPassword("")
+                setFlowState("select-user")
+              }}
+            >
+              Nu
+            </Button>
+            <Button onClick={proceedAfterConfirm}>Da, continuă</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
