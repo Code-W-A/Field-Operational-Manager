@@ -33,6 +33,8 @@ export default function Login() {
         router.push("/portal")
       } else if (userData?.role === "tehnician") {
         router.push("/dashboard/lucrari")
+      } else if (userData?.role === "kiosk") {
+        router.push("/kiosk")
       } else {
         router.push("/dashboard")
       }

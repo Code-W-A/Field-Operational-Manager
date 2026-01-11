@@ -13,14 +13,26 @@ function isAllowedClientDashboardPath(pathname: string) {
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
-  // Only guard dashboard routes; avoid touching API/static.
-  if (!pathname.startsWith("/dashboard")) return NextResponse.next()
+  // Avoid touching API and Next internal assets.
+  if (pathname.startsWith("/api") || pathname.startsWith("/_next")) return NextResponse.next()
+  // Skip typical static file requests from /public (favicon, images, fonts, etc).
+  if (pathname.includes(".")) return NextResponse.next()
 
   const roleCookie = req.cookies.get("userRole")?.value
   const role = roleCookie ? decodeURIComponent(roleCookie) : undefined
 
+  // Kiosk → hard lockdown: only /kiosk is accessible (plus /login for initial auth).
+  if (role === "kiosk") {
+    const isAllowed = pathname === "/kiosk" || pathname.startsWith("/kiosk/") || pathname === "/login"
+    if (!isAllowed) {
+      const url = req.nextUrl.clone()
+      url.pathname = "/kiosk"
+      return NextResponse.redirect(url)
+    }
+  }
+
   // Client → redirect away from dashboard except allowed pages
-  if (role === "client" && !isAllowedClientDashboardPath(pathname)) {
+  if (pathname.startsWith("/dashboard") && role === "client" && !isAllowedClientDashboardPath(pathname)) {
     const url = req.nextUrl.clone()
     url.pathname = "/portal"
     return NextResponse.redirect(url)
@@ -37,7 +49,7 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: ["/:path*"],
 }
 
 

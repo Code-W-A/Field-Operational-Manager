@@ -19,12 +19,14 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
 
   const isClient = userData?.role === "client"
   const isTechnician = userData?.role === "tehnician"
+  const isKiosk = userData?.role === "kiosk"
   const isDashboard = pathname?.startsWith("/dashboard")
   const isAllowedLucrari = pathname === "/dashboard/lucrari" || pathname?.startsWith("/dashboard/lucrari/")
   const isAllowedHistory = pathname === "/dashboard/istoric-interventii" || pathname?.startsWith("/dashboard/istoric-interventii/")
 
   const shouldRedirectClientToPortal = !!user && isClient && isDashboard && !isAllowedLucrari && !isAllowedHistory
   const shouldRedirectTechnicianToLucrari = !!user && isTechnician && pathname === "/dashboard"
+  const shouldRedirectKioskToKiosk = !!user && isKiosk && pathname !== "/kiosk" && !pathname?.startsWith("/kiosk/")
   const shouldBlockUntilRoleKnown = !!user && !loading && !userData
 
   useEffect(() => {
@@ -53,6 +55,9 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
       } else if (allowedRoles && userData && !allowedRoles.includes(userData.role)) {
         console.log("User does not have required role, redirecting to dashboard")
         router.push("/dashboard")
+      } else if (userData?.role === "kiosk" && pathname !== "/kiosk" && !pathname?.startsWith("/kiosk/")) {
+        // Kiosk accounts must stay on the dedicated kiosk page.
+        router.replace("/kiosk")
       } else if (userData?.role === "tehnician" && pathname === "/dashboard") {
         // Redirect technicians from /dashboard to /dashboard/lucrari
         console.log("Technician accessing dashboard, redirecting to tichete")
@@ -82,7 +87,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   }
 
   // Prevent UI flashes before role-based redirects.
-  if (shouldBlockUntilRoleKnown || shouldRedirectClientToPortal || shouldRedirectTechnicianToLucrari) {
+  if (shouldBlockUntilRoleKnown || shouldRedirectClientToPortal || shouldRedirectTechnicianToLucrari || shouldRedirectKioskToKiosk) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
