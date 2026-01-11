@@ -62,6 +62,7 @@ export const registerUser = async (
       // keep legacy field in Firestore for backward compatibility
       telefon: phoneNumber,
       clientAccess: clientAccess || [],
+      isKioskMode: role === "kiosk" ? true : undefined,
       createdAt: new Date(),
       lastLogin: new Date(),
     }

@@ -968,17 +968,24 @@ export default function Utilizatori() {
                     </SelectTrigger>
                     <SelectContent>
                       {dynamicUserRoles?.length ? (
-                        dynamicUserRoles.map((it) => (
-                          <SelectItem key={it.id} value={it.name}>
-                            {it.name}
-                          </SelectItem>
-                        ))
+                        <>
+                          {dynamicUserRoles.map((it) => (
+                            <SelectItem key={it.id} value={it.name}>
+                              {it.name}
+                            </SelectItem>
+                          ))}
+                          {/* Ensure kiosk role is always available even if settings omit it */}
+                          {!dynamicUserRoles.some((it) => String(it.name).toLowerCase() === "kiosk") && (
+                            <SelectItem value="kiosk">Kiosk Pontaj</SelectItem>
+                          )}
+                        </>
                       ) : (
                         <>
                           <SelectItem value="admin">Administrator</SelectItem>
                           <SelectItem value="dispecer">Dispecer</SelectItem>
                           <SelectItem value="tehnician">Tehnician</SelectItem>
                           <SelectItem value="client">Client</SelectItem>
+                          <SelectItem value="kiosk">Kiosk Pontaj</SelectItem>
                         </>
                       )}
                     </SelectContent>
