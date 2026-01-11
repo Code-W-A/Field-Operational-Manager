@@ -148,6 +148,12 @@ export async function createCheckOut(request: CheckOutRequest): Promise<void> {
   }
 
   const raw = sessions.docs[0].data() as any
+  // Strict policy: if session was started from kiosk, it must be stopped from kiosk.
+  const startDeviceType = String(raw?.deviceInfo?.type || "").toLowerCase()
+  const checkoutDeviceType = String(request?.deviceInfo?.type || "").toLowerCase()
+  if (startDeviceType === "kiosk" && checkoutDeviceType !== "kiosk") {
+    throw new Error("Tură pornită la birou (Kiosk). Oprește din Kiosk.")
+  }
   const sessionData = raw as AttendanceSession
   const sessionStart = typeof sessionData.sessionStart === 'number' 
     ? sessionData.sessionStart 
