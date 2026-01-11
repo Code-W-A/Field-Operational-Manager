@@ -28,10 +28,22 @@ export interface AttendanceSession {
   userName?: string // Display name for quick reference
   sessionStart: number // timestamp
   sessionEnd?: number // timestamp
+  /** Check-in mode (office kiosk vs field). */
   mode: AttendanceMode
+  /** Backward-compatible check-in location. */
   location: AttendanceLocation
-  faceRecognitionId?: string // Mock ID for face recognition
+  /** Backward-compatible check-in face recognition id (mock). */
+  faceRecognitionId?: string
+  /** Backward-compatible check-in device info. */
   extraTimeLogs?: ExtraTimeLog[]
+  /** Optional work schedule captured at check-in (used for extra-time caps). */
+  programLucruStart?: string // "HH:mm"
+  programLucruEnd?: string // "HH:mm"
+  /** Explicit checkout metadata (separate from check-in). */
+  checkOutMode?: AttendanceMode
+  checkOutLocation?: AttendanceLocation
+  checkOutFaceRecognitionId?: string
+  checkOutDeviceInfo?: DeviceInfo
   status: AttendanceStatus
   deviceInfo: DeviceInfo
   createdAt: number
@@ -57,8 +69,10 @@ export interface CheckInRequest {
 
 export interface CheckOutRequest {
   sessionId: string
+  mode: AttendanceMode
   location: AttendanceLocation
   faceRecognitionId?: string
+  deviceInfo: DeviceInfo
 }
 
 export interface ExtraTimeRequest {

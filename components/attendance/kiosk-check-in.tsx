@@ -121,8 +121,13 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
 
         await createCheckOut({
           sessionId: activeSession.id,
+          mode,
           location,
           faceRecognitionId: result.faceId,
+          deviceInfo: {
+            type: "kiosk",
+            userAgent: navigator.userAgent,
+          },
         })
 
         toast({

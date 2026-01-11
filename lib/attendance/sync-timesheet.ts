@@ -1,7 +1,19 @@
-import { collection, query, where, getDocs, doc, getDoc, writeBatch, Timestamp } from "firebase/firestore"
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  doc,
+  getDoc,
+  writeBatch,
+  Timestamp,
+  serverTimestamp,
+  orderBy,
+} from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import type { AttendanceSession } from "@/types/attendance"
-import type { TimesheetEntry } from "@/lib/hr/types"
+import type { TimesheetCell, TimesheetMonthKey } from "@/lib/hr/types"
+import { getCurrentMonthKey, timesheetDocId } from "@/lib/hr/storage"
 
 /**
  * Sync attendance sessions to HR timesheet system
@@ -52,9 +64,11 @@ export async function syncAttendanceToTimesheet(date: Date): Promise<void> {
       sessionsByUser[session.userId].push(session)
     })
 
-    // For each user, create/update timesheet entries
+    // For each user, create/update timesheet cells in hrTimesheets/{employeeId}_{monthKey}
     const batch = writeBatch(db)
-    const dateKey = formatDateKey(date)
+    const monthKey = getCurrentMonthKey(date)
+    const day = date.getDate()
+    const dayKey = String(day)
 
     for (const [userId, sessions] of Object.entries(sessionsByUser)) {
       // Get employee ID from user
@@ -64,57 +78,64 @@ export async function syncAttendanceToTimesheet(date: Date): Promise<void> {
         continue
       }
 
-      // Calculate total work hours for the day
-      const totalMinutes = sessions.reduce((sum, session) => {
+      const sorted = [...sessions].sort((a, b) => a.sessionStart - b.sessionStart)
+
+      const totalMinutes = sorted.reduce((sum, session) => {
         if (!session.sessionEnd) return sum
-        const duration = (session.sessionEnd - session.sessionStart) / (1000 * 60)
-        return sum + duration
+        return sum + (session.sessionEnd - session.sessionStart) / 60000
       }, 0)
 
-      // Calculate total extra time
-      const totalExtraMinutes = sessions.reduce((sum, session) => {
-        if (!session.extraTimeLogs) return sum
-        return sum + session.extraTimeLogs.reduce((logSum, log) => logSum + log.minutesEligible, 0)
+      const totalExtraMinutes = sorted.reduce((sum, session) => {
+        const logs = session.extraTimeLogs || []
+        return sum + logs.reduce((s, l) => s + (l.minutesEligible || 0), 0)
       }, 0)
 
-      // Calculate work hours (total - extra)
-      const workMinutes = totalMinutes - totalExtraMinutes
-      const workHours = (workMinutes / 60).toFixed(2)
+      const totalHours = Math.round((totalMinutes / 60) * 100) / 100
 
-      // Calculate extra hours
-      const extraHours = (totalExtraMinutes / 60).toFixed(2)
+      const entries: NonNullable<TimesheetCell["entries"]> = []
 
-      // Create timesheet entry
-      const timesheetEntry: Partial<TimesheetEntry> = {
-        start: formatTime(sessions[0].sessionStart),
-        end: sessions[sessions.length - 1].sessionEnd
-          ? formatTime(sessions[sessions.length - 1].sessionEnd!)
-          : undefined,
-        type: "P", // Present
-        hours: workHours,
-        notes: `Auto-sync from attendance. Work: ${workHours}h${totalExtraMinutes > 0 ? `, Extra: ${extraHours}h` : ""}`,
-        syncedFromAttendance: true,
-        attendanceSessionIds: sessions.map((s) => s.id),
+      for (const s of sorted) {
+        if (!s.sessionEnd) continue
+        entries.push({
+          start: formatTime(s.sessionStart),
+          end: formatTime(s.sessionEnd),
+          methodStart: `Play (${s.mode})`,
+          methodEnd: `Stop (${s.checkOutMode || s.mode})`,
+          project: "Pontaj",
+        })
+
+        for (const log of s.extraTimeLogs || []) {
+          if (!log.endTime) continue
+          entries.push({
+            start: formatTime(log.startTime),
+            end: formatTime(log.endTime),
+            methodStart: "Extra",
+            methodEnd: "Extra",
+            project: log.type === "to_client" ? "Traseu către client" : "Traseu către casă",
+          })
+        }
       }
 
-      // Update timesheet in Firestore
-      const timesheetRef = doc(db, "hrTimesheets", `${employeeId}_${dateKey}`)
+      const cell: TimesheetCell = {
+        code: "WORK",
+        hours: totalHours,
+        entries,
+      }
+
+      const timesheetRef = doc(db, "hrTimesheets", timesheetDocId(employeeId, monthKey as TimesheetMonthKey))
       batch.set(
         timesheetRef,
         {
           employeeId,
-          date: dateKey,
-          entries: {
-            [dateKey]: timesheetEntry,
-          },
-          syncedAt: Timestamp.now(),
-          syncedBy: "attendance-system",
+          monthKey,
+          updatedAt: serverTimestamp(),
+          days: { [dayKey]: cell },
         },
         { merge: true }
       )
 
       console.log(
-        `Synced ${sessions.length} session(s) for employee ${employeeId}: ${workHours}h work + ${extraHours}h extra`
+        `Synced ${sessions.length} session(s) for employee ${employeeId}: ${totalHours}h total (${totalExtraMinutes}m extra)`
       )
     }
 
@@ -170,16 +191,6 @@ async function getEmployeeIdForUser(userId: string): Promise<string | null> {
 }
 
 /**
- * Format date as YYYY-MM-DD for timesheet keys
- */
-function formatDateKey(date: Date): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const day = String(date.getDate()).padStart(2, "0")
-  return `${year}-${month}-${day}`
-}
-
-/**
  * Format timestamp as HH:mm
  */
 function formatTime(timestamp: number): string {
@@ -210,7 +221,8 @@ export async function getAttendanceSyncStatus(date: Date): Promise<{
   sessionCount: number
   lastSyncAt?: number
 }> {
-  const dateKey = formatDateKey(date)
+  const monthKey = getCurrentMonthKey(date)
+  const dayKey = String(date.getDate())
 
   // Get all sessions for this date
   const startOfDay = new Date(date)
@@ -228,20 +240,23 @@ export async function getAttendanceSyncStatus(date: Date): Promise<{
 
   const sessionsSnapshot = await getDocs(sessionsQuery)
 
-  // Check if timesheets exist for this date
-  const timesheetsQuery = query(
-    collection(db, "hrTimesheets"),
-    where("date", "==", dateKey),
-    where("syncedFromAttendance", "==", true)
-  )
-
+  // Check if any hrTimesheets doc for this month has this day populated.
+  const timesheetsQuery = query(collection(db, "hrTimesheets"), where("monthKey", "==", monthKey), orderBy("employeeId", "asc"))
   const timesheetsSnapshot = await getDocs(timesheetsQuery)
 
+  let syncedCount = 0
+  let lastSyncAt: number | undefined
+  for (const d of timesheetsSnapshot.docs) {
+    const data = d.data() as any
+    const hasDay = Boolean(data?.days?.[dayKey])
+    if (hasDay) syncedCount++
+    const updatedAtMs = data?.updatedAt?.toMillis?.()
+    if (updatedAtMs && (!lastSyncAt || updatedAtMs > lastSyncAt)) lastSyncAt = updatedAtMs
+  }
+
   return {
-    synced: !timesheetsSnapshot.empty,
+    synced: syncedCount > 0,
     sessionCount: sessionsSnapshot.size,
-    lastSyncAt: timesheetsSnapshot.empty
-      ? undefined
-      : timesheetsSnapshot.docs[0].data().syncedAt?.toMillis?.(),
+    lastSyncAt,
   }
 }

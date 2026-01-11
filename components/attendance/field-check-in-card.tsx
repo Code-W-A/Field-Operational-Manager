@@ -1,12 +1,20 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Play, Square, Loader2, MapPin, Clock, AlertCircle } from "lucide-react"
 import { FaceRecognitionCapture } from "./face-recognition-capture"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { createCheckIn, createCheckOut, getActiveSession, canCheckOut, startExtraTimeLog, endExtraTimeLog } from "@/lib/attendance/storage"
+import {
+  createCheckIn,
+  createCheckOut,
+  getActiveSession,
+  getLatestCompletedSession,
+  canCheckOut,
+  startExtraTimeLog,
+  endExtraTimeLog,
+} from "@/lib/attendance/storage"
 import { getCurrentLocation, determineMode } from "@/lib/attendance/location"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -34,6 +42,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
   // Extra time tracking
   const [clientRouteActive, setClientRouteActive] = useState(false)
   const [homeRouteActive, setHomeRouteActive] = useState(false)
+  const autoEndTimerRef = useRef<number | null>(null)
 
   // Load active session on mount
   useEffect(() => {
@@ -46,6 +55,13 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
       setCurrentTime(Date.now())
     }, 1000)
     return () => clearInterval(timer)
+  }, [])
+
+  // Cleanup any pending auto-end timers
+  useEffect(() => {
+    return () => {
+      if (autoEndTimerRef.current) window.clearTimeout(autoEndTimerRef.current)
+    }
   }, [])
 
   // Check if check-out is available (1-minute rule)
@@ -70,29 +86,61 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
       return
     }
 
-    const now = new Date()
-    const hour = now.getHours()
+    const now = Date.now()
+    const programStart = activeSession.programLucruStart || "08:00"
+    const programEnd = activeSession.programLucruEnd || "16:30"
 
-    // Client route: visible after check-in, until 8 AM
-    const hasClientRouteLog = activeSession.extraTimeLogs?.some(log => log.type === "to_client")
-    setClientRouteActive(hour < 8 && !hasClientRouteLog)
+    const toTs = (base: number, hhmm: string) => {
+      const [hStr, mStr] = hhmm.split(":")
+      const h = Number(hStr)
+      const m = Number(mStr)
+      const d = new Date(base)
+      d.setHours(Number.isFinite(h) ? h : 8, Number.isFinite(m) ? m : 0, 0, 0)
+      return d.getTime()
+    }
 
-    // Home route: visible after 4:30 PM (16:30), for max 1 hour
-    const workEndHour = 16
-    const workEndMinute = 30
-    const workEndTime = new Date(now)
-    workEndTime.setHours(workEndHour, workEndMinute, 0, 0)
-    const oneHourAfterWorkEnd = new Date(workEndTime.getTime() + 60 * 60 * 1000)
+    const hasClientRouteLog = activeSession.extraTimeLogs?.some((log) => log.type === "to_client")
+    const hasHomeRouteLog = activeSession.extraTimeLogs?.some((log) => log.type === "to_home")
 
-    const hasHomeRouteLog = activeSession.extraTimeLogs?.some(log => log.type === "to_home")
-    setHomeRouteActive(now >= workEndTime && now <= oneHourAfterWorkEnd && !hasHomeRouteLog)
+    // Client route: only during active field session, until min(programStart, 08:00)
+    const eightAm = toTs(now, "08:00")
+    const programStartTs = toTs(now, programStart)
+    const clientCapEnd = Math.min(eightAm, programStartTs)
+    setClientRouteActive(
+      activeSession.status === "active" &&
+        activeSession.mode === "field" &&
+        now < clientCapEnd &&
+        !hasClientRouteLog
+    )
+
+    // Home route: only after completed field session, after program end, within 1h of program end and 1h of stop
+    const programEndTs = toTs(activeSession.sessionEnd || now, programEnd)
+    const homeWindowEnd = programEndTs + 60 * 60 * 1000
+    const sessionEnd = activeSession.sessionEnd
+    const withinOneHourOfStop = sessionEnd ? (now - sessionEnd) / 60000 <= 60 : false
+    const stopAfterProgramEnd = sessionEnd ? sessionEnd >= programEndTs : false
+    setHomeRouteActive(
+      activeSession.status === "completed" &&
+        activeSession.mode === "field" &&
+        Boolean(sessionEnd) &&
+        stopAfterProgramEnd &&
+        withinOneHourOfStop &&
+        now <= homeWindowEnd &&
+        !hasHomeRouteLog
+    )
   }, [activeSession, currentTime])
 
   const loadActiveSession = async () => {
     try {
       setLoading(true)
       const session = await getActiveSession(userId)
-      setActiveSession(session)
+      if (session) {
+        setActiveSession(session)
+      } else {
+        // If no active session, keep a recent completed one so "Traseu către casă" can be started.
+        const recent = await getLatestCompletedSession(userId, { sinceMs: Date.now() - 2 * 60 * 60 * 1000 })
+        setActiveSession(recent)
+      }
     } catch (error) {
       console.error("Failed to load active session:", error)
     } finally {
@@ -159,8 +207,13 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
 
         await createCheckOut({
           sessionId: activeSession.id,
+          mode,
           location,
           faceRecognitionId: result.faceId,
+          deviceInfo: {
+            type: "field",
+            userAgent: navigator.userAgent,
+          },
         })
 
         toast({
@@ -168,7 +221,14 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
           description: `La revedere, ${userName}!`,
         })
 
-        setActiveSession(null)
+        // Keep it locally as completed so "Traseu către casă" can be started right after Stop.
+        setActiveSession({
+          ...activeSession,
+          status: "completed",
+          sessionEnd: Date.now(),
+          checkOutMode: mode,
+          checkOutLocation: location,
+        })
       }
 
       setShowFaceDialog(false)
@@ -206,6 +266,29 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
       })
 
       await loadActiveSession()
+
+      // Auto-end at the cap (min(programStart, 08:00))
+      if (autoEndTimerRef.current) window.clearTimeout(autoEndTimerRef.current)
+      const now = Date.now()
+      const programStart = activeSession.programLucruStart || "08:00"
+      const toTs = (base: number, hhmm: string) => {
+        const [hStr, mStr] = hhmm.split(":")
+        const h = Number(hStr)
+        const m = Number(mStr)
+        const d = new Date(base)
+        d.setHours(Number.isFinite(h) ? h : 8, Number.isFinite(m) ? m : 0, 0, 0)
+        return d.getTime()
+      }
+      const capEnd = Math.min(toTs(now, "08:00"), toTs(now, programStart))
+      const msUntilCap = Math.max(0, capEnd - now)
+      autoEndTimerRef.current = window.setTimeout(async () => {
+        try {
+          await endExtraTimeLog(activeSession.id, "to_client")
+          await loadActiveSession()
+        } catch {
+          // ignore
+        }
+      }, msUntilCap)
     } catch (error) {
       toast({
         title: "Eroare",
@@ -230,6 +313,17 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
       })
 
       await loadActiveSession()
+
+      // Auto-end after max 60 minutes (backend also caps)
+      if (autoEndTimerRef.current) window.clearTimeout(autoEndTimerRef.current)
+      autoEndTimerRef.current = window.setTimeout(async () => {
+        try {
+          await endExtraTimeLog(activeSession.id, "to_home")
+          await loadActiveSession()
+        } catch {
+          // ignore
+        }
+      }, 60 * 60 * 1000)
     } catch (error) {
       toast({
         title: "Eroare",
@@ -343,7 +437,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
               )}
 
               {/* Extra Time Buttons */}
-              {isCheckedIn && (clientRouteActive || homeRouteActive) && (
+              {(clientRouteActive || homeRouteActive) && (
                 <div className="flex gap-2 pt-2 animate-in fade-in slide-in-from-bottom duration-500">
                   {clientRouteActive && (
                     <Button
