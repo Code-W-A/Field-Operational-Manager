@@ -1,20 +1,23 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Play, Square, UserCircle2 } from "lucide-react"
+import { Input } from "@/components/ui/input"
 import { FaceRecognitionCapture } from "./face-recognition-capture"
 import { createCheckIn, createCheckOut, getActiveSession } from "@/lib/attendance/storage"
 import { getCurrentLocation, determineMode } from "@/lib/attendance/location"
 import { toast } from "@/hooks/use-toast"
 import type { FaceRecognitionResult, AttendanceLocation } from "@/types/attendance"
 import type { OfficeLocation } from "@/lib/firebase/auth"
+import { verifyUserPassword } from "@/lib/firebase/kiosk-verifier-auth"
 
 export interface KioskUser {
   uid: string
   displayName: string
   role: string
+  email?: string
 }
 
 export interface KioskCheckInProps {
@@ -22,13 +25,16 @@ export interface KioskCheckInProps {
   officeLocation?: OfficeLocation
 }
 
-type FlowState = "idle" | "select-action" | "select-user" | "face-recognition" | "processing" | "success"
+type FlowState = "idle" | "select-action" | "select-user" | "verify-password" | "face-recognition" | "processing" | "success"
 
 export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
   const [flowState, setFlowState] = useState<FlowState>("idle")
   const [action, setAction] = useState<"check-in" | "check-out" | null>(null)
   const [selectedUser, setSelectedUser] = useState<KioskUser | null>(null)
   const [showDialog, setShowDialog] = useState(false)
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false)
+  const [password, setPassword] = useState("")
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false)
 
   // Auto-reset to idle after inactivity or success
   useEffect(() => {
@@ -57,6 +63,9 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
     setAction(null)
     setSelectedUser(null)
     setShowDialog(false)
+    setShowPasswordDialog(false)
+    setPassword("")
+    setPasswordSubmitting(false)
   }
 
   const handleActionSelect = (selectedAction: "check-in" | "check-out") => {
@@ -66,8 +75,39 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
 
   const handleUserSelect = (user: KioskUser) => {
     setSelectedUser(user)
-    setShowDialog(true)
-    setFlowState("face-recognition")
+    setPassword("")
+    setShowPasswordDialog(true)
+    setFlowState("verify-password")
+  }
+
+  const handlePasswordVerify = async () => {
+    if (!selectedUser || !action) return
+    const email = selectedUser.email
+    if (!email) {
+      toast({
+        title: "Email lipsă",
+        description: "Acest utilizator nu are email setat, nu se poate verifica parola.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      setPasswordSubmitting(true)
+      await verifyUserPassword(email, password)
+      // Success: continue to face recognition (mock)
+      setShowPasswordDialog(false)
+      setShowDialog(true)
+      setFlowState("face-recognition")
+    } catch (error) {
+      toast({
+        title: "Parolă invalidă",
+        description: error instanceof Error ? error.message : "Nu s-a putut verifica parola.",
+        variant: "destructive",
+      })
+    } finally {
+      setPasswordSubmitting(false)
+    }
   }
 
   const handleFaceRecognitionSuccess = async (result: FaceRecognitionResult) => {
@@ -320,6 +360,70 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
               <p className="text-lg">Procesăm...</p>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Password verification dialog (before face recognition) */}
+      <Dialog
+        open={showPasswordDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            // Back out to user selection
+            setShowPasswordDialog(false)
+            setPassword("")
+            setPasswordSubmitting(false)
+            setFlowState("select-user")
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-center text-2xl">Confirmare parolă</DialogTitle>
+            <DialogDescription className="text-center">
+              Introdu parola contului tău pentru {action === "check-in" ? "Start" : "Stop"}.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedUser && (
+            <div className="text-center -mt-1">
+              <p className="text-sm text-muted-foreground">
+                Utilizator: <span className="font-semibold text-foreground">{selectedUser.displayName}</span>
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Parolă</label>
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Introduceți parola"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handlePasswordVerify()
+              }}
+              disabled={passwordSubmitting}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowPasswordDialog(false)
+                setPassword("")
+                setPasswordSubmitting(false)
+                setFlowState("select-user")
+              }}
+              disabled={passwordSubmitting}
+            >
+              Înapoi
+            </Button>
+            <Button onClick={handlePasswordVerify} disabled={!password || passwordSubmitting}>
+              {passwordSubmitting ? "Verific..." : "Continuă"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

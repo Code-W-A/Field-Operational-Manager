@@ -77,7 +77,7 @@ export function AddDayEntryDialog({
   const [startDate, setStartDate] = useState(defaultStartDate ?? new Date().toISOString().slice(0, 10))
   const [endDate, setEndDate] = useState(defaultStartDate ?? new Date().toISOString().slice(0, 10))
   const [project, setProject] = useState("")
-  
+
   // Auto-selectează primul angajat când se încarcă lista SAU se deschide dialogul
   useEffect(() => {
     if (open && sortedEmployees.length > 0) {
@@ -167,23 +167,23 @@ export function AddDayEntryDialog({
     })
     
     try {
-      await onSubmitRange({
-        employeeId,
-        startDate,
-        endDate,
-        project: project || undefined,
-        entries: payloadEntries,
-        breaks: payloadBreaks,
-        includeConcediu,
-        includeEvenimente,
-        includeSarbatori,
-        includeWeekend,
-        hours,
-        monthKey,
-      })
+    await onSubmitRange({
+      employeeId,
+      startDate,
+      endDate,
+      project: project || undefined,
+      entries: payloadEntries,
+      breaks: payloadBreaks,
+      includeConcediu,
+      includeEvenimente,
+      includeSarbatori,
+      includeWeekend,
+      hours,
+      monthKey,
+    })
       console.log('✅ Salvat cu succes în Firebase!')
-      reset()
-      onOpenChange(false)
+    reset()
+    onOpenChange(false)
     } catch (error) {
       console.error('❌ Eroare la salvare:', error)
     }
@@ -236,35 +236,35 @@ export function AddDayEntryDialog({
                 <div key={idx} className="grid grid-cols-2 gap-2 items-end">
                   <div className="grid gap-1.5">
                     <Label htmlFor={`entry-start-${idx}`} className="text-xs text-muted-foreground">Început</Label>
-                    <Input
+                  <Input
                       id={`entry-start-${idx}`}
                       type="time"
-                      value={e.start}
-                      onChange={(ev) => setEntries((prev) => prev.map((x, i) => (i === idx ? { ...x, start: ev.target.value } : x)))}
+                    value={e.start}
+                    onChange={(ev) => setEntries((prev) => prev.map((x, i) => (i === idx ? { ...x, start: ev.target.value } : x)))}
                       className="h-10"
-                    />
+                  />
                   </div>
                   <div className="flex gap-2">
                     <div className="grid gap-1.5 flex-1">
                       <Label htmlFor={`entry-end-${idx}`} className="text-xs text-muted-foreground">Sfârșit</Label>
-                      <Input
+                    <Input
                         id={`entry-end-${idx}`}
                         type="time"
-                        value={e.end}
-                        onChange={(ev) => setEntries((prev) => prev.map((x, i) => (i === idx ? { ...x, end: ev.target.value } : x)))}
+                      value={e.end}
+                      onChange={(ev) => setEntries((prev) => prev.map((x, i) => (i === idx ? { ...x, end: ev.target.value } : x)))}
                         className="h-10"
-                      />
+                    />
                     </div>
                     <div className="pt-6">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setEntries((prev) => prev.filter((_, i) => i !== idx))}
-                        aria-label="Șterge interval"
-                        disabled={entries.length === 1}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setEntries((prev) => prev.filter((_, i) => i !== idx))}
+                      aria-label="Șterge interval"
+                      disabled={entries.length === 1}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                     </div>
                   </div>
                 </div>
@@ -283,35 +283,35 @@ export function AddDayEntryDialog({
                 <div key={idx} className="grid grid-cols-2 gap-2 items-end">
                   <div className="grid gap-1.5">
                     <Label htmlFor={`break-start-${idx}`} className="text-xs text-muted-foreground">Început pauză</Label>
-                    <Input
+                  <Input
                       id={`break-start-${idx}`}
                       type="time"
-                      value={b.start}
-                      onChange={(ev) => setBreaks((prev) => prev.map((x, i) => (i === idx ? { ...x, start: ev.target.value } : x)))}
+                    value={b.start}
+                    onChange={(ev) => setBreaks((prev) => prev.map((x, i) => (i === idx ? { ...x, start: ev.target.value } : x)))}
                       className="h-10"
-                    />
+                  />
                   </div>
                   <div className="flex gap-2">
                     <div className="grid gap-1.5 flex-1">
                       <Label htmlFor={`break-end-${idx}`} className="text-xs text-muted-foreground">Sfârșit pauză</Label>
-                      <Input
+                    <Input
                         id={`break-end-${idx}`}
                         type="time"
-                        value={b.end}
-                        onChange={(ev) => setBreaks((prev) => prev.map((x, i) => (i === idx ? { ...x, end: ev.target.value } : x)))}
+                      value={b.end}
+                      onChange={(ev) => setBreaks((prev) => prev.map((x, i) => (i === idx ? { ...x, end: ev.target.value } : x)))}
                         className="h-10"
-                      />
+                    />
                     </div>
                     <div className="pt-6">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setBreaks((prev) => prev.filter((_, i) => i !== idx))}
-                        aria-label="Șterge pauză"
-                        disabled={breaks.length === 1}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setBreaks((prev) => prev.filter((_, i) => i !== idx))}
+                      aria-label="Șterge pauză"
+                      disabled={breaks.length === 1}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                     </div>
                   </div>
                 </div>

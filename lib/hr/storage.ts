@@ -134,7 +134,7 @@ export async function createOrUpdateEmployee(employee: Employee) {
     ciDataEmiterii: employee.ciDataEmiterii ?? null,
     ciEmitent: employee.ciEmitent ?? null,
     // Workplace data
-    title: employee.title ?? null,
+      title: employee.title ?? null,
     poziteCOR: employee.poziteCOR ?? null,
     superiorIerarhic: employee.superiorIerarhic ?? null,
     loculDeMunca: employee.loculDeMunca ?? null,
@@ -142,12 +142,12 @@ export async function createOrUpdateEmployee(employee: Employee) {
     programLucruEnd: employee.programLucruEnd ?? null,
     zileConcediuAnuale: employee.zileConcediuAnuale ?? null,
     // System fields
-    active: employee.active,
-    userUid: employee.userUid ?? null,
+      active: employee.active,
+      userUid: employee.userUid ?? null,
     // Legacy fullName for backward compatibility
     fullName: `${employee.prenume} ${employee.nume}`.trim(),
-    updatedAt: serverTimestamp(),
-    createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      createdAt: serverTimestamp(),
   }
   
   await setDoc(ref, data, { merge: true })

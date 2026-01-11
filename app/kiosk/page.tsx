@@ -38,6 +38,7 @@ export default function KioskOnlyPage() {
           uid: doc.id,
           displayName: data.displayName || data.email || "Unknown User",
           role: data.role || "tehnician",
+          email: data.email ? String(data.email) : undefined,
         }
       })
 

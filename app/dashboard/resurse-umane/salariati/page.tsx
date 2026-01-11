@@ -261,22 +261,22 @@ export default function HrEmployeesPage() {
                   <Label htmlFor="prenume">Prenume *</Label>
                   <Input id="prenume" value={prenume} onChange={(e) => setPrenume(e.target.value)} placeholder="Ex: Marian" />
                 </div>
-                <div className="grid gap-2">
+            <div className="grid gap-2">
                   <Label htmlFor="nume">Nume *</Label>
                   <Input id="nume" value={nume} onChange={(e) => setNume(e.target.value)} placeholder="Ex: Xulescu" />
                 </div>
-              </div>
-              <div className="grid gap-2">
+            </div>
+            <div className="grid gap-2">
                 <Label htmlFor="title">Funcție</Label>
                 <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex: Tehnician montator" />
+            </div>
+            <div className="flex items-center justify-between rounded-md border p-3">
+              <div className="grid gap-0.5">
+                <div className="text-sm font-medium">Activ</div>
+                <div className="text-xs text-muted-foreground">Poți dezactiva un salariat fără a șterge datele.</div>
               </div>
-              <div className="flex items-center justify-between rounded-md border p-3">
-                <div className="grid gap-0.5">
-                  <div className="text-sm font-medium">Activ</div>
-                  <div className="text-xs text-muted-foreground">Poți dezactiva un salariat fără a șterge datele.</div>
-                </div>
-                <Switch checked={active} onCheckedChange={setActive} />
-              </div>
+              <Switch checked={active} onCheckedChange={setActive} />
+            </div>
             </div>
 
             <Separator />

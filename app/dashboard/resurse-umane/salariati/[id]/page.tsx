@@ -948,11 +948,11 @@ export default function HrEmployeeDetailsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="grid gap-2">
                   <Label htmlFor="editPrenume">Prenume *</Label>
-                  <Input 
+              <Input 
                     id="editPrenume"
                     value={editPrenume} 
                     onChange={(e) => setEditPrenume(e.target.value)}
-                    className="border-2 h-11"
+                className="border-2 h-11"
                     placeholder="Ex: Ion"
                   />
                 </div>
@@ -964,35 +964,35 @@ export default function HrEmployeeDetailsPage() {
                     onChange={(e) => setEditNume(e.target.value)}
                     className="border-2 h-11"
                     placeholder="Ex: Popescu"
-                  />
+              />
                 </div>
-              </div>
+            </div>
 
               <div className="grid gap-2">
                 <Label htmlFor="editTitle">Funcție</Label>
-                <Input 
+              <Input 
                   id="editTitle"
-                  value={editTitle} 
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  className="border-2 h-11"
-                  placeholder="Ex: Manager Proiect"
-                />
-              </div>
+                value={editTitle} 
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="border-2 h-11"
+                placeholder="Ex: Manager Proiect"
+              />
+            </div>
 
-              <div className="flex items-center justify-between rounded-xl border-2 p-4 bg-gradient-to-r from-slate-50 to-white dark:from-slate-900 dark:to-slate-800 shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div className={cn(
-                    "h-10 w-10 rounded-lg flex items-center justify-center shadow-sm",
-                    editActive ? "bg-gradient-to-br from-emerald-500 to-emerald-600" : "bg-gradient-to-br from-slate-400 to-slate-500"
-                  )}>
-                    <UserCheck className="h-5 w-5 text-white" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-bold">Status activ</div>
-                    <div className="text-xs text-muted-foreground">Dezactivează pentru a ascunde din liste</div>
-                  </div>
+            <div className="flex items-center justify-between rounded-xl border-2 p-4 bg-gradient-to-r from-slate-50 to-white dark:from-slate-900 dark:to-slate-800 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "h-10 w-10 rounded-lg flex items-center justify-center shadow-sm",
+                  editActive ? "bg-gradient-to-br from-emerald-500 to-emerald-600" : "bg-gradient-to-br from-slate-400 to-slate-500"
+                )}>
+                  <UserCheck className="h-5 w-5 text-white" />
                 </div>
-                <Switch checked={editActive} onCheckedChange={setEditActive} />
+                <div>
+                  <div className="text-sm font-bold">Status activ</div>
+                  <div className="text-xs text-muted-foreground">Dezactivează pentru a ascunde din liste</div>
+                </div>
+              </div>
+              <Switch checked={editActive} onCheckedChange={setEditActive} />
               </div>
             </div>
 
