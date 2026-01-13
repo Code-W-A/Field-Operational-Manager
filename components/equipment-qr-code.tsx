@@ -82,10 +82,10 @@ export function EquipmentQRCode({
    * 
    * QR code-ul rămâne la aceeași dimensiune (100x100px).
    */
-  const calculateValueFontSizes = (clientName: string, locationName: string, equipmentCode: string) => {
+  const calculateValueFontSizes = (locatieValue: string, echipamentValue: string, equipmentCode: string) => {
     // Calculăm lungimea DOAR pentru valorile efective (fără prefixe)
-    const clientValueLength = clientName.length
-    const locationValueLength = locationName.length
+    const locatieValueLength = locatieValue.length
+    const echipamentValueLength = echipamentValue.length
     const codeValueLength = equipmentCode.length
     
     // Funcție helper pentru calcularea font-size-ului bazat pe lungime
@@ -99,20 +99,20 @@ export function EquipmentQRCode({
     }
     
     // Calculăm font-size DOAR pentru valorile de după ":"
-    const clientValueFontSize = getFontSizeForLength(clientValueLength)
-    const locationValueFontSize = getFontSizeForLength(locationValueLength)
+    const locatieValueFontSize = getFontSizeForLength(locatieValueLength)
+    const echipamentValueFontSize = getFontSizeForLength(echipamentValueLength)
     const codeValueFontSize = getFontSizeForLength(codeValueLength)
     
     console.log("📏 Analiză font-size pentru VALORILE de după ':' (prefixele rămân 8pt):", {
-      clientValue: `"${clientName}" (${clientValueLength} chars) → ${clientValueFontSize}pt`,
-      locationValue: `"${locationName}" (${locationValueLength} chars) → ${locationValueFontSize}pt`,
+      locatieValue: `"${locatieValue}" (${locatieValueLength} chars) → ${locatieValueFontSize}pt`,
+      echipamentValue: `"${echipamentValue}" (${echipamentValueLength} chars) → ${echipamentValueFontSize}pt`,
       codeValue: `"${equipmentCode}" (${codeValueLength} chars) → ${codeValueFontSize}pt`
     })
     
     // Debugging pentru valorile problematice
     const debugItems = [
-      { name: "Client value", text: clientName, length: clientValueLength, fontSize: clientValueFontSize },
-      { name: "Locație value", text: locationName, length: locationValueLength, fontSize: locationValueFontSize },
+      { name: "Locație value", text: locatieValue, length: locatieValueLength, fontSize: locatieValueFontSize },
+      { name: "Echipament value", text: echipamentValue, length: echipamentValueLength, fontSize: echipamentValueFontSize },
       { name: "Cod value", text: equipmentCode, length: codeValueLength, fontSize: codeValueFontSize }
     ]
     debugItems.forEach((item: { name: string; text: string; length: number; fontSize: number }) => {
@@ -122,8 +122,8 @@ export function EquipmentQRCode({
     })
     
     return {
-      clientValueFontSize,
-      locationValueFontSize,
+      locatieValueFontSize,
+      echipamentValueFontSize,
       codeValueFontSize
     }
   }
@@ -169,14 +169,14 @@ export function EquipmentQRCode({
         return
       }
 
-      const fileName = `QR_${equipment.cod}_${clientName.replace(/\s+/g, "_")}.png`
+      const fileName = `QR_${equipment.cod}_${locationName.replace(/\s+/g, "_")}.png`
       const file = new File([blob], fileName, { type: "image/png" })
 
       // Verificăm dacă dispozitivul suportă Web Share API cu fișiere
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           title: `QR Code - ${equipment.nume}`,
-          text: `QR Code pentru echipament: ${equipment.cod}\nClient: ${clientName}\nLocație: ${locationName}`,
+          text: `QR Code pentru echipament: ${equipment.cod}\nLocație: ${locationName}\nEchipament: ${equipment.nume}`,
           files: [file],
         })
         
@@ -231,12 +231,16 @@ export function EquipmentQRCode({
     svgClone.style.margin = "0"
     svgClone.style.padding = "0"
 
+    // Cerință etichetă: Client -> Locație; Locație -> Echipament
+    const locatieValue = locationName
+    const echipamentValue = equipment.nume
+
     // Calculăm font-size-uri pentru valorile de după ":"
-    const fontSizes = calculateValueFontSizes(clientName, locationName, equipment.cod)
+    const fontSizes = calculateValueFontSizes(locatieValue, echipamentValue, equipment.cod)
 
     console.log("🖨️ Generez QR print cu font-size-uri pentru valorile de după ':':", {
-      clientValue: fontSizes.clientValueFontSize + "pt",
-      locationValue: fontSizes.locationValueFontSize + "pt", 
+      locatieValue: fontSizes.locatieValueFontSize + "pt",
+      echipamentValue: fontSizes.echipamentValueFontSize + "pt", 
       codeValue: fontSizes.codeValueFontSize + "pt"
     })
 
@@ -305,8 +309,8 @@ export function EquipmentQRCode({
     <div class="content">
       <div class="qr-code">${svgClone.outerHTML}</div>
       <div class="equipment-info">
-        <p><span style="font-size: 8pt;">Client: </span><span style="font-size: ${fontSizes.clientValueFontSize}pt;">${clientName}</span></p>
-        <p><span style="font-size: 8pt;">Locație: </span><span style="font-size: ${fontSizes.locationValueFontSize}pt;">${locationName}</span></p>
+        <p><span style="font-size: 8pt;">Locație: </span><span style="font-size: ${fontSizes.locatieValueFontSize}pt;">${locatieValue}</span></p>
+        <p><span style="font-size: 8pt;">Echipament: </span><span style="font-size: ${fontSizes.echipamentValueFontSize}pt;">${echipamentValue}</span></p>
         <p><span style="font-size: 8pt;">Cod: </span><span style="font-size: ${fontSizes.codeValueFontSize}pt;">${equipment.cod}</span></p>
       </div>
     </div>

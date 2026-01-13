@@ -163,6 +163,8 @@ export default function Lucrari() {
   const [isColumnModalOpen, setIsColumnModalOpen] = useState(false)
   const [columnOptions, setColumnOptions] = useState<any[]>([])
   const [showCloseAlert, setShowCloseAlert] = useState(false)
+  const [openActionsMenuId, setOpenActionsMenuId] = useState<string | null>(null)
+  const actionsTouchRef = useRef<{ pointerId: number; x: number; y: number; moved: boolean } | null>(null)
   const addFormRef = useRef<LucrareFormRef>(null)
   const editFormRef = useRef<LucrareFormRef>(null)
   const assigningNumbersRef = useRef<Set<string>>(new Set())
@@ -187,6 +189,13 @@ export default function Lucrari() {
     }
   }, [loadSettings])
 
+  // Tehnician: nu afișăm UI de căutare/filtrare/coloane, deci resetăm la un view curat.
+  useEffect(() => {
+    if (!isTechnician) return
+    setActiveFilters([])
+    setSearchText("")
+  }, [isTechnician])
+
   // Încărcăm numărul curent de raport la inițializare (doar pentru admin)
 
 
@@ -197,6 +206,39 @@ export default function Lucrari() {
   const handleSearchChange = (value: string) => {
     setSearchText(value)
     saveSearchText(value)
+  }
+
+  const normalizeDigits = (v: unknown) => String(v ?? "").replace(/\D/g, "")
+  const normalizeNumericId = (digits: string) => {
+    const trimmed = digits.replace(/^0+/, "")
+    return trimmed.length > 0 ? trimmed : "0"
+  }
+  const matchesWorkNumberLoose = (item: any, query: string) => {
+    const qDigits = normalizeDigits(query)
+    if (!qDigits) return false
+    const qNorm = normalizeNumericId(qDigits)
+    const candidates = [
+      item?.nrLucrare,
+      item?.nrLucrareDisplay,
+      item?.numarRaport,
+      item?.id,
+      item?.echipamentCod,
+    ]
+    return candidates.some((c) => {
+      const d = normalizeDigits(c)
+      if (!d) return false
+      return normalizeNumericId(d) === qNorm
+    })
+  }
+
+  const shouldIgnoreTapDueToScroll = (e: React.PointerEvent | React.MouseEvent) => {
+    const s = actionsTouchRef.current
+    // Only relevant for touch pointer flows
+    if (!s) return false
+    // If pointerId is present, ensure it's the same pointer (PointerEvent only)
+    const pe = e as any
+    if (typeof pe.pointerId === "number" && pe.pointerId !== s.pointerId) return false
+    return Boolean(s.moved)
   }
 
   // Obținem lucrările din Firebase - excludem arhivate direct din query pentru optimizare
@@ -637,6 +679,8 @@ export default function Lucrari() {
     if (searchText.trim()) {
       const lowercasedFilter = searchText.toLowerCase()
       filtered = filtered.filter((item) => {
+        // Special case: numeric search should match ticket/report numbers ignoring leading zeros.
+        if (matchesWorkNumberLoose(item, searchText)) return true
         return Object.keys(item).some((key) => {
           const value = item[key]
           if (value === null || value === undefined) return false
@@ -670,6 +714,8 @@ export default function Lucrari() {
         if (searchText.trim()) {
           const lowercasedFilter = searchText.toLowerCase()
           filtered = filtered.filter((item) => {
+            // Special case: numeric search should match ticket/report numbers ignoring leading zeros.
+            if (matchesWorkNumberLoose(item, searchText)) return true
             return Object.keys(item).some((key) => {
               const value = item[key]
               if (value === null || value === undefined) return false
@@ -695,12 +741,16 @@ export default function Lucrari() {
 
   // Setăm automat vizualizarea cu carduri pe mobil
   useEffect(() => {
+    if (isTechnician) {
+      setActiveTab("carduri")
+      return
+    }
     if (isMobile) {
       setActiveTab("carduri")
     } else {
       setActiveTab("tabel")
     }
-  }, [isMobile])
+  }, [isMobile, isTechnician])
 
   // State pentru paginația cards
   const [cardsCurrentPage, setCardsCurrentPage] = useState(1)
@@ -733,10 +783,11 @@ export default function Lucrari() {
       return Number(digits || 0)
     }
     const sortedByNrDesc = [...filteredData].sort((a: any, b: any) => getNumericNr(b) - getNumericNr(a))
+    if (isTechnician) return sortedByNrDesc
     const startIndex = (cardsCurrentPage - 1) * cardsPageSize
     const endIndex = startIndex + cardsPageSize
     return sortedByNrDesc.slice(startIndex, endIndex)
-  }, [filteredData, cardsCurrentPage, cardsPageSize])
+  }, [filteredData, cardsCurrentPage, cardsPageSize, isTechnician])
 
   const totalCardsPages = Math.ceil(filteredData.length / cardsPageSize)
 
@@ -2287,19 +2338,12 @@ export default function Lucrari() {
           </div>
         )}
 
+        {!isTechnician && (
         <DashboardHeader 
           heading="Tichete" 
           text="Gestionați toate tichetele și intervențiile"
-          headerAction={!isTechnician ? <LucrariNotificationsBell lucrari={rawLucrari || []} /> : undefined}
+            headerAction={<LucrariNotificationsBell lucrari={rawLucrari || []} />}
         >
-        {isTechnician ? (
-          <EquipmentHistoryCheckDialog
-            triggerVariant="outline"
-            triggerIcon={<History className="h-4 w-4" />}
-          />
-        ) : null}
-
-        {!isTechnician && (
           <Dialog
             open={isAddDialogOpen}
             onOpenChange={(open) => {
@@ -2365,7 +2409,6 @@ export default function Lucrari() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        )}
 
         {/* Dialog pentru editarea lucrării */}
         <Dialog
@@ -2422,8 +2465,10 @@ export default function Lucrari() {
           </DialogContent>
         </Dialog>
       </DashboardHeader>
+        )}
 
       {/* Legendă pentru statusuri */}
+      {!isTechnician && (
       <div className="mb-4 p-4 border rounded-md bg-white">
         <h3 className="text-sm font-medium mb-2">Legendă statusuri:</h3>
         <div className="flex flex-wrap gap-2">
@@ -2457,9 +2502,11 @@ export default function Lucrari() {
           </div>
         </div>
       </div>
+      )}
 
 
       <div className="space-y-4">
+        {!isTechnician && (
         <div className="flex flex-col sm:flex-row sm:justify-between gap-4">
           <div className="flex items-center space-x-2">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-[200px]">
@@ -2470,8 +2517,10 @@ export default function Lucrari() {
             </Tabs>
           </div>
         </div>
+        )}
 
         {/* Adăugăm câmpul de căutare universal și butonul de filtrare */}
+        {!isTechnician && (
         <div className="flex flex-col sm:flex-row gap-2">
           <UniversalSearch onSearch={handleSearchChange} initialValue={searchText} className="flex-1" />
           <div className="flex gap-2">
@@ -2482,9 +2531,10 @@ export default function Lucrari() {
             />
           </div>
         </div>
+        )}
 
         {/* Adaugă acest cod după secțiunea de căutare universală și butonul de filtrare */}
-        {hasEquipmentStatusFilter && (
+        {!isTechnician && hasEquipmentStatusFilter && (
           <div className="mt-2">
             <Badge variant="outline" className="bg-blue-50 text-blue-800 border-blue-200">
               Filtrare după status echipament activă
@@ -2493,6 +2543,7 @@ export default function Lucrari() {
         )}
 
         {/* Modal de filtrare */}
+        {!isTechnician && (
         <FilterModal
           isOpen={isFilterModalOpen}
           onClose={() => setIsFilterModalOpen(false)}
@@ -2502,8 +2553,10 @@ export default function Lucrari() {
           onApplyFilters={handleApplyFilters}
           onResetFilters={handleResetFilters}
         />
+        )}
 
         {/* Modal de selecție coloane */}
+        {!isTechnician && (
         <ColumnSelectionModal
           isOpen={isColumnModalOpen}
           onClose={() => setIsColumnModalOpen(false)}
@@ -2513,6 +2566,7 @@ export default function Lucrari() {
           onSelectAll={handleSelectAllColumns}
           onDeselectAll={handleDeselectAllColumns}
         />
+        )}
 
         {loading ? (
           <div className="flex justify-center items-center py-12">
@@ -2526,7 +2580,7 @@ export default function Lucrari() {
               A apărut o eroare la încărcarea lucrărilor. Încercați să reîmprospătați pagina.
             </AlertDescription>
           </Alert>
-        ) : activeTab === "tabel" ? (
+        ) : (!isTechnician && activeTab === "tabel") ? (
       <DataTable
               columns={columns}
               data={filteredData}
@@ -2541,6 +2595,7 @@ export default function Lucrari() {
         ) : (
           <div className="space-y-4">
             {/* Controale pentru paginația cards */}
+            {!isTechnician && (
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <p className="text-sm font-medium">Carduri per pagină</p>
@@ -2564,6 +2619,7 @@ export default function Lucrari() {
                 Pagina {cardsCurrentPage} din {totalCardsPages || 1}
               </div>
             </div>
+            )}
 
             {/* Grid cu cards */}
             <div className="grid gap-4 px-4 sm:px-0 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 w-full overflow-x-hidden">
@@ -2865,9 +2921,35 @@ export default function Lucrari() {
                             {lucrare.statusFacturare}
                           </Badge>
                         )}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" size="sm" className="gap-1">
+                        <DropdownMenu
+                          open={openActionsMenuId === String(lucrare.id)}
+                          onOpenChange={(open) => setOpenActionsMenuId(open ? String(lucrare.id) : null)}
+                        >
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="gap-1"
+                              onPointerDown={(e) => {
+                                // Track touch movement to avoid accidental open while scrolling.
+                                if (e.pointerType !== "touch") return
+                                actionsTouchRef.current = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, moved: false }
+                                // Prevent Radix from opening on pointerdown for touch.
+                                e.preventDefault()
+                              }}
+                              onPointerMove={(e) => {
+                                const s = actionsTouchRef.current
+                                if (!s || e.pointerType !== "touch" || e.pointerId !== s.pointerId) return
+                                const dx = Math.abs(e.clientX - s.x)
+                                const dy = Math.abs(e.clientY - s.y)
+                                if (dx + dy > 10) s.moved = true
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (shouldIgnoreTapDueToScroll(e)) return
+                                setOpenActionsMenuId((prev) => (prev === String(lucrare.id) ? null : String(lucrare.id)))
+                              }}
+                            >
                               Acțiuni
                             </Button>
                           </DropdownMenuTrigger>
@@ -2882,6 +2964,7 @@ export default function Lucrari() {
                                 <DropdownMenuItem
                                   onClick={(e) => {
                                     e.stopPropagation()
+                                    setOpenActionsMenuId(null)
                                     handleViewDetails(lucrare)
                                   }}
                                 >
@@ -2891,6 +2974,7 @@ export default function Lucrari() {
                                   <DropdownMenuItem
                                     onClick={(e) => {
                                       e.stopPropagation()
+                                      setOpenActionsMenuId(null)
                                       handleEdit(lucrare)
                                     }}
                                   >
@@ -2900,6 +2984,7 @@ export default function Lucrari() {
                                 <DropdownMenuItem
                                   onClick={(e) => {
                                     e.stopPropagation()
+                                    setOpenActionsMenuId(null)
                                     handleGenerateReport(lucrare)
                                   }}
                                 >
@@ -2912,6 +2997,7 @@ export default function Lucrari() {
                                     className="text-red-600"
                                     onClick={(e) => {
                                       e.stopPropagation()
+                                      setOpenActionsMenuId(null)
                                       handleDelete(lucrare.id)
                                     }}
                                   >
@@ -2927,6 +3013,7 @@ export default function Lucrari() {
                                 <DropdownMenuItem
                                   onClick={(e) => {
                                     e.stopPropagation()
+                                    setOpenActionsMenuId(null)
                                     handleDispatcherPickup(lucrare)
                                   }}
                                 >

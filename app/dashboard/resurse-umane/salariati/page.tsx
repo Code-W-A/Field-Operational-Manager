@@ -14,7 +14,8 @@ import { EmployeesTable } from "@/components/hr/employees-table"
 import type { Employee } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
 import { createOrUpdateEmployee, getCurrentMonthKey, importLegacyLocalStorageHrDataToFirestore, readLegacyLocalStorageHrData, seedHrIfEmpty, subscribeEmployees } from "@/lib/hr/storage"
-import { Plus, ChevronDown, ChevronUp } from "lucide-react"
+import { deleteEmployeeProfilePhoto, uploadEmployeeProfilePhoto } from "@/lib/hr/profile-photo"
+import { Plus, ChevronDown, ChevronUp, Trash2, Image as ImageIcon } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 
@@ -34,12 +35,21 @@ export default function HrEmployeesPage() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Employee | null>(null)
+  const [draftEmployeeId, setDraftEmployeeId] = useState<string>("")
+  const [savingEmployee, setSavingEmployee] = useState(false)
 
   // Basic fields
   const [nume, setNume] = useState("")
   const [prenume, setPrenume] = useState("")
   const [title, setTitle] = useState("")
   const [active, setActive] = useState(true)
+
+  // Profile photo
+  const [photoURL, setPhotoURL] = useState("")
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string>("")
+  const [initialPhotoURL, setInitialPhotoURL] = useState("")
+  const [photoZoomOpen, setPhotoZoomOpen] = useState(false)
   
   // Identification fields
   const [cnp, setCnp] = useState("")
@@ -93,10 +103,15 @@ export default function HrEmployeesPage() {
 
   const openAdd = () => {
     setEditing(null)
+    setDraftEmployeeId(makeId())
     setNume("")
     setPrenume("")
     setTitle("")
     setActive(true)
+    setPhotoURL("")
+    setInitialPhotoURL("")
+    setPhotoFile(null)
+    setPhotoPreview("")
     setCnp("")
     setCiSerie("")
     setCiNumar("")
@@ -115,10 +130,15 @@ export default function HrEmployeesPage() {
 
   const openEdit = (e: Employee) => {
     setEditing(e)
+    setDraftEmployeeId("")
     setNume(e.nume)
     setPrenume(e.prenume)
     setTitle(e.title ?? "")
     setActive(e.active)
+    setPhotoURL(e.photoURL ?? "")
+    setInitialPhotoURL(e.photoURL ?? "")
+    setPhotoFile(null)
+    setPhotoPreview("")
     setCnp(e.cnp ?? "")
     setCiSerie(e.ciSerie ?? "")
     setCiNumar(e.ciNumar ?? "")
@@ -144,52 +164,88 @@ export default function HrEmployeesPage() {
       return
     }
 
-    const next: Employee = editing
-      ? {
-          ...editing,
-          nume: trimmedNume,
-          prenume: trimmedPrenume,
-          title: title.trim() || undefined,
-          active,
-          cnp: cnp.trim() || undefined,
-          ciSerie: ciSerie.trim() || undefined,
-          ciNumar: ciNumar.trim() || undefined,
-          ciDataEmiterii: ciDataEmiterii.trim() || undefined,
-          ciEmitent: ciEmitent.trim() || undefined,
-          poziteCOR: poziteCOR.trim() || undefined,
-          superiorIerarhic: superiorIerarhic.trim() || undefined,
-          loculDeMunca: loculDeMunca.trim() || undefined,
-          programLucruStart: programLucruStart.trim() || undefined,
-          programLucruEnd: programLucruEnd.trim() || undefined,
-          zileConcediuAnuale: zileConcediuAnuale.trim() ? Number(zileConcediuAnuale) : undefined,
-        }
-      : {
-          id: makeId(),
-          nume: trimmedNume,
-          prenume: trimmedPrenume,
-          title: title.trim() || undefined,
-          active,
-          cnp: cnp.trim() || undefined,
-          ciSerie: ciSerie.trim() || undefined,
-          ciNumar: ciNumar.trim() || undefined,
-          ciDataEmiterii: ciDataEmiterii.trim() || undefined,
-          ciEmitent: ciEmitent.trim() || undefined,
-          poziteCOR: poziteCOR.trim() || undefined,
-          superiorIerarhic: superiorIerarhic.trim() || undefined,
-          loculDeMunca: loculDeMunca.trim() || undefined,
-          programLucruStart: programLucruStart.trim() || undefined,
-          programLucruEnd: programLucruEnd.trim() || undefined,
-          zileConcediuAnuale: zileConcediuAnuale.trim() ? Number(zileConcediuAnuale) : undefined,
-        }
-
     try {
+      setSavingEmployee(true)
+
+      const employeeId = editing?.id ?? (draftEmployeeId || makeId())
+      let finalPhotoURL = photoURL.trim() || ""
+      let photoUpdatedAt: number | undefined = undefined
+
+      if (photoFile) {
+        // Replace: delete any prior variants first (best-effort), then upload.
+        await deleteEmployeeProfilePhoto(employeeId)
+        const res = await uploadEmployeeProfilePhoto(employeeId, photoFile)
+        finalPhotoURL = res.photoURL
+        photoUpdatedAt = Date.now()
+      } else if (initialPhotoURL && !finalPhotoURL) {
+        // Remove requested.
+        await deleteEmployeeProfilePhoto(employeeId)
+        photoUpdatedAt = Date.now()
+      }
+
+      const next: Employee = editing
+        ? {
+            ...editing,
+            nume: trimmedNume,
+            prenume: trimmedPrenume,
+            title: title.trim() || undefined,
+            active,
+            photoURL: finalPhotoURL || undefined,
+            photoUpdatedAt,
+            cnp: cnp.trim() || undefined,
+            ciSerie: ciSerie.trim() || undefined,
+            ciNumar: ciNumar.trim() || undefined,
+            ciDataEmiterii: ciDataEmiterii.trim() || undefined,
+            ciEmitent: ciEmitent.trim() || undefined,
+            poziteCOR: poziteCOR.trim() || undefined,
+            superiorIerarhic: superiorIerarhic.trim() || undefined,
+            loculDeMunca: loculDeMunca.trim() || undefined,
+            programLucruStart: programLucruStart.trim() || undefined,
+            programLucruEnd: programLucruEnd.trim() || undefined,
+            zileConcediuAnuale: zileConcediuAnuale.trim() ? Number(zileConcediuAnuale) : undefined,
+          }
+        : {
+            id: employeeId,
+            nume: trimmedNume,
+            prenume: trimmedPrenume,
+            title: title.trim() || undefined,
+            active,
+            photoURL: finalPhotoURL || undefined,
+            photoUpdatedAt,
+            cnp: cnp.trim() || undefined,
+            ciSerie: ciSerie.trim() || undefined,
+            ciNumar: ciNumar.trim() || undefined,
+            ciDataEmiterii: ciDataEmiterii.trim() || undefined,
+            ciEmitent: ciEmitent.trim() || undefined,
+            poziteCOR: poziteCOR.trim() || undefined,
+            superiorIerarhic: superiorIerarhic.trim() || undefined,
+            loculDeMunca: loculDeMunca.trim() || undefined,
+            programLucruStart: programLucruStart.trim() || undefined,
+            programLucruEnd: programLucruEnd.trim() || undefined,
+            zileConcediuAnuale: zileConcediuAnuale.trim() ? Number(zileConcediuAnuale) : undefined,
+          }
+
       await createOrUpdateEmployee(next)
       setIsDialogOpen(false)
       toast({ title: "Salvat", description: editing ? "Salariatul a fost actualizat." : "Salariatul a fost adăugat." })
     } catch {
       toast({ title: "Eroare", description: "Nu s-a putut salva salariatul.", variant: "destructive" })
+    } finally {
+      setSavingEmployee(false)
     }
   }
+
+  useEffect(() => {
+    if (!photoFile) {
+      setPhotoPreview("")
+      return
+    }
+    const url = URL.createObjectURL(photoFile)
+    setPhotoPreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [photoFile])
+
+  // Note: upload/delete are performed only when saving the dialog.
 
   return (
     <DashboardShell>
@@ -253,6 +309,62 @@ export default function HrEmployeesPage() {
           </DialogHeader>
 
           <div className="grid gap-4">
+            {/* Profile photo (first) */}
+            <div className="grid gap-2">
+              <Label>Poză profil</Label>
+              <div className="flex items-center gap-4">
+                <button
+                  type="button"
+                  className="relative h-24 w-24 rounded-full overflow-hidden bg-muted flex items-center justify-center border"
+                  onClick={() => {
+                    const src = photoPreview || photoURL
+                    if (src) setPhotoZoomOpen(true)
+                  }}
+                  title={photoPreview || photoURL ? "Vezi poza" : undefined}
+                  aria-label={photoPreview || photoURL ? "Vezi poza" : "Poză profil"}
+                >
+                  {photoPreview || photoURL ? (
+                    <img
+                      src={photoPreview || photoURL}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <ImageIcon className="h-10 w-10 text-muted-foreground/60" />
+                  )}
+                  {(photoPreview || photoURL) && (
+                    <button
+                      type="button"
+                      className="absolute top-1 right-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-red-600 shadow-sm border border-red-100 hover:bg-white"
+                      title="Elimină poza"
+                      aria-label="Elimină poza"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setPhotoURL("")
+                        setPhotoFile(null)
+                        setPhotoPreview("")
+                      }}
+                      disabled={savingEmployee}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </button>
+                <div className="flex-1 space-y-2">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
+                    disabled={savingEmployee}
+                  />
+                  <div className="text-xs text-muted-foreground">
+                    Modificările de poză se aplică doar la apăsarea „Salvează”.
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Basic Information */}
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase">Informații de bază</h3>
@@ -370,6 +482,23 @@ export default function HrEmployeesPage() {
             </Button>
             <Button onClick={save}>Salvează</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Photo zoom dialog */}
+      <Dialog open={photoZoomOpen} onOpenChange={setPhotoZoomOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Poză profil</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={photoPreview || photoURL}
+              alt=""
+              className="max-h-[70vh] w-auto max-w-full rounded-lg object-contain"
+            />
+          </div>
         </DialogContent>
       </Dialog>
     </DashboardShell>

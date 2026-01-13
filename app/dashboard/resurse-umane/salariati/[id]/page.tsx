@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, BarChart3, Calendar, CalendarCheck, CalendarDays, Clock, ClipboardList, Link2, Pencil, Plus, TrendingUp, User, UserCheck, UserRound } from "lucide-react"
+import { ArrowLeft, BarChart3, Calendar, CalendarCheck, CalendarDays, Clock, ClipboardList, Link2, Pencil, Plus, TrendingUp, Trash2, Image as ImageIcon, User, UserCheck, UserRound } from "lucide-react"
 
 import type { Employee, LeaveRequest, TimesheetCell, TimesheetMonthKey } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
@@ -36,6 +36,7 @@ import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { CreateLeaveRequestDialog } from "@/components/hr/create-leave-request-dialog"
 import { generateLeaveRequestPDF } from "@/lib/hr/leave-pdf-generator"
+import { deleteEmployeeProfilePhoto, uploadEmployeeProfilePhoto } from "@/lib/hr/profile-photo"
 
 type AppUser = { uid: string; displayName: string | null; email: string | null; role?: string }
 
@@ -111,6 +112,14 @@ export default function HrEmployeeDetailsPage() {
   const [editPrenume, setEditPrenume] = useState("")
   const [editTitle, setEditTitle] = useState("")
   const [editActive, setEditActive] = useState(true)
+
+  // Edit dialog state - profile photo
+  const [editPhotoURL, setEditPhotoURL] = useState("")
+  const [editPhotoFile, setEditPhotoFile] = useState<File | null>(null)
+  const [editPhotoPreview, setEditPhotoPreview] = useState<string>("")
+  const [editPhotoSaving, setEditPhotoSaving] = useState(false)
+  const [editInitialPhotoURL, setEditInitialPhotoURL] = useState("")
+  const [editPhotoZoomOpen, setEditPhotoZoomOpen] = useState(false)
   
   // Edit dialog state - identification fields
   const [editCnp, setEditCnp] = useState("")
@@ -197,6 +206,10 @@ export default function HrEmployeeDetailsPage() {
       setEditPrenume(employee.prenume)
       setEditTitle(employee.title || "")
       setEditActive(employee.active)
+      setEditPhotoURL(employee.photoURL || "")
+      setEditInitialPhotoURL(employee.photoURL || "")
+      setEditPhotoFile(null)
+      setEditPhotoPreview("")
       setEditCnp(employee.cnp || "")
       setEditCiSerie(employee.ciSerie || "")
       setEditCiNumar(employee.ciNumar || "")
@@ -210,6 +223,16 @@ export default function HrEmployeeDetailsPage() {
       setEditZileConcediuAnuale(String(employee.zileConcediuAnuale || 21))
     }
   }, [isEditDialogOpen, employee])
+
+  useEffect(() => {
+    if (!editPhotoFile) {
+      setEditPhotoPreview("")
+      return
+    }
+    const url = URL.createObjectURL(editPhotoFile)
+    setEditPhotoPreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [editPhotoFile])
 
   const suggestionUid = useMemo(() => {
     if (!employee) return null
@@ -249,33 +272,55 @@ export default function HrEmployeeDetailsPage() {
       return
     }
     
-    const updated: Employee = {
-      ...employee,
-      nume: editNume.trim(),
-      prenume: editPrenume.trim(),
-      title: editTitle.trim() || undefined,
-      active: editActive,
-      cnp: editCnp.trim() || undefined,
-      ciSerie: editCiSerie.trim() || undefined,
-      ciNumar: editCiNumar.trim() || undefined,
-      ciDataEmiterii: editCiDataEmiterii.trim() || undefined,
-      ciEmitent: editCiEmitent.trim() || undefined,
-      poziteCOR: editPoziteCOR.trim() || undefined,
-      superiorIerarhic: editSuperiorIerarhic.trim() || undefined,
-      loculDeMunca: editLoculDeMunca.trim() || undefined,
-      programLucruStart: editProgramLucruStart.trim() || undefined,
-      programLucruEnd: editProgramLucruEnd.trim() || undefined,
-      zileConcediuAnuale: editZileConcediuAnuale.trim() ? Number(editZileConcediuAnuale) : undefined,
-    }
     try {
+      setEditPhotoSaving(true)
+
+      let finalPhotoURL = editPhotoURL.trim() || ""
+      let photoUpdatedAt: number | undefined = undefined
+
+      if (editPhotoFile) {
+        // Replace: delete any prior variants first (best-effort), then upload.
+        await deleteEmployeeProfilePhoto(employee.id)
+        const res = await uploadEmployeeProfilePhoto(employee.id, editPhotoFile)
+        finalPhotoURL = res.photoURL
+        photoUpdatedAt = Date.now()
+      } else if (editInitialPhotoURL && !finalPhotoURL) {
+        // Remove requested.
+        await deleteEmployeeProfilePhoto(employee.id)
+        photoUpdatedAt = Date.now()
+      }
+
+      const updated: Employee = {
+        ...employee,
+        nume: editNume.trim(),
+        prenume: editPrenume.trim(),
+        title: editTitle.trim() || undefined,
+        active: editActive,
+        photoURL: finalPhotoURL || undefined,
+        photoUpdatedAt,
+        cnp: editCnp.trim() || undefined,
+        ciSerie: editCiSerie.trim() || undefined,
+        ciNumar: editCiNumar.trim() || undefined,
+        ciDataEmiterii: editCiDataEmiterii.trim() || undefined,
+        ciEmitent: editCiEmitent.trim() || undefined,
+        poziteCOR: editPoziteCOR.trim() || undefined,
+        superiorIerarhic: editSuperiorIerarhic.trim() || undefined,
+        loculDeMunca: editLoculDeMunca.trim() || undefined,
+        programLucruStart: editProgramLucruStart.trim() || undefined,
+        programLucruEnd: editProgramLucruEnd.trim() || undefined,
+        zileConcediuAnuale: editZileConcediuAnuale.trim() ? Number(editZileConcediuAnuale) : undefined,
+      }
       await createOrUpdateEmployee(updated)
       setEmployee(updated)
       setIsEditDialogOpen(false)
       toast({ title: "Salariat actualizat", description: "Datele au fost salvate cu succes." })
     } catch (e: any) {
       toast({ title: "Eroare", description: e.message || "Nu s-a putut salva.", variant: "destructive" })
+    } finally {
+      setEditPhotoSaving(false)
     }
   }
+  // Note: upload/delete are performed only when saving the dialog.
 
   const getCell = (day: number): TimesheetCell | undefined => {
     if (!employee) return undefined
@@ -942,6 +987,58 @@ export default function HrEmployeeDetailsPage() {
           </DialogHeader>
 
           <div className="grid gap-6 py-4">
+            {/* Profile photo (first) */}
+            <div className="grid gap-2">
+              <Label>Poză profil</Label>
+              <div className="flex items-center gap-4">
+                <button
+                  type="button"
+                  className="relative h-24 w-24 rounded-full overflow-hidden bg-muted flex items-center justify-center border"
+                  onClick={() => {
+                    const src = editPhotoPreview || editPhotoURL
+                    if (src) setEditPhotoZoomOpen(true)
+                  }}
+                  title={editPhotoPreview || editPhotoURL ? "Vezi poza" : undefined}
+                  aria-label={editPhotoPreview || editPhotoURL ? "Vezi poza" : "Poză profil"}
+                >
+                  {editPhotoPreview || editPhotoURL ? (
+                    <img src={editPhotoPreview || editPhotoURL} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <ImageIcon className="h-10 w-10 text-muted-foreground/60" />
+                  )}
+                  {(editPhotoPreview || editPhotoURL) && (
+                    <button
+                      type="button"
+                      className="absolute top-1 right-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-red-600 shadow-sm border border-red-100 hover:bg-white"
+                      title="Elimină poza"
+                      aria-label="Elimină poza"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setEditPhotoURL("")
+                        setEditPhotoFile(null)
+                        setEditPhotoPreview("")
+                      }}
+                      disabled={editPhotoSaving}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </button>
+                <div className="flex-1 space-y-2">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setEditPhotoFile(e.target.files?.[0] ?? null)}
+                    disabled={editPhotoSaving}
+                  />
+                  <div className="text-xs text-muted-foreground">
+                    Modificările de poză se aplică doar la apăsarea „Salvează”.
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Basic Information */}
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase">Informații de bază</h3>
@@ -1126,6 +1223,23 @@ export default function HrEmployeeDetailsPage() {
               Salvează
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Photo zoom dialog */}
+      <Dialog open={editPhotoZoomOpen} onOpenChange={setEditPhotoZoomOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Poză profil</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={editPhotoPreview || editPhotoURL}
+              alt=""
+              className="max-h-[70vh] w-auto max-w-full rounded-lg object-contain"
+            />
+          </div>
         </DialogContent>
       </Dialog>
 

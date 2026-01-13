@@ -41,6 +41,11 @@ export type Employee = {
   active: boolean
   /** Optional link to an app user (Firebase Auth / Firestore users doc id = uid). */
   userUid?: string
+
+  /** Optional profile photo URL (Firebase Storage download URL). */
+  photoURL?: string
+  /** Optional: last time the photo was updated (ms since epoch). */
+  photoUpdatedAt?: number
   
   // Computed field for backward compatibility - use getFullName() helper
   fullName?: string // Deprecated: use nume + prenume

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
+import { DevDebugPanel } from "@/components/debug/dev-debug-panel"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
@@ -3351,6 +3352,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         )}
       </div>
 
+      {/* Dev-only debug panel: work doc dump + computed flags */}
+      <DevDebugPanel lucrare={lucrare} />
 
     </DashboardShell>
 

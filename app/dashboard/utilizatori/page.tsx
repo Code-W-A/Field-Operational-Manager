@@ -970,9 +970,9 @@ export default function Utilizatori() {
                       {dynamicUserRoles?.length ? (
                         <>
                           {dynamicUserRoles.map((it) => (
-                            <SelectItem key={it.id} value={it.name}>
-                              {it.name}
-                            </SelectItem>
+                          <SelectItem key={it.id} value={it.name}>
+                            {it.name}
+                          </SelectItem>
                           ))}
                           {/* Ensure kiosk role is always available even if settings omit it */}
                           {!dynamicUserRoles.some((it) => String(it.name).toLowerCase() === "kiosk") && (

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { FaceRecognitionCapture } from "./face-recognition-capture"
 import { createCheckIn, createCheckOut, getActiveSession } from "@/lib/attendance/storage"
 import { getCurrentLocation, determineMode } from "@/lib/attendance/location"
+import { syncAttendanceUserDayToTimesheet } from "@/lib/attendance/sync-timesheet"
 import { toast } from "@/hooks/use-toast"
 import type { FaceRecognitionResult, AttendanceLocation } from "@/types/attendance"
 import type { OfficeLocation } from "@/lib/firebase/auth"
@@ -21,6 +22,9 @@ export interface KioskUser {
   displayName: string
   role: string
   email?: string
+  photoURL?: string
+  disabled?: boolean
+  disabledReason?: string
 }
 
 export interface KioskCheckInProps {
@@ -153,6 +157,14 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
   const handleUserSelect = async (user: KioskUser) => {
     if (!action) return
     if (userSelectBusyUid) return
+    if (user.disabled) {
+      toast({
+        title: "Utilizator indisponibil",
+        description: user.disabledReason || "Acest salariat nu este asociat cu un utilizator valid.",
+        variant: "destructive",
+      })
+      return
+    }
 
     setUserSelectBusyUid(user.uid)
     setSelectedUser(user)
@@ -286,6 +298,13 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
           },
         })
 
+        // Best-effort: sync condica for this user's day (do not block UX on failure)
+        try {
+          await syncAttendanceUserDayToTimesheet(selectedUser.uid, new Date(activeSession.sessionStart))
+        } catch (e) {
+          console.warn("Auto-sync Pontaj → Condică failed (kiosk):", e)
+        }
+
         toast({
           title: "Check-Out Reușit!",
           description: `La revedere, ${selectedUser.displayName}!`,
@@ -311,12 +330,15 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-8">
-      <div className="w-full max-w-4xl relative">
+    <div className="min-h-[100svh] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex justify-center p-4 sm:p-8 overflow-hidden">
+      <div className="w-full max-w-4xl relative min-h-[calc(100svh-2rem)] sm:min-h-[calc(100svh-4rem)] flex flex-col">
         {/* Top-right logout */}
-        <div className="absolute -top-2 right-0">
+        <div className="absolute top-0 right-0">
           <Button
             variant="secondary"
+            size="icon"
+            aria-label="Deconectare"
+            title="Deconectare"
             className="bg-white/10 text-white hover:bg-white/20 border border-white/10"
             onClick={() => {
               setLogoutOpen(true)
@@ -325,36 +347,34 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
               setLogoutSubmitting(false)
             }}
           >
-            <LogOut className="h-4 w-4 mr-2" />
-            Deconectare
+            <LogOut className="h-4 w-4" />
           </Button>
         </div>
 
         {/* Idle State - Show Action Selection */}
         {flowState === "idle" && (
-          <div className="text-center space-y-8 animate-in fade-in duration-500">
-            <div className="space-y-4">
-              <h1 className="text-5xl font-bold text-white">
-                Sistem Pontaj
-              </h1>
-              <p className="text-xl text-slate-300">
-                Apasă pentru a începe
-              </p>
+          <div className="flex-1 flex flex-col animate-in fade-in duration-500">
+            {/* Header pinned to top */}
+            <div className="text-center pt-10 sm:pt-6 space-y-2 sm:space-y-4">
+              <h1 className="text-3xl sm:text-5xl font-bold text-white">Sistem Pontaj</h1>
+              <p className="text-base sm:text-xl text-slate-300">Apasă pentru a începe</p>
             </div>
-            
-            <div className="grid grid-cols-2 gap-6 mt-12">
+
+            {/* Buttons centered vertically */}
+            <div className="flex-1 flex items-center justify-center">
+              <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 max-w-3xl">
               <button
                 onClick={() => handleActionSelect("check-in")}
-                className="group relative p-12 bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 rounded-3xl shadow-2xl hover:shadow-emerald-500/50 transition-all duration-300 hover:scale-105"
+                className="group relative p-6 sm:p-12 bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 rounded-3xl shadow-2xl hover:shadow-emerald-500/50 transition-all duration-300 sm:hover:scale-105"
               >
-                <div className="flex flex-col items-center gap-6">
-                  <div className="w-24 h-24 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-colors backdrop-blur-sm">
-                    <Play className="w-12 h-12 text-white" />
+                <div className="flex flex-col items-center gap-4 sm:gap-6">
+                  <div className="w-16 h-16 sm:w-24 sm:h-24 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-colors backdrop-blur-sm">
+                    <Play className="w-8 h-8 sm:w-12 sm:h-12 text-white" />
                   </div>
-                  <div className="text-3xl font-bold text-white">
+                  <div className="text-2xl sm:text-3xl font-bold text-white">
                     Start
                   </div>
-                  <div className="text-lg text-emerald-100">
+                  <div className="text-sm sm:text-lg text-emerald-100">
                     Check-In
                   </div>
                 </div>
@@ -362,20 +382,21 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
 
               <button
                 onClick={() => handleActionSelect("check-out")}
-                className="group relative p-12 bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 rounded-3xl shadow-2xl hover:shadow-orange-500/50 transition-all duration-300 hover:scale-105"
+                className="group relative p-6 sm:p-12 bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 rounded-3xl shadow-2xl hover:shadow-orange-500/50 transition-all duration-300 sm:hover:scale-105"
               >
-                <div className="flex flex-col items-center gap-6">
-                  <div className="w-24 h-24 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-colors backdrop-blur-sm">
-                    <Square className="w-12 h-12 text-white" />
+                <div className="flex flex-col items-center gap-4 sm:gap-6">
+                  <div className="w-16 h-16 sm:w-24 sm:h-24 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-colors backdrop-blur-sm">
+                    <Square className="w-8 h-8 sm:w-12 sm:h-12 text-white" />
                   </div>
-                  <div className="text-3xl font-bold text-white">
+                  <div className="text-2xl sm:text-3xl font-bold text-white">
                     Stop
                   </div>
-                  <div className="text-lg text-orange-100">
+                  <div className="text-sm sm:text-lg text-orange-100">
                     Check-Out
                   </div>
                 </div>
               </button>
+              </div>
             </div>
           </div>
         )}
@@ -398,12 +419,24 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
                   <button
                     key={user.uid}
                     onClick={() => handleUserSelect(user)}
-                    disabled={Boolean(userSelectBusyUid)}
+                    disabled={Boolean(userSelectBusyUid) || Boolean(user.disabled)}
                     className="p-6 bg-gradient-to-br from-slate-50 to-slate-100 hover:from-slate-100 hover:to-slate-200 rounded-2xl transition-all hover:scale-105 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <div className="flex flex-col items-center gap-3">
-                      <div className="w-16 h-16 rounded-full bg-slate-500 flex items-center justify-center shadow-md">
-                        <UserCircle2 className="w-10 h-10 text-white" />
+                      <div className="w-16 h-16 rounded-full bg-slate-500 flex items-center justify-center shadow-md overflow-hidden">
+                        {user.photoURL ? (
+                          <img
+                            src={user.photoURL}
+                            alt=""
+                            className="h-full w-full object-cover"
+                            onError={(e) => {
+                              // fallback to icon if image fails
+                              ;(e.currentTarget as HTMLImageElement).style.display = "none"
+                            }}
+                          />
+                        ) : (
+                          <UserCircle2 className="w-10 h-10 text-white" />
+                        )}
                       </div>
                       <div className="text-center">
                         <div className="font-semibold text-gray-900">
@@ -412,6 +445,11 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
                         <div className="text-xs text-gray-600 capitalize">
                           {user.role}
                         </div>
+                        {user.disabled && (
+                          <div className="text-xs text-orange-700 mt-1">
+                            {user.disabledReason || "Neasociat cu utilizator"}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </button>
@@ -612,8 +650,15 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
           </DialogHeader>
 
           {selectedUser && (
-            <div className="text-center -mt-1">
-              <p className="text-sm text-muted-foreground">
+            <div className="flex flex-col items-center justify-center gap-3 pt-2">
+              <div className="h-48 w-48 rounded-full overflow-hidden bg-muted border flex items-center justify-center">
+                {selectedUser.photoURL ? (
+                  <img src={selectedUser.photoURL} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <UserCircle2 className="h-24 w-24 text-muted-foreground" />
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground text-center">
                 Pentru: <span className="font-semibold text-foreground">{selectedUser.displayName}</span>
               </p>
             </div>

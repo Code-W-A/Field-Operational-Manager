@@ -15,6 +15,7 @@ import {
   startExtraTimeLog,
   endExtraTimeLog,
 } from "@/lib/attendance/storage"
+import { syncAttendanceUserDayToTimesheet } from "@/lib/attendance/sync-timesheet"
 import { getCurrentLocation, determineMode } from "@/lib/attendance/location"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -216,6 +217,13 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
           },
         })
 
+        // Best-effort: sync condica for this user's day (do not block UX on failure)
+        try {
+          await syncAttendanceUserDayToTimesheet(userId, new Date(activeSession.sessionStart))
+        } catch (e) {
+          console.warn("Auto-sync Pontaj → Condică failed (field):", e)
+        }
+
         toast({
           title: "Check-Out Reușit!",
           description: `La revedere, ${userName}!`,
@@ -356,24 +364,24 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
 
   return (
     <>
-      <Card className="relative overflow-hidden border border-gray-100 shadow-lg shadow-gray-200/50 bg-white max-w-xl transition-all duration-300 hover:shadow-xl hover:shadow-gray-200/60 border-l-4 border-l-emerald-500">
+      <Card className="relative overflow-hidden border border-gray-100 shadow-lg shadow-gray-200/50 bg-white max-w-xl transition-all duration-300 hover:shadow-xl hover:shadow-gray-200/60">
         {/* Single decorative circle in top right corner - only visible part inside card */}
-        <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-emerald-100 to-blue-100 rounded-full -mr-20 -mt-20 opacity-50" />
+        <div className="absolute top-0 right-0 w-28 h-28 bg-gradient-to-br from-emerald-100 to-blue-100 rounded-full -mr-14 -mt-14 opacity-50" />
         
-        <CardContent className="p-6 relative z-10">
+        <CardContent className="p-4 sm:p-5 relative z-10">
           <div className="flex items-start justify-between gap-6">
             {/* Left column - Welcome, Time, and Button */}
-            <div className="flex-1 space-y-4 pb-8">
+            <div className="flex-1 space-y-3 pb-4">
               {/* Welcome message */}
               <div className="space-y-0.5">
                 <p className="text-gray-400 text-sm font-medium tracking-wide">Bun venit,</p>
-                <p className="text-gray-900 text-2xl font-bold tracking-tight">{userName}</p>
+                <p className="text-gray-900 text-xl sm:text-2xl font-bold tracking-tight leading-tight">{userName}</p>
               </div>
 
               {/* Current time - large display (24h format, HH:mm only) */}
               <div className="space-y-1.5">
                 <div className="flex items-baseline gap-1">
-                  <span className="text-5xl font-bold text-gray-900 tracking-tight tabular-nums">
+                  <span className="text-4xl sm:text-5xl font-bold text-gray-900 tracking-tight tabular-nums">
                     {new Date(currentTime).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
@@ -388,7 +396,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
               {/* Action button - Play/Stop */}
               {!isCheckedIn ? (
                 <Button
-                  className="w-full max-w-[200px] h-12 font-semibold shadow-md hover:shadow-lg transition-all duration-300 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-xl flex items-center justify-center gap-2 group"
+                  className="w-full max-w-[200px] h-11 font-semibold shadow-md hover:shadow-lg transition-all duration-300 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-xl flex items-center justify-center gap-2 group"
                   onClick={handleCheckIn}
                   disabled={flowState !== "idle"}
                 >
@@ -407,7 +415,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
               ) : (
                 <Button
                   className={cn(
-                    "w-full max-w-[200px] h-12 font-semibold shadow-md hover:shadow-lg transition-all duration-300 rounded-xl flex items-center justify-center gap-2 group",
+                    "w-full max-w-[200px] h-11 font-semibold shadow-md hover:shadow-lg transition-all duration-300 rounded-xl flex items-center justify-center gap-2 group",
                     checkOutDisabled
                       ? "bg-gray-300 cursor-not-allowed text-gray-500" 
                       : "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
@@ -452,11 +460,11 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
 
               {/* Extra Time Buttons */}
               {(clientRouteActive || homeRouteActive) && (
-                <div className="flex gap-2 pt-2 animate-in fade-in slide-in-from-bottom duration-500">
+                <div className="flex gap-2 pt-1 animate-in fade-in slide-in-from-bottom duration-500">
                   {clientRouteActive && (
                     <Button
                       onClick={handleStartClientRoute}
-                      className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-sm h-10 px-4 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 group"
+                      className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-sm h-9 px-4 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 group"
                       size="sm"
                     >
                       <MapPin className="mr-2 h-4 w-4 transition-transform group-hover:scale-110" />
@@ -466,7 +474,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
                   {homeRouteActive && (
                     <Button
                       onClick={handleStartHomeRoute}
-                      className="bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white text-sm h-10 px-4 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 group"
+                      className="bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white text-sm h-9 px-4 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 group"
                       size="sm"
                     >
                       <MapPin className="mr-2 h-4 w-4 transition-transform group-hover:scale-110" />
@@ -482,7 +490,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
               <img 
                 src="/worker-image.png" 
                 alt="Worker" 
-                className="h-48 w-48 object-contain relative bottom-[-45px] drop-shadow-lg"
+                className="h-32 w-32 sm:h-36 sm:w-36 object-contain relative bottom-[-18px] sm:bottom-[-22px] drop-shadow-lg"
               />
             </div>
           </div>

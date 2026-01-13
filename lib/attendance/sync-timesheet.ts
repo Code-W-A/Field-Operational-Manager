@@ -8,11 +8,10 @@ import {
   writeBatch,
   Timestamp,
   serverTimestamp,
-  orderBy,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import type { AttendanceSession } from "@/types/attendance"
-import type { TimesheetCell, TimesheetMonthKey } from "@/lib/hr/types"
+import type { TimesheetCell, TimesheetMonthKey, TimesheetCode } from "@/lib/hr/types"
 import { getCurrentMonthKey, timesheetDocId } from "@/lib/hr/storage"
 
 /**
@@ -241,7 +240,7 @@ export async function getAttendanceSyncStatus(date: Date): Promise<{
   const sessionsSnapshot = await getDocs(sessionsQuery)
 
   // Check if any hrTimesheets doc for this month has this day populated.
-  const timesheetsQuery = query(collection(db, "hrTimesheets"), where("monthKey", "==", monthKey), orderBy("employeeId", "asc"))
+  const timesheetsQuery = query(collection(db, "hrTimesheets"), where("monthKey", "==", monthKey))
   const timesheetsSnapshot = await getDocs(timesheetsQuery)
 
   let syncedCount = 0
@@ -258,5 +257,165 @@ export async function getAttendanceSyncStatus(date: Date): Promise<{
     synced: syncedCount > 0,
     sessionCount: sessionsSnapshot.size,
     lastSyncAt,
+  }
+}
+
+function startOfDayLocal(d: Date) {
+  const x = new Date(d)
+  x.setHours(0, 0, 0, 0)
+  return x
+}
+
+function endOfDayLocal(d: Date) {
+  const x = new Date(d)
+  x.setHours(23, 59, 59, 999)
+  return x
+}
+
+function isNonWorkHrCode(code: TimesheetCode | undefined) {
+  if (!code) return false
+  return code === "CO" || code === "DEL" || code === "SL" || code === "WE" || code === "IN"
+}
+
+export type UserDaySyncResult =
+  | {
+      synced: true
+      reason: "synced"
+      employeeId: string
+      sessionCount: number
+      totalHours: number
+      monthKey: TimesheetMonthKey
+      day: number
+    }
+  | {
+      synced: false
+      reason: "no_sessions" | "no_employee" | "protected_day"
+      sessionCount: number
+      employeeId?: string
+      monthKey: TimesheetMonthKey
+      day: number
+    }
+
+/**
+ * Sync (recompute) a single user's attendance for a specific day into HR timesheet.
+ * - Pulls all completed attendance sessions for that user for that day
+ * - Builds a WORK cell (hours + entries)
+ * - Non-destructive: will NOT overwrite CO/DEL/SL/WE/IN days
+ * - Avoid duplicates: preserves non-pontaj entries when overwriting a WORK day
+ */
+export async function syncAttendanceUserDayToTimesheet(userId: string, date: Date): Promise<UserDaySyncResult> {
+  const day = new Date(date).getDate()
+  const monthKey = getCurrentMonthKey(date)
+
+  // Use local day boundaries (matches HR UI expectations).
+  const start = startOfDayLocal(date)
+  const end = endOfDayLocal(date)
+
+  const sessionsQuery = query(
+    collection(db, "attendance"),
+    where("userId", "==", userId),
+    where("sessionStart", ">=", Timestamp.fromDate(start)),
+    where("sessionStart", "<=", Timestamp.fromDate(end)),
+    where("status", "==", "completed")
+  )
+
+  const sessionsSnapshot = await getDocs(sessionsQuery)
+
+  const sessions: AttendanceSession[] = sessionsSnapshot.docs
+    .map((docSnap) => {
+      const data = docSnap.data() as any
+      const session: AttendanceSession = {
+        id: docSnap.id,
+        ...data,
+        sessionStart: data.sessionStart?.toMillis?.() ?? data.sessionStart ?? Date.now(),
+        sessionEnd: data.sessionEnd?.toMillis?.() ?? data.sessionEnd,
+        createdAt: data.createdAt?.toMillis?.() ?? Date.now(),
+        updatedAt: data.updatedAt?.toMillis?.() ?? Date.now(),
+      } as AttendanceSession
+      return session
+    })
+    .filter((s) => Boolean(s.sessionEnd))
+    .sort((a, b) => a.sessionStart - b.sessionStart)
+
+  if (!sessions.length) {
+    return { synced: false, reason: "no_sessions", sessionCount: 0, monthKey, day }
+  }
+
+  const employeeId = await getEmployeeIdForUser(userId)
+  if (!employeeId) {
+    return { synced: false, reason: "no_employee", sessionCount: sessions.length, monthKey, day }
+  }
+
+  const dayKey = String(day)
+  const timesheetRef = doc(db, "hrTimesheets", timesheetDocId(employeeId, monthKey as TimesheetMonthKey))
+
+  // Non-destructive guard: don't overwrite protected day types.
+  const existingSnap = await getDoc(timesheetRef)
+  const existingDay = existingSnap.exists() ? ((existingSnap.data() as any)?.days?.[dayKey] as TimesheetCell | undefined) : undefined
+  const existingCode = existingDay?.code as TimesheetCode | undefined
+  if (isNonWorkHrCode(existingCode)) {
+    return { synced: false, reason: "protected_day", sessionCount: sessions.length, employeeId, monthKey, day }
+  }
+
+  const totalMinutes = sessions.reduce((sum, s) => {
+    if (!s.sessionEnd) return sum
+    return sum + (s.sessionEnd - s.sessionStart) / 60000
+  }, 0)
+  const totalHours = Math.round((totalMinutes / 60) * 100) / 100
+
+  const computedEntries: NonNullable<TimesheetCell["entries"]> = []
+  for (const s of sessions) {
+    if (!s.sessionEnd) continue
+    computedEntries.push({
+      start: formatTime(s.sessionStart),
+      end: formatTime(s.sessionEnd),
+      methodStart: `Play (${s.mode})`,
+      methodEnd: `Stop (${s.checkOutMode || s.mode})`,
+      project: "Pontaj",
+    })
+
+    for (const log of s.extraTimeLogs || []) {
+      if (!log.endTime) continue
+      computedEntries.push({
+        start: formatTime(log.startTime),
+        end: formatTime(log.endTime),
+        methodStart: "Extra",
+        methodEnd: "Extra",
+        project: log.type === "to_client" ? "Traseu către client" : "Traseu către casă",
+      })
+    }
+  }
+
+  const pontajProjects = new Set<string>(["Pontaj", "Traseu către client", "Traseu către casă"])
+  const preservedEntries = (existingDay?.entries ?? []).filter((e) => !pontajProjects.has(String(e.project ?? "")))
+
+  const cell: TimesheetCell = {
+    code: "WORK",
+    hours: totalHours,
+    entries: [...preservedEntries, ...computedEntries],
+    ...(existingDay?.breaks ? { breaks: existingDay.breaks } : {}),
+  }
+
+  const batch = writeBatch(db)
+  batch.set(
+    timesheetRef,
+    {
+      employeeId,
+      monthKey,
+      updatedAt: serverTimestamp(),
+      days: { [dayKey]: cell },
+    },
+    { merge: true }
+  )
+  await batch.commit()
+
+  return {
+    synced: true,
+    reason: "synced",
+    employeeId,
+    sessionCount: sessions.length,
+    totalHours,
+    monthKey,
+    day,
   }
 }

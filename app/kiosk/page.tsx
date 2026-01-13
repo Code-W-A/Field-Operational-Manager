@@ -1,11 +1,12 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { collection, getDocs, query, where } from "firebase/firestore"
+import { collection, getDocs, orderBy, query, where } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { KioskCheckIn, type KioskUser } from "@/components/attendance/kiosk-check-in"
 import { Loader2 } from "lucide-react"
 import type { OfficeLocation } from "@/lib/firebase/auth"
+import { getEmployeeFullName, type Employee } from "@/lib/hr/types"
 
 // Default office location (can be configured per deployment)
 const DEFAULT_OFFICE_LOCATION: OfficeLocation = {
@@ -27,28 +28,61 @@ export default function KioskOnlyPage() {
     try {
       setLoading(true)
 
-      // Load all users with role "tehnician" or "admin" (who can use the kiosk)
-      const usersRef = collection(db, "users")
-      const q = query(usersRef, where("role", "in", ["tehnician", "admin"]))
-      const snapshot = await getDocs(q)
-
-      const loadedUsers: KioskUser[] = snapshot.docs.map((doc) => {
-        const data = doc.data()
+      // Load employees (Salariați) first, then join to tehnician users by employee.userUid.
+      // We avoid composite index requirements by ordering and filtering client-side.
+      const employeesSnap = await getDocs(query(collection(db, "hrEmployees"), orderBy("nume", "asc")))
+      const employees: Employee[] = employeesSnap.docs.map((d) => {
+        const data = d.data() as any
         return {
-          uid: doc.id,
-          displayName: data.displayName || data.email || "Unknown User",
-          role: data.role || "tehnician",
-          email: data.email ? String(data.email) : undefined,
-        }
+          id: d.id,
+          nume: data.nume ?? "",
+          prenume: data.prenume ?? "",
+          active: Boolean(data.active),
+          userUid: data.userUid ?? undefined,
+          photoURL: data.photoURL ?? undefined,
+          fullName: data.fullName ?? undefined,
+          // other fields omitted (not needed on kiosk)
+        } as Employee
       })
 
-      loadedUsers.sort((a, b) => a.displayName.localeCompare(b.displayName))
+      // Load tehnician users to fetch email for password verification.
+      const usersSnap = await getDocs(query(collection(db, "users"), where("role", "==", "tehnician")))
+      const usersByUid = new Map<string, { uid: string; email?: string; role?: string; displayName?: string }>()
+      for (const d of usersSnap.docs) {
+        const data = d.data() as any
+        usersByUid.set(d.id, {
+          uid: d.id,
+          email: data.email ? String(data.email) : undefined,
+          role: data.role ? String(data.role) : undefined,
+          displayName: data.displayName ? String(data.displayName) : undefined,
+        })
+      }
+
+      const loadedUsers: KioskUser[] = employees
+        .filter((e) => e.active)
+        .map((e) => {
+          const fullName = getEmployeeFullName(e) || "Salariat"
+          const userUid = e.userUid ? String(e.userUid) : ""
+          const matched = userUid ? usersByUid.get(userUid) : undefined
+
+          // Show ONLY employees linked to a valid tehnician user with email.
+          if (!matched?.uid || !matched.email) return null
+          return {
+            uid: matched.uid,
+            displayName: fullName,
+            role: "tehnician",
+            email: matched.email,
+            photoURL: e.photoURL,
+          } satisfies KioskUser
+        })
+        .filter((u): u is KioskUser => Boolean(u))
+        .sort((a, b) => a.displayName.localeCompare(b.displayName))
 
       setUsers(loadedUsers)
       setError(null)
     } catch (err) {
       console.error("Failed to load users:", err)
-      setError("Nu s-au putut încărca utilizatorii. Verifică conexiunea.")
+      setError("Nu s-au putut încărca salariații / utilizatorii. Verifică conexiunea.")
     } finally {
       setLoading(false)
     }

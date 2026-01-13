@@ -90,6 +90,8 @@ function normalizeEmployee(id: string, data: any): Employee {
     // System fields
     active: Boolean(data.active),
     userUid: data.userUid ? String(data.userUid) : undefined,
+    photoURL: data.photoURL ? String(data.photoURL) : undefined,
+    photoUpdatedAt: data.photoUpdatedAt ? Number(data.photoUpdatedAt) : undefined,
     // Legacy field
     fullName: data.fullName ? String(data.fullName) : undefined,
   }
@@ -144,6 +146,8 @@ export async function createOrUpdateEmployee(employee: Employee) {
     // System fields
       active: employee.active,
       userUid: employee.userUid ?? null,
+      photoURL: employee.photoURL ?? null,
+      photoUpdatedAt: employee.photoUpdatedAt ?? null,
     // Legacy fullName for backward compatibility
     fullName: `${employee.prenume} ${employee.nume}`.trim(),
       updatedAt: serverTimestamp(),
