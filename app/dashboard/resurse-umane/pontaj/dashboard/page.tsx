@@ -7,17 +7,30 @@ import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { collection, query, where, getDocs, orderBy, Timestamp } from "firebase/firestore"
+import { collection, query, where, getDocs, orderBy, Timestamp, doc, getDoc, limit } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import type { AttendanceSession } from "@/types/attendance"
 import { CalendarIcon, MapPin, Clock, TrendingUp, Users, Loader2 } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 
+type EmployeeInfo = { fullName: string; title?: string }
+
+function buildEmployeeInfo(data: any): EmployeeInfo {
+  const prenume = String(data?.prenume || "").trim()
+  const nume = String(data?.nume || "").trim()
+  const legacy = String(data?.fullName || "").trim()
+  const fullName = `${prenume} ${nume}`.trim() || legacy
+  const title = data?.title ? String(data.title) : undefined
+  return { fullName: fullName || "N/A", title }
+}
+
 export default function AttendanceDashboardPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [sessions, setSessions] = useState<AttendanceSession[]>([])
   const [loading, setLoading] = useState(false)
+  const [employeeInfoById, setEmployeeInfoById] = useState<Record<string, EmployeeInfo>>({})
+  const [employeeInfoByUserUid, setEmployeeInfoByUserUid] = useState<Record<string, EmployeeInfo>>({})
   const [stats, setStats] = useState({
     totalSessions: 0,
     activeNow: 0,
@@ -62,6 +75,66 @@ export default function AttendanceDashboardPage() {
 
       setSessions(loadedSessions)
 
+      // Resolve technician details dynamically from HR employees (so edits show up immediately).
+      // Primary: attendance.employeeId -> hrEmployees/{employeeId}
+      // Fallback: attendance.userId -> hrEmployees where userUid == userId
+      try {
+        const ids = Array.from(
+          new Set(
+            loadedSessions
+              .map((s) => String((s as any)?.employeeId || ""))
+              .filter(Boolean)
+          )
+        )
+        const missingUids = Array.from(
+          new Set(
+            loadedSessions
+              .filter((s) => !String((s as any)?.employeeId || ""))
+              .map((s) => String((s as any)?.userId || ""))
+              .filter(Boolean)
+          )
+        )
+
+        if (ids.length) {
+          const pairs = await Promise.all(
+            ids.map(async (id) => {
+              const snap = await getDoc(doc(db, "hrEmployees", id))
+              if (!snap.exists()) return null
+              return [id, buildEmployeeInfo(snap.data())] as const
+            })
+          )
+          const next: Record<string, EmployeeInfo> = {}
+          for (const p of pairs) {
+            if (!p) continue
+            next[p[0]] = p[1]
+          }
+          setEmployeeInfoById(next)
+        } else {
+          setEmployeeInfoById({})
+        }
+
+        if (missingUids.length) {
+          const pairs = await Promise.all(
+            missingUids.map(async (uid) => {
+              const q = query(collection(db, "hrEmployees"), where("userUid", "==", uid), limit(1))
+              const snap = await getDocs(q)
+              if (snap.empty) return null
+              return [uid, buildEmployeeInfo(snap.docs[0].data())] as const
+            })
+          )
+          const next: Record<string, EmployeeInfo> = {}
+          for (const p of pairs) {
+            if (!p) continue
+            next[p[0]] = p[1]
+          }
+          setEmployeeInfoByUserUid(next)
+        } else {
+          setEmployeeInfoByUserUid({})
+        }
+      } catch (e) {
+        console.warn("Failed to resolve HR employee display data:", e)
+      }
+
       // Calculate stats
       const totalHours = loadedSessions.reduce((sum, s) => {
         if (!s.sessionEnd) return sum
@@ -103,6 +176,16 @@ export default function AttendanceDashboardPage() {
     const hours = Math.floor(totalMinutes / 60)
     const minutes = totalMinutes % 60
     return `${hours}h ${minutes}m`
+  }
+
+  const getTechnicianLabel = (session: AttendanceSession): EmployeeInfo => {
+    const employeeId = String((session as any)?.employeeId || "")
+    if (employeeId && employeeInfoById[employeeId]) return employeeInfoById[employeeId]
+    const uid = String((session as any)?.userId || "")
+    if (uid && employeeInfoByUserUid[uid]) return employeeInfoByUserUid[uid]
+    // Backward compatibility (older attendance docs might have snapshot userName):
+    const fallback = String((session as any)?.userName || "").trim()
+    return { fullName: fallback || "N/A" }
   }
 
   return (
@@ -217,7 +300,14 @@ export default function AttendanceDashboardPage() {
                 <TableBody>
                   {sessions.map((session) => (
                     <TableRow key={session.id}>
-                      <TableCell className="font-medium">{session.userName || "N/A"}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex flex-col">
+                          <span>{getTechnicianLabel(session).fullName}</span>
+                          {getTechnicianLabel(session).title && (
+                            <span className="text-xs text-muted-foreground">{getTechnicianLabel(session).title}</span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <Badge variant={session.mode === "office" ? "default" : "secondary"}>
                           {session.mode === "office" ? "Birou" : "Mașină"}

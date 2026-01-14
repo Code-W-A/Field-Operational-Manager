@@ -47,12 +47,16 @@ function timeOnSameDay(ts: number, hhmm: string | undefined, fallback: { h: numb
   return d.getTime()
 }
 
-async function getEmployeeScheduleForUser(userId: string): Promise<Pick<Employee, "programLucruStart" | "programLucruEnd"> | null> {
+async function getEmployeeScheduleForUser(
+  userId: string
+): Promise<(Pick<Employee, "programLucruStart" | "programLucruEnd"> & { employeeId: string }) | null> {
   const q = query(collection(db, "hrEmployees"), where("userUid", "==", userId), limit(1))
   const snap = await getDocs(q)
   if (snap.empty) return null
-  const data = snap.docs[0].data() as any
+  const docSnap = snap.docs[0]
+  const data = docSnap.data() as any
   return {
+    employeeId: docSnap.id,
     programLucruStart: data.programLucruStart ? String(data.programLucruStart) : undefined,
     programLucruEnd: data.programLucruEnd ? String(data.programLucruEnd) : undefined,
   }
@@ -109,7 +113,7 @@ export async function createCheckIn(request: CheckInRequest): Promise<string> {
 
   const session: Omit<AttendanceSession, "id"> = {
     userId: request.userId,
-    userName: request.userName,
+    employeeId: schedule?.employeeId,
     sessionStart: now,
     mode: request.mode,
     location: request.location,

@@ -210,6 +210,10 @@ export interface Lucrare {
   }
   // CÂMP NOU: Blochează editarea unei lucrări după ce a generat reintervenții
   lockedAfterReintervention?: boolean
+  // CÂMPURI NOI: backfill/flag lansare reintervenție
+  reinterventieLansata?: boolean
+  reinterventieLucrareId?: string
+  reinterventieLansataAt?: any
   // CÂMPURI NOI PENTRU NOTIFICATION TRACKING - BACKWARD COMPATIBLE
   notificationRead?: boolean          // Backward compatibility: dacă notificarea a fost citită (general)
   notificationReadBy?: string[]       // Array cu ID-urile utilizatorilor care au citit notificarea

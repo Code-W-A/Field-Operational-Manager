@@ -28,7 +28,9 @@ export function DashboardShell({ children, className }: DashboardShellProps) {
         </div>
       </header>
       <main className="flex-1 w-full overflow-auto min-h-0">
-        <div className="w-full h-full min-h-0 flex flex-col px-3 sm:px-6 lg:px-10 py-4">{children}</div>
+        <div className="w-full h-full min-h-0 flex flex-col px-3 sm:px-6 lg:px-10 pt-4 pb-12">
+          {children}
+        </div>
       </main>
       
       {/* Debug component for auto logout - only visible to admin/dispatcher in development */}

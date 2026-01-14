@@ -1096,7 +1096,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         a.href = url
         const finalLabel = headerOverride || equipmentLabel || equipmentId || "Echipament"
         const safeLabel = finalLabel.replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
-        const workNumRaw = String(tichet.nrLucrare || tichet.numarRaport || tichet.id || "")
+        const workNumRaw = String(lucrare.nrLucrare || lucrare.numarRaport || lucrare.id || "")
         const workNum = workNumRaw.replace(/^#\s*/, "").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
         a.download = `Fisa_Operatiuni_${safeLabel}_${workNum}.pdf`
         document.body.appendChild(a)
@@ -1114,6 +1114,34 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     },
     [lucrare?.id, lucrare?.nrLucrare, lucrare?.numarRaport, toast]
   )
+
+  const renderEquipmentDocumentation = (): React.ReactNode => {
+    try {
+      if (!lucrare?.echipamentCod || !clientData?.locatii) return null
+      const loc = (clientData.locatii || []).find(
+        (l: any) => l?.nume === lucrare?.locatie || l?.adresa === lucrare?.clientInfo?.locationAddress
+      )
+      const eq = loc?.echipamente?.find((e: any) => e?.cod === lucrare?.echipamentCod)
+      const docs = eq?.documentatie || []
+      if (!docs.length) {
+        return <div className="text-sm text-muted-foreground">Nu există documentație disponibilă.</div>
+      }
+      return (
+        <ul className="text-sm space-y-1">
+          {docs.map((d: any, i: number) => (
+            <li key={i} className="flex items-center justify-between gap-2">
+              <a href={d.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+                {d.fileName}
+              </a>
+              <span className="text-xs text-muted-foreground">{formatUiDate(new Date(d.uploadedAt))}</span>
+            </li>
+          ))}
+        </ul>
+      )
+    } catch {
+      return <div className="text-sm text-muted-foreground">Nu există documentație disponibilă.</div>
+    }
+  }
 
   if (loading) {
     return (
@@ -1183,7 +1211,6 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
             {lucrare.tipLucrare}
           </span>
         } 
-        // text={`Client: ${lucrare.client}`}
       >
         <div className="flex flex-col sm:flex-row gap-2">
           <Button variant="outline" onClick={() => router.back()}>
@@ -1629,30 +1656,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 {role === "tehnician" && lucrare?.echipamentCod && clientData?.locatii && (
                   <div className="mt-4">
                     <p className="text-base font-semibold mb-2">Documentație echipament:</p>
-                    {(() => {
-                      try {
-                        const loc = (clientData.locatii || []).find((l: any) => l?.nume === lucrare?.locatie || l?.adresa === lucrare?.clientInfo?.locationAddress)
-                        const eq = loc?.echipamente?.find((e: any) => e?.cod === lucrare?.echipamentCod)
-                        const docs = eq?.documentatie || []
-                        if (!docs.length) {
-                          return <div className="text-sm text-muted-foreground">Nu există documentație disponibilă.</div>
-                        }
-                        return (
-                          <ul className="text-sm space-y-1">
-                            {docs.map((d: any, i: number) => (
-                              <li key={i} className="flex items-center justify-between gap-2">
-                                <a href={d.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
-                                  {d.fileName}
-                                </a>
-                                <span className="text-xs text-muted-foreground">{formatUiDate(new Date(d.uploadedAt))}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        )
-                      } catch {
-                        return <div className="text-sm text-muted-foreground">Nu există documentație disponibilă.</div>
-                      }
-                    })()}
+                    {renderEquipmentDocumentation()}
                   </div>
                 )}
               </CardHeader>
@@ -1926,7 +1930,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                         // Construim numele fișierului pe baza selecției (headerOverride) sau fallback
                                         const fileLabel = headerOverride || eq?.nume || eq?.name || eq?.model || eid || "Echipament"
                                         const safeLabel = String(fileLabel).replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
-                                        const workNumRaw = String(tichet?.nrLucrare || tichet?.numarRaport || tichet?.id || "")
+                                        const workNumRaw = String(lucrare?.nrLucrare || lucrare?.numarRaport || lucrare?.id || "")
                                         const workNum = workNumRaw.replace(/^#\s*/, "").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
                                         a.download = `Fisa_Operatiuni_${safeLabel}_${workNum}.pdf`
                                         document.body.appendChild(a)

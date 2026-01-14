@@ -219,7 +219,18 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
 
         // Best-effort: sync condica for this user's day (do not block UX on failure)
         try {
-          await syncAttendanceUserDayToTimesheet(userId, new Date(activeSession.sessionStart))
+          const res = await syncAttendanceUserDayToTimesheet(userId, new Date(activeSession.sessionStart))
+          if (!res.synced) {
+            toast({
+              title: "Pontaj salvat, dar nesincronizat în condică",
+              description:
+                res.reason === "no_employee"
+                  ? "Nu am găsit salariatul HR asociat acestui user. Verifică în Resurse Umane → Salariați că există `userUid` setat."
+                  : res.reason === "protected_day"
+                    ? "Ziua este protejată (CO/DEL/SL/WE/IN) și nu a fost suprascrisă."
+                    : "Nu există sesiuni completate pentru ziua respectivă.",
+            })
+          }
         } catch (e) {
           console.warn("Auto-sync Pontaj → Condică failed (field):", e)
         }

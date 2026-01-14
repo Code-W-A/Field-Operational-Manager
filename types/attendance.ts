@@ -25,7 +25,10 @@ export interface DeviceInfo {
 export interface AttendanceSession {
   id: string
   userId: string //UID of the technician
-  userName?: string // Display name for quick reference
+  /** @deprecated Snapshot for older records; UI should resolve via IDs (userId/employeeId). */
+  userName?: string
+  /** HR employee id (hrEmployees doc id). Filled at check-in when available for deterministic sync. */
+  employeeId?: string
   sessionStart: number // timestamp
   sessionEnd?: number // timestamp
   /** Check-in mode (office kiosk vs field). */

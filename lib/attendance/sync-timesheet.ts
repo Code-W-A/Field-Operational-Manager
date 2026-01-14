@@ -71,7 +71,10 @@ export async function syncAttendanceToTimesheet(date: Date): Promise<void> {
 
     for (const [userId, sessions] of Object.entries(sessionsByUser)) {
       // Get employee ID from user
-      const employeeId = await getEmployeeIdForUser(userId)
+      const employeeId = await getEmployeeIdForUser(userId, {
+        employeeId: (sessions?.[0] as any)?.employeeId,
+        userName: sessions?.[0]?.userName,
+      })
       if (!employeeId) {
         console.warn(`No employee found for user ${userId}`)
         continue
@@ -149,8 +152,23 @@ export async function syncAttendanceToTimesheet(date: Date): Promise<void> {
 /**
  * Get employee ID from user ID
  */
-async function getEmployeeIdForUser(userId: string): Promise<string | null> {
+function normalizeName(input: string): string {
+  return String(input || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+}
+
+async function getEmployeeIdForUser(
+  userId: string,
+  opts?: { userName?: string; employeeId?: string }
+): Promise<string | null> {
   try {
+    // Best signal: employeeId already captured in attendance session at check-in.
+    if (opts?.employeeId) return String(opts.employeeId)
+
     // First, try to find employee by userUid
     const employeesQuery = query(collection(db, "hrEmployees"), where("userUid", "==", userId))
     const employeesSnapshot = await getDocs(employeesQuery)
@@ -159,25 +177,30 @@ async function getEmployeeIdForUser(userId: string): Promise<string | null> {
       return employeesSnapshot.docs[0].id
     }
 
-    // If not found, get user data and try to match by name
-    const userDoc = await getDoc(doc(db, "users", userId))
-    if (!userDoc.exists()) {
-      return null
-    }
-
-    const userData = userDoc.data()
-    const displayName = userData.displayName || ""
-
+    // Fallback: try to match by name (best-effort).
+    // Prefer the name recorded in attendance sessions (userName) because it doesn't depend on users/{uid}.
+    let displayName = String(opts?.userName || "").trim()
     if (!displayName) {
-      return null
+      const userDoc = await getDoc(doc(db, "users", userId))
+      if (userDoc.exists()) {
+        const userData = userDoc.data() as any
+        displayName = String(userData?.displayName || "").trim()
+      }
     }
+    if (!displayName) return null
 
-    // Try to find employee by matching full name
+    const target = normalizeName(displayName)
+    if (!target) return null
+
+    // Try to find employee by matching full name (diacritics/case/spacing-insensitive).
     const allEmployeesSnapshot = await getDocs(collection(db, "hrEmployees"))
     for (const empDoc of allEmployeesSnapshot.docs) {
       const empData = empDoc.data()
       const fullName = `${empData.prenume || ""} ${empData.nume || ""}`.trim()
-      if (fullName === displayName) {
+      const fullNameRev = `${empData.nume || ""} ${empData.prenume || ""}`.trim()
+      const legacy = String(empData.fullName || "").trim()
+      const candidates = [fullName, fullNameRev, legacy].filter(Boolean)
+      if (candidates.some((c) => normalizeName(c) === target)) {
         return empDoc.id
       }
     }
@@ -341,7 +364,10 @@ export async function syncAttendanceUserDayToTimesheet(userId: string, date: Dat
     return { synced: false, reason: "no_sessions", sessionCount: 0, monthKey, day }
   }
 
-  const employeeId = await getEmployeeIdForUser(userId)
+  const employeeId = await getEmployeeIdForUser(userId, {
+    employeeId: (sessions?.[0] as any)?.employeeId,
+    userName: sessions?.[0]?.userName,
+  })
   if (!employeeId) {
     return { synced: false, reason: "no_employee", sessionCount: sessions.length, monthKey, day }
   }

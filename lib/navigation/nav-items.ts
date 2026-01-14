@@ -131,16 +131,6 @@ export function buildNav(ctx: NavCtx): NavNode[] {
       visible: () => isTechnician,
     },
     {
-      type: "link",
-      id: "cereri-aprobari",
-      label: "Cererile de aprobat",
-      href: "/dashboard/cereri-aprobari",
-      icon: ClipboardList,
-      activeMatch: "prefix",
-      // Managers may have any non-client role; page will show empty state if none.
-      visible: () => !isClient && !isKiosk,
-    },
-    {
       type: "group",
       id: "tichete",
       label: "Tichete",
@@ -222,6 +212,14 @@ export function buildNav(ctx: NavCtx): NavNode[] {
           id: "hr-pontaj",
           label: "Condică prezență",
           href: "/dashboard/resurse-umane/condica-prezenta",
+          icon: ClipboardList,
+          activeMatch: "prefix",
+        },
+        {
+          type: "link",
+          id: "cereri-aprobari",
+          label: "Cererile de aprobat",
+          href: "/dashboard/cereri-aprobari",
           icon: ClipboardList,
           activeMatch: "prefix",
         },
