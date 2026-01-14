@@ -295,6 +295,8 @@ export function DayEntryPopover({
                       <span className={`text-xs font-semibold px-2 py-1 rounded ${
                         cell?.code === "WORK" ? "bg-emerald-900/40 text-emerald-300" :
                         cell?.code === "CO" ? "bg-amber-900/40 text-amber-300" :
+                        cell?.code === "CFP" ? "bg-orange-900/40 text-orange-300" :
+                        cell?.code === "CM" ? "bg-teal-900/40 text-teal-300" :
                         cell?.code === "DEL" ? "bg-violet-900/40 text-violet-300" :
                         cell?.code === "IN" ? "bg-slate-800/40 text-slate-300" :
                         cell?.code === "SL" ? "bg-blue-900/40 text-blue-300" :
@@ -303,6 +305,8 @@ export function DayEntryPopover({
                       }`}>
                         {cell?.code === "WORK" ? "Lucrat" :
                          cell?.code === "CO" ? "Concediu" :
+                         cell?.code === "CFP" ? "Concediu fără plată" :
+                         cell?.code === "CM" ? "Concediu medical" :
                          cell?.code === "DEL" ? "Delegație" :
                          cell?.code === "IN" ? "Invoicing" :
                          cell?.code === "SL" ? "Sărbătoare legală" :

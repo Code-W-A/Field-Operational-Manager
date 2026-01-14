@@ -65,6 +65,8 @@ function cellClasses(cell: TimesheetCell | undefined) {
   if (code === "WORK") return "bg-gradient-to-br from-emerald-50 to-emerald-100 text-emerald-900 border-emerald-300 dark:from-emerald-950 dark:to-emerald-900"
   if (code === "WE") return "bg-gradient-to-br from-pink-50 to-pink-100 text-pink-900 border-pink-300 dark:from-pink-950 dark:to-pink-900"
   if (code === "CO") return "bg-gradient-to-br from-amber-50 to-amber-100 text-amber-900 border-amber-300 dark:from-amber-950 dark:to-amber-900"
+  if (code === "CFP") return "bg-gradient-to-br from-orange-50 to-orange-100 text-orange-900 border-orange-300 dark:from-orange-950 dark:to-orange-900"
+  if (code === "CM") return "bg-gradient-to-br from-teal-50 to-teal-100 text-teal-900 border-teal-300 dark:from-teal-950 dark:to-teal-900"
   if (code === "DEL") return "bg-gradient-to-br from-violet-50 to-violet-100 text-violet-900 border-violet-300 dark:from-violet-950 dark:to-violet-900"
   if (code === "IN") return "bg-gradient-to-br from-slate-50 to-slate-100 text-slate-900 border-slate-300 dark:from-slate-950 dark:to-slate-900"
   if (code === "SL") return "bg-gradient-to-br from-blue-50 to-blue-100 text-blue-900 border-blue-300 dark:from-blue-950 dark:to-blue-900"
@@ -131,6 +133,8 @@ export default function HrEmployeeDetailsPage() {
   // Edit dialog state - workplace fields
   const [editPoziteCOR, setEditPoziteCOR] = useState("")
   const [editSuperiorIerarhic, setEditSuperiorIerarhic] = useState("")
+  const [editSectorIds, setEditSectorIds] = useState("") // comma-separated
+  const [editManagerUidBySector, setEditManagerUidBySector] = useState<Record<string, string>>({})
   const [editLoculDeMunca, setEditLoculDeMunca] = useState("")
   const [editProgramLucruStart, setEditProgramLucruStart] = useState("")
   const [editProgramLucruEnd, setEditProgramLucruEnd] = useState("")
@@ -217,6 +221,8 @@ export default function HrEmployeeDetailsPage() {
       setEditCiEmitent(employee.ciEmitent || "")
       setEditPoziteCOR(employee.poziteCOR || "")
       setEditSuperiorIerarhic(employee.superiorIerarhic || "")
+      setEditSectorIds((employee.sectorIds || []).join(", "))
+      setEditManagerUidBySector(employee.managerUidBySector || {})
       setEditLoculDeMunca(employee.loculDeMunca || "")
       setEditProgramLucruStart(employee.programLucruStart || "")
       setEditProgramLucruEnd(employee.programLucruEnd || "")
@@ -290,6 +296,16 @@ export default function HrEmployeeDetailsPage() {
         photoUpdatedAt = Date.now()
       }
 
+      const sectorIds = editSectorIds
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+      const managerUidBySector = Object.fromEntries(
+        Object.entries(editManagerUidBySector || {})
+          .map(([k, v]) => [String(k).trim(), String(v || "").trim()])
+          .filter(([k, v]) => k && v && sectorIds.includes(k))
+      )
+
       const updated: Employee = {
         ...employee,
         nume: editNume.trim(),
@@ -305,6 +321,8 @@ export default function HrEmployeeDetailsPage() {
         ciEmitent: editCiEmitent.trim() || undefined,
         poziteCOR: editPoziteCOR.trim() || undefined,
         superiorIerarhic: editSuperiorIerarhic.trim() || undefined,
+        sectorIds: sectorIds.length ? sectorIds : undefined,
+        managerUidBySector: Object.keys(managerUidBySector).length ? managerUidBySector : undefined,
         loculDeMunca: editLoculDeMunca.trim() || undefined,
         programLucruStart: editProgramLucruStart.trim() || undefined,
         programLucruEnd: editProgramLucruEnd.trim() || undefined,
@@ -1170,6 +1188,59 @@ export default function HrEmployeeDetailsPage() {
                   placeholder="Ex: Voinea Ionut"
                 />
               </div>
+              <div className="grid gap-2">
+                <Label htmlFor="editSectorIds">Sectoare (ID-uri, separate prin virgulă)</Label>
+                <Input
+                  id="editSectorIds"
+                  value={editSectorIds}
+                  onChange={(e) => setEditSectorIds(e.target.value)}
+                  placeholder="Ex: sector-1, sector-2"
+                />
+                <div className="text-xs text-muted-foreground">
+                  Pentru fiecare sector, selectează șeful ierarhic care aprobă cererile.
+                </div>
+              </div>
+
+              {editSectorIds
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean).length > 0 ? (
+                <div className="grid gap-3 rounded-lg border p-3 bg-muted/20">
+                  <div className="text-sm font-semibold">Șef ierarhic pe sector</div>
+                  {editSectorIds
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                    .map((sectorId) => (
+                      <div key={sectorId} className="grid gap-2">
+                        <Label className="text-xs text-muted-foreground">Sector: {sectorId}</Label>
+                        <Select
+                          value={editManagerUidBySector?.[sectorId] ?? "__none__"}
+                          onValueChange={(v) =>
+                            setEditManagerUidBySector((prev) => {
+                              const next = { ...(prev || {}) }
+                              if (v === "__none__") delete next[sectorId]
+                              else next[sectorId] = v
+                              return next
+                            })
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Alege șef ierarhic" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">Necompletat</SelectItem>
+                            {users.map((u) => (
+                              <SelectItem key={u.uid} value={u.uid}>
+                                {(u.displayName || u.email || u.uid) + (u.role ? ` • ${u.role}` : "")}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ))}
+                </div>
+              ) : null}
               <div className="grid gap-2">
                 <Label htmlFor="editLoculDeMunca">Locul de muncă</Label>
                 <Input 

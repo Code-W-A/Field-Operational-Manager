@@ -1,0 +1,71 @@
+0 verbose cli /opt/homebrew/Cellar/node/24.4.1/bin/node /opt/homebrew/bin/npm
+1 info using npm@11.4.2
+2 info using node@v24.4.1
+3 silly config load:file:/opt/homebrew/lib/node_modules/npm/npmrc
+4 silly config load:file:/Users/code-with-a/Documents/FOM/Field-Operational-Manager/firebase-functions/.npmrc
+5 silly config load:file:/Users/code-with-a/.npmrc
+6 silly config load:file:/opt/homebrew/etc/npmrc
+7 verbose title npm install nodemailer@latest
+8 verbose argv "install" "nodemailer@latest"
+9 verbose logfile logs-max:10 dir:/Users/code-with-a/Documents/FOM/Field-Operational-Manager/firebase-functions/npm-cache/_logs/2026-01-14T07_35_35_795Z-
+10 verbose logfile /Users/code-with-a/Documents/FOM/Field-Operational-Manager/firebase-functions/npm-cache/_logs/2026-01-14T07_35_35_795Z-debug-0.log
+11 silly logfile done cleaning log files
+12 silly packumentCache heap:2348810240 maxSize:587202560 maxEntrySize:293601280
+13 silly packumentCache corgi:https://registry.npmjs.org/nodemailer cache-miss
+14 http fetch GET 200 https://registry.npmjs.org/nodemailer 278ms (cache miss)
+15 silly packumentCache corgi:https://registry.npmjs.org/nodemailer set size:undefined disposed:false
+16 silly idealTree buildDeps
+17 silly fetch manifest nodemailer@7.0.12
+18 silly packumentCache full:https://registry.npmjs.org/nodemailer cache-miss
+19 http fetch GET 200 https://registry.npmjs.org/nodemailer 131ms (cache miss)
+20 silly packumentCache full:https://registry.npmjs.org/nodemailer set size:undefined disposed:false
+21 silly placeDep ROOT nodemailer@7.0.12 OK for: fom-firebase-functions@1.0.0 want: 7.0.12
+22 warn EBADENGINE Unsupported engine {
+22 warn EBADENGINE   package: 'fom-firebase-functions@1.0.0',
+22 warn EBADENGINE   required: { node: '20' },
+22 warn EBADENGINE   current: { node: 'v24.4.1', npm: '11.4.2' }
+22 warn EBADENGINE }
+23 silly reify moves {}
+24 verbose stack Error: EACCES: permission denied, mkdir '/Users/code-with-a/Documents/FOM/Field-Operational-Manager/firebase-functions/node_modules/nodemailer'
+24 verbose stack     at async mkdir (node:internal/fs/promises:859:10)
+24 verbose stack     at async /opt/homebrew/lib/node_modules/npm/node_modules/@npmcli/arborist/lib/arborist/reify.js:639:20
+24 verbose stack     at async Promise.allSettled (index 0)
+24 verbose stack     at async [reifyPackages] (/opt/homebrew/lib/node_modules/npm/node_modules/@npmcli/arborist/lib/arborist/reify.js:337:11)
+24 verbose stack     at async Arborist.reify (/opt/homebrew/lib/node_modules/npm/node_modules/@npmcli/arborist/lib/arborist/reify.js:142:5)
+24 verbose stack     at async Install.exec (/opt/homebrew/lib/node_modules/npm/lib/commands/install.js:149:5)
+24 verbose stack     at async Npm.exec (/opt/homebrew/lib/node_modules/npm/lib/npm.js:208:9)
+24 verbose stack     at async module.exports (/opt/homebrew/lib/node_modules/npm/lib/cli/entry.js:67:5)
+25 error code EACCES
+26 error syscall mkdir
+27 error path /Users/code-with-a/Documents/FOM/Field-Operational-Manager/firebase-functions/node_modules/nodemailer
+28 error errno -13
+29 error Error: EACCES: permission denied, mkdir '/Users/code-with-a/Documents/FOM/Field-Operational-Manager/firebase-functions/node_modules/nodemailer'
+29 error     at async mkdir (node:internal/fs/promises:859:10)
+29 error     at async /opt/homebrew/lib/node_modules/npm/node_modules/@npmcli/arborist/lib/arborist/reify.js:639:20
+29 error     at async Promise.allSettled (index 0)
+29 error     at async [reifyPackages] (/opt/homebrew/lib/node_modules/npm/node_modules/@npmcli/arborist/lib/arborist/reify.js:337:11)
+29 error     at async Arborist.reify (/opt/homebrew/lib/node_modules/npm/node_modules/@npmcli/arborist/lib/arborist/reify.js:142:5)
+29 error     at async Install.exec (/opt/homebrew/lib/node_modules/npm/lib/commands/install.js:149:5)
+29 error     at async Npm.exec (/opt/homebrew/lib/node_modules/npm/lib/npm.js:208:9)
+29 error     at async module.exports (/opt/homebrew/lib/node_modules/npm/lib/cli/entry.js:67:5) {
+29 error   errno: -13,
+29 error   code: 'EACCES',
+29 error   syscall: 'mkdir',
+29 error   path: '/Users/code-with-a/Documents/FOM/Field-Operational-Manager/firebase-functions/node_modules/nodemailer'
+29 error }
+30 error
+30 error The operation was rejected by your operating system.
+30 error It is likely you do not have the permissions to access this file as the current user
+30 error
+30 error If you believe this might be a permissions issue, please double-check the
+30 error permissions of the file and its containing directories, or try running
+30 error the command again as root/Administrator.
+31 silly unfinished npm timer reify 1768376136200
+32 silly unfinished npm timer reify:createSparse 1768376136687
+33 verbose cwd /Users/code-with-a/Documents/FOM/Field-Operational-Manager/firebase-functions
+34 verbose os Darwin 25.0.0
+35 verbose node v24.4.1
+36 verbose npm  v11.4.2
+37 verbose exit -13
+38 verbose code -13
+39 error A complete log of this run can be found in: /Users/code-with-a/Documents/FOM/Field-Operational-Manager/firebase-functions/npm-cache/_logs/2026-01-14T07_35_35_795Z-debug-0.log

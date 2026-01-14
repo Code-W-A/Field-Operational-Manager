@@ -1,6 +1,7 @@
 "use client"
 
 import type { Employee, LeaveRequest, TimesheetCell, TimesheetMonth, TimesheetMonthKey } from "./types"
+import type { HrRequest, HrRequestKind, HrRequestStatus } from "./types"
 import {
   collection,
   deleteDoc,
@@ -83,6 +84,15 @@ function normalizeEmployee(id: string, data: any): Employee {
     title: data.title ? String(data.title) : undefined,
     poziteCOR: data.poziteCOR ? String(data.poziteCOR) : undefined,
     superiorIerarhic: data.superiorIerarhic ? String(data.superiorIerarhic) : undefined,
+    sectorIds: Array.isArray(data.sectorIds) ? data.sectorIds.map((x: any) => String(x)).filter(Boolean) : undefined,
+    managerUidBySector:
+      data.managerUidBySector && typeof data.managerUidBySector === "object"
+        ? Object.fromEntries(
+            Object.entries(data.managerUidBySector as Record<string, any>)
+              .map(([k, v]) => [String(k), v == null ? "" : String(v)])
+              .filter(([k, v]) => k && v)
+          )
+        : undefined,
     loculDeMunca: data.loculDeMunca ? String(data.loculDeMunca) : undefined,
     programLucruStart: data.programLucruStart ? String(data.programLucruStart) : undefined,
     programLucruEnd: data.programLucruEnd ? String(data.programLucruEnd) : undefined,
@@ -122,6 +132,14 @@ export function subscribeEmployees(params: {
   )
 }
 
+export async function getEmployeeByUserUid(userUid: string): Promise<Employee | null> {
+  const q = query(collection(db, "hrEmployees"), where("userUid", "==", userUid), limit(1))
+  const snap = await getDocs(q)
+  if (snap.empty) return null
+  const d = snap.docs[0]
+  return normalizeEmployee(d.id, d.data())
+}
+
 export async function createOrUpdateEmployee(employee: Employee) {
   const ref = doc(db, "hrEmployees", employee.id)
   
@@ -139,6 +157,8 @@ export async function createOrUpdateEmployee(employee: Employee) {
       title: employee.title ?? null,
     poziteCOR: employee.poziteCOR ?? null,
     superiorIerarhic: employee.superiorIerarhic ?? null,
+    sectorIds: employee.sectorIds?.length ? employee.sectorIds : null,
+    managerUidBySector: employee.managerUidBySector && Object.keys(employee.managerUidBySector).length ? employee.managerUidBySector : null,
     loculDeMunca: employee.loculDeMunca ?? null,
     programLucruStart: employee.programLucruStart ?? null,
     programLucruEnd: employee.programLucruEnd ?? null,
@@ -458,6 +478,107 @@ export function subscribeEmployeeLeaveRequests(params: {
     },
     (err) => params.onError?.(err)
   )
+}
+
+// ===== HR Requests (unified) =====
+
+function normalizeHrRequest(id: string, data: any): HrRequest {
+  return {
+    id,
+    employeeId: String(data.employeeId),
+    employeeName: data.employeeName ? String(data.employeeName) : undefined,
+    requesterUid: String(data.requesterUid),
+    sectorId: String(data.sectorId),
+    managerUid: String(data.managerUid),
+    kind: String(data.kind) as HrRequestKind,
+    status: String(data.status) as HrRequestStatus,
+    payload: (data.payload ?? {}) as any,
+    rejectionReason: data.rejectionReason ? String(data.rejectionReason) : undefined,
+    createdAt: data.createdAt?.toMillis?.() ?? Date.now(),
+    updatedAt: data.updatedAt?.toMillis?.() ?? Date.now(),
+    decidedAt: data.decidedAt?.toMillis?.() ?? undefined,
+    decidedByUid: data.decidedByUid ? String(data.decidedByUid) : undefined,
+  }
+}
+
+export function subscribeHrRequestsForEmployee(params: {
+  employeeId: string
+  onChange: (requests: HrRequest[]) => void
+  onError?: (err: unknown) => void
+}): Unsubscribe {
+  const q = query(
+    collection(db, "hrRequests"),
+    where("employeeId", "==", params.employeeId),
+    orderBy("createdAt", "desc")
+  )
+  return onSnapshot(
+    q,
+    (snap) => {
+      const items = snap.docs.map((d) => normalizeHrRequest(d.id, d.data()))
+      params.onChange(items)
+    },
+    (err) => params.onError?.(err)
+  )
+}
+
+export function subscribeHrRequestsForManager(params: {
+  managerUid: string
+  onChange: (requests: HrRequest[]) => void
+  onError?: (err: unknown) => void
+}): Unsubscribe {
+  const q = query(
+    collection(db, "hrRequests"),
+    where("managerUid", "==", params.managerUid),
+    orderBy("createdAt", "desc")
+  )
+  return onSnapshot(
+    q,
+    (snap) => {
+      const items = snap.docs.map((d) => normalizeHrRequest(d.id, d.data()))
+      params.onChange(items)
+    },
+    (err) => params.onError?.(err)
+  )
+}
+
+export async function createHrRequest(request: Omit<HrRequest, "id" | "createdAt" | "updatedAt">) {
+  const ref = doc(collection(db, "hrRequests"))
+  await setDoc(ref, {
+    ...request,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function updateHrRequestByManager(params: {
+  requestId: string
+  updates: Partial<Pick<HrRequest, "payload" | "sectorId" | "managerUid" | "kind">>
+  managerUid: string
+}) {
+  const ref = doc(db, "hrRequests", params.requestId)
+  await updateDoc(ref, {
+    ...params.updates,
+    updatedAt: serverTimestamp(),
+    // keep audit hints
+    editedByUid: params.managerUid,
+    editedAt: serverTimestamp(),
+  } as any)
+}
+
+export async function decideHrRequest(params: {
+  requestId: string
+  status: "approved" | "rejected"
+  decidedByUid: string
+  rejectionReason?: string
+}) {
+  const ref = doc(db, "hrRequests", params.requestId)
+  await updateDoc(ref, {
+    status: params.status,
+    rejectionReason: params.status === "rejected" ? (params.rejectionReason?.trim() || "—") : null,
+    decidedByUid: params.decidedByUid,
+    decidedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  } as any)
 }
 
 // ===== Data Migration =====

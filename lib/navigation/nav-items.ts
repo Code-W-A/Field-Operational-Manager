@@ -86,7 +86,7 @@ export function filterNav(nodes: NavNode[], ctx: NavCtx): NavNode[] {
 }
 
 export function buildNav(ctx: NavCtx): NavNode[] {
-  const { isAdmin, isTechnician, isDispatcher, isClient, isAdminOrDispatcher } = getRoleFlags(ctx)
+  const { isAdmin, isTechnician, isDispatcher, isClient, isKiosk, isAdminOrDispatcher } = getRoleFlags(ctx)
 
   if (isClient) {
     return filterNav(
@@ -120,6 +120,25 @@ export function buildNav(ctx: NavCtx): NavNode[] {
       href: "/dashboard",
       icon: LayoutDashboard,
       activeMatch: "exact",
+    },
+    {
+      type: "link",
+      id: "cererile-mele",
+      label: "Cererile mele",
+      href: "/dashboard/cereri",
+      icon: FileText,
+      activeMatch: "prefix",
+      visible: () => isTechnician,
+    },
+    {
+      type: "link",
+      id: "cereri-aprobari",
+      label: "Cererile de aprobat",
+      href: "/dashboard/cereri-aprobari",
+      icon: ClipboardList,
+      activeMatch: "prefix",
+      // Managers may have any non-client role; page will show empty state if none.
+      visible: () => !isClient && !isKiosk,
     },
     {
       type: "group",

@@ -14,19 +14,45 @@ service cloud.firestore {
       return isSignedIn() && (userRole() == 'admin' || userRole() == 'dispecer');
     }
 
+    function isHrCollection() {
+      // First segment after /documents/
+      return request.path.segments.size() > 0 &&
+        (request.path.segments[0] == 'hrEmployees' ||
+         request.path.segments[0] == 'hrTimesheets' ||
+         request.path.segments[0] == 'hrRequests');
+    }
+
     // HR: restrict to admin + dispecer
     match /hrEmployees/{employeeId} {
+      // Admin/dispatcher: full access.
       allow read, write: if isAdminOrDispatcher();
+      // Employee can read own HR profile (needed for technician requests routing).
+      allow read: if isSignedIn() && resource.data.userUid == request.auth.uid;
     }
 
     match /hrTimesheets/{timesheetId} {
       allow read, write: if isAdminOrDispatcher();
     }
 
+    match /hrRequests/{requestId} {
+      // Create: only requester can create for themselves.
+      allow create: if isSignedIn() && request.resource.data.requesterUid == request.auth.uid;
+
+      // Read: requester OR manager OR admin/dispatcher.
+      allow read: if isAdminOrDispatcher()
+        || (isSignedIn() && resource.data.requesterUid == request.auth.uid)
+        || (isSignedIn() && resource.data.managerUid == request.auth.uid);
+
+      // Update/delete: manager OR admin/dispatcher (requester edits can be added later).
+      allow update, delete: if isAdminOrDispatcher()
+        || (isSignedIn() && resource.data.managerUid == request.auth.uid);
+    }
+
     // Fallback (existing app behavior): allow authenticated access.
     // NOTE: this is intentionally broad to avoid breaking existing collections in this repo.
     match /{document=**} {
-      allow read, write: if isSignedIn();
+      // Keep broad access for legacy collections, but exclude HR collections which have explicit rules above.
+      allow read, write: if isSignedIn() && !isHrCollection();
     }
   }
 }
