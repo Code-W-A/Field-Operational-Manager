@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,10 +8,11 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
-import type { Employee, LeaveRequest } from "@/lib/hr/types"
+import type { Department, Employee, HrRequestKind } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
-import { createLeaveRequest } from "@/lib/hr/storage"
-import { generateLeaveRequestPDF } from "@/lib/hr/leave-pdf-generator"
+import { createHrRequest } from "@/lib/hr/storage"
+import { generateHrRequestPDF } from "@/lib/hr/request-pdf-generator"
+import { hrRequestKindLabel } from "@/lib/hr/hr-requests"
 import { CalendarDays, FileText } from "lucide-react"
 
 function calculateWorkDays(startStr: string, endStr: string): number {
@@ -37,11 +38,15 @@ export function CreateLeaveRequestDialog({
   onOpenChange,
   employees,
   defaultEmployeeId,
+  requesterUid,
+  departments,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
   employees: Employee[]
   defaultEmployeeId?: string
+  requesterUid: string
+  departments?: Department[]
 }) {
   const sortedEmployees = useMemo(
     () => [...employees].sort((a, b) => a.fullName.localeCompare(b.fullName)),
@@ -51,8 +56,9 @@ export function CreateLeaveRequestDialog({
   const [employeeId, setEmployeeId] = useState<string>(defaultEmployeeId || sortedEmployees[0]?.id || "")
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
-  const [type, setType] = useState<"CO" | "SL" | "DEL">("CO")
+  const [type, setType] = useState<"CO" | "CFP" | "CM" | "SL" | "DEL">("CO")
   const [reason, setReason] = useState("")
+  const [sectorId, setSectorId] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
@@ -66,10 +72,25 @@ export function CreateLeaveRequestDialog({
   const remainingDays = availableDays - workDays
   
   const selectedEmployee = employees.find(e => e.id === employeeId)
+  const availableSectors = selectedEmployee?.sectorIds ?? []
+  const managerUid = sectorId ? selectedEmployee?.managerUidBySector?.[sectorId] || selectedEmployee?.superiorUid : undefined
+
+  useEffect(() => {
+    if (!availableSectors.length) {
+      setSectorId("")
+      return
+    }
+    if (availableSectors.includes(sectorId)) return
+    setSectorId(availableSectors[0])
+  }, [availableSectors, sectorId])
   
   const handleSubmit = async () => {
     setError(null)
-    
+
+    if (!requesterUid) {
+      setError("Nu există un utilizator autentificat pentru a trimite cererea.")
+      return
+    }
     if (!employeeId || !startDate || !endDate) {
       setError("Completează toate câmpurile obligatorii")
       return
@@ -86,28 +107,52 @@ export function CreateLeaveRequestDialog({
     }
     
     try {
-      setSubmitting(true)
-      
-      // Creează cererea în Firestore
-      const request: Omit<LeaveRequest, "id" | "createdAt"> = {
-        employeeId,
-        startDate,
-        endDate,
-        type,
-        status: "pending",
-        reason: reason.trim() || undefined,
+      if (!sectorId) {
+        setError("Selectează sectorul")
+        return
       }
-      
-      await createLeaveRequest(request)
-      
-      // Generează PDF
+      if (!managerUid) {
+        setError("Nu este setat șeful ierarhic pentru acest sector (sau global) în fișa de salariat.")
+        return
+      }
+
+      setSubmitting(true)
+
+      await createHrRequest({
+        employeeId,
+        employeeName: selectedEmployee ? getEmployeeFullName(selectedEmployee) : undefined,
+        requesterUid,
+        sectorId,
+        managerUid,
+        kind: type as HrRequestKind,
+        status: "pending",
+        payload: {
+          kind: type as HrRequestKind,
+          startDate,
+          endDate,
+          reason: reason.trim() || undefined,
+        },
+      })
+
       if (selectedEmployee) {
-        generateLeaveRequestPDF(
-          { ...request, id: "temp", createdAt: Date.now() },
-          selectedEmployee,
-          availableDays,
-          remainingDays
-        )
+        generateHrRequestPDF({
+          id: "temp",
+          employeeId,
+          employeeName: getEmployeeFullName(selectedEmployee),
+          requesterUid,
+          sectorId,
+          managerUid,
+          kind: type as HrRequestKind,
+          status: "pending",
+          payload: {
+            kind: type as HrRequestKind,
+            startDate,
+            endDate,
+            reason: reason.trim() || undefined,
+          },
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        })
       }
       
       // Resetare formular
@@ -167,13 +212,37 @@ export function CreateLeaveRequestDialog({
                   <SelectValue placeholder="Selectează angajat" />
                 </SelectTrigger>
                 <SelectContent>
-                  {sortedEmployees.map(e => (
+                  {sortedEmployees.map((e) => (
                     <SelectItem key={e.id} value={e.id}>
                       {getEmployeeFullName(e)} {e.title && `• ${e.title}`}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="sector">Sector *</Label>
+              <Select value={sectorId} onValueChange={setSectorId}>
+                <SelectTrigger id="sector">
+                  <SelectValue placeholder="Selectează sector" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableSectors.map((s) => {
+                    const deptName = departments?.find((d) => d.id === s)?.name
+                    return (
+                      <SelectItem key={s} value={s}>
+                        {deptName || s}
+                      </SelectItem>
+                    )
+                  })}
+                </SelectContent>
+              </Select>
+              {sectorId && !managerUid ? (
+                <div className="text-xs text-destructive">
+                  Nu există șef ierarhic setat pentru acest sector (sau global) în fișa de salariat.
+                </div>
+              ) : null}
             </div>
             
             <div className="grid grid-cols-2 gap-4">
@@ -206,24 +275,11 @@ export function CreateLeaveRequestDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="CO">
-                    <div className="flex items-center gap-2">
-                      <span className="inline-block h-3 w-3 rounded-full bg-amber-500" />
-                      Concediu de odihnă (CO)
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="SL">
-                    <div className="flex items-center gap-2">
-                      <span className="inline-block h-3 w-3 rounded-full bg-blue-500" />
-                      Sărbătoare legală (SL)
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="DEL">
-                    <div className="flex items-center gap-2">
-                      <span className="inline-block h-3 w-3 rounded-full bg-violet-500" />
-                      Delegație (DEL)
-                    </div>
-                  </SelectItem>
+                  {(["CO", "CFP", "CM", "SL", "DEL"] as HrRequestKind[]).map((k) => (
+                    <SelectItem key={k} value={k}>
+                      {hrRequestKindLabel(k)}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

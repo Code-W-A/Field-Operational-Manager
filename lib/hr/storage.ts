@@ -1,6 +1,6 @@
 "use client"
 
-import type { Employee, LeaveRequest, TimesheetCell, TimesheetMonth, TimesheetMonthKey } from "./types"
+import type { Department, Employee, TimesheetCell, TimesheetMonth, TimesheetMonthKey } from "./types"
 import type { HrRequest, HrRequestKind, HrRequestStatus } from "./types"
 import {
   collection,
@@ -83,6 +83,7 @@ function normalizeEmployee(id: string, data: any): Employee {
     // Workplace data
     title: data.title ? String(data.title) : undefined,
     poziteCOR: data.poziteCOR ? String(data.poziteCOR) : undefined,
+    superiorUid: data.superiorUid ? String(data.superiorUid) : undefined,
     superiorIerarhic: data.superiorIerarhic ? String(data.superiorIerarhic) : undefined,
     sectorIds: Array.isArray(data.sectorIds) ? data.sectorIds.map((x: any) => String(x)).filter(Boolean) : undefined,
     managerUidBySector:
@@ -156,6 +157,7 @@ export async function createOrUpdateEmployee(employee: Employee) {
     // Workplace data
       title: employee.title ?? null,
     poziteCOR: employee.poziteCOR ?? null,
+    superiorUid: employee.superiorUid ?? null,
     superiorIerarhic: employee.superiorIerarhic ?? null,
     sectorIds: employee.sectorIds?.length ? employee.sectorIds : null,
     managerUidBySector: employee.managerUidBySector && Object.keys(employee.managerUidBySector).length ? employee.managerUidBySector : null,
@@ -269,6 +271,25 @@ export function timesheetDocId(employeeId: string, monthKey: TimesheetMonthKey) 
   return `${employeeId}_${monthKey}`
 }
 
+// Helper function to remove undefined values from an object (Firestore doesn't allow undefined)
+function removeUndefined<T extends Record<string, any>>(obj: T): Partial<T> {
+  const result: any = {}
+  for (const key in obj) {
+    const value = obj[key]
+    if (value === undefined) continue
+    if (Array.isArray(value)) {
+      result[key] = value.map(item => 
+        typeof item === 'object' && item !== null ? removeUndefined(item) : item
+      )
+    } else if (typeof value === 'object' && value !== null) {
+      result[key] = removeUndefined(value)
+    } else {
+      result[key] = value
+    }
+  }
+  return result
+}
+
 export function upsertTimesheetCell(params: {
   monthKey: TimesheetMonthKey
   employeeId: string
@@ -277,13 +298,17 @@ export function upsertTimesheetCell(params: {
 }): Promise<void> {
   const ref = doc(db, "hrTimesheets", timesheetDocId(params.employeeId, params.monthKey))
   const dayKey = String(params.day)
+  
+  // Clean the cell object to remove undefined values
+  const cleanCell = removeUndefined(params.cell)
+  
   return setDoc(
     ref,
     {
       employeeId: params.employeeId,
       monthKey: params.monthKey,
       updatedAt: serverTimestamp(),
-      days: { [dayKey]: params.cell },
+      days: { [dayKey]: cleanCell },
     },
     { merge: true }
   )
@@ -415,71 +440,6 @@ export async function importLegacyLocalStorageHrDataToFirestore(): Promise<{ emp
   return { employees: legacy.employees.length, timesheets: legacy.timesheets.length }
 }
 
-// ===== Leave Requests =====
-
-export function subscribeLeaveRequests(params: {
-  monthKey: TimesheetMonthKey
-  onChange: (requests: LeaveRequest[]) => void
-  onError?: (err: unknown) => void
-}): Unsubscribe {
-  const [year, month] = params.monthKey.split("-")
-  const startDate = `${year}-${month}-01`
-  const endDate = `${year}-${month}-31`
-  
-  const q = query(
-    collection(db, "hrLeaveRequests"),
-    where("startDate", ">=", startDate),
-    where("startDate", "<=", endDate),
-    orderBy("startDate", "desc")
-  )
-  
-  return onSnapshot(
-    q,
-    (snap) => {
-      const requests = snap.docs.map(d => ({ 
-        id: d.id, 
-        ...d.data(),
-        createdAt: d.data().createdAt?.toMillis?.() ?? Date.now()
-      } as LeaveRequest))
-      params.onChange(requests)
-    },
-    (err) => params.onError?.(err)
-  )
-}
-
-export async function createLeaveRequest(request: Omit<LeaveRequest, "id" | "createdAt">) {
-  const ref = doc(collection(db, "hrLeaveRequests"))
-  await setDoc(ref, {
-    ...request,
-    createdAt: serverTimestamp(),
-  })
-}
-
-export function subscribeEmployeeLeaveRequests(params: {
-  employeeId: string
-  onChange: (requests: LeaveRequest[]) => void
-  onError?: (err: unknown) => void
-}): Unsubscribe {
-  const q = query(
-    collection(db, "hrLeaveRequests"),
-    where("employeeId", "==", params.employeeId),
-    orderBy("startDate", "desc")
-  )
-  
-  return onSnapshot(
-    q,
-    (snap) => {
-      const requests = snap.docs.map(d => ({ 
-        id: d.id, 
-        ...d.data(),
-        createdAt: d.data().createdAt?.toMillis?.() ?? Date.now()
-      } as LeaveRequest))
-      params.onChange(requests)
-    },
-    (err) => params.onError?.(err)
-  )
-}
-
 // ===== HR Requests (unified) =====
 
 function normalizeHrRequest(id: string, data: any): HrRequest {
@@ -521,6 +481,44 @@ export function subscribeHrRequestsForEmployee(params: {
   )
 }
 
+function requestOverlapsMonth(req: HrRequest, monthKey: TimesheetMonthKey) {
+  const [yStr, mStr] = monthKey.split("-")
+  const year = Number(yStr)
+  const month = Number(mStr)
+  const monthStart = new Date(year, month - 1, 1)
+  const monthEnd = new Date(year, month, 0, 23, 59, 59, 999)
+
+  const payload: any = req.payload as any
+  const startStr = payload?.startDate || payload?.date
+  const endStr = payload?.endDate || payload?.date
+  if (!startStr) return false
+
+  const start = new Date(startStr)
+  const end = new Date(endStr || startStr)
+  return start <= monthEnd && end >= monthStart
+}
+
+export function subscribeHrRequestsForMonth(params: {
+  monthKey: TimesheetMonthKey
+  kinds?: HrRequestKind[]
+  onChange: (requests: HrRequest[]) => void
+  onError?: (err: unknown) => void
+}): Unsubscribe {
+  const q = query(collection(db, "hrRequests"), orderBy("createdAt", "desc"))
+  return onSnapshot(
+    q,
+    (snap) => {
+      const items = snap.docs.map((d) => normalizeHrRequest(d.id, d.data()))
+      const filtered = items.filter((r) => {
+        if (params.kinds?.length && !params.kinds.includes(r.kind)) return false
+        return requestOverlapsMonth(r, params.monthKey)
+      })
+      params.onChange(filtered)
+    },
+    (err) => params.onError?.(err)
+  )
+}
+
 export function subscribeHrRequestsForManager(params: {
   managerUid: string
   onChange: (requests: HrRequest[]) => void
@@ -543,8 +541,9 @@ export function subscribeHrRequestsForManager(params: {
 
 export async function createHrRequest(request: Omit<HrRequest, "id" | "createdAt" | "updatedAt">) {
   const ref = doc(collection(db, "hrRequests"))
+  const cleanRequest = removeUndefined(request as any)
   await setDoc(ref, {
-    ...request,
+    ...cleanRequest,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
@@ -556,8 +555,9 @@ export async function updateHrRequestByManager(params: {
   managerUid: string
 }) {
   const ref = doc(db, "hrRequests", params.requestId)
+  const cleanUpdates = removeUndefined(params.updates as any)
   await updateDoc(ref, {
-    ...params.updates,
+    ...cleanUpdates,
     updatedAt: serverTimestamp(),
     // keep audit hints
     editedByUid: params.managerUid,
@@ -579,6 +579,79 @@ export async function decideHrRequest(params: {
     decidedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   } as any)
+}
+
+// ===== Departments =====
+
+function normalizeDepartment(id: string, data: any): Department {
+  return {
+    id,
+    name: String(data.name || ""),
+    description: data.description ? String(data.description) : undefined,
+    active: Boolean(data.active),
+    createdAt: data.createdAt?.toMillis?.() ?? Date.now(),
+    updatedAt: data.updatedAt?.toMillis?.() ?? Date.now(),
+    createdBy: data.createdBy ? String(data.createdBy) : undefined,
+  }
+}
+
+export function subscribeDepartments(params: {
+  onChange: (departments: Department[]) => void
+  onError?: (err: unknown) => void
+}): Unsubscribe {
+  const q = query(collection(db, "hrDepartments"), orderBy("name", "asc"))
+  return onSnapshot(
+    q,
+    (snap) => {
+      const departments = snap.docs.map((d) => normalizeDepartment(d.id, d.data()))
+      params.onChange(departments)
+    },
+    (err) => params.onError?.(err)
+  )
+}
+
+export async function getActiveDepartments(): Promise<Department[]> {
+  const q = query(collection(db, "hrDepartments"), where("active", "==", true), orderBy("name", "asc"))
+  const snap = await getDocs(q)
+  return snap.docs.map((d) => normalizeDepartment(d.id, d.data()))
+}
+
+export async function createOrUpdateDepartment(department: Department) {
+  const ref = doc(db, "hrDepartments", department.id)
+  const data: any = {
+    name: department.name,
+    description: department.description ?? null,
+    active: department.active,
+    createdBy: department.createdBy ?? null,
+    updatedAt: serverTimestamp(),
+  }
+  
+  // Only set createdAt on new documents
+  const docSnap = await getDocs(query(collection(db, "hrDepartments"), where("__name__", "==", department.id), limit(1)))
+  if (docSnap.empty) {
+    data.createdAt = serverTimestamp()
+  }
+  
+  await setDoc(ref, data, { merge: true })
+}
+
+export async function deleteDepartment(departmentId: string): Promise<{ success: boolean; error?: string }> {
+  // Check if any employees are using this department
+  const employeesQuery = query(
+    collection(db, "hrEmployees"),
+    where("sectorIds", "array-contains", departmentId)
+  )
+  const employeesSnap = await getDocs(employeesQuery)
+  
+  if (!employeesSnap.empty) {
+    return {
+      success: false,
+      error: `Nu se poate șterge departamentul. Este folosit de ${employeesSnap.size} angajat${employeesSnap.size === 1 ? "" : "i"}.`
+    }
+  }
+  
+  await deleteDoc(doc(db, "hrDepartments", departmentId))
+  return { success: true }
 }
 
 // ===== Data Migration =====

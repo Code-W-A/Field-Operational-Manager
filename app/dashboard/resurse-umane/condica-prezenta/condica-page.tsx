@@ -19,7 +19,7 @@ import { DeleteTimesheetDialog } from "@/components/hr/delete-timesheet-dialog"
 import { LeaveRequestsSection } from "@/components/hr/leave-requests-section"
 import { CreateLeaveRequestDialog } from "@/components/hr/create-leave-request-dialog"
 import type { TimesheetExtraColumn } from "@/components/hr/timesheet-grid"
-import type { Employee, LeaveRequest, TimesheetCell, TimesheetCode, TimesheetMonth, TimesheetMonthKey } from "@/lib/hr/types"
+import type { Department, Employee, HrRequest, TimesheetCell, TimesheetCode, TimesheetMonth, TimesheetMonthKey } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
 import {
   deleteTimesheetRange,
@@ -27,13 +27,15 @@ import {
   getCurrentMonthKey,
   seedHrIfEmpty,
   subscribeEmployees,
-  subscribeLeaveRequests,
+  subscribeDepartments,
+  subscribeHrRequestsForMonth,
   subscribeTimesheetsForMonth,
   upsertTimesheetCell,
 } from "@/lib/hr/storage"
-import { Plus, Trash2, LayoutGrid, List, Download } from "lucide-react"
+import { Plus, Trash2, LayoutGrid, List, Download, Minimize2, Maximize2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { exportTimesheetsToCSV } from "@/lib/hr/export"
+import { useAuth } from "@/contexts/AuthContext"
 
 function toMonthInputValue(monthKey: TimesheetMonthKey) {
   return monthKey
@@ -90,6 +92,8 @@ function calculateMonthKPIs(monthKey: TimesheetMonthKey, employees: Employee[], 
 }
 
 export default function CondicaPrezentaPage() {
+  const { user } = useAuth()
+  const debugEnabled = process.env.NEXT_PUBLIC_ENABLE_DEBUG_PANEL === "true"
   const searchParams = useSearchParams()
   const initialEmployeeId = searchParams.get("employeeId") ?? "all"
   const initialMonthKey = (searchParams.get("month") as TimesheetMonthKey) || getCurrentMonthKey()
@@ -98,7 +102,8 @@ export default function CondicaPrezentaPage() {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [employeeFilter, setEmployeeFilter] = useState<string>(initialEmployeeId)
   const [timesheets, setTimesheets] = useState<TimesheetMonth[]>([])
-  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([])
+  const [leaveRequests, setLeaveRequests] = useState<HrRequest[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
 
   const [cellOpen, setCellOpen] = useState(false)
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
@@ -109,6 +114,14 @@ export default function CondicaPrezentaPage() {
   const [addDefaults, setAddDefaults] = useState<{ employeeId?: string; startDate?: string } | null>(null)
   const [deleteDefaults, setDeleteDefaults] = useState<{ employeeId?: string; startDate?: string; endDate?: string } | null>(null)
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
+  const [compactMode, setCompactMode] = useState(() => {
+    // Load from localStorage on initial mount
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("condica-compact-mode")
+      return saved === "true"
+    }
+    return false
+  })
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false)
 
   useEffect(() => {
@@ -127,6 +140,14 @@ export default function CondicaPrezentaPage() {
   }, [])
 
   useEffect(() => {
+    const unsub = subscribeDepartments({
+      onChange: setDepartments,
+      onError: () => undefined,
+    })
+    return () => unsub()
+  }, [])
+
+  useEffect(() => {
     let unsub: null | (() => void) = null
     unsub = subscribeTimesheetsForMonth({
       monthKey,
@@ -136,13 +157,34 @@ export default function CondicaPrezentaPage() {
   }, [monthKey])
 
   useEffect(() => {
+    if (!debugEnabled) return
+    try {
+      console.log("[CONDICA] month snapshot", {
+        monthKey,
+        employees: employees.length,
+        timesheets: timesheets.length,
+      })
+    } catch {
+      // ignore
+    }
+  }, [debugEnabled, monthKey, employees.length, timesheets.length])
+
+  useEffect(() => {
     let unsub: null | (() => void) = null
-    unsub = subscribeLeaveRequests({
+    unsub = subscribeHrRequestsForMonth({
       monthKey,
+      kinds: ["CO", "CFP", "CM", "SL", "DEL"],
       onChange: setLeaveRequests,
     })
     return () => unsub?.()
   }, [monthKey])
+
+  // Save compact mode preference to localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("condica-compact-mode", String(compactMode))
+    }
+  }, [compactMode])
 
   const filteredEmployees = useMemo(() => {
     const base = [...employees].sort((a, b) => a.fullName.localeCompare(b.fullName))
@@ -238,6 +280,25 @@ export default function CondicaPrezentaPage() {
     if (!selectedEmployeeId || !selectedDay) return undefined
     return getCell(selectedEmployeeId, selectedDay)
   }, [selectedEmployeeId, selectedDay, timesheets, monthKey])
+
+  useEffect(() => {
+    if (!debugEnabled) return
+    if (!selectedEmployeeId || !selectedDay) return
+    const ts = timesheets.find((t) => t.monthKey === monthKey && t.employeeId === selectedEmployeeId)
+    const dayKey = String(selectedDay)
+    try {
+      console.log("[CONDICA] cell snapshot", {
+        monthKey,
+        employeeId: selectedEmployeeId,
+        day: selectedDay,
+        dayKey,
+        cell: ts?.days?.[dayKey] ?? null,
+        timesheetDocExists: Boolean(ts),
+      })
+    } catch {
+      // ignore
+    }
+  }, [debugEnabled, selectedEmployeeId, selectedDay, timesheets, monthKey])
 
   const subtitle = useMemo(() => {
     if (!selectedDay) return ""
@@ -337,6 +398,17 @@ export default function CondicaPrezentaPage() {
               {viewMode === "grid" ? <LayoutGrid className="h-4 w-4 mr-2" /> : <List className="h-4 w-4 mr-2" />}
               {viewMode === "grid" ? "Grid" : "Listă"}
             </Button>
+            {viewMode === "grid" && (
+              <Button
+                variant={compactMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => setCompactMode(!compactMode)}
+                title={compactMode ? "Modul detaliat" : "Modul compact"}
+              >
+                {compactMode ? <Maximize2 className="h-4 w-4 mr-2" /> : <Minimize2 className="h-4 w-4 mr-2" />}
+                {compactMode ? "Detaliat" : "Compact"}
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -446,23 +518,26 @@ export default function CondicaPrezentaPage() {
         <TimesheetLegend />
       </div>
 
-      {viewMode === "grid" ? (
-        <TimesheetGrid
-          monthKey={monthKey}
-          employees={filteredEmployees}
-          getCell={getCell}
-          onCellClick={openEdit}
-          extraColumns={extraColumns}
-          className="shadow-sm"
-        />
-      ) : (
-        <TimesheetListView
-          monthKey={monthKey}
-          employees={filteredEmployees}
-          getCell={getCell}
-          onCellClick={openEdit}
-        />
-      )}
+      <div className="mb-8">
+        {viewMode === "grid" ? (
+          <TimesheetGrid
+            monthKey={monthKey}
+            employees={filteredEmployees}
+            getCell={getCell}
+            onCellClick={openEdit}
+            extraColumns={extraColumns}
+            className="shadow-sm"
+            compact={compactMode}
+          />
+        ) : (
+          <TimesheetListView
+            monthKey={monthKey}
+            employees={filteredEmployees}
+            getCell={getCell}
+            onCellClick={openEdit}
+          />
+        )}
+      </div>
 
       <DayEntryPopover
         open={cellOpen}
@@ -571,6 +646,8 @@ export default function CondicaPrezentaPage() {
         onOpenChange={setLeaveDialogOpen}
         employees={employees}
         defaultEmployeeId={employeeFilter !== "all" ? employeeFilter : undefined}
+        requesterUid={user?.uid ?? ""}
+        departments={departments}
       />
     </DashboardShell>
   )

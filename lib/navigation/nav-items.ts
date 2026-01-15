@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react"
 import {
   Archive,
   BarChart3,
+  Building2,
   ClipboardList,
   FileCodeIcon,
   FileText,
@@ -206,6 +207,15 @@ export function buildNav(ctx: NavCtx): NavNode[] {
           href: "/dashboard/resurse-umane/salariati",
           icon: Users,
           activeMatch: "prefix",
+        },
+        {
+          type: "link",
+          id: "hr-departamente",
+          label: "Departamente",
+          href: "/dashboard/resurse-umane/departamente",
+          icon: Building2,
+          activeMatch: "prefix",
+          visible: () => isAdmin,
         },
         {
           type: "link",

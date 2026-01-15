@@ -36,7 +36,9 @@ export type Employee = {
   // Workplace data (Date despre locul de munca)
   title?: string // Function/role (kept for compatibility)
   poziteCOR?: string // COR position code (e.g. "8114-Montator ansambluri mecanice")
-  superiorIerarhic?: string // Hierarchical superior
+  superiorUid?: string // Hierarchical superior (user UID)
+  /** @deprecated Legacy field - use superiorUid instead */
+  superiorIerarhic?: string
   /** Optional: sectors the employee belongs to (used for approvals routing). */
   sectorIds?: string[]
   /** Optional: for each sectorId, which userUid is the hierarchical superior (approver). */
@@ -60,6 +62,16 @@ export type Employee = {
   fullName?: string // Deprecated: use nume + prenume
 }
 
+export type Department = {
+  id: string
+  name: string
+  description?: string
+  active: boolean
+  createdAt: number
+  updatedAt: number
+  createdBy?: string
+}
+
 export type TimesheetMonthKey = `${number}-${string}` // e.g. "2026-01"
 
 export type TimesheetMonth = {
@@ -70,27 +82,13 @@ export type TimesheetMonth = {
   updatedAt: number
 }
 
-export type LeaveRequestStatus = "pending" | "approved" | "rejected"
-
-export type LeaveRequest = {
-  id: string
-  employeeId: string
-  startDate: string // yyyy-mm-dd
-  endDate: string // yyyy-mm-dd
-  type: "CO" | "SL" | "DEL" // Concediu / Sărbătoare / Delegație
-  status: LeaveRequestStatus
-  reason?: string
-  createdAt: number
-  approvedBy?: string // userUid
-  approvedAt?: number
-}
-
 export type HrRequestStatus = "pending" | "approved" | "rejected"
 
 export type HrRequestKind =
   | "CO" // concediu odihna
   | "CFP" // concediu fara plata
   | "CM" // concediu medical
+  | "SL" // sarbatoare legala
   | "IN" // invoire
   | "DEL" // delegatie
   | "CORRECT_HOURS" // corectare ore
@@ -98,7 +96,7 @@ export type HrRequestKind =
 
 export type HrRequestPayload =
   | {
-      kind: "CO" | "CFP" | "CM" | "DEL"
+      kind: "CO" | "CFP" | "CM" | "SL" | "DEL"
       startDate: string // yyyy-mm-dd
       endDate: string // yyyy-mm-dd
       reason?: string

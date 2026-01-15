@@ -76,6 +76,11 @@ export interface CheckOutRequest {
   location: AttendanceLocation
   faceRecognitionId?: string
   deviceInfo: DeviceInfo
+  /**
+   * DEBUG ONLY: simulate longer sessions without waiting.
+   * Only honored when NEXT_PUBLIC_ENABLE_DEBUG_PANEL === "true".
+   */
+  debugSimulatedDurationMinutes?: number
 }
 
 export interface ExtraTimeRequest {

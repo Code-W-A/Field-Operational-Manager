@@ -25,11 +25,29 @@ import type {
 } from "@/types/attendance"
 import type { Employee } from "@/lib/hr/types"
 import { calculateHomeRouteMinutes } from "@/lib/attendance/extra-time"
+import { syncAttendanceUserDayToTimesheet, type UserDaySyncResult } from "@/lib/attendance/sync-timesheet"
 
 export type Unsubscribe = () => void
 
 const DEFAULT_PROGRAM_START = "08:00"
 const DEFAULT_PROGRAM_END = "16:30"
+
+const DEBUG_PONTAJ = process.env.NEXT_PUBLIC_ENABLE_DEBUG_PANEL === "true"
+
+function debugPontajLog(label: string, payload: Record<string, any>) {
+  if (!DEBUG_PONTAJ) return
+  try {
+    console.log(`[PONTAJ] ${label}`, payload)
+  } catch {
+    // ignore
+  }
+}
+
+function isMissingIndexError(error: unknown) {
+  const msg = (error as any)?.message || ""
+  const code = (error as any)?.code || ""
+  return code === "failed-precondition" && String(msg).toLowerCase().includes("requires an index")
+}
 
 function parseHHmm(value: string | undefined, fallback: { h: number; m: number }) {
   if (!value) return fallback
@@ -111,6 +129,14 @@ export async function createCheckIn(request: CheckInRequest): Promise<string> {
 
   const schedule = await getEmployeeScheduleForUser(request.userId)
 
+  debugPontajLog("check-in:start", {
+    userId: request.userId,
+    employeeId: schedule?.employeeId,
+    mode: request.mode,
+    hasLocation: Boolean(request.location),
+    deviceType: request.deviceInfo?.type,
+  })
+
   const session: Omit<AttendanceSession, "id"> = {
     userId: request.userId,
     employeeId: schedule?.employeeId,
@@ -133,13 +159,20 @@ export async function createCheckIn(request: CheckInRequest): Promise<string> {
     updatedAt: serverTimestamp(),
   })
 
+  debugPontajLog("check-in:written", {
+    sessionId,
+    userId: request.userId,
+    employeeId: schedule?.employeeId,
+    sessionStart: now,
+  })
+
   return sessionId
 }
 
 /**
  * Check out from active session
  */
-export async function createCheckOut(request: CheckOutRequest): Promise<void> {
+export async function createCheckOut(request: CheckOutRequest): Promise<UserDaySyncResult | null> {
   const sessionRef = doc(db, "attendance", request.sessionId)
   
   // Get the session to check the 1-minute rule
@@ -157,7 +190,34 @@ export async function createCheckOut(request: CheckOutRequest): Promise<void> {
     ? sessionData.sessionStart 
     : (sessionData.sessionStart as any).toMillis()
   
-  const now = Date.now()
+  const debugEnabled = process.env.NEXT_PUBLIC_ENABLE_DEBUG_PANEL === "true"
+
+  const endOfDayLocalMs = (startMs: number) => {
+    const d = new Date(startMs)
+    d.setHours(23, 59, 59, 999)
+    return d.getTime()
+  }
+
+  const now = (() => {
+    const baseNow = Date.now()
+    const mins = request.debugSimulatedDurationMinutes
+    if (!debugEnabled || !mins || !Number.isFinite(mins) || mins <= 0) return baseNow
+    // Keep within the same local day to match HR day queries.
+    const desired = sessionStart + Math.round(mins) * 60 * 1000
+    const clamped = Math.min(desired, endOfDayLocalMs(sessionStart))
+    // Ensure it still respects the 1-minute rule relative to start.
+    return Math.max(clamped, sessionStart + 60 * 1000)
+  })()
+
+  debugPontajLog("check-out:start", {
+    sessionId: request.sessionId,
+    userId: sessionData.userId,
+    employeeId: (sessionData as any)?.employeeId,
+    sessionStart,
+    sessionEnd: now,
+    debugMinutes: request.debugSimulatedDurationMinutes,
+  })
+
   const elapsedSeconds = (now - sessionStart) / 1000
 
   // 1-minute rule: must wait at least 60 seconds before checking out
@@ -180,33 +240,75 @@ export async function createCheckOut(request: CheckOutRequest): Promise<void> {
     ...(extraTimeLogs ? { extraTimeLogs } : {}),
     updatedAt: serverTimestamp(),
   })
+
+  debugPontajLog("check-out:written", {
+    sessionId: request.sessionId,
+    userId: sessionData.userId,
+    employeeId: (sessionData as any)?.employeeId,
+    sessionStart,
+    sessionEnd: now,
+    extraTimeLogs: Array.isArray(extraTimeLogs) ? extraTimeLogs.length : 0,
+  })
+
+  // Immediately update HR timesheet so condica reflects the Stop without extra steps.
+  try {
+    const res = await syncAttendanceUserDayToTimesheet(sessionData.userId, new Date(sessionStart))
+    debugPontajLog("condica:sync-result", res)
+    return res
+  } catch (error) {
+    console.warn("Auto-sync Pontaj → Condică failed (storage):", error)
+    return null
+  }
 }
 
 /**
  * Get active session for a user
  */
 export async function getActiveSession(userId: string): Promise<AttendanceSession | null> {
-  const q = query(
-    collection(db, "attendance"),
-    where("userId", "==", userId),
-    where("status", "==", "active"),
-    limit(1)
-  )
+  try {
+    const q = query(
+      collection(db, "attendance"),
+      where("userId", "==", userId),
+      where("status", "==", "active"),
+      limit(1)
+    )
 
-  const snapshot = await getDocs(q)
-  if (snapshot.empty) return null
+    const snapshot = await getDocs(q)
+    if (snapshot.empty) return null
 
-  const doc = snapshot.docs[0]
-  const data = doc.data()
-  
-  return {
-    id: doc.id,
-    ...data,
-    sessionStart: typeof data.sessionStart === 'number' ? data.sessionStart : data.sessionStart.toMillis(),
-    sessionEnd: data.sessionEnd ? (typeof data.sessionEnd === 'number' ? data.sessionEnd : data.sessionEnd.toMillis()) : undefined,
-    createdAt: typeof data.createdAt === 'number' ? data.createdAt : data.createdAt?.toMillis() || Date.now(),
-    updatedAt: typeof data.updatedAt === 'number' ? data.updatedAt : data.updatedAt?.toMillis() || Date.now(),
-  } as AttendanceSession
+    const doc = snapshot.docs[0]
+    const data = doc.data()
+    
+    return {
+      id: doc.id,
+      ...data,
+      sessionStart: typeof data.sessionStart === 'number' ? data.sessionStart : data.sessionStart.toMillis(),
+      sessionEnd: data.sessionEnd ? (typeof data.sessionEnd === 'number' ? data.sessionEnd : data.sessionEnd.toMillis()) : undefined,
+      createdAt: typeof data.createdAt === 'number' ? data.createdAt : data.createdAt?.toMillis() || Date.now(),
+      updatedAt: typeof data.updatedAt === 'number' ? data.updatedAt : data.updatedAt?.toMillis() || Date.now(),
+    } as AttendanceSession
+  } catch (error) {
+    if (!isMissingIndexError(error)) throw error
+    console.warn("Missing index for active session query; using fallback scan.")
+    const fallbackSnap = await getDocs(
+      query(collection(db, "attendance"), where("userId", "==", userId))
+    )
+    const sessions: AttendanceSession[] = fallbackSnap.docs.map((doc) => {
+      const data = doc.data()
+      return {
+        id: doc.id,
+        ...data,
+        sessionStart: typeof data.sessionStart === 'number' ? data.sessionStart : data.sessionStart.toMillis(),
+        sessionEnd: data.sessionEnd ? (typeof data.sessionEnd === 'number' ? data.sessionEnd : data.sessionEnd.toMillis()) : undefined,
+        createdAt: typeof data.createdAt === 'number' ? data.createdAt : data.createdAt?.toMillis() || Date.now(),
+        updatedAt: typeof data.updatedAt === 'number' ? data.updatedAt : data.updatedAt?.toMillis() || Date.now(),
+      } as AttendanceSession
+    })
+    const active = sessions
+      .filter((s) => s.status === "active")
+      .sort((a, b) => b.sessionStart - a.sessionStart)[0]
+    return active ?? null
+  }
 }
 
 /**
@@ -216,30 +318,55 @@ export async function getLatestCompletedSession(
   userId: string,
   params?: { sinceMs?: number }
 ): Promise<AttendanceSession | null> {
-  const q = query(
-    collection(db, "attendance"),
-    where("userId", "==", userId),
-    where("status", "==", "completed"),
-    orderBy("sessionEnd", "desc"),
-    limit(1)
-  )
+  try {
+    const q = query(
+      collection(db, "attendance"),
+      where("userId", "==", userId),
+      where("status", "==", "completed"),
+      orderBy("sessionEnd", "desc"),
+      limit(1)
+    )
 
-  const snapshot = await getDocs(q)
-  if (snapshot.empty) return null
+    const snapshot = await getDocs(q)
+    if (snapshot.empty) return null
 
-  const d = snapshot.docs[0]
-  const data = d.data() as any
-  const session: AttendanceSession = {
-    id: d.id,
-    ...data,
-    sessionStart: typeof data.sessionStart === "number" ? data.sessionStart : data.sessionStart?.toMillis?.(),
-    sessionEnd: data.sessionEnd ? (typeof data.sessionEnd === "number" ? data.sessionEnd : data.sessionEnd?.toMillis?.()) : undefined,
-    createdAt: typeof data.createdAt === "number" ? data.createdAt : data.createdAt?.toMillis?.() || Date.now(),
-    updatedAt: typeof data.updatedAt === "number" ? data.updatedAt : data.updatedAt?.toMillis?.() || Date.now(),
-  } as AttendanceSession
+    const d = snapshot.docs[0]
+    const data = d.data() as any
+    const session: AttendanceSession = {
+      id: d.id,
+      ...data,
+      sessionStart: typeof data.sessionStart === "number" ? data.sessionStart : data.sessionStart?.toMillis?.(),
+      sessionEnd: data.sessionEnd ? (typeof data.sessionEnd === "number" ? data.sessionEnd : data.sessionEnd?.toMillis?.()) : undefined,
+      createdAt: typeof data.createdAt === "number" ? data.createdAt : data.createdAt?.toMillis?.() || Date.now(),
+      updatedAt: typeof data.updatedAt === "number" ? data.updatedAt : data.updatedAt?.toMillis?.() || Date.now(),
+    } as AttendanceSession
 
-  if (params?.sinceMs && session.sessionEnd && session.sessionEnd < params.sinceMs) return null
-  return session
+    if (params?.sinceMs && session.sessionEnd && session.sessionEnd < params.sinceMs) return null
+    return session
+  } catch (error) {
+    if (!isMissingIndexError(error)) throw error
+    console.warn("Missing index for completed session query; using fallback scan.")
+    const fallbackSnap = await getDocs(
+      query(collection(db, "attendance"), where("userId", "==", userId))
+    )
+    const sessions: AttendanceSession[] = fallbackSnap.docs.map((doc) => {
+      const data = doc.data() as any
+      return {
+        id: doc.id,
+        ...data,
+        sessionStart: typeof data.sessionStart === "number" ? data.sessionStart : data.sessionStart?.toMillis?.(),
+        sessionEnd: data.sessionEnd ? (typeof data.sessionEnd === "number" ? data.sessionEnd : data.sessionEnd?.toMillis?.()) : undefined,
+        createdAt: typeof data.createdAt === "number" ? data.createdAt : data.createdAt?.toMillis?.() || Date.now(),
+        updatedAt: typeof data.updatedAt === "number" ? data.updatedAt : data.updatedAt?.toMillis?.() || Date.now(),
+      } as AttendanceSession
+    })
+    const latest = sessions
+      .filter((s) => s.status === "completed" && typeof s.sessionEnd === "number")
+      .sort((a, b) => (b.sessionEnd ?? 0) - (a.sessionEnd ?? 0))[0]
+    if (!latest) return null
+    if (params?.sinceMs && latest.sessionEnd && latest.sessionEnd < params.sinceMs) return null
+    return latest
+  }
 }
 
 /**

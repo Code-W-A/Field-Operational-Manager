@@ -15,7 +15,6 @@ import {
   startExtraTimeLog,
   endExtraTimeLog,
 } from "@/lib/attendance/storage"
-import { syncAttendanceUserDayToTimesheet } from "@/lib/attendance/sync-timesheet"
 import { getCurrentLocation, determineMode } from "@/lib/attendance/location"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -31,6 +30,8 @@ interface FieldCheckInCardProps {
 type FlowState = "idle" | "face-recognition" | "processing"
 
 export function FieldCheckInCard({ userId, userName, officeLocation }: FieldCheckInCardProps) {
+  const debugEnabled = process.env.NEXT_PUBLIC_ENABLE_DEBUG_PANEL === "true"
+
   const [activeSession, setActiveSession] = useState<AttendanceSession | null>(null)
   const [flowState, setFlowState] = useState<FlowState>("idle")
   const [action, setAction] = useState<"check-in" | "check-out" | null>(null)
@@ -39,6 +40,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
   const [checkOutDisabled, setCheckOutDisabled] = useState(false)
   const [checkOutTimer, setCheckOutTimer] = useState<number>(0)
   const [currentTime, setCurrentTime] = useState(Date.now())
+  const [debugSimMinutes, setDebugSimMinutes] = useState<number | null>(null)
 
   // Extra time tracking
   const [clientRouteActive, setClientRouteActive] = useState(false)
@@ -174,6 +176,27 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
     setFlowState("face-recognition")
   }
 
+  const handleCheckOutDebug = async (minutes: number) => {
+    if (!debugEnabled) return
+    if (!Number.isFinite(minutes) || minutes <= 0) return
+    // Same 1-minute rule to keep behavior consistent.
+    if (activeSession) {
+      const check = await canCheckOut(activeSession.id)
+      if (!check.allowed) {
+        toast({
+          title: "Prea devreme",
+          description: `Te rugăm să aștepți încă ${check.remainingSeconds} secunde.`,
+          variant: "destructive",
+        })
+        return
+      }
+    }
+    setDebugSimMinutes(Math.round(minutes))
+    setAction("check-out")
+    setShowFaceDialog(true)
+    setFlowState("face-recognition")
+  }
+
   const handleFaceRecognitionSuccess = async (result: FaceRecognitionResult) => {
     setFlowState("processing")
 
@@ -206,7 +229,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
           throw new Error("Nu există o sesiune activă")
         }
 
-        await createCheckOut({
+        const syncResult = await createCheckOut({
           sessionId: activeSession.id,
           mode,
           location,
@@ -215,24 +238,19 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
             type: "field",
             userAgent: navigator.userAgent,
           },
+          ...(debugEnabled && debugSimMinutes ? { debugSimulatedDurationMinutes: debugSimMinutes } : {}),
         })
 
-        // Best-effort: sync condica for this user's day (do not block UX on failure)
-        try {
-          const res = await syncAttendanceUserDayToTimesheet(userId, new Date(activeSession.sessionStart))
-          if (!res.synced) {
-            toast({
-              title: "Pontaj salvat, dar nesincronizat în condică",
-              description:
-                res.reason === "no_employee"
-                  ? "Nu am găsit salariatul HR asociat acestui user. Verifică în Resurse Umane → Salariați că există `userUid` setat."
-                  : res.reason === "protected_day"
-                    ? "Ziua este protejată (CO/DEL/SL/WE/IN) și nu a fost suprascrisă."
-                    : "Nu există sesiuni completate pentru ziua respectivă.",
-            })
-          }
-        } catch (e) {
-          console.warn("Auto-sync Pontaj → Condică failed (field):", e)
+        if (syncResult && !syncResult.synced) {
+          toast({
+            title: "Pontaj salvat, dar nesincronizat în condică",
+            description:
+              syncResult.reason === "no_employee"
+                ? "Nu am găsit salariatul HR asociat acestui user. Verifică în Resurse Umane → Salariați că există `userUid` setat."
+                : syncResult.reason === "protected_day"
+                  ? "Ziua este protejată (CO/DEL/SL/WE/IN) și nu a fost suprascrisă."
+                  : "Nu există sesiuni completate pentru ziua respectivă.",
+          })
         }
 
         toast({
@@ -240,11 +258,20 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
           description: `La revedere, ${userName}!`,
         })
 
+        const endForLocal = (() => {
+          if (!debugEnabled || !debugSimMinutes) return Date.now()
+          const d = new Date(activeSession.sessionStart)
+          d.setHours(23, 59, 59, 999)
+          const endOfDay = d.getTime()
+          const desired = activeSession.sessionStart + Math.round(debugSimMinutes) * 60 * 1000
+          return Math.min(desired, endOfDay)
+        })()
+
         // Keep it locally as completed so "Traseu către casă" can be started right after Stop.
         setActiveSession({
           ...activeSession,
           status: "completed",
-          sessionEnd: Date.now(),
+          sessionEnd: endForLocal,
           checkOutMode: mode,
           checkOutLocation: location,
         })
@@ -253,6 +280,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
       setShowFaceDialog(false)
       setFlowState("idle")
       setAction(null)
+      setDebugSimMinutes(null)
     } catch (error) {
       console.error("Field check-in/out error:", error)
       toast({
@@ -263,6 +291,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
       setShowFaceDialog(false)
       setFlowState("idle")
       setAction(null)
+      setDebugSimMinutes(null)
     }
   }
 
@@ -446,6 +475,30 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
                     </>
                   )}
                 </Button>
+              )}
+
+              {/* Debug: simulate longer sessions without waiting */}
+              {debugEnabled && isCheckedIn && (
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleCheckOutDebug(120)}
+                    disabled={checkOutDisabled || flowState !== "idle"}
+                  >
+                    Stop +2h (debug)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleCheckOutDebug(420)}
+                    disabled={checkOutDisabled || flowState !== "idle"}
+                  >
+                    Stop +7h (debug)
+                  </Button>
+                </div>
               )}
 
               {/* Kiosk-start banner */}

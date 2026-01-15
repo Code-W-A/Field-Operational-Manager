@@ -118,12 +118,7 @@ export function determineMode(
 async function reverseGeocode(lat: number, lng: number): Promise<string> {
   try {
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
-      {
-        headers: {
-          "User-Agent": "FOM-App",
-        },
-      }
+      `/api/reverse-geocode?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`
     )
 
     if (!response.ok) {

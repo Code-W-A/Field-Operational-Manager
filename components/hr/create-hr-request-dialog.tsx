@@ -58,12 +58,12 @@ export function CreateHrRequestDialog({
 
   const [submitting, setSubmitting] = useState(false)
 
-  const managerUid = sectorId ? employee.managerUidBySector?.[sectorId] : undefined
+  const managerUid = sectorId ? employee.managerUidBySector?.[sectorId] || employee.superiorUid : undefined
 
   const canSubmit = useMemo(() => {
     if (!sectorId) return false
     if (!managerUid) return false
-    if (kind === "CO" || kind === "CFP" || kind === "CM" || kind === "DEL") return !!startDate && !!endDate
+    if (kind === "CO" || kind === "CFP" || kind === "CM" || kind === "SL" || kind === "DEL") return !!startDate && !!endDate
     if (kind === "IN") return !!date && !!startTime && !!endTime
     if (kind === "CORRECT_HOURS") return !!date && entries.some((e) => e.start && e.end)
     if (kind === "ADD_OVERTIME") return !!date && asNumber(overtimeHours) > 0
@@ -91,14 +91,14 @@ export function CreateHrRequestDialog({
       if (!managerUid) {
         toast({
           title: "Eroare",
-          description: "Nu este setat șeful ierarhic pentru acest sector (în fișa salariat).",
+          description: "Nu este setat șeful ierarhic pentru acest sector (sau global) în fișa de salariat.",
           variant: "destructive",
         })
         return
       }
 
       let payload: HrRequestPayload
-      if (kind === "CO" || kind === "CFP" || kind === "CM" || kind === "DEL") {
+      if (kind === "CO" || kind === "CFP" || kind === "CM" || kind === "SL" || kind === "DEL") {
         if (!startDate || !endDate) throw new Error("Completează perioada (de la / până la).")
         payload = { kind, startDate, endDate, reason: reason.trim() || undefined }
       } else if (kind === "IN") {
@@ -182,7 +182,7 @@ export function CreateHrRequestDialog({
               </Select>
               {sectorId && !managerUid ? (
                 <div className="text-xs text-destructive">
-                  Nu există șef ierarhic setat pentru acest sector în fișa de salariat.
+                  Nu există șef ierarhic setat pentru acest sector (sau global) în fișa de salariat.
                 </div>
               ) : null}
             </div>
@@ -199,6 +199,7 @@ export function CreateHrRequestDialog({
                       "CO",
                       "CFP",
                       "CM",
+                      "SL",
                       "IN",
                       "DEL",
                       "CORRECT_HOURS",
@@ -214,7 +215,7 @@ export function CreateHrRequestDialog({
             </div>
           </div>
 
-          {(kind === "CO" || kind === "CFP" || kind === "CM" || kind === "DEL") && (
+          {(kind === "CO" || kind === "CFP" || kind === "CM" || kind === "SL" || kind === "DEL") && (
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>De la *</Label>

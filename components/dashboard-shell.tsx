@@ -28,7 +28,7 @@ export function DashboardShell({ children, className }: DashboardShellProps) {
         </div>
       </header>
       <main className="flex-1 w-full overflow-auto min-h-0">
-        <div className="w-full h-full min-h-0 flex flex-col px-3 sm:px-6 lg:px-10 pt-4 pb-12">
+        <div className="w-full h-full min-h-0 flex flex-col px-3 sm:px-6 lg:px-10 pt-4 pb-24">
           {children}
         </div>
       </main>

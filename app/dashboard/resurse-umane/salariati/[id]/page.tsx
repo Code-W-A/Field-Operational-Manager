@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -20,7 +21,7 @@ import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft, BarChart3, Calendar, CalendarCheck, CalendarDays, Clock, ClipboardList, Link2, Pencil, Plus, TrendingUp, Trash2, Image as ImageIcon, User, UserCheck, UserRound } from "lucide-react"
 
-import type { Employee, LeaveRequest, TimesheetCell, TimesheetMonthKey } from "@/lib/hr/types"
+import type { Department, Employee, HrRequest, TimesheetCell, TimesheetMonthKey } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
 import {
   createOrUpdateEmployee,
@@ -28,15 +29,18 @@ import {
   getCurrentMonthKey,
   seedHrIfEmpty,
   subscribeEmployees,
-  subscribeEmployeeLeaveRequests,
+  subscribeHrRequestsForEmployee,
   subscribeTimesheetsForMonth,
+  subscribeDepartments,
 } from "@/lib/hr/storage"
 import type { TimesheetMonth } from "@/lib/hr/types"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { CreateLeaveRequestDialog } from "@/components/hr/create-leave-request-dialog"
-import { generateLeaveRequestPDF } from "@/lib/hr/leave-pdf-generator"
+import { CreateHrRequestDialog } from "@/components/hr/create-hr-request-dialog"
+import { generateHrRequestPDF } from "@/lib/hr/request-pdf-generator"
+import { hrRequestDateLabel, hrRequestKindLabel, hrRequestStatusLabel } from "@/lib/hr/hr-requests"
 import { deleteEmployeeProfilePhoto, uploadEmployeeProfilePhoto } from "@/lib/hr/profile-photo"
+import { useAuth } from "@/contexts/AuthContext"
 
 type AppUser = { uid: string; displayName: string | null; email: string | null; role?: string }
 
@@ -91,6 +95,7 @@ function calculateWorkDays(startStr: string, endStr: string): number {
 }
 
 export default function HrEmployeeDetailsPage() {
+  const { user } = useAuth()
   const router = useRouter()
   const params = useParams()
   const searchParams = useSearchParams()
@@ -104,7 +109,8 @@ export default function HrEmployeeDetailsPage() {
   const [users, setUsers] = useState<AppUser[]>([])
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [usersError, setUsersError] = useState<string | null>(null)
-  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([])
+  const [leaveRequests, setLeaveRequests] = useState<HrRequest[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
   
   const [activeTab, setActiveTab] = useState<"detalii" | "pontaj" | "concedii">("detalii")
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -132,8 +138,8 @@ export default function HrEmployeeDetailsPage() {
   
   // Edit dialog state - workplace fields
   const [editPoziteCOR, setEditPoziteCOR] = useState("")
-  const [editSuperiorIerarhic, setEditSuperiorIerarhic] = useState("")
-  const [editSectorIds, setEditSectorIds] = useState("") // comma-separated
+  const [editSuperiorUid, setEditSuperiorUid] = useState<string | undefined>()
+  const [editSectorIds, setEditSectorIds] = useState<string[]>([])
   const [editManagerUidBySector, setEditManagerUidBySector] = useState<Record<string, string>>({})
   const [editLoculDeMunca, setEditLoculDeMunca] = useState("")
   const [editProgramLucruStart, setEditProgramLucruStart] = useState("")
@@ -196,8 +202,16 @@ export default function HrEmployeeDetailsPage() {
   }, [])
 
   useEffect(() => {
+    const unsub = subscribeDepartments({
+      onChange: setDepartments,
+      onError: (err) => console.error("Error loading departments:", err),
+    })
+    return () => unsub()
+  }, [])
+
+  useEffect(() => {
     if (!employee) return
-    const unsub = subscribeEmployeeLeaveRequests({
+    const unsub = subscribeHrRequestsForEmployee({
       employeeId: employee.id,
       onChange: setLeaveRequests,
     })
@@ -220,8 +234,8 @@ export default function HrEmployeeDetailsPage() {
       setEditCiDataEmiterii(employee.ciDataEmiterii || "")
       setEditCiEmitent(employee.ciEmitent || "")
       setEditPoziteCOR(employee.poziteCOR || "")
-      setEditSuperiorIerarhic(employee.superiorIerarhic || "")
-      setEditSectorIds((employee.sectorIds || []).join(", "))
+      setEditSuperiorUid(employee.superiorUid)
+      setEditSectorIds(employee.sectorIds || [])
       setEditManagerUidBySector(employee.managerUidBySector || {})
       setEditLoculDeMunca(employee.loculDeMunca || "")
       setEditProgramLucruStart(employee.programLucruStart || "")
@@ -296,10 +310,7 @@ export default function HrEmployeeDetailsPage() {
         photoUpdatedAt = Date.now()
       }
 
-      const sectorIds = editSectorIds
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)
+      const sectorIds = editSectorIds.filter(Boolean)
       const managerUidBySector = Object.fromEntries(
         Object.entries(editManagerUidBySector || {})
           .map(([k, v]) => [String(k).trim(), String(v || "").trim()])
@@ -320,7 +331,7 @@ export default function HrEmployeeDetailsPage() {
         ciDataEmiterii: editCiDataEmiterii.trim() || undefined,
         ciEmitent: editCiEmitent.trim() || undefined,
         poziteCOR: editPoziteCOR.trim() || undefined,
-        superiorIerarhic: editSuperiorIerarhic.trim() || undefined,
+        superiorUid: editSuperiorUid,
         sectorIds: sectorIds.length ? sectorIds : undefined,
         managerUidBySector: Object.keys(managerUidBySector).length ? managerUidBySector : undefined,
         loculDeMunca: editLoculDeMunca.trim() || undefined,
@@ -349,19 +360,31 @@ export default function HrEmployeeDetailsPage() {
   const employeeLeaveThisYear = useMemo(() => {
     const year = new Date().getFullYear()
     return leaveRequests.filter((r) => {
-      const startYear = new Date(r.startDate).getFullYear()
-      return startYear === year && r.type === "CO"
+      const payload: any = r.payload as any
+      const startYear = payload?.startDate ? new Date(payload.startDate).getFullYear() : null
+      return startYear === year && r.kind === "CO"
     })
   }, [leaveRequests])
 
   const daysConsumed = useMemo(() => {
     return employeeLeaveThisYear
       .filter((r) => r.status === "approved")
-      .reduce((acc, r) => acc + calculateWorkDays(r.startDate, r.endDate), 0)
+      .reduce((acc, r) => {
+        const payload: any = r.payload as any
+        const startDate = payload?.startDate
+        const endDate = payload?.endDate
+        if (!startDate || !endDate) return acc
+        return acc + calculateWorkDays(startDate, endDate)
+      }, 0)
   }, [employeeLeaveThisYear])
 
   const daysAvailable = employee?.zileConcediuAnuale ?? 21
   const daysRemaining = daysAvailable - daysConsumed
+
+  const leaveRequestsDisplay = useMemo(
+    () => leaveRequests.filter((req) => ["CO", "CFP", "CM", "SL", "DEL"].includes(req.kind)),
+    [leaveRequests]
+  )
 
   if (!employee) {
     return (
@@ -531,7 +554,7 @@ export default function HrEmployeeDetailsPage() {
           </div>
 
           {/* Row 2: Workplace data and statistics */}
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-3 pb-12">
             {/* Card: Date despre locul de muncă */}
             <Card className="border-0 shadow-lg bg-gradient-to-br from-cyan-50 to-white dark:from-cyan-950 dark:to-slate-800">
               <CardHeader className="pb-3">
@@ -552,11 +575,35 @@ export default function HrEmployeeDetailsPage() {
                     <Separator />
                   </>
                 )}
-                {employee.superiorIerarhic && (
+                {employee.superiorUid && (
                   <>
                     <div className="space-y-1">
                       <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Superior ierarhic</Label>
-                      <div className="text-sm font-semibold text-foreground/80">{employee.superiorIerarhic}</div>
+                      <div className="text-sm font-semibold text-foreground/80">
+                        {users.find(u => u.uid === employee.superiorUid)?.displayName || 
+                         users.find(u => u.uid === employee.superiorUid)?.email || 
+                         "—"}
+                      </div>
+                    </div>
+                    <Separator />
+                  </>
+                )}
+                {employee.sectorIds && employee.sectorIds.length > 0 && (
+                  <>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Sectoare</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {employee.sectorIds.map(sId => {
+                          const dept = departments.find(d => d.id === sId)
+                          return dept ? (
+                            <Badge key={sId} variant="secondary">{dept.name}</Badge>
+                          ) : (
+                            <Badge key={sId} variant="outline" className="text-muted-foreground">
+                              {sId} (șters)
+                            </Badge>
+                          )
+                        })}
+                      </div>
                     </div>
                     <Separator />
                   </>
@@ -589,7 +636,7 @@ export default function HrEmployeeDetailsPage() {
                     </div>
                   </>
                 )}
-                {!employee.poziteCOR && !employee.superiorIerarhic && !employee.loculDeMunca && !employee.programLucruStart && !employee.programLucruEnd && !employee.zileConcediuAnuale && (
+                {!employee.poziteCOR && !employee.superiorUid && !employee.sectorIds?.length && !employee.loculDeMunca && !employee.programLucruStart && !employee.programLucruEnd && !employee.zileConcediuAnuale && (
                   <div className="text-sm text-muted-foreground italic">Nicio informație despre locul de muncă</div>
                 )}
               </CardContent>
@@ -831,24 +878,26 @@ export default function HrEmployeeDetailsPage() {
         </Card>
 
           {/* Acțiuni rapide */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Button
-              className="flex-1 h-12 shadow-md hover:shadow-lg transition-all"
-              onClick={() =>
-                router.push(`/dashboard/resurse-umane/condica-prezenta?employeeId=${encodeURIComponent(employee.id)}&month=${encodeURIComponent(monthKey)}`)
-              }
-            >
-              <ClipboardList className="h-5 w-5 mr-2" />
-              Deschide condica completă
-            </Button>
-            <Button 
-              variant="outline" 
-              className="flex-1 h-12 border-2 shadow-md hover:shadow-lg transition-all"
-              onClick={() => router.push(`/dashboard/resurse-umane/rapoarte?month=${encodeURIComponent(monthKey)}`)}
-            >
-              <BarChart3 className="h-5 w-5 mr-2" />
-              Vezi rapoarte
-            </Button>
+          <div className="pb-12">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button
+                className="flex-1 h-12 shadow-md hover:shadow-lg transition-all"
+                onClick={() =>
+                  router.push(`/dashboard/resurse-umane/condica-prezenta?employeeId=${encodeURIComponent(employee.id)}&month=${encodeURIComponent(monthKey)}`)
+                }
+              >
+                <ClipboardList className="h-5 w-5 mr-2" />
+                Deschide condica completă
+              </Button>
+              <Button 
+                variant="outline" 
+                className="flex-1 h-12 border-2 shadow-md hover:shadow-lg transition-all"
+                onClick={() => router.push(`/dashboard/resurse-umane/rapoarte?month=${encodeURIComponent(monthKey)}`)}
+              >
+                <BarChart3 className="h-5 w-5 mr-2" />
+                Vezi rapoarte
+              </Button>
+            </div>
           </div>
         </TabsContent>
 
@@ -924,7 +973,7 @@ export default function HrEmployeeDetailsPage() {
               </Button>
             </CardHeader>
             <CardContent className="pt-6">
-              {leaveRequests.length === 0 ? (
+              {leaveRequestsDisplay.length === 0 ? (
                 <div className="text-center py-12">
                   <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
                     <CalendarDays className="h-8 w-8 text-muted-foreground" />
@@ -934,7 +983,7 @@ export default function HrEmployeeDetailsPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {leaveRequests.map((req) => (
+                  {leaveRequestsDisplay.map((req) => (
                     <div 
                       key={req.id} 
                       className="flex items-center justify-between rounded-xl border-2 p-4 shadow-sm hover:shadow-md transition-all bg-gradient-to-r from-white to-slate-50 dark:from-slate-900 dark:to-slate-800"
@@ -943,8 +992,8 @@ export default function HrEmployeeDetailsPage() {
                         <div className="flex items-center gap-3 mb-2">
                           <div className={cn(
                             "h-10 w-10 rounded-lg flex items-center justify-center shadow-sm",
-                            req.type === "CO" ? "bg-gradient-to-br from-amber-500 to-amber-600" :
-                            req.type === "SL" ? "bg-gradient-to-br from-blue-500 to-blue-600" :
+                            req.kind === "CO" ? "bg-gradient-to-br from-amber-500 to-amber-600" :
+                            req.kind === "SL" ? "bg-gradient-to-br from-blue-500 to-blue-600" :
                             "bg-gradient-to-br from-violet-500 to-violet-600"
                           )}>
                             <CalendarDays className="h-5 w-5 text-white" />
@@ -952,23 +1001,32 @@ export default function HrEmployeeDetailsPage() {
                           <div>
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-base">
-                                {req.type === "CO" ? "Concediu" : req.type === "SL" ? "Sărbătoare" : "Delegație"}
+                                {hrRequestKindLabel(req.kind)}
                               </span>
                               <Badge 
                                 variant={req.status === "approved" ? "default" : req.status === "pending" ? "secondary" : "destructive"}
                                 className={req.status === "approved" ? "bg-emerald-500" : ""}
                               >
-                                {req.status === "approved" ? "Aprobat" : req.status === "pending" ? "Pending" : "Respins"}
+                                {hrRequestStatusLabel(req.status)}
                               </Badge>
                             </div>
                             <div className="text-sm text-muted-foreground mt-1 font-medium">
-                              {req.startDate} → {req.endDate} • <span className="font-bold">{calculateWorkDays(req.startDate, req.endDate)} zile</span>
+                              {hrRequestDateLabel(req)} •{" "}
+                              <span className="font-bold">
+                                {(() => {
+                                  const payload: any = req.payload as any
+                                  const startDate = payload?.startDate
+                                  const endDate = payload?.endDate
+                                  if (!startDate || !endDate) return "—"
+                                  return `${calculateWorkDays(startDate, endDate)} zile`
+                                })()}
+                              </span>
                             </div>
                           </div>
                         </div>
-                        {req.reason && (
+                        {(req.payload as any)?.reason && (
                           <div className="ml-13 text-xs text-muted-foreground bg-muted/50 rounded-lg p-2 mt-2">
-                            {req.reason}
+                            {String((req.payload as any).reason)}
                           </div>
                         )}
                       </div>
@@ -977,7 +1035,7 @@ export default function HrEmployeeDetailsPage() {
                         size="icon"
                         className="ml-4 border-2 shadow-sm hover:shadow-md transition-all"
                         onClick={() => {
-                          generateLeaveRequestPDF(req, employee)
+                          generateHrRequestPDF(req)
                         }}
                         title="Descarcă PDF"
                       >
@@ -1180,40 +1238,80 @@ export default function HrEmployeeDetailsPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="editSuperiorIerarhic">Superior ierarhic</Label>
-                <Input 
-                  id="editSuperiorIerarhic"
-                  value={editSuperiorIerarhic} 
-                  onChange={(e) => setEditSuperiorIerarhic(e.target.value)}
-                  placeholder="Ex: Voinea Ionut"
-                />
+                <Label htmlFor="editSuperiorUid">Superior ierarhic</Label>
+                <Select 
+                  value={editSuperiorUid || "__none__"}
+                  onValueChange={(v) => setEditSuperiorUid(v === "__none__" ? undefined : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selectează superior" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Fără superior</SelectItem>
+                    {users.map((u) => (
+                      <SelectItem key={u.uid} value={u.uid}>
+                        {u.displayName || u.email || u.uid}
+                        {u.role ? ` • ${u.role}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="editSectorIds">Sectoare (ID-uri, separate prin virgulă)</Label>
-                <Input
-                  id="editSectorIds"
-                  value={editSectorIds}
-                  onChange={(e) => setEditSectorIds(e.target.value)}
-                  placeholder="Ex: sector-1, sector-2"
-                />
+                <Label>Sectoare</Label>
+                <div className="space-y-2 rounded-lg border p-3">
+                  {departments.filter(d => d.active).length === 0 ? (
+                    <div className="text-sm text-muted-foreground">
+                      Niciun departament disponibil.{" "}
+                      <Button 
+                        variant="link" 
+                        className="h-auto p-0" 
+                        onClick={() => router.push("/dashboard/resurse-umane/departamente")}
+                      >
+                        Creează primul departament →
+                      </Button>
+                    </div>
+                  ) : (
+                    departments.filter(d => d.active).map((dept) => (
+                      <div key={dept.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`dept-${dept.id}`}
+                          checked={editSectorIds.includes(dept.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setEditSectorIds([...editSectorIds, dept.id])
+                            } else {
+                              setEditSectorIds(editSectorIds.filter(id => id !== dept.id))
+                              setEditManagerUidBySector((prev) => {
+                                const next = { ...prev }
+                                delete next[dept.id]
+                                return next
+                              })
+                            }
+                          }}
+                        />
+                        <Label htmlFor={`dept-${dept.id}`} className="cursor-pointer font-normal">
+                          {dept.name}
+                        </Label>
+                      </div>
+                    ))
+                  )}
+                </div>
                 <div className="text-xs text-muted-foreground">
                   Pentru fiecare sector, selectează șeful ierarhic care aprobă cererile.
                 </div>
               </div>
 
-              {editSectorIds
-                .split(",")
-                .map((s) => s.trim())
-                .filter(Boolean).length > 0 ? (
+              {editSectorIds.length > 0 ? (
                 <div className="grid gap-3 rounded-lg border p-3 bg-muted/20">
                   <div className="text-sm font-semibold">Șef ierarhic pe sector</div>
-                  {editSectorIds
-                    .split(",")
-                    .map((s) => s.trim())
-                    .filter(Boolean)
-                    .map((sectorId) => (
+                  {editSectorIds.map((sectorId) => {
+                    const dept = departments.find(d => d.id === sectorId)
+                    return (
                       <div key={sectorId} className="grid gap-2">
-                        <Label className="text-xs text-muted-foreground">Sector: {sectorId}</Label>
+                        <Label className="text-xs text-muted-foreground">
+                          Sector: {dept?.name || sectorId}
+                        </Label>
                         <Select
                           value={editManagerUidBySector?.[sectorId] ?? "__none__"}
                           onValueChange={(v) =>
@@ -1238,7 +1336,8 @@ export default function HrEmployeeDetailsPage() {
                           </SelectContent>
                         </Select>
                       </div>
-                    ))}
+                    )
+                  })}
                 </div>
               ) : null}
               <div className="grid gap-2">
@@ -1315,12 +1414,14 @@ export default function HrEmployeeDetailsPage() {
       </Dialog>
 
       {/* Leave Request Dialog */}
-      <CreateLeaveRequestDialog
-        open={isLeaveDialogOpen}
-        onOpenChange={setIsLeaveDialogOpen}
-        employees={employees}
-        defaultEmployeeId={employee.id}
-      />
+      {user?.uid ? (
+        <CreateHrRequestDialog
+          open={isLeaveDialogOpen}
+          onOpenChange={setIsLeaveDialogOpen}
+          employee={employee}
+          requesterUid={user.uid}
+        />
+      ) : null}
     </DashboardShell>
   )
 }

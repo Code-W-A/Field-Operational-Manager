@@ -191,21 +191,21 @@ export function AddDayEntryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-none w-[calc(100vw-24px)] sm:w-[min(50vw,900px)] max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-none w-[calc(100vw-24px)] sm:w-[min(50vw,900px)] max-h-[85vh] overflow-y-auto bg-white border-gray-200">
         <DialogHeader>
-          <DialogTitle>Adaugă condică</DialogTitle>
+          <DialogTitle className="text-gray-900">Adaugă condică</DialogTitle>
         </DialogHeader>
 
         <div className="grid gap-5">
           <div className="grid gap-2">
-            <Label>Angajați pentru care adaugi condică</Label>
+            <Label className="text-gray-700 font-medium">Angajați pentru care adaugi condică</Label>
             <Select value={employeeId} onValueChange={setEmployeeId}>
-              <SelectTrigger>
+              <SelectTrigger className="bg-white border-gray-300 text-gray-900">
                 <SelectValue placeholder="Alege angajat" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white border-gray-200">
                 {sortedEmployees.map((e) => (
-                  <SelectItem key={e.id} value={e.id}>
+                  <SelectItem key={e.id} value={e.id} className="focus:bg-gray-100">
                     {getEmployeeFullName(e)}
                   </SelectItem>
                 ))}
@@ -215,44 +215,44 @@ export function AddDayEntryDialog({
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="grid gap-2">
-              <Label>Data de început</Label>
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              <Label className="text-gray-700 font-medium">Data de început</Label>
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="bg-white border-gray-300 text-gray-900" />
             </div>
             <div className="grid gap-2">
-              <Label>Data de oprire</Label>
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+              <Label className="text-gray-700 font-medium">Data de oprire</Label>
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="bg-white border-gray-300 text-gray-900" />
             </div>
           </div>
 
           <div className="grid gap-2">
-            <Label>Proiect (opțional)</Label>
-            <Input value={project} onChange={(e) => setProject(e.target.value)} placeholder="Alege proiect" />
+            <Label className="text-gray-700 font-medium">Proiect (opțional)</Label>
+            <Input value={project} onChange={(e) => setProject(e.target.value)} placeholder="Alege proiect" className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400" />
           </div>
 
           <div className="grid gap-2">
-            <Label>Timp înregistrat</Label>
+            <Label className="text-gray-700 font-medium">Timp înregistrat</Label>
             <div className="space-y-2">
               {entries.map((e, idx) => (
                 <div key={idx} className="grid grid-cols-2 gap-2 items-end">
                   <div className="grid gap-1.5">
-                    <Label htmlFor={`entry-start-${idx}`} className="text-xs text-muted-foreground">Început</Label>
+                    <Label htmlFor={`entry-start-${idx}`} className="text-xs text-gray-600">Început</Label>
                   <Input
                       id={`entry-start-${idx}`}
                       type="time"
                     value={e.start}
                     onChange={(ev) => setEntries((prev) => prev.map((x, i) => (i === idx ? { ...x, start: ev.target.value } : x)))}
-                      className="h-10"
+                      className="h-10 bg-white border-gray-300 text-gray-900"
                   />
                   </div>
                   <div className="flex gap-2">
                     <div className="grid gap-1.5 flex-1">
-                      <Label htmlFor={`entry-end-${idx}`} className="text-xs text-muted-foreground">Sfârșit</Label>
+                      <Label htmlFor={`entry-end-${idx}`} className="text-xs text-gray-600">Sfârșit</Label>
                     <Input
                         id={`entry-end-${idx}`}
                         type="time"
                       value={e.end}
                       onChange={(ev) => setEntries((prev) => prev.map((x, i) => (i === idx ? { ...x, end: ev.target.value } : x)))}
-                        className="h-10"
+                        className="h-10 bg-white border-gray-300 text-gray-900"
                     />
                     </div>
                     <div className="pt-6">
@@ -262,6 +262,7 @@ export function AddDayEntryDialog({
                       onClick={() => setEntries((prev) => prev.filter((_, i) => i !== idx))}
                       aria-label="Șterge interval"
                       disabled={entries.length === 1}
+                      className="text-gray-500 hover:text-gray-900 hover:bg-gray-100"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -277,29 +278,29 @@ export function AddDayEntryDialog({
           </div>
 
           <div className="grid gap-2">
-            <Label>Pauză înregistrată</Label>
+            <Label className="text-gray-700 font-medium">Pauză înregistrată</Label>
             <div className="space-y-2">
               {breaks.map((b, idx) => (
                 <div key={idx} className="grid grid-cols-2 gap-2 items-end">
                   <div className="grid gap-1.5">
-                    <Label htmlFor={`break-start-${idx}`} className="text-xs text-muted-foreground">Început pauză</Label>
+                    <Label htmlFor={`break-start-${idx}`} className="text-xs text-gray-600">Început pauză</Label>
                   <Input
                       id={`break-start-${idx}`}
                       type="time"
                     value={b.start}
                     onChange={(ev) => setBreaks((prev) => prev.map((x, i) => (i === idx ? { ...x, start: ev.target.value } : x)))}
-                      className="h-10"
+                      className="h-10 bg-white border-gray-300 text-gray-900"
                   />
                   </div>
                   <div className="flex gap-2">
                     <div className="grid gap-1.5 flex-1">
-                      <Label htmlFor={`break-end-${idx}`} className="text-xs text-muted-foreground">Sfârșit pauză</Label>
+                      <Label htmlFor={`break-end-${idx}`} className="text-xs text-gray-600">Sfârșit pauză</Label>
                     <Input
                         id={`break-end-${idx}`}
                         type="time"
                       value={b.end}
                       onChange={(ev) => setBreaks((prev) => prev.map((x, i) => (i === idx ? { ...x, end: ev.target.value } : x)))}
-                        className="h-10"
+                        className="h-10 bg-white border-gray-300 text-gray-900"
                     />
                     </div>
                     <div className="pt-6">
@@ -309,6 +310,7 @@ export function AddDayEntryDialog({
                       onClick={() => setBreaks((prev) => prev.filter((_, i) => i !== idx))}
                       aria-label="Șterge pauză"
                       disabled={breaks.length === 1}
+                      className="text-gray-500 hover:text-gray-900 hover:bg-gray-100"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -325,31 +327,31 @@ export function AddDayEntryDialog({
 
           <div className="grid gap-2">
             <div className="flex items-center gap-2">
-              <Checkbox checked={includeConcediu} onCheckedChange={(v) => setIncludeConcediu(Boolean(v))} />
-              <span className="text-sm">Adaugă intrare în zilele cu concediu</span>
+              <Checkbox checked={includeConcediu} onCheckedChange={(v) => setIncludeConcediu(Boolean(v))} className="border-gray-300 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600" />
+              <span className="text-sm text-gray-700">Adaugă intrare în zilele cu concediu</span>
             </div>
             <div className="flex items-center gap-2">
-              <Checkbox checked={includeEvenimente} onCheckedChange={(v) => setIncludeEvenimente(Boolean(v))} />
-              <span className="text-sm">Adaugă intrare în zilele cu evenimente</span>
+              <Checkbox checked={includeEvenimente} onCheckedChange={(v) => setIncludeEvenimente(Boolean(v))} className="border-gray-300 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600" />
+              <span className="text-sm text-gray-700">Adaugă intrare în zilele cu evenimente</span>
             </div>
             <div className="flex items-center gap-2">
-              <Checkbox checked={includeSarbatori} onCheckedChange={(v) => setIncludeSarbatori(Boolean(v))} />
-              <span className="text-sm">Adaugă intrare în zilele libere legale</span>
+              <Checkbox checked={includeSarbatori} onCheckedChange={(v) => setIncludeSarbatori(Boolean(v))} className="border-gray-300 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600" />
+              <span className="text-sm text-gray-700">Adaugă intrare în zilele libere legale</span>
             </div>
             <div className="flex items-center gap-2">
-              <Checkbox checked={includeWeekend} onCheckedChange={(v) => setIncludeWeekend(Boolean(v))} />
-              <span className="text-sm">Adaugă intrare în zilele de weekend</span>
+              <Checkbox checked={includeWeekend} onCheckedChange={(v) => setIncludeWeekend(Boolean(v))} className="border-gray-300 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600" />
+              <span className="text-sm text-gray-700">Adaugă intrare în zilele de weekend</span>
             </div>
           </div>
 
-          <div className="text-sm text-muted-foreground">Total timp (calculat): {hours.toFixed(2)} ore</div>
+          <div className="text-sm text-gray-600">Total timp (calculat): {hours.toFixed(2)} ore</div>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Închide
           </Button>
-          <Button onClick={submit}>Adaugă condică</Button>
+          <Button onClick={submit} className="bg-emerald-600 hover:bg-emerald-700 text-white">Adaugă condică</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

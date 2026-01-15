@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input"
 import { FaceRecognitionCapture } from "./face-recognition-capture"
 import { createCheckIn, createCheckOut, getActiveSession } from "@/lib/attendance/storage"
 import { getCurrentLocation, determineMode } from "@/lib/attendance/location"
-import { syncAttendanceUserDayToTimesheet } from "@/lib/attendance/sync-timesheet"
 import { toast } from "@/hooks/use-toast"
 import type { FaceRecognitionResult, AttendanceLocation } from "@/types/attendance"
 import type { OfficeLocation } from "@/lib/firebase/auth"
@@ -37,9 +36,11 @@ type FlowState = "idle" | "select-action" | "select-user" | "verify-password" | 
 export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
   const { user, userData } = useAuth()
   const router = useRouter()
+  const debugEnabled = process.env.NEXT_PUBLIC_ENABLE_DEBUG_PANEL === "true"
 
   const [flowState, setFlowState] = useState<FlowState>("idle")
   const [action, setAction] = useState<"check-in" | "check-out" | null>(null)
+  const [debugSimMinutes, setDebugSimMinutes] = useState<number | null>(null)
   const [selectedUser, setSelectedUser] = useState<KioskUser | null>(null)
   const [showDialog, setShowDialog] = useState(false)
   const [showPasswordDialog, setShowPasswordDialog] = useState(false)
@@ -85,6 +86,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
   const resetFlow = () => {
     setFlowState("idle")
     setAction(null)
+    setDebugSimMinutes(null)
     setSelectedUser(null)
     setShowDialog(false)
     setShowPasswordDialog(false)
@@ -151,6 +153,15 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
 
   const handleActionSelect = (selectedAction: "check-in" | "check-out") => {
     setAction(selectedAction)
+    setDebugSimMinutes(null)
+    setFlowState("select-user")
+  }
+
+  const handleActionSelectDebugStop = (minutes: number) => {
+    if (!debugEnabled) return
+    if (!Number.isFinite(minutes) || minutes <= 0) return
+    setAction("check-out")
+    setDebugSimMinutes(Math.round(minutes))
     setFlowState("select-user")
   }
 
@@ -287,7 +298,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
           throw new Error("Nu există o sesiune activă pentru acest utilizator")
         }
 
-        await createCheckOut({
+        const syncResult = await createCheckOut({
           sessionId: activeSession.id,
           mode,
           location,
@@ -296,24 +307,19 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
             type: "kiosk",
             userAgent: navigator.userAgent,
           },
+          ...(debugEnabled && debugSimMinutes ? { debugSimulatedDurationMinutes: debugSimMinutes } : {}),
         })
 
-        // Best-effort: sync condica for this user's day (do not block UX on failure)
-        try {
-          const res = await syncAttendanceUserDayToTimesheet(selectedUser.uid, new Date(activeSession.sessionStart))
-          if (!res.synced) {
-            toast({
-              title: "Pontaj salvat, dar nesincronizat în condică",
-              description:
-                res.reason === "no_employee"
-                  ? "Nu am găsit salariatul HR asociat acestui user. Verifică în Resurse Umane → Salariați că există `userUid` setat."
-                  : res.reason === "protected_day"
-                    ? "Ziua este protejată (CO/DEL/SL/WE/IN) și nu a fost suprascrisă."
-                    : "Nu există sesiuni completate pentru ziua respectivă.",
-            })
-          }
-        } catch (e) {
-          console.warn("Auto-sync Pontaj → Condică failed (kiosk):", e)
+        if (syncResult && !syncResult.synced) {
+          toast({
+            title: "Pontaj salvat, dar nesincronizat în condică",
+            description:
+              syncResult.reason === "no_employee"
+                ? "Nu am găsit salariatul HR asociat acestui user. Verifică în Resurse Umane → Salariați că există `userUid` setat."
+                : syncResult.reason === "protected_day"
+                  ? "Ziua este protejată (CO/DEL/SL/WE/IN) și nu a fost suprascrisă."
+                  : "Nu există sesiuni completate pentru ziua respectivă.",
+          })
         }
 
         toast({
@@ -407,6 +413,16 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
                   </div>
                 </div>
               </button>
+
+              {debugEnabled && (
+                <button
+                  onClick={() => handleActionSelectDebugStop(420)}
+                  className="sm:col-span-2 group relative p-4 bg-white/10 hover:bg-white/15 rounded-2xl border border-white/20 text-white transition-all duration-200"
+                >
+                  <div className="text-sm font-semibold">Stop +7h (debug)</div>
+                  <div className="text-xs text-slate-200">Finalizează cu durată simulată, apoi sync în condică</div>
+                </button>
+              )}
               </div>
             </div>
           </div>

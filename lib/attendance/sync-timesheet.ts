@@ -14,6 +14,17 @@ import type { AttendanceSession } from "@/types/attendance"
 import type { TimesheetCell, TimesheetMonthKey, TimesheetCode } from "@/lib/hr/types"
 import { getCurrentMonthKey, timesheetDocId } from "@/lib/hr/storage"
 
+const DEBUG_PONTAJ = process.env.NEXT_PUBLIC_ENABLE_DEBUG_PANEL === "true"
+
+function debugPontajLog(label: string, payload: Record<string, any>) {
+  if (!DEBUG_PONTAJ) return
+  try {
+    console.log(`[CONDICA] ${label}`, payload)
+  } catch {
+    // ignore
+  }
+}
+
 /**
  * Sync attendance sessions to HR timesheet system
  * This should be run daily (e.g., at end of day or start of next day)
@@ -330,6 +341,12 @@ export async function syncAttendanceUserDayToTimesheet(userId: string, date: Dat
   const day = new Date(date).getDate()
   const monthKey = getCurrentMonthKey(date)
 
+  debugPontajLog("sync-user-day:start", {
+    userId,
+    monthKey,
+    day,
+  })
+
   // Use local day boundaries (matches HR UI expectations).
   const start = startOfDayLocal(date)
   const end = endOfDayLocal(date)
@@ -361,6 +378,7 @@ export async function syncAttendanceUserDayToTimesheet(userId: string, date: Dat
     .sort((a, b) => a.sessionStart - b.sessionStart)
 
   if (!sessions.length) {
+    debugPontajLog("sync-user-day:no-sessions", { userId, monthKey, day })
     return { synced: false, reason: "no_sessions", sessionCount: 0, monthKey, day }
   }
 
@@ -369,6 +387,7 @@ export async function syncAttendanceUserDayToTimesheet(userId: string, date: Dat
     userName: sessions?.[0]?.userName,
   })
   if (!employeeId) {
+    debugPontajLog("sync-user-day:no-employee", { userId, monthKey, day })
     return { synced: false, reason: "no_employee", sessionCount: sessions.length, monthKey, day }
   }
 
@@ -380,6 +399,7 @@ export async function syncAttendanceUserDayToTimesheet(userId: string, date: Dat
   const existingDay = existingSnap.exists() ? ((existingSnap.data() as any)?.days?.[dayKey] as TimesheetCell | undefined) : undefined
   const existingCode = existingDay?.code as TimesheetCode | undefined
   if (isNonWorkHrCode(existingCode)) {
+    debugPontajLog("sync-user-day:protected", { userId, employeeId, monthKey, day, existingCode })
     return { synced: false, reason: "protected_day", sessionCount: sessions.length, employeeId, monthKey, day }
   }
 
@@ -434,6 +454,15 @@ export async function syncAttendanceUserDayToTimesheet(userId: string, date: Dat
     { merge: true }
   )
   await batch.commit()
+
+  debugPontajLog("sync-user-day:done", {
+    userId,
+    employeeId,
+    monthKey,
+    day,
+    sessionCount: sessions.length,
+    totalHours,
+  })
 
   return {
     synced: true,
