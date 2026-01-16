@@ -292,7 +292,7 @@ export default function CondicaPrezentaPage() {
     let unsub: null | (() => void) = null
     unsub = subscribeHrRequestsForMonth({
       monthKey,
-      kinds: ["CO", "CFP", "CM", "SL", "DEL"],
+      kinds: ["CO", "CFP", "CM", "SL", "DEL", "IN"],
       onChange: setLeaveRequests,
     })
     return () => unsub?.()
@@ -364,52 +364,82 @@ export default function CondicaPrezentaPage() {
     return timesheets.find((t) => t.monthKey === monthKey && t.employeeId === employeeId) ?? null
   }
 
+  const countDaysInRangeForMonth = (startDate: string, endDate: string) => {
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0
+    let count = 0
+    const d = new Date(start)
+    while (d <= end) {
+      const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}` as TimesheetMonthKey
+      if (mk === monthKey) count += 1
+      d.setDate(d.getDate() + 1)
+    }
+    return count
+  }
+
+  const hoursFromInterval = (startTime: string, endTime: string) => {
+    const s = parseHM(startTime)
+    const e = parseHM(endTime)
+    if (s == null || e == null || e <= s) return 0
+    return (e - s) / 60
+  }
+
   const getSummary = (employeeId: string) => {
     const ts = getEmployeeTimesheet(employeeId)
     let zileLucrate = 0
-    let totalOre = 0
+    let orePrezenta = 0
+    let oreLucrateEfectiv = 0
     let oreSarbatoriLegale = 0
     let co = 0
     let del = 0
-    let inDays = 0
     let totalTimpIN = 0
 
-    const dim = (() => {
-      const [yStr, mStr] = monthKey.split("-")
-      return new Date(Number(yStr), Number(mStr), 0).getDate()
-    })()
-
+    const dim = daysInMonth(monthKey)
     for (let d = 1; d <= dim; d++) {
       const c = ts?.days?.[String(d)]
-      if (!c) continue
+      if (!c || c.code === "EMPTY") continue
+      zileLucrate += 1
       if (c.code === "WORK") {
-        zileLucrate += 1
-        totalOre += Number(c.hours ?? 8)
-      } else if (c.code === "CO") {
-        co += 1
-      } else if (c.code === "DEL") {
-        del += 1
-      } else if (c.code === "IN") {
-        inDays += 1
-        totalTimpIN += Number(c.hours ?? 0)
-        totalOre += Number(c.hours ?? 0)
+        const hours = Number(c.hours ?? 8)
+        orePrezenta += hours
+        oreLucrateEfectiv += hours
       } else if (c.code === "SL") {
         oreSarbatoriLegale += Number(c.hours ?? 8)
-        totalOre += Number(c.hours ?? 8)
       }
     }
 
-    const ticheteMasa = zileLucrate
+    const approvedRequests = leaveRequests.filter((r) => r.employeeId === employeeId && r.status === "approved")
+    approvedRequests.forEach((req) => {
+      const payload: any = req.payload as any
+      if (req.kind === "CO") {
+        if (payload?.startDate && payload?.endDate) {
+          co += countDaysInRangeForMonth(payload.startDate, payload.endDate)
+        }
+      } else if (req.kind === "DEL") {
+        if (payload?.startDate && payload?.endDate) {
+          del += countDaysInRangeForMonth(payload.startDate, payload.endDate)
+        }
+      } else if (req.kind === "IN") {
+        if (payload?.date && payload?.startTime && payload?.endTime) {
+          if (String(payload.date).startsWith(monthKey)) {
+            totalTimpIN += hoursFromInterval(payload.startTime, payload.endTime)
+          }
+        }
+      }
+    })
+
+    const ticheteMasa = Math.max(0, zileLucrate - del)
 
     return {
       zileLucrate,
       ticheteMasa,
-      totalOre,
+      orePrezenta,
+      oreLucrateEfectiv,
       oreTraseuLaClient: 0,
       oreTraseuDeLaClient: 0,
       co,
       del,
-      inDays,
       totalTimpIN,
       oreSarbatoriLegale,
       oreC1: 0,
@@ -518,7 +548,8 @@ export default function CondicaPrezentaPage() {
     () => [
       { id: "zile_lucrate", label: "Zile lucrate", widthPx: 90, render: (e) => getSummary(e.id).zileLucrate },
       { id: "tichete_masa", label: "Tichete de masă", widthPx: 110, render: (e) => getSummary(e.id).ticheteMasa },
-      { id: "total_ore", label: "Total ore", widthPx: 90, render: (e) => getSummary(e.id).totalOre },
+      { id: "ore_prezenta", label: "Ore prezență", widthPx: 110, render: (e) => getSummary(e.id).orePrezenta },
+      { id: "ore_lucrate_efectiv", label: "Ore lucrate efectiv", widthPx: 140, render: (e) => getSummary(e.id).oreLucrateEfectiv },
       { 
         id: "banca_ore", 
         label: "Bancă de ore", 
@@ -537,10 +568,9 @@ export default function CondicaPrezentaPage() {
       },
       { id: "traseu_la", label: "Ore traseu la client", widthPx: 130, render: (e) => getSummary(e.id).oreTraseuLaClient },
       { id: "traseu_de", label: "Ore traseu de la client", widthPx: 140, render: (e) => getSummary(e.id).oreTraseuDeLaClient },
-      { id: "co", label: "CO", widthPx: 70, render: (e) => getSummary(e.id).co },
-      { id: "del", label: "DEL", widthPx: 70, render: (e) => getSummary(e.id).del },
-      { id: "in", label: "IN", widthPx: 70, render: (e) => getSummary(e.id).inDays },
-      { id: "total_in", label: "Total timp IN", widthPx: 110, render: (e) => getSummary(e.id).totalTimpIN },
+      { id: "co", label: "Zile CO", widthPx: 80, render: (e) => getSummary(e.id).co },
+      { id: "del", label: "Zile DEL", widthPx: 80, render: (e) => getSummary(e.id).del },
+      { id: "in", label: "Ore IN", widthPx: 90, render: (e) => getSummary(e.id).totalTimpIN },
       { id: "ore_sl", label: "Ore sărbători legale", widthPx: 140, render: (e) => getSummary(e.id).oreSarbatoriLegale },
       { id: "c1", label: "Ore C1", widthPx: 80, render: (e) => getSummary(e.id).oreC1 },
       { id: "c2", label: "Ore C2", widthPx: 80, render: (e) => getSummary(e.id).oreC2 },
@@ -551,7 +581,7 @@ export default function CondicaPrezentaPage() {
       { id: "c7", label: "Ore C7", widthPx: 80, render: (e) => getSummary(e.id).oreC7 },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [monthKey, timesheets]
+    [monthKey, timesheets, leaveRequests]
   )
 
   return (
