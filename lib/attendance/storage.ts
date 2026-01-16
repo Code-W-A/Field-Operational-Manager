@@ -44,6 +44,22 @@ function debugPontajLog(label: string, payload: Record<string, any>) {
   }
 }
 
+function parseHM(value: string | undefined): number | null {
+  if (!value) return null
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(value).trim())
+  if (!m) return null
+  const hh = Number(m[1])
+  const mm = Number(m[2])
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null
+  return hh * 60 + mm
+}
+
+function formatHMFromMs(ms: number) {
+  const d = new Date(ms)
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+}
+
 function isMissingIndexError(error: unknown) {
   const msg = (error as any)?.message || ""
   const code = (error as any)?.code || ""
@@ -79,6 +95,30 @@ async function getEmployeeScheduleForUser(
     employeeId: docSnap.id,
     programLucruStart: data.programLucruStart ? String(data.programLucruStart) : defaults?.programLucruStart,
     programLucruEnd: data.programLucruEnd ? String(data.programLucruEnd) : defaults?.programLucruEnd,
+  }
+}
+
+async function checkTimesheetStartOverlap(employeeId: string, startMs: number): Promise<string | null> {
+  try {
+    const d = new Date(startMs)
+    const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+    const dayKey = String(d.getDate())
+    const ref = doc(db, "hrTimesheets", `${employeeId}_${monthKey}`)
+    const snap = await getDoc(ref)
+    if (!snap.exists()) return null
+    const day = (snap.data() as any)?.days?.[dayKey]
+    const entries: Array<{ start: string; end: string }> = Array.isArray(day?.entries) ? day.entries : []
+    const startMinutes = parseHM(formatHMFromMs(startMs))
+    if (startMinutes == null) return null
+    const hit = entries.find((e) => {
+      const s = parseHM(e.start)
+      const en = parseHM(e.end)
+      if (s == null || en == null) return false
+      return startMinutes >= s && startMinutes < en
+    })
+    return hit ? `${hit.start}–${hit.end}` : null
+  } catch {
+    return null
   }
 }
 
@@ -145,6 +185,12 @@ export async function createCheckIn(request: CheckInRequest): Promise<string> {
   const now = Date.now()
 
   const schedule = await getEmployeeScheduleForUser(request.userId)
+  if (schedule?.employeeId) {
+    const overlap = await checkTimesheetStartOverlap(schedule.employeeId, now)
+    if (overlap) {
+      throw new Error(`Există deja pontaj în condică pentru intervalul ${overlap}.`)
+    }
+  }
 
   debugPontajLog("check-in:start", {
     userId: request.userId,

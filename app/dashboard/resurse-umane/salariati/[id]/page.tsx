@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { collection, getDocs } from "firebase/firestore"
 
 import { db } from "@/lib/firebase/config"
+import { cn } from "@/lib/utils"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Button } from "@/components/ui/button"
@@ -13,13 +14,11 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
+import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, BarChart3, Calendar, CalendarCheck, CalendarDays, Clock, ClipboardList, Link2, Pencil, Plus, TrendingUp, Trash2, Image as ImageIcon, User, UserCheck, UserRound } from "lucide-react"
+import { ArrowLeft, BarChart3, Calendar, CalendarCheck, CalendarDays, Clock, ClipboardList, Link2, Pencil, Plus, TrendingUp, User, UserCheck, UserRound } from "lucide-react"
 
 import type { Department, Employee, HrRequest, TimesheetCell, TimesheetMonthKey } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
@@ -35,12 +34,11 @@ import {
 } from "@/lib/hr/storage"
 import type { TimesheetMonth } from "@/lib/hr/types"
 import { toast } from "@/hooks/use-toast"
-import { cn } from "@/lib/utils"
 import { CreateHrRequestDialog } from "@/components/hr/create-hr-request-dialog"
 import { generateHrRequestPDF } from "@/lib/hr/request-pdf-generator"
 import { hrRequestDateLabel, hrRequestKindLabel, hrRequestStatusLabel } from "@/lib/hr/hr-requests"
-import { deleteEmployeeProfilePhoto, uploadEmployeeProfilePhoto } from "@/lib/hr/profile-photo"
 import { useAuth } from "@/contexts/AuthContext"
+import { EmployeeEditDialog } from "@/components/hr/employee-edit-dialog"
 
 type AppUser = { uid: string; displayName: string | null; email: string | null; role?: string }
 
@@ -115,37 +113,6 @@ export default function HrEmployeeDetailsPage() {
   const [activeTab, setActiveTab] = useState<"detalii" | "pontaj" | "concedii">("detalii")
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   
-  // Edit dialog state - basic fields
-  const [editNume, setEditNume] = useState("")
-  const [editPrenume, setEditPrenume] = useState("")
-  const [editTitle, setEditTitle] = useState("")
-  const [editActive, setEditActive] = useState(true)
-
-  // Edit dialog state - profile photo
-  const [editPhotoURL, setEditPhotoURL] = useState("")
-  const [editPhotoFile, setEditPhotoFile] = useState<File | null>(null)
-  const [editPhotoPreview, setEditPhotoPreview] = useState<string>("")
-  const [editPhotoSaving, setEditPhotoSaving] = useState(false)
-  const [editInitialPhotoURL, setEditInitialPhotoURL] = useState("")
-  const [editPhotoZoomOpen, setEditPhotoZoomOpen] = useState(false)
-  
-  // Edit dialog state - identification fields
-  const [editCnp, setEditCnp] = useState("")
-  const [editCiSerie, setEditCiSerie] = useState("")
-  const [editCiNumar, setEditCiNumar] = useState("")
-  const [editCiDataEmiterii, setEditCiDataEmiterii] = useState("")
-  const [editCiEmitent, setEditCiEmitent] = useState("")
-  
-  // Edit dialog state - workplace fields
-  const [editPoziteCOR, setEditPoziteCOR] = useState("")
-  const [editSuperiorUid, setEditSuperiorUid] = useState<string | undefined>()
-  const [editSectorIds, setEditSectorIds] = useState<string[]>([])
-  const [editManagerUidBySector, setEditManagerUidBySector] = useState<Record<string, string>>({})
-  const [editLoculDeMunca, setEditLoculDeMunca] = useState("")
-  const [editProgramLucruStart, setEditProgramLucruStart] = useState("")
-  const [editProgramLucruEnd, setEditProgramLucruEnd] = useState("")
-  const [editZileConcediuAnuale, setEditZileConcediuAnuale] = useState("21")
-  
   const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false)
 
   useEffect(() => {
@@ -218,41 +185,7 @@ export default function HrEmployeeDetailsPage() {
     return () => unsub()
   }, [employee])
 
-  useEffect(() => {
-    if (isEditDialogOpen && employee) {
-      setEditNume(employee.nume)
-      setEditPrenume(employee.prenume)
-      setEditTitle(employee.title || "")
-      setEditActive(employee.active)
-      setEditPhotoURL(employee.photoURL || "")
-      setEditInitialPhotoURL(employee.photoURL || "")
-      setEditPhotoFile(null)
-      setEditPhotoPreview("")
-      setEditCnp(employee.cnp || "")
-      setEditCiSerie(employee.ciSerie || "")
-      setEditCiNumar(employee.ciNumar || "")
-      setEditCiDataEmiterii(employee.ciDataEmiterii || "")
-      setEditCiEmitent(employee.ciEmitent || "")
-      setEditPoziteCOR(employee.poziteCOR || "")
-      setEditSuperiorUid(employee.superiorUid)
-      setEditSectorIds(employee.sectorIds || [])
-      setEditManagerUidBySector(employee.managerUidBySector || {})
-      setEditLoculDeMunca(employee.loculDeMunca || "")
-      setEditProgramLucruStart(employee.programLucruStart || "")
-      setEditProgramLucruEnd(employee.programLucruEnd || "")
-      setEditZileConcediuAnuale(String(employee.zileConcediuAnuale || 21))
-    }
-  }, [isEditDialogOpen, employee])
-
-  useEffect(() => {
-    if (!editPhotoFile) {
-      setEditPhotoPreview("")
-      return
-    }
-    const url = URL.createObjectURL(editPhotoFile)
-    setEditPhotoPreview(url)
-    return () => URL.revokeObjectURL(url)
-  }, [editPhotoFile])
+  // (Edit dialog state moved to shared EmployeeEditDialog)
 
   const suggestionUid = useMemo(() => {
     if (!employee) return null
@@ -284,72 +217,7 @@ export default function HrEmployeeDetailsPage() {
     }
   }
 
-  const handleSaveEdit = async () => {
-    if (!employee) return
-    
-    if (!editNume.trim() || !editPrenume.trim()) {
-      toast({ title: "Eroare", description: "Numele și prenumele sunt obligatorii.", variant: "destructive" })
-      return
-    }
-    
-    try {
-      setEditPhotoSaving(true)
-
-      let finalPhotoURL = editPhotoURL.trim() || ""
-      let photoUpdatedAt: number | undefined = undefined
-
-      if (editPhotoFile) {
-        // Replace: delete any prior variants first (best-effort), then upload.
-        await deleteEmployeeProfilePhoto(employee.id)
-        const res = await uploadEmployeeProfilePhoto(employee.id, editPhotoFile)
-        finalPhotoURL = res.photoURL
-        photoUpdatedAt = Date.now()
-      } else if (editInitialPhotoURL && !finalPhotoURL) {
-        // Remove requested.
-        await deleteEmployeeProfilePhoto(employee.id)
-        photoUpdatedAt = Date.now()
-      }
-
-      const sectorIds = editSectorIds.filter(Boolean)
-      const managerUidBySector = Object.fromEntries(
-        Object.entries(editManagerUidBySector || {})
-          .map(([k, v]) => [String(k).trim(), String(v || "").trim()])
-          .filter(([k, v]) => k && v && sectorIds.includes(k))
-      )
-
-      const updated: Employee = {
-        ...employee,
-        nume: editNume.trim(),
-        prenume: editPrenume.trim(),
-        title: editTitle.trim() || undefined,
-        active: editActive,
-        photoURL: finalPhotoURL || undefined,
-        photoUpdatedAt,
-        cnp: editCnp.trim() || undefined,
-        ciSerie: editCiSerie.trim() || undefined,
-        ciNumar: editCiNumar.trim() || undefined,
-        ciDataEmiterii: editCiDataEmiterii.trim() || undefined,
-        ciEmitent: editCiEmitent.trim() || undefined,
-        poziteCOR: editPoziteCOR.trim() || undefined,
-        superiorUid: editSuperiorUid,
-        sectorIds: sectorIds.length ? sectorIds : undefined,
-        managerUidBySector: Object.keys(managerUidBySector).length ? managerUidBySector : undefined,
-        loculDeMunca: editLoculDeMunca.trim() || undefined,
-        programLucruStart: editProgramLucruStart.trim() || undefined,
-        programLucruEnd: editProgramLucruEnd.trim() || undefined,
-        zileConcediuAnuale: editZileConcediuAnuale.trim() ? Number(editZileConcediuAnuale) : undefined,
-      }
-      await createOrUpdateEmployee(updated)
-      setEmployee(updated)
-      setIsEditDialogOpen(false)
-      toast({ title: "Salariat actualizat", description: "Datele au fost salvate cu succes." })
-    } catch (e: any) {
-      toast({ title: "Eroare", description: e.message || "Nu s-a putut salva.", variant: "destructive" })
-    } finally {
-      setEditPhotoSaving(false)
-    }
-  }
-  // Note: upload/delete are performed only when saving the dialog.
+  // Save logic moved to shared EmployeeEditDialog.
 
   const getCell = (day: number): TimesheetCell | undefined => {
     if (!employee) return undefined
@@ -1050,384 +918,14 @@ export default function HrEmployeeDetailsPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Edit Dialog - Modern design with all fields */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-xl">
-              <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-md">
-                <Pencil className="h-5 w-5 text-white" />
-              </div>
-              Editează salariat
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="grid gap-6 py-4">
-            {/* Profile photo (first) */}
-            <div className="grid gap-2">
-              <Label>Poză profil</Label>
-              <div className="flex items-center gap-4">
-                <button
-                  type="button"
-                  className="relative h-24 w-24 rounded-full overflow-hidden bg-muted flex items-center justify-center border"
-                  onClick={() => {
-                    const src = editPhotoPreview || editPhotoURL
-                    if (src) setEditPhotoZoomOpen(true)
-                  }}
-                  title={editPhotoPreview || editPhotoURL ? "Vezi poza" : undefined}
-                  aria-label={editPhotoPreview || editPhotoURL ? "Vezi poza" : "Poză profil"}
-                >
-                  {editPhotoPreview || editPhotoURL ? (
-                    <img src={editPhotoPreview || editPhotoURL} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <ImageIcon className="h-10 w-10 text-muted-foreground/60" />
-                  )}
-                  {(editPhotoPreview || editPhotoURL) && (
-                    <button
-                      type="button"
-                      className="absolute top-1 right-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-red-600 shadow-sm border border-red-100 hover:bg-white"
-                      title="Elimină poza"
-                      aria-label="Elimină poza"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        setEditPhotoURL("")
-                        setEditPhotoFile(null)
-                        setEditPhotoPreview("")
-                      }}
-                      disabled={editPhotoSaving}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
-                </button>
-                <div className="flex-1 space-y-2">
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setEditPhotoFile(e.target.files?.[0] ?? null)}
-                    disabled={editPhotoSaving}
-                  />
-                  <div className="text-xs text-muted-foreground">
-                    Modificările de poză se aplică doar la apăsarea „Salvează”.
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Basic Information */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase">Informații de bază</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-2">
-                  <Label htmlFor="editPrenume">Prenume *</Label>
-              <Input 
-                    id="editPrenume"
-                    value={editPrenume} 
-                    onChange={(e) => setEditPrenume(e.target.value)}
-                className="border-2 h-11"
-                    placeholder="Ex: Ion"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="editNume">Nume *</Label>
-                  <Input 
-                    id="editNume"
-                    value={editNume} 
-                    onChange={(e) => setEditNume(e.target.value)}
-                    className="border-2 h-11"
-                    placeholder="Ex: Popescu"
-              />
-                </div>
-            </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="editTitle">Funcție</Label>
-              <Input 
-                  id="editTitle"
-                value={editTitle} 
-                onChange={(e) => setEditTitle(e.target.value)}
-                className="border-2 h-11"
-                placeholder="Ex: Manager Proiect"
-              />
-            </div>
-
-            <div className="flex items-center justify-between rounded-xl border-2 p-4 bg-gradient-to-r from-slate-50 to-white dark:from-slate-900 dark:to-slate-800 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className={cn(
-                  "h-10 w-10 rounded-lg flex items-center justify-center shadow-sm",
-                  editActive ? "bg-gradient-to-br from-emerald-500 to-emerald-600" : "bg-gradient-to-br from-slate-400 to-slate-500"
-                )}>
-                  <UserCheck className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <div className="text-sm font-bold">Status activ</div>
-                  <div className="text-xs text-muted-foreground">Dezactivează pentru a ascunde din liste</div>
-                </div>
-              </div>
-              <Switch checked={editActive} onCheckedChange={setEditActive} />
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Identification Data */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase">Date de identificare</h3>
-              <div className="grid gap-2">
-                <Label htmlFor="editCnp">CNP</Label>
-                <Input 
-                  id="editCnp"
-                  value={editCnp} 
-                  onChange={(e) => setEditCnp(e.target.value)}
-                  placeholder="Ex: 1820620285533"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-2">
-                  <Label htmlFor="editCiSerie">Serie CI</Label>
-                  <Input 
-                    id="editCiSerie"
-                    value={editCiSerie} 
-                    onChange={(e) => setEditCiSerie(e.target.value)}
-                    placeholder="Ex: RT"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="editCiNumar">Număr CI</Label>
-                  <Input 
-                    id="editCiNumar"
-                    value={editCiNumar} 
-                    onChange={(e) => setEditCiNumar(e.target.value)}
-                    placeholder="Ex: 226633"
-                  />
-                </div>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="editCiDataEmiterii">Data emiterii CI</Label>
-                <Input 
-                  id="editCiDataEmiterii"
-                  type="date"
-                  value={editCiDataEmiterii} 
-                  onChange={(e) => setEditCiDataEmiterii(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="editCiEmitent">Emitent CI</Label>
-                <Input 
-                  id="editCiEmitent"
-                  value={editCiEmitent} 
-                  onChange={(e) => setEditCiEmitent(e.target.value)}
-                  placeholder="Ex: SPCLEP Chiajana"
-                />
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Workplace Data */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase">Date despre locul de muncă</h3>
-              <div className="grid gap-2">
-                <Label htmlFor="editPoziteCOR">Poziție COR</Label>
-                <Input 
-                  id="editPoziteCOR"
-                  value={editPoziteCOR} 
-                  onChange={(e) => setEditPoziteCOR(e.target.value)}
-                  placeholder="Ex: 8114-Montator ansambluri mecanice"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="editSuperiorUid">Superior ierarhic</Label>
-                <Select 
-                  value={editSuperiorUid || "__none__"}
-                  onValueChange={(v) => setEditSuperiorUid(v === "__none__" ? undefined : v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selectează superior" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Fără superior</SelectItem>
-                    {users.map((u) => (
-                      <SelectItem key={u.uid} value={u.uid}>
-                        {u.displayName || u.email || u.uid}
-                        {u.role ? ` • ${u.role}` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label>Departamente</Label>
-                <div className="space-y-2 rounded-lg border p-3">
-                  {departments.filter(d => d.active).length === 0 ? (
-                    <div className="text-sm text-muted-foreground">
-                      Niciun departament disponibil.{" "}
-                      <Button 
-                        variant="link" 
-                        className="h-auto p-0" 
-                        onClick={() => router.push("/dashboard/resurse-umane/departamente")}
-                      >
-                        Creează primul departament →
-                      </Button>
-                    </div>
-                  ) : (
-                    departments.filter(d => d.active).map((dept) => (
-                      <div key={dept.id} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`dept-${dept.id}`}
-                          checked={editSectorIds.includes(dept.id)}
-                          onCheckedChange={(checked) => {
-                            const managerUid = dept.managerUid ? String(dept.managerUid) : ""
-                            if (checked) {
-                              const nextSectorIds = [...editSectorIds, dept.id]
-                              setEditSectorIds(nextSectorIds)
-                              if (managerUid) {
-                                setEditManagerUidBySector((prev) => ({
-                                  ...(prev || {}),
-                                  [dept.id]: managerUid,
-                                }))
-                                if (!editSuperiorUid) setEditSuperiorUid(managerUid)
-                              }
-                            } else {
-                              const nextSectorIds = editSectorIds.filter(id => id !== dept.id)
-                              setEditSectorIds(nextSectorIds)
-                              setEditManagerUidBySector((prev) => {
-                                const next = { ...prev }
-                                delete next[dept.id]
-                                return next
-                              })
-                              if (editSuperiorUid && managerUid && editSuperiorUid === managerUid) {
-                                const remainingManagers = nextSectorIds
-                                  .map((id) => departments.find((d) => d.id === id)?.managerUid)
-                                  .filter(Boolean) as string[]
-                                setEditSuperiorUid(remainingManagers[0] || undefined)
-                              }
-                            }
-                          }}
-                        />
-                        <Label htmlFor={`dept-${dept.id}`} className="cursor-pointer font-normal">
-                          {dept.name}
-                        </Label>
-                      </div>
-                    ))
-                  )}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Pentru fiecare departament, selectează șeful ierarhic care aprobă cererile.
-                </div>
-              </div>
-
-              {editSectorIds.length > 0 ? (
-                <div className="grid gap-3 rounded-lg border p-3 bg-muted/20">
-                  <div className="text-sm font-semibold">Șef ierarhic pe departament</div>
-                  {editSectorIds.map((sectorId) => {
-                    const dept = departments.find(d => d.id === sectorId)
-                    return (
-                      <div key={sectorId} className="grid gap-2">
-                        <Label className="text-xs text-muted-foreground">
-                          Departament: {dept?.name || sectorId}
-                        </Label>
-                        <Select
-                          value={editManagerUidBySector?.[sectorId] ?? "__none__"}
-                          onValueChange={(v) =>
-                            setEditManagerUidBySector((prev) => {
-                              const next = { ...(prev || {}) }
-                              if (v === "__none__") delete next[sectorId]
-                              else next[sectorId] = v
-                              return next
-                            })
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Alege șef ierarhic" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">Necompletat</SelectItem>
-                            {users.map((u) => (
-                              <SelectItem key={u.uid} value={u.uid}>
-                                {(u.displayName || u.email || u.uid) + (u.role ? ` • ${u.role}` : "")}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : null}
-              <div className="grid gap-2">
-                <Label htmlFor="editLoculDeMunca">Locul de muncă</Label>
-                <Input 
-                  id="editLoculDeMunca"
-                  value={editLoculDeMunca} 
-                  onChange={(e) => setEditLoculDeMunca(e.target.value)}
-                  placeholder="Ex: Birou"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-2">
-                  <Label htmlFor="editProgramLucruStart">Program start</Label>
-                  <Input 
-                    id="editProgramLucruStart"
-                    type="time"
-                    value={editProgramLucruStart} 
-                    onChange={(e) => setEditProgramLucruStart(e.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="editProgramLucruEnd">Program end</Label>
-                  <Input 
-                    id="editProgramLucruEnd"
-                    type="time"
-                    value={editProgramLucruEnd} 
-                    onChange={(e) => setEditProgramLucruEnd(e.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="editZileConcediuAnuale">Zile concediu anuale</Label>
-                <Input 
-                  id="editZileConcediuAnuale"
-                  type="number"
-                  min="0"
-                  max="50"
-                  value={editZileConcediuAnuale} 
-                  onChange={(e) => setEditZileConcediuAnuale(e.target.value)}
-                  placeholder="21"
-                />
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="border-2">
-              Anulează
-            </Button>
-            <Button onClick={handleSaveEdit} className="shadow-md hover:shadow-lg transition-all">
-              <Pencil className="h-4 w-4 mr-2" />
-              Salvează
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Photo zoom dialog */}
-      <Dialog open={editPhotoZoomOpen} onOpenChange={setEditPhotoZoomOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Poză profil</DialogTitle>
-          </DialogHeader>
-          <div className="flex items-center justify-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={editPhotoPreview || editPhotoURL}
-              alt=""
-              className="max-h-[70vh] w-auto max-w-full rounded-lg object-contain"
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
+      <EmployeeEditDialog
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        employee={employee}
+        users={users}
+        departments={departments}
+        onSaved={(e) => setEmployee(e)}
+      />
 
       {/* Leave Request Dialog */}
       {user?.uid ? (

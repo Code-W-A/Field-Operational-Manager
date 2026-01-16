@@ -1,41 +1,35 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { collection, getDocs } from "firebase/firestore"
 
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import { toast } from "@/hooks/use-toast"
 import { EmployeesTable } from "@/components/hr/employees-table"
 import type { Employee } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
 import {
-  createOrUpdateEmployee,
   getCurrentMonthKey,
   importLegacyLocalStorageHrDataToFirestore,
   readLegacyLocalStorageHrData,
   saveHrDefaults,
   seedHrIfEmpty,
   subscribeEmployees,
+  subscribeDepartments,
   subscribeHrDefaults,
 } from "@/lib/hr/storage"
-import { deleteEmployeeProfilePhoto, uploadEmployeeProfilePhoto } from "@/lib/hr/profile-photo"
-import { Plus, ChevronDown, ChevronUp, Trash2, Image as ImageIcon } from "lucide-react"
+import { db } from "@/lib/firebase/config"
+import type { Department } from "@/lib/hr/types"
+import { Plus } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { EmployeeEditDialog } from "@/components/hr/employee-edit-dialog"
 
-function makeId() {
-  try {
-    return `emp_${crypto.randomUUID().replaceAll("-", "")}`
-  } catch {
-    return `emp_${Date.now()}`
-  }
-}
+type AppUser = { uid: string; displayName: string | null; email: string | null; role?: string }
 
 export default function HrEmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([])
@@ -48,40 +42,9 @@ export default function HrEmployeesPage() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Employee | null>(null)
-  const [draftEmployeeId, setDraftEmployeeId] = useState<string>("")
-  const [savingEmployee, setSavingEmployee] = useState(false)
-
-  // Basic fields
-  const [nume, setNume] = useState("")
-  const [prenume, setPrenume] = useState("")
-  const [title, setTitle] = useState("")
-  const [active, setActive] = useState(true)
-
-  // Profile photo
-  const [photoURL, setPhotoURL] = useState("")
-  const [photoFile, setPhotoFile] = useState<File | null>(null)
-  const [photoPreview, setPhotoPreview] = useState<string>("")
-  const [initialPhotoURL, setInitialPhotoURL] = useState("")
-  const [photoZoomOpen, setPhotoZoomOpen] = useState(false)
-  
-  // Identification fields
-  const [cnp, setCnp] = useState("")
-  const [ciSerie, setCiSerie] = useState("")
-  const [ciNumar, setCiNumar] = useState("")
-  const [ciDataEmiterii, setCiDataEmiterii] = useState("")
-  const [ciEmitent, setCiEmitent] = useState("")
-  
-  // Workplace fields
-  const [poziteCOR, setPoziteCOR] = useState("")
-  const [superiorIerarhic, setSuperiorIerarhic] = useState("")
-  const [loculDeMunca, setLoculDeMunca] = useState("")
-  const [programLucruStart, setProgramLucruStart] = useState("")
-  const [programLucruEnd, setProgramLucruEnd] = useState("")
-  const [zileConcediuAnuale, setZileConcediuAnuale] = useState("21")
-  
-  // Collapsible sections
-  const [showIdentification, setShowIdentification] = useState(false)
-  const [showWorkplace, setShowWorkplace] = useState(false)
+  const [users, setUsers] = useState<AppUser[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
 
   useEffect(() => {
     let unsub: null | (() => void) = null
@@ -107,6 +70,39 @@ export default function HrEmployeesPage() {
   }, [])
 
   useEffect(() => {
+    const unsub = subscribeDepartments({
+      onChange: setDepartments,
+      onError: (err) => console.error("Error loading departments:", err),
+    })
+    return () => unsub()
+  }, [])
+
+  useEffect(() => {
+    const load = async () => {
+      setLoadingUsers(true)
+      try {
+        const snap = await getDocs(collection(db, "users"))
+        const items: AppUser[] = snap.docs.map((d) => {
+          const data = d.data() as any
+          return {
+            uid: d.id,
+            displayName: data.displayName ?? null,
+            email: data.email ?? null,
+            role: data.role,
+          }
+        })
+        items.sort((a, b) => String(a.displayName ?? a.email ?? "").localeCompare(String(b.displayName ?? b.email ?? "")))
+        setUsers(items)
+      } catch {
+        // non-blocking
+      } finally {
+        setLoadingUsers(false)
+      }
+    }
+    load()
+  }, [])
+
+  useEffect(() => {
     const unsub = subscribeHrDefaults({
       onChange: (d) => {
         setDefaultProgramStart(d.programLucruStart ?? "")
@@ -126,147 +122,13 @@ export default function HrEmployeesPage() {
 
   const openAdd = () => {
     setEditing(null)
-    setDraftEmployeeId(makeId())
-    setNume("")
-    setPrenume("")
-    setTitle("")
-    setActive(true)
-    setPhotoURL("")
-    setInitialPhotoURL("")
-    setPhotoFile(null)
-    setPhotoPreview("")
-    setCnp("")
-    setCiSerie("")
-    setCiNumar("")
-    setCiDataEmiterii("")
-    setCiEmitent("")
-    setPoziteCOR("")
-    setSuperiorIerarhic("")
-    setLoculDeMunca("")
-    setProgramLucruStart(defaultProgramStart || "")
-    setProgramLucruEnd(defaultProgramEnd || "")
-    setZileConcediuAnuale("21")
-    setShowIdentification(false)
-    setShowWorkplace(false)
     setIsDialogOpen(true)
   }
 
   const openEdit = (e: Employee) => {
     setEditing(e)
-    setDraftEmployeeId("")
-    setNume(e.nume)
-    setPrenume(e.prenume)
-    setTitle(e.title ?? "")
-    setActive(e.active)
-    setPhotoURL(e.photoURL ?? "")
-    setInitialPhotoURL(e.photoURL ?? "")
-    setPhotoFile(null)
-    setPhotoPreview("")
-    setCnp(e.cnp ?? "")
-    setCiSerie(e.ciSerie ?? "")
-    setCiNumar(e.ciNumar ?? "")
-    setCiDataEmiterii(e.ciDataEmiterii ?? "")
-    setCiEmitent(e.ciEmitent ?? "")
-    setPoziteCOR(e.poziteCOR ?? "")
-    setSuperiorIerarhic(e.superiorIerarhic ?? "")
-    setLoculDeMunca(e.loculDeMunca ?? "")
-    setProgramLucruStart(e.programLucruStart ?? "")
-    setProgramLucruEnd(e.programLucruEnd ?? "")
-    setZileConcediuAnuale(String(e.zileConcediuAnuale ?? 21))
-    setShowIdentification(false)
-    setShowWorkplace(false)
     setIsDialogOpen(true)
   }
-
-  const save = async () => {
-    const trimmedNume = nume.trim()
-    const trimmedPrenume = prenume.trim()
-    
-    if (!trimmedNume || !trimmedPrenume) {
-      toast({ title: "Nume invalid", description: "Completează numele și prenumele salariatului.", variant: "destructive" })
-      return
-    }
-
-    try {
-      setSavingEmployee(true)
-
-      const employeeId = editing?.id ?? (draftEmployeeId || makeId())
-      let finalPhotoURL = photoURL.trim() || ""
-      let photoUpdatedAt: number | undefined = undefined
-
-      if (photoFile) {
-        // Replace: delete any prior variants first (best-effort), then upload.
-        await deleteEmployeeProfilePhoto(employeeId)
-        const res = await uploadEmployeeProfilePhoto(employeeId, photoFile)
-        finalPhotoURL = res.photoURL
-        photoUpdatedAt = Date.now()
-      } else if (initialPhotoURL && !finalPhotoURL) {
-        // Remove requested.
-        await deleteEmployeeProfilePhoto(employeeId)
-        photoUpdatedAt = Date.now()
-      }
-
-      const next: Employee = editing
-        ? {
-            ...editing,
-            nume: trimmedNume,
-            prenume: trimmedPrenume,
-            title: title.trim() || undefined,
-            active,
-            photoURL: finalPhotoURL || undefined,
-            photoUpdatedAt,
-            cnp: cnp.trim() || undefined,
-            ciSerie: ciSerie.trim() || undefined,
-            ciNumar: ciNumar.trim() || undefined,
-            ciDataEmiterii: ciDataEmiterii.trim() || undefined,
-            ciEmitent: ciEmitent.trim() || undefined,
-            poziteCOR: poziteCOR.trim() || undefined,
-            superiorIerarhic: superiorIerarhic.trim() || undefined,
-            loculDeMunca: loculDeMunca.trim() || undefined,
-            programLucruStart: programLucruStart.trim() || undefined,
-            programLucruEnd: programLucruEnd.trim() || undefined,
-            zileConcediuAnuale: zileConcediuAnuale.trim() ? Number(zileConcediuAnuale) : undefined,
-          }
-        : {
-            id: employeeId,
-            nume: trimmedNume,
-            prenume: trimmedPrenume,
-            title: title.trim() || undefined,
-            active,
-            photoURL: finalPhotoURL || undefined,
-            photoUpdatedAt,
-            cnp: cnp.trim() || undefined,
-            ciSerie: ciSerie.trim() || undefined,
-            ciNumar: ciNumar.trim() || undefined,
-            ciDataEmiterii: ciDataEmiterii.trim() || undefined,
-            ciEmitent: ciEmitent.trim() || undefined,
-            poziteCOR: poziteCOR.trim() || undefined,
-            superiorIerarhic: superiorIerarhic.trim() || undefined,
-            loculDeMunca: loculDeMunca.trim() || undefined,
-            programLucruStart: programLucruStart.trim() || undefined,
-            programLucruEnd: programLucruEnd.trim() || undefined,
-            zileConcediuAnuale: zileConcediuAnuale.trim() ? Number(zileConcediuAnuale) : undefined,
-          }
-
-      await createOrUpdateEmployee(next)
-      setIsDialogOpen(false)
-      toast({ title: "Salvat", description: editing ? "Salariatul a fost actualizat." : "Salariatul a fost adăugat." })
-    } catch {
-      toast({ title: "Eroare", description: "Nu s-a putut salva salariatul.", variant: "destructive" })
-    } finally {
-      setSavingEmployee(false)
-    }
-  }
-
-  useEffect(() => {
-    if (!photoFile) {
-      setPhotoPreview("")
-      return
-    }
-    const url = URL.createObjectURL(photoFile)
-    setPhotoPreview(url)
-    return () => URL.revokeObjectURL(url)
-  }, [photoFile])
 
   // Note: upload/delete are performed only when saving the dialog.
 
@@ -375,208 +237,15 @@ export default function HrEmployeesPage() {
         <EmployeesTable employees={sortedEmployees} onEdit={openEdit} />
       )}
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Editează salariat" : "Adaugă salariat"}</DialogTitle>
-          </DialogHeader>
-
-          <div className="grid gap-4">
-            {/* Profile photo (first) */}
-            <div className="grid gap-2">
-              <Label>Poză profil</Label>
-              <div className="flex items-center gap-4">
-                <button
-                  type="button"
-                  className="relative h-24 w-24 rounded-full overflow-hidden bg-muted flex items-center justify-center border"
-                  onClick={() => {
-                    const src = photoPreview || photoURL
-                    if (src) setPhotoZoomOpen(true)
-                  }}
-                  title={photoPreview || photoURL ? "Vezi poza" : undefined}
-                  aria-label={photoPreview || photoURL ? "Vezi poza" : "Poză profil"}
-                >
-                  {photoPreview || photoURL ? (
-                    <img
-                      src={photoPreview || photoURL}
-                      alt=""
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <ImageIcon className="h-10 w-10 text-muted-foreground/60" />
-                  )}
-                  {(photoPreview || photoURL) && (
-                    <button
-                      type="button"
-                      className="absolute top-1 right-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-red-600 shadow-sm border border-red-100 hover:bg-white"
-                      title="Elimină poza"
-                      aria-label="Elimină poza"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        setPhotoURL("")
-                        setPhotoFile(null)
-                        setPhotoPreview("")
-                      }}
-                      disabled={savingEmployee}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
-                </button>
-                <div className="flex-1 space-y-2">
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
-                    disabled={savingEmployee}
-                  />
-                  <div className="text-xs text-muted-foreground">
-                    Modificările de poză se aplică doar la apăsarea „Salvează”.
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Basic Information */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase">Informații de bază</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-2">
-                  <Label htmlFor="prenume">Prenume *</Label>
-                  <Input id="prenume" value={prenume} onChange={(e) => setPrenume(e.target.value)} placeholder="Ex: Marian" />
-                </div>
-            <div className="grid gap-2">
-                  <Label htmlFor="nume">Nume *</Label>
-                  <Input id="nume" value={nume} onChange={(e) => setNume(e.target.value)} placeholder="Ex: Xulescu" />
-                </div>
-            </div>
-            <div className="grid gap-2">
-                <Label htmlFor="title">Funcție</Label>
-                <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex: Tehnician montator" />
-            </div>
-            <div className="flex items-center justify-between rounded-md border p-3">
-              <div className="grid gap-0.5">
-                <div className="text-sm font-medium">Activ</div>
-                <div className="text-xs text-muted-foreground">Poți dezactiva un salariat fără a șterge datele.</div>
-              </div>
-              <Switch checked={active} onCheckedChange={setActive} />
-            </div>
-            </div>
-
-            <Separator />
-
-            {/* Identification Data - Collapsible */}
-            <Collapsible open={showIdentification} onOpenChange={setShowIdentification}>
-              <CollapsibleTrigger asChild>
-                <Button variant="outline" className="w-full justify-between">
-                  <span className="font-semibold">Date de identificare (opțional)</span>
-                  {showIdentification ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="mt-3 space-y-3">
-                <div className="grid gap-2">
-                  <Label htmlFor="cnp">CNP</Label>
-                  <Input id="cnp" value={cnp} onChange={(e) => setCnp(e.target.value)} placeholder="Ex: 1820620285533" />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="grid gap-2">
-                    <Label htmlFor="ciSerie">Serie CI</Label>
-                    <Input id="ciSerie" value={ciSerie} onChange={(e) => setCiSerie(e.target.value)} placeholder="Ex: RT" />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="ciNumar">Număr CI</Label>
-                    <Input id="ciNumar" value={ciNumar} onChange={(e) => setCiNumar(e.target.value)} placeholder="Ex: 226633" />
-                  </div>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="ciDataEmiterii">Data emiterii CI</Label>
-                  <Input id="ciDataEmiterii" type="date" value={ciDataEmiterii} onChange={(e) => setCiDataEmiterii(e.target.value)} />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="ciEmitent">Emitent CI</Label>
-                  <Input id="ciEmitent" value={ciEmitent} onChange={(e) => setCiEmitent(e.target.value)} placeholder="Ex: SPCLEP Chiajana" />
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-
-            <Separator />
-
-            {/* Workplace Data - Collapsible */}
-            <Collapsible open={showWorkplace} onOpenChange={setShowWorkplace}>
-              <CollapsibleTrigger asChild>
-                <Button variant="outline" className="w-full justify-between">
-                  <span className="font-semibold">Date despre locul de muncă (opțional)</span>
-                  {showWorkplace ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="mt-3 space-y-3">
-                <div className="grid gap-2">
-                  <Label htmlFor="poziteCOR">Poziție COR</Label>
-                  <Input id="poziteCOR" value={poziteCOR} onChange={(e) => setPoziteCOR(e.target.value)} placeholder="Ex: 8114-Montator ansambluri mecanice" />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="superiorIerarhic">Superior ierarhic</Label>
-                  <Input id="superiorIerarhic" value={superiorIerarhic} onChange={(e) => setSuperiorIerarhic(e.target.value)} placeholder="Ex: Voinea Ionut" />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="loculDeMunca">Locul de muncă</Label>
-                  <Input id="loculDeMunca" value={loculDeMunca} onChange={(e) => setLoculDeMunca(e.target.value)} placeholder="Ex: Birou" />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="grid gap-2">
-                    <Label htmlFor="programLucruStart">Program start</Label>
-                    <Input id="programLucruStart" type="time" value={programLucruStart} onChange={(e) => setProgramLucruStart(e.target.value)} placeholder="08:00" />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="programLucruEnd">Program end</Label>
-                    <Input id="programLucruEnd" type="time" value={programLucruEnd} onChange={(e) => setProgramLucruEnd(e.target.value)} placeholder="16:30" />
-                  </div>
-            <div className="text-xs text-muted-foreground">
-              Dacă lași gol, se aplică programul standard.
-            </div>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="zileConcediuAnuale">Zile concediu anuale</Label>
-                  <Input 
-                    id="zileConcediuAnuale" 
-                    type="number" 
-                    min="0" 
-                    max="50" 
-                    value={zileConcediuAnuale} 
-                    onChange={(e) => setZileConcediuAnuale(e.target.value)} 
-                    placeholder="21" 
-                  />
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-              Anulează
-            </Button>
-            <Button onClick={save}>Salvează</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Photo zoom dialog */}
-      <Dialog open={photoZoomOpen} onOpenChange={setPhotoZoomOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Poză profil</DialogTitle>
-          </DialogHeader>
-          <div className="flex items-center justify-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={photoPreview || photoURL}
-              alt=""
-              className="max-h-[70vh] w-auto max-w-full rounded-lg object-contain"
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
+      <EmployeeEditDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        employee={editing}
+        defaultProgramStart={defaultProgramStart}
+        defaultProgramEnd={defaultProgramEnd}
+        users={users}
+        departments={departments}
+      />
     </DashboardShell>
   )
 }

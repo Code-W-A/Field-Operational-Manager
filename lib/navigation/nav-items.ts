@@ -228,7 +228,7 @@ export function buildNav(ctx: NavCtx): NavNode[] {
         {
           type: "link",
           id: "cereri-aprobari",
-          label: "Cererile de aprobat",
+          label: "Concendii si evenimente",
           href: "/dashboard/cereri-aprobari",
           icon: ClipboardList,
           activeMatch: "prefix",
