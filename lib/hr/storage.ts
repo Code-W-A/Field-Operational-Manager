@@ -1,6 +1,6 @@
 "use client"
 
-import type { Department, Employee, TimesheetCell, TimesheetMonth, TimesheetMonthKey } from "./types"
+import type { Department, Employee, HrDefaults, TimesheetCell, TimesheetMonth, TimesheetMonthKey } from "./types"
 import type { HrRequest, HrRequestKind, HrRequestStatus } from "./types"
 import {
   collection,
@@ -340,6 +340,10 @@ export async function deleteTimesheetRange(params: {
   const updates: Record<string, unknown> = { updatedAt: serverTimestamp() }
   for (let d = start; d <= end; d++) {
     const dayKey = String(d)
+    if (params.deleteEntries && params.deleteBreaks) {
+      updates[`days.${dayKey}`] = deleteField()
+      continue
+    }
     if (params.deleteEntries) updates[`days.${dayKey}.entries`] = deleteField()
     if (params.deleteBreaks) updates[`days.${dayKey}.breaks`] = deleteField()
   }
@@ -588,6 +592,7 @@ function normalizeDepartment(id: string, data: any): Department {
     id,
     name: String(data.name || ""),
     description: data.description ? String(data.description) : undefined,
+    managerUid: data.managerUid ? String(data.managerUid) : undefined,
     active: Boolean(data.active),
     createdAt: data.createdAt?.toMillis?.() ?? Date.now(),
     updatedAt: data.updatedAt?.toMillis?.() ?? Date.now(),
@@ -621,6 +626,7 @@ export async function createOrUpdateDepartment(department: Department) {
   const data: any = {
     name: department.name,
     description: department.description ?? null,
+    managerUid: department.managerUid ?? null,
     active: department.active,
     createdBy: department.createdBy ?? null,
     updatedAt: serverTimestamp(),
@@ -652,6 +658,42 @@ export async function deleteDepartment(departmentId: string): Promise<{ success:
   
   await deleteDoc(doc(db, "hrDepartments", departmentId))
   return { success: true }
+}
+
+// ===== HR Defaults (program standard) =====
+
+function normalizeHrDefaults(data: any): HrDefaults {
+  return {
+    programLucruStart: data?.programLucruStart ? String(data.programLucruStart) : undefined,
+    programLucruEnd: data?.programLucruEnd ? String(data.programLucruEnd) : undefined,
+  }
+}
+
+export function subscribeHrDefaults(params: {
+  onChange: (defaults: HrDefaults) => void
+  onError?: (err: unknown) => void
+}): Unsubscribe {
+  const ref = doc(db, "hrSettings", "defaults")
+  return onSnapshot(
+    ref,
+    (snap) => {
+      params.onChange(snap.exists() ? normalizeHrDefaults(snap.data()) : {})
+    },
+    (err) => params.onError?.(err)
+  )
+}
+
+export async function saveHrDefaults(defaults: HrDefaults) {
+  const ref = doc(db, "hrSettings", "defaults")
+  await setDoc(
+    ref,
+    {
+      programLucruStart: defaults.programLucruStart ?? null,
+      programLucruEnd: defaults.programLucruEnd ?? null,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  )
 }
 
 // ===== Data Migration =====

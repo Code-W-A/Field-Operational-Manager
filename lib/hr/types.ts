@@ -66,10 +66,17 @@ export type Department = {
   id: string
   name: string
   description?: string
+  /** Optional: UID-ul șefului de departament (utilizator). */
+  managerUid?: string
   active: boolean
   createdAt: number
   updatedAt: number
   createdBy?: string
+}
+
+export type HrDefaults = {
+  programLucruStart?: string
+  programLucruEnd?: string
 }
 
 export type TimesheetMonthKey = `${number}-${string}` // e.g. "2026-01"

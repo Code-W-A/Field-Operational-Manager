@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
+import { collection, onSnapshot, query, where } from "firebase/firestore"
 
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
@@ -36,6 +37,9 @@ import { Plus, Trash2, LayoutGrid, List, Download, Minimize2, Maximize2 } from "
 import { cn } from "@/lib/utils"
 import { exportTimesheetsToCSV } from "@/lib/hr/export"
 import { useAuth } from "@/contexts/AuthContext"
+import { toast } from "@/hooks/use-toast"
+import { db } from "@/lib/firebase/config"
+import type { AttendanceSession } from "@/types/attendance"
 
 function toMonthInputValue(monthKey: TimesheetMonthKey) {
   return monthKey
@@ -44,6 +48,91 @@ function toMonthInputValue(monthKey: TimesheetMonthKey) {
 function fromMonthInputValue(v: string): TimesheetMonthKey {
   // HTML month input returns yyyy-MM
   return v as TimesheetMonthKey
+}
+
+function parseHM(value: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(value.trim())
+  if (!m) return null
+  const hh = Number(m[1])
+  const mm = Number(m[2])
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null
+  return hh * 60 + mm
+}
+
+function findOverlapPair(entries: Array<{ start: string; end: string }>) {
+  const ranges = entries
+    .map((e) => {
+      const s = parseHM(e.start)
+      const en = parseHM(e.end)
+      if (s == null || en == null || s >= en) return null
+      return { start: s, end: en, label: `${e.start}–${e.end}` }
+    })
+    .filter(Boolean) as Array<{ start: number; end: number; label: string }>
+  if (ranges.length <= 1) return null
+  ranges.sort((a, b) => (a.start - b.start) || (a.end - b.end))
+  for (let i = 1; i < ranges.length; i++) {
+    if (ranges[i].start < ranges[i - 1].end) {
+      return { a: ranges[i - 1].label, b: ranges[i].label }
+    }
+  }
+  return null
+}
+
+function findOverlapWithExisting(
+  existing: Array<{ start: string; end: string }>,
+  next: Array<{ start: string; end: string }>
+) {
+  const existingRanges = existing
+    .map((e) => {
+      const s = parseHM(e.start)
+      const en = parseHM(e.end)
+      if (s == null || en == null || s >= en) return null
+      return { start: s, end: en, labelStart: e.start, labelEnd: e.end }
+    })
+    .filter(Boolean) as Array<{ start: number; end: number; labelStart: string; labelEnd: string }>
+  if (!existingRanges.length) return null
+  for (const e of next) {
+    const s = parseHM(e.start)
+    const en = parseHM(e.end)
+    if (s == null || en == null || s >= en) continue
+    for (const ex of existingRanges) {
+      if (s < ex.end && ex.start < en) {
+        return {
+          incoming: `${e.start}–${e.end}`,
+          existing: `${ex.labelStart}–${ex.labelEnd}`,
+        }
+      }
+    }
+  }
+  return null
+}
+
+function findBreakOutsideEntries(
+  entries: Array<{ start: string; end: string }>,
+  breaks: Array<{ start: string; end: string }>
+) {
+  const entryRanges = entries
+    .map((e) => {
+      const s = parseHM(e.start)
+      const en = parseHM(e.end)
+      if (s == null || en == null || s >= en) return null
+      return { start: s, end: en, labelStart: e.start, labelEnd: e.end }
+    })
+    .filter(Boolean) as Array<{ start: number; end: number; labelStart: string; labelEnd: string }>
+  if (!entryRanges.length) return null
+  for (const b of breaks) {
+    const s = parseHM(b.start)
+    const en = parseHM(b.end)
+    if (s == null || en == null || s >= en) continue
+    const inside = entryRanges.some((e) => s >= e.start && en <= e.end)
+    if (!inside) {
+      return {
+        breakLabel: `${b.start}–${b.end}`,
+      }
+    }
+  }
+  return null
 }
 
 function calculateMonthKPIs(monthKey: TimesheetMonthKey, employees: Employee[], timesheets: TimesheetMonth[]) {
@@ -92,7 +181,7 @@ function calculateMonthKPIs(monthKey: TimesheetMonthKey, employees: Employee[], 
 }
 
 export default function CondicaPrezentaPage() {
-  const { user } = useAuth()
+  const { user, userData } = useAuth()
   const debugEnabled = process.env.NEXT_PUBLIC_ENABLE_DEBUG_PANEL === "true"
   const searchParams = useSearchParams()
   const initialEmployeeId = searchParams.get("employeeId") ?? "all"
@@ -104,6 +193,7 @@ export default function CondicaPrezentaPage() {
   const [timesheets, setTimesheets] = useState<TimesheetMonth[]>([])
   const [leaveRequests, setLeaveRequests] = useState<HrRequest[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
+  const [activeSessions, setActiveSessions] = useState<Record<string, AttendanceSession>>({})
 
   const [cellOpen, setCellOpen] = useState(false)
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
@@ -123,6 +213,7 @@ export default function CondicaPrezentaPage() {
     return false
   })
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false)
+  const [legendOpen, setLegendOpen] = useState(false)
 
   useEffect(() => {
     let unsub: null | (() => void) = null
@@ -157,6 +248,34 @@ export default function CondicaPrezentaPage() {
   }, [monthKey])
 
   useEffect(() => {
+    const q = query(collection(db, "attendance"), where("status", "==", "active"))
+    const unsub = onSnapshot(q, (snapshot) => {
+      const next: Record<string, AttendanceSession> = {}
+      snapshot.docs.forEach((docSnap) => {
+        const data = docSnap.data() as any
+        const employeeId = data.employeeId ? String(data.employeeId) : ""
+        if (!employeeId) return
+        const sessionStart = typeof data.sessionStart === "number"
+          ? data.sessionStart
+          : data.sessionStart?.toMillis?.()
+        if (!sessionStart || !Number.isFinite(sessionStart)) return
+        next[employeeId] = {
+          id: docSnap.id,
+          ...data,
+          sessionStart,
+          sessionEnd: data.sessionEnd
+            ? (typeof data.sessionEnd === "number" ? data.sessionEnd : data.sessionEnd?.toMillis?.())
+            : undefined,
+          createdAt: typeof data.createdAt === "number" ? data.createdAt : data.createdAt?.toMillis?.() || Date.now(),
+          updatedAt: typeof data.updatedAt === "number" ? data.updatedAt : data.updatedAt?.toMillis?.() || Date.now(),
+        } as AttendanceSession
+      })
+      setActiveSessions(next)
+    })
+    return () => unsub()
+  }, [])
+
+  useEffect(() => {
     if (!debugEnabled) return
     try {
       console.log("[CONDICA] month snapshot", {
@@ -186,15 +305,59 @@ export default function CondicaPrezentaPage() {
     }
   }, [compactMode])
 
+  const visibleEmployees = useMemo(() => {
+    const base = [...employees].sort((a, b) =>
+      getEmployeeFullName(a).localeCompare(getEmployeeFullName(b))
+    )
+    const isAdminOrDispatcher = userData?.role === "admin" || userData?.role === "dispecer"
+    if (isAdminOrDispatcher || !user?.uid) return base
+    const uid = user.uid
+    return base.filter((e) => {
+      if (e.superiorUid && e.superiorUid === uid) return true
+      const managerUidBySector = e.managerUidBySector || {}
+      return Object.values(managerUidBySector).some((v) => String(v) === uid)
+    })
+  }, [employees, user?.uid, userData?.role])
+
   const filteredEmployees = useMemo(() => {
-    const base = [...employees].sort((a, b) => a.fullName.localeCompare(b.fullName))
-    if (!employeeFilter || employeeFilter === "all") return base
-    return base.filter((e) => e.id === employeeFilter)
-  }, [employees, employeeFilter])
+    if (!employeeFilter || employeeFilter === "all") return visibleEmployees
+    return visibleEmployees.filter((e) => e.id === employeeFilter)
+  }, [visibleEmployees, employeeFilter])
+
+  useEffect(() => {
+    if (employeeFilter === "all") return
+    if (!employeeFilter) return
+    const exists = visibleEmployees.some((e) => e.id === employeeFilter)
+    if (!exists) {
+      setEmployeeFilter(visibleEmployees[0]?.id ?? "all")
+    }
+  }, [visibleEmployees, employeeFilter])
 
   const getCell = (employeeId: string, day: number): TimesheetCell | undefined => {
     const ts = timesheets.find((t) => t.monthKey === monthKey && t.employeeId === employeeId)
     return ts?.days?.[String(day)]
+  }
+
+  const formatHmFromMs = (ms: number) => {
+    const d = new Date(ms)
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+  }
+
+  const activeMetaByEmployee = useMemo(() => {
+    const next: Record<string, { day: number; monthKey: TimesheetMonthKey; startLabel: string }> = {}
+    Object.entries(activeSessions).forEach(([employeeId, session]) => {
+      const startMs = session.sessionStart
+      if (!startMs || !Number.isFinite(startMs)) return
+      const d = new Date(startMs)
+      const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}` as TimesheetMonthKey
+      next[employeeId] = { day: d.getDate(), monthKey: mk, startLabel: formatHmFromMs(startMs) }
+    })
+    return next
+  }, [activeSessions])
+
+  const isActiveCell = (employeeId: string, day: number) => {
+    const meta = activeMetaByEmployee[employeeId]
+    return Boolean(meta && meta.monthKey === monthKey && meta.day === day)
   }
 
   const getEmployeeTimesheet = (employeeId: string) => {
@@ -281,6 +444,14 @@ export default function CondicaPrezentaPage() {
     return getCell(selectedEmployeeId, selectedDay)
   }, [selectedEmployeeId, selectedDay, timesheets, monthKey])
 
+  const activeSessionStart = useMemo(() => {
+    if (!selectedEmployeeId || !selectedDay) return null
+    const meta = activeMetaByEmployee[selectedEmployeeId]
+    if (!meta) return null
+    if (meta.monthKey !== monthKey || meta.day !== selectedDay) return null
+    return meta.startLabel
+  }, [activeMetaByEmployee, selectedEmployeeId, selectedDay, monthKey])
+
   useEffect(() => {
     if (!debugEnabled) return
     if (!selectedEmployeeId || !selectedDay) return
@@ -341,7 +512,7 @@ export default function CondicaPrezentaPage() {
     }
   }
 
-  const kpis = useMemo(() => calculateMonthKPIs(monthKey, employees, timesheets), [monthKey, employees, timesheets])
+  const kpis = useMemo(() => calculateMonthKPIs(monthKey, visibleEmployees, timesheets), [monthKey, visibleEmployees, timesheets])
 
   const extraColumns: TimesheetExtraColumn[] = useMemo(
     () => [
@@ -387,9 +558,16 @@ export default function CondicaPrezentaPage() {
     <DashboardShell>
       <DashboardHeader
         heading="Condică prezență"
-        text="Condică prezență lunară (stil tabel) cu pop-up pe zi și dialog de adăugare, persistent în Firebase."
+        text=""
         headerAction={
           <div className="flex flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setLegendOpen((v) => !v)}
+            >
+              Vezi legendă
+            </Button>
             <Button
               variant={viewMode === "grid" ? "default" : "outline"}
               size="sm"
@@ -452,7 +630,7 @@ export default function CondicaPrezentaPage() {
                 <SelectItem value="all">Toți salariații</SelectItem>
                 {employees
                   .slice()
-                  .sort((a, b) => a.fullName.localeCompare(b.fullName))
+                  .sort((a, b) => getEmployeeFullName(a).localeCompare(getEmployeeFullName(b)))
                   .map((e) => (
                     <SelectItem key={e.id} value={e.id}>
                       {getEmployeeFullName(e)}
@@ -463,6 +641,12 @@ export default function CondicaPrezentaPage() {
           </div>
         }
       />
+
+      {userData?.role !== "admin" && userData?.role !== "dispecer" ? (
+        <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+          Afișez doar salariații pe care îi coordonezi.
+        </div>
+      ) : null}
 
       {/* KPI Dashboard Cards */}
       <div className="grid gap-3 md:grid-cols-5 mb-4">
@@ -514,9 +698,23 @@ export default function CondicaPrezentaPage() {
         </Card>
       </div>
 
-      <div className="mb-3">
-        <TimesheetLegend />
-      </div>
+      {legendOpen ? (
+        <div className="fixed bottom-4 right-4 z-40 w-[320px] max-w-[calc(100vw-32px)]">
+          <Card className="shadow-xl">
+            <CardHeader className="py-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm">Legendă</CardTitle>
+                <Button variant="ghost" size="sm" onClick={() => setLegendOpen(false)}>
+                  Închide
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <TimesheetLegend />
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
 
       <div className="mb-8">
         {viewMode === "grid" ? (
@@ -525,6 +723,7 @@ export default function CondicaPrezentaPage() {
             employees={filteredEmployees}
             getCell={getCell}
             onCellClick={openEdit}
+            isActiveCell={isActiveCell}
             extraColumns={extraColumns}
             className="shadow-sm"
             compact={compactMode}
@@ -535,6 +734,7 @@ export default function CondicaPrezentaPage() {
             employees={filteredEmployees}
             getCell={getCell}
             onCellClick={openEdit}
+            isActiveCell={isActiveCell}
           />
         )}
       </div>
@@ -548,6 +748,7 @@ export default function CondicaPrezentaPage() {
         title={currentEmployeeName}
         subtitle={subtitle}
         cell={selectedCell}
+        activeSessionStart={activeSessionStart}
         anchorRect={anchorRect}
         onOpenAddDialog={() => {
           if (!selectedEmployeeId || !selectedDateISO) return
@@ -584,6 +785,35 @@ export default function CondicaPrezentaPage() {
           const start = new Date(startDate)
           const end = new Date(endDate)
           if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return
+
+          const entryOverlap = findOverlapPair(entries)
+          if (entryOverlap) {
+            toast({
+              title: "Intervale suprapuse",
+              description: `Conflict între ${entryOverlap.a} și ${entryOverlap.b}.`,
+              variant: "destructive",
+            })
+            return
+          }
+          const breakOverlap = findOverlapPair(breaks)
+          if (breakOverlap) {
+            toast({
+              title: "Pauze suprapuse",
+              description: `Conflict între ${breakOverlap.a} și ${breakOverlap.b}.`,
+              variant: "destructive",
+            })
+            return
+          }
+          const breakOutside = findBreakOutsideEntries(entries, breaks)
+          if (breakOutside) {
+            toast({
+              title: "Pauză în afara intervalelor",
+              description: `Pauza ${breakOutside.breakLabel} trebuie să fie în interiorul unui interval de lucru.`,
+              variant: "destructive",
+            })
+            return
+          }
+
           const d = new Date(start)
           while (d <= end) {
             const day = d.getDate()
@@ -601,6 +831,25 @@ export default function CondicaPrezentaPage() {
             if (existingCode === "WE" && !includeWeekend) {
               d.setDate(d.getDate() + 1)
               continue
+            }
+
+            const existingOverlap = findOverlapWithExisting(existing?.entries ?? [], entries)
+            if (existingOverlap) {
+              toast({
+                title: "Intervale suprapuse",
+                description: `Conflict între ${existingOverlap.incoming} și ${existingOverlap.existing} în data ${String(day).padStart(2, "0")}.${monthKey.split("-")[1]}.${monthKey.split("-")[0]}.`,
+                variant: "destructive",
+              })
+              return
+            }
+            const breakExistingOverlap = findOverlapWithExisting(existing?.breaks ?? [], breaks)
+            if (breakExistingOverlap) {
+              toast({
+                title: "Pauze suprapuse",
+                description: `Conflict între ${breakExistingOverlap.incoming} și ${breakExistingOverlap.existing} în data ${String(day).padStart(2, "0")}.${monthKey.split("-")[1]}.${monthKey.split("-")[0]}.`,
+                variant: "destructive",
+              })
+              return
             }
 
             const cell: TimesheetCell = {

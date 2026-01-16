@@ -1876,23 +1876,27 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                   <div className="mb-4 space-y-1">
                                     <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Documente</p>
                                     <ul className="space-y-1 text-sm">
-                                      {eq.documentatie.map((doc: any, idx: number) => (
-                                        <li key={idx} className="flex items-center justify-between gap-2">
-                                          <a
-                                            href={doc.url}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="text-blue-600 hover:underline truncate"
-                                          >
-                                            {doc.fileName || "Document"}
-                                          </a>
-                                          {doc.uploadedAt ? (
-                                            <span className="text-[11px] text-muted-foreground whitespace-nowrap">
-                                              {formatUiDate(new Date(doc.uploadedAt))}
-                                            </span>
-                                          ) : null}
-                                        </li>
-                                      ))}
+                                      {eq.documentatie.map((doc: any, idx: number) => {
+                                        const eqId = String(eq?.id || eq?.cod || eid || "")
+                                        const downloadUrl = `/api/download?lucrareId=${encodeURIComponent(lucrare.id!)}&type=documentatie&url=${encodeURIComponent(doc.url)}${eqId ? `&equipmentId=${encodeURIComponent(eqId)}` : ""}`
+                                        return (
+                                          <li key={idx} className="flex items-center justify-between gap-2">
+                                            <a
+                                              href={downloadUrl}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              className="text-blue-600 hover:underline truncate"
+                                            >
+                                              {doc.fileName || "Document"}
+                                            </a>
+                                            {doc.uploadedAt ? (
+                                              <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                                                {formatUiDate(new Date(doc.uploadedAt))}
+                                              </span>
+                                            ) : null}
+                                          </li>
+                                        )
+                                      })}
                                     </ul>
                                   </div>
                                 )}

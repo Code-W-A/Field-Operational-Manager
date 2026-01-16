@@ -29,18 +29,17 @@ function cellLabel(cell: TimesheetCell | undefined, compact: boolean = false): R
     return <span className="text-xs font-bold">{code}</span>
   }
   
-  // Normal mode: show full details
-  if (entries.length > 0) {
-    const first = entries[0]
-    const last = entries[entries.length - 1]
+  // Normal mode: show total time as HH:mm
+  if (code === "WORK") {
+    const totalMinutes = Math.round(Number(cell?.hours ?? 0) * 60)
+    const hh = Math.floor(totalMinutes / 60)
+    const mm = totalMinutes % 60
     return (
-      <div className="flex flex-col gap-0.5">
-        <div className="text-sm font-semibold font-mono">{first?.start ?? ""}</div>
-        <div className="text-sm font-semibold font-mono">{last?.end ?? ""}</div>
-      </div>
+      <span className="text-sm font-semibold font-mono">
+        {String(hh).padStart(2, "0")}:{String(mm).padStart(2, "0")}
+      </span>
     )
   }
-  if (code === "WORK") return <span className="text-sm font-semibold">{String(cell?.hours ?? 8)}</span>
   if (code === "EMPTY") return ""
   return <span className="text-sm font-semibold">{code}</span>
 }
@@ -57,6 +56,7 @@ export function TimesheetGrid({
   employees,
   getCell,
   onCellClick,
+  isActiveCell,
   extraColumns,
   className,
   compact = false,
@@ -65,6 +65,7 @@ export function TimesheetGrid({
   employees: Employee[]
   getCell: (employeeId: string, day: number) => TimesheetCell | undefined
   onCellClick: (params: { employeeId: string; day: number; anchorRect: { top: number; left: number; right: number; bottom: number; width: number; height: number } }) => void
+  isActiveCell?: (employeeId: string, day: number) => boolean
   extraColumns?: TimesheetExtraColumn[]
   className?: string
   compact?: boolean
@@ -197,6 +198,7 @@ export function TimesheetGrid({
               </div>
               {Array.from({ length: dim }, (_, i) => i + 1).map((d) => {
                 const c = getCell(e.id, d)
+                const isActive = isActiveCell?.(e.id, d)
                 return (
                   <button
                     key={d}
@@ -205,7 +207,8 @@ export function TimesheetGrid({
                       "w-full border-l border-b border-gray-200 text-xs font-semibold transition-all duration-150 hover:shadow-lg hover:z-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:z-10",
                       cellHeight,
                       compact ? "hover:scale-110" : "hover:scale-105",
-                      cellClasses(c)
+                      cellClasses(c),
+                      isActive && "bg-emerald-200 text-emerald-900 hover:bg-emerald-300"
                     )}
                     title={`${getEmployeeFullName(e)} • Ziua ${d}`}
                     onClick={(ev) => {

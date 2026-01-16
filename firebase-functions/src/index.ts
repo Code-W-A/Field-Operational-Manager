@@ -303,6 +303,9 @@ async function getEmployeeProgramEnd(employeeId: string): Promise<string> {
     const snap = await db.collection("hrEmployees").doc(employeeId).get()
     const end = (snap.data() as any)?.programLucruEnd
     if (typeof end === "string" && end.trim()) return end.trim()
+    const defaultsSnap = await db.collection("hrSettings").doc("defaults").get()
+    const defEnd = (defaultsSnap.data() as any)?.programLucruEnd
+    if (typeof defEnd === "string" && defEnd.trim()) return defEnd.trim()
   } catch (e) {
     console.error("getEmployeeProgramEnd failed", employeeId, e)
   }

@@ -11,6 +11,7 @@ export async function GET(request: Request) {
     const lucrareId = searchParams.get("lucrareId") || ""
     const docType = searchParams.get("type") || "generic"
     const url = searchParams.get("url") || ""
+    const equipmentId = searchParams.get("equipmentId") || ""
     
 
     if (!lucrareId || !url) {
@@ -55,7 +56,7 @@ export async function GET(request: Request) {
     const isAdminOrDispatcher = role === "admin" || role === "dispecer"
     console.log(`[DOWNLOAD] [${requestId}] Role check`, { role: role || null, isAdminOrDispatcher })
     // Logăm DOAR descărcările din portalul clienților (utilizator role=client sau neautentificat din portal)
-    const shouldLog = !isAdminOrDispatcher && (role === "client" || !userId)
+    const shouldLog = !isAdminOrDispatcher && (role === "client" || role === "tehnician" || !userId)
     console.log(`[DOWNLOAD] [${requestId}] Logging policy`, { shouldLog })
 
     if (isAdminOrDispatcher) {
@@ -73,20 +74,71 @@ export async function GET(request: Request) {
       if (!t || t === 'raport') addIf(workData?.raportSnapshot?.url)
       if (!t || t === 'factura') addIf(workData?.facturaDocument?.url)
       if (!t || t === 'oferta') addIf(workData?.ofertaDocument?.url)
+      if (!t || t === 'documentatie' || t === 'documentație' || t === 'documentation') {
+        try {
+          const clientId = workData?.clientId || workData?.clientInfo?.id
+          if (clientId) {
+            const clientSnap = await adminDb.collection("clienti").doc(String(clientId)).get()
+            const clientData = clientSnap.exists ? (clientSnap.data() as any) : null
+            const locatii: any[] = Array.isArray(clientData?.locatii) ? clientData.locatii : []
+            const locationId = workData?.locationId || workData?.clientInfo?.locationId || workData?.clientInfo?.locatieId
+            const locationName = workData?.locatie || workData?.clientInfo?.locationName
+            const locationAddress = workData?.clientInfo?.locationAddress
+            let loc =
+              (locationId ? locatii.find((l: any) => String(l?.id || "") === String(locationId)) : null) ||
+              (locationName ? locatii.find((l: any) => String(l?.nume || "") === String(locationName)) : null) ||
+              (locationAddress ? locatii.find((l: any) => String(l?.adresa || "") === String(locationAddress)) : null)
+
+            const eqs: any[] = Array.isArray(loc?.echipamente) ? loc.echipamente : []
+            const workEquipmentIds: string[] = Array.isArray(workData?.equipmentIds) ? workData.equipmentIds.map(String) : []
+            const eqIdFromWork = String(workData?.echipamentId || workData?.echipamentCod || workData?.echipament || "").trim()
+            const targetId = String(equipmentId || "").trim()
+            const matchesEq = (e: any, id: string) =>
+              id && (String(e?.id || "") === id || String(e?.cod || "") === id || String(e?.nume || "") === id)
+
+            let targets = eqs
+            if (targetId) {
+              targets = eqs.filter((e) => matchesEq(e, targetId))
+            } else if (workEquipmentIds.length > 0) {
+              targets = eqs.filter((e) =>
+                workEquipmentIds.includes(String(e?.id || "")) || workEquipmentIds.includes(String(e?.cod || "")),
+              )
+            } else if (eqIdFromWork) {
+              targets = eqs.filter((e) => matchesEq(e, eqIdFromWork))
+            }
+
+            targets.forEach((e: any) => {
+              const docs = Array.isArray(e?.documentatie) ? e.documentatie : []
+              docs.forEach((d: any) => addIf(d?.url))
+            })
+          }
+        } catch (e) {
+          console.warn(`[DOWNLOAD] [${requestId}] Documentatie lookup failed (non-blocking)`, e)
+        }
+      }
       // Also accept any of the known URLs regardless of type to reduce friction
       addIf(workData?.raportSnapshot?.url)
       addIf(workData?.facturaDocument?.url)
       addIf(workData?.ofertaDocument?.url)
       console.log(`[DOWNLOAD] [${requestId}] URL candidates`, { count: candidateUrls.length, docType: t, requestedRaw, requestedDecoded })
 
+      const normalizeUrl = (value: string) => {
+        const safe = value.replace(/#/g, "%23")
+        try {
+          const u = new URL(safe)
+          return `${u.origin}${u.pathname.replace(/#/g, "%23")}`
+        } catch {
+          return safe
+        }
+      }
+
       const urlMatches = (candidate: string) => {
         if (!candidate) return false
         if (candidate === requestedRaw || candidate === requestedDecoded) return true
         try {
-          const a = new URL(candidate)
-          const b = new URL(requestedDecoded || requestedRaw)
-          // Match by origin + pathname to ignore query param ordering/token variations
-          return a.origin === b.origin && a.pathname === b.pathname
+          const a = normalizeUrl(candidate)
+          const b = normalizeUrl(requestedDecoded || requestedRaw)
+          return a === b
         } catch {
           return false
         }
@@ -115,6 +167,7 @@ export async function GET(request: Request) {
             url,
             userEmail: userEmail || "portal",
             userId: userId || "portal",
+            equipmentId: equipmentId || null,
           })
         console.log(`[DOWNLOAD] [${requestId}] Download logged`, { lucrareId, type: docType })
       } catch (e) {
@@ -133,7 +186,7 @@ export async function GET(request: Request) {
           utilizator: userEmail || "Portal client",
           utilizatorId: userId || "portal",
           actiune: "Descărcare document",
-          detalii: `tichet: ${lucrareId}; tip: ${docType}; url: ${url}`,
+          detalii: `tichet: ${lucrareId}; tip: ${docType}; url: ${url}; echipament: ${equipmentId || "-"}`,
           tip: "Informație",
           categorie: "Descărcări",
         })
@@ -146,8 +199,9 @@ export async function GET(request: Request) {
     }
 
     // Redirect to the actual file URL
-    console.log(`[DOWNLOAD] [${requestId}] Redirecting`, { to: url })
-    return NextResponse.redirect(url, { status: 302 })
+    const redirectUrl = url.includes("#") ? url.replace(/#/g, "%23") : url
+    console.log(`[DOWNLOAD] [${requestId}] Redirecting`, { to: redirectUrl })
+    return NextResponse.redirect(redirectUrl, { status: 302 })
   } catch (e) {
     console.error("[DOWNLOAD] Handler error", e)
     return NextResponse.json({ error: "Eroare internă" }, { status: 500 })

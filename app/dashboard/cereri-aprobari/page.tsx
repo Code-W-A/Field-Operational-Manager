@@ -132,7 +132,7 @@ export default function CereriAprobariPage() {
         heading={
           <span className="flex items-center gap-2">
             <ClipboardList className="h-5 w-5" />
-            Cererile de aprobat
+            Concedii si evenimente
           </span>
         }
         text="Aprobă/respinge/editează cererile primite de la tehnicieni (în funcție de sectoarele alocate)."
@@ -155,7 +155,7 @@ export default function CereriAprobariPage() {
               <div className="mt-4">
                 <TabsContent value="pending">
                   {filtered.length === 0 ? (
-                    <div className="text-sm text-muted-foreground">Nu există cereri de aprobat.</div>
+                    <div className="text-sm text-muted-foreground">Nu există concedii si evenimente.</div>
                   ) : (
                     <div className="space-y-3">
                       {filtered.map((r) => (

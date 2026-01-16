@@ -13,9 +13,38 @@ import { collection, query, where, getDocs, doc, getDoc } from "firebase/firesto
 export async function sendWorkOrderNotifications(workOrderData: any) {
   try {
     console.log("Starting work order notification process for:", workOrderData.id || "new work order")
+    const shouldLocalDebug =
+      typeof window !== "undefined" &&
+      process.env.NEXT_PUBLIC_ENABLE_LOCAL_DEBUG === "true" &&
+      (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
 
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/463e4a9a-5f7b-4a0d-b89f-2f0e950b2091',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'email-debug-pre',hypothesisId:'H2',location:'components/work-order-notification-service.ts:sendWorkOrderNotifications:entry',message:'sendWorkOrderNotifications entry',data:{workId:String(workOrderData?.id||''),clientType:typeof workOrderData?.client,hasClientId:Boolean(workOrderData?.clientId||workOrderData?.client?.id),hasLocationId:Boolean(workOrderData?.locationId||workOrderData?.clientInfo?.locationId||workOrderData?.clientInfo?.locatieId),tehnicieniCount:Array.isArray(workOrderData?.tehnicieni)?workOrderData.tehnicieni.length:0,hasPersoaneContact:Array.isArray(workOrderData?.persoaneContact)&&workOrderData.persoaneContact.length>0,necesitaOferta:Boolean(workOrderData?.necesitaOferta)},timestamp:Date.now()})}).catch(()=>{});
+    if (shouldLocalDebug) {
+      fetch("http://127.0.0.1:7242/ingest/463e4a9a-5f7b-4a0d-b89f-2f0e950b2091", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: "debug-session",
+          runId: "email-debug-pre",
+          hypothesisId: "H2",
+          location: "components/work-order-notification-service.ts:sendWorkOrderNotifications:entry",
+          message: "sendWorkOrderNotifications entry",
+          data: {
+            workId: String(workOrderData?.id || ""),
+            clientType: typeof workOrderData?.client,
+            hasClientId: Boolean(workOrderData?.clientId || workOrderData?.client?.id),
+            hasLocationId: Boolean(
+              workOrderData?.locationId || workOrderData?.clientInfo?.locationId || workOrderData?.clientInfo?.locatieId,
+            ),
+            tehnicieniCount: Array.isArray(workOrderData?.tehnicieni) ? workOrderData.tehnicieni.length : 0,
+            hasPersoaneContact:
+              Array.isArray(workOrderData?.persoaneContact) && workOrderData.persoaneContact.length > 0,
+            necesitaOferta: Boolean(workOrderData?.necesitaOferta),
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {})
+    }
     // #endregion agent log
 
     // Extract client information
@@ -387,7 +416,28 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
     } catch {}
 
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/463e4a9a-5f7b-4a0d-b89f-2f0e950b2091',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'email-debug-pre',hypothesisId:'H2',location:'components/work-order-notification-service.ts:sendWorkOrderNotifications:resolvedRecipients',message:'Resolved recipients before API call (counts only)',data:{workId:String(workOrderData?.id||''),clientEmailPresent:Boolean(clientEmail),locationContactEmailsCount:(locationContactEmails||[]).length,clientRecipientSetCount:(clientRecipientSet as any)?.size ?? null,techniciansCount:Array.isArray(technicians)?technicians.length:0,techEmailPresentCount:Array.isArray(technicians)?technicians.filter((t:any)=>Boolean(t?.email)).length:0},timestamp:Date.now()})}).catch(()=>{});
+    if (shouldLocalDebug) {
+      fetch("http://127.0.0.1:7242/ingest/463e4a9a-5f7b-4a0d-b89f-2f0e950b2091", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: "debug-session",
+          runId: "email-debug-pre",
+          hypothesisId: "H2",
+          location: "components/work-order-notification-service.ts:sendWorkOrderNotifications:resolvedRecipients",
+          message: "Resolved recipients before API call (counts only)",
+          data: {
+            workId: String(workOrderData?.id || ""),
+            clientEmailPresent: Boolean(clientEmail),
+            locationContactEmailsCount: (locationContactEmails || []).length,
+            clientRecipientSetCount: (clientRecipientSet as any)?.size ?? null,
+            techniciansCount: Array.isArray(technicians) ? technicians.length : 0,
+            techEmailPresentCount: Array.isArray(technicians) ? technicians.filter((t: any) => Boolean(t?.email)).length : 0,
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {})
+    }
     // #endregion agent log
 
     // Build revision equipment list if applicable
@@ -450,7 +500,28 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
     console.log("Sending notification data to API:", JSON.stringify(notificationData, null, 2))
 
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/463e4a9a-5f7b-4a0d-b89f-2f0e950b2091',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'email-debug-pre',hypothesisId:'H5',location:'components/work-order-notification-service.ts:sendWorkOrderNotifications:beforeFetch',message:'POST /api/notifications/work-order about to send',data:{workId:String(notificationData?.workOrderId||''),clientEmailsCount:Array.isArray(notificationData?.clientEmails)?notificationData.clientEmails.length:0,techniciansCount:Array.isArray(notificationData?.technicians)?notificationData.technicians.length:0,techniciansWithEmailCount:Array.isArray(notificationData?.technicians)?notificationData.technicians.filter((t:any)=>Boolean(t?.email)).length:0},timestamp:Date.now()})}).catch(()=>{});
+    if (shouldLocalDebug) {
+      fetch("http://127.0.0.1:7242/ingest/463e4a9a-5f7b-4a0d-b89f-2f0e950b2091", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: "debug-session",
+          runId: "email-debug-pre",
+          hypothesisId: "H5",
+          location: "components/work-order-notification-service.ts:sendWorkOrderNotifications:beforeFetch",
+          message: "POST /api/notifications/work-order about to send",
+          data: {
+            workId: String(notificationData?.workOrderId || ""),
+            clientEmailsCount: Array.isArray(notificationData?.clientEmails) ? notificationData.clientEmails.length : 0,
+            techniciansCount: Array.isArray(notificationData?.technicians) ? notificationData.technicians.length : 0,
+            techniciansWithEmailCount: Array.isArray(notificationData?.technicians)
+              ? notificationData.technicians.filter((t: any) => Boolean(t?.email)).length
+              : 0,
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {})
+    }
     // #endregion agent log
 
     const response = await fetch("/api/notifications/work-order", {
@@ -462,7 +533,25 @@ export async function sendWorkOrderNotifications(workOrderData: any) {
     })
 
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/463e4a9a-5f7b-4a0d-b89f-2f0e950b2091',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'email-debug-pre',hypothesisId:'H5',location:'components/work-order-notification-service.ts:sendWorkOrderNotifications:afterFetch',message:'POST /api/notifications/work-order response',data:{workId:String(notificationData?.workOrderId||''),ok:Boolean(response?.ok),status:Number((response as any)?.status||0)},timestamp:Date.now()})}).catch(()=>{});
+    if (shouldLocalDebug) {
+      fetch("http://127.0.0.1:7242/ingest/463e4a9a-5f7b-4a0d-b89f-2f0e950b2091", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: "debug-session",
+          runId: "email-debug-pre",
+          hypothesisId: "H5",
+          location: "components/work-order-notification-service.ts:sendWorkOrderNotifications:afterFetch",
+          message: "POST /api/notifications/work-order response",
+          data: {
+            workId: String(notificationData?.workOrderId || ""),
+            ok: Boolean(response?.ok),
+            status: Number((response as any)?.status || 0),
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {})
+    }
     // #endregion agent log
 
     if (!response.ok) {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,10 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
 import { Plus, FileText, Trash2 } from "lucide-react"
-import type { Employee, HrRequestKind, HrRequestPayload } from "@/lib/hr/types"
+import type { Department, Employee, HrRequestKind, HrRequestPayload } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
 import { hrRequestKindLabel } from "@/lib/hr/hr-requests"
-import { createHrRequest } from "@/lib/hr/storage"
+import { createHrRequest, subscribeDepartments } from "@/lib/hr/storage"
 import { toast } from "@/hooks/use-toast"
 
 function asNumber(v: string) {
@@ -32,6 +32,7 @@ export function CreateHrRequestDialog({
   requesterUid: string
 }) {
   const sectors = useMemo(() => employee.sectorIds ?? [], [employee.sectorIds])
+  const [departments, setDepartments] = useState<Department[]>([])
   const [sectorId, setSectorId] = useState(sectors[0] ?? "")
   const [kind, setKind] = useState<HrRequestKind>("CO")
 
@@ -57,6 +58,17 @@ export function CreateHrRequestDialog({
   const [overtimeHours, setOvertimeHours] = useState("1")
 
   const [submitting, setSubmitting] = useState(false)
+  useEffect(() => {
+    const unsub = subscribeDepartments({
+      onChange: setDepartments,
+      onError: () => undefined,
+    })
+    return () => unsub()
+  }, [])
+
+  const deptNameById = useMemo(() => {
+    return Object.fromEntries(departments.map((d) => [d.id, d.name]))
+  }, [departments])
 
   const managerUid = sectorId ? employee.managerUidBySector?.[sectorId] || employee.superiorUid : undefined
 
@@ -85,13 +97,13 @@ export function CreateHrRequestDialog({
   const submit = async () => {
     try {
       if (!sectorId) {
-        toast({ title: "Eroare", description: "Selectează sectorul.", variant: "destructive" })
+        toast({ title: "Eroare", description: "Selectează departamentul.", variant: "destructive" })
         return
       }
       if (!managerUid) {
         toast({
           title: "Eroare",
-          description: "Nu este setat șeful ierarhic pentru acest sector (sau global) în fișa de salariat.",
+          description: "Nu este setat șeful ierarhic pentru acest departament (sau global) în fișa de salariat.",
           variant: "destructive",
         })
         return
@@ -167,22 +179,22 @@ export function CreateHrRequestDialog({
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="grid gap-2">
-              <Label>Sector *</Label>
+              <Label>Departament *</Label>
               <Select value={sectorId} onValueChange={setSectorId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selectează sector" />
+                  <SelectValue placeholder="Selectează departament" />
                 </SelectTrigger>
                 <SelectContent>
                   {sectors.map((s) => (
                     <SelectItem key={s} value={s}>
-                      {s}
+                      {deptNameById[s] || s}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {sectorId && !managerUid ? (
                 <div className="text-xs text-destructive">
-                  Nu există șef ierarhic setat pentru acest sector (sau global) în fișa de salariat.
+                  Nu există șef ierarhic setat pentru acest departament (sau global) în fișa de salariat.
                 </div>
               ) : null}
             </div>

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Trash2, Plus, Pencil, X, Clock, MapPin, Briefcase, Calendar, Copy } from "lucide-react"
 import type { TimesheetCell } from "@/lib/hr/types"
+import { toast } from "@/hooks/use-toast"
 
 function parseHM(v: string): number | null {
   const m = /^(\d{1,2}):(\d{2})$/.exec(v.trim())
@@ -18,6 +19,25 @@ function parseHM(v: string): number | null {
   if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null
   if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null
   return hh * 60 + mm
+}
+
+function findOverlapPair(entries: Array<{ start: string; end: string }>) {
+  const ranges = entries
+    .map((e) => {
+      const s = parseHM(e.start)
+      const en = parseHM(e.end)
+      if (s == null || en == null || s >= en) return null
+      return { start: s, end: en, label: `${e.start}–${e.end}` }
+    })
+    .filter(Boolean) as Array<{ start: number; end: number; label: string }>
+  if (ranges.length <= 1) return null
+  ranges.sort((a, b) => (a.start - b.start) || (a.end - b.end))
+  for (let i = 1; i < ranges.length; i++) {
+    if (ranges[i].start < ranges[i - 1].end) {
+      return { a: ranges[i - 1].label, b: ranges[i].label }
+    }
+  }
+  return null
 }
 
 function minutesToHM(total: number) {
@@ -52,6 +72,7 @@ export function DayEntryPopover({
   title,
   subtitle,
   cell,
+  activeSessionStart,
   anchorRect,
   onOpenAddDialog,
   onOpenDeleteDialog,
@@ -62,6 +83,7 @@ export function DayEntryPopover({
   title: string
   subtitle: string
   cell: TimesheetCell | undefined
+  activeSessionStart?: string | null
   anchorRect: { top: number; left: number; right: number; bottom: number; width: number; height: number } | null
   onOpenAddDialog: () => void
   onOpenDeleteDialog: () => void
@@ -98,6 +120,16 @@ export function DayEntryPopover({
     const item = { start, end }
     if (editingIdx === null) nextEntries.push(item as any)
     else nextEntries[editingIdx] = { ...(nextEntries[editingIdx] as any), ...item }
+
+    const overlap = findOverlapPair(nextEntries)
+    if (overlap) {
+      toast({
+        title: "Intervale suprapuse",
+        description: `Conflict între ${overlap.a} și ${overlap.b}.`,
+        variant: "destructive",
+      })
+      return
+    }
 
     const next: TimesheetCell = {
       ...(cell ?? { code: "WORK" }),
@@ -243,7 +275,19 @@ export function DayEntryPopover({
                     </Button>
                   </div>
 
-                  {entries.length === 0 ? (
+                  {entries.length === 0 && activeSessionStart ? (
+                    <div className="space-y-2">
+                      <div className="rounded-lg bg-emerald-50 border-2 border-emerald-200 px-3 py-2">
+                        <div className="text-xs text-emerald-700 font-medium">În lucru</div>
+                        <div className="mt-1 flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-emerald-600" />
+                          <div className="font-mono text-sm font-bold text-emerald-900">
+                            {activeSessionStart}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : entries.length === 0 ? (
                     <div className="text-center py-4 px-3 rounded-lg bg-gray-50 border-2 border-dashed border-gray-300">
                       <Clock className="h-8 w-8 text-gray-400 mx-auto mb-2" />
                       <div className="text-xs text-gray-600 font-medium">Nu există intervale înregistrate</div>

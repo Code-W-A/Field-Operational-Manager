@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,7 +14,16 @@ import { toast } from "@/hooks/use-toast"
 import { EmployeesTable } from "@/components/hr/employees-table"
 import type { Employee } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
-import { createOrUpdateEmployee, getCurrentMonthKey, importLegacyLocalStorageHrDataToFirestore, readLegacyLocalStorageHrData, seedHrIfEmpty, subscribeEmployees } from "@/lib/hr/storage"
+import {
+  createOrUpdateEmployee,
+  getCurrentMonthKey,
+  importLegacyLocalStorageHrDataToFirestore,
+  readLegacyLocalStorageHrData,
+  saveHrDefaults,
+  seedHrIfEmpty,
+  subscribeEmployees,
+  subscribeHrDefaults,
+} from "@/lib/hr/storage"
 import { deleteEmployeeProfilePhoto, uploadEmployeeProfilePhoto } from "@/lib/hr/profile-photo"
 import { Plus, ChevronDown, ChevronUp, Trash2, Image as ImageIcon } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
@@ -32,6 +42,9 @@ export default function HrEmployeesPage() {
   const [loading, setLoading] = useState(true)
   const [hasLegacyData, setHasLegacyData] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [defaultProgramStart, setDefaultProgramStart] = useState("")
+  const [defaultProgramEnd, setDefaultProgramEnd] = useState("")
+  const [savingDefaults, setSavingDefaults] = useState(false)
 
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Employee | null>(null)
@@ -93,6 +106,16 @@ export default function HrEmployeesPage() {
     }
   }, [])
 
+  useEffect(() => {
+    const unsub = subscribeHrDefaults({
+      onChange: (d) => {
+        setDefaultProgramStart(d.programLucruStart ?? "")
+        setDefaultProgramEnd(d.programLucruEnd ?? "")
+      },
+    })
+    return () => unsub()
+  }, [])
+
   const sortedEmployees = useMemo(() => {
     return [...employees].sort((a, b) => {
       const nameA = getEmployeeFullName(a)
@@ -120,8 +143,8 @@ export default function HrEmployeesPage() {
     setPoziteCOR("")
     setSuperiorIerarhic("")
     setLoculDeMunca("")
-    setProgramLucruStart("")
-    setProgramLucruEnd("")
+    setProgramLucruStart(defaultProgramStart || "")
+    setProgramLucruEnd(defaultProgramEnd || "")
     setZileConcediuAnuale("21")
     setShowIdentification(false)
     setShowWorkplace(false)
@@ -259,6 +282,56 @@ export default function HrEmployeesPage() {
           </Button>
         }
       />
+
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle className="text-base">Program standard</CardTitle>
+          <CardDescription>
+            Programul standard se aplică salariaților fără program particular.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="grid gap-2">
+            <Label htmlFor="defaultProgramStart">Program start</Label>
+            <Input
+              id="defaultProgramStart"
+              type="time"
+              value={defaultProgramStart}
+              onChange={(e) => setDefaultProgramStart(e.target.value)}
+              placeholder="08:00"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="defaultProgramEnd">Program end</Label>
+            <Input
+              id="defaultProgramEnd"
+              type="time"
+              value={defaultProgramEnd}
+              onChange={(e) => setDefaultProgramEnd(e.target.value)}
+              placeholder="16:30"
+            />
+          </div>
+          <Button
+            onClick={async () => {
+              try {
+                setSavingDefaults(true)
+                await saveHrDefaults({
+                  programLucruStart: defaultProgramStart.trim() || undefined,
+                  programLucruEnd: defaultProgramEnd.trim() || undefined,
+                })
+                toast({ title: "Salvat", description: "Programul standard a fost actualizat." })
+              } catch {
+                toast({ title: "Eroare", description: "Nu s-a putut salva programul standard.", variant: "destructive" })
+              } finally {
+                setSavingDefaults(false)
+              }
+            }}
+            disabled={savingDefaults}
+          >
+            {savingDefaults ? "Se salvează..." : "Salvează"}
+          </Button>
+        </CardContent>
+      </Card>
 
       {hasLegacyData && (
         <div className="mb-4 rounded-lg border p-4 bg-muted/30">
@@ -459,6 +532,9 @@ export default function HrEmployeesPage() {
                     <Label htmlFor="programLucruEnd">Program end</Label>
                     <Input id="programLucruEnd" type="time" value={programLucruEnd} onChange={(e) => setProgramLucruEnd(e.target.value)} placeholder="16:30" />
                   </div>
+            <div className="text-xs text-muted-foreground">
+              Dacă lași gol, se aplică programul standard.
+            </div>
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="zileConcediuAnuale">Zile concediu anuale</Label>

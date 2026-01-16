@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -28,19 +28,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Plus, Pencil, Trash2, Building2, Search, AlertCircle } from "lucide-react"
+import { Plus, Pencil, Trash2, Building2, AlertCircle } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/AuthContext"
 import type { Department } from "@/lib/hr/types"
 import { subscribeDepartments, createOrUpdateDepartment, deleteDepartment } from "@/lib/hr/storage"
 import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { collection, getDocs } from "firebase/firestore"
+import { db } from "@/lib/firebase/config"
+
+type AppUser = { uid: string; displayName: string | null; email: string | null; role?: string }
 
 export default function DepartamentePage() {
   const { userData } = useAuth()
   const [departments, setDepartments] = useState<Department[]>([])
   const [loading, setLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [showInactive, setShowInactive] = useState(false)
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -48,12 +51,16 @@ export default function DepartamentePage() {
   const [dialogName, setDialogName] = useState("")
   const [dialogDescription, setDialogDescription] = useState("")
   const [dialogActive, setDialogActive] = useState(true)
+  const [dialogManagerUid, setDialogManagerUid] = useState<string | undefined>()
   const [saving, setSaving] = useState(false)
 
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [departmentToDelete, setDepartmentToDelete] = useState<Department | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [users, setUsers] = useState<AppUser[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [usersError, setUsersError] = useState<string | null>(null)
 
   useEffect(() => {
     const unsubscribe = subscribeDepartments({
@@ -75,19 +82,38 @@ export default function DepartamentePage() {
     return () => unsubscribe()
   }, [])
 
-  const filteredDepartments = departments.filter((dept) => {
-    const matchesSearch =
-      dept.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      dept.description?.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesActive = showInactive || dept.active
-    return matchesSearch && matchesActive
-  })
+  useEffect(() => {
+    const load = async () => {
+      setLoadingUsers(true)
+      setUsersError(null)
+      try {
+        const snap = await getDocs(collection(db, "users"))
+        const items: AppUser[] = snap.docs.map((d) => {
+          const data = d.data() as any
+          return {
+            uid: d.id,
+            displayName: data.displayName ?? null,
+            email: data.email ?? null,
+            role: data.role,
+          }
+        })
+        items.sort((a, b) => String(a.displayName ?? a.email ?? "").localeCompare(String(b.displayName ?? b.email ?? "")))
+        setUsers(items)
+      } catch {
+        setUsersError("Nu s-a putut încărca lista de utilizatori.")
+      } finally {
+        setLoadingUsers(false)
+      }
+    }
+    load()
+  }, [])
 
   const handleOpenCreateDialog = () => {
     setEditingDepartment(null)
     setDialogName("")
     setDialogDescription("")
     setDialogActive(true)
+    setDialogManagerUid(undefined)
     setDialogOpen(true)
   }
 
@@ -96,6 +122,7 @@ export default function DepartamentePage() {
     setDialogName(dept.name)
     setDialogDescription(dept.description || "")
     setDialogActive(dept.active)
+    setDialogManagerUid(dept.managerUid)
     setDialogOpen(true)
   }
 
@@ -115,6 +142,7 @@ export default function DepartamentePage() {
         id: editingDepartment?.id || `dept_${Date.now()}`,
         name: dialogName.trim(),
         description: dialogDescription.trim() || undefined,
+        managerUid: dialogManagerUid || undefined,
         active: dialogActive,
         createdAt: editingDepartment?.createdAt || Date.now(),
         updatedAt: Date.now(),
@@ -216,11 +244,15 @@ export default function DepartamentePage() {
     )
   }
 
+  const usersById = useMemo(() => {
+    return Object.fromEntries(users.map((u) => [u.uid, u]))
+  }, [users])
+
   return (
     <DashboardShell>
       <DashboardHeader
         heading="Departamente"
-        text="Gestionează departamentele/sectoarele companiei"
+        text="Gestionează departamentele companiei"
       >
         <Button onClick={handleOpenCreateDialog}>
           <Plus className="mr-2 h-4 w-4" />
@@ -229,46 +261,15 @@ export default function DepartamentePage() {
       </DashboardHeader>
 
       <div className="space-y-6">
-        {/* Filters */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Filtrare și căutare</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Caută departamente..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8"
-                />
-              </div>
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="show-inactive"
-                  checked={showInactive}
-                  onCheckedChange={setShowInactive}
-                />
-                <Label htmlFor="show-inactive" className="cursor-pointer">
-                  Arată inactive
-                </Label>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Departments table */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Building2 className="h-5 w-5" />
-              Liste departamente
+              Listă departamente
             </CardTitle>
             <CardDescription>
-              {filteredDepartments.length} departament{filteredDepartments.length === 1 ? "" : "e"}
-              {searchQuery && " (filtrat)"}
+              {departments.length} departament{departments.length === 1 ? "" : "e"}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -276,25 +277,17 @@ export default function DepartamentePage() {
               <div className="flex items-center justify-center py-12">
                 <div className="text-muted-foreground">Se încarcă...</div>
               </div>
-            ) : filteredDepartments.length === 0 ? (
+            ) : departments.length === 0 ? (
               <div className="text-center py-12">
                 <Building2 className="mx-auto h-12 w-12 text-muted-foreground/40" />
-                <h3 className="mt-4 text-lg font-semibold">
-                  {searchQuery
-                    ? "Niciun departament găsit"
-                    : "Niciun departament încă"}
-                </h3>
+                <h3 className="mt-4 text-lg font-semibold">Niciun departament încă</h3>
                 <p className="text-sm text-muted-foreground mt-2">
-                  {searchQuery
-                    ? "Încearcă să modifici criteriile de căutare."
-                    : "Creează primul departament pentru a începe."}
+                  Creează primul departament pentru a începe.
                 </p>
-                {!searchQuery && (
-                  <Button onClick={handleOpenCreateDialog} className="mt-4">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Creează departament
-                  </Button>
-                )}
+                <Button onClick={handleOpenCreateDialog} className="mt-4">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Creează departament
+                </Button>
               </div>
             ) : (
               <Table>
@@ -302,18 +295,26 @@ export default function DepartamentePage() {
                   <TableRow>
                     <TableHead>Nume</TableHead>
                     <TableHead>Descriere</TableHead>
-                    <TableHead>Status</TableHead>
+              <TableHead>Șef departament</TableHead>
+              <TableHead>Status</TableHead>
                     <TableHead className="text-right">Acțiuni</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredDepartments.map((dept) => (
+                  {departments.map((dept) => (
                     <TableRow key={dept.id}>
                       <TableCell className="font-medium">{dept.name}</TableCell>
                       <TableCell className="text-muted-foreground">
                         {dept.description || "—"}
                       </TableCell>
                       <TableCell>
+                  {dept.managerUid
+                    ? usersById[dept.managerUid]?.displayName ||
+                      usersById[dept.managerUid]?.email ||
+                      dept.managerUid
+                    : "—"}
+                </TableCell>
+                <TableCell>
                         <Badge variant={dept.active ? "default" : "secondary"}>
                           {dept.active ? "Activ" : "Inactiv"}
                         </Badge>
@@ -391,6 +392,34 @@ export default function DepartamentePage() {
                 placeholder="Descriere scurtă a departamentului..."
                 rows={3}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="dept-manager">Șef departament</Label>
+              <Select
+                value={dialogManagerUid || "__none__"}
+                onValueChange={(v) => setDialogManagerUid(v === "__none__" ? undefined : v)}
+                disabled={loadingUsers}
+              >
+                <SelectTrigger id="dept-manager">
+                  <SelectValue placeholder={loadingUsers ? "Se încarcă..." : "Selectează șef departament"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Necompletat</SelectItem>
+                  {users.map((u) => (
+                    <SelectItem key={u.uid} value={u.uid}>
+                      {(u.displayName || u.email || u.uid) + (u.role ? ` • ${u.role}` : "")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {usersError ? (
+                <div className="text-xs text-destructive">{usersError}</div>
+              ) : (
+                <div className="text-xs text-muted-foreground">
+                  Șeful departamentului se va propune automat la salariații din acest departament.
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-between rounded-lg border p-4">

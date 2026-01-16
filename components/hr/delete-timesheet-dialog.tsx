@@ -60,7 +60,7 @@ export function DeleteTimesheetDialog({
   const [startDate, setStartDate] = useState<string>(today)
   const [endDate, setEndDate] = useState<string>(today)
   const [deleteEntries, setDeleteEntries] = useState<boolean>(true)
-  const [deleteBreaks, setDeleteBreaks] = useState<boolean>(false)
+  const [deleteBreaks, setDeleteBreaks] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -75,7 +75,7 @@ export function DeleteTimesheetDialog({
     setStartDate(defaultStartDate ?? today)
     setEndDate(defaultEndDate ?? defaultStartDate ?? today)
     setDeleteEntries(true)
-    setDeleteBreaks(false)
+    setDeleteBreaks(true)
   }, [open, defaultEmployeeId, defaultStartDate, defaultEndDate, sortedEmployees, today])
 
   const submit = async () => {

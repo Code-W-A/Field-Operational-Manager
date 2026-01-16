@@ -591,7 +591,7 @@ export default function HrEmployeeDetailsPage() {
                 {employee.sectorIds && employee.sectorIds.length > 0 && (
                   <>
                     <div className="space-y-1">
-                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Sectoare</Label>
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Departamente</Label>
                       <div className="flex flex-wrap gap-2">
                         {employee.sectorIds.map(sId => {
                           const dept = departments.find(d => d.id === sId)
@@ -1258,7 +1258,7 @@ export default function HrEmployeeDetailsPage() {
                 </Select>
               </div>
               <div className="grid gap-2">
-                <Label>Sectoare</Label>
+                <Label>Departamente</Label>
                 <div className="space-y-2 rounded-lg border p-3">
                   {departments.filter(d => d.active).length === 0 ? (
                     <div className="text-sm text-muted-foreground">
@@ -1278,15 +1278,31 @@ export default function HrEmployeeDetailsPage() {
                           id={`dept-${dept.id}`}
                           checked={editSectorIds.includes(dept.id)}
                           onCheckedChange={(checked) => {
+                            const managerUid = dept.managerUid ? String(dept.managerUid) : ""
                             if (checked) {
-                              setEditSectorIds([...editSectorIds, dept.id])
+                              const nextSectorIds = [...editSectorIds, dept.id]
+                              setEditSectorIds(nextSectorIds)
+                              if (managerUid) {
+                                setEditManagerUidBySector((prev) => ({
+                                  ...(prev || {}),
+                                  [dept.id]: managerUid,
+                                }))
+                                if (!editSuperiorUid) setEditSuperiorUid(managerUid)
+                              }
                             } else {
-                              setEditSectorIds(editSectorIds.filter(id => id !== dept.id))
+                              const nextSectorIds = editSectorIds.filter(id => id !== dept.id)
+                              setEditSectorIds(nextSectorIds)
                               setEditManagerUidBySector((prev) => {
                                 const next = { ...prev }
                                 delete next[dept.id]
                                 return next
                               })
+                              if (editSuperiorUid && managerUid && editSuperiorUid === managerUid) {
+                                const remainingManagers = nextSectorIds
+                                  .map((id) => departments.find((d) => d.id === id)?.managerUid)
+                                  .filter(Boolean) as string[]
+                                setEditSuperiorUid(remainingManagers[0] || undefined)
+                              }
                             }
                           }}
                         />
@@ -1298,19 +1314,19 @@ export default function HrEmployeeDetailsPage() {
                   )}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Pentru fiecare sector, selectează șeful ierarhic care aprobă cererile.
+                  Pentru fiecare departament, selectează șeful ierarhic care aprobă cererile.
                 </div>
               </div>
 
               {editSectorIds.length > 0 ? (
                 <div className="grid gap-3 rounded-lg border p-3 bg-muted/20">
-                  <div className="text-sm font-semibold">Șef ierarhic pe sector</div>
+                  <div className="text-sm font-semibold">Șef ierarhic pe departament</div>
                   {editSectorIds.map((sectorId) => {
                     const dept = departments.find(d => d.id === sectorId)
                     return (
                       <div key={sectorId} className="grid gap-2">
                         <Label className="text-xs text-muted-foreground">
-                          Sector: {dept?.name || sectorId}
+                          Departament: {dept?.name || sectorId}
                         </Label>
                         <Select
                           value={editManagerUidBySector?.[sectorId] ?? "__none__"}

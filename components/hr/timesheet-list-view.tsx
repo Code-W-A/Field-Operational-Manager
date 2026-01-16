@@ -22,11 +22,13 @@ export function TimesheetListView({
   employees,
   getCell,
   onCellClick,
+  isActiveCell,
 }: {
   monthKey: TimesheetMonthKey
   employees: Employee[]
   getCell: (employeeId: string, day: number) => TimesheetCell | undefined
   onCellClick: (params: { employeeId: string; day: number; anchorRect: { top: number; left: number; right: number; bottom: number; width: number; height: number } }) => void
+  isActiveCell?: (employeeId: string, day: number) => boolean
 }) {
   const dim = daysInMonth(monthKey)
   
@@ -63,6 +65,7 @@ export function TimesheetListView({
               <div className="flex gap-1 flex-wrap">
                 {Array.from({ length: dim }, (_, i) => i + 1).map(d => {
                   const cell = getCell(emp.id, d)
+                  const isActive = isActiveCell?.(emp.id, d)
                   const hasData = cell?.code && cell.code !== "EMPTY"
                   
                   return (
@@ -72,6 +75,7 @@ export function TimesheetListView({
                       className={cn(
                         "h-10 flex-1 min-w-[32px] max-w-[48px] rounded text-xs font-semibold transition-all duration-200",
                         cellClasses(cell),
+                        isActive && "bg-emerald-200 text-emerald-900 hover:bg-emerald-300",
                         hasData && "ring-1 ring-offset-1 ring-border/40"
                       )}
                       onClick={(ev) => {

@@ -5,6 +5,7 @@ import {
   doc,
   setDoc,
   updateDoc,
+  getDoc,
   getDocs,
   query,
   where,
@@ -23,7 +24,7 @@ import type {
   ExtraTimeLog,
   AttendanceMode,
 } from "@/types/attendance"
-import type { Employee } from "@/lib/hr/types"
+import type { Employee, HrDefaults } from "@/lib/hr/types"
 import { calculateHomeRouteMinutes } from "@/lib/attendance/extra-time"
 import { syncAttendanceUserDayToTimesheet, type UserDaySyncResult } from "@/lib/attendance/sync-timesheet"
 
@@ -73,10 +74,26 @@ async function getEmployeeScheduleForUser(
   if (snap.empty) return null
   const docSnap = snap.docs[0]
   const data = docSnap.data() as any
+  const defaults = await getHrDefaults()
   return {
     employeeId: docSnap.id,
-    programLucruStart: data.programLucruStart ? String(data.programLucruStart) : undefined,
-    programLucruEnd: data.programLucruEnd ? String(data.programLucruEnd) : undefined,
+    programLucruStart: data.programLucruStart ? String(data.programLucruStart) : defaults?.programLucruStart,
+    programLucruEnd: data.programLucruEnd ? String(data.programLucruEnd) : defaults?.programLucruEnd,
+  }
+}
+
+async function getHrDefaults(): Promise<HrDefaults | null> {
+  try {
+    const ref = doc(db, "hrSettings", "defaults")
+    const snap = await getDoc(ref)
+    if (!snap.exists()) return null
+    const data = snap.data() as any
+    return {
+      programLucruStart: data?.programLucruStart ? String(data.programLucruStart) : undefined,
+      programLucruEnd: data?.programLucruEnd ? String(data.programLucruEnd) : undefined,
+    }
+  } catch {
+    return null
   }
 }
 

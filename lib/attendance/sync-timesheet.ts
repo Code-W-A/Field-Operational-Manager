@@ -25,6 +25,81 @@ function debugPontajLog(label: string, payload: Record<string, any>) {
   }
 }
 
+function parseHM(value: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(value.trim())
+  if (!m) return null
+  const hh = Number(m[1])
+  const mm = Number(m[2])
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null
+  return hh * 60 + mm
+}
+
+function normalizeNonOverlappingEntries(entries: NonNullable<TimesheetCell["entries"]>) {
+  const withRanges = entries
+    .map((e) => {
+      const s = parseHM(e.start)
+      const en = parseHM(e.end)
+      if (s == null || en == null || s >= en) return null
+      return { entry: e, start: s, end: en }
+    })
+    .filter(Boolean) as Array<{ entry: TimesheetCell["entries"][number]; start: number; end: number }>
+  if (withRanges.length <= 1) return withRanges.map((r) => r.entry)
+  withRanges.sort((a, b) => (a.start - b.start) || (a.end - b.end))
+  const result: typeof withRanges = []
+  for (const item of withRanges) {
+    const last = result[result.length - 1]
+    if (!last || item.start >= last.end) {
+      result.push(item)
+      continue
+    }
+    debugPontajLog("overlap:skip", {
+      reason: "computed_overlap",
+      kept: { start: last.entry.start, end: last.entry.end },
+      skipped: { start: item.entry.start, end: item.entry.end },
+    })
+  }
+  return result.map((r) => r.entry)
+}
+
+function filterOverlappingEntries(
+  existing: NonNullable<TimesheetCell["entries"]>,
+  incoming: NonNullable<TimesheetCell["entries"]>
+) {
+  const existingRanges = existing
+    .map((e) => {
+      const s = parseHM(e.start)
+      const en = parseHM(e.end)
+      if (s == null || en == null || s >= en) return null
+      return { start: s, end: en }
+    })
+    .filter(Boolean) as Array<{ start: number; end: number }>
+  if (!existingRanges.length) return incoming
+  return incoming.filter((e) => {
+    const s = parseHM(e.start)
+    const en = parseHM(e.end)
+    if (s == null || en == null || s >= en) return false
+    const overlaps = existingRanges.some((ex) => s < ex.end && ex.start < en)
+    if (overlaps) {
+      debugPontajLog("overlap:skip", {
+        reason: "existing_overlap",
+        skipped: { start: e.start, end: e.end },
+      })
+    }
+    return !overlaps
+  })
+}
+
+function calcHoursFromEntries(entries: NonNullable<TimesheetCell["entries"]>) {
+  const minutes = entries.reduce((sum, e) => {
+    const s = parseHM(e.start)
+    const en = parseHM(e.end)
+    if (s == null || en == null || s >= en) return sum
+    return sum + (en - s)
+  }, 0)
+  return Math.round((minutes / 60) * 100) / 100
+}
+
 /**
  * Sync attendance sessions to HR timesheet system
  * This should be run daily (e.g., at end of day or start of next day)
@@ -103,8 +178,6 @@ export async function syncAttendanceToTimesheet(date: Date): Promise<void> {
         return sum + logs.reduce((s, l) => s + (l.minutesEligible || 0), 0)
       }, 0)
 
-      const totalHours = Math.round((totalMinutes / 60) * 100) / 100
-
       const entries: NonNullable<TimesheetCell["entries"]> = []
 
       for (const s of sorted) {
@@ -129,10 +202,13 @@ export async function syncAttendanceToTimesheet(date: Date): Promise<void> {
         }
       }
 
+      const normalizedEntries = normalizeNonOverlappingEntries(entries)
+      const totalHours = calcHoursFromEntries(normalizedEntries)
+
       const cell: TimesheetCell = {
         code: "WORK",
         hours: totalHours,
-        entries,
+        entries: normalizedEntries,
       }
 
       const timesheetRef = doc(db, "hrTimesheets", timesheetDocId(employeeId, monthKey as TimesheetMonthKey))
@@ -407,8 +483,6 @@ export async function syncAttendanceUserDayToTimesheet(userId: string, date: Dat
     if (!s.sessionEnd) return sum
     return sum + (s.sessionEnd - s.sessionStart) / 60000
   }, 0)
-  const totalHours = Math.round((totalMinutes / 60) * 100) / 100
-
   const computedEntries: NonNullable<TimesheetCell["entries"]> = []
   for (const s of sessions) {
     if (!s.sessionEnd) continue
@@ -434,11 +508,14 @@ export async function syncAttendanceUserDayToTimesheet(userId: string, date: Dat
 
   const pontajProjects = new Set<string>(["Pontaj", "Traseu către client", "Traseu către casă"])
   const preservedEntries = (existingDay?.entries ?? []).filter((e) => !pontajProjects.has(String(e.project ?? "")))
+  const normalizedComputed = normalizeNonOverlappingEntries(computedEntries)
+  const safeComputed = filterOverlappingEntries(preservedEntries, normalizedComputed)
+  const totalHours = calcHoursFromEntries(safeComputed)
 
   const cell: TimesheetCell = {
     code: "WORK",
     hours: totalHours,
-    entries: [...preservedEntries, ...computedEntries],
+    entries: [...preservedEntries, ...safeComputed],
     ...(existingDay?.breaks ? { breaks: existingDay.breaks } : {}),
   }
 

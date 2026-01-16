@@ -1186,11 +1186,38 @@ export default function Lucrari() {
 
       // Trimitem notificări prin email
       try {
+        const shouldLocalDebug =
+          typeof window !== "undefined" &&
+          process.env.NEXT_PUBLIC_ENABLE_LOCAL_DEBUG === "true" &&
+          (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+
         // Obținem lucrarea completă cu ID pentru a o trimite la notificări
         const lucrareCompleta = { id: lucrareId, ...newLucrare }
 
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/463e4a9a-5f7b-4a0d-b89f-2f0e950b2091',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'email-debug-pre',hypothesisId:'H2',location:'app/dashboard/lucrari/page.tsx:createWork:beforeSendWorkOrderNotifications',message:'CreateWork about to call sendWorkOrderNotifications',data:{lucrareId:String(lucrareId||''),nrLucrare:String(nrLucrareGenerated||''),hasClientId:Boolean((newLucrare as any)?.clientId),hasLocationId:Boolean((newLucrare as any)?.locationId),hasPersoanaContactEmail:Boolean((newLucrare as any)?.persoanaContactEmail),tehnicieniCount:Array.isArray((newLucrare as any)?.tehnicieni)?(newLucrare as any).tehnicieni.length:0,necesitaOferta:Boolean((newLucrare as any)?.necesitaOferta)},timestamp:Date.now()})}).catch(()=>{});
+        if (shouldLocalDebug) {
+          fetch("http://127.0.0.1:7242/ingest/463e4a9a-5f7b-4a0d-b89f-2f0e950b2091", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sessionId: "debug-session",
+              runId: "email-debug-pre",
+              hypothesisId: "H2",
+              location: "app/dashboard/lucrari/page.tsx:createWork:beforeSendWorkOrderNotifications",
+              message: "CreateWork about to call sendWorkOrderNotifications",
+              data: {
+                lucrareId: String(lucrareId || ""),
+                nrLucrare: String(nrLucrareGenerated || ""),
+                hasClientId: Boolean((newLucrare as any)?.clientId),
+                hasLocationId: Boolean((newLucrare as any)?.locationId),
+                hasPersoanaContactEmail: Boolean((newLucrare as any)?.persoanaContactEmail),
+                tehnicieniCount: Array.isArray((newLucrare as any)?.tehnicieni) ? (newLucrare as any).tehnicieni.length : 0,
+                necesitaOferta: Boolean((newLucrare as any)?.necesitaOferta),
+              },
+              timestamp: Date.now(),
+            }),
+          }).catch(() => {})
+        }
         // #endregion agent log
 
         // DEBUG LOG: Snapshot înainte de trimitere
@@ -1210,7 +1237,31 @@ export default function Lucrari() {
         const notificationResult = await sendWorkOrderNotifications(lucrareCompleta)
 
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/463e4a9a-5f7b-4a0d-b89f-2f0e950b2091',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'email-debug-pre',hypothesisId:'H3',location:'app/dashboard/lucrari/page.tsx:createWork:afterSendWorkOrderNotifications',message:'CreateWork got sendWorkOrderNotifications result',data:{lucrareId:String(lucrareId||''),success:Boolean((notificationResult as any)?.success),hasResult:Boolean((notificationResult as any)?.result),errorPresent:Boolean((notificationResult as any)?.error),errorLen:String((notificationResult as any)?.error||'').length,techEmailsCount:Array.isArray((notificationResult as any)?.result?.technicianEmails)?(notificationResult as any).result.technicianEmails.length:0,clientEmailStatus:String((notificationResult as any)?.result?.clientEmail?.success)},timestamp:Date.now()})}).catch(()=>{});
+        if (shouldLocalDebug) {
+          fetch("http://127.0.0.1:7242/ingest/463e4a9a-5f7b-4a0d-b89f-2f0e950b2091", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sessionId: "debug-session",
+              runId: "email-debug-pre",
+              hypothesisId: "H3",
+              location: "app/dashboard/lucrari/page.tsx:createWork:afterSendWorkOrderNotifications",
+              message: "CreateWork got sendWorkOrderNotifications result",
+              data: {
+                lucrareId: String(lucrareId || ""),
+                success: Boolean((notificationResult as any)?.success),
+                hasResult: Boolean((notificationResult as any)?.result),
+                errorPresent: Boolean((notificationResult as any)?.error),
+                errorLen: String((notificationResult as any)?.error || "").length,
+                techEmailsCount: Array.isArray((notificationResult as any)?.result?.technicianEmails)
+                  ? (notificationResult as any).result.technicianEmails.length
+                  : 0,
+                clientEmailStatus: String((notificationResult as any)?.result?.clientEmail?.success),
+              },
+              timestamp: Date.now(),
+            }),
+          }).catch(() => {})
+        }
         // #endregion agent log
 
         if (notificationResult.success) {
@@ -3033,9 +3084,7 @@ export default function Lucrari() {
                   {userData?.role === "tehnician" ? (
                     <div>
                       <p className="text-muted-foreground mb-2">Nu aveți lucrări active în acest moment.</p>
-                      <p className="text-sm text-muted-foreground">
-                        Lucrările finalizate cu raport generat și preluate de dispecer nu mai sunt afișate.
-                      </p>
+                 
                     </div>
                   ) : (
                     <p className="text-muted-foreground">Nu există lucrări care să corespundă criteriilor de căutare.</p>
