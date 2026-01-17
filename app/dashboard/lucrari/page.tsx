@@ -1099,7 +1099,7 @@ export default function Lucrari() {
       
       toast({
         title: "Succes",
-        description: isReassignment ? "Re-intervenția a fost creată cu succes." : "Lucrarea a fost adăugată cu succes.",
+        description: isReassignment ? "Re-intervenția a fost creată cu succes." : "Tichetul a fost adăugat cu succes.",
       })
     } catch (error) {
       console.error("Eroare la adăugarea tichetului:", error)

@@ -192,7 +192,7 @@ export default function NewLucrarePage() {
       // Afișăm un mesaj de succes
       const successMessage = isReassignment 
         ? "Re-intervenția a fost adăugată cu succes."
-        : "Lucrarea a fost adăugată cu succes."
+        : "Tichetul a fost adăugată cu succes."
       
       toast({
         title: isReassignment ? "Re-intervenție adăugată" : "Tichet adăugată",

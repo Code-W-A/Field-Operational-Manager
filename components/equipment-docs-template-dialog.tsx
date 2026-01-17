@@ -16,6 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { FileText, Folder, Info } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
+import { toast } from "@/hooks/use-toast"
 
 interface EquipmentDocsTemplateDialogProps {
   open: boolean
@@ -135,10 +136,36 @@ export function EquipmentDocsTemplateDialog({
     return { ...item, __docUrl: docUrl, __fileName: fileName }
   }
 
+  const isAbsoluteHttpUrl = (value: string) => {
+    try {
+      const u = new URL(value)
+      return u.protocol === "http:" || u.protocol === "https:"
+    } catch {
+      return false
+    }
+  }
+
   const handleConfirm = () => {
     const allChildren = Object.values(childrenByParent).flat().map(normalizeDoc)
-    const selected = allChildren
-      .filter((c) => selectedIds.includes(c.id) && c.__docUrl)
+    const picked = allChildren.filter((c) => selectedIds.includes(c.id) && c.__docUrl)
+    const invalid = picked.filter((c) => !isAbsoluteHttpUrl(String((c as any).__docUrl || "")))
+
+    if (invalid.length > 0) {
+      const names = invalid
+        .slice(0, 3)
+        .map((c) => String((c as any).__fileName || c.fileName || c.name || c.id))
+        .join(", ")
+      toast({
+        title: "URL invalid în Setări",
+        description:
+          `Unele documente selectate nu au link complet (https://...). Exemple: ${names}` +
+          (invalid.length > 3 ? ` (+${invalid.length - 3})` : ""),
+        variant: "destructive",
+      })
+      return
+    }
+
+    const selected = picked
       .map((c) => ({
         ...c,
         documentUrl: c.__docUrl,

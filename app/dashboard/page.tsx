@@ -284,7 +284,7 @@ export default function Dashboard() {
       
       toast({
         title: "Succes",
-        description: "Lucrarea a fost adăugată cu succes.",
+        description: "Tichetul a fost adăugat cu succes.",
       })
     } catch (error) {
       console.error("Eroare la adăugarea tichetului:", error)

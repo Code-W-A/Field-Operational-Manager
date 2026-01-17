@@ -217,9 +217,68 @@ export async function GET(request: Request) {
       console.log(`[DOWNLOAD] [${requestId}] Skipping global log (admin/dispecer access)`) 
     }
 
-    // Redirect to the actual file URL
-    const redirectUrl = url.includes("#") ? url.replace(/#/g, "%23") : url
+    const isAbsoluteHttpUrl = (value: string) => {
+      try {
+        const u = new URL(value)
+        return u.protocol === "http:" || u.protocol === "https:"
+      } catch {
+        return false
+      }
+    }
+
+    // Redirect to the actual file URL (must be absolute on Vercel/Next.js)
+    let redirectUrl = url.includes("#") ? url.replace(/#/g, "%23") : url
     console.log(`[DOWNLOAD] [${requestId}] Redirecting`, { to: redirectUrl })
+
+    const resolveUrlFromSetting = async (needle: string): Promise<string | null> => {
+      const s = String(needle || "").trim()
+      if (!s) return null
+      try {
+        // Common legacy case: equipment docs store only the "name"/"value" (e.g. "Raport_#000605.pdf").
+        // Try to map it back to a settings entry that contains the real documentUrl.
+        const tryDocs: any[] = []
+        tryDocs.push(adminDb.collection("settings").where("name", "==", s).limit(1).get())
+        tryDocs.push(adminDb.collection("settings").where("value", "==", s).limit(1).get())
+
+        for (const p of tryDocs) {
+          const snap = await p
+          if (snap.empty) continue
+          const data = snap.docs[0].data() as any
+          const val = data?.value
+          const urlFromValue = val && typeof val === "object" && typeof val.url === "string" ? val.url : null
+          const found = (typeof data?.documentUrl === "string" && data.documentUrl) ||
+            (typeof data?.imageUrl === "string" && data.imageUrl) ||
+            (typeof urlFromValue === "string" && urlFromValue) ||
+            null
+          if (found) return String(found)
+        }
+      } catch (e) {
+        console.warn(`[DOWNLOAD] [${requestId}] resolveUrlFromSetting failed`, { needle: s })
+      }
+      return null
+    }
+
+    if (!isAbsoluteHttpUrl(redirectUrl)) {
+      const resolved = await resolveUrlFromSetting(redirectUrl)
+      if (resolved) {
+        redirectUrl = resolved.includes("#") ? resolved.replace(/#/g, "%23") : resolved
+        console.log(`[DOWNLOAD] [${requestId}] Resolved non-absolute URL via settings`, { resolvedTo: redirectUrl })
+      }
+    }
+
+    if (!isAbsoluteHttpUrl(redirectUrl)) {
+      console.warn(`[DOWNLOAD] [${requestId}] Invalid redirect URL (not absolute)`, { redirectUrl })
+      return NextResponse.json(
+        {
+          error:
+            "URL invalid pentru descărcare (nu este un link complet). Verifică documentul din Setări/Documentație: câmpul URL trebuie să fie de forma https://...",
+          requestId,
+          redirectUrl,
+        },
+        { status: 400 },
+      )
+    }
+
     return NextResponse.redirect(redirectUrl, { status: 302 })
   } catch (e) {
     console.error("[DOWNLOAD] Handler error", e)
