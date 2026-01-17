@@ -231,34 +231,89 @@ export async function GET(request: Request) {
     console.log(`[DOWNLOAD] [${requestId}] Redirecting`, { to: redirectUrl })
 
     const resolveUrlFromSetting = async (needle: string): Promise<string | null> => {
-      const s = String(needle || "").trim()
-      if (!s) return null
+      const raw = String(needle || "").trim()
+      if (!raw) return null
+      const safeDecode = (v: string) => {
+        try {
+          return decodeURIComponent(v)
+        } catch {
+          return v
+        }
+      }
+      const candidates = Array.from(
+        new Set(
+          [
+            raw,
+            safeDecode(raw),
+            raw.replace(/%23/gi, "#"),
+            safeDecode(raw).replace(/%23/gi, "#"),
+          ]
+            .map((x) => String(x || "").trim())
+            .filter(Boolean),
+        ),
+      )
       try {
         // Common legacy case: equipment docs store only the "name"/"value" (e.g. "Raport_#000605.pdf").
         // Try to map it back to a settings entry that contains the real documentUrl.
-        const tryDocs: any[] = []
-        tryDocs.push(adminDb.collection("settings").where("name", "==", s).limit(1).get())
-        tryDocs.push(adminDb.collection("settings").where("value", "==", s).limit(1).get())
+        for (const s of candidates) {
+          const nameSnap = await adminDb.collection("settings").where("name", "==", s).limit(1).get()
+          if (!nameSnap.empty) {
+            const data = nameSnap.docs[0].data() as any
+            const val = data?.value
+            const urlFromValue = val && typeof val === "object" && typeof val.url === "string" ? val.url : null
+            const found =
+              (typeof data?.documentUrl === "string" && data.documentUrl) ||
+              (typeof data?.imageUrl === "string" && data.imageUrl) ||
+              (typeof urlFromValue === "string" && urlFromValue) ||
+              null
+            if (found) {
+              console.log(`[DOWNLOAD] [${requestId}] resolveUrlFromSetting match`, { by: "name", needle: raw, matched: s })
+              return String(found)
+            }
+          }
 
-        for (const p of tryDocs) {
-          const snap = await p
-          if (snap.empty) continue
-          const data = snap.docs[0].data() as any
+          const valueSnap = await adminDb.collection("settings").where("value", "==", s).limit(1).get()
+          if (!valueSnap.empty) {
+            const data = valueSnap.docs[0].data() as any
+            const val = data?.value
+            const urlFromValue = val && typeof val === "object" && typeof val.url === "string" ? val.url : null
+            const found =
+              (typeof data?.documentUrl === "string" && data.documentUrl) ||
+              (typeof data?.imageUrl === "string" && data.imageUrl) ||
+              (typeof urlFromValue === "string" && urlFromValue) ||
+              null
+            if (found) {
+              console.log(`[DOWNLOAD] [${requestId}] resolveUrlFromSetting match`, { by: "value", needle: raw, matched: s })
+              return String(found)
+            }
+          }
+        }
+
+        // Fallback: try matching by fileName (the uploaded filename in settings)
+        for (const s of candidates) {
+          const fileSnap = await adminDb.collection("settings").where("fileName", "==", s).limit(1).get()
+          if (fileSnap.empty) continue
+          const data = fileSnap.docs[0].data() as any
           const val = data?.value
           const urlFromValue = val && typeof val === "object" && typeof val.url === "string" ? val.url : null
-          const found = (typeof data?.documentUrl === "string" && data.documentUrl) ||
+          const found =
+            (typeof data?.documentUrl === "string" && data.documentUrl) ||
             (typeof data?.imageUrl === "string" && data.imageUrl) ||
             (typeof urlFromValue === "string" && urlFromValue) ||
             null
-          if (found) return String(found)
+          if (found) {
+            console.log(`[DOWNLOAD] [${requestId}] resolveUrlFromSetting match`, { by: "fileName", needle: raw, matched: s })
+            return String(found)
+          }
         }
       } catch (e) {
-        console.warn(`[DOWNLOAD] [${requestId}] resolveUrlFromSetting failed`, { needle: s })
+        console.warn(`[DOWNLOAD] [${requestId}] resolveUrlFromSetting failed`, { needle: raw })
       }
       return null
     }
 
     if (!isAbsoluteHttpUrl(redirectUrl)) {
+      // Try resolve through settings even if the work stored only a filename-like value.
       const resolved = await resolveUrlFromSetting(redirectUrl)
       if (resolved) {
         redirectUrl = resolved.includes("#") ? resolved.replace(/#/g, "%23") : resolved
