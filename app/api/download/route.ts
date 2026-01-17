@@ -120,7 +120,14 @@ export async function GET(request: Request) {
       addIf(workData?.raportSnapshot?.url)
       addIf(workData?.facturaDocument?.url)
       addIf(workData?.ofertaDocument?.url)
-      console.log(`[DOWNLOAD] [${requestId}] URL candidates`, { count: candidateUrls.length, docType: t, requestedRaw, requestedDecoded })
+      const sampleCandidates = candidateUrls.slice(0, 5)
+      console.log(`[DOWNLOAD] [${requestId}] URL candidates`, {
+        count: candidateUrls.length,
+        sample: sampleCandidates,
+        docType: t,
+        requestedRaw,
+        requestedDecoded,
+      })
 
       const normalizeUrl = (value: string) => {
         const safe = value.replace(/#/g, "%23")
@@ -147,7 +154,19 @@ export async function GET(request: Request) {
       isAllowed = candidateUrls.some((u) => urlMatches(u) || urlMatches(safeDecode(u)))
       console.log(`[DOWNLOAD] [${requestId}] Match result`, { isAllowed })
       if (!isAllowed) {
-        console.warn(`[DOWNLOAD] [${requestId}] Forbidden - URL does not match stored documents`, { requestedRaw, requestedDecoded })
+        const normalizedRequested = (() => {
+          try { return normalizeUrl(requestedDecoded || requestedRaw) } catch { return requestedDecoded || requestedRaw }
+        })()
+        const normalizedSample = sampleCandidates.map((c) => {
+          try { return normalizeUrl(c) } catch { return c }
+        })
+        console.warn(`[DOWNLOAD] [${requestId}] Forbidden - URL does not match stored documents`, {
+          requestedRaw,
+          requestedDecoded,
+          normalizedRequested,
+          sampleCandidates: sampleCandidates,
+          normalizedSampleCandidates: normalizedSample,
+        })
         return NextResponse.json({ error: "URL nevalid pentru lucrarea indicată" }, { status: 403 })
       }
     }

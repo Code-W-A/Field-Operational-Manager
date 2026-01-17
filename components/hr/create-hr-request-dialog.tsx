@@ -75,7 +75,7 @@ export function CreateHrRequestDialog({
   const canSubmit = useMemo(() => {
     if (!sectorId) return false
     if (!managerUid) return false
-    if (kind === "CO" || kind === "CFP" || kind === "CM" || kind === "SL" || kind === "DEL") return !!startDate && !!endDate
+    if (kind === "CO" || kind === "CFP" || kind === "CM" || kind === "DEL") return !!startDate && !!endDate
     if (kind === "IN") return !!date && !!startTime && !!endTime
     if (kind === "CORRECT_HOURS") return !!date && entries.some((e) => e.start && e.end)
     if (kind === "ADD_OVERTIME") return !!date && asNumber(overtimeHours) > 0
@@ -110,7 +110,7 @@ export function CreateHrRequestDialog({
       }
 
       let payload: HrRequestPayload
-      if (kind === "CO" || kind === "CFP" || kind === "CM" || kind === "SL" || kind === "DEL") {
+      if (kind === "CO" || kind === "CFP" || kind === "CM" || kind === "DEL") {
         if (!startDate || !endDate) throw new Error("Completează perioada (de la / până la).")
         payload = { kind, startDate, endDate, reason: reason.trim() || undefined }
       } else if (kind === "IN") {
@@ -211,7 +211,6 @@ export function CreateHrRequestDialog({
                       "CO",
                       "CFP",
                       "CM",
-                      "SL",
                       "IN",
                       "DEL",
                       "CORRECT_HOURS",
@@ -227,7 +226,7 @@ export function CreateHrRequestDialog({
             </div>
           </div>
 
-          {(kind === "CO" || kind === "CFP" || kind === "CM" || kind === "SL" || kind === "DEL") && (
+          {(kind === "CO" || kind === "CFP" || kind === "CM" || kind === "DEL") && (
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>De la *</Label>

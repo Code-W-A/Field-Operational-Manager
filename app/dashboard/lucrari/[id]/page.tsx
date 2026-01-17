@@ -1126,12 +1126,18 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       if (!docs.length) {
         return <div className="text-sm text-muted-foreground">Nu există documentație disponibilă.</div>
       }
+      const eqId = String(eq?.id || eq?.cod || "").trim()
       return (
         <ul className="text-sm space-y-1">
           {docs.map((d: any, i: number) => (
             <li key={i} className="flex items-center justify-between gap-2">
-              <a href={d.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
-                {d.fileName}
+              <a
+                href={`/api/download?lucrareId=${encodeURIComponent(String(lucrare.id || ""))}&type=documentatie&url=${encodeURIComponent(String(d?.url || ""))}${eqId ? `&equipmentId=${encodeURIComponent(eqId)}` : ""}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-blue-600 hover:underline truncate"
+              >
+                {d.fileName || "Document"}
               </a>
               <span className="text-xs text-muted-foreground">{formatUiDate(new Date(d.uploadedAt))}</span>
             </li>

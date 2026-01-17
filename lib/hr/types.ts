@@ -95,7 +95,6 @@ export type HrRequestKind =
   | "CO" // concediu odihna
   | "CFP" // concediu fara plata
   | "CM" // concediu medical
-  | "SL" // sarbatoare legala
   | "IN" // invoire
   | "DEL" // delegatie
   | "CORRECT_HOURS" // corectare ore
@@ -103,7 +102,7 @@ export type HrRequestKind =
 
 export type HrRequestPayload =
   | {
-      kind: "CO" | "CFP" | "CM" | "SL" | "DEL"
+      kind: "CO" | "CFP" | "CM" | "DEL"
       startDate: string // yyyy-mm-dd
       endDate: string // yyyy-mm-dd
       reason?: string
@@ -141,6 +140,8 @@ export type HrRequest = {
   status: HrRequestStatus
   payload: HrRequestPayload
   rejectionReason?: string
+  /** Optional: which backend channel sends email notifications. */
+  emailChannel?: "nextjs" | "firebase"
   createdAt: number
   updatedAt: number
   decidedAt?: number

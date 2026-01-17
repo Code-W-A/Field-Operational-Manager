@@ -56,7 +56,7 @@ export function CreateLeaveRequestDialog({
   const [employeeId, setEmployeeId] = useState<string>(defaultEmployeeId || sortedEmployees[0]?.id || "")
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
-  const [type, setType] = useState<"CO" | "CFP" | "CM" | "SL" | "DEL">("CO")
+  const [type, setType] = useState<"CO" | "CFP" | "CM" | "DEL">("CO")
   const [reason, setReason] = useState("")
   const [sectorId, setSectorId] = useState("")
   const [submitting, setSubmitting] = useState(false)
@@ -275,7 +275,7 @@ export function CreateLeaveRequestDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {(["CO", "CFP", "CM", "SL", "DEL"] as HrRequestKind[]).map((k) => (
+                  {(["CO", "CFP", "CM", "DEL"] as HrRequestKind[]).map((k) => (
                     <SelectItem key={k} value={k}>
                       {hrRequestKindLabel(k)}
                     </SelectItem>

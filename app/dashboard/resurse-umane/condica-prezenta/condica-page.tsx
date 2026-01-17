@@ -292,7 +292,7 @@ export default function CondicaPrezentaPage() {
     let unsub: null | (() => void) = null
     unsub = subscribeHrRequestsForMonth({
       monthKey,
-      kinds: ["CO", "CFP", "CM", "SL", "DEL", "IN"],
+      kinds: ["CO", "CFP", "CM", "DEL", "IN"],
       onChange: setLeaveRequests,
     })
     return () => unsub?.()

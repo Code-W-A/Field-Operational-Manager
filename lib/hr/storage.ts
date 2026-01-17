@@ -458,6 +458,7 @@ function normalizeHrRequest(id: string, data: any): HrRequest {
     status: String(data.status) as HrRequestStatus,
     payload: (data.payload ?? {}) as any,
     rejectionReason: data.rejectionReason ? String(data.rejectionReason) : undefined,
+    emailChannel: data.emailChannel ? String(data.emailChannel) as any : undefined,
     createdAt: data.createdAt?.toMillis?.() ?? Date.now(),
     updatedAt: data.updatedAt?.toMillis?.() ?? Date.now(),
     decidedAt: data.decidedAt?.toMillis?.() ?? undefined,
@@ -543,14 +544,33 @@ export function subscribeHrRequestsForManager(params: {
   )
 }
 
-export async function createHrRequest(request: Omit<HrRequest, "id" | "createdAt" | "updatedAt">) {
+async function notifyHrRequestEmail(params: { requestId: string; event: "created" | "status_changed" }) {
+  try {
+    const res = await fetch("/api/notifications/hr-request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    })
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "")
+      console.warn("HR email notification failed", { status: res.status, body: txt })
+    }
+  } catch (err) {
+    console.warn("HR email notification error", err)
+  }
+}
+
+export async function createHrRequest(request: Omit<HrRequest, "id" | "createdAt" | "updatedAt">): Promise<string> {
   const ref = doc(collection(db, "hrRequests"))
   const cleanRequest = removeUndefined(request as any)
   await setDoc(ref, {
     ...cleanRequest,
+    emailChannel: "nextjs",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
+  await notifyHrRequestEmail({ requestId: ref.id, event: "created" })
+  return ref.id
 }
 
 export async function updateHrRequestByManager(params: {
@@ -582,7 +602,9 @@ export async function decideHrRequest(params: {
     decidedByUid: params.decidedByUid,
     decidedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
+    emailChannel: "nextjs",
   } as any)
+  await notifyHrRequestEmail({ requestId: params.requestId, event: "status_changed" })
 }
 
 // ===== Departments =====

@@ -8,8 +8,6 @@ export function hrRequestKindLabel(kind: HrRequestKind) {
       return "Concediu fără plată"
     case "CM":
       return "Concediu medical"
-    case "SL":
-      return "Sărbătoare legală"
     case "IN":
       return "Învoire"
     case "DEL":

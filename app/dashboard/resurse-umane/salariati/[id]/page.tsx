@@ -250,7 +250,7 @@ export default function HrEmployeeDetailsPage() {
   const daysRemaining = daysAvailable - daysConsumed
 
   const leaveRequestsDisplay = useMemo(
-    () => leaveRequests.filter((req) => ["CO", "CFP", "CM", "SL", "DEL"].includes(req.kind)),
+    () => leaveRequests.filter((req) => ["CO", "CFP", "CM", "DEL"].includes(req.kind)),
     [leaveRequests]
   )
 
@@ -861,7 +861,6 @@ export default function HrEmployeeDetailsPage() {
                           <div className={cn(
                             "h-10 w-10 rounded-lg flex items-center justify-center shadow-sm",
                             req.kind === "CO" ? "bg-gradient-to-br from-amber-500 to-amber-600" :
-                            req.kind === "SL" ? "bg-gradient-to-br from-blue-500 to-blue-600" :
                             "bg-gradient-to-br from-violet-500 to-violet-600"
                           )}>
                             <CalendarDays className="h-5 w-5 text-white" />

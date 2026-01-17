@@ -761,6 +761,76 @@ export const generateScheduledWorks = functions
     return null
   })
 
+/**
+ * Safety net: auto-stop any active attendance sessions at end of day (23:59 local time).
+ * This prevents "forgot to stop" cases from spanning into the next day.
+ */
+export const autoStopAttendanceSessions = functions
+  .region(REGION)
+  .pubsub.schedule("59 23 * * *")
+  .timeZone(TIMEZONE)
+  .onRun(async () => {
+    const endMs = Date.now()
+    let totalStopped = 0
+
+    try {
+      const snap = await db.collection("attendance").where("status", "==", "active").get()
+      if (snap.empty) {
+        console.log("autoStopAttendanceSessions: no active sessions")
+        return null
+      }
+
+      const docs = snap.docs
+      for (let i = 0; i < docs.length; i += 450) {
+        const chunk = docs.slice(i, i + 450)
+        const batch = db.batch()
+
+        for (const d of chunk) {
+          const data = d.data() as any
+          if (String(data?.status || "") !== "active") continue
+
+          const extraTimeLogs = Array.isArray(data?.extraTimeLogs) ? data.extraTimeLogs : null
+          let nextExtraTimeLogs: any[] | null = null
+          if (extraTimeLogs) {
+            let changed = false
+            nextExtraTimeLogs = extraTimeLogs.map((log: any) => {
+              if (!log || typeof log !== "object") return log
+              if (log.endTime) return log
+              changed = true
+              return {
+                ...log,
+                endTime: endMs,
+                minutesEligible: Number.isFinite(Number(log.minutesEligible)) ? Number(log.minutesEligible) : 0,
+              }
+            })
+            if (!changed) nextExtraTimeLogs = null
+          }
+
+          batch.update(d.ref, {
+            status: "completed",
+            sessionEnd: Timestamp.fromMillis(endMs),
+            checkOutMode: data?.mode ?? null,
+            checkOutLocation: data?.location ?? null,
+            checkOutDeviceInfo: { type: "system", userAgent: "auto-stop-23:59" },
+            ...(nextExtraTimeLogs ? { extraTimeLogs: nextExtraTimeLogs } : {}),
+            autoStopped: true,
+            autoStoppedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          })
+          totalStopped += 1
+        }
+
+        await batch.commit()
+      }
+
+      console.log("autoStopAttendanceSessions completed", { totalStopped })
+    } catch (e) {
+      console.error("autoStopAttendanceSessions failed", e)
+    }
+
+    return null
+  })
+
 // Callable folosit după creare/editare contract (în app/dashboard/contracte/page.tsx).
 // IMPORTANT: nu creează nimic dacă nu suntem în fereastra de generare (generateAt <= now).
 export const runGenerateScheduledWorks = functions
@@ -811,6 +881,7 @@ export const onHrRequestCreatedEmail = functions
   .firestore.document("hrRequests/{requestId}")
   .onCreate(async (snap, context) => {
     const data = snap.data() as any
+    if (String(data?.emailChannel || "") === "nextjs") return null
     const req: HrRequest = {
       employeeId: String(data.employeeId),
       employeeName: data.employeeName ? String(data.employeeName) : undefined,
@@ -870,6 +941,7 @@ export const onHrRequestStatusChangedEmail = functions
     const beforeStatus = String(before?.status ?? "pending") as HrRequestStatus
     const afterStatus = String(after?.status ?? "pending") as HrRequestStatus
     if (beforeStatus === afterStatus) return null
+    if (String(after?.emailChannel || "") === "nextjs") return null
 
     const req: HrRequest = {
       employeeId: String(after.employeeId),
@@ -883,22 +955,31 @@ export const onHrRequestStatusChangedEmail = functions
       rejectionReason: after.rejectionReason ?? null,
     }
 
-    const requester = await getUserEmail(req.requesterUid)
-    if (!requester.email) return null
+    const employee = await getUserEmail(req.employeeId)
+    const manager = await getUserEmail(req.managerUid)
 
     const title = `${kindLabel(req.kind)} • ${requestDateLabel(req)}`
     const rejectReason = afterStatus === "rejected" ? String(after.rejectionReason ?? "").trim() : ""
+    const employeeName = req.employeeName || req.employeeId
+    const baseText =
+      `Statusul cererii a fost actualizat.\n\n` +
+      `Angajat: ${employeeName}\n` +
+      `Tip: ${kindLabel(req.kind)}\n` +
+      `Perioadă/zi: ${requestDateLabel(req)}\n` +
+      `Status: ${statusLabel(afterStatus)}\n` +
+      (rejectReason ? `Motiv refuz: ${rejectReason}\n` : "")
 
-    await smtpSendMail({
-      to: requester.email,
-      subject: `Status cerere actualizat: ${statusLabel(afterStatus)} • ${title}`,
-      text:
-        `Statusul cererii tale a fost actualizat.\n\n` +
-        `Tip: ${kindLabel(req.kind)}\n` +
-        `Perioadă/zi: ${requestDateLabel(req)}\n` +
-        `Status: ${statusLabel(afterStatus)}\n` +
-        (rejectReason ? `Motiv refuz: ${rejectReason}\n` : ""),
-    })
+    const recipients = new Set<string>()
+    if (employee.email) recipients.add(employee.email)
+    if (manager.email) recipients.add(manager.email)
+
+    for (const to of recipients) {
+      await smtpSendMail({
+        to,
+        subject: `Status cerere actualizat: ${statusLabel(afterStatus)} • ${title}`,
+        text: baseText,
+      })
+    }
 
     return null
   })

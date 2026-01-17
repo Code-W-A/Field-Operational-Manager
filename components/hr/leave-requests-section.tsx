@@ -54,7 +54,6 @@ export function LeaveRequestsSection({
                           <span className="inline-flex items-center gap-1">
                             <span className={`inline-block h-2 w-2 rounded-full ${
                               req.kind === "CO" ? "bg-amber-500" : 
-                              req.kind === "SL" ? "bg-blue-500" : 
                               "bg-violet-500"
                             }`} />
                             {hrRequestKindLabel(req.kind)}
