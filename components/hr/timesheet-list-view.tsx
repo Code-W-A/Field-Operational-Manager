@@ -6,14 +6,25 @@ import { getEmployeeFullName } from "@/lib/hr/types"
 import { daysInMonth } from "@/lib/hr/storage"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
+function weekdayMeta(monthKey: TimesheetMonthKey, day: number) {
+  const [yStr, mStr] = monthKey.split("-")
+  const y = Number(yStr)
+  const m = Number(mStr)
+  const dt = new Date(y, m - 1, day)
+  const dow = dt.getDay() // 0=Sun ... 6=Sat
+  const isWeekend = dow === 0 || dow === 6
+  const longRo = ["Duminică", "Luni", "Marți", "Miercuri", "Joi", "Vineri", "Sâmbătă"][dow] ?? ""
+  return { isWeekend, longRo }
+}
+
 function cellClasses(cell: TimesheetCell | undefined) {
   const code = cell?.code ?? "EMPTY"
   if (code === "WORK") return "bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
-  if (code === "WE") return "bg-pink-50 text-pink-800 hover:bg-pink-100"
+  if (code === "WE") return "bg-blue-50 text-blue-800 hover:bg-blue-100"
   if (code === "CO") return "bg-amber-50 text-amber-900 hover:bg-amber-100"
   if (code === "DEL") return "bg-violet-50 text-violet-900 hover:bg-violet-100"
   if (code === "IN") return "bg-slate-50 text-slate-900 hover:bg-slate-100"
-  if (code === "SL") return "bg-blue-50 text-blue-900 hover:bg-blue-100"
+  if (code === "SL") return "bg-blue-50 text-blue-800 hover:bg-blue-100"
   return "bg-background text-muted-foreground hover:bg-muted/30"
 }
 
@@ -23,14 +34,36 @@ export function TimesheetListView({
   getCell,
   onCellClick,
   isActiveCell,
+  holidayLabelsByDay,
+  requestMetaByEmployeeDay,
 }: {
   monthKey: TimesheetMonthKey
   employees: Employee[]
   getCell: (employeeId: string, day: number) => TimesheetCell | undefined
   onCellClick: (params: { employeeId: string; day: number; anchorRect: { top: number; left: number; right: number; bottom: number; width: number; height: number } }) => void
   isActiveCell?: (employeeId: string, day: number) => boolean
+  holidayLabelsByDay?: Record<number, string | undefined>
+  requestMetaByEmployeeDay?: Record<string, Record<number, { kind: string; label: string }>>
 }) {
   const dim = daysInMonth(monthKey)
+
+  const requestBgClass = (kind: string) => {
+    if (kind === "CO") return "bg-amber-50"
+    if (kind === "CFP") return "bg-orange-50"
+    if (kind === "CM") return "bg-teal-50"
+    if (kind === "DEL") return "bg-violet-50"
+    if (kind === "IN") return "bg-slate-50"
+    return ""
+  }
+
+  const requestRingClass = (kind: string) => {
+    if (kind === "CO") return "ring-1 ring-amber-200"
+    if (kind === "CFP") return "ring-1 ring-orange-200"
+    if (kind === "CM") return "ring-1 ring-teal-200"
+    if (kind === "DEL") return "ring-1 ring-violet-200"
+    if (kind === "IN") return "ring-1 ring-slate-200"
+    return ""
+  }
   
   return (
     <div className="space-y-4">
@@ -67,14 +100,24 @@ export function TimesheetListView({
                   const cell = getCell(emp.id, d)
                   const isActive = isActiveCell?.(emp.id, d)
                   const hasData = cell?.code && cell.code !== "EMPTY"
+                  const holidayLabel = holidayLabelsByDay?.[d]
+                  const req = requestMetaByEmployeeDay?.[emp.id]?.[d]
+                  const { isWeekend, longRo } = weekdayMeta(monthKey, d)
                   
                   return (
                     <button
                       key={d}
                       type="button"
                       className={cn(
-                        "h-10 flex-1 min-w-[32px] max-w-[48px] rounded text-xs font-semibold transition-all duration-200",
+                        "relative h-10 flex-1 min-w-[32px] max-w-[48px] rounded text-xs font-semibold transition-all duration-200",
                         cellClasses(cell),
+                        req && !hasData ? requestBgClass(req.kind) : "",
+                        req && hasData ? requestRingClass(req.kind) : "",
+                        holidayLabel
+                          ? "before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-blue-200"
+                          : isWeekend
+                            ? "before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-blue-200"
+                            : "",
                         isActive && "bg-emerald-200 text-emerald-900 hover:bg-emerald-300",
                         hasData && "ring-1 ring-offset-1 ring-border/40"
                       )}
@@ -86,7 +129,12 @@ export function TimesheetListView({
                           anchorRect: { top: r.top, left: r.left, right: r.right, bottom: r.bottom, width: r.width, height: r.height },
                         })
                       }}
-                      title={`${getEmployeeFullName(emp)} • Ziua ${d}`}
+                      title={[
+                        `${getEmployeeFullName(emp)} • Ziua ${d}`,
+                        longRo,
+                        req ? `Cerere aprobată: ${req.label}` : "",
+                        holidayLabel ? `Sărbătoare: ${holidayLabel}` : "",
+                      ].filter(Boolean).join(" • ")}
                     >
                       {d}
                     </button>

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { FaceRecognitionCapture } from "./face-recognition-capture"
 import { createCheckIn, createCheckOut, getActiveSession } from "@/lib/attendance/storage"
 import { getCurrentLocation, determineMode } from "@/lib/attendance/location"
+import { extractTime24 } from "@/lib/utils/date-utils"
 import { toast } from "@/hooks/use-toast"
 import type { FaceRecognitionResult, AttendanceLocation } from "@/types/attendance"
 import type { OfficeLocation } from "@/lib/firebase/auth"
@@ -331,10 +332,12 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
       setFlowState("success")
     } catch (error) {
       console.error("Kiosk check-in/out error:", error)
+      const message = error instanceof Error ? error.message : "A apărut o eroare"
+      const isLeaveBlock = message.toLowerCase().includes("ești în concediu")
       toast({
-        title: "Eroare",
-        description: error instanceof Error ? error.message : "A apărut o eroare",
-        variant: "destructive",
+        title: isLeaveBlock ? "În concediu" : "Eroare",
+        description: message,
+        variant: isLeaveBlock ? "default" : "destructive",
       })
       setFlowState("idle")
       setShowDialog(false)
@@ -579,7 +582,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
             <DialogTitle className="text-center text-2xl">Pontaj deja pornit</DialogTitle>
             <DialogDescription className="text-center">
               Acest utilizator are deja tura pornită.
-              {alreadyStartedAt ? ` (Start: ${new Date(alreadyStartedAt).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" })})` : ""}
+              {alreadyStartedAt ? ` (Start: ${extractTime24(new Date(alreadyStartedAt))})` : ""}
             </DialogDescription>
           </DialogHeader>
 

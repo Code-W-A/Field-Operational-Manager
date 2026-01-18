@@ -18,6 +18,8 @@ import {
   importLegacyLocalStorageHrDataToFirestore,
   readLegacyLocalStorageHrData,
   saveHrDefaults,
+  applyHrDefaultsToEmployees,
+  applyHrDefaultsToAllEmployees,
   seedHrIfEmpty,
   subscribeEmployees,
   subscribeDepartments,
@@ -28,6 +30,16 @@ import type { Department } from "@/lib/hr/types"
 import { Plus } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import { EmployeeEditDialog } from "@/components/hr/employee-edit-dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 type AppUser = { uid: string; displayName: string | null; email: string | null; role?: string }
 
@@ -39,6 +51,7 @@ export default function HrEmployeesPage() {
   const [defaultProgramStart, setDefaultProgramStart] = useState("")
   const [defaultProgramEnd, setDefaultProgramEnd] = useState("")
   const [savingDefaults, setSavingDefaults] = useState(false)
+  const [confirmDefaultsOpen, setConfirmDefaultsOpen] = useState(false)
 
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Employee | null>(null)
@@ -173,23 +186,7 @@ export default function HrEmployeesPage() {
               placeholder="16:30"
             />
           </div>
-          <Button
-            onClick={async () => {
-              try {
-                setSavingDefaults(true)
-                await saveHrDefaults({
-                  programLucruStart: defaultProgramStart.trim() || undefined,
-                  programLucruEnd: defaultProgramEnd.trim() || undefined,
-                })
-                toast({ title: "Salvat", description: "Programul standard a fost actualizat." })
-              } catch {
-                toast({ title: "Eroare", description: "Nu s-a putut salva programul standard.", variant: "destructive" })
-              } finally {
-                setSavingDefaults(false)
-              }
-            }}
-            disabled={savingDefaults}
-          >
+          <Button onClick={() => setConfirmDefaultsOpen(true)} disabled={savingDefaults}>
             {savingDefaults ? "Se salvează..." : "Salvează"}
           </Button>
         </CardContent>
@@ -246,6 +243,73 @@ export default function HrEmployeesPage() {
         users={users}
         departments={departments}
       />
+
+      <AlertDialog open={confirmDefaultsOpen} onOpenChange={setConfirmDefaultsOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Aplicăm programul la toți salariații?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Vrei să actualizezi și salariații care au deja un program personal, sau doar programul standard?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={async () => {
+                try {
+                  setSavingDefaults(true)
+                  await saveHrDefaults({
+                    programLucruStart: defaultProgramStart.trim() || undefined,
+                    programLucruEnd: defaultProgramEnd.trim() || undefined,
+                  })
+                  const updated = await applyHrDefaultsToEmployees({
+                    programLucruStart: defaultProgramStart.trim() || undefined,
+                    programLucruEnd: defaultProgramEnd.trim() || undefined,
+                  })
+                  toast({
+                    title: "Salvat",
+                    description: updated
+                      ? `Programul standard a fost actualizat (${updated} salariați fără program personal au fost actualizați).`
+                      : "Programul standard a fost actualizat.",
+                  })
+                } catch {
+                  toast({ title: "Eroare", description: "Nu s-a putut salva programul standard.", variant: "destructive" })
+                } finally {
+                  setSavingDefaults(false)
+                }
+              }}
+            >
+              Doar program standard
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                try {
+                  setSavingDefaults(true)
+                  await saveHrDefaults({
+                    programLucruStart: defaultProgramStart.trim() || undefined,
+                    programLucruEnd: defaultProgramEnd.trim() || undefined,
+                  })
+                  const updated = await applyHrDefaultsToAllEmployees({
+                    programLucruStart: defaultProgramStart.trim() || undefined,
+                    programLucruEnd: defaultProgramEnd.trim() || undefined,
+                  })
+                  toast({
+                    title: "Salvat",
+                    description: updated
+                      ? `Programul a fost aplicat la toți salariații (${updated} actualizați).`
+                      : "Programul standard a fost actualizat.",
+                  })
+                } catch {
+                  toast({ title: "Eroare", description: "Nu s-a putut salva programul standard.", variant: "destructive" })
+                } finally {
+                  setSavingDefaults(false)
+                }
+              }}
+            >
+              Aplică tuturor salariaților
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardShell>
   )
 }

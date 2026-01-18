@@ -14,6 +14,8 @@ import { getEmployeeFullName } from "@/lib/hr/types"
 import { hrRequestKindLabel } from "@/lib/hr/hr-requests"
 import { createHrRequest, subscribeDepartments } from "@/lib/hr/storage"
 import { toast } from "@/hooks/use-toast"
+import { DateInput } from "@/components/ui/date-input"
+import { formatISODate } from "@/lib/utils/date-utils"
 
 function asNumber(v: string) {
   const n = Number(v)
@@ -58,6 +60,9 @@ export function CreateHrRequestDialog({
   const [overtimeHours, setOvertimeHours] = useState("1")
 
   const [submitting, setSubmitting] = useState(false)
+
+  const todayIso = useMemo(() => formatISODate(new Date()), [])
+  const monthStartIso = useMemo(() => formatISODate(new Date(new Date().getFullYear(), new Date().getMonth(), 1)), [])
   useEffect(() => {
     const unsub = subscribeDepartments({
       onChange: setDepartments,
@@ -112,6 +117,15 @@ export function CreateHrRequestDialog({
       let payload: HrRequestPayload
       if (kind === "CO" || kind === "CFP" || kind === "CM" || kind === "DEL") {
         if (!startDate || !endDate) throw new Error("Completează perioada (de la / până la).")
+        if (kind === "DEL") {
+          const monthKey = todayIso.slice(0, 7)
+          if (!startDate.startsWith(monthKey) || !endDate.startsWith(monthKey)) {
+            throw new Error("Delegația poate fi introdusă doar în luna în curs.")
+          }
+          if (startDate > todayIso || endDate > todayIso) {
+            throw new Error("Delegația poate fi introdusă doar pentru zile anterioare sau curente.")
+          }
+        }
         payload = { kind, startDate, endDate, reason: reason.trim() || undefined }
       } else if (kind === "IN") {
         if (!date || !startTime || !endTime) throw new Error("Completează data și intervalul.")
@@ -230,11 +244,21 @@ export function CreateHrRequestDialog({
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>De la *</Label>
-                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                <DateInput
+                  value={startDate}
+                  onChange={setStartDate}
+                  min={kind === "DEL" ? monthStartIso : undefined}
+                  max={kind === "DEL" ? todayIso : undefined}
+                />
               </div>
               <div className="grid gap-2">
                 <Label>Până la *</Label>
-                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} min={startDate || undefined} />
+                <DateInput
+                  value={endDate}
+                  onChange={setEndDate}
+                  min={kind === "DEL" ? monthStartIso : undefined}
+                  max={kind === "DEL" ? todayIso : undefined}
+                />
               </div>
             </div>
           )}
@@ -243,7 +267,7 @@ export function CreateHrRequestDialog({
             <div className="grid gap-4 md:grid-cols-3">
               <div className="grid gap-2">
                 <Label>Data *</Label>
-                <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                <DateInput value={date} onChange={setDate} />
               </div>
               <div className="grid gap-2">
                 <Label>Ora start *</Label>
@@ -260,7 +284,7 @@ export function CreateHrRequestDialog({
             <div className="grid gap-4 md:grid-cols-2">
               <div className="grid gap-2">
                 <Label>Data *</Label>
-                <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                <DateInput value={date} onChange={setDate} />
               </div>
               <div className="grid gap-2">
                 <Label>Ore suplimentare *</Label>
@@ -279,7 +303,7 @@ export function CreateHrRequestDialog({
             <div className="space-y-4">
               <div className="grid gap-2">
                 <Label>Data *</Label>
-                <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                <DateInput value={date} onChange={setDate} />
               </div>
 
               <div className="grid gap-2">

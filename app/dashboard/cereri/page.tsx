@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Plus, FileText, Download } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import type { Employee, HrRequest } from "@/lib/hr/types"
-import { getEmployeeByUserUid, subscribeHrRequestsForEmployee } from "@/lib/hr/storage"
+import { getEmployeeByUserUid, subscribeHrRequestsForEmployee, subscribeHrRequestsForRequester } from "@/lib/hr/storage"
 import { hrRequestDateLabel, hrRequestKindLabel, hrRequestStatusLabel } from "@/lib/hr/hr-requests"
 import { CreateHrRequestDialog } from "@/components/hr/create-hr-request-dialog"
 import { generateHrRequestPDF } from "@/lib/hr/request-pdf-generator"
@@ -20,6 +20,7 @@ export default function CereriTehnicianPage() {
   const [employee, setEmployee] = useState<Employee | null>(null)
   const [requests, setRequests] = useState<HrRequest[]>([])
   const [loading, setLoading] = useState(true)
+  const [missingEmployeeLink, setMissingEmployeeLink] = useState(false)
 
   useEffect(() => {
     let unsub: null | (() => void) = null
@@ -29,11 +30,19 @@ export default function CereriTehnicianPage() {
         setLoading(true)
         const emp = await getEmployeeByUserUid(user.uid)
         setEmployee(emp)
-        if (!emp) return
-        unsub = subscribeHrRequestsForEmployee({
-          employeeId: emp.id,
-          onChange: setRequests,
-        })
+        setMissingEmployeeLink(!emp)
+        if (emp) {
+          unsub = subscribeHrRequestsForEmployee({
+            employeeId: emp.id,
+            onChange: setRequests,
+          })
+        } else {
+          // Fallback for users without hrEmployees link (e.g. PWA users)
+          unsub = subscribeHrRequestsForRequester({
+            requesterUid: user.uid,
+            onChange: setRequests,
+          })
+        }
       } finally {
         setLoading(false)
       }
@@ -58,6 +67,12 @@ export default function CereriTehnicianPage() {
           </Button>
         }
       />
+
+      {missingEmployeeLink ? (
+        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Contul tău nu este asociat cu un salariat HR. Cererile sunt afișate pe baza contului curent.
+        </div>
+      ) : null}
 
       <Card className="shadow-sm">
         <CardHeader>

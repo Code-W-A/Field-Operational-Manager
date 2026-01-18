@@ -10,12 +10,24 @@ import { useState, useEffect } from "react"
 function cellClasses(cell: TimesheetCell | undefined) {
   const code = cell?.code ?? "EMPTY"
   if (code === "WORK") return "bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
-  if (code === "WE") return "bg-pink-50 text-pink-800 hover:bg-pink-100"
+  if (code === "WE") return "bg-blue-50 text-blue-800 hover:bg-blue-100"
   if (code === "CO") return "bg-amber-50 text-amber-900 hover:bg-amber-100"
   if (code === "DEL") return "bg-violet-50 text-violet-900 hover:bg-violet-100"
   if (code === "IN") return "bg-slate-50 text-slate-900 hover:bg-slate-100"
-  if (code === "SL") return "bg-blue-50 text-blue-900 hover:bg-blue-100"
+  if (code === "SL") return "bg-blue-50 text-blue-800 hover:bg-blue-100"
   return "bg-background text-muted-foreground hover:bg-muted/30"
+}
+
+function weekdayMeta(monthKey: TimesheetMonthKey, day: number) {
+  const [yStr, mStr] = monthKey.split("-")
+  const y = Number(yStr)
+  const m = Number(mStr)
+  const dt = new Date(y, m - 1, day)
+  const dow = dt.getDay() // 0=Sun ... 6=Sat
+  const isWeekend = dow === 0 || dow === 6
+  const shortRo = ["Du", "Lu", "Ma", "Mi", "Jo", "Vi", "Sa"][dow] ?? ""
+  const longRo = ["Duminică", "Luni", "Marți", "Miercuri", "Joi", "Vineri", "Sâmbătă"][dow] ?? ""
+  return { isWeekend, shortRo, longRo }
 }
 
 function cellLabel(cell: TimesheetCell | undefined, compact: boolean = false): React.ReactNode {
@@ -58,6 +70,8 @@ export function TimesheetGrid({
   onCellClick,
   isActiveCell,
   extraColumns,
+  holidayLabelsByDay,
+  requestMetaByEmployeeDay,
   className,
   compact = false,
 }: {
@@ -67,6 +81,8 @@ export function TimesheetGrid({
   onCellClick: (params: { employeeId: string; day: number; anchorRect: { top: number; left: number; right: number; bottom: number; width: number; height: number } }) => void
   isActiveCell?: (employeeId: string, day: number) => boolean
   extraColumns?: TimesheetExtraColumn[]
+  holidayLabelsByDay?: Record<number, string | undefined>
+  requestMetaByEmployeeDay?: Record<string, Record<number, { kind: string; label: string }>>
   className?: string
   compact?: boolean
 }) {
@@ -132,6 +148,24 @@ export function TimesheetGrid({
   const headerPadding = compact ? "py-2" : "py-3"
   const rowMinHeight = compact ? "min-h-[40px]" : "min-h-[64px]"
 
+  const requestBgClass = (kind: string) => {
+    if (kind === "CO") return "bg-amber-50"
+    if (kind === "CFP") return "bg-orange-50"
+    if (kind === "CM") return "bg-teal-50"
+    if (kind === "DEL") return "bg-violet-50"
+    if (kind === "IN") return "bg-slate-50"
+    return ""
+  }
+
+  const requestRingClass = (kind: string) => {
+    if (kind === "CO") return "ring-1 ring-amber-200"
+    if (kind === "CFP") return "ring-1 ring-orange-200"
+    if (kind === "CM") return "ring-1 ring-teal-200"
+    if (kind === "DEL") return "ring-1 ring-violet-200"
+    if (kind === "IN") return "ring-1 ring-slate-200"
+    return ""
+  }
+
   return (
     <div className={cn("w-full overflow-auto rounded-lg border border-border shadow-sm max-h-[calc(100vh-300px)]", className)}>
       <div className={compact ? "w-full" : "min-w-[960px]"}>
@@ -144,8 +178,23 @@ export function TimesheetGrid({
             Salariat
           </div>
           {Array.from({ length: dim }, (_, i) => i + 1).map((d) => (
-            <div key={d} className={cn("flex items-center justify-center px-1 font-semibold text-gray-700 bg-gray-50", compact ? "text-[10px] py-2" : "text-xs py-3")}>
-              {d}
+            <div
+              key={d}
+              className={cn(
+                "flex flex-col items-center justify-center px-1 font-semibold bg-gray-50",
+                compact ? "text-[10px] py-2" : "text-xs py-3",
+                weekdayMeta(monthKey, d).isWeekend && "bg-blue-50 text-blue-800",
+                holidayLabelsByDay?.[d] && "bg-blue-50 text-blue-800",
+                weekdayMeta(monthKey, d).isWeekend && holidayLabelsByDay?.[d] && "bg-blue-50 text-blue-800"
+              )}
+              title={[
+                `Ziua ${d}`,
+                weekdayMeta(monthKey, d).longRo,
+                holidayLabelsByDay?.[d] ? `Sărbătoare: ${holidayLabelsByDay?.[d]}` : "",
+              ].filter(Boolean).join(" • ")}
+            >
+              <div>{d}</div>
+              {!compact ? <div className="text-[10px] font-bold opacity-80">{weekdayMeta(monthKey, d).shortRo}</div> : null}
             </div>
           ))}
           {cols.map((c) => {
@@ -199,18 +248,34 @@ export function TimesheetGrid({
               {Array.from({ length: dim }, (_, i) => i + 1).map((d) => {
                 const c = getCell(e.id, d)
                 const isActive = isActiveCell?.(e.id, d)
+                const holidayLabel = holidayLabelsByDay?.[d]
+                const req = requestMetaByEmployeeDay?.[e.id]?.[d]
+                const { isWeekend, longRo } = weekdayMeta(monthKey, d)
+                const isEmpty = !c || c.code === "EMPTY"
                 return (
                   <button
                     key={d}
                     type="button"
                     className={cn(
-                      "w-full border-l border-b border-gray-200 text-xs font-semibold transition-all duration-150 hover:shadow-lg hover:z-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:z-10",
+                      "relative w-full border-l border-b border-gray-200 text-xs font-semibold transition-all duration-150 hover:shadow-lg hover:z-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:z-10",
                       cellHeight,
                       compact ? "hover:scale-110" : "hover:scale-105",
                       cellClasses(c),
+                      req && isEmpty ? requestBgClass(req.kind) : "",
+                      req && !isEmpty ? requestRingClass(req.kind) : "",
+                      holidayLabel
+                        ? "before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-blue-200"
+                        : isWeekend
+                          ? "before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-blue-200"
+                          : "",
                       isActive && "bg-emerald-200 text-emerald-900 hover:bg-emerald-300"
                     )}
-                    title={`${getEmployeeFullName(e)} • Ziua ${d}`}
+                    title={[
+                      `${getEmployeeFullName(e)} • Ziua ${d}`,
+                      longRo,
+                      req ? `Cerere aprobată: ${req.label}` : "",
+                      holidayLabel ? `Sărbătoare: ${holidayLabel}` : "",
+                    ].filter(Boolean).join(" • ")}
                     onClick={(ev) => {
                       const r = (ev.currentTarget as HTMLElement).getBoundingClientRect()
                       onCellClick({

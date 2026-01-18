@@ -14,6 +14,8 @@ import { createHrRequest } from "@/lib/hr/storage"
 import { generateHrRequestPDF } from "@/lib/hr/request-pdf-generator"
 import { hrRequestKindLabel } from "@/lib/hr/hr-requests"
 import { CalendarDays, FileText } from "lucide-react"
+import { DateInput } from "@/components/ui/date-input"
+import { formatISODate } from "@/lib/utils/date-utils"
 
 function calculateWorkDays(startStr: string, endStr: string): number {
   if (!startStr || !endStr) return 0
@@ -61,6 +63,9 @@ export function CreateLeaveRequestDialog({
   const [sectorId, setSectorId] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const todayIso = useMemo(() => formatISODate(new Date()), [])
+  const monthStartIso = useMemo(() => formatISODate(new Date(new Date().getFullYear(), new Date().getMonth(), 1)), [])
   
   // Zile disponibile (hardcoded pentru demo - în producție ar veni din baza de date)
   const availableDays = 21
@@ -94,6 +99,18 @@ export function CreateLeaveRequestDialog({
     if (!employeeId || !startDate || !endDate) {
       setError("Completează toate câmpurile obligatorii")
       return
+    }
+
+    if (type === "DEL") {
+      const monthKey = todayIso.slice(0, 7)
+      if (!startDate.startsWith(monthKey) || !endDate.startsWith(monthKey)) {
+        setError("Delegația poate fi introdusă doar în luna în curs.")
+        return
+      }
+      if (startDate > todayIso || endDate > todayIso) {
+        setError("Delegația poate fi introdusă doar pentru zile anterioare sau curente.")
+        return
+      }
     }
     
     if (workDays <= 0) {
@@ -248,22 +265,21 @@ export function CreateLeaveRequestDialog({
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="startDate">Data început *</Label>
-                <Input
-                  id="startDate"
-                  type="date"
+                <DateInput
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onChange={setStartDate}
+                  min={type === "DEL" ? monthStartIso : undefined}
+                  max={type === "DEL" ? todayIso : undefined}
                 />
               </div>
               
               <div className="grid gap-2">
                 <Label htmlFor="endDate">Data sfârșit *</Label>
-                <Input
-                  id="endDate"
-                  type="date"
+                <DateInput
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  min={startDate}
+                  onChange={setEndDate}
+                  min={type === "DEL" ? monthStartIso : undefined}
+                  max={type === "DEL" ? todayIso : undefined}
                 />
               </div>
             </div>

@@ -18,6 +18,7 @@ import { Switch } from "@/components/ui/switch"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { Image as ImageIcon, Pencil, Trash2, UserCheck } from "lucide-react"
+import { DateInput } from "@/components/ui/date-input"
 
 export type EmployeeEditDialogUser = {
   uid: string
@@ -401,7 +402,7 @@ export function EmployeeEditDialog({
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="employeeCiDataEmiterii">Data emiterii CI</Label>
-                <Input id="employeeCiDataEmiterii" type="date" value={ciDataEmiterii} onChange={(e) => setCiDataEmiterii(e.target.value)} />
+                <DateInput value={ciDataEmiterii} onChange={setCiDataEmiterii} />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="employeeCiEmitent">Emitent CI</Label>

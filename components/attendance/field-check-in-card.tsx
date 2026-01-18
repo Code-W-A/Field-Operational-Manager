@@ -18,6 +18,7 @@ import {
 import { getCurrentLocation, determineMode } from "@/lib/attendance/location"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { extractTime24 } from "@/lib/utils/date-utils"
 import type { AttendanceSession, FaceRecognitionResult, AttendanceLocation } from "@/types/attendance"
 import type { OfficeLocation } from "@/lib/firebase/auth"
 
@@ -283,10 +284,12 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
       setDebugSimMinutes(null)
     } catch (error) {
       console.error("Field check-in/out error:", error)
+      const message = error instanceof Error ? error.message : "A apărut o eroare"
+      const isLeaveBlock = message.toLowerCase().includes("ești în concediu")
       toast({
-        title: "Eroare",
-        description: error instanceof Error ? error.message : "A apărut o eroare",
-        variant: "destructive",
+        title: isLeaveBlock ? "În concediu" : "Eroare",
+        description: message,
+        variant: isLeaveBlock ? "default" : "destructive",
       })
       setShowFaceDialog(false)
       setFlowState("idle")
@@ -422,7 +425,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
               <div className="space-y-1.5">
                 <div className="flex items-baseline gap-1">
                   <span className="text-4xl sm:text-5xl font-bold text-gray-900 tracking-tight tabular-nums">
-                    {new Date(currentTime).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })}
+                    {extractTime24(new Date(currentTime))}
                   </span>
                 </div>
                 {isCheckedIn && (

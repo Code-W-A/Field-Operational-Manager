@@ -1,4 +1,5 @@
 import type { HrRequest, HrRequestKind } from "@/lib/hr/types"
+import { formatRomanianDateISO } from "@/lib/utils/date-utils"
 
 export function hrRequestKindLabel(kind: HrRequestKind) {
   switch (kind) {
@@ -29,9 +30,13 @@ export function hrRequestStatusLabel(status: HrRequest["status"]) {
 
 export function hrRequestDateLabel(req: HrRequest) {
   const p: any = req.payload as any
-  if (p?.startDate && p?.endDate) return `${p.startDate} → ${p.endDate}`
-  if (p?.date && p?.startTime && p?.endTime) return `${p.date} • ${p.startTime}–${p.endTime}`
-  if (p?.date) return String(p.date)
+  if (p?.startDate && p?.endDate) {
+    return `${formatRomanianDateISO(p.startDate)} → ${formatRomanianDateISO(p.endDate)}`
+  }
+  if (p?.date && p?.startTime && p?.endTime) {
+    return `${formatRomanianDateISO(p.date)} • ${p.startTime}–${p.endTime}`
+  }
+  if (p?.date) return formatRomanianDateISO(p.date) || String(p.date)
   return "—"
 }
 

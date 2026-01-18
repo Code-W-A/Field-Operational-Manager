@@ -20,8 +20,9 @@ import { DeleteTimesheetDialog } from "@/components/hr/delete-timesheet-dialog"
 import { LeaveRequestsSection } from "@/components/hr/leave-requests-section"
 import { CreateLeaveRequestDialog } from "@/components/hr/create-leave-request-dialog"
 import type { TimesheetExtraColumn } from "@/components/hr/timesheet-grid"
-import type { Department, Employee, HrRequest, TimesheetCell, TimesheetCode, TimesheetMonth, TimesheetMonthKey } from "@/lib/hr/types"
+import type { Department, Employee, HrRequest, HrRequestKind, TimesheetCell, TimesheetCode, TimesheetMonth, TimesheetMonthKey } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
+import { hrRequestKindLabel } from "@/lib/hr/hr-requests"
 import {
   deleteTimesheetRange,
   daysInMonth,
@@ -40,6 +41,10 @@ import { useAuth } from "@/contexts/AuthContext"
 import { toast } from "@/hooks/use-toast"
 import { db } from "@/lib/firebase/config"
 import type { AttendanceSession } from "@/types/attendance"
+import type { HrHoliday } from "@/lib/hr/types"
+import { saveHrHolidays, subscribeHrHolidays } from "@/lib/hr/storage"
+import { LegalHolidaysDialog } from "@/components/hr/legal-holidays-dialog"
+import { formatRomanianDate } from "@/lib/utils/date-utils"
 
 function toMonthInputValue(monthKey: TimesheetMonthKey) {
   return monthKey
@@ -180,6 +185,22 @@ function calculateMonthKPIs(monthKey: TimesheetMonthKey, employees: Employee[], 
   }
 }
 
+function enumerateDatesInclusive(startDate: string, endDate: string): string[] {
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return []
+  const dates: string[] = []
+  const d = new Date(start)
+  while (d <= end) {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, "0")
+    const day = String(d.getDate()).padStart(2, "0")
+    dates.push(`${y}-${m}-${day}`)
+    d.setDate(d.getDate() + 1)
+  }
+  return dates
+}
+
 export default function CondicaPrezentaPage() {
   const { user, userData } = useAuth()
   const debugEnabled = process.env.NEXT_PUBLIC_ENABLE_DEBUG_PANEL === "true"
@@ -214,6 +235,8 @@ export default function CondicaPrezentaPage() {
   })
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false)
   const [legendOpen, setLegendOpen] = useState(false)
+  const [holidaysOpen, setHolidaysOpen] = useState(false)
+  const [holidays, setHolidays] = useState<HrHoliday[]>([])
 
   useEffect(() => {
     let unsub: null | (() => void) = null
@@ -229,6 +252,17 @@ export default function CondicaPrezentaPage() {
     })()
     return () => unsub?.()
   }, [])
+
+  useEffect(() => {
+    const year = Number(monthKey.split("-")[0])
+    if (!Number.isFinite(year)) return
+    const unsub = subscribeHrHolidays({
+      year,
+      onChange: setHolidays,
+      onError: () => undefined,
+    })
+    return () => unsub()
+  }, [monthKey])
 
   useEffect(() => {
     const unsub = subscribeDepartments({
@@ -505,10 +539,7 @@ export default function CondicaPrezentaPage() {
     if (!selectedDay) return ""
     const [yStr, mStr] = monthKey.split("-")
     const date = new Date(Number(yStr), Number(mStr) - 1, selectedDay)
-    const dd = String(date.getDate()).padStart(2, "0")
-    const mm = String(date.getMonth() + 1).padStart(2, "0")
-    const yyyy = date.getFullYear()
-    return `Data ${dd}.${mm}.${yyyy}`
+    return `Data ${formatRomanianDate(date)}`
   }, [monthKey, selectedDay])
 
   const selectedDateISO = useMemo(() => {
@@ -543,6 +574,53 @@ export default function CondicaPrezentaPage() {
   }
 
   const kpis = useMemo(() => calculateMonthKPIs(monthKey, visibleEmployees, timesheets), [monthKey, visibleEmployees, timesheets])
+
+  const holidayLabelsByDay = useMemo(() => {
+    const map: Record<number, string | undefined> = {}
+    const prefix = `${monthKey}-`
+    holidays.forEach((h) => {
+      if (!h?.date?.startsWith(prefix)) return
+      const dayStr = h.date.slice(prefix.length)
+      const d = Number(dayStr)
+      if (!Number.isFinite(d) || d < 1 || d > 31) return
+      map[d] = h.label || "Sărbătoare legală"
+    })
+    return map
+  }, [holidays, monthKey])
+
+  const requestMetaByEmployeeDay = useMemo(() => {
+    const map: Record<string, Record<number, { kind: HrRequestKind; label: string }>> = {}
+    const approved = leaveRequests.filter((r) => r.status === "approved")
+    const isInMonth = (dateStr: string) => String(dateStr).startsWith(`${monthKey}-`)
+
+    const addDay = (employeeId: string, dateStr: string, kind: HrRequestKind) => {
+      if (!isInMonth(dateStr)) return
+      const dayStr = dateStr.slice(`${monthKey}-`.length)
+      const day = Number(dayStr)
+      if (!Number.isFinite(day) || day < 1 || day > 31) return
+      if (!map[employeeId]) map[employeeId] = {}
+      if (!map[employeeId][day]) {
+        map[employeeId][day] = { kind, label: hrRequestKindLabel(kind) }
+      }
+    }
+
+    approved.forEach((req) => {
+      if (!req.employeeId) return
+      const kind = req.kind
+      const payload: any = req.payload as any
+      if (kind === "CO" || kind === "CFP" || kind === "CM" || kind === "DEL") {
+        if (!payload?.startDate || !payload?.endDate) return
+        enumerateDatesInclusive(String(payload.startDate), String(payload.endDate)).forEach((d) => addDay(req.employeeId, d, kind))
+        return
+      }
+      if (kind === "IN") {
+        if (!payload?.date) return
+        addDay(req.employeeId, String(payload.date), kind)
+      }
+    })
+
+    return map
+  }, [leaveRequests, monthKey])
 
   const extraColumns: TimesheetExtraColumn[] = useMemo(
     () => [
@@ -617,6 +695,11 @@ export default function CondicaPrezentaPage() {
                 {compactMode ? "Detaliat" : "Compact"}
               </Button>
             )}
+            {userData?.role === "admin" || userData?.role === "dispecer" ? (
+              <Button variant="outline" size="sm" onClick={() => setHolidaysOpen(true)}>
+                Sărbători legale
+              </Button>
+            ) : null}
             <Button
               variant="outline"
               size="sm"
@@ -755,6 +838,8 @@ export default function CondicaPrezentaPage() {
             onCellClick={openEdit}
             isActiveCell={isActiveCell}
             extraColumns={extraColumns}
+            holidayLabelsByDay={holidayLabelsByDay}
+            requestMetaByEmployeeDay={requestMetaByEmployeeDay}
             className="shadow-sm"
             compact={compactMode}
           />
@@ -765,9 +850,23 @@ export default function CondicaPrezentaPage() {
             getCell={getCell}
             onCellClick={openEdit}
             isActiveCell={isActiveCell}
+            holidayLabelsByDay={holidayLabelsByDay}
+            requestMetaByEmployeeDay={requestMetaByEmployeeDay}
           />
         )}
       </div>
+
+      <LegalHolidaysDialog
+        open={holidaysOpen}
+        onOpenChange={setHolidaysOpen}
+        year={Number(monthKey.split("-")[0])}
+        items={holidays}
+        onSave={async (items) => {
+          const year = Number(monthKey.split("-")[0])
+          if (!Number.isFinite(year)) return
+          await saveHrHolidays({ year, items, updatedByUid: user?.uid })
+        }}
+      />
 
       <DayEntryPopover
         open={cellOpen}

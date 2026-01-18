@@ -122,6 +122,48 @@ async function checkTimesheetStartOverlap(employeeId: string, startMs: number): 
   }
 }
 
+async function checkApprovedLeaveBlock(employeeId: string, startMs: number): Promise<boolean> {
+  try {
+    const d = new Date(startMs)
+    const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+    const dayKey = String(d.getDate())
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+
+    // First, check existing timesheet day code (fast path).
+    const ref = doc(db, "hrTimesheets", `${employeeId}_${monthKey}`)
+    const snap = await getDoc(ref)
+    if (snap.exists()) {
+      const day = (snap.data() as any)?.days?.[dayKey]
+      const code = String(day?.code || "")
+      if (code === "CO" || code === "CFP" || code === "CM" || code === "IN") {
+        return true
+      }
+    }
+
+    // Fallback: check approved HR requests (in case timesheet is not yet synced).
+    const q = query(collection(db, "hrRequests"), where("employeeId", "==", employeeId))
+    const reqSnap = await getDocs(q)
+    for (const docSnap of reqSnap.docs) {
+      const data = docSnap.data() as any
+      if (String(data?.status || "") !== "approved") continue
+      const kind = String(data?.kind || "")
+      if (!(kind === "CO" || kind === "CFP" || kind === "CM" || kind === "IN")) continue
+      const payload = data?.payload || {}
+      if (kind === "IN") {
+        if (String(payload?.date || "") === dateStr) return true
+      } else {
+        const startDate = String(payload?.startDate || "")
+        const endDate = String(payload?.endDate || "")
+        if (!startDate || !endDate) continue
+        if (startDate <= dateStr && dateStr <= endDate) return true
+      }
+    }
+    return false
+  } catch {
+    return false
+  }
+}
+
 async function getHrDefaults(): Promise<HrDefaults | null> {
   try {
     const ref = doc(db, "hrSettings", "defaults")
@@ -186,6 +228,10 @@ export async function createCheckIn(request: CheckInRequest): Promise<string> {
 
   const schedule = await getEmployeeScheduleForUser(request.userId)
   if (schedule?.employeeId) {
+    const blocked = await checkApprovedLeaveBlock(schedule.employeeId, now)
+    if (blocked) {
+      throw new Error("Se pare că astăzi ești în concediu.")
+    }
     const overlap = await checkTimesheetStartOverlap(schedule.employeeId, now)
     if (overlap) {
       throw new Error(`Există deja pontaj în condică pentru intervalul ${overlap}.`)

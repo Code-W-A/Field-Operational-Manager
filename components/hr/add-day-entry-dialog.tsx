@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Plus, Trash2 } from "lucide-react"
 import type { Employee, TimesheetCell, TimesheetMonthKey } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
+import { DateInput } from "@/components/ui/date-input"
 
 function parseMonthKeyFromDate(dateStr: string): TimesheetMonthKey | null {
   if (!dateStr) return null
@@ -216,11 +217,11 @@ export function AddDayEntryDialog({
           <div className="grid gap-4 md:grid-cols-2">
             <div className="grid gap-2">
               <Label className="text-gray-700 font-medium">Data de început</Label>
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="bg-white border-gray-300 text-gray-900" />
+              <DateInput value={startDate} onChange={setStartDate} />
             </div>
             <div className="grid gap-2">
               <Label className="text-gray-700 font-medium">Data de oprire</Label>
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="bg-white border-gray-300 text-gray-900" />
+              <DateInput value={endDate} onChange={setEndDate} />
             </div>
           </div>
 

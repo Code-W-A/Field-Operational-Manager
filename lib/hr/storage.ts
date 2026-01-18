@@ -1,6 +1,6 @@
 "use client"
 
-import type { Department, Employee, HrDefaults, TimesheetCell, TimesheetMonth, TimesheetMonthKey } from "./types"
+import type { Department, Employee, HrDefaults, HrHoliday, TimesheetCell, TimesheetMonth, TimesheetMonthKey } from "./types"
 import type { HrRequest, HrRequestKind, HrRequestStatus } from "./types"
 import {
   collection,
@@ -503,6 +503,26 @@ function requestOverlapsMonth(req: HrRequest, monthKey: TimesheetMonthKey) {
   return start <= monthEnd && end >= monthStart
 }
 
+export function subscribeHrRequestsForRequester(params: {
+  requesterUid: string
+  onChange: (requests: HrRequest[]) => void
+  onError?: (err: unknown) => void
+}): Unsubscribe {
+  const q = query(
+    collection(db, "hrRequests"),
+    where("requesterUid", "==", params.requesterUid),
+    orderBy("createdAt", "desc")
+  )
+  return onSnapshot(
+    q,
+    (snap) => {
+      const items = snap.docs.map((d) => normalizeHrRequest(d.id, d.data()))
+      params.onChange(items)
+    },
+    (err) => params.onError?.(err)
+  )
+}
+
 export function subscribeHrRequestsForMonth(params: {
   monthKey: TimesheetMonthKey
   kinds?: HrRequestKind[]
@@ -712,6 +732,115 @@ export async function saveHrDefaults(defaults: HrDefaults) {
     {
       programLucruStart: defaults.programLucruStart ?? null,
       programLucruEnd: defaults.programLucruEnd ?? null,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  )
+}
+
+export async function applyHrDefaultsToEmployees(defaults: HrDefaults): Promise<number> {
+  const snap = await getDocs(collection(db, "hrEmployees"))
+  if (snap.empty) return 0
+
+  let updated = 0
+  let batch = writeBatch(db)
+  let ops = 0
+
+  const shouldUpdate = (data: any) => {
+    const s = data?.programLucruStart ? String(data.programLucruStart).trim() : ""
+    const e = data?.programLucruEnd ? String(data.programLucruEnd).trim() : ""
+    return !s && !e
+  }
+
+  for (const docSnap of snap.docs) {
+    const data = docSnap.data()
+    if (!shouldUpdate(data)) continue
+    const ref = doc(db, "hrEmployees", docSnap.id)
+    batch.update(ref, {
+      programLucruStart: defaults.programLucruStart ?? null,
+      programLucruEnd: defaults.programLucruEnd ?? null,
+      updatedAt: serverTimestamp(),
+    })
+    updated++
+    ops++
+    if (ops >= 450) {
+      await batch.commit()
+      batch = writeBatch(db)
+      ops = 0
+    }
+  }
+
+  if (ops > 0) {
+    await batch.commit()
+  }
+  return updated
+}
+
+export async function applyHrDefaultsToAllEmployees(defaults: HrDefaults): Promise<number> {
+  const snap = await getDocs(collection(db, "hrEmployees"))
+  if (snap.empty) return 0
+
+  let updated = 0
+  let batch = writeBatch(db)
+  let ops = 0
+
+  for (const docSnap of snap.docs) {
+    const ref = doc(db, "hrEmployees", docSnap.id)
+    batch.update(ref, {
+      programLucruStart: defaults.programLucruStart ?? null,
+      programLucruEnd: defaults.programLucruEnd ?? null,
+      updatedAt: serverTimestamp(),
+    })
+    updated++
+    ops++
+    if (ops >= 450) {
+      await batch.commit()
+      batch = writeBatch(db)
+      ops = 0
+    }
+  }
+
+  if (ops > 0) {
+    await batch.commit()
+  }
+  return updated
+}
+
+// ===== Legal holidays (Sărbători legale) =====
+
+function normalizeHrHoliday(raw: any): HrHoliday | null {
+  const date = raw?.date ? String(raw.date) : ""
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null
+  const label = raw?.label ? String(raw.label) : undefined
+  return { date, label: label?.trim() ? label.trim() : undefined }
+}
+
+export function subscribeHrHolidays(params: {
+  year: number
+  onChange: (items: HrHoliday[]) => void
+  onError?: (err: unknown) => void
+}): Unsubscribe {
+  const ref = doc(db, "hrHolidays", String(params.year))
+  return onSnapshot(
+    ref,
+    (snap) => {
+      const data: any = snap.data() as any
+      const rawItems = Array.isArray(data?.items) ? data.items : []
+      const items = rawItems.map(normalizeHrHoliday).filter(Boolean) as HrHoliday[]
+      params.onChange(items)
+    },
+    (err) => params.onError?.(err)
+  )
+}
+
+export async function saveHrHolidays(params: { year: number; items: HrHoliday[]; updatedByUid?: string }) {
+  const ref = doc(db, "hrHolidays", String(params.year))
+  await setDoc(
+    ref,
+    {
+      year: params.year,
+      items: params.items.map((h) => ({ date: h.date, label: h.label ?? null })),
+      updatedByUid: params.updatedByUid ?? null,
       updatedAt: serverTimestamp(),
     },
     { merge: true }

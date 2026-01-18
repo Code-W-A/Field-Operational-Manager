@@ -4,6 +4,8 @@ import { adminDb } from "@/lib/firebase/admin"
 import { getEmailFrom } from "@/lib/email/from"
 import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-events.server"
 import { logError, logInfo, logWarning } from "@/lib/utils/logging-service"
+import { formatRomanianDateDotsISO } from "@/lib/utils/date-utils"
+import { generateHrRequestPdfBuffer } from "@/lib/hr/request-pdf.server"
 
 type HrRequestEvent = "created" | "status_changed"
 
@@ -23,6 +25,47 @@ async function getUserEmail(uid: string): Promise<{ email: string | null; displa
     console.error("getUserEmail failed", uid, e)
     return { email: null, displayName: null }
   }
+}
+
+async function getEmployeeEmailByEmployeeId(employeeId: string): Promise<{ email: string | null; displayName: string | null }> {
+  try {
+    const empSnap = await adminDb.collection("hrEmployees").doc(employeeId).get()
+    if (!empSnap.exists) return { email: null, displayName: null }
+    const empData = empSnap.data() as any
+    const userUid = typeof empData?.userUid === "string" ? empData.userUid : null
+    if (!userUid) return { email: null, displayName: null }
+    return await getUserEmail(userUid)
+  } catch (e) {
+    console.error("getEmployeeEmailByEmployeeId failed", employeeId, e)
+    return { email: null, displayName: null }
+  }
+}
+
+async function getDepartmentName(departmentId: string): Promise<string | null> {
+  try {
+    if (!departmentId) return null
+    const snap = await adminDb.collection("hrDepartments").doc(departmentId).get()
+    if (!snap.exists) return null
+    const data = snap.data() as any
+    const name = typeof data?.name === "string" ? data.name : null
+    return name?.trim() || null
+  } catch (e) {
+    console.error("getDepartmentName failed", departmentId, e)
+    return null
+  }
+}
+
+function buildBaseUrl(request: NextRequest): string {
+  const envBase = process.env.NEXT_PUBLIC_APP_URL
+  const proto = request.headers.get("x-forwarded-proto") || "https"
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || ""
+  const headerBase = host ? `${proto}://${host}` : ""
+  const rawBase = envBase || headerBase
+  if (!rawBase) return ""
+  if (!rawBase.startsWith("http://") && !rawBase.startsWith("https://")) {
+    return `https://${rawBase}`
+  }
+  return rawBase
 }
 
 function kindLabel(kind: string) {
@@ -49,14 +92,14 @@ function kindLabel(kind: string) {
 function statusLabel(status: string) {
   if (status === "approved") return "Aprobat"
   if (status === "rejected") return "Respins"
-  return "Pending"
+  return "În așteptare"
 }
 
 function requestDateLabel(req: any) {
   const p: any = req?.payload ?? {}
-  if (p?.startDate && p?.endDate) return `${p.startDate} → ${p.endDate}`
-  if (p?.date && p?.startTime && p?.endTime) return `${p.date} • ${p.startTime}–${p.endTime}`
-  if (p?.date) return String(p.date)
+  if (p?.startDate && p?.endDate) return `${formatRomanianDateDotsISO(p.startDate)} → ${formatRomanianDateDotsISO(p.endDate)}`
+  if (p?.date && p?.startTime && p?.endTime) return `${formatRomanianDateDotsISO(p.date)} • ${p.startTime}–${p.endTime}`
+  if (p?.date) return formatRomanianDateDotsISO(p.date) || String(p.date)
   return "—"
 }
 
@@ -83,13 +126,17 @@ export async function POST(request: NextRequest) {
     }
     const data = snap.data() as any
 
-    const employee = await getUserEmail(String(data.employeeId || ""))
+    const employee = await getEmployeeEmailByEmployeeId(String(data.employeeId || ""))
     const requester = await getUserEmail(String(data.requesterUid || ""))
     const manager = await getUserEmail(String(data.managerUid || ""))
 
     const title = `${kindLabel(String(data.kind || ""))} • ${requestDateLabel(data)}`
     const employeeName = data.employeeName || data.employeeId || "—"
     const rejectReason = String(data.rejectionReason || "").trim()
+    const departmentName = await getDepartmentName(String(data.sectorId || ""))
+    const departmentLabel = departmentName || "—"
+    const baseUrl = buildBaseUrl(request)
+    const approvalsUrl = baseUrl ? `${baseUrl}/dashboard/cereri-aprobari` : "/dashboard/cereri-aprobari"
 
     const transporter = nodemailer.createTransport({
       host: process.env.EMAIL_SMTP_HOST || "mail.nrg-acces.ro",
@@ -106,6 +153,7 @@ export async function POST(request: NextRequest) {
       subject: string
       text: string
       recipientType: "manager" | "requester" | "employee"
+      attachments?: Array<{ filename: string; content: Buffer; contentType: string }>
     }) => {
       if (!isValidEmail(params.to)) {
         logWarning(
@@ -134,6 +182,7 @@ export async function POST(request: NextRequest) {
           to: params.to,
           subject: params.subject,
           text: params.text,
+          attachments: params.attachments,
         })
         if (evId) await updateEmailEventServer(evId, { status: "sent", messageId: info.messageId })
         return { ok: true, messageId: info.messageId }
@@ -157,6 +206,34 @@ export async function POST(request: NextRequest) {
 
     const results: any[] = []
 
+    const attachment = (() => {
+      try {
+        const req = {
+          id: requestId,
+          employeeId: String(data.employeeId || ""),
+          employeeName: data.employeeName || data.employeeId || "—",
+          requesterUid: String(data.requesterUid || ""),
+          sectorId: String(data.sectorId || ""),
+          managerUid: String(data.managerUid || ""),
+          kind: String(data.kind || ""),
+          status: String(data.status || ""),
+          payload: data.payload || {},
+          rejectionReason: data.rejectionReason || undefined,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        }
+        const { buffer, filename } = generateHrRequestPdfBuffer(req as any)
+        return [{ filename, content: buffer, contentType: "application/pdf" }]
+      } catch (err) {
+        logWarning(
+          "HR request PDF generation failed",
+          { requestId, error: (err as any)?.message || String(err) },
+          { category: "email", context: { requestId, logContextId } },
+        )
+        return undefined
+      }
+    })()
+
     if (event === "created") {
       if (manager.email) {
         results.push(
@@ -169,8 +246,9 @@ export async function POST(request: NextRequest) {
               `Angajat: ${employeeName}\n` +
               `Tip: ${kindLabel(String(data.kind || ""))}\n` +
               `Perioadă/zi: ${requestDateLabel(data)}\n` +
-              `Sector: ${String(data.sectorId || "")}\n\n` +
-              `Deschide aplicația: /dashboard/cereri-aprobari\n`,
+              `Departament: ${departmentLabel || "—"}\n\n` +
+              `Deschide aplicația: ${approvalsUrl}\n`,
+            attachments: attachment,
           }),
         )
       }
@@ -185,7 +263,26 @@ export async function POST(request: NextRequest) {
               `Cererea ta a fost înregistrată și trimisă către șeful ierarhic.\n\n` +
               `Tip: ${kindLabel(String(data.kind || ""))}\n` +
               `Perioadă/zi: ${requestDateLabel(data)}\n` +
+              `Departament: ${departmentLabel || "—"}\n` +
               `Status: ${statusLabel(String(data.status || ""))}\n`,
+            attachments: attachment,
+          }),
+        )
+      }
+
+      if (employee.email) {
+        results.push(
+          await sendMail({
+            to: employee.email,
+            recipientType: "employee",
+            subject: `A fost creată o cerere pentru tine: ${title}`,
+            text:
+              `A fost creată o cerere pe numele tău.\n\n` +
+              `Tip: ${kindLabel(String(data.kind || ""))}\n` +
+              `Perioadă/zi: ${requestDateLabel(data)}\n` +
+              `Departament: ${departmentLabel || "—"}\n` +
+              `Status: ${statusLabel(String(data.status || ""))}\n`,
+            attachments: attachment,
           }),
         )
       }
@@ -199,6 +296,7 @@ export async function POST(request: NextRequest) {
         `Angajat: ${employeeName}\n` +
         `Tip: ${kindLabel(String(data.kind || ""))}\n` +
         `Perioadă/zi: ${requestDateLabel(data)}\n` +
+        `Departament: ${departmentLabel || "—"}\n` +
         `Status: ${statusLabel(String(data.status || ""))}\n` +
         (rejectReason ? `Motiv refuz: ${rejectReason}\n` : "")
 
@@ -209,6 +307,7 @@ export async function POST(request: NextRequest) {
             recipientType: to === manager.email ? "manager" : "employee",
             subject: `Status cerere actualizat: ${statusLabel(String(data.status || ""))} • ${title}`,
             text: baseText,
+            attachments: attachment,
           }),
         )
       }

@@ -11,8 +11,8 @@ import { collection, query, where, getDocs, orderBy, Timestamp, doc, getDoc, lim
 import { db } from "@/lib/firebase/config"
 import type { AttendanceSession } from "@/types/attendance"
 import { CalendarIcon, MapPin, Clock, TrendingUp, Users, Loader2 } from "lucide-react"
-import { format } from "date-fns"
 import { cn } from "@/lib/utils"
+import { extractTime24, formatRomanianDate } from "@/lib/utils/date-utils"
 
 type EmployeeInfo = { fullName: string; title?: string }
 
@@ -208,7 +208,7 @@ export default function AttendanceDashboardPage() {
               )}
             >
               <CalendarIcon className="mr-2 h-4 w-4" />
-              {selectedDate ? format(selectedDate, "PPP") : "Selectează data"}
+              {selectedDate ? formatRomanianDate(selectedDate) : "Selectează data"}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0">
@@ -270,7 +270,7 @@ export default function AttendanceDashboardPage() {
         <CardHeader>
           <CardTitle>Sesiuni Pontaj</CardTitle>
           <CardDescription>
-            Detalii pentru {format(selectedDate, "dd MMMM yyyy")}
+            Detalii pentru {formatRomanianDate(selectedDate)}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -313,9 +313,9 @@ export default function AttendanceDashboardPage() {
                           {session.mode === "office" ? "Birou" : "Mașină"}
                         </Badge>
                       </TableCell>
-                      <TableCell>{format(new Date(session.sessionStart), "HH:mm")}</TableCell>
+                      <TableCell>{extractTime24(new Date(session.sessionStart))}</TableCell>
                       <TableCell>
-                        {session.sessionEnd ? format(new Date(session.sessionEnd), "HH:mm") : "-"}
+                        {session.sessionEnd ? extractTime24(new Date(session.sessionEnd)) : "-"}
                       </TableCell>
                       <TableCell>{formatDuration(session.sessionStart, session.sessionEnd)}</TableCell>
                       <TableCell>{formatExtraTime(session)}</TableCell>

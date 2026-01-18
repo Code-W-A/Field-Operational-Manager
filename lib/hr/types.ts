@@ -158,4 +158,11 @@ export function getEmployeeFullName(employee: Employee | null | undefined): stri
   return employee.fullName || ""
 }
 
+export type HrHoliday = {
+  /** ISO date: yyyy-mm-dd */
+  date: string
+  /** Optional label shown in tooltips/UI */
+  label?: string
+}
+
 

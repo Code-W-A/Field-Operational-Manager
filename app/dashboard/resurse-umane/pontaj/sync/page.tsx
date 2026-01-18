@@ -7,9 +7,9 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { toast } from "@/hooks/use-toast"
 import { CalendarIcon, RefreshCw, CheckCircle2, XCircle, Loader2 } from "lucide-react"
-import { format } from "date-fns"
 import { syncAttendanceToTimesheet, syncAttendanceRangeToTimesheet, getAttendanceSyncStatus } from "@/lib/attendance/sync-timesheet"
 import { cn } from "@/lib/utils"
+import { formatRomanianDate, formatRomanianDateTimeLong } from "@/lib/utils/date-utils"
 
 export default function AttendanceSyncPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
@@ -28,7 +28,7 @@ export default function AttendanceSyncPage() {
       await syncAttendanceToTimesheet(selectedDate)
       toast({
         title: "Sincronizare Reușită",
-        description: `Pontajul pentru ${format(selectedDate, "dd.MM.yyyy")} a fost sincronizat.`,
+        description: `Pontajul pentru ${formatRomanianDate(selectedDate)} a fost sincronizat.`,
       })
       await checkSyncStatus()
     } catch (error) {
@@ -66,7 +66,7 @@ export default function AttendanceSyncPage() {
       await syncAttendanceRangeToTimesheet(startDate, endDate)
       toast({
         title: "Sincronizare Reușită",
-        description: `Pontajele între ${format(startDate, "dd.MM.yyyy")} și ${format(endDate, "dd.MM.yyyy")} au fost sincronizate.`,
+        description: `Pontajele între ${formatRomanianDate(startDate)} și ${formatRomanianDate(endDate)} au fost sincronizate.`,
       })
     } catch (error) {
       toast({
@@ -122,7 +122,7 @@ export default function AttendanceSyncPage() {
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {selectedDate ? format(selectedDate, "PPP") : "Selectează data"}
+                    {selectedDate ? formatRomanianDate(selectedDate) : "Selectează data"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
@@ -181,7 +181,7 @@ export default function AttendanceSyncPage() {
                 <div className="text-sm space-y-1 text-muted-foreground">
                   <p>Sesiuni completate: {syncStatus.sessionCount}</p>
                   {syncStatus.lastSyncAt && (
-                    <p>Ultima sincronizare: {format(new Date(syncStatus.lastSyncAt), "dd.MM.yyyy HH:mm")}</p>
+                    <p>Ultima sincronizare: {formatRomanianDateTimeLong(new Date(syncStatus.lastSyncAt))}</p>
                   )}
                 </div>
               </div>
@@ -210,7 +210,7 @@ export default function AttendanceSyncPage() {
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {startDate ? format(startDate, "PPP") : "Selectează data"}
+                    {startDate ? formatRomanianDate(startDate) : "Selectează data"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
@@ -236,7 +236,7 @@ export default function AttendanceSyncPage() {
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {endDate ? format(endDate, "PPP") : "Selectează data"}
+                    {endDate ? formatRomanianDate(endDate) : "Selectează data"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">

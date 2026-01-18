@@ -302,7 +302,7 @@ export default function HrEmployeeDetailsPage() {
           </TabsTrigger>
           <TabsTrigger value="concedii" className="flex items-center gap-2">
             <CalendarDays className="h-4 w-4" />
-            Concedii
+            Concedii și evenimente
           </TabsTrigger>
         </TabsList>
 
