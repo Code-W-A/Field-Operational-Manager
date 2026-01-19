@@ -26,6 +26,16 @@ export function DateInput({ value, onChange, placeholder = "dd MMM yyyy", disabl
   const [draft, setDraft] = useState(displayValue)
   const [open, setOpen] = useState(false)
 
+  const yearRange = (() => {
+    const nowY = new Date().getFullYear()
+    const fromY = min ? Number(String(min).slice(0, 4)) : (nowY - 5)
+    const toY = max ? Number(String(max).slice(0, 4)) : (nowY + 5)
+    return {
+      fromYear: Number.isFinite(fromY) ? fromY : nowY - 5,
+      toYear: Number.isFinite(toY) ? toY : nowY + 5,
+    }
+  })()
+
   useEffect(() => {
     if (open) return
     setDraft(displayValue)
@@ -93,6 +103,12 @@ export function DateInput({ value, onChange, placeholder = "dd MMM yyyy", disabl
               setDraft(formatRomanianDate(date))
               setOpen(false)
             }}
+            captionLayout="dropdown-buttons"
+            fromYear={yearRange.fromYear}
+            toYear={yearRange.toYear}
+            fromDate={min ? new Date(min) : undefined}
+            toDate={max ? new Date(max) : undefined}
+            defaultMonth={(value ? new Date(value) : (min ? new Date(min) : undefined)) ?? new Date()}
             initialFocus
             locale={ro}
             disabled={(date) => {

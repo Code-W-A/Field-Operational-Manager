@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Plus, FileText, Download } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import type { Employee, HrRequest } from "@/lib/hr/types"
-import { getEmployeeByUserUid, subscribeHrRequestsForEmployee, subscribeHrRequestsForRequester } from "@/lib/hr/storage"
+import { getEmployeeByUserUid, subscribeDepartments, subscribeHrRequestsForEmployee, subscribeHrRequestsForRequester } from "@/lib/hr/storage"
 import { hrRequestDateLabel, hrRequestKindLabel, hrRequestStatusLabel } from "@/lib/hr/hr-requests"
 import { CreateHrRequestDialog } from "@/components/hr/create-hr-request-dialog"
 import { generateHrRequestPDF } from "@/lib/hr/request-pdf-generator"
@@ -19,6 +19,7 @@ export default function CereriTehnicianPage() {
   const { user } = useAuth()
   const [employee, setEmployee] = useState<Employee | null>(null)
   const [requests, setRequests] = useState<HrRequest[]>([])
+  const [departmentsById, setDepartmentsById] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [missingEmployeeLink, setMissingEmployeeLink] = useState(false)
 
@@ -49,6 +50,17 @@ export default function CereriTehnicianPage() {
     })()
     return () => unsub?.()
   }, [user?.uid])
+
+  useEffect(() => {
+    const unsub = subscribeDepartments({
+      onChange: (deps) => {
+        const map: Record<string, string> = {}
+        for (const d of deps) map[d.id] = d.name
+        setDepartmentsById(map)
+      },
+    })
+    return () => unsub()
+  }, [])
 
   return (
     <DashboardShell>
@@ -101,7 +113,7 @@ export default function CereriTehnicianPage() {
                     <div className="font-medium truncate">{hrRequestKindLabel(r.kind)}</div>
                     <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-3">
                       <span>{hrRequestDateLabel(r)}</span>
-                      <span>Sector: {r.sectorId || "—"}</span>
+                      <span>Departament: {r.sectorId ? (departmentsById[r.sectorId] || "—") : "—"}</span>
                     </div>
                     {r.status === "rejected" && r.rejectionReason ? (
                       <div className="text-xs text-destructive mt-1">Motiv: {r.rejectionReason}</div>

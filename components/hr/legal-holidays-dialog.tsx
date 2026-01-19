@@ -4,63 +4,18 @@ import { useEffect, useMemo, useState } from "react"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
 import type { HrHoliday } from "@/lib/hr/types"
 import { toast } from "@/hooks/use-toast"
-import { format, isValid, parse } from "date-fns"
-import { ro } from "date-fns/locale"
 import { formatRomanianDateISO } from "@/lib/utils/date-utils"
+import { DatePicker } from "@/components/ui/DatePicker"
+import { Trash2, Plus } from "lucide-react"
 
-function formatItems(items: HrHoliday[]) {
+function normalizeItems(items: HrHoliday[]) {
   return [...items]
-    .slice()
+    .filter((h) => h?.date && /^\d{4}-\d{2}-\d{2}$/.test(h.date))
+    .map((h) => ({ date: h.date, label: h.label?.trim() ? h.label.trim() : undefined }))
     .sort((a, b) => a.date.localeCompare(b.date))
-    .map((h) => {
-      const display = formatRomanianDateISO(h.date) || h.date
-      return h.label ? `${display} | ${h.label}` : display
-    })
-    .join("\n")
-}
-
-function parseLines(year: number, raw: string): HrHoliday[] | null {
-  const lines = raw
-    .split(/\r?\n/g)
-    .map((l) => l.trim())
-    .filter(Boolean)
-
-  const out: HrHoliday[] = []
-  const seen = new Set<string>()
-
-  for (const line of lines) {
-    const [left, ...rest] = line.split("|").map((s) => s.trim())
-    const dateRaw = left
-    const label = rest.join(" | ").trim()
-
-    let isoDate = ""
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateRaw)) {
-      isoDate = dateRaw
-    } else {
-      const parsed = parse(dateRaw, "dd MMM yyyy", new Date(), { locale: ro })
-      if (isValid(parsed)) {
-        isoDate = format(parsed, "yyyy-MM-dd")
-      }
-    }
-
-    if (!isoDate) {
-      toast({ title: "Format invalid", description: `Linie invalidă: "${line}". Folosește "dd MMM yyyy" sau "dd MMM yyyy | Denumire".`, variant: "destructive" })
-      return null
-    }
-    if (!isoDate.startsWith(`${year}-`)) {
-      toast({ title: "An greșit", description: `Data "${dateRaw}" nu este în anul ${year}.`, variant: "destructive" })
-      return null
-    }
-    if (seen.has(isoDate)) continue
-    seen.add(isoDate)
-    out.push({ date: isoDate, label: label || undefined })
-  }
-
-  out.sort((a, b) => a.date.localeCompare(b.date))
-  return out
 }
 
 export function LegalHolidaysDialog({
@@ -76,18 +31,47 @@ export function LegalHolidaysDialog({
   items: HrHoliday[]
   onSave: (items: HrHoliday[]) => Promise<void>
 }) {
-  const initialText = useMemo(() => formatItems(items), [items])
-  const [text, setText] = useState(initialText)
+  const initialItems = useMemo(() => normalizeItems(items), [items])
+  const [draftItems, setDraftItems] = useState<HrHoliday[]>(initialItems)
   const [saving, setSaving] = useState(false)
+  const [newDate, setNewDate] = useState("")
+  const [newLabel, setNewLabel] = useState("")
+
+  const minIso = `${year}-01-01`
+  const maxIso = `${year}-12-31`
 
   useEffect(() => {
     if (!open) return
-    setText(initialText)
-  }, [open, initialText])
+    setDraftItems(initialItems)
+    setNewDate("")
+    setNewLabel("")
+  }, [open, initialItems])
+
+  const addHoliday = () => {
+    if (!newDate) {
+      toast({ title: "Completează data", description: "Selectează o dată din calendar.", variant: "destructive" })
+      return
+    }
+    if (!newDate.startsWith(`${year}-`)) {
+      toast({ title: "An greșit", description: `Data selectată nu este în anul ${year}.`, variant: "destructive" })
+      return
+    }
+    setDraftItems((prev) => {
+      const exists = prev.some((h) => h.date === newDate)
+      if (exists) {
+        toast({ title: "Deja există", description: "Această zi este deja în listă." })
+        return prev
+      }
+      const next = [...prev, { date: newDate, label: newLabel.trim() || undefined }]
+      next.sort((a, b) => a.date.localeCompare(b.date))
+      return next
+    })
+    setNewDate("")
+    setNewLabel("")
+  }
 
   const save = async () => {
-    const parsed = parseLines(year, text)
-    if (!parsed) return
+    const parsed = normalizeItems(draftItems).filter((h) => h.date.startsWith(`${year}-`))
     setSaving(true)
     try {
       await onSave(parsed)
@@ -107,18 +91,84 @@ export function LegalHolidaysDialog({
         <DialogHeader>
           <DialogTitle className="text-gray-900">Sărbători legale ({year})</DialogTitle>
           <DialogDescription>
-            Un rând per zi: <span className="font-mono">dd MMM yyyy</span> sau <span className="font-mono">dd MMM yyyy | Denumire</span>.
+            Adaugă rapid o zi liberă: selectezi data și (opțional) denumirea.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-2">
-          <Label className="text-gray-700 font-medium">Lista de sărbători</Label>
-          <Textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={`01 ian ${year} | Anul Nou\n02 ian ${year} | Anul Nou`}
-            className="min-h-[220px] font-mono text-sm"
-          />
+        <div className="grid gap-4">
+          <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+            <div className="grid gap-2">
+              <Label className="text-gray-700 font-medium">Data</Label>
+              <DatePicker
+                value={newDate ? new Date(newDate) : null}
+                onChange={(val) => {
+                  if (!val || val instanceof Date === false) {
+                    setNewDate("")
+                    return
+                  }
+                  const iso = val.toISOString().slice(0, 10)
+                  setNewDate(iso)
+                }}
+                minDate={new Date(minIso)}
+                maxDate={new Date(maxIso)}
+                placeholder="dd MMM yyyy"
+                format="dd MMM yyyy"
+                locale="ro"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label className="text-gray-700 font-medium">Denumire (opțional)</Label>
+              <Input
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+                placeholder="Ex: Anul Nou"
+              />
+            </div>
+            <Button type="button" onClick={addHoliday} disabled={saving}>
+              <Plus className="h-4 w-4 mr-2" />
+              Adaugă
+            </Button>
+          </div>
+
+          <div className="grid gap-2">
+            <div className="text-sm font-medium text-gray-900">Lista ({draftItems.length})</div>
+            {draftItems.length === 0 ? (
+              <div className="text-sm text-muted-foreground rounded-md border bg-muted/10 px-3 py-2">
+                Nu există sărbători definite pentru acest an.
+              </div>
+            ) : (
+              <div className="divide-y rounded-md border">
+                {draftItems.map((h) => (
+                  <div key={h.date} className="flex items-center gap-3 px-3 py-2">
+                    <div className="min-w-[140px] text-sm font-medium">
+                      {formatRomanianDateISO(h.date) || h.date}
+                    </div>
+                    <Input
+                      value={h.label ?? ""}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setDraftItems((prev) =>
+                          prev.map((x) => (x.date === h.date ? { ...x, label: v.trim() ? v : undefined } : x))
+                        )
+                      }}
+                      placeholder="Denumire (opțional)"
+                      className="h-9"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      title="Șterge"
+                      onClick={() => setDraftItems((prev) => prev.filter((x) => x.date !== h.date))}
+                      disabled={saving}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-600" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         <DialogFooter>

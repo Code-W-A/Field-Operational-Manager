@@ -471,15 +471,13 @@ export function subscribeHrRequestsForEmployee(params: {
   onChange: (requests: HrRequest[]) => void
   onError?: (err: unknown) => void
 }): Unsubscribe {
-  const q = query(
-    collection(db, "hrRequests"),
-    where("employeeId", "==", params.employeeId),
-    orderBy("createdAt", "desc")
-  )
+  const q = query(collection(db, "hrRequests"), where("employeeId", "==", params.employeeId))
   return onSnapshot(
     q,
     (snap) => {
-      const items = snap.docs.map((d) => normalizeHrRequest(d.id, d.data()))
+      const items = snap.docs
+        .map((d) => normalizeHrRequest(d.id, d.data()))
+        .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
       params.onChange(items)
     },
     (err) => params.onError?.(err)
@@ -508,15 +506,13 @@ export function subscribeHrRequestsForRequester(params: {
   onChange: (requests: HrRequest[]) => void
   onError?: (err: unknown) => void
 }): Unsubscribe {
-  const q = query(
-    collection(db, "hrRequests"),
-    where("requesterUid", "==", params.requesterUid),
-    orderBy("createdAt", "desc")
-  )
+  const q = query(collection(db, "hrRequests"), where("requesterUid", "==", params.requesterUid))
   return onSnapshot(
     q,
     (snap) => {
-      const items = snap.docs.map((d) => normalizeHrRequest(d.id, d.data()))
+      const items = snap.docs
+        .map((d) => normalizeHrRequest(d.id, d.data()))
+        .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
       params.onChange(items)
     },
     (err) => params.onError?.(err)
@@ -549,15 +545,13 @@ export function subscribeHrRequestsForManager(params: {
   onChange: (requests: HrRequest[]) => void
   onError?: (err: unknown) => void
 }): Unsubscribe {
-  const q = query(
-    collection(db, "hrRequests"),
-    where("managerUid", "==", params.managerUid),
-    orderBy("createdAt", "desc")
-  )
+  const q = query(collection(db, "hrRequests"), where("managerUid", "==", params.managerUid))
   return onSnapshot(
     q,
     (snap) => {
-      const items = snap.docs.map((d) => normalizeHrRequest(d.id, d.data()))
+      const items = snap.docs
+        .map((d) => normalizeHrRequest(d.id, d.data()))
+        .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
       params.onChange(items)
     },
     (err) => params.onError?.(err)

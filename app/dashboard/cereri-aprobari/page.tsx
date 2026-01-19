@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { ClipboardList, Pencil, Download } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import type { HrRequest, HrRequestKind, HrRequestPayload } from "@/lib/hr/types"
-import { decideHrRequest, subscribeHrRequestsForManager, updateHrRequestByManager } from "@/lib/hr/storage"
+import { decideHrRequest, subscribeDepartments, subscribeHrRequestsForManager, updateHrRequestByManager } from "@/lib/hr/storage"
 import { hrRequestDateLabel, hrRequestKindLabel, hrRequestStatusLabel } from "@/lib/hr/hr-requests"
 import { toast } from "@/hooks/use-toast"
 import { generateHrRequestPDF } from "@/lib/hr/request-pdf-generator"
@@ -32,6 +32,7 @@ function clonePayload(payload: HrRequestPayload): HrRequestPayload {
 export default function CereriAprobariPage() {
   const { user } = useAuth()
   const [requests, setRequests] = useState<HrRequest[]>([])
+  const [departmentsById, setDepartmentsById] = useState<Record<string, string>>({})
   const [activeTab, setActiveTab] = useState<"pending" | "all">("pending")
   const [selected, setSelected] = useState<HrRequest | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
@@ -49,6 +50,17 @@ export default function CereriAprobariPage() {
     })
     return () => unsub()
   }, [user?.uid])
+
+  useEffect(() => {
+    const unsub = subscribeDepartments({
+      onChange: (deps) => {
+        const map: Record<string, string> = {}
+        for (const d of deps) map[d.id] = d.name
+        setDepartmentsById(map)
+      },
+    })
+    return () => unsub()
+  }, [])
 
   const filtered = useMemo(() => {
     if (activeTab === "pending") return requests.filter((r) => r.status === "pending")
@@ -171,7 +183,7 @@ export default function CereriAprobariPage() {
                             </div>
                             <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-3">
                               <span>{hrRequestDateLabel(r)}</span>
-                              <span>Sector: {r.sectorId || "—"}</span>
+                              <span>Departament: {r.sectorId ? (departmentsById[r.sectorId] || "—") : "—"}</span>
                             </div>
                           </div>
                           <div className="flex items-center gap-2 ml-3">
@@ -201,7 +213,7 @@ export default function CereriAprobariPage() {
                             </div>
                             <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-3">
                               <span>{hrRequestDateLabel(r)}</span>
-                              <span>Sector: {r.sectorId || "—"}</span>
+                              <span>Departament: {r.sectorId ? (departmentsById[r.sectorId] || "—") : "—"}</span>
                             </div>
                           </div>
                           <div className="flex items-center gap-2 ml-3">
@@ -246,8 +258,10 @@ export default function CereriAprobariPage() {
                   <span className="font-semibold">{hrRequestDateLabel(selected)}</span>
                 </div>
                 <div className="text-sm mt-1">
-                  <span className="text-muted-foreground">Sector:</span>{" "}
-                  <span className="font-semibold">{selected.sectorId || "—"}</span>
+                  <span className="text-muted-foreground">Departament:</span>{" "}
+                  <span className="font-semibold">
+                    {selected.sectorId ? (departmentsById[selected.sectorId] || "—") : "—"}
+                  </span>
                 </div>
                 <div className="text-sm mt-2">
                   <Badge

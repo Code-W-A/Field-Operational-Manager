@@ -24,6 +24,9 @@ function Calendar({
         month: "space-y-4",
         month_caption: "flex justify-center pt-1 relative items-center",
         caption_label: "text-sm font-medium",
+        // Month/Year dropdown caption (when captionLayout is set to dropdown*)
+        caption_dropdowns: "flex items-center justify-center gap-2",
+        dropdown: "rounded-md border bg-background px-2 py-1 text-sm",
         nav: "space-x-1 flex items-center",
         button_previous: cn(
           buttonVariants({ variant: "outline" }),
