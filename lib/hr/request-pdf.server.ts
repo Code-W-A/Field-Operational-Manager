@@ -17,7 +17,10 @@ function requestDateLabelDots(req: HrRequest) {
   return "—"
 }
 
-export function generateHrRequestPdfBuffer(request: HrRequest): { buffer: Buffer; filename: string } {
+export function generateHrRequestPdfBuffer(
+  request: HrRequest,
+  opts?: { departmentName?: string }
+): { buffer: Buffer; filename: string } {
   const doc = new jsPDF()
   const margin = 20
   const pageWidth = doc.internal.pageSize.width
@@ -40,7 +43,7 @@ export function generateHrRequestPdfBuffer(request: HrRequest): { buffer: Buffer
 
   const lines: string[] = []
   lines.push(`Angajat: ${request.employeeName || request.employeeId}`)
-  lines.push(`Sector: ${request.sectorId || "—"}`)
+  lines.push(`Departament: ${opts?.departmentName || request.sectorId || "—"}`)
   lines.push(`Perioadă/zi: ${requestDateLabelDots(request)}`)
   lines.push(`Status: ${hrRequestStatusLabel(request.status)}`)
 

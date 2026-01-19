@@ -25,7 +25,7 @@ export function hrRequestKindLabel(kind: HrRequestKind) {
 export function hrRequestStatusLabel(status: HrRequest["status"]) {
   if (status === "approved") return "Aprobat"
   if (status === "rejected") return "Respins"
-  return "Pending"
+  return "În așteptare"
 }
 
 export function hrRequestDateLabel(req: HrRequest) {

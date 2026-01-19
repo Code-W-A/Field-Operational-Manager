@@ -1,6 +1,8 @@
 import jsPDF from "jspdf"
 import type { HrRequest } from "@/lib/hr/types"
 import { hrRequestDateLabel, hrRequestKindLabel, hrRequestStatusLabel } from "@/lib/hr/hr-requests"
+import { doc, getDoc } from "firebase/firestore"
+import { db } from "@/lib/firebase/firebase"
 
 const COMPANY_NAME = "NRG Access Systems SRL"
 
@@ -13,6 +15,14 @@ function formatNowRo() {
 }
 
 export function generateHrRequestPDF(request: HrRequest) {
+  // Legacy sync signature kept by returning void; internal implementation is async-safe.
+  void generateHrRequestPDFAsync(request)
+}
+
+export async function generateHrRequestPDFAsync(
+  request: HrRequest,
+  opts?: { departmentName?: string }
+): Promise<void> {
   const doc = new jsPDF()
   const margin = 20
   const pageWidth = doc.internal.pageSize.width
@@ -36,7 +46,16 @@ export function generateHrRequestPDF(request: HrRequest) {
   let y = 75
   const lines: string[] = []
   lines.push(`Angajat: ${request.employeeName || request.employeeId}`)
-  lines.push(`Sector: ${request.sectorId || "—"}`)
+  let deptName = opts?.departmentName
+  if (!deptName && request.sectorId) {
+    try {
+      const snap = await getDoc(docRef(request.sectorId))
+      deptName = snap.exists() ? String((snap.data() as any)?.name || "") : ""
+    } catch {
+      deptName = ""
+    }
+  }
+  lines.push(`Departament: ${deptName || request.sectorId || "—"}`)
   lines.push(`Perioadă/zi: ${hrRequestDateLabel(request)}`)
   lines.push(`Status: ${hrRequestStatusLabel(request.status)}`)
 
@@ -58,3 +77,6 @@ export function generateHrRequestPDF(request: HrRequest) {
   doc.save(fileName)
 }
 
+function docRef(departmentId: string) {
+  return doc(db, "hrDepartments", departmentId)
+}

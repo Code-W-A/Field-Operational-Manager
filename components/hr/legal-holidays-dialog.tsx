@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import type { HrHoliday } from "@/lib/hr/types"
 import { toast } from "@/hooks/use-toast"
 import { formatRomanianDateISO } from "@/lib/utils/date-utils"
+import { formatISODate } from "@/lib/utils/date-utils"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { Trash2, Plus } from "lucide-react"
 
@@ -106,8 +107,7 @@ export function LegalHolidaysDialog({
                     setNewDate("")
                     return
                   }
-                  const iso = val.toISOString().slice(0, 10)
-                  setNewDate(iso)
+                  setNewDate(formatISODate(val))
                 }}
                 minDate={new Date(minIso)}
                 maxDate={new Date(maxIso)}

@@ -222,7 +222,7 @@ export async function POST(request: NextRequest) {
           createdAt: Date.now(),
           updatedAt: Date.now(),
         }
-        const { buffer, filename } = generateHrRequestPdfBuffer(req as any)
+        const { buffer, filename } = generateHrRequestPdfBuffer(req as any, { departmentName: departmentLabel || undefined })
         return [{ filename, content: buffer, contentType: "application/pdf" }]
       } catch (err) {
         logWarning(
