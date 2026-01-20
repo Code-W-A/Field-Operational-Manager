@@ -11,13 +11,16 @@ import { Plus, Trash2 } from "lucide-react"
 import type { Employee, TimesheetCell, TimesheetMonthKey } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
 import { DateInput } from "@/components/ui/date-input"
+import { formatISODate } from "@/lib/utils/date-utils"
 
 function parseMonthKeyFromDate(dateStr: string): TimesheetMonthKey | null {
   if (!dateStr) return null
-  const d = new Date(dateStr)
-  if (Number.isNaN(d.getTime())) return null
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, "0")
+  // dateStr is ISO yyyy-MM-dd; parse without Date() to avoid timezone shifts.
+  const parts = String(dateStr).split("-")
+  if (parts.length < 2) return null
+  const y = parts[0]
+  const m = parts[1]
+  if (!/^\d{4}$/.test(y) || !/^\d{2}$/.test(m)) return null
   return `${y}-${m}` as TimesheetMonthKey
 }
 
@@ -75,8 +78,8 @@ export function AddDayEntryDialog({
   }, [employees])
 
   const [employeeId, setEmployeeId] = useState(defaultEmployeeId ?? "")
-  const [startDate, setStartDate] = useState(defaultStartDate ?? new Date().toISOString().slice(0, 10))
-  const [endDate, setEndDate] = useState(defaultStartDate ?? new Date().toISOString().slice(0, 10))
+  const [startDate, setStartDate] = useState(defaultStartDate ?? formatISODate(new Date()))
+  const [endDate, setEndDate] = useState(defaultStartDate ?? formatISODate(new Date()))
   const [project, setProject] = useState("")
 
   // Auto-selectează primul angajat când se încarcă lista SAU se deschide dialogul
@@ -153,6 +156,18 @@ export function AddDayEntryDialog({
       .filter((e) => e.start && e.end)
       .map((e) => ({ ...e, project: project || undefined, methodStart: "Introdus manual de către manager", methodEnd: "Introdus manual de către manager" }))
     const payloadBreaks = breaks.filter((b) => b.start && b.end)
+
+    // Validate intervals (avoid 07:03–07:03 or reversed end < start)
+    const invalidEntryIdx = payloadEntries.findIndex((e) => diffMinutes(e.start, e.end) <= 0)
+    if (invalidEntryIdx !== -1) {
+      alert(`Interval invalid la poziția #${invalidEntryIdx + 1}. Ora de sfârșit trebuie să fie după ora de început.`)
+      return
+    }
+    const invalidBreakIdx = payloadBreaks.findIndex((b) => diffMinutes(b.start, b.end) <= 0)
+    if (invalidBreakIdx !== -1) {
+      alert(`Pauză invalidă la poziția #${invalidBreakIdx + 1}. Ora de sfârșit trebuie să fie după ora de început.`)
+      return
+    }
     
     if (payloadEntries.length === 0) {
       console.warn('⚠️ Atenție: Nu ai completat ore de lucru (entries)!')

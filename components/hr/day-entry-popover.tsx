@@ -40,6 +40,22 @@ function findOverlapPair(entries: Array<{ start: string; end: string }>) {
   return null
 }
 
+function isValidInterval(it: { start: string; end: string }) {
+  const s = parseHM(it.start)
+  const en = parseHM(it.end)
+  return s != null && en != null && s < en
+}
+
+function sortEntries<T extends { start: string; end: string }>(arr: T[]): T[] {
+  return [...arr].sort((a, b) => {
+    const sa = parseHM(a.start) ?? 0
+    const sb = parseHM(b.start) ?? 0
+    const ea = parseHM(a.end) ?? 0
+    const eb = parseHM(b.end) ?? 0
+    return (sa - sb) || (ea - eb)
+  })
+}
+
 function minutesToHM(total: number) {
   const hh = Math.floor(total / 60)
   const mm = total % 60
@@ -116,11 +132,33 @@ export function DayEntryPopover({
   }
 
   const saveEdit = async () => {
+    // Validate the current edited interval (avoid 07:03–07:03 or 07:04–06:37)
+    if (!isValidInterval({ start, end })) {
+      toast({
+        title: "Interval invalid",
+        description: "Ora de sfârșit trebuie să fie după ora de început.",
+        variant: "destructive",
+      })
+      return
+    }
+
     const nextEntries = [...entries]
     const item = { start, end }
     if (editingIdx === null) nextEntries.push(item as any)
     else nextEntries[editingIdx] = { ...(nextEntries[editingIdx] as any), ...item }
 
+    // If there are already invalid entries, block save so we don't keep corrupt data.
+    const invalidIdx = nextEntries.findIndex((e) => !isValidInterval(e))
+    if (invalidIdx !== -1) {
+      toast({
+        title: "Există intervale invalide",
+        description: `Intervalul #${invalidIdx + 1} este invalid. Corectează-l sau folosește „Curăță intervale”.`,
+        variant: "destructive",
+      })
+      return
+    }
+
+    const sortedEntries = sortEntries(nextEntries)
     const overlap = findOverlapPair(nextEntries)
     if (overlap) {
       toast({
@@ -134,11 +172,33 @@ export function DayEntryPopover({
     const next: TimesheetCell = {
       ...(cell ?? { code: "WORK" }),
       code: (cell?.code ?? "WORK") === "EMPTY" ? "WORK" : (cell?.code ?? "WORK"),
-      entries: nextEntries,
-      hours: Math.round((calcMinutes({ ...(cell ?? { code: "WORK" }), entries: nextEntries }) / 60) * 100) / 100,
+      entries: sortedEntries,
+      hours: Math.round((calcMinutes({ ...(cell ?? { code: "WORK" }), entries: sortedEntries }) / 60) * 100) / 100,
     }
     await onSaveCell(next)
     resetEdit()
+  }
+
+  const cleanIntervals = async () => {
+    const current = entries
+    if (!current.length) return
+    const cleaned = sortEntries(current.filter((e) => isValidInterval(e)))
+    const removed = current.length - cleaned.length
+    if (removed === 0 && cleaned.every((e, i) => e === current[i])) {
+      toast({ title: "Nimic de curățat", description: "Intervalele sunt deja valide." })
+      return
+    }
+    const next: TimesheetCell = {
+      ...(cell ?? { code: "WORK" }),
+      code: (cell?.code ?? "WORK") === "EMPTY" ? "WORK" : (cell?.code ?? "WORK"),
+      entries: cleaned as any,
+      hours: Math.round((calcMinutes({ ...(cell ?? { code: "WORK" }), entries: cleaned as any }) / 60) * 100) / 100,
+    }
+    await onSaveCell(next)
+    toast({
+      title: "Intervale curățate",
+      description: removed > 0 ? `Am eliminat ${removed} interval(e) invalid(e).` : "Am ordonat intervalele.",
+    })
   }
 
   const deleteEntry = async (idx: number) => {
@@ -259,20 +319,25 @@ export function DayEntryPopover({
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="text-sm font-medium text-gray-900">Timp înregistrat</div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setEditingIdx(null)
-                        setStart("08:00")
-                        setEnd("16:00")
-                        setEditDialogOpen(true)
-                      }}
-                      className="h-7 text-xs"
-                    >
-                      <Plus className="h-3 w-3 mr-1" />
-                      Adaugă interval
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={cleanIntervals} className="h-7 text-xs">
+                        Curăță intervale
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setEditingIdx(null)
+                          setStart("08:00")
+                          setEnd("16:00")
+                          setEditDialogOpen(true)
+                        }}
+                        className="h-7 text-xs"
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Adaugă interval
+                      </Button>
+                    </div>
                   </div>
 
                   {entries.length === 0 && activeSessionStart ? (
@@ -475,19 +540,19 @@ function VerificariDialog({
                     cell?.code === "WORK"
                       ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
                       : cell?.code === "CO"
-                        ? "bg-amber-100 text-amber-700 border border-amber-200"
+                        ? "bg-yellow-100 text-yellow-900 border border-yellow-300"
                         : cell?.code === "CFP"
                           ? "bg-orange-100 text-orange-700 border border-orange-200"
                           : cell?.code === "CM"
-                            ? "bg-teal-100 text-teal-700 border border-teal-200"
+                            ? "bg-rose-100 text-rose-900 border border-rose-300"
                             : cell?.code === "DEL"
                               ? "bg-violet-100 text-violet-700 border border-violet-200"
                               : cell?.code === "IN"
                                 ? "bg-gray-100 text-gray-700 border border-gray-200"
                                 : cell?.code === "SL"
-                                  ? "bg-blue-100 text-blue-700 border border-blue-200"
+                                  ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
                                   : cell?.code === "WE"
-                                    ? "bg-pink-100 text-pink-700 border border-pink-200"
+                                    ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
                                     : "bg-gray-100 text-gray-600 border border-gray-200"
                   }`}
                 >
@@ -502,7 +567,7 @@ function VerificariDialog({
                           : cell?.code === "DEL"
                             ? "Delegație"
                             : cell?.code === "IN"
-                              ? "Invoicing"
+                              ? "Învoire"
                               : cell?.code === "SL"
                                 ? "Sărbătoare legală"
                                 : cell?.code === "WE"

@@ -20,11 +20,12 @@ function weekdayMeta(monthKey: TimesheetMonthKey, day: number) {
 function cellClasses(cell: TimesheetCell | undefined) {
   const code = cell?.code ?? "EMPTY"
   if (code === "WORK") return "bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
-  if (code === "WE") return "bg-blue-50 text-blue-800 hover:bg-blue-100"
-  if (code === "CO") return "bg-amber-50 text-amber-900 hover:bg-amber-100"
+  if (code === "WE") return "bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
+  if (code === "CO") return "bg-yellow-100 text-yellow-950 hover:bg-yellow-200"
   if (code === "DEL") return "bg-violet-50 text-violet-900 hover:bg-violet-100"
   if (code === "IN") return "bg-slate-50 text-slate-900 hover:bg-slate-100"
-  if (code === "SL") return "bg-blue-50 text-blue-800 hover:bg-blue-100"
+  if (code === "SL") return "bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
+  if (code === "CM") return "bg-rose-100 text-rose-950 hover:bg-rose-200"
   return "bg-background text-muted-foreground hover:bg-muted/30"
 }
 
@@ -48,18 +49,18 @@ export function TimesheetListView({
   const dim = daysInMonth(monthKey)
 
   const requestBgClass = (kind: string) => {
-    if (kind === "CO") return "bg-amber-50"
+    if (kind === "CO") return "bg-yellow-100"
     if (kind === "CFP") return "bg-orange-50"
-    if (kind === "CM") return "bg-teal-50"
+    if (kind === "CM") return "bg-rose-100"
     if (kind === "DEL") return "bg-violet-50"
     if (kind === "IN") return "bg-slate-50"
     return ""
   }
 
   const requestRingClass = (kind: string) => {
-    if (kind === "CO") return "ring-1 ring-amber-200"
+    if (kind === "CO") return "ring-1 ring-yellow-300"
     if (kind === "CFP") return "ring-1 ring-orange-200"
-    if (kind === "CM") return "ring-1 ring-teal-200"
+    if (kind === "CM") return "ring-1 ring-rose-300"
     if (kind === "DEL") return "ring-1 ring-violet-200"
     if (kind === "IN") return "ring-1 ring-slate-200"
     return ""
@@ -113,11 +114,8 @@ export function TimesheetListView({
                         cellClasses(cell),
                         req && !hasData ? requestBgClass(req.kind) : "",
                         req && hasData ? requestRingClass(req.kind) : "",
-                        holidayLabel
-                          ? "before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-blue-200"
-                          : isWeekend
-                            ? "before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-blue-200"
-                            : "",
+                        // Weekends / legal holidays: full-cell background (only for empty cells)
+                        (!hasData && (holidayLabel || isWeekend)) ? "bg-emerald-50 text-emerald-900 hover:bg-emerald-100" : "",
                         isActive && "bg-emerald-200 text-emerald-900 hover:bg-emerald-300",
                         hasData && "ring-1 ring-offset-1 ring-border/40"
                       )}

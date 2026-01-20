@@ -2762,6 +2762,27 @@ export default function Lucrari() {
                 }
               }
 
+              const workNo = `${String(lucrare.nrLucrare || lucrare.numarRaport || "-")}${Number((lucrare as any)?.offerSendCount || 0) > 0 ? `-${Number((lucrare as any)?.offerSendCount || 0)}` : ""}`
+
+              const escapeRegExp = (s: string) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+              const doorNameRaw = String(lucrare.echipament || (lucrare as any).echipamentModel || "").trim()
+              const doorCode = String(lucrare.echipamentCod || "").trim()
+              const doorName = (() => {
+                if (!doorNameRaw) return "-"
+                let s = doorNameRaw
+                if (doorCode) {
+                  // Remove explicit code occurrences, with/without parentheses.
+                  s = s.replace(new RegExp(`\\s*\\(?\\s*${escapeRegExp(doorCode)}\\s*\\)?\\s*`, "g"), " ")
+                }
+                // If name still contains a trailing parenthetical, drop it (usually a code).
+                s = s.replace(/\s*\([^)]*\)\s*$/, "")
+                s = s.replace(/\s+/g, " ").trim()
+                return s || "-"
+              })()
+
+              const workStatusLabel =
+                lucrare.statusLucrare === "Finalizat" ? "Raport generat" : String(lucrare.statusLucrare || "")
+
               return (
                 <Card
                   key={lucrare.id}
@@ -2787,6 +2808,60 @@ export default function Lucrari() {
                   <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-gray-50 to-gray-100 rounded-full -mr-12 -mt-12 opacity-50" />
                   
                   <CardContent className="p-0 relative z-10">
+                    {/* Mobile compact card */}
+                    <div className="md:hidden p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="text-base font-semibold text-gray-900 line-clamp-2">
+                            {lucrare.client}
+                          </div>
+                          <div className="mt-2 flex items-center gap-2 flex-wrap">
+                            <Badge className="bg-purple-100 text-purple-800 border border-purple-200 font-mono text-xs font-semibold shadow-sm">
+                              #{workNo}
+                            </Badge>
+                            <Badge className={cn("shadow-sm font-semibold", getWorkStatusClass(lucrare.statusLucrare))}>
+                              {workStatusLabel}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 space-y-2 text-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="text-gray-500 shrink-0">Tip</span>
+                          <span className="text-gray-900 font-medium text-right line-clamp-1">{lucrare.tipLucrare || "-"}</span>
+                        </div>
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="text-gray-500 shrink-0">Locație</span>
+                          <span className="text-gray-900 font-medium text-right line-clamp-1">{lucrare.locatie || "-"}</span>
+                        </div>
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="text-gray-500 shrink-0">Ușă</span>
+                          <span className="text-gray-900 font-medium text-right line-clamp-1">{doorName}</span>
+                        </div>
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="text-gray-500 shrink-0">Defect</span>
+                          <span className="text-gray-900 font-medium text-right line-clamp-1" title={lucrare.defectReclamat || ""}>
+                            {lucrare.defectReclamat || "-"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-3 w-full"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleViewDetails(lucrare)
+                        }}
+                      >
+                        Vezi mai mult
+                      </Button>
+                    </div>
+
+                    {/* Desktop / tablet detailed card (existing layout) */}
+                    <div className="hidden md:block">
                     <div className="flex items-start justify-between gap-3 border-b border-gray-100 p-4 min-w-0">
                       <div className="min-w-0">
                         <h3 className="font-semibold flex flex-wrap items-center gap-2 min-w-0 text-gray-900">
@@ -2794,15 +2869,14 @@ export default function Lucrari() {
                             {lucrare.client}
                           </span>
                           <Badge className="bg-purple-100 text-purple-800 border border-purple-200 font-mono text-xs shrink-0 whitespace-nowrap font-semibold shadow-sm">
-                            #{String(lucrare.nrLucrare || lucrare.numarRaport || "-")}{Number((lucrare as any)?.offerSendCount || 0) > 0 ? `-${Number((lucrare as any)?.offerSendCount || 0)}` : ""}
+                            #{workNo}
                           </Badge>
                         </h3>
                         <p className="text-sm text-gray-600 mt-1">📍 {lucrare.locatie}</p>
                         {(lucrare.echipament || (lucrare as any).echipamentModel || lucrare.echipamentCod) && (
                           <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
                             <span className="font-medium">⚙️</span>
-                            {lucrare.echipament || (lucrare as any).echipamentModel || "-"}
-                            {lucrare.echipamentCod && <span className="text-gray-400">({lucrare.echipamentCod})</span>}
+                            {doorName}
                           </p>
                         )}
                         {revEquipNode}
@@ -2812,7 +2886,7 @@ export default function Lucrari() {
                           "shadow-sm font-semibold transition-all",
                           getWorkStatusClass(lucrare.statusLucrare)
                         )}>
-                          {lucrare.statusLucrare === "Finalizat" ? "Raport generat" : lucrare.statusLucrare}
+                          {workStatusLabel}
                         </Badge>
 
                         {/* Tehnician: acces rapid la istoricul echipamentului direct din card */}
@@ -3074,6 +3148,7 @@ export default function Lucrari() {
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
+                    </div>
                     </div>
                   </CardContent>
                 </Card>

@@ -205,13 +205,25 @@ export async function syncAttendanceToTimesheet(date: Date): Promise<void> {
       const normalizedEntries = normalizeNonOverlappingEntries(entries)
       const totalHours = calcHoursFromEntries(normalizedEntries)
 
+      const timesheetRef = doc(db, "hrTimesheets", timesheetDocId(employeeId, monthKey as TimesheetMonthKey))
+      // Preserve special day codes (DEL/WE/SL) while still syncing pontaj hours+entries.
+      let code: TimesheetCode = "WORK"
+      try {
+        const existingSnap = await getDoc(timesheetRef)
+        const existingDay = existingSnap.exists() ? ((existingSnap.data() as any)?.days?.[dayKey] as TimesheetCell | undefined) : undefined
+        const existingCode = existingDay?.code as TimesheetCode | undefined
+        if (existingCode === "DEL" || existingCode === "WE" || existingCode === "SL") {
+          code = existingCode
+        }
+      } catch {
+        // ignore
+      }
+
       const cell: TimesheetCell = {
-        code: "WORK",
+        code,
         hours: totalHours,
         entries: normalizedEntries,
       }
-
-      const timesheetRef = doc(db, "hrTimesheets", timesheetDocId(employeeId, monthKey as TimesheetMonthKey))
       batch.set(
         timesheetRef,
         {
@@ -384,7 +396,10 @@ function endOfDayLocal(d: Date) {
 
 function isNonWorkHrCode(code: TimesheetCode | undefined) {
   if (!code) return false
-  return code === "CO" || code === "DEL" || code === "SL" || code === "WE" || code === "IN"
+  // Only block true leave / absence codes.
+  // Important: WE/SL/DEL may still have pontaj (e.g. weekend work, legal holiday work, delegation work),
+  // so we must allow syncing attendance into those days.
+  return code === "CO" || code === "CFP" || code === "CM" || code === "IN"
 }
 
 export type UserDaySyncResult =
@@ -410,7 +425,7 @@ export type UserDaySyncResult =
  * Sync (recompute) a single user's attendance for a specific day into HR timesheet.
  * - Pulls all completed attendance sessions for that user for that day
  * - Builds a WORK cell (hours + entries)
- * - Non-destructive: will NOT overwrite CO/DEL/SL/WE/IN days
+ * - Non-destructive: will NOT overwrite CO/CFP/CM/IN days
  * - Avoid duplicates: preserves non-pontaj entries when overwriting a WORK day
  */
 export async function syncAttendanceUserDayToTimesheet(userId: string, date: Date): Promise<UserDaySyncResult> {
@@ -512,8 +527,9 @@ export async function syncAttendanceUserDayToTimesheet(userId: string, date: Dat
   const safeComputed = filterOverlappingEntries(preservedEntries, normalizedComputed)
   const totalHours = calcHoursFromEntries(safeComputed)
 
+  const code: TimesheetCode = (existingCode === "DEL" || existingCode === "WE" || existingCode === "SL") ? existingCode : "WORK"
   const cell: TimesheetCell = {
-    code: "WORK",
+    code,
     hours: totalHours,
     entries: [...preservedEntries, ...safeComputed],
     ...(existingDay?.breaks ? { breaks: existingDay.breaks } : {}),

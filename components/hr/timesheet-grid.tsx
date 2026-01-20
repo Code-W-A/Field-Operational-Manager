@@ -10,11 +10,12 @@ import { useState, useEffect } from "react"
 function cellClasses(cell: TimesheetCell | undefined) {
   const code = cell?.code ?? "EMPTY"
   if (code === "WORK") return "bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
-  if (code === "WE") return "bg-blue-50 text-blue-800 hover:bg-blue-100"
-  if (code === "CO") return "bg-amber-50 text-amber-900 hover:bg-amber-100"
+  if (code === "WE") return "bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
+  if (code === "CO") return "bg-yellow-100 text-yellow-950 hover:bg-yellow-200"
   if (code === "DEL") return "bg-violet-50 text-violet-900 hover:bg-violet-100"
   if (code === "IN") return "bg-slate-50 text-slate-900 hover:bg-slate-100"
-  if (code === "SL") return "bg-blue-50 text-blue-800 hover:bg-blue-100"
+  if (code === "SL") return "bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
+  if (code === "CM") return "bg-rose-100 text-rose-950 hover:bg-rose-200"
   return "bg-background text-muted-foreground hover:bg-muted/30"
 }
 
@@ -42,15 +43,24 @@ function cellLabel(cell: TimesheetCell | undefined, compact: boolean = false): R
   }
   
   // Normal mode: show total time as HH:mm
-  if (code === "WORK") {
+  const shouldShowTime = code === "WORK" || code === "DEL" || code === "WE" || code === "SL"
+  if (shouldShowTime) {
     const totalMinutes = Math.round(Number(cell?.hours ?? 0) * 60)
     const hh = Math.floor(totalMinutes / 60)
     const mm = totalMinutes % 60
-    return (
-      <span className="text-sm font-semibold font-mono">
-        {String(hh).padStart(2, "0")}:{String(mm).padStart(2, "0")}
-      </span>
-    )
+    const hasTime = totalMinutes > 0 || entries.length > 0
+    if (hasTime) {
+      return (
+        <div className="flex flex-col items-center leading-tight">
+          <span className="text-sm font-semibold font-mono">
+            {String(hh).padStart(2, "0")}:{String(mm).padStart(2, "0")}
+          </span>
+          {code !== "WORK" ? (
+            <span className="text-[10px] font-bold opacity-80">{code}</span>
+          ) : null}
+        </div>
+      )
+    }
   }
   if (code === "EMPTY") return ""
   return <span className="text-sm font-semibold">{code}</span>
@@ -110,15 +120,15 @@ export function TimesheetGrid({
     
     // Small screen (< 1400px): 3 essential columns
     if (screenWidth < 1400) {
-      columnIds = ["zile_lucrate", "total_ore", "banca_ore"]
+      columnIds = ["zile_lucrate", "ore_prezenta", "banca_ore"]
     }
     // Medium screen (1400-1800px): 5 columns
     else if (screenWidth < 1800) {
-      columnIds = ["zile_lucrate", "tichete_masa", "total_ore", "banca_ore", "co"]
+      columnIds = ["zile_lucrate", "tichete_masa", "ore_prezenta", "banca_ore", "co"]
     }
     // Large screen (> 1800px): 8 columns
     else {
-      columnIds = ["zile_lucrate", "tichete_masa", "total_ore", "banca_ore", "traseu_la", "co", "del", "in"]
+      columnIds = ["zile_lucrate", "tichete_masa", "ore_prezenta", "banca_ore", "traseu_la", "co", "del", "in"]
     }
     
     return (extraColumns ?? [])
@@ -149,18 +159,18 @@ export function TimesheetGrid({
   const rowMinHeight = compact ? "min-h-[40px]" : "min-h-[64px]"
 
   const requestBgClass = (kind: string) => {
-    if (kind === "CO") return "bg-amber-50"
+    if (kind === "CO") return "bg-yellow-100"
     if (kind === "CFP") return "bg-orange-50"
-    if (kind === "CM") return "bg-teal-50"
+    if (kind === "CM") return "bg-rose-100"
     if (kind === "DEL") return "bg-violet-50"
     if (kind === "IN") return "bg-slate-50"
     return ""
   }
 
   const requestRingClass = (kind: string) => {
-    if (kind === "CO") return "ring-1 ring-amber-200"
+    if (kind === "CO") return "ring-1 ring-yellow-300"
     if (kind === "CFP") return "ring-1 ring-orange-200"
-    if (kind === "CM") return "ring-1 ring-teal-200"
+    if (kind === "CM") return "ring-1 ring-rose-300"
     if (kind === "DEL") return "ring-1 ring-violet-200"
     if (kind === "IN") return "ring-1 ring-slate-200"
     return ""
@@ -183,9 +193,7 @@ export function TimesheetGrid({
               className={cn(
                 "flex flex-col items-center justify-center px-1 font-semibold bg-gray-50",
                 compact ? "text-[10px] py-2" : "text-xs py-3",
-                weekdayMeta(monthKey, d).isWeekend && "bg-blue-50 text-blue-800",
-                holidayLabelsByDay?.[d] && "bg-blue-50 text-blue-800",
-                weekdayMeta(monthKey, d).isWeekend && holidayLabelsByDay?.[d] && "bg-blue-50 text-blue-800"
+                (weekdayMeta(monthKey, d).isWeekend || holidayLabelsByDay?.[d]) && "bg-emerald-50 text-emerald-900"
               )}
               title={[
                 `Ziua ${d}`,
@@ -204,7 +212,7 @@ export function TimesheetGrid({
               const labelMap: Record<string, string> = {
                 "zile_lucrate": "Zile",
                 "tichete_masa": "Tichete",
-                "total_ore": "Ore",
+                "ore_prezenta": "Ore",
                 "banca_ore": "Bancă",
                 "traseu_la": "Tr→C",
                 "traseu_de": "Tr←C",
@@ -242,7 +250,12 @@ export function TimesheetGrid({
               style={{ gridTemplateColumns }}
             >
               <div className={cn("sticky left-0 z-10 bg-inherit border-r border-b border-gray-200 px-3 flex flex-col justify-center", compact ? "py-2 min-h-[40px]" : "py-3 min-h-[64px]")}>
-                <div className={cn("font-semibold text-gray-900 truncate", compact ? "text-xs" : "text-sm")}>{getEmployeeFullName(e)}</div>
+                <div className="flex items-center gap-2 min-w-0">
+                  {isActiveCell?.(e.id, new Date().getDate()) ? (
+                    <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500 shrink-0" title="În pontaj acum" />
+                  ) : null}
+                  <div className={cn("font-semibold text-gray-900 truncate", compact ? "text-xs" : "text-sm")}>{getEmployeeFullName(e)}</div>
+                </div>
                 {!compact && e.title && <div className="text-xs text-gray-600 truncate">{e.title}</div>}
               </div>
               {Array.from({ length: dim }, (_, i) => i + 1).map((d) => {
@@ -263,11 +276,8 @@ export function TimesheetGrid({
                       cellClasses(c),
                       req && isEmpty ? requestBgClass(req.kind) : "",
                       req && !isEmpty ? requestRingClass(req.kind) : "",
-                      holidayLabel
-                        ? "before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-blue-200"
-                        : isWeekend
-                          ? "before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-blue-200"
-                          : "",
+                      // Weekends / legal holidays: full-cell background (only for empty cells, so we don't fight code colors)
+                      (isEmpty && (holidayLabel || isWeekend)) ? "bg-emerald-50 text-emerald-900 hover:bg-emerald-100" : "",
                       isActive && "bg-emerald-200 text-emerald-900 hover:bg-emerald-300"
                     )}
                     title={[

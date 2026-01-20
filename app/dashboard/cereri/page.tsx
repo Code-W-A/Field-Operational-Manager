@@ -33,10 +33,10 @@ export default function CereriTehnicianPage() {
         setEmployee(emp)
         setMissingEmployeeLink(!emp)
         if (emp) {
-          unsub = subscribeHrRequestsForEmployee({
-            employeeId: emp.id,
-            onChange: setRequests,
-          })
+        unsub = subscribeHrRequestsForEmployee({
+          employeeId: emp.id,
+          onChange: setRequests,
+        })
         } else {
           // Fallback for users without hrEmployees link (e.g. PWA users)
           unsub = subscribeHrRequestsForRequester({

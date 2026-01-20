@@ -34,7 +34,7 @@ import {
   subscribeTimesheetsForMonth,
   upsertTimesheetCell,
 } from "@/lib/hr/storage"
-import { Plus, Trash2, LayoutGrid, List, Download, Minimize2, Maximize2 } from "lucide-react"
+import { Plus, Trash2, LayoutGrid, List, Download, Minimize2, Maximize2, Info } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { exportTimesheetsToCSV } from "@/lib/hr/export"
 import { useAuth } from "@/contexts/AuthContext"
@@ -45,6 +45,8 @@ import type { HrHoliday } from "@/lib/hr/types"
 import { saveHrHolidays, subscribeHrHolidays } from "@/lib/hr/storage"
 import { LegalHolidaysDialog } from "@/components/hr/legal-holidays-dialog"
 import { formatRomanianDate } from "@/lib/utils/date-utils"
+import { syncAttendanceToTimesheet } from "@/lib/attendance/sync-timesheet"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 function toMonthInputValue(monthKey: TimesheetMonthKey) {
   return monthKey
@@ -140,7 +142,12 @@ function findBreakOutsideEntries(
   return null
 }
 
-function calculateMonthKPIs(monthKey: TimesheetMonthKey, employees: Employee[], timesheets: TimesheetMonth[]) {
+function calculateMonthKPIs(
+  monthKey: TimesheetMonthKey,
+  employees: Employee[],
+  timesheets: TimesheetMonth[],
+  activeMetaByEmployee?: Record<string, { day: number; monthKey: TimesheetMonthKey }>
+) {
   const dim = daysInMonth(monthKey)
   const today = new Date().getDate()
   const currentMonth = getCurrentMonthKey()
@@ -149,7 +156,6 @@ function calculateMonthKPIs(monthKey: TimesheetMonthKey, employees: Employee[], 
   let totalHoursMonth = 0
   let totalWorkDays = 0
   let employeesOnLeave = 0
-  let activeEmployeesToday = new Set<string>()
   
   for (const emp of employees) {
     const ts = timesheets.find((t) => t.monthKey === monthKey && t.employeeId === emp.id)
@@ -161,10 +167,6 @@ function calculateMonthKPIs(monthKey: TimesheetMonthKey, employees: Employee[], 
       if (cell.code === "WORK") {
         totalHoursMonth += Number(cell.hours ?? 8)
         totalWorkDays++
-        
-        if (isCurrentMonth && d === today) {
-          activeEmployeesToday.add(emp.id)
-        }
       } else if (cell.code === "CO") {
         if (isCurrentMonth && d === today) {
           employeesOnLeave++
@@ -175,11 +177,20 @@ function calculateMonthKPIs(monthKey: TimesheetMonthKey, employees: Employee[], 
   
   const expectedHours = totalWorkDays * 8
   const diffHours = totalHoursMonth - expectedHours
+
+  const activeEmployeesToday = (() => {
+    if (!isCurrentMonth) return 0
+    if (!activeMetaByEmployee) return 0
+    const employeeIds = new Set(employees.map((e) => e.id))
+    return Object.entries(activeMetaByEmployee).filter(([employeeId, meta]) => {
+      return employeeIds.has(employeeId) && meta.monthKey === monthKey && meta.day === today
+    }).length
+  })()
   
   return {
     totalHoursMonth: Math.round(totalHoursMonth),
     avgHoursPerEmployee: employees.length > 0 ? totalHoursMonth / employees.length : 0,
-    activeEmployeesToday: activeEmployeesToday.size,
+    activeEmployeesToday,
     employeesOnLeave,
     diffHours: Math.round(diffHours),
   }
@@ -287,7 +298,12 @@ export default function CondicaPrezentaPage() {
       const next: Record<string, AttendanceSession> = {}
       snapshot.docs.forEach((docSnap) => {
         const data = docSnap.data() as any
-        const employeeId = data.employeeId ? String(data.employeeId) : ""
+        // Prefer explicit employeeId; fallback to mapping by userUid (older sessions / missing link).
+        let employeeId = data.employeeId ? String(data.employeeId) : ""
+        if (!employeeId && data.userId) {
+          const byUser = employees.find((e) => String((e as any).userUid || "") === String(data.userId))
+          if (byUser?.id) employeeId = byUser.id
+        }
         if (!employeeId) return
         const sessionStart = typeof data.sessionStart === "number"
           ? data.sessionStart
@@ -307,7 +323,7 @@ export default function CondicaPrezentaPage() {
       setActiveSessions(next)
     })
     return () => unsub()
-  }, [])
+  }, [employees])
 
   useEffect(() => {
     if (!debugEnabled) return
@@ -573,7 +589,10 @@ export default function CondicaPrezentaPage() {
     }
   }
 
-  const kpis = useMemo(() => calculateMonthKPIs(monthKey, visibleEmployees, timesheets), [monthKey, visibleEmployees, timesheets])
+  const kpis = useMemo(
+    () => calculateMonthKPIs(monthKey, visibleEmployees, timesheets, activeMetaByEmployee),
+    [monthKey, visibleEmployees, timesheets, activeMetaByEmployee]
+  )
 
   const holidayLabelsByDay = useMemo(() => {
     const map: Record<number, string | undefined> = {}
@@ -700,6 +719,29 @@ export default function CondicaPrezentaPage() {
                 Sărbători legale
               </Button>
             ) : null}
+            {userData?.role === "admin" || userData?.role === "dispecer" ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    const d = new Date()
+                    d.setDate(d.getDate() - 1)
+                    d.setHours(0, 0, 0, 0)
+                    await syncAttendanceToTimesheet(d)
+                    toast({ title: "Sincronizare completă", description: "Am re-sincronizat pontajul pentru ziua de ieri." })
+                  } catch (err) {
+                    toast({
+                      title: "Eroare la sincronizare",
+                      description: err instanceof Error ? err.message : "Nu am putut re-sincroniza pontajul.",
+                      variant: "destructive",
+                    })
+                  }
+                }}
+              >
+                Re-sincronizează (ieri)
+              </Button>
+            ) : null}
             <Button
               variant="outline"
               size="sm"
@@ -762,10 +804,23 @@ export default function CondicaPrezentaPage() {
       ) : null}
 
       {/* KPI Dashboard Cards */}
+      <TooltipProvider>
       <div className="grid gap-3 md:grid-cols-5 mb-4">
         <Card className="border-l-4 border-l-emerald-500">
           <CardHeader className="pb-1 pt-3">
-            <CardTitle className="text-xs text-muted-foreground">Ore lucrate luna</CardTitle>
+            <CardTitle className="text-xs text-muted-foreground flex items-center justify-between gap-2">
+              <span>Ore lucrate luna</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button type="button" className="text-muted-foreground hover:text-foreground">
+                    <Info className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[320px]">
+                  Suma orelor din condică pentru luna selectată, doar din zile cu cod <b>WORK</b>.
+                </TooltipContent>
+              </Tooltip>
+            </CardTitle>
           </CardHeader>
           <CardContent className="pb-3">
             <div className="text-xl font-bold text-emerald-700">{kpis.totalHoursMonth}h</div>
@@ -774,7 +829,19 @@ export default function CondicaPrezentaPage() {
         
         <Card className="border-l-4 border-l-blue-500">
           <CardHeader className="pb-1 pt-3">
-            <CardTitle className="text-xs text-muted-foreground">Angajați activi azi</CardTitle>
+            <CardTitle className="text-xs text-muted-foreground flex items-center justify-between gap-2">
+              <span>Angajați activi azi</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button type="button" className="text-muted-foreground hover:text-foreground">
+                    <Info className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[320px]">
+                  Numărul de salariați care au <b>pontaj activ</b> (Play fără Stop) <b>astăzi</b>, pentru luna curentă.
+                </TooltipContent>
+              </Tooltip>
+            </CardTitle>
           </CardHeader>
           <CardContent className="pb-3">
             <div className="text-xl font-bold text-blue-700">{kpis.activeEmployeesToday}</div>
@@ -783,7 +850,19 @@ export default function CondicaPrezentaPage() {
         
         <Card className="border-l-4 border-l-amber-500">
           <CardHeader className="pb-1 pt-3">
-            <CardTitle className="text-xs text-muted-foreground">În concediu (CO)</CardTitle>
+            <CardTitle className="text-xs text-muted-foreground flex items-center justify-between gap-2">
+              <span>În concediu (CO)</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button type="button" className="text-muted-foreground hover:text-foreground">
+                    <Info className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[320px]">
+                  Numărul de salariați care au cod <b>CO</b> în condică <b>astăzi</b> (doar în luna curentă).
+                </TooltipContent>
+              </Tooltip>
+            </CardTitle>
           </CardHeader>
           <CardContent className="pb-3">
             <div className="text-xl font-bold text-amber-700">{kpis.employeesOnLeave}</div>
@@ -792,7 +871,20 @@ export default function CondicaPrezentaPage() {
         
         <Card className={`border-l-4 ${kpis.diffHours >= 0 ? 'border-l-emerald-500' : 'border-l-rose-500'}`}>
           <CardHeader className="pb-1 pt-3">
-            <CardTitle className="text-xs text-muted-foreground">Peste/Sub normă</CardTitle>
+            <CardTitle className="text-xs text-muted-foreground flex items-center justify-between gap-2">
+              <span>Peste/Sub normă</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button type="button" className="text-muted-foreground hover:text-foreground">
+                    <Info className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[320px]">
+                  Diferența dintre orele lucrate și norma calculată: <br />
+                  <b>Σ ore WORK</b> − (<b># zile WORK</b> × 8h).
+                </TooltipContent>
+              </Tooltip>
+            </CardTitle>
           </CardHeader>
           <CardContent className="pb-3">
             <div className={`text-xl font-bold ${kpis.diffHours >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
@@ -803,13 +895,26 @@ export default function CondicaPrezentaPage() {
         
         <Card className="border-l-4 border-l-primary">
           <CardHeader className="pb-1 pt-3">
-            <CardTitle className="text-xs text-muted-foreground">Medie ore/angajat</CardTitle>
+            <CardTitle className="text-xs text-muted-foreground flex items-center justify-between gap-2">
+              <span>Medie ore/angajat</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button type="button" className="text-muted-foreground hover:text-foreground">
+                    <Info className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[320px]">
+                  <b>Σ ore WORK</b> / <b>număr salariați</b> (din lista afișată, filtrată după rol).
+                </TooltipContent>
+              </Tooltip>
+            </CardTitle>
           </CardHeader>
           <CardContent className="pb-3">
             <div className="text-xl font-bold text-primary">{kpis.avgHoursPerEmployee.toFixed(1)}h</div>
           </CardContent>
         </Card>
       </div>
+      </TooltipProvider>
 
       {legendOpen ? (
         <div className="fixed bottom-4 right-4 z-40 w-[320px] max-w-[calc(100vw-32px)]">
