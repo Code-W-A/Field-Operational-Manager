@@ -2377,7 +2377,8 @@ export default function Lucrari() {
   }, [lucrari])
 
   return (
-    <DashboardShell>
+    <TooltipProvider>
+      <DashboardShell>
       {/* Check-in card for technicians - appears BEFORE header */}
       {isTechnician && userData?.uid && userData?.displayName && (
         <div className="mb-4">
@@ -3033,6 +3034,7 @@ export default function Lucrari() {
         lucrareId={selectedLucrareForReintervention?.id || ""}
         onSuccess={handleReinterventionAfterReasons}
       />
-    </DashboardShell>
+      </DashboardShell>
+    </TooltipProvider>
   )
 }
