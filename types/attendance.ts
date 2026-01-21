@@ -35,7 +35,7 @@ export interface AttendanceSession {
   mode: AttendanceMode
   /** Backward-compatible check-in location. */
   location: AttendanceLocation
-  /** Backward-compatible check-in face recognition id (mock). */
+  /** Check-in face scan audit id (no image stored). Prefix may encode method, e.g. face_cam_* vs face_mock_*. */
   faceRecognitionId?: string
   /** Backward-compatible check-in device info. */
   extraTimeLogs?: ExtraTimeLog[]
@@ -45,6 +45,7 @@ export interface AttendanceSession {
   /** Explicit checkout metadata (separate from check-in). */
   checkOutMode?: AttendanceMode
   checkOutLocation?: AttendanceLocation
+  /** Check-out face scan audit id (no image stored). Prefix may encode method, e.g. face_cam_* vs face_mock_*. */
   checkOutFaceRecognitionId?: string
   checkOutDeviceInfo?: DeviceInfo
   status: AttendanceStatus

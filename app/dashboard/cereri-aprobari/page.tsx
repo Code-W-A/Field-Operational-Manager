@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { Spinner } from "@/components/ui/spinner"
 import { ClipboardList, Pencil, Download } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import type { HrRequest, HrRequestKind, HrRequestPayload } from "@/lib/hr/types"
@@ -41,6 +42,7 @@ export default function CereriAprobariPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [editPayload, setEditPayload] = useState<HrRequestPayload | null>(null)
   const [saving, setSaving] = useState(false)
+  const [savingAction, setSavingAction] = useState<"approve" | "reject" | "edit" | null>(null)
 
   useEffect(() => {
     if (!user?.uid) return
@@ -80,6 +82,7 @@ export default function CereriAprobariPage() {
     if (!user?.uid || !selected) return
     try {
       setSaving(true)
+      setSavingAction("approve")
       await decideHrRequest({ requestId: selected.id, status: "approved", decidedByUid: user.uid })
       toast({ title: "Aprobat", description: "Cererea a fost aprobată." })
       setDetailOpen(false)
@@ -87,6 +90,7 @@ export default function CereriAprobariPage() {
       toast({ title: "Eroare", description: e?.message || "Nu am putut aproba.", variant: "destructive" })
     } finally {
       setSaving(false)
+      setSavingAction(null)
     }
   }
 
@@ -98,6 +102,7 @@ export default function CereriAprobariPage() {
     }
     try {
       setSaving(true)
+      setSavingAction("reject")
       await decideHrRequest({
         requestId: selected.id,
         status: "rejected",
@@ -111,6 +116,7 @@ export default function CereriAprobariPage() {
       toast({ title: "Eroare", description: e?.message || "Nu am putut respinge.", variant: "destructive" })
     } finally {
       setSaving(false)
+      setSavingAction(null)
     }
   }
 
@@ -124,6 +130,7 @@ export default function CereriAprobariPage() {
     if (!user?.uid || !selected || !editPayload) return
     try {
       setSaving(true)
+      setSavingAction("edit")
       await updateHrRequestByManager({
         requestId: selected.id,
         managerUid: user.uid,
@@ -135,6 +142,7 @@ export default function CereriAprobariPage() {
       toast({ title: "Eroare", description: e?.message || "Nu am putut salva.", variant: "destructive" })
     } finally {
       setSaving(false)
+      setSavingAction(null)
     }
   }
 
@@ -236,7 +244,13 @@ export default function CereriAprobariPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+      <Dialog
+        open={detailOpen}
+        onOpenChange={(v) => {
+          if (saving) return
+          setDetailOpen(v)
+        }}
+      >
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detalii cerere</DialogTitle>
@@ -309,7 +323,14 @@ export default function CereriAprobariPage() {
                   Refuză
                 </Button>
                 <Button onClick={approve} disabled={saving}>
-                  Aprobă
+                  {saving && savingAction === "approve" ? (
+                    <>
+                      <Spinner className="h-4 w-4 mr-2 border-muted-foreground border-t-transparent" />
+                      Se procesează...
+                    </>
+                  ) : (
+                    "Aprobă"
+                  )}
                 </Button>
               </>
             ) : (
@@ -329,7 +350,13 @@ export default function CereriAprobariPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
+      <Dialog
+        open={rejectOpen}
+        onOpenChange={(v) => {
+          if (saving) return
+          setRejectOpen(v)
+        }}
+      >
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Refuză cererea</DialogTitle>
@@ -343,7 +370,14 @@ export default function CereriAprobariPage() {
               Anulează
             </Button>
             <Button variant="destructive" onClick={reject} disabled={saving || !rejectionReason.trim()}>
-              Confirmă refuz
+              {saving && savingAction === "reject" ? (
+                <>
+                  <Spinner className="h-4 w-4 mr-2 border-muted-foreground border-t-transparent" />
+                  Se procesează...
+                </>
+              ) : (
+                "Confirmă refuz"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -352,6 +386,7 @@ export default function CereriAprobariPage() {
       <Dialog
         open={editOpen}
         onOpenChange={(v) => {
+          if (saving) return
           setEditOpen(v)
           if (!v) setEditPayload(null)
         }}
@@ -445,7 +480,14 @@ export default function CereriAprobariPage() {
               Anulează
             </Button>
             <Button onClick={saveEdit} disabled={saving || !editPayload}>
-              Salvează
+              {saving && savingAction === "edit" ? (
+                <>
+                  <Spinner className="h-4 w-4 mr-2 border-muted-foreground border-t-transparent" />
+                  Se procesează...
+                </>
+              ) : (
+                "Salvează"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

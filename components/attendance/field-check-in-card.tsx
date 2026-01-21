@@ -589,6 +589,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
               userId={userId}
               userName={userName}
               autoStart={true}
+              implementation="camera"
             />
           )}
 
