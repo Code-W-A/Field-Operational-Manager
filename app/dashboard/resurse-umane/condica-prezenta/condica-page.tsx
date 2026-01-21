@@ -49,6 +49,40 @@ import { formatRomanianDate } from "@/lib/utils/date-utils"
 import { syncAttendanceToTimesheet } from "@/lib/attendance/sync-timesheet"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
+function InfoTooltipButton({
+  tooltip,
+  contentClassName,
+  buttonClassName = "text-muted-foreground hover:text-foreground",
+  ariaLabel = "Info",
+}: {
+  tooltip: React.ReactNode
+  contentClassName?: string
+  buttonClassName?: string
+  ariaLabel?: string
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Tooltip open={open} onOpenChange={setOpen}>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className={buttonClassName}
+          aria-label={ariaLabel}
+          aria-expanded={open}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            setOpen((v) => !v)
+          }}
+        >
+          <Info className="h-3.5 w-3.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className={cn("max-w-[420px] text-sm leading-snug", contentClassName)}>{tooltip}</TooltipContent>
+    </Tooltip>
+  )
+}
+
 function ColumnInfoLabel({
   label,
   tooltip,
@@ -59,16 +93,7 @@ function ColumnInfoLabel({
   return (
     <span className="inline-flex items-center gap-1">
       <span>{label}</span>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="Info">
-            <Info className="h-3.5 w-3.5" />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent className="max-w-[420px] text-sm leading-snug">
-          {tooltip}
-        </TooltipContent>
-      </Tooltip>
+      <InfoTooltipButton tooltip={tooltip} />
     </span>
   )
 }
@@ -810,11 +835,11 @@ export default function CondicaPrezentaPage() {
             label="Zile lucrate"
             tooltip={
               <div className="space-y-2">
-                <div className="font-semibold">Cum se calculează</div>
-                <div>Numără câte zile din luna curentă au o celulă completată (adică există și codul nu este <b>EMPTY</b>).</div>
-                <div className="text-muted-foreground">
-                  Include orice cod (WORK/WE/SL/CO/CFP/CM/DEL/IN) dacă ziua nu este goală.
+                <div className="font-semibold">Formula</div>
+                <div>
+                  <b>Zile lucrate</b> = numărul de zile din luna selectată care sunt completate în condică (nu sunt „goale”).
                 </div>
+                <div className="text-muted-foreground">Include orice tip de zi (lucru, weekend, sărbătoare, concedii etc.), atâta timp cât există o înregistrare.</div>
               </div>
             }
           />
@@ -829,12 +854,12 @@ export default function CondicaPrezentaPage() {
             label="Tichete de masă"
             tooltip={
               <div className="space-y-2">
-                <div className="font-semibold">Cum se calculează</div>
+                <div className="font-semibold">Formula</div>
                 <div>
-                  <b>max(0, Zile lucrate − Zile DEL)</b>.
+                  <b>Tichete</b> = <b>max(0, Zile lucrate − Zile DEL)</b>.
                 </div>
                 <div className="text-muted-foreground">
-                  Zilele DEL vin din cereri aprobate (nu din codul din condică).
+                  <b>Zile DEL</b> vin din cererile de <b>Delegație</b> aprobate și se numără pe zile calendaristice care se suprapun cu luna.
                 </div>
               </div>
             }
@@ -850,10 +875,12 @@ export default function CondicaPrezentaPage() {
             label="Ore prezență"
             tooltip={
               <div className="space-y-2">
-                <div className="font-semibold">Cum se calculează</div>
-                <div>Se adună <b>hours</b> doar pentru zilele cu cod <b>WORK</b>.</div>
+                <div className="font-semibold">Formula</div>
+                <div>
+                  <b>Ore prezență</b> = suma orelor trecute în condică pentru zilele de <b>lucru</b> (WORK).
+                </div>
                 <div className="text-muted-foreground">
-                  Dacă ziua are cod WE/SL/DEL etc., nu intră aici.
+                  Dacă într-o zi de lucru nu este trecut un număr de ore, se consideră <b>8 ore</b>. Zilele care nu sunt „WORK” nu intră aici.
                 </div>
               </div>
             }
@@ -869,8 +896,10 @@ export default function CondicaPrezentaPage() {
             label="Ore lucrate efectiv"
             tooltip={
               <div className="space-y-2">
-                <div className="font-semibold">Cum se calculează</div>
-                <div>În prezent este identic cu <b>Ore prezență</b>: suma <b>hours</b> pentru cod <b>WORK</b>.</div>
+                <div className="font-semibold">Formula</div>
+                <div>
+                  În acest moment este identic cu <b>Ore prezență</b>: suma orelor din condică pentru zilele de lucru (WORK).
+                </div>
               </div>
             }
           />
@@ -885,12 +914,12 @@ export default function CondicaPrezentaPage() {
             label="Bancă de ore"
             tooltip={
               <div className="space-y-2">
-                <div className="font-semibold">Cum se calculează</div>
+                <div className="font-semibold">Formula</div>
                 <div>
-                  Pentru zilele <b>WORK</b>: <b>overtime = (suma hours) − (număr zile WORK × 8)</b>.
+                  <b>Bancă</b> = (total ore de lucru din condică) − (8 ore × numărul zilelor de lucru).
                 </div>
                 <div className="text-muted-foreground">
-                  Este o comparație față de norma de 8h/zi, doar pe zile WORK.
+                  Pozitiv = peste normă; negativ = sub normă. Se calculează doar pe zilele de lucru (WORK).
                 </div>
               </div>
             }
@@ -916,11 +945,11 @@ export default function CondicaPrezentaPage() {
             label="Ore traseu la client"
             tooltip={
               <div className="space-y-2">
-                <div className="font-semibold">Cum se calculează</div>
-                <div>Se adună durata tuturor intervalelor din <b>entries</b> cu proiect <b>„Traseu către client”</b>.</div>
-                <div className="text-muted-foreground">
-                  Intervalele sunt create automat din pontaj (extra logs) sau pot exista din corecții.
+                <div className="font-semibold">Formula</div>
+                <div>
+                  Se adună durata intervalelor marcate <b>„Traseu către client”</b>.
                 </div>
+                <div className="text-muted-foreground">Durata unui interval = ora de final − ora de start.</div>
               </div>
             }
           />
@@ -935,8 +964,10 @@ export default function CondicaPrezentaPage() {
             label="Ore traseu de la client"
             tooltip={
               <div className="space-y-2">
-                <div className="font-semibold">Cum se calculează</div>
-                <div>Se adună durata tuturor intervalelor din <b>entries</b> cu proiect <b>„Traseu către casă”</b>.</div>
+                <div className="font-semibold">Formula</div>
+                <div>
+                  Se adună durata intervalelor marcate <b>„Traseu către casă”</b>.
+                </div>
               </div>
             }
           />
@@ -951,11 +982,11 @@ export default function CondicaPrezentaPage() {
             label="Zile CO"
             tooltip={
               <div className="space-y-2">
-                <div className="font-semibold">Cum se calculează</div>
-                <div>Numără zilele de <b>CO aprobate</b> din luna curentă (pe intervalul cererii).</div>
-                <div className="text-muted-foreground">
-                  Se calculează din cereri HR aprobate, nu din codul din celulă.
+                <div className="font-semibold">Formula</div>
+                <div>
+                  <b>Zile CO</b> = numărul de zile din cererile de <b>concediu de odihnă</b> <b>aprobate</b> care se suprapun cu luna selectată.
                 </div>
+                <div className="text-muted-foreground">Se ia din cererile aprobate, nu din ce este completat manual în ziua respectivă.</div>
               </div>
             }
           />
@@ -970,8 +1001,10 @@ export default function CondicaPrezentaPage() {
             label="Zile DEL"
             tooltip={
               <div className="space-y-2">
-                <div className="font-semibold">Cum se calculează</div>
-                <div>Numără zilele de <b>DEL aprobate</b> din luna curentă (pe intervalul cererii).</div>
+                <div className="font-semibold">Formula</div>
+                <div>
+                  <b>Zile DEL</b> = numărul de zile din cererile de <b>delegație</b> <b>aprobate</b> care se suprapun cu luna selectată.
+                </div>
               </div>
             }
           />
@@ -986,9 +1019,10 @@ export default function CondicaPrezentaPage() {
             label="Ore IN"
             tooltip={
               <div className="space-y-2">
-                <div className="font-semibold">Cum se calculează</div>
-                <div>Se adună durata tuturor cererilor <b>IN aprobate</b> din luna curentă: <b>(endTime − startTime)</b>.</div>
-                <div className="text-muted-foreground">Contează doar cererile IN cu data în luna selectată.</div>
+                <div className="font-semibold">Formula</div>
+                <div>
+                  <b>Ore IN</b> = suma duratelor din cererile <b>IN aprobate</b> (ora final − ora start), pentru zile din luna selectată.
+                </div>
               </div>
             }
           />
@@ -1003,8 +1037,11 @@ export default function CondicaPrezentaPage() {
             label="Ore sărbători legale"
             tooltip={
               <div className="space-y-2">
-                <div className="font-semibold">Cum se calculează</div>
-                <div>Se adună <b>hours</b> pentru zilele cu cod <b>SL</b> din condică.</div>
+                <div className="font-semibold">Formula</div>
+                <div>
+                  <b>Ore SL</b> = suma orelor trecute în condică pentru zile marcate ca <b>SL</b> (sărbători legale).
+                </div>
+                <div className="text-muted-foreground">Dacă nu este trecut un număr de ore, se consideră <b>8 ore</b>.</div>
               </div>
             }
           />
@@ -1019,10 +1056,13 @@ export default function CondicaPrezentaPage() {
             label="Ore C1"
             tooltip={
               <div className="space-y-2">
-                <div className="font-semibold">C1 = Traseu către client (înainte de program)</div>
-                <div>În zile Lu–Vi (non-SL): se adună minutele din <b>„Traseu către client”</b> care sunt înainte de ora de start a programului standard.</div>
+                <div className="font-semibold">C1 (înainte de program)</div>
+                <div className="text-muted-foreground">Se calculează doar în zilele Lu–Vi care nu sunt sărbători legale.</div>
+                <div>
+                  <b>C1</b> = timpul de <b>„Traseu către client”</b> care este <b>înainte de ora de început a programului</b>.
+                </div>
                 <div className="text-muted-foreground">
-                  Fallback: dacă nu există traseu cronometrat, folosim primul interval <b>Pontaj</b> ca check-in și calculăm <b>programStart − primulStart</b>.
+                  Dacă nu există traseu cronometrat, se folosește ora de început din pontaj (primul interval) ca reper.
                 </div>
               </div>
             }
@@ -1038,10 +1078,13 @@ export default function CondicaPrezentaPage() {
             label="Ore C2"
             tooltip={
               <div className="space-y-2">
-                <div className="font-semibold">C2 = Traseu către casă (după program)</div>
-                <div>În zile Lu–Vi (non-SL): se adună minutele din <b>„Traseu către casă”</b> după ora de final a programului standard.</div>
+                <div className="font-semibold">C2 (după program)</div>
+                <div className="text-muted-foreground">Se calculează doar în zilele Lu–Vi care nu sunt sărbători legale.</div>
+                <div>
+                  <b>C2</b> = timpul de <b>„Traseu către casă”</b> care este <b>după ora de final a programului</b>.
+                </div>
                 <div className="text-muted-foreground">
-                  Fallback: dacă nu există traseu cronometrat, folosim ultimul interval <b>Pontaj</b> ca check-out și calculăm <b>ultimulEnd − programEnd</b>.
+                  Dacă nu există traseu cronometrat, se folosește ora de final din pontaj (ultimul interval) ca reper.
                 </div>
               </div>
             }
@@ -1057,8 +1100,14 @@ export default function CondicaPrezentaPage() {
             label="Ore C3"
             tooltip={
               <div className="space-y-2">
-                <div className="font-semibold">C3 = primele 2h peste program</div>
-                <div>În zile Lu–Vi (non-SL): se calculează timpul <b>Pontaj</b> în afara programului standard și se iau <b>primele 2 ore</b>.</div>
+                <div className="font-semibold">C3 (primele 2h peste program)</div>
+                <div className="text-muted-foreground">Se calculează doar în zilele Lu–Vi care nu sunt sărbători legale.</div>
+                <div>
+                  Se ia timpul pontat <b>în afara programului</b> (înainte de început + după final).
+                </div>
+                <div>
+                  <b>C3</b> = primele <b>2 ore</b> din acest timp (maxim 2h).
+                </div>
               </div>
             }
           />
@@ -1073,8 +1122,14 @@ export default function CondicaPrezentaPage() {
             label="Ore C4"
             tooltip={
               <div className="space-y-2">
-                <div className="font-semibold">C4 = următoarele 2h peste program</div>
-                <div>În zile Lu–Vi (non-SL): din timpul Pontaj în afara programului standard, se iau <b>orele 2–4</b> (max 2h).</div>
+                <div className="font-semibold">C4 (orele 2–4 peste program)</div>
+                <div className="text-muted-foreground">Se calculează doar în zilele Lu–Vi care nu sunt sărbători legale.</div>
+                <div>
+                  Se ia timpul pontat <b>în afara programului</b> (înainte de început + după final).
+                </div>
+                <div>
+                  <b>C4</b> = următoarele <b>2 ore</b> după C3 (maxim 2h).
+                </div>
               </div>
             }
           />
@@ -1089,8 +1144,14 @@ export default function CondicaPrezentaPage() {
             label="Ore C5"
             tooltip={
               <div className="space-y-2">
-                <div className="font-semibold">C5 = restul orelor peste program</div>
-                <div>În zile Lu–Vi (non-SL): din timpul Pontaj în afara programului standard, se ia tot ce depășește <b>4h</b> (C3+C4).</div>
+                <div className="font-semibold">C5 (peste 4h peste program)</div>
+                <div className="text-muted-foreground">Se calculează doar în zilele Lu–Vi care nu sunt sărbători legale.</div>
+                <div>
+                  Se ia timpul pontat <b>în afara programului</b> (înainte de început + după final).
+                </div>
+                <div>
+                  <b>C5</b> = tot ce depășește <b>4 ore</b> peste program (după C3+C4).
+                </div>
               </div>
             }
           />
@@ -1105,11 +1166,11 @@ export default function CondicaPrezentaPage() {
             label="Ore C6"
             tooltip={
               <div className="space-y-2">
-                <div className="font-semibold">C6 = ore lucrate sâmbătă</div>
-                <div>Se adună durata <b>Pontaj</b> din zilele de sâmbătă (pe luna curentă).</div>
-                <div className="text-muted-foreground">
-                  Fallback: dacă nu există entries de Pontaj, se folosește <b>cell.hours</b>.
+                <div className="font-semibold">C6 (ore lucrate sâmbătă)</div>
+                <div>
+                  Pentru zilele de <b>sâmbătă</b>: se adună timpul pontat.
                 </div>
+                <div className="text-muted-foreground">Dacă nu există pontaj detaliat, se folosește numărul de ore trecut în zi.</div>
               </div>
             }
           />
@@ -1124,10 +1185,12 @@ export default function CondicaPrezentaPage() {
             label="Ore C7"
             tooltip={
               <div className="space-y-2">
-                <div className="font-semibold">C7 = ore lucrate duminică sau în sărbătoare legală</div>
-                <div>Se adună durata <b>Pontaj</b> din zilele de duminică sau din zile marcate ca <b>sărbătoare legală</b> (SL).</div>
+                <div className="font-semibold">C7 (ore lucrate duminică / sărbătoare legală)</div>
+                <div>
+                  Pentru <b>duminică</b> sau zile marcate ca <b>sărbătoare legală</b>: se adună timpul pontat.
+                </div>
                 <div className="text-muted-foreground">
-                  Zilele de sărbătoare se iau din lista de sărbători legale (butonul „Sărbători legale”).
+                  Dacă nu există pontaj detaliat, se folosește numărul de ore trecut în zi. Sărbătorile vin din butonul „Sărbători legale”.
                 </div>
               </div>
             }
@@ -1271,16 +1334,16 @@ export default function CondicaPrezentaPage() {
           <CardHeader className="pb-1 pt-3">
             <CardTitle className="text-xs text-muted-foreground flex items-center justify-between gap-2">
               <span>Ore lucrate luna</span>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button type="button" className="text-muted-foreground hover:text-foreground">
-                    <Info className="h-3.5 w-3.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-[320px]">
-                  Suma orelor din condică pentru luna selectată, doar din zile cu cod <b>WORK</b>.
-                </TooltipContent>
-              </Tooltip>
+              <InfoTooltipButton
+                tooltip={
+                  <>
+                    <b>Total ore</b> = suma orelor din condică pentru toate zilele de lucru (WORK), în luna selectată.
+                    <br />
+                    Dacă într-o zi de lucru nu este trecut un număr de ore, se consideră <b>8 ore</b>.
+                  </>
+                }
+                contentClassName="max-w-[320px]"
+              />
             </CardTitle>
           </CardHeader>
           <CardContent className="pb-3">
@@ -1292,16 +1355,16 @@ export default function CondicaPrezentaPage() {
           <CardHeader className="pb-1 pt-3">
             <CardTitle className="text-xs text-muted-foreground flex items-center justify-between gap-2">
               <span>Angajați activi azi</span>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button type="button" className="text-muted-foreground hover:text-foreground">
-                    <Info className="h-3.5 w-3.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-[320px]">
-                  Numărul de salariați care au <b>pontaj activ</b> (Play fără Stop) <b>astăzi</b>, pentru luna curentă.
-                </TooltipContent>
-              </Tooltip>
+              <InfoTooltipButton
+                tooltip={
+                  <>
+                    Numărul de salariați din lista afișată care au <b>pontaj activ</b> (Play fără Stop) <b>astăzi</b>.
+                    <br />
+                    Se calculează doar pentru <b>luna curentă</b>.
+                  </>
+                }
+                contentClassName="max-w-[320px]"
+              />
             </CardTitle>
           </CardHeader>
           <CardContent className="pb-3">
@@ -1313,16 +1376,16 @@ export default function CondicaPrezentaPage() {
           <CardHeader className="pb-1 pt-3">
             <CardTitle className="text-xs text-muted-foreground flex items-center justify-between gap-2">
               <span>În concediu (CO)</span>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button type="button" className="text-muted-foreground hover:text-foreground">
-                    <Info className="h-3.5 w-3.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-[320px]">
-                  Numărul de salariați care au cod <b>CO</b> în condică <b>astăzi</b> (doar în luna curentă).
-                </TooltipContent>
-              </Tooltip>
+              <InfoTooltipButton
+                tooltip={
+                  <>
+                    Numărul de salariați care au în condică, la data de <b>astăzi</b>, codul <b>CO</b>.
+                    <br />
+                    Se calculează doar pentru <b>luna curentă</b>.
+                  </>
+                }
+                contentClassName="max-w-[320px]"
+              />
             </CardTitle>
           </CardHeader>
           <CardContent className="pb-3">
@@ -1334,17 +1397,16 @@ export default function CondicaPrezentaPage() {
           <CardHeader className="pb-1 pt-3">
             <CardTitle className="text-xs text-muted-foreground flex items-center justify-between gap-2">
               <span>Peste/Sub normă</span>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button type="button" className="text-muted-foreground hover:text-foreground">
-                    <Info className="h-3.5 w-3.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-[320px]">
-                  Diferența dintre orele lucrate și norma calculată: <br />
-                  <b>Σ ore WORK</b> − (<b># zile WORK</b> × 8h).
-                </TooltipContent>
-              </Tooltip>
+              <InfoTooltipButton
+                tooltip={
+                  <>
+                    <b>Diferență</b> = (total ore de lucru din condică) − (8 ore × numărul zilelor de lucru), cumulat pe salariații afișați.
+                    <br />
+                    Pozitiv = peste normă; negativ = sub normă.
+                  </>
+                }
+                contentClassName="max-w-[320px]"
+              />
             </CardTitle>
           </CardHeader>
           <CardContent className="pb-3">
@@ -1358,16 +1420,16 @@ export default function CondicaPrezentaPage() {
           <CardHeader className="pb-1 pt-3">
             <CardTitle className="text-xs text-muted-foreground flex items-center justify-between gap-2">
               <span>Medie ore/angajat</span>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button type="button" className="text-muted-foreground hover:text-foreground">
-                    <Info className="h-3.5 w-3.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-[320px]">
-                  <b>Σ ore WORK</b> / <b>număr salariați</b> (din lista afișată, filtrată după rol).
-                </TooltipContent>
-              </Tooltip>
+              <InfoTooltipButton
+                tooltip={
+                  <>
+                    <b>Medie</b> = (total ore de lucru din condică) / (număr salariați afișați).
+                    <br />
+                    Se calculează doar din zilele de lucru (WORK).
+                  </>
+                }
+                contentClassName="max-w-[320px]"
+              />
             </CardTitle>
           </CardHeader>
           <CardContent className="pb-3">

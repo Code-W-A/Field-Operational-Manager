@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Plus, Calendar, Download } from "lucide-react"
 import { generateHrRequestPDF } from "@/lib/hr/request-pdf-generator"
 import { hrRequestDateLabel, hrRequestKindLabel, hrRequestStatusLabel } from "@/lib/hr/hr-requests"
+import Link from "next/link"
 
 export function LeaveRequestsSection({
   monthKey,
@@ -21,6 +22,7 @@ export function LeaveRequestsSection({
   onCreateRequest: () => void
 }) {
   const empMap = new Map(employees.map(e => [e.id, e]))
+  const visibleRequests = leaveRequests.slice(0, 3)
   
   return (
     <div className="pb-40">
@@ -42,7 +44,7 @@ export function LeaveRequestsSection({
               </div>
             ) : (
               <div className="space-y-3">
-                {leaveRequests.map(req => {
+                {visibleRequests.map(req => {
                   const employee = empMap.get(req.employeeId)
                   
                   return (
@@ -85,6 +87,13 @@ export function LeaveRequestsSection({
                     </div>
                   )
                 })}
+                {leaveRequests.length > 3 && (
+                  <div className="pt-1">
+                    <Button asChild variant="outline" size="sm" className="w-full sm:w-auto">
+                      <Link href="/dashboard/cereri-aprobari">Vezi mai multe</Link>
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
