@@ -1142,12 +1142,13 @@ export default function CondicaPrezentaPage() {
   )
 
   return (
-    <DashboardShell>
-      <DashboardHeader
-        heading="Condică prezență"
-        text=""
-        headerAction={
-          <div className="flex flex-col sm:flex-row gap-2">
+    <TooltipProvider>
+      <DashboardShell>
+        <DashboardHeader
+          heading="Condică prezență"
+          text=""
+          headerAction={
+            <div className="flex flex-col sm:flex-row gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -1253,9 +1254,9 @@ export default function CondicaPrezentaPage() {
                   ))}
               </SelectContent>
             </Select>
-          </div>
-        }
-      />
+            </div>
+          }
+        />
 
       {userData?.role !== "admin" && userData?.role !== "dispecer" ? (
         <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
@@ -1592,7 +1593,8 @@ export default function CondicaPrezentaPage() {
         requesterUid={user?.uid ?? ""}
         departments={departments}
       />
-    </DashboardShell>
+      </DashboardShell>
+    </TooltipProvider>
   )
 }
 
