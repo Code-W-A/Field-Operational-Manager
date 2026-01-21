@@ -3069,25 +3069,51 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 {/* Documente PDF – admin/dispecer sau client */}
                   <div className="mt-4">
                     <div className="mt-2 p-3">
-                      <div className="text-sm text-muted-foreground mb-2">
-                        Facturare: Încărcați factura sau marcați „Nu se facturează” și adăugați motivul.
-                      </div>
                     {isAdminOrDispatcher ? (
-                      <DocumentUpload
-                        lucrareId={lucrare.id!}
-                        lucrare={lucrare}
-                        onLucrareUpdate={setLucrare}
-                        hideOfertaUpload
-                      />
+                      <>
+                        <div className="text-sm text-muted-foreground mb-2">
+                          Facturare: Încărcați factura sau marcați „Nu se facturează” și adăugați motivul.
+                        </div>
+                        <DocumentUpload
+                          lucrareId={lucrare.id!}
+                          lucrare={lucrare}
+                          onLucrareUpdate={setLucrare}
+                          hideOfertaUpload
+                        />
+                      </>
                     ) : role === "client" ? (
                       <div className="space-y-3">
-                        {lucrare?.raportGenerat ? (
-                          <Button onClick={handleClientDownloadReport} className="w-full sm:w-auto">
-                            <FileText className="mr-2 h-4 w-4" /> Descarcă raport
-                          </Button>
-                        ) : (
+                        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
+                          {lucrare?.raportGenerat ? (
+                            <Button onClick={handleClientDownloadReport} className="w-full sm:w-auto">
+                              <FileText className="mr-2 h-4 w-4" /> Descarcă raport
+                            </Button>
+                          ) : null}
+                          {(lucrare as any)?.facturaDocument?.url ? (
+                            <Button
+                              variant="outline"
+                              className="w-full sm:w-auto"
+                              onClick={() => {
+                                const u = (lucrare as any).facturaDocument.url
+                                const link = `/api/download?lucrareId=${encodeURIComponent(lucrare.id!)}&type=factura&url=${encodeURIComponent(u)}`
+                                window.open(link, "_blank")
+                              }}
+                            >
+                              <Download className="mr-2 h-4 w-4" /> Descarcă factura
+                            </Button>
+                          ) : null}
+                        </div>
+
+                        {!lucrare?.raportGenerat ? (
                           <p className="text-sm text-muted-foreground">Raportul nu este încă disponibil.</p>
-                        )}
+                        ) : null}
+
+                        {!(lucrare as any)?.facturaDocument?.url && (lucrare as any)?.statusFacturare === "Nu se facturează" ? (
+                          <p className="text-sm text-muted-foreground">
+                            Nu se facturează{(lucrare as any)?.motivNefacturare ? `: ${(lucrare as any).motivNefacturare}` : "."}
+                          </p>
+                        ) : null}
+
                         {lucrare?.tipLucrare === "Revizie" && Array.isArray(lucrare.equipmentIds) && (
                           <div className="space-y-2">
                             <p className="text-sm font-medium">Fișe de operațiuni (echipamente finalizate)</p>
