@@ -4,6 +4,9 @@ export type TimesheetCell = {
   code: TimesheetCode
   /** Relevant for WORK / IN / SL when tracking hours. */
   hours?: number
+  /** If this whole day cell was created by an approved HR request, keep traceability. */
+  sourceRequestId?: string
+  sourceRequestKind?: HrRequestKind
   entries?: Array<{
     start: string // "HH:mm"
     end: string // "HH:mm"

@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Play, Square, Loader2, MapPin, Clock, AlertCircle } from "lucide-react"
-import { FaceRecognitionCapture } from "./face-recognition-capture"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import {
   createCheckIn,
@@ -21,6 +20,7 @@ import { cn } from "@/lib/utils"
 import { extractTime24 } from "@/lib/utils/date-utils"
 import type { AttendanceSession, FaceRecognitionResult, AttendanceLocation } from "@/types/attendance"
 import type { OfficeLocation } from "@/lib/firebase/auth"
+import { verifyWithDeviceBiometrics } from "@/lib/auth/webauthn-biometric"
 
 interface FieldCheckInCardProps {
   userId: string
@@ -302,6 +302,22 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
     console.log("Face recognition attempt failed:", error)
   }
 
+  const handleBiometricConfirm = async () => {
+    if (!action) return
+    setFlowState("processing")
+    const res = await verifyWithDeviceBiometrics({ userId, userName })
+    if (!res.ok) {
+      setFlowState("face-recognition")
+      toast({
+        title: "Verificare biometrică eșuată",
+        description: res.error,
+        variant: "destructive",
+      })
+      return
+    }
+    await handleFaceRecognitionSuccess({ success: true, faceId: res.auditId, confidence: 1 })
+  }
+
   const handleStartClientRoute = async () => {
     if (!activeSession) return
 
@@ -575,22 +591,22 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-center text-2xl">
-              Recunoaștere Facială
+              Verificare biometrică
             </DialogTitle>
             <DialogDescription className="text-center">
-              Pentru {action === "check-in" ? "Check-In" : "Check-Out"}
+              Confirmă cu biometria device-ului pentru {action === "check-in" ? "Play" : "Stop"}
             </DialogDescription>
           </DialogHeader>
 
           {flowState === "face-recognition" && (
-            <FaceRecognitionCapture
-              onSuccess={handleFaceRecognitionSuccess}
-              onError={handleFaceRecognitionError}
-              userId={userId}
-              userName={userName}
-              autoStart={true}
-              implementation="camera"
-            />
+            <div className="py-10 text-center space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Se va deschide prompt-ul sistemului (Face/Touch/PIN). Nu stocăm poză.
+              </p>
+              <Button onClick={handleBiometricConfirm} className="w-full">
+                Confirmă acum
+              </Button>
+            </div>
           )}
 
           {flowState === "processing" && (

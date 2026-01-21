@@ -90,6 +90,8 @@ export function DayEntryPopover({
   cell,
   activeSessionStart,
   anchorRect,
+  approvedRequestLabel,
+  onOpenEditApprovedRequest,
   onOpenAddDialog,
   onOpenDeleteDialog,
   onSaveCell,
@@ -101,6 +103,8 @@ export function DayEntryPopover({
   cell: TimesheetCell | undefined
   activeSessionStart?: string | null
   anchorRect: { top: number; left: number; right: number; bottom: number; width: number; height: number } | null
+  approvedRequestLabel?: string | null
+  onOpenEditApprovedRequest?: (() => void) | null
   onOpenAddDialog: () => void
   onOpenDeleteDialog: () => void
   onSaveCell: (next: TimesheetCell) => Promise<void>
@@ -301,6 +305,33 @@ export function DayEntryPopover({
                   </Button>
                 </div>
               </div>
+
+              {approvedRequestLabel ? (
+                <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-amber-900">Cerere aprobată</div>
+                      <div className="text-xs text-amber-900/90 mt-0.5 break-words">{approvedRequestLabel}</div>
+                    </div>
+                    {onOpenEditApprovedRequest ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs border-amber-300 bg-white hover:bg-amber-100"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          onOpenEditApprovedRequest()
+                        }}
+                        title="Editează cererea aprobată"
+                      >
+                        <Pencil className="h-3.5 w-3.5 mr-1" />
+                        Editează
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
 
               <div className="mt-3">
                 <div className="grid gap-3 md:grid-cols-2">

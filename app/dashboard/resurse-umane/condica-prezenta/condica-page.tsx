@@ -34,6 +34,8 @@ import {
   subscribeHrRequestsForMonth,
   subscribeTimesheetsForMonth,
   upsertTimesheetCell,
+  updateHrRequestByManager,
+  syncHrRequestToTimesheets,
 } from "@/lib/hr/storage"
 import { Plus, Trash2, LayoutGrid, List, Download, Minimize2, Maximize2, Info } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -48,6 +50,11 @@ import { LegalHolidaysDialog } from "@/components/hr/legal-holidays-dialog"
 import { formatRomanianDate } from "@/lib/utils/date-utils"
 import { syncAttendanceToTimesheet } from "@/lib/attendance/sync-timesheet"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Spinner } from "@/components/ui/spinner"
 
 function InfoTooltipButton({
   tooltip,
@@ -299,6 +306,10 @@ export default function CondicaPrezentaPage() {
   const [legendOpen, setLegendOpen] = useState(false)
   const [holidaysOpen, setHolidaysOpen] = useState(false)
   const [holidays, setHolidays] = useState<HrHoliday[]>([])
+  const [editApprovedRequestOpen, setEditApprovedRequestOpen] = useState(false)
+  const [editApprovedRequestSaving, setEditApprovedRequestSaving] = useState(false)
+  const [editApprovedPayload, setEditApprovedPayload] = useState<any>(null)
+  const [editApprovedOriginalPayload, setEditApprovedOriginalPayload] = useState<any>(null)
 
   useEffect(() => {
     let unsub: null | (() => void) = null
@@ -749,6 +760,111 @@ export default function CondicaPrezentaPage() {
     const dd = String(selectedDay).padStart(2, "0")
     return `${yStr}-${mStr}-${dd}`
   }, [monthKey, selectedDay])
+
+  const selectedApprovedRequest = useMemo(() => {
+    if (!selectedEmployeeId || !selectedDateISO) return null
+    const date = selectedDateISO
+    const approved = leaveRequests.filter((r) => r.status === "approved" && r.employeeId === selectedEmployeeId)
+    const inRange = (start: string, end: string) => start <= date && date <= end
+    for (const r of approved) {
+      const p: any = r.payload as any
+      if (r.kind === "IN") {
+        if (String(p?.date || "") === date) return r
+        continue
+      }
+      if (r.kind === "CO" || r.kind === "CFP" || r.kind === "CM" || r.kind === "DEL") {
+        const s = String(p?.startDate || "")
+        const e = String(p?.endDate || "")
+        if (s && e && inRange(s, e)) return r
+      }
+    }
+    return null
+  }, [leaveRequests, selectedEmployeeId, selectedDateISO])
+
+  const selectedApprovedRequestLabel = useMemo(() => {
+    const r = selectedApprovedRequest
+    if (!r) return null
+    const p: any = r.payload as any
+    if (r.kind === "IN") {
+      return `${hrRequestKindLabel(r.kind)} • ${String(p?.date || "—")} • ${String(p?.startTime || "—")}–${String(p?.endTime || "—")}`
+    }
+    if (r.kind === "CO" || r.kind === "CFP" || r.kind === "CM" || r.kind === "DEL") {
+      return `${hrRequestKindLabel(r.kind)} • ${String(p?.startDate || "—")} → ${String(p?.endDate || "—")}`
+    }
+    return hrRequestKindLabel(r.kind)
+  }, [selectedApprovedRequest])
+
+  const daysFromRequestInMonth = (reqKind: HrRequestKind, payload: any, mk: TimesheetMonthKey): number[] => {
+    if (!payload) return []
+    const set = new Set<number>()
+    const isInMonth = (iso: string) => String(iso).startsWith(`${mk}-`)
+    if (reqKind === "IN") {
+      const date = String(payload?.date || "")
+      if (isInMonth(date)) {
+        const d = Number(date.slice(`${mk}-`.length))
+        if (Number.isFinite(d) && d >= 1 && d <= 31) set.add(d)
+      }
+      return Array.from(set).sort((a, b) => a - b)
+    }
+    if (reqKind === "CO" || reqKind === "CFP" || reqKind === "CM" || reqKind === "DEL") {
+      const start = String(payload?.startDate || "")
+      const end = String(payload?.endDate || "")
+      if (!start || !end) return []
+      enumerateDatesInclusive(start, end).forEach((iso) => {
+        if (!isInMonth(iso)) return
+        const d = Number(iso.slice(`${mk}-`.length))
+        if (Number.isFinite(d) && d >= 1 && d <= 31) set.add(d)
+      })
+      return Array.from(set).sort((a, b) => a - b)
+    }
+    return []
+  }
+
+  const openEditApprovedRequest = () => {
+    if (!selectedApprovedRequest) return
+    // deep clone payload for safe editing
+    const original = JSON.parse(JSON.stringify(selectedApprovedRequest.payload ?? {}))
+    setEditApprovedOriginalPayload(original)
+    setEditApprovedPayload(JSON.parse(JSON.stringify(original)))
+    setEditApprovedRequestOpen(true)
+  }
+
+  const saveEditApprovedRequest = async () => {
+    if (!user?.uid) return
+    if (!selectedApprovedRequest?.id || !editApprovedPayload) return
+    try {
+      setEditApprovedRequestSaving(true)
+      const requestId = selectedApprovedRequest.id
+
+      await updateHrRequestByManager({
+        requestId: selectedApprovedRequest.id,
+        managerUid: user.uid,
+        updates: { payload: editApprovedPayload },
+      })
+
+      const sync = await syncHrRequestToTimesheets({
+        requestId,
+        employeeId: selectedApprovedRequest.employeeId,
+        kind: selectedApprovedRequest.kind,
+        payload: editApprovedPayload,
+        oldPayload: editApprovedOriginalPayload,
+        overwriteConflicts: true,
+      })
+
+      toast({ title: "Actualizat", description: "Am actualizat cererea aprobată." })
+      if (sync.updated || sync.removed || sync.skipped) {
+        toast({
+          title: "Condică sincronizată",
+          description: `Actualizate: ${sync.updated} • Șterse: ${sync.removed} • Sărite (conflict): ${sync.skipped}`,
+        })
+      }
+      setEditApprovedRequestOpen(false)
+    } catch (e: any) {
+      toast({ title: "Eroare", description: e?.message || "Nu am putut actualiza cererea.", variant: "destructive" })
+    } finally {
+      setEditApprovedRequestSaving(false)
+    }
+  }
 
   const calculateOvertimeBank = (employeeId: string) => {
     const ts = timesheets.find(t => t.employeeId === employeeId && t.monthKey === monthKey)
@@ -1507,6 +1623,8 @@ export default function CondicaPrezentaPage() {
         cell={selectedCell}
         activeSessionStart={activeSessionStart}
         anchorRect={anchorRect}
+        approvedRequestLabel={selectedApprovedRequestLabel}
+        onOpenEditApprovedRequest={selectedApprovedRequest ? openEditApprovedRequest : null}
         onOpenAddDialog={() => {
           if (!selectedEmployeeId || !selectedDateISO) return
           setCellOpen(false)
@@ -1530,6 +1648,122 @@ export default function CondicaPrezentaPage() {
           await upsertTimesheetCell({ monthKey, employeeId: selectedEmployeeId, day: selectedDay, cell: normalized })
         }}
       />
+
+      <Dialog
+        open={editApprovedRequestOpen}
+        onOpenChange={(v) => {
+          if (editApprovedRequestSaving) return
+          setEditApprovedRequestOpen(v)
+          if (!v) {
+            setEditApprovedPayload(null)
+            setEditApprovedOriginalPayload(null)
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Editează cererea aprobată</DialogTitle>
+          </DialogHeader>
+
+          {selectedApprovedRequest && editApprovedPayload ? (
+            <div className="space-y-4">
+              <div className="rounded-lg border p-3 bg-muted/20">
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Tip:</span>{" "}
+                  <span className="font-semibold">{hrRequestKindLabel(selectedApprovedRequest.kind)}</span>
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  Notă: editarea de aici modifică <b>cererea HR</b> (nu completează automat condica).
+                </div>
+              </div>
+
+              {(selectedApprovedRequest.kind === "CO" ||
+                selectedApprovedRequest.kind === "CFP" ||
+                selectedApprovedRequest.kind === "CM" ||
+                selectedApprovedRequest.kind === "DEL") && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label>De la</Label>
+                    <Input
+                      type="date"
+                      value={String(editApprovedPayload.startDate || "")}
+                      onChange={(e) => setEditApprovedPayload({ ...editApprovedPayload, startDate: e.target.value })}
+                      disabled={editApprovedRequestSaving}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Până la</Label>
+                    <Input
+                      type="date"
+                      value={String(editApprovedPayload.endDate || "")}
+                      onChange={(e) => setEditApprovedPayload({ ...editApprovedPayload, endDate: e.target.value })}
+                      disabled={editApprovedRequestSaving}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {selectedApprovedRequest.kind === "IN" && (
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="grid gap-2">
+                    <Label>Data</Label>
+                    <Input
+                      type="date"
+                      value={String(editApprovedPayload.date || "")}
+                      onChange={(e) => setEditApprovedPayload({ ...editApprovedPayload, date: e.target.value })}
+                      disabled={editApprovedRequestSaving}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Ora start</Label>
+                    <Input
+                      type="time"
+                      value={String(editApprovedPayload.startTime || "")}
+                      onChange={(e) => setEditApprovedPayload({ ...editApprovedPayload, startTime: e.target.value })}
+                      disabled={editApprovedRequestSaving}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Ora end</Label>
+                    <Input
+                      type="time"
+                      value={String(editApprovedPayload.endTime || "")}
+                      onChange={(e) => setEditApprovedPayload({ ...editApprovedPayload, endTime: e.target.value })}
+                      disabled={editApprovedRequestSaving}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="grid gap-2">
+                <Label>Motiv (opțional)</Label>
+                <Textarea
+                  value={String(editApprovedPayload.reason ?? "")}
+                  onChange={(e) => setEditApprovedPayload({ ...editApprovedPayload, reason: e.target.value })}
+                  rows={3}
+                  disabled={editApprovedRequestSaving}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setEditApprovedRequestOpen(false)} disabled={editApprovedRequestSaving}>
+              Anulează
+            </Button>
+            <Button onClick={saveEditApprovedRequest} disabled={editApprovedRequestSaving || !selectedApprovedRequest || !editApprovedPayload}>
+              {editApprovedRequestSaving ? (
+                <>
+                  <Spinner className="h-4 w-4 mr-2 border-muted-foreground border-t-transparent" />
+                  Se salvează...
+                </>
+              ) : (
+                "Salvează"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AddDayEntryDialog
         open={addOpen}

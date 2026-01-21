@@ -5,18 +5,19 @@ import type { HrRequest, HrRequestKind, HrRequestStatus } from "./types"
 import {
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDocs,
   limit,
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
   where,
   writeBatch,
-  deleteField,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { HR_SEED_EMPLOYEES, buildSeedTimesheets } from "./mock"
@@ -619,6 +620,170 @@ export async function decideHrRequest(params: {
     emailChannel: "nextjs",
   } as any)
   await notifyHrRequestEmail({ requestId: params.requestId, event: "status_changed" })
+}
+
+function enumerateDatesInclusiveISO(startDate: string, endDate: string): string[] {
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return []
+  const dates: string[] = []
+  const d = new Date(start)
+  while (d <= end) {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, "0")
+    const day = String(d.getDate()).padStart(2, "0")
+    dates.push(`${y}-${m}-${day}`)
+    d.setDate(d.getDate() + 1)
+  }
+  return dates
+}
+
+function hmToMinutes(v: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(v || "").trim())
+  if (!m) return null
+  const hh = Number(m[1])
+  const mm = Number(m[2])
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null
+  return hh * 60 + mm
+}
+
+function daysByMonthFromRequest(kind: HrRequestKind, payload: any): Record<TimesheetMonthKey, number[]> {
+  const map: Record<string, Set<number>> = {}
+  const add = (iso: string) => {
+    const s = String(iso || "")
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return
+    const mk = s.slice(0, 7) as TimesheetMonthKey
+    const day = Number(s.slice(8, 10))
+    if (!Number.isFinite(day) || day < 1 || day > 31) return
+    if (!map[mk]) map[mk] = new Set()
+    map[mk].add(day)
+  }
+
+  if (kind === "IN") {
+    add(String(payload?.date || ""))
+  } else if (kind === "CO" || kind === "CFP" || kind === "CM" || kind === "DEL") {
+    const start = String(payload?.startDate || "")
+    const end = String(payload?.endDate || "")
+    enumerateDatesInclusiveISO(start, end).forEach(add)
+  }
+
+  return Object.fromEntries(Object.entries(map).map(([mk, set]) => [mk, Array.from(set).sort((a, b) => a - b)])) as Record<
+    TimesheetMonthKey,
+    number[]
+  >
+}
+
+/**
+ * Syncs an HR request into hrTimesheets so it becomes visible in condică (not just highlighted).
+ *
+ * Behavior:
+ * - Writes leave code to each affected day and marks it with sourceRequestId/sourceRequestKind.
+ * - Removes old days (when payload changes) only if the cell belongs to the same requestId.
+ * - By default overwrites manual cells (so approval is authoritative); set overwriteConflicts=false to be conservative.
+ */
+export async function syncHrRequestToTimesheets(params: {
+  requestId: string
+  employeeId: string
+  kind: HrRequestKind
+  payload: any
+  oldPayload?: any
+  overwriteConflicts?: boolean
+}): Promise<{ updated: number; removed: number; skipped: number; months: TimesheetMonthKey[] }> {
+  const overwrite = params.overwriteConflicts !== false
+  const newByMonth = daysByMonthFromRequest(params.kind, params.payload)
+  const oldByMonth = params.oldPayload ? daysByMonthFromRequest(params.kind, params.oldPayload) : {}
+  const monthKeys = Array.from(new Set([...Object.keys(newByMonth), ...Object.keys(oldByMonth)])).sort() as TimesheetMonthKey[]
+
+  let updated = 0
+  let removed = 0
+  let skipped = 0
+
+  for (const monthKey of monthKeys) {
+    const ref = doc(db, "hrTimesheets", timesheetDocId(params.employeeId, monthKey))
+    const newDays = new Set<number>(newByMonth[monthKey] ?? [])
+    const oldDays = new Set<number>(oldByMonth[monthKey] ?? [])
+
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref)
+      const data: any = snap.exists() ? snap.data() : null
+      const days: Record<string, TimesheetCell> = (data?.days ?? {}) as any
+
+      const updates: Record<string, any> = { updatedAt: serverTimestamp() }
+
+      // Remove days that used to be in the request but are no longer.
+      for (const d of Array.from(oldDays)) {
+        if (newDays.has(d)) continue
+        const existing = days[String(d)]
+        if (overwrite) {
+          if (existing) {
+            updates[`days.${String(d)}`] = deleteField()
+            removed++
+          }
+          continue
+        }
+        if (existing?.sourceRequestId === params.requestId) {
+          updates[`days.${String(d)}`] = deleteField()
+          removed++
+        } else if (existing) {
+          skipped++
+        }
+      }
+
+      // Apply new days.
+      for (const d of Array.from(newDays)) {
+        if (!overwrite) {
+          const existing = days[String(d)]
+          const existingHasOtherSource = existing?.sourceRequestId && existing.sourceRequestId !== params.requestId
+          const existingHasManual = existing && !existing.sourceRequestId && existing.code && existing.code !== "EMPTY"
+          if (existingHasOtherSource || existingHasManual) {
+            skipped++
+            continue
+          }
+        }
+
+        const cell: TimesheetCell = {
+          code: params.kind as any,
+          sourceRequestId: params.requestId,
+          sourceRequestKind: params.kind,
+        }
+
+        if (params.kind === "IN") {
+          const sm = hmToMinutes(String(params.payload?.startTime || ""))
+          const em = hmToMinutes(String(params.payload?.endTime || ""))
+          if (sm != null && em != null && em > sm) {
+            cell.hours = Math.round(((em - sm) / 60) * 100) / 100
+          }
+        }
+
+        updates[`days.${String(d)}`] = cell as any
+        updated++
+      }
+
+      if (!snap.exists()) {
+        // Create the doc if needed (only when we actually write something).
+        const anyDayWrite = Object.keys(updates).some((k) => k.startsWith("days."))
+        if (anyDayWrite) {
+          tx.set(
+            ref,
+            {
+              employeeId: params.employeeId,
+              monthKey,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+              days: {},
+            },
+            { merge: true }
+          )
+        }
+      }
+
+      const hasOps = Object.keys(updates).length > 1
+      if (hasOps) tx.update(ref, updates)
+    })
+  }
+
+  return { updated, removed, skipped, months: monthKeys }
 }
 
 // ===== Departments =====

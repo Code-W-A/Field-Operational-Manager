@@ -16,7 +16,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { ClipboardList, Pencil, Download } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import type { HrRequest, HrRequestKind, HrRequestPayload } from "@/lib/hr/types"
-import { decideHrRequest, subscribeDepartments, subscribeHrRequestsForManager, updateHrRequestByManager } from "@/lib/hr/storage"
+import { decideHrRequest, subscribeDepartments, subscribeHrRequestsForManager, syncHrRequestToTimesheets, updateHrRequestByManager } from "@/lib/hr/storage"
 import { hrRequestDateLabel, hrRequestKindLabel, hrRequestStatusLabel } from "@/lib/hr/hr-requests"
 import { toast } from "@/hooks/use-toast"
 import { generateHrRequestPDF } from "@/lib/hr/request-pdf-generator"
@@ -41,6 +41,7 @@ export default function CereriAprobariPage() {
   const [rejectionReason, setRejectionReason] = useState("")
   const [editOpen, setEditOpen] = useState(false)
   const [editPayload, setEditPayload] = useState<HrRequestPayload | null>(null)
+  const [editOriginalPayload, setEditOriginalPayload] = useState<HrRequestPayload | null>(null)
   const [saving, setSaving] = useState(false)
   const [savingAction, setSavingAction] = useState<"approve" | "reject" | "edit" | null>(null)
 
@@ -76,6 +77,7 @@ export default function CereriAprobariPage() {
     setRejectOpen(false)
     setEditOpen(false)
     setEditPayload(null)
+    setEditOriginalPayload(null)
   }
 
   const approve = async () => {
@@ -84,6 +86,28 @@ export default function CereriAprobariPage() {
       setSaving(true)
       setSavingAction("approve")
       await decideHrRequest({ requestId: selected.id, status: "approved", decidedByUid: user.uid })
+      // Sync to condică (hrTimesheets) so it's visible immediately when opening condica.
+      try {
+        const res = await syncHrRequestToTimesheets({
+          requestId: selected.id,
+          employeeId: selected.employeeId,
+          kind: selected.kind,
+          payload: selected.payload,
+          overwriteConflicts: true,
+        })
+        if (res.updated || res.removed || res.skipped) {
+          toast({
+            title: "Condică sincronizată",
+            description: `Actualizate: ${res.updated} • Șterse: ${res.removed} • Sărite (conflict): ${res.skipped}`,
+          })
+        }
+      } catch (err: any) {
+        toast({
+          title: "Aprobat, dar...",
+          description: err?.message || "Nu am putut sincroniza condica. Reîncearcă din condică.",
+          variant: "destructive",
+        })
+      }
       toast({ title: "Aprobat", description: "Cererea a fost aprobată." })
       setDetailOpen(false)
     } catch (e: any) {
@@ -122,7 +146,9 @@ export default function CereriAprobariPage() {
 
   const beginEdit = () => {
     if (!selected) return
-    setEditPayload(clonePayload(selected.payload))
+    const cloned = clonePayload(selected.payload)
+    setEditOriginalPayload(cloned)
+    setEditPayload(clonePayload(cloned))
     setEditOpen(true)
   }
 
@@ -136,6 +162,31 @@ export default function CereriAprobariPage() {
         managerUid: user.uid,
         updates: { payload: editPayload },
       })
+      // If request is already approved, also sync the updated payload to condică.
+      if (selected.status === "approved") {
+        try {
+          const res = await syncHrRequestToTimesheets({
+            requestId: selected.id,
+            employeeId: selected.employeeId,
+            kind: selected.kind,
+            payload: editPayload,
+            oldPayload: editOriginalPayload ?? selected.payload,
+            overwriteConflicts: true,
+          })
+          if (res.updated || res.removed || res.skipped) {
+            toast({
+              title: "Condică sincronizată",
+              description: `Actualizate: ${res.updated} • Șterse: ${res.removed} • Sărite (conflict): ${res.skipped}`,
+            })
+          }
+        } catch (err: any) {
+          toast({
+            title: "Actualizat, dar...",
+            description: err?.message || "Nu am putut sincroniza condica. Reîncearcă din condică.",
+            variant: "destructive",
+          })
+        }
+      }
       toast({ title: "Actualizat", description: "Cererea a fost actualizată." })
       setEditOpen(false)
     } catch (e: any) {
@@ -309,7 +360,7 @@ export default function CereriAprobariPage() {
           ) : null}
 
           <DialogFooter className="gap-2">
-            {selected && selected.status === "pending" ? (
+            {selected && (selected.status === "pending" || selected.status === "approved") ? (
               <>
                 <Button variant="outline" onClick={() => selected && generateHrRequestPDF(selected)} disabled={saving}>
                   <Download className="h-4 w-4 mr-2" />
@@ -319,19 +370,23 @@ export default function CereriAprobariPage() {
                   <Pencil className="h-4 w-4 mr-2" />
                   Editează
                 </Button>
-                <Button variant="destructive" onClick={() => setRejectOpen(true)} disabled={saving}>
-                  Refuză
-                </Button>
-                <Button onClick={approve} disabled={saving}>
-                  {saving && savingAction === "approve" ? (
-                    <>
-                      <Spinner className="h-4 w-4 mr-2 border-muted-foreground border-t-transparent" />
-                      Se procesează...
-                    </>
-                  ) : (
-                    "Aprobă"
-                  )}
-                </Button>
+                {selected.status === "pending" ? (
+                  <>
+                    <Button variant="destructive" onClick={() => setRejectOpen(true)} disabled={saving}>
+                      Refuză
+                    </Button>
+                    <Button onClick={approve} disabled={saving}>
+                      {saving && savingAction === "approve" ? (
+                        <>
+                          <Spinner className="h-4 w-4 mr-2 border-muted-foreground border-t-transparent" />
+                          Se procesează...
+                        </>
+                      ) : (
+                        "Aprobă"
+                      )}
+                    </Button>
+                  </>
+                ) : null}
               </>
             ) : (
               <>
