@@ -10,11 +10,11 @@ import { useState, useEffect } from "react"
 function cellClasses(cell: TimesheetCell | undefined) {
   const code = cell?.code ?? "EMPTY"
   if (code === "WORK") return "bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
-  if (code === "WE") return "bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
+  if (code === "WE") return "bg-sky-50 text-sky-900 hover:bg-sky-100"
   if (code === "CO") return "bg-yellow-100 text-yellow-950 hover:bg-yellow-200"
   if (code === "DEL") return "bg-violet-50 text-violet-900 hover:bg-violet-100"
   if (code === "IN") return "bg-slate-50 text-slate-900 hover:bg-slate-100"
-  if (code === "SL") return "bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
+  if (code === "SL") return "bg-sky-50 text-sky-900 hover:bg-sky-100"
   if (code === "CM") return "bg-rose-100 text-rose-950 hover:bg-rose-200"
   return "bg-background text-muted-foreground hover:bg-muted/30"
 }
@@ -193,7 +193,7 @@ export function TimesheetGrid({
               className={cn(
                 "flex flex-col items-center justify-center px-1 font-semibold bg-gray-50",
                 compact ? "text-[10px] py-2" : "text-xs py-3",
-                (weekdayMeta(monthKey, d).isWeekend || holidayLabelsByDay?.[d]) && "bg-emerald-50 text-emerald-900"
+                (weekdayMeta(monthKey, d).isWeekend || holidayLabelsByDay?.[d]) && "bg-sky-50 text-sky-900"
               )}
               title={[
                 `Ziua ${d}`,
@@ -222,7 +222,8 @@ export function TimesheetGrid({
                 "total_in": "T-IN",
                 "ore_sl": "SL"
               }
-              label = labelMap[c.id] || c.label
+              // Keep rich labels (e.g. with tooltip icon) intact; shorten only plain string labels.
+              label = typeof c.label === "string" ? (labelMap[c.id] || c.label) : c.label
             }
             
             return (
@@ -277,7 +278,7 @@ export function TimesheetGrid({
                       req && isEmpty ? requestBgClass(req.kind) : "",
                       req && !isEmpty ? requestRingClass(req.kind) : "",
                       // Weekends / legal holidays: full-cell background (only for empty cells, so we don't fight code colors)
-                      (isEmpty && (holidayLabel || isWeekend)) ? "bg-emerald-50 text-emerald-900 hover:bg-emerald-100" : "",
+                      (isEmpty && (holidayLabel || isWeekend)) ? "bg-sky-50 text-sky-900 hover:bg-sky-100" : "",
                       isActive && "bg-emerald-200 text-emerald-900 hover:bg-emerald-300"
                     )}
                     title={[

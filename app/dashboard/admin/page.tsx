@@ -9,6 +9,7 @@ import { Settings, Mail, FileText, Database, PenToolIcon as Tool, FileCode, File
 
 export default function AdminPage() {
   const router = useRouter()
+  const debugEnabled = process.env.NEXT_PUBLIC_ENABLE_DEBUG_PANEL === "true"
 
   const adminTools = [
     {
@@ -39,13 +40,8 @@ export default function AdminPage() {
       title: "Reparare Date Clienți",
       description: "Instrument pentru repararea datelor clienților",
       icon: <Tool className="h-6 w-6" />,
-      href: "/dashboard/admin",
-      onClick: () => {
-        const confirmed = window.confirm("Acest instrument va repara datele clienților. Doriți să continuați?")
-        if (confirmed) {
-          // Implementare pentru repararea datelor clienților
-        }
-      },
+      href: "/dashboard/admin/client-data-repair",
+      visible: debugEnabled,
     },
     {
       title: "Reparare ID-uri Echipamente",
@@ -68,7 +64,7 @@ export default function AdminPage() {
         // Implementare pentru generarea codurilor QR
       },
     },
-  ]
+  ].filter((t: any) => (typeof t.visible === "boolean" ? t.visible : true))
 
   return (
     <DashboardShell>

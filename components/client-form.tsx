@@ -49,6 +49,7 @@ import { subscribeRevisionChecklistTemplates, subscribeToSettings } from "@/lib/
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useAuth } from "@/contexts/AuthContext"
+import { v4 as uuidv4 } from "uuid"
 
 interface ClientFormProps {
   mode?: "add" | "edit"
@@ -551,7 +552,8 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
       }
     } else {
       // Adăugare echipament nou
-      const generatedId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      // IMPORTANT: ID stabil (nu "temp-*") ca să prevenim ambiguități la selecție/salvare în lucrări.
+      const generatedId = uuidv4()
       updatedLocatii[selectedLocatieIndex].echipamente!.push({
         ...equipmentToSave,
         id: generatedId,
@@ -725,7 +727,13 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
         .map((locatie) => ({
           ...locatie,
           persoaneContact: locatie.persoaneContact.filter((contact) => contact.nume && contact.telefon),
-          echipamente: (locatie.echipamente || []).filter((e) => e.nume && e.cod),
+          // Backfill: ne asigurăm că fiecare echipament are un ID stabil (fără a modifica ID-urile existente).
+          echipamente: (locatie.echipamente || [])
+            .filter((e) => e.nume && e.cod)
+            .map((e) => ({
+              ...e,
+              id: e.id || uuidv4(),
+            })),
         }))
 
       // Folosim prima persoană de contact din prima locație ca persoană de contact principală pentru compatibilitate

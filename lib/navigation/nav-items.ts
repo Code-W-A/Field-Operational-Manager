@@ -88,6 +88,7 @@ export function filterNav(nodes: NavNode[], ctx: NavCtx): NavNode[] {
 
 export function buildNav(ctx: NavCtx): NavNode[] {
   const { isAdmin, isTechnician, isDispatcher, isClient, isKiosk, isAdminOrDispatcher } = getRoleFlags(ctx)
+  const debugEnabled = process.env.NEXT_PUBLIC_ENABLE_DEBUG_PANEL === "true"
 
   if (isClient) {
     return filterNav(
@@ -259,6 +260,15 @@ export function buildNav(ctx: NavCtx): NavNode[] {
       icon: Sliders,
       visible: () => isAdmin,
       items: [
+        {
+          type: "link",
+          id: "admin-tools",
+          label: "Administrare",
+          href: "/dashboard/admin",
+          icon: Sliders,
+          activeMatch: "prefix",
+          visible: () => isAdmin && debugEnabled,
+        },
         {
           type: "link",
           id: "utilizatori",

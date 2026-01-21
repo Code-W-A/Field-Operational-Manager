@@ -19,6 +19,7 @@ import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { Image as ImageIcon, Pencil, Trash2, UserCheck } from "lucide-react"
 import { DateInput } from "@/components/ui/date-input"
+import { normalizeTimeHHmmLoose } from "@/lib/utils/time-input"
 
 export type EmployeeEditDialogUser = {
   uid: string
@@ -164,6 +165,19 @@ export function EmployeeEditDialog({
       return
     }
 
+    const normalizedStart = normalizeTimeHHmmLoose(programLucruStart)
+    const normalizedEnd = normalizeTimeHHmmLoose(programLucruEnd)
+    if (normalizedStart === null || normalizedEnd === null) {
+      toast({
+        title: "Program invalid",
+        description: "Completează orele în format 24h HH:mm (ex: 08:00, 16:30).",
+        variant: "destructive",
+      })
+      return
+    }
+    if (normalizedStart !== programLucruStart) setProgramLucruStart(normalizedStart)
+    if (normalizedEnd !== programLucruEnd) setProgramLucruEnd(normalizedEnd)
+
     const employeeId = employee?.id ?? (draftEmployeeId || makeId())
 
     try {
@@ -208,8 +222,8 @@ export function EmployeeEditDialog({
             sectorIds: nextSectorIds.length ? nextSectorIds : undefined,
             managerUidBySector: Object.keys(nextManagerUidBySector).length ? nextManagerUidBySector : undefined,
             loculDeMunca: loculDeMunca.trim() || undefined,
-            programLucruStart: programLucruStart.trim() || undefined,
-            programLucruEnd: programLucruEnd.trim() || undefined,
+            programLucruStart: normalizedStart.trim() || undefined,
+            programLucruEnd: normalizedEnd.trim() || undefined,
             zileConcediuAnuale: zileConcediuAnuale.trim() ? Number(zileConcediuAnuale) : undefined,
           }
         : {
@@ -230,8 +244,8 @@ export function EmployeeEditDialog({
             sectorIds: nextSectorIds.length ? nextSectorIds : undefined,
             managerUidBySector: Object.keys(nextManagerUidBySector).length ? nextManagerUidBySector : undefined,
             loculDeMunca: loculDeMunca.trim() || undefined,
-            programLucruStart: programLucruStart.trim() || undefined,
-            programLucruEnd: programLucruEnd.trim() || undefined,
+            programLucruStart: normalizedStart.trim() || undefined,
+            programLucruEnd: normalizedEnd.trim() || undefined,
             zileConcediuAnuale: zileConcediuAnuale.trim() ? Number(zileConcediuAnuale) : undefined,
           }
 
@@ -543,11 +557,55 @@ export function EmployeeEditDialog({
               <div className="grid grid-cols-2 gap-3">
                 <div className="grid gap-2">
                   <Label htmlFor="employeeProgramLucruStart">Program start</Label>
-                  <Input id="employeeProgramLucruStart" type="time" value={programLucruStart} onChange={(e) => setProgramLucruStart(e.target.value)} />
+                  <Input
+                    id="employeeProgramLucruStart"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder="08:00"
+                    pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
+                    title="Format 24h: HH:mm (ex: 08:00, 16:30)"
+                    value={programLucruStart}
+                    onChange={(e) => setProgramLucruStart(e.target.value.replace(/[^\d:]/g, "").slice(0, 5))}
+                    onBlur={() => {
+                      const normalized = normalizeTimeHHmmLoose(programLucruStart)
+                      if (normalized === null) {
+                        toast({
+                          title: "Oră invalidă",
+                          description: "Folosește formatul 24h HH:mm (ex: 08:00).",
+                          variant: "destructive",
+                        })
+                        return
+                      }
+                      if (normalized !== programLucruStart) setProgramLucruStart(normalized)
+                    }}
+                  />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="employeeProgramLucruEnd">Program end</Label>
-                  <Input id="employeeProgramLucruEnd" type="time" value={programLucruEnd} onChange={(e) => setProgramLucruEnd(e.target.value)} />
+                  <Input
+                    id="employeeProgramLucruEnd"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder="16:30"
+                    pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
+                    title="Format 24h: HH:mm (ex: 08:00, 16:30)"
+                    value={programLucruEnd}
+                    onChange={(e) => setProgramLucruEnd(e.target.value.replace(/[^\d:]/g, "").slice(0, 5))}
+                    onBlur={() => {
+                      const normalized = normalizeTimeHHmmLoose(programLucruEnd)
+                      if (normalized === null) {
+                        toast({
+                          title: "Oră invalidă",
+                          description: "Folosește formatul 24h HH:mm (ex: 16:30).",
+                          variant: "destructive",
+                        })
+                        return
+                      }
+                      if (normalized !== programLucruEnd) setProgramLucruEnd(normalized)
+                    }}
+                  />
                 </div>
               </div>
               <div className="grid gap-2">

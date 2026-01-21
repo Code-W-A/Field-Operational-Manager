@@ -13,6 +13,7 @@ import { toast } from "@/hooks/use-toast"
 import { EmployeesTable } from "@/components/hr/employees-table"
 import type { Employee } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
+import { normalizeTimeHHmmLoose } from "@/lib/utils/time-input"
 import {
   getCurrentMonthKey,
   importLegacyLocalStorageHrDataToFirestore,
@@ -170,20 +171,58 @@ export default function HrEmployeesPage() {
             <Label htmlFor="defaultProgramStart">Program start</Label>
             <Input
               id="defaultProgramStart"
-              type="time"
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
+              title="Format 24h: HH:mm (ex: 08:00, 16:30)"
               value={defaultProgramStart}
-              onChange={(e) => setDefaultProgramStart(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value.replace(/[^\d:]/g, "").slice(0, 5)
+                setDefaultProgramStart(next)
+              }}
               placeholder="08:00"
+              onBlur={() => {
+                const normalized = normalizeTimeHHmmLoose(defaultProgramStart)
+                if (normalized === null) {
+                  toast({
+                    title: "Oră invalidă",
+                    description: "Folosește formatul 24h HH:mm (ex: 08:00).",
+                    variant: "destructive",
+                  })
+                  return
+                }
+                if (normalized !== defaultProgramStart) setDefaultProgramStart(normalized)
+              }}
             />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="defaultProgramEnd">Program end</Label>
             <Input
               id="defaultProgramEnd"
-              type="time"
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
+              title="Format 24h: HH:mm (ex: 08:00, 16:30)"
               value={defaultProgramEnd}
-              onChange={(e) => setDefaultProgramEnd(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value.replace(/[^\d:]/g, "").slice(0, 5)
+                setDefaultProgramEnd(next)
+              }}
               placeholder="16:30"
+              onBlur={() => {
+                const normalized = normalizeTimeHHmmLoose(defaultProgramEnd)
+                if (normalized === null) {
+                  toast({
+                    title: "Oră invalidă",
+                    description: "Folosește formatul 24h HH:mm (ex: 16:30).",
+                    variant: "destructive",
+                  })
+                  return
+                }
+                if (normalized !== defaultProgramEnd) setDefaultProgramEnd(normalized)
+              }}
             />
           </div>
           <Button onClick={() => setConfirmDefaultsOpen(true)} disabled={savingDefaults}>
@@ -256,14 +295,27 @@ export default function HrEmployeesPage() {
             <AlertDialogCancel
               onClick={async () => {
                 try {
+                  const normalizedStart = normalizeTimeHHmmLoose(defaultProgramStart)
+                  const normalizedEnd = normalizeTimeHHmmLoose(defaultProgramEnd)
+                  if (normalizedStart === null || normalizedEnd === null) {
+                    toast({
+                      title: "Program invalid",
+                      description: "Completează orele în format 24h HH:mm (ex: 08:00, 16:30).",
+                      variant: "destructive",
+                    })
+                    return
+                  }
+                  if (normalizedStart !== defaultProgramStart) setDefaultProgramStart(normalizedStart)
+                  if (normalizedEnd !== defaultProgramEnd) setDefaultProgramEnd(normalizedEnd)
+
                   setSavingDefaults(true)
                   await saveHrDefaults({
-                    programLucruStart: defaultProgramStart.trim() || undefined,
-                    programLucruEnd: defaultProgramEnd.trim() || undefined,
+                    programLucruStart: normalizedStart.trim() || undefined,
+                    programLucruEnd: normalizedEnd.trim() || undefined,
                   })
                   const updated = await applyHrDefaultsToEmployees({
-                    programLucruStart: defaultProgramStart.trim() || undefined,
-                    programLucruEnd: defaultProgramEnd.trim() || undefined,
+                    programLucruStart: normalizedStart.trim() || undefined,
+                    programLucruEnd: normalizedEnd.trim() || undefined,
                   })
                   toast({
                     title: "Salvat",
@@ -283,14 +335,27 @@ export default function HrEmployeesPage() {
             <AlertDialogAction
               onClick={async () => {
                 try {
+                  const normalizedStart = normalizeTimeHHmmLoose(defaultProgramStart)
+                  const normalizedEnd = normalizeTimeHHmmLoose(defaultProgramEnd)
+                  if (normalizedStart === null || normalizedEnd === null) {
+                    toast({
+                      title: "Program invalid",
+                      description: "Completează orele în format 24h HH:mm (ex: 08:00, 16:30).",
+                      variant: "destructive",
+                    })
+                    return
+                  }
+                  if (normalizedStart !== defaultProgramStart) setDefaultProgramStart(normalizedStart)
+                  if (normalizedEnd !== defaultProgramEnd) setDefaultProgramEnd(normalizedEnd)
+
                   setSavingDefaults(true)
                   await saveHrDefaults({
-                    programLucruStart: defaultProgramStart.trim() || undefined,
-                    programLucruEnd: defaultProgramEnd.trim() || undefined,
+                    programLucruStart: normalizedStart.trim() || undefined,
+                    programLucruEnd: normalizedEnd.trim() || undefined,
                   })
                   const updated = await applyHrDefaultsToAllEmployees({
-                    programLucruStart: defaultProgramStart.trim() || undefined,
-                    programLucruEnd: defaultProgramEnd.trim() || undefined,
+                    programLucruStart: normalizedStart.trim() || undefined,
+                    programLucruEnd: normalizedEnd.trim() || undefined,
                   })
                   toast({
                     title: "Salvat",

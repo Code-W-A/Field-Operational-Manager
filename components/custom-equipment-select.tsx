@@ -67,7 +67,8 @@ export function CustomEquipmentSelect({
   }, [open])
 
   // Efectul principal de selecție: folosim doar ID/cod pentru value;
-  // folosim fallbackName doar când există o singură potrivire unică de nume.
+  // IMPORTANT (safety): NU mai "ghicim" echipamentul după nume/cod. `value` trebuie să fie ID-ul.
+  // `fallbackName` este doar pentru afișare (backward compatible pentru lucrări vechi).
 
   useEffect(() => {
     console.log("CustomEquipmentSelect - Efect principal de selecție rulat cu:", {
@@ -79,18 +80,9 @@ export function CustomEquipmentSelect({
     // Dacă nu avem echipamente, nu facem nimic
     if (equipments.length === 0) return
 
-    // Prioritate 1: Selecție după ID/cod (cea mai precisă)
+    // Prioritate 1: Selecție strict după ID (cea mai precisă)
     if (value) {
-  const vLower = value.toLowerCase()
-
-  const equipment = equipments.find(
-    e => e.id  === value           // id
-      || e.cod === value           // cod
-      || e.nume === value          // nume exact
-      // opțional: potrivire case-insensitive
-      || e.cod?.toLowerCase()  === vLower
-      || e.nume.toLowerCase()   === vLower
-  )
+      const equipment = equipments.find((e) => e.id === value)
       if (equipment) {
         console.log("CustomEquipmentSelect - Echipament găsit după ID:", equipment)
         setSelectedEquipment(equipment)
@@ -102,23 +94,7 @@ export function CustomEquipmentSelect({
       }
     }
 
-    // Prioritate 2: Fallback după nume doar când există o singură potrivire de nume
-    if (!value && fallbackName) {
-      const exactMatches = equipments.filter((e) => e.nume === fallbackName)
-      const fallbackNameLower = fallbackName.toLowerCase()
-      const partialMatches = exactMatches.length === 0
-        ? equipments.filter((e) => e.nume.toLowerCase() === fallbackNameLower)
-        : exactMatches
-
-      const uniqueMatch = partialMatches.length === 1 ? partialMatches[0] : null
-      if (uniqueMatch) {
-        console.log("CustomEquipmentSelect - Fallback unic după nume:", uniqueMatch)
-        setSelectedEquipment(uniqueMatch)
-        onSelect(uniqueMatch.id || "", uniqueMatch)
-        setFallbackUsed(true)
-        return
-      }
-    }
+    // FallbackName este DOAR pentru afișare (nu selectăm automat).
 
     // Dacă nu am găsit nicio potrivire și nu avem o selecție manuală, resetăm
     if (!manuallySelected) {
@@ -191,14 +167,6 @@ export function CustomEquipmentSelect({
         if (equipment) {
           console.log("CustomEquipmentSelect - Forțăm selecția după ID:", equipment)
           setSelectedEquipment(equipment)
-        } else if (fallbackName) {
-          // Încercăm după nume dacă ID-ul nu a fost găsit
-          const equipmentByName = equipments.find((e) => e.nume === fallbackName)
-          if (equipmentByName) {
-            console.log("CustomEquipmentSelect - Forțăm selecția după nume:", equipmentByName)
-            setSelectedEquipment(equipmentByName)
-            onSelect(equipmentByName.id || "", equipmentByName)
-          }
         }
       }
     }

@@ -30,6 +30,7 @@ import {
   seedHrIfEmpty,
   subscribeEmployees,
   subscribeDepartments,
+  subscribeHrDefaults,
   subscribeHrRequestsForMonth,
   subscribeTimesheetsForMonth,
   upsertTimesheetCell,
@@ -41,12 +42,36 @@ import { useAuth } from "@/contexts/AuthContext"
 import { toast } from "@/hooks/use-toast"
 import { db } from "@/lib/firebase/config"
 import type { AttendanceSession } from "@/types/attendance"
-import type { HrHoliday } from "@/lib/hr/types"
+import type { HrDefaults, HrHoliday } from "@/lib/hr/types"
 import { saveHrHolidays, subscribeHrHolidays } from "@/lib/hr/storage"
 import { LegalHolidaysDialog } from "@/components/hr/legal-holidays-dialog"
 import { formatRomanianDate } from "@/lib/utils/date-utils"
 import { syncAttendanceToTimesheet } from "@/lib/attendance/sync-timesheet"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+
+function ColumnInfoLabel({
+  label,
+  tooltip,
+}: {
+  label: React.ReactNode
+  tooltip: React.ReactNode
+}) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span>{label}</span>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="Info">
+            <Info className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-[420px] text-sm leading-snug">
+          {tooltip}
+        </TooltipContent>
+      </Tooltip>
+    </span>
+  )
+}
 
 function toMonthInputValue(monthKey: TimesheetMonthKey) {
   return monthKey
@@ -226,6 +251,7 @@ export default function CondicaPrezentaPage() {
   const [leaveRequests, setLeaveRequests] = useState<HrRequest[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
   const [activeSessions, setActiveSessions] = useState<Record<string, AttendanceSession>>({})
+  const [hrDefaults, setHrDefaults] = useState<HrDefaults>({})
 
   const [cellOpen, setCellOpen] = useState(false)
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
@@ -278,6 +304,14 @@ export default function CondicaPrezentaPage() {
   useEffect(() => {
     const unsub = subscribeDepartments({
       onChange: setDepartments,
+      onError: () => undefined,
+    })
+    return () => unsub()
+  }, [])
+
+  useEffect(() => {
+    const unsub = subscribeHrDefaults({
+      onChange: setHrDefaults,
       onError: () => undefined,
     })
     return () => unsub()
@@ -414,6 +448,48 @@ export default function CondicaPrezentaPage() {
     return timesheets.find((t) => t.monthKey === monthKey && t.employeeId === employeeId) ?? null
   }
 
+  const employeeById = useMemo(() => {
+    return Object.fromEntries(employees.map((e) => [e.id, e] as const))
+  }, [employees])
+
+  const normalizeKey = (s: string) =>
+    String(s || "")
+      .trim()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+
+  const overlapMinutes = (aStart: number, aEnd: number, bStart: number, bEnd: number) => {
+    const s = Math.max(aStart, bStart)
+    const e = Math.min(aEnd, bEnd)
+    return Math.max(0, e - s)
+  }
+
+  const sumEntryMinutes = (
+    entries: NonNullable<TimesheetCell["entries"]>,
+    predicate: (e: NonNullable<TimesheetCell["entries"]>[number]) => boolean,
+    window?: { start: number; end: number },
+  ) => {
+    return entries.reduce((sum, e) => {
+      if (!predicate(e)) return sum
+      const s = parseHM(e.start)
+      const en = parseHM(e.end)
+      if (s == null || en == null || en <= s) return sum
+      if (!window) return sum + (en - s)
+      return sum + overlapMinutes(s, en, window.start, window.end)
+    }, 0)
+  }
+
+  const getScheduleMinutes = (employeeId: string) => {
+    const emp = employeeById[employeeId]
+    const startRaw = String(emp?.programLucruStart || hrDefaults.programLucruStart || "08:00")
+    const endRaw = String(emp?.programLucruEnd || hrDefaults.programLucruEnd || "16:30")
+    const start = parseHM(startRaw)
+    const end = parseHM(endRaw)
+    if (start == null || end == null || end <= start) return null
+    return { start, end, duration: end - start }
+  }
+
   const countDaysInRangeForMonth = (startDate: string, endDate: string) => {
     const start = new Date(startDate)
     const end = new Date(endDate)
@@ -444,12 +520,96 @@ export default function CondicaPrezentaPage() {
     let co = 0
     let del = 0
     let totalTimpIN = 0
+    let oreTraseuLaClient = 0
+    let oreTraseuDeLaClient = 0
+    let oreC1 = 0
+    let oreC2 = 0
+    let oreC3 = 0
+    let oreC4 = 0
+    let oreC5 = 0
+    let oreC6 = 0
+    let oreC7 = 0
 
     const dim = daysInMonth(monthKey)
     for (let d = 1; d <= dim; d++) {
       const c = ts?.days?.[String(d)]
       if (!c || c.code === "EMPTY") continue
       zileLucrate += 1
+
+      const entries = (c.entries ?? []) as NonNullable<TimesheetCell["entries"]>
+      const schedule = getScheduleMinutes(employeeId)
+      const [yStr, mStr] = monthKey.split("-")
+      const dt = new Date(Number(yStr), Number(mStr) - 1, d)
+      const dow = dt.getDay() // 0=Sun ... 6=Sat
+      const isSaturday = dow === 6
+      const isSunday = dow === 0
+      const isHoliday = Boolean(holidayLabelsByDay[d])
+      const isWeekendOrHoliday = isSaturday || isSunday || isHoliday
+
+      const toClientKey = "traseu catre client"
+      const toHomeKey = "traseu catre casa"
+      const pontajKey = "pontaj"
+
+      const isToClient = (e: NonNullable<TimesheetCell["entries"]>[number]) => normalizeKey(String(e.project || "")) === toClientKey
+      const isToHome = (e: NonNullable<TimesheetCell["entries"]>[number]) => normalizeKey(String(e.project || "")) === toHomeKey
+      const isPontaj = (e: NonNullable<TimesheetCell["entries"]>[number]) => normalizeKey(String(e.project || "")) === pontajKey
+
+      const toClientMinutesTotal = sumEntryMinutes(entries, isToClient)
+      const toHomeMinutesTotal = sumEntryMinutes(entries, isToHome)
+      oreTraseuLaClient += toClientMinutesTotal / 60
+      oreTraseuDeLaClient += toHomeMinutesTotal / 60
+
+      // C6/C7: ore lucrate sâmbătă / duminică sau în sărbătoare legală (SL).
+      // "Ore lucrate" = timp Pontaj (fallback la cell.hours dacă nu există entries).
+      const pontajMinutesTotal = sumEntryMinutes(entries, isPontaj) || Math.round(Number(c.hours ?? 0) * 60)
+      if (isHoliday || isSunday) {
+        oreC7 += pontajMinutesTotal / 60
+      } else if (isSaturday) {
+        oreC6 += pontajMinutesTotal / 60
+      }
+
+      // C1/C2/C3/C4/C5: doar în zile normale (Lu–Vi, non-SL).
+      if (schedule && !isWeekendOrHoliday) {
+        // C1: de la check-in până la ora de început a programului standard (prefer "Traseu către client" înainte de start).
+        // C2: de la ora de sfârșit a programului standard până la check-out (prefer "Traseu către casă" după end).
+        const toClientBeforeStart = sumEntryMinutes(entries, isToClient, { start: 0, end: schedule.start })
+        const toHomeAfterEnd = sumEntryMinutes(entries, isToHome, { start: schedule.end, end: 24 * 60 })
+
+        let c1Min = toClientBeforeStart
+        let c2Min = toHomeAfterEnd
+
+        // Fallback: dacă nu există traseu cronometrat, folosim Pontaj (Play/Stop) ca proxy de check-in/out.
+        if (!c1Min || !c2Min) {
+          let earliestPontaj: number | null = null
+          let latestPontaj: number | null = null
+          entries.forEach((e) => {
+            if (!isPontaj(e)) return
+            const s = parseHM(e.start)
+            const en = parseHM(e.end)
+            if (s == null || en == null || en <= s) return
+            earliestPontaj = earliestPontaj == null ? s : Math.min(earliestPontaj, s)
+            latestPontaj = latestPontaj == null ? en : Math.max(latestPontaj, en)
+          })
+          if (!c1Min && earliestPontaj != null && earliestPontaj < schedule.start) c1Min = schedule.start - earliestPontaj
+          if (!c2Min && latestPontaj != null && latestPontaj > schedule.end) c2Min = latestPontaj - schedule.end
+        }
+
+        oreC1 += c1Min / 60
+        oreC2 += c2Min / 60
+
+        // C3/C4/C5: ore Pontaj în afara programului standard (split 2h + 2h + rest).
+        const pontajOutside =
+          sumEntryMinutes(entries, isPontaj, { start: 0, end: schedule.start }) +
+          sumEntryMinutes(entries, isPontaj, { start: schedule.end, end: 24 * 60 })
+
+        const c3 = Math.min(120, pontajOutside)
+        const c4 = Math.min(120, Math.max(0, pontajOutside - 120))
+        const c5 = Math.max(0, pontajOutside - 240)
+        oreC3 += c3 / 60
+        oreC4 += c4 / 60
+        oreC5 += c5 / 60
+      }
+
       if (c.code === "WORK") {
         const hours = Number(c.hours ?? 8)
         orePrezenta += hours
@@ -486,19 +646,19 @@ export default function CondicaPrezentaPage() {
       ticheteMasa,
       orePrezenta,
       oreLucrateEfectiv,
-      oreTraseuLaClient: 0,
-      oreTraseuDeLaClient: 0,
+      oreTraseuLaClient: Math.round(oreTraseuLaClient * 100) / 100,
+      oreTraseuDeLaClient: Math.round(oreTraseuDeLaClient * 100) / 100,
       co,
       del,
       totalTimpIN,
       oreSarbatoriLegale,
-      oreC1: 0,
-      oreC2: 0,
-      oreC3: 0,
-      oreC4: 0,
-      oreC5: 0,
-      oreC6: 0,
-      oreC7: 0,
+      oreC1: Math.round(oreC1 * 100) / 100,
+      oreC2: Math.round(oreC2 * 100) / 100,
+      oreC3: Math.round(oreC3 * 100) / 100,
+      oreC4: Math.round(oreC4 * 100) / 100,
+      oreC5: Math.round(oreC5 * 100) / 100,
+      oreC6: Math.round(oreC6 * 100) / 100,
+      oreC7: Math.round(oreC7 * 100) / 100,
     }
   }
 
@@ -643,13 +803,99 @@ export default function CondicaPrezentaPage() {
 
   const extraColumns: TimesheetExtraColumn[] = useMemo(
     () => [
-      { id: "zile_lucrate", label: "Zile lucrate", widthPx: 90, render: (e) => getSummary(e.id).zileLucrate },
-      { id: "tichete_masa", label: "Tichete de masă", widthPx: 110, render: (e) => getSummary(e.id).ticheteMasa },
-      { id: "ore_prezenta", label: "Ore prezență", widthPx: 110, render: (e) => getSummary(e.id).orePrezenta },
-      { id: "ore_lucrate_efectiv", label: "Ore lucrate efectiv", widthPx: 140, render: (e) => getSummary(e.id).oreLucrateEfectiv },
+      {
+        id: "zile_lucrate",
+        label: (
+          <ColumnInfoLabel
+            label="Zile lucrate"
+            tooltip={
+              <div className="space-y-2">
+                <div className="font-semibold">Cum se calculează</div>
+                <div>Numără câte zile din luna curentă au o celulă completată (adică există și codul nu este <b>EMPTY</b>).</div>
+                <div className="text-muted-foreground">
+                  Include orice cod (WORK/WE/SL/CO/CFP/CM/DEL/IN) dacă ziua nu este goală.
+                </div>
+              </div>
+            }
+          />
+        ),
+        widthPx: 90,
+        render: (e) => getSummary(e.id).zileLucrate,
+      },
+      {
+        id: "tichete_masa",
+        label: (
+          <ColumnInfoLabel
+            label="Tichete de masă"
+            tooltip={
+              <div className="space-y-2">
+                <div className="font-semibold">Cum se calculează</div>
+                <div>
+                  <b>max(0, Zile lucrate − Zile DEL)</b>.
+                </div>
+                <div className="text-muted-foreground">
+                  Zilele DEL vin din cereri aprobate (nu din codul din condică).
+                </div>
+              </div>
+            }
+          />
+        ),
+        widthPx: 110,
+        render: (e) => getSummary(e.id).ticheteMasa,
+      },
+      {
+        id: "ore_prezenta",
+        label: (
+          <ColumnInfoLabel
+            label="Ore prezență"
+            tooltip={
+              <div className="space-y-2">
+                <div className="font-semibold">Cum se calculează</div>
+                <div>Se adună <b>hours</b> doar pentru zilele cu cod <b>WORK</b>.</div>
+                <div className="text-muted-foreground">
+                  Dacă ziua are cod WE/SL/DEL etc., nu intră aici.
+                </div>
+              </div>
+            }
+          />
+        ),
+        widthPx: 110,
+        render: (e) => getSummary(e.id).orePrezenta,
+      },
+      {
+        id: "ore_lucrate_efectiv",
+        label: (
+          <ColumnInfoLabel
+            label="Ore lucrate efectiv"
+            tooltip={
+              <div className="space-y-2">
+                <div className="font-semibold">Cum se calculează</div>
+                <div>În prezent este identic cu <b>Ore prezență</b>: suma <b>hours</b> pentru cod <b>WORK</b>.</div>
+              </div>
+            }
+          />
+        ),
+        widthPx: 140,
+        render: (e) => getSummary(e.id).oreLucrateEfectiv,
+      },
       { 
         id: "banca_ore", 
-        label: "Bancă de ore", 
+        label: (
+          <ColumnInfoLabel
+            label="Bancă de ore"
+            tooltip={
+              <div className="space-y-2">
+                <div className="font-semibold">Cum se calculează</div>
+                <div>
+                  Pentru zilele <b>WORK</b>: <b>overtime = (suma hours) − (număr zile WORK × 8)</b>.
+                </div>
+                <div className="text-muted-foreground">
+                  Este o comparație față de norma de 8h/zi, doar pe zile WORK.
+                </div>
+              </div>
+            }
+          />
+        ), 
         widthPx: 110, 
         render: (e) => {
           const bank = calculateOvertimeBank(e.id)
@@ -663,22 +909,236 @@ export default function CondicaPrezentaPage() {
           )
         }
       },
-      { id: "traseu_la", label: "Ore traseu la client", widthPx: 130, render: (e) => getSummary(e.id).oreTraseuLaClient },
-      { id: "traseu_de", label: "Ore traseu de la client", widthPx: 140, render: (e) => getSummary(e.id).oreTraseuDeLaClient },
-      { id: "co", label: "Zile CO", widthPx: 80, render: (e) => getSummary(e.id).co },
-      { id: "del", label: "Zile DEL", widthPx: 80, render: (e) => getSummary(e.id).del },
-      { id: "in", label: "Ore IN", widthPx: 90, render: (e) => getSummary(e.id).totalTimpIN },
-      { id: "ore_sl", label: "Ore sărbători legale", widthPx: 140, render: (e) => getSummary(e.id).oreSarbatoriLegale },
-      { id: "c1", label: "Ore C1", widthPx: 80, render: (e) => getSummary(e.id).oreC1 },
-      { id: "c2", label: "Ore C2", widthPx: 80, render: (e) => getSummary(e.id).oreC2 },
-      { id: "c3", label: "Ore C3", widthPx: 80, render: (e) => getSummary(e.id).oreC3 },
-      { id: "c4", label: "Ore C4", widthPx: 80, render: (e) => getSummary(e.id).oreC4 },
-      { id: "c5", label: "Ore C5", widthPx: 80, render: (e) => getSummary(e.id).oreC5 },
-      { id: "c6", label: "Ore C6", widthPx: 80, render: (e) => getSummary(e.id).oreC6 },
-      { id: "c7", label: "Ore C7", widthPx: 80, render: (e) => getSummary(e.id).oreC7 },
+      {
+        id: "traseu_la",
+        label: (
+          <ColumnInfoLabel
+            label="Ore traseu la client"
+            tooltip={
+              <div className="space-y-2">
+                <div className="font-semibold">Cum se calculează</div>
+                <div>Se adună durata tuturor intervalelor din <b>entries</b> cu proiect <b>„Traseu către client”</b>.</div>
+                <div className="text-muted-foreground">
+                  Intervalele sunt create automat din pontaj (extra logs) sau pot exista din corecții.
+                </div>
+              </div>
+            }
+          />
+        ),
+        widthPx: 130,
+        render: (e) => getSummary(e.id).oreTraseuLaClient,
+      },
+      {
+        id: "traseu_de",
+        label: (
+          <ColumnInfoLabel
+            label="Ore traseu de la client"
+            tooltip={
+              <div className="space-y-2">
+                <div className="font-semibold">Cum se calculează</div>
+                <div>Se adună durata tuturor intervalelor din <b>entries</b> cu proiect <b>„Traseu către casă”</b>.</div>
+              </div>
+            }
+          />
+        ),
+        widthPx: 140,
+        render: (e) => getSummary(e.id).oreTraseuDeLaClient,
+      },
+      {
+        id: "co",
+        label: (
+          <ColumnInfoLabel
+            label="Zile CO"
+            tooltip={
+              <div className="space-y-2">
+                <div className="font-semibold">Cum se calculează</div>
+                <div>Numără zilele de <b>CO aprobate</b> din luna curentă (pe intervalul cererii).</div>
+                <div className="text-muted-foreground">
+                  Se calculează din cereri HR aprobate, nu din codul din celulă.
+                </div>
+              </div>
+            }
+          />
+        ),
+        widthPx: 80,
+        render: (e) => getSummary(e.id).co,
+      },
+      {
+        id: "del",
+        label: (
+          <ColumnInfoLabel
+            label="Zile DEL"
+            tooltip={
+              <div className="space-y-2">
+                <div className="font-semibold">Cum se calculează</div>
+                <div>Numără zilele de <b>DEL aprobate</b> din luna curentă (pe intervalul cererii).</div>
+              </div>
+            }
+          />
+        ),
+        widthPx: 80,
+        render: (e) => getSummary(e.id).del,
+      },
+      {
+        id: "in",
+        label: (
+          <ColumnInfoLabel
+            label="Ore IN"
+            tooltip={
+              <div className="space-y-2">
+                <div className="font-semibold">Cum se calculează</div>
+                <div>Se adună durata tuturor cererilor <b>IN aprobate</b> din luna curentă: <b>(endTime − startTime)</b>.</div>
+                <div className="text-muted-foreground">Contează doar cererile IN cu data în luna selectată.</div>
+              </div>
+            }
+          />
+        ),
+        widthPx: 90,
+        render: (e) => getSummary(e.id).totalTimpIN,
+      },
+      {
+        id: "ore_sl",
+        label: (
+          <ColumnInfoLabel
+            label="Ore sărbători legale"
+            tooltip={
+              <div className="space-y-2">
+                <div className="font-semibold">Cum se calculează</div>
+                <div>Se adună <b>hours</b> pentru zilele cu cod <b>SL</b> din condică.</div>
+              </div>
+            }
+          />
+        ),
+        widthPx: 140,
+        render: (e) => getSummary(e.id).oreSarbatoriLegale,
+      },
+      {
+        id: "c1",
+        label: (
+          <ColumnInfoLabel
+            label="Ore C1"
+            tooltip={
+              <div className="space-y-2">
+                <div className="font-semibold">C1 = Traseu către client (înainte de program)</div>
+                <div>În zile Lu–Vi (non-SL): se adună minutele din <b>„Traseu către client”</b> care sunt înainte de ora de start a programului standard.</div>
+                <div className="text-muted-foreground">
+                  Fallback: dacă nu există traseu cronometrat, folosim primul interval <b>Pontaj</b> ca check-in și calculăm <b>programStart − primulStart</b>.
+                </div>
+              </div>
+            }
+          />
+        ),
+        widthPx: 80,
+        render: (e) => getSummary(e.id).oreC1,
+      },
+      {
+        id: "c2",
+        label: (
+          <ColumnInfoLabel
+            label="Ore C2"
+            tooltip={
+              <div className="space-y-2">
+                <div className="font-semibold">C2 = Traseu către casă (după program)</div>
+                <div>În zile Lu–Vi (non-SL): se adună minutele din <b>„Traseu către casă”</b> după ora de final a programului standard.</div>
+                <div className="text-muted-foreground">
+                  Fallback: dacă nu există traseu cronometrat, folosim ultimul interval <b>Pontaj</b> ca check-out și calculăm <b>ultimulEnd − programEnd</b>.
+                </div>
+              </div>
+            }
+          />
+        ),
+        widthPx: 80,
+        render: (e) => getSummary(e.id).oreC2,
+      },
+      {
+        id: "c3",
+        label: (
+          <ColumnInfoLabel
+            label="Ore C3"
+            tooltip={
+              <div className="space-y-2">
+                <div className="font-semibold">C3 = primele 2h peste program</div>
+                <div>În zile Lu–Vi (non-SL): se calculează timpul <b>Pontaj</b> în afara programului standard și se iau <b>primele 2 ore</b>.</div>
+              </div>
+            }
+          />
+        ),
+        widthPx: 80,
+        render: (e) => getSummary(e.id).oreC3,
+      },
+      {
+        id: "c4",
+        label: (
+          <ColumnInfoLabel
+            label="Ore C4"
+            tooltip={
+              <div className="space-y-2">
+                <div className="font-semibold">C4 = următoarele 2h peste program</div>
+                <div>În zile Lu–Vi (non-SL): din timpul Pontaj în afara programului standard, se iau <b>orele 2–4</b> (max 2h).</div>
+              </div>
+            }
+          />
+        ),
+        widthPx: 80,
+        render: (e) => getSummary(e.id).oreC4,
+      },
+      {
+        id: "c5",
+        label: (
+          <ColumnInfoLabel
+            label="Ore C5"
+            tooltip={
+              <div className="space-y-2">
+                <div className="font-semibold">C5 = restul orelor peste program</div>
+                <div>În zile Lu–Vi (non-SL): din timpul Pontaj în afara programului standard, se ia tot ce depășește <b>4h</b> (C3+C4).</div>
+              </div>
+            }
+          />
+        ),
+        widthPx: 80,
+        render: (e) => getSummary(e.id).oreC5,
+      },
+      {
+        id: "c6",
+        label: (
+          <ColumnInfoLabel
+            label="Ore C6"
+            tooltip={
+              <div className="space-y-2">
+                <div className="font-semibold">C6 = ore lucrate sâmbătă</div>
+                <div>Se adună durata <b>Pontaj</b> din zilele de sâmbătă (pe luna curentă).</div>
+                <div className="text-muted-foreground">
+                  Fallback: dacă nu există entries de Pontaj, se folosește <b>cell.hours</b>.
+                </div>
+              </div>
+            }
+          />
+        ),
+        widthPx: 80,
+        render: (e) => getSummary(e.id).oreC6,
+      },
+      {
+        id: "c7",
+        label: (
+          <ColumnInfoLabel
+            label="Ore C7"
+            tooltip={
+              <div className="space-y-2">
+                <div className="font-semibold">C7 = ore lucrate duminică sau în sărbătoare legală</div>
+                <div>Se adună durata <b>Pontaj</b> din zilele de duminică sau din zile marcate ca <b>sărbătoare legală</b> (SL).</div>
+                <div className="text-muted-foreground">
+                  Zilele de sărbătoare se iau din lista de sărbători legale (butonul „Sărbători legale”).
+                </div>
+              </div>
+            }
+          />
+        ),
+        widthPx: 80,
+        render: (e) => getSummary(e.id).oreC7,
+      },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [monthKey, timesheets, leaveRequests]
+    [monthKey, timesheets, leaveRequests, holidays, hrDefaults, employees]
   )
 
   return (

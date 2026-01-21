@@ -1,5 +1,6 @@
 import { getClienti, updateClient } from "@/lib/firebase/firestore"
 import type { Locatie } from "@/lib/firebase/firestore"
+import { v4 as uuidv4 } from "uuid"
 
 /**
  * Verifică și repară structura datelor pentru un client
@@ -41,6 +42,22 @@ export async function verifyAndRepairClientData(clientId: string) {
           locatie.persoaneContact = []
           needsUpdate = true
           repairLog.push(`Am creat array-ul de persoane de contact pentru locația "${locatie.nume}"`)
+        }
+
+        // Backfill: ne asigurăm că fiecare echipament are un ID stabil (fără a modifica ID-urile existente)
+        if (locatie.echipamente && Array.isArray(locatie.echipamente)) {
+          let repairedHere = 0
+          locatie.echipamente = locatie.echipamente.map((eq: any) => {
+            if (eq && !eq.id) {
+              repairedHere++
+              return { ...eq, id: uuidv4() }
+            }
+            return eq
+          })
+          if (repairedHere > 0) {
+            needsUpdate = true
+            repairLog.push(`Am generat ID-uri pentru ${repairedHere} echipamente în locația "${locatie.nume}"`)
+          }
         }
       })
     } else if (client.persoanaContact || client.telefon) {

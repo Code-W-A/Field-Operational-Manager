@@ -2377,23 +2377,22 @@ export default function Lucrari() {
   }, [lucrari])
 
   return (
-    <TooltipProvider>
-      <DashboardShell>
-        {/* Check-in card for technicians - appears BEFORE header */}
-        {isTechnician && userData?.uid && userData?.displayName && (
-          <div className="mb-4">
-            <FieldCheckInCard
-              userId={userData.uid}
-              userName={userData.displayName}
-            />
-          </div>
-        )}
+    <DashboardShell>
+      {/* Check-in card for technicians - appears BEFORE header */}
+      {isTechnician && userData?.uid && userData?.displayName && (
+        <div className="mb-4">
+          <FieldCheckInCard
+            userId={userData.uid}
+            userName={userData.displayName}
+          />
+        </div>
+      )}
 
-        {!isTechnician && (
-        <DashboardHeader 
-          heading="Tichete" 
+      {!isTechnician && (
+        <DashboardHeader
+          heading="Tichete"
           text="Gestionați toate tichetele și intervențiile"
-            headerAction={<LucrariNotificationsBell lucrari={rawLucrari || []} />}
+          headerAction={<LucrariNotificationsBell lucrari={rawLucrari || []} />}
         >
           <Dialog
             open={isAddDialogOpen}
@@ -2439,10 +2438,9 @@ export default function Lucrari() {
                 handleSelectChange={handleSelectChange}
                 handleTehnicieniChange={handleTehnicieniChange}
                 handleCustomChange={handleCustomChange}
-              fieldErrors={fieldErrors}
-              setFieldErrors={setFieldErrors}
-              // Flag către formular pentru a îngheța câmpurile moștenite în reintervenție
-              isReintervention={isReassignment}
+                fieldErrors={fieldErrors}
+                setFieldErrors={setFieldErrors}
+                isReintervention={isReassignment}
               />
               <DialogFooter className="flex-col gap-2 sm:flex-row">
                 <Button variant="outline" onClick={handleCloseAddDialog}>
@@ -2787,16 +2785,11 @@ export default function Lucrari() {
                 <Card
                   key={lucrare.id}
                   className={cn(
-                    "relative overflow-hidden min-w-0 w-full transition-all duration-300 border-l-4",
+                    "relative overflow-hidden min-w-0 w-full transition-all duration-300",
                     isTechnician && isCompletedNotPickedUp 
                       ? "cursor-default border-gray-200" 
                       : "cursor-pointer hover:shadow-lg hover:shadow-gray-200/50 border-gray-100 hover:border-gray-200",
                     lucrare ? getWorkStatusRowClass(lucrare) : "",
-                    // Add left border color based on status
-                    lucrare.statusLucrare === "Atribuită" && "border-l-yellow-500",
-                    lucrare.statusLucrare === "În lucru" && "border-l-blue-500",
-                    lucrare.statusLucrare === "Finalizat" && "border-l-green-500",
-                    lucrare.statusLucrare === WORK_STATUS.POSTPONED && "border-l-violet-500",
                   )}
                   onClick={() => {
                     if (!(isTechnician && isCompletedNotPickedUp)) {
@@ -2808,49 +2801,67 @@ export default function Lucrari() {
                   <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-gray-50 to-gray-100 rounded-full -mr-12 -mt-12 opacity-50" />
                   
                   <CardContent className="p-0 relative z-10">
-                    {/* Mobile compact card */}
-                    <div className="md:hidden p-3">
+                    {/* Mobile compact card - Appointment style */}
+                    <div className="md:hidden p-4 space-y-3">
+                      {/* Header: ID + Status Badges */}
                       <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="text-base font-semibold text-gray-900 line-clamp-2">
-                            {lucrare.client}
-                          </div>
-                          <div className="mt-2 flex items-center gap-2 flex-wrap">
-                            <Badge className="bg-purple-100 text-purple-800 border border-purple-200 font-mono text-xs font-semibold shadow-sm">
-                              #{workNo}
+                        <div className="text-lg font-bold text-gray-900">
+                          {lucrare.client} #{workNo}
+                        </div>
+                        <div className="flex flex-col gap-1.5 items-end shrink-0">
+                          <Badge className={cn("shadow-sm font-semibold text-xs", getWorkStatusClass(lucrare.statusLucrare))}>
+                            {workStatusLabel}
+                          </Badge>
+                          {lucrare.statusFacturare && (
+                            <Badge variant="outline" className="text-xs border-blue-300 text-blue-700 bg-blue-50">
+                              {lucrare.statusFacturare}
                             </Badge>
-                            <Badge className={cn("shadow-sm font-semibold", getWorkStatusClass(lucrare.statusLucrare))}>
-                              {workStatusLabel}
-                            </Badge>
-                          </div>
+                          )}
                         </div>
                       </div>
 
-                      <div className="mt-3 space-y-2 text-sm">
-                        <div className="flex items-start justify-between gap-3">
-                          <span className="text-gray-500 shrink-0">Tip</span>
-                          <span className="text-gray-900 font-medium text-right line-clamp-1">{lucrare.tipLucrare || "-"}</span>
+                      {/* Timestamp with icon */}
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <svg className="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <circle cx="12" cy="12" r="10" strokeWidth="2"/>
+                          <path strokeLinecap="round" strokeWidth="2" d="M12 6v6l4 2"/>
+                        </svg>
+                        <span>Emis: {dataEmiteriiText}</span>
+                      </div>
+
+                      {/* Details Grid */}
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <div className="text-gray-500 text-xs mb-1">Tip lucrare</div>
+                          <div className="font-medium text-gray-900">{lucrare.tipLucrare || "-"}</div>
                         </div>
-                        <div className="flex items-start justify-between gap-3">
-                          <span className="text-gray-500 shrink-0">Locație</span>
-                          <span className="text-gray-900 font-medium text-right line-clamp-1">{lucrare.locatie || "-"}</span>
-                        </div>
-                        <div className="flex items-start justify-between gap-3">
-                          <span className="text-gray-500 shrink-0">Ușă</span>
-                          <span className="text-gray-900 font-medium text-right line-clamp-1">{doorName}</span>
-                        </div>
-                        <div className="flex items-start justify-between gap-3">
-                          <span className="text-gray-500 shrink-0">Defect</span>
-                          <span className="text-gray-900 font-medium text-right line-clamp-1" title={lucrare.defectReclamat || ""}>
-                            {lucrare.defectReclamat || "-"}
-                          </span>
+                        <div>
+                          <div className="text-gray-500 text-xs mb-1">Locație</div>
+                          <div className="font-medium text-gray-900 line-clamp-1">{lucrare.locatie || "-"}</div>
                         </div>
                       </div>
 
+                      {/* Equipment info */}
+                      {doorName !== "-" && (
+                        <div className="text-sm">
+                          <div className="text-gray-500 text-xs mb-1">Ușă echipament</div>
+                          <div className="font-medium text-gray-900 line-clamp-1">{doorName}</div>
+                        </div>
+                      )}
+
+                      {/* Defect description */}
+                      {lucrare.defectReclamat && (
+                        <div className="text-sm">
+                          <div className="text-gray-500 text-xs mb-1">Defect</div>
+                          <div className="text-gray-900 line-clamp-2">{lucrare.defectReclamat}</div>
+                        </div>
+                      )}
+
+                      {/* View More Button */}
                       <Button
                         variant="outline"
                         size="sm"
-                        className="mt-3 w-full"
+                        className="w-full mt-2 border-2 text-blue-600 border-blue-200 hover:bg-blue-50"
                         onClick={(e) => {
                           e.stopPropagation()
                           handleViewDetails(lucrare)
@@ -2860,295 +2871,74 @@ export default function Lucrari() {
                       </Button>
                     </div>
 
-                    {/* Desktop / tablet detailed card (existing layout) */}
-                    <div className="hidden md:block">
-                    <div className="flex items-start justify-between gap-3 border-b border-gray-100 p-4 min-w-0">
-                      <div className="min-w-0">
-                        <h3 className="font-semibold flex flex-wrap items-center gap-2 min-w-0 text-gray-900">
-                          <span className="min-w-0 break-words">
-                            {lucrare.client}
-                          </span>
-                          <Badge className="bg-purple-100 text-purple-800 border border-purple-200 font-mono text-xs shrink-0 whitespace-nowrap font-semibold shadow-sm">
-                            #{workNo}
+                    {/* Desktop / tablet card - same layout as mobile */}
+                    <div className="hidden md:block p-4 space-y-3">
+                      {/* Header: ID + Status Badges */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="text-lg font-bold text-gray-900">
+                          {lucrare.client} #{workNo}
+                        </div>
+                        <div className="flex flex-col gap-1.5 items-end shrink-0">
+                          <Badge className={cn("shadow-sm font-semibold text-xs", getWorkStatusClass(lucrare.statusLucrare))}>
+                            {workStatusLabel}
                           </Badge>
-                        </h3>
-                        <p className="text-sm text-gray-600 mt-1">📍 {lucrare.locatie}</p>
-                        {(lucrare.echipament || (lucrare as any).echipamentModel || lucrare.echipamentCod) && (
-                          <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
-                            <span className="font-medium">⚙️</span>
-                            {doorName}
-                          </p>
-                        )}
-                        {revEquipNode}
-                      </div>
-                      <div className="flex flex-col items-end gap-2 shrink-0">
-                        <Badge className={cn(
-                          "shadow-sm font-semibold transition-all",
-                          getWorkStatusClass(lucrare.statusLucrare)
-                        )}>
-                          {workStatusLabel}
-                        </Badge>
-
-                        {/* Tehnician: acces rapid la istoricul echipamentului direct din card */}
-                        {isTechnician && lucrare?.echipamentCod ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              const cod = String(lucrare.echipamentCod || "").trim()
-                              if (!cod) return
-                              router.push(`/dashboard/istoric-interventii/echipament?cod=${encodeURIComponent(cod)}`)
-                            }}
-                          >
-                            <History className="mr-2 h-4 w-4" />
-                            Vezi istoric
-                          </Button>
-                        ) : null}
-                      </div>
-                    </div>
-                    <div className="p-4">
-                      {lucrare.statusLucrare === WORK_STATUS.POSTPONED && !lucrare.preluatDispecer && (
-                        <div className="mb-3">
-                          <Badge className="bg-amber-100 text-amber-800 border border-amber-300">
-                            Amânată – în așteptare preluare
-                          </Badge>
-                        </div>
-                      )}
-                      <div className="mb-4 space-y-2">
-                        <div className="flex justify-between">
-                          <span className="text-sm font-medium text-muted-foreground">Tip:</span>
-                          <Badge variant="outline" className={getWorkTypeClass(lucrare.tipLucrare)}>
-                            {lucrare.tipLucrare}
-                          </Badge>
-                        </div>
-                        {lucrare.defectReclamat && (
-                          <div>
-                            <span className="text-sm font-medium text-muted-foreground">Defect reclamat:</span>
-                            <p className="text-sm line-clamp-2" title={lucrare.defectReclamat}>
-                              {lucrare.defectReclamat}
-                            </p>
-                          </div>
-                        )}
-                        {lucrare.tipLucrare === "Intervenție în contract" && (
-                          <div className="flex justify-between">
-                            <span className="text-sm font-medium text-muted-foreground">Contract:</span>
-                            <ContractDisplay contractId={lucrare.contract} />
-                          </div>
-                        )}
-                        <div className="flex justify-between">
-                          <span className="text-sm font-medium text-muted-foreground">Data emiterii:</span>
-                          <span className="text-sm">{dataEmiteriiText}</span>
-                        </div>
-                        {(lucrare.lastReportEmail || lucrare.lastOfferEmail) && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm font-medium text-muted-foreground">Email:</span>
-                            <div className="flex gap-2">
-                              {lucrare.lastReportEmail && (
-                                <Badge variant="outline" className={`${(lucrare.lastReportEmail.status||'')==='sent' ? 'border-green-300 text-green-700' : 'border-gray-300 text-gray-700'}`}>Raport: {lucrare.lastReportEmail.status}</Badge>
-                              )}
-                              {lucrare.lastOfferEmail && (
-                                <Badge variant="outline" className={`${(lucrare.lastOfferEmail.status||'')==='sent' ? 'border-blue-300 text-blue-700' : 'border-gray-300 text-gray-700'}`}>Ofertă: {lucrare.lastOfferEmail.status}</Badge>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        <div className="flex justify-between">
-                          <span className="text-sm font-medium text-muted-foreground">Data executie:</span>
-                          <span className="text-sm">{dataInterventieText}</span>
-                        </div>
-                        <div>
-                          <span className="text-sm font-medium text-muted-foreground">Tehnicieni:</span>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {lucrare.tehnicieni.map((tehnician, index) => (
-                              <Badge key={index} variant="secondary" className="bg-gray-100">
-                                {tehnician}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                        {lucrare.statusEchipament && (
-                          <div className="flex justify-between">
-                            <span className="text-sm font-medium text-muted-foreground">Status echipament:</span>
-                            <Badge className={getEquipmentStatusClass(lucrare.statusEchipament)}>
-                              {lucrare.statusEchipament}
+                          {lucrare.statusFacturare && (
+                            <Badge variant="outline" className="text-xs border-blue-300 text-blue-700 bg-blue-50">
+                              {lucrare.statusFacturare}
                             </Badge>
-                          </div>
-                        )}
-                        <div className="flex justify-between">
-                          <span className="text-sm font-medium text-muted-foreground">Contact:</span>
-                          <span className="text-sm">{lucrare.persoanaContact}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-sm font-medium text-muted-foreground">Telefon:</span>
-                          <span className="text-sm">{lucrare.telefon}</span>
-                        </div>
-                      </div>
-                      {/* Adăugăm acest cod în secțiunea de carduri, după statusul lucrării
-                      Acest cod trebuie adăugat în componenta Card, în secțiunea de detalii */}
-                      {(lucrare.statusOferta === "DA" || (lucrare.statusOferta === undefined && lucrare.necesitaOferta)) && (
-                        <div className="flex justify-between mt-2">
-                          <span className="text-sm font-medium text-muted-foreground">Ofertă:</span>
-                          <Badge className="bg-orange-100 text-orange-800">Necesită ofertă</Badge>
-                        </div>
-                      )}
-                      {lucrare.statusOferta === "OFERTAT" && (
-                        <div className="flex justify-between mt-2">
-                          <span className="text-sm font-medium text-muted-foreground">Ofertă:</span>
-                          <Badge className="bg-blue-100 text-blue-800">Ofertat</Badge>
-                        </div>
-                      )}
-              {(lucrare.statusLucrare === "Finalizat" || lucrare.statusLucrare === WORK_STATUS.POSTPONED) && (
-                        <div className="flex justify-between items-center mt-2 mb-2">
-                          <span className="text-sm font-medium text-muted-foreground">Status preluare:</span>
-                          {lucrare.preluatDispecer ? (
-                            <Badge className="bg-green-100 text-green-800">Preluat</Badge>
-                          ) : (
-                            <>
-                      {userData?.role === "tehnician" ? (
-                                <Badge className="bg-yellow-100 text-yellow-800">În așteptare</Badge>
-                              ) : (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleDispatcherPickup(lucrare)
-                                  }}
-                                >
-                                  <Check className="h-3 w-3 mr-1" /> Preia
-                                </Button>
-                              )}
-                            </>
                           )}
                         </div>
-                      )}
-                      {/* Afișează numărul raportului dacă există */}
-                      {lucrare.raportGenerat && lucrare.numarRaport && (
-                        <div className="flex justify-between items-center mt-2 mb-2">
-                          <span className="text-sm font-medium text-muted-foreground">Nr. raport:</span>
-                          <Badge className="bg-purple-100 text-purple-800 font-mono text-xs">
-                            {lucrare.numarRaport}
-                          </Badge>
+                      </div>
+
+                      {/* Timestamp with icon */}
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <svg className="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <circle cx="12" cy="12" r="10" strokeWidth="2"/>
+                          <path strokeLinecap="round" strokeWidth="2" d="M12 6v6l4 2"/>
+                        </svg>
+                        <span>Emis: {dataEmiteriiText}</span>
+                      </div>
+
+                      {/* Details Grid */}
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <div className="text-gray-500 text-xs mb-1">Tip lucrare</div>
+                          <div className="font-medium text-gray-900">{lucrare.tipLucrare || "-"}</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-500 text-xs mb-1">Locație</div>
+                          <div className="font-medium text-gray-900 line-clamp-1">{lucrare.locatie || "-"}</div>
+                        </div>
+                      </div>
+
+                      {/* Equipment info */}
+                      {doorName !== "-" && (
+                        <div className="text-sm">
+                          <div className="text-gray-500 text-xs mb-1">Ușă echipament</div>
+                          <div className="font-medium text-gray-900 line-clamp-1">{doorName}</div>
                         </div>
                       )}
-                      <div className="mb-4">
-                        <p className="text-sm font-medium text-muted-foreground">Notă internă:</p>
-                        <p className="text-sm line-clamp-2" title={lucrare.descriere}>
-                          {lucrare.descriere}
-                        </p>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        {userData?.role !== "tehnician" && (
-                          <Badge className={getInvoiceStatusClass(lucrare.statusFacturare)}>
-                            {lucrare.statusFacturare}
-                          </Badge>
-                        )}
-                        <DropdownMenu
-                          open={openActionsMenuId === String(lucrare.id)}
-                          onOpenChange={(open) => setOpenActionsMenuId(open ? String(lucrare.id) : null)}
-                        >
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="gap-1"
-                              onPointerDown={(e) => {
-                                // Track touch movement to avoid accidental open while scrolling.
-                                if (e.pointerType !== "touch") return
-                                actionsTouchRef.current = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, moved: false }
-                                // Prevent Radix from opening on pointerdown for touch.
-                                e.preventDefault()
-                              }}
-                              onPointerMove={(e) => {
-                                const s = actionsTouchRef.current
-                                if (!s || e.pointerType !== "touch" || e.pointerId !== s.pointerId) return
-                                const dx = Math.abs(e.clientX - s.x)
-                                const dy = Math.abs(e.clientY - s.y)
-                                if (dx + dy > 10) s.moved = true
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                if (shouldIgnoreTapDueToScroll(e)) return
-                                setOpenActionsMenuId((prev) => (prev === String(lucrare.id) ? null : String(lucrare.id)))
-                              }}
-                            >
-                              Acțiuni
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                            {/* For technicians, if the work order is completed with report but not picked up, disable actions */}
-                            {isTechnician && isCompletedNotPickedUp ? (
-                              <DropdownMenuItem disabled className="text-gray-400 cursor-not-allowed">
-                                <Info className="mr-2 h-4 w-4" /> Tichet în așteptare de preluare
-                              </DropdownMenuItem>
-                            ) : (
-                              <>
-                                <DropdownMenuItem
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setOpenActionsMenuId(null)
-                                    handleViewDetails(lucrare)
-                                  }}
-                                >
-                                  <Eye className="mr-2 h-4 w-4" /> Vizualizează
-                                </DropdownMenuItem>
-                                {!isTechnician && !lucrare.lockedAfterReintervention && (
-                                  <DropdownMenuItem
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setOpenActionsMenuId(null)
-                                      handleEdit(lucrare)
-                                    }}
-                                  >
-                                    <Pencil className="mr-2 h-4 w-4" /> Editează
-                                  </DropdownMenuItem>
-                                )}
-                                <DropdownMenuItem
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setOpenActionsMenuId(null)
-                                    handleGenerateReport(lucrare)
-                                  }}
-                                >
-                                  <FileText className="mr-2 h-4 w-4" /> Generează Raport
-                                </DropdownMenuItem>
-                                {/* Reintervenția se inițiază doar din pagina de detalii lucrare */}
-                                {/* Arhivarea este disponibilă doar în pagina de detalii lucrare */}
-                                {userData?.role === "admin" && (
-                                  <DropdownMenuItem
-                                    className="text-red-600"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setOpenActionsMenuId(null)
-                                      handleDelete(lucrare.id)
-                                    }}
-                                  >
-                                    <Trash2 className="mr-2 h-4 w-4" /> Șterge
-                                  </DropdownMenuItem>
-                                )}
-                              </>
-                            )}
-                            {userData?.role !== "tehnician" &&
-                              lucrare.statusLucrare === "Finalizat" &&
-                              lucrare.raportGenerat === true &&
-                              !lucrare.preluatDispecer && (
-                                <DropdownMenuItem
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setOpenActionsMenuId(null)
-                                    handleDispatcherPickup(lucrare)
-                                  }}
-                                >
-                                  <Check className="mr-2 h-4 w-4" /> Preia lucrarea
-                                </DropdownMenuItem>
-                              )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </div>
+
+                      {/* Defect description */}
+                      {lucrare.defectReclamat && (
+                        <div className="text-sm">
+                          <div className="text-gray-500 text-xs mb-1">Defect</div>
+                          <div className="text-gray-900 line-clamp-2">{lucrare.defectReclamat}</div>
+                        </div>
+                      )}
+
+                      {/* View More Button */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full mt-2 border-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleViewDetails(lucrare)
+                        }}
+                      >
+                        Vezi mai mult
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -3244,6 +3034,5 @@ export default function Lucrari() {
         onSuccess={handleReinterventionAfterReasons}
       />
     </DashboardShell>
-    </TooltipProvider>
   )
 }
