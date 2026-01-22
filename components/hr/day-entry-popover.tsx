@@ -8,12 +8,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Trash2, Plus, Pencil, X, Clock, MapPin, Briefcase, Calendar, Copy, Image as ImageIcon, ExternalLink } from "lucide-react"
+import { doc, getDoc } from "firebase/firestore"
 import type { TimesheetCell } from "@/lib/hr/types"
 import { toast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/AuthContext"
 import { markHrRequestTimesheetCleared } from "@/lib/hr/storage"
 import { normalizeTimeHHmmLoose } from "@/lib/utils/time-input"
 import { calcEffectiveMinutes, type HMRange, minutesToHM as minutesToHMUtil } from "@/lib/hr/time-calc"
+import { db } from "@/lib/firebase/config"
 
 function parseHM(v: string): number | null {
   const m = /^(\d{1,2}):(\d{2})$/.exec(v.trim())
@@ -118,6 +120,7 @@ export function DayEntryPopover({
   const [selfieDialogOpen, setSelfieDialogOpen] = useState(false)
   const [selfieDialogTitle, setSelfieDialogTitle] = useState<string>("Selfie")
   const [selfieUrl, setSelfieUrl] = useState<string | null>(null)
+  const [selfieLoading, setSelfieLoading] = useState(false)
   const [clearCoBusy, setClearCoBusy] = useState(false)
 
   const minutes = useMemo(() => calcMinutes(cell, defaultBreak), [cell, defaultBreak])
@@ -134,6 +137,49 @@ export function DayEntryPopover({
     setSelfieDialogTitle(title)
     setSelfieUrl(url)
     setSelfieDialogOpen(true)
+  }
+
+  const openSelfieForEntry = async (title: string, entry: Entry, kind: "start" | "end") => {
+    const directUrl = kind === "start" ? (entry as any).selfieStartUrl : (entry as any).selfieEndUrl
+    if (directUrl) {
+      openSelfie(title, String(directUrl))
+      return
+    }
+
+    const sessionId = (entry as any).attendanceSessionId ? String((entry as any).attendanceSessionId) : ""
+    if (!sessionId) {
+      toast({
+        title: "Selfie lipsă",
+        description: "Nu există ID de sesiune asociat pentru acest interval.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      setSelfieLoading(true)
+      const snap = await getDoc(doc(db, "attendance", sessionId))
+      const data = snap.exists() ? (snap.data() as any) : null
+      const url =
+        kind === "start" ? (data?.checkInSelfieUrl as string | undefined) : (data?.checkOutSelfieUrl as string | undefined)
+      if (!url) {
+        toast({
+          title: "Selfie lipsă",
+          description: "Nu există selfie salvat pentru acest capăt de interval.",
+          variant: "destructive",
+        })
+        return
+      }
+      openSelfie(title, url)
+    } catch (e) {
+      toast({
+        title: "Eroare",
+        description: e instanceof Error ? e.message : "Nu am putut încărca selfie-ul.",
+        variant: "destructive",
+      })
+    } finally {
+      setSelfieLoading(false)
+    }
   }
 
   const clearCo = async () => {
@@ -492,25 +538,27 @@ export function DayEntryPopover({
                           <div className="flex items-center gap-1">
                             {canViewSelfies && (
                               <div className="flex items-center gap-1 mr-1">
-                                {Boolean((e as Entry).selfieStartUrl) && (
+                                {(Boolean((e as any).selfieStartUrl) || Boolean((e as any).attendanceSessionId)) && (
                                   <Button
                                     variant="outline"
                                     size="sm"
                                     className="h-7 px-2 text-xs"
-                                    onClick={() => openSelfie(`Selfie Start (${e.start})`, (e as Entry).selfieStartUrl)}
+                                    onClick={() => void openSelfieForEntry(`Selfie Start (${e.start})`, e as Entry, "start")}
                                     title="Vezi selfie la început"
+                                    disabled={selfieLoading}
                                   >
                                     <ImageIcon className="h-3.5 w-3.5 mr-1" />
                                     Start
                                   </Button>
                                 )}
-                                {Boolean((e as Entry).selfieEndUrl) && (
+                                {(Boolean((e as any).selfieEndUrl) || Boolean((e as any).attendanceSessionId)) && (
                                   <Button
                                     variant="outline"
                                     size="sm"
                                     className="h-7 px-2 text-xs"
-                                    onClick={() => openSelfie(`Selfie Stop (${e.end})`, (e as Entry).selfieEndUrl)}
+                                    onClick={() => void openSelfieForEntry(`Selfie Stop (${e.end})`, e as Entry, "end")}
                                     title="Vezi selfie la sfârșit"
+                                    disabled={selfieLoading}
                                   >
                                     <ImageIcon className="h-3.5 w-3.5 mr-1" />
                                     Stop

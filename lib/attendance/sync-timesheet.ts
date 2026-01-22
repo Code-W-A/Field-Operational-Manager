@@ -569,6 +569,10 @@ export async function syncAttendanceUserDayToTimesheet(userId: string, date: Dat
       methodStart: `Play (${s.mode})`,
       methodEnd: `Stop (${s.checkOutMode || s.mode})`,
       project: "Pontaj",
+      attendanceSessionId: s.id,
+      selfieStartUrl: (s as any).checkInSelfieUrl,
+      selfieEndUrl: (s as any).checkOutSelfieUrl,
+      lateStartMinutes: Number((s as any).lateStartMinutes ?? 0) || undefined,
     })
 
     for (const log of s.extraTimeLogs || []) {
