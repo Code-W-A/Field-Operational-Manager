@@ -163,137 +163,147 @@ export default function HrEmployeesPage() {
         }
       />
 
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle className="text-base">Program standard</CardTitle>
-          <CardDescription>
-            Programul standard se aplică salariaților fără program particular.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <div className="grid gap-3 sm:grid-cols-4 sm:items-end">
-          <div className="grid gap-2">
-            <Label htmlFor="defaultProgramStart">Program start</Label>
-            <Input
-              id="defaultProgramStart"
-              type="text"
-              inputMode="numeric"
-              autoComplete="off"
-              pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
-              title="Format 24h: HH:mm (ex: 08:00, 16:30)"
-              value={defaultProgramStart}
-              onChange={(e) => {
-                const next = e.target.value.replace(/[^\d:]/g, "").slice(0, 5)
-                setDefaultProgramStart(next)
-              }}
-              placeholder="08:00"
-              onBlur={() => {
-                const normalized = normalizeTimeHHmmLoose(defaultProgramStart)
-                if (normalized === null) {
-                  toast({
-                    title: "Oră invalidă",
-                    description: "Folosește formatul 24h HH:mm (ex: 08:00).",
-                    variant: "destructive",
-                  })
-                  return
-                }
-                if (normalized !== defaultProgramStart) setDefaultProgramStart(normalized)
-              }}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="defaultProgramEnd">Program end</Label>
-            <Input
-              id="defaultProgramEnd"
-              type="text"
-              inputMode="numeric"
-              autoComplete="off"
-              pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
-              title="Format 24h: HH:mm (ex: 08:00, 16:30)"
-              value={defaultProgramEnd}
-              onChange={(e) => {
-                const next = e.target.value.replace(/[^\d:]/g, "").slice(0, 5)
-                setDefaultProgramEnd(next)
-              }}
-              placeholder="16:30"
-              onBlur={() => {
-                const normalized = normalizeTimeHHmmLoose(defaultProgramEnd)
-                if (normalized === null) {
-                  toast({
-                    title: "Oră invalidă",
-                    description: "Folosește formatul 24h HH:mm (ex: 16:30).",
-                    variant: "destructive",
-                  })
-                  return
-                }
-                if (normalized !== defaultProgramEnd) setDefaultProgramEnd(normalized)
-              }}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="defaultBreakStart">Pauză start</Label>
-            <Input
-              id="defaultBreakStart"
-              type="text"
-              inputMode="numeric"
-              autoComplete="off"
-              pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
-              title="Format 24h: HH:mm (ex: 12:00, 12:30)"
-              value={defaultBreakStart}
-              onChange={(e) => {
-                const next = e.target.value.replace(/[^\d:]/g, "").slice(0, 5)
-                setDefaultBreakStart(next)
-              }}
-              placeholder="12:00"
-              onBlur={() => {
-                const normalized = normalizeTimeHHmmLoose(defaultBreakStart)
-                if (normalized === null) {
-                  toast({
-                    title: "Oră invalidă",
-                    description: "Folosește formatul 24h HH:mm (ex: 12:00).",
-                    variant: "destructive",
-                  })
-                  return
-                }
-                if (normalized !== defaultBreakStart) setDefaultBreakStart(normalized)
-              }}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="defaultBreakEnd">Pauză end</Label>
-            <Input
-              id="defaultBreakEnd"
-              type="text"
-              inputMode="numeric"
-              autoComplete="off"
-              pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
-              title="Format 24h: HH:mm (ex: 12:00, 12:30)"
-              value={defaultBreakEnd}
-              onChange={(e) => {
-                const next = e.target.value.replace(/[^\d:]/g, "").slice(0, 5)
-                setDefaultBreakEnd(next)
-              }}
-              placeholder="12:30"
-              onBlur={() => {
-                const normalized = normalizeTimeHHmmLoose(defaultBreakEnd)
-                if (normalized === null) {
-                  toast({
-                    title: "Oră invalidă",
-                    description: "Folosește formatul 24h HH:mm (ex: 12:30).",
-                    variant: "destructive",
-                  })
-                  return
-                }
-                if (normalized !== defaultBreakEnd) setDefaultBreakEnd(normalized)
-              }}
-            />
-          </div>
-          </div>
-          <Button onClick={() => setConfirmDefaultsOpen(true)} disabled={savingDefaults}>
-            {savingDefaults ? "Se salvează..." : "Salvează"}
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="mb-4 grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Program standard</CardTitle>
+            <CardDescription>Programul standard se aplică salariaților fără program particular.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2 sm:items-end">
+            <div className="grid gap-2">
+              <Label htmlFor="defaultProgramStart">Program start</Label>
+              <Input
+                id="defaultProgramStart"
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
+                title="Format 24h: HH:mm (ex: 08:00, 16:30)"
+                value={defaultProgramStart}
+                onChange={(e) => {
+                  const next = e.target.value.replace(/[^\d:]/g, "").slice(0, 5)
+                  setDefaultProgramStart(next)
+                }}
+                placeholder="08:00"
+                onBlur={() => {
+                  const normalized = normalizeTimeHHmmLoose(defaultProgramStart)
+                  if (normalized === null) {
+                    toast({
+                      title: "Oră invalidă",
+                      description: "Folosește formatul 24h HH:mm (ex: 08:00).",
+                      variant: "destructive",
+                    })
+                    return
+                  }
+                  if (normalized !== defaultProgramStart) setDefaultProgramStart(normalized)
+                }}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="defaultProgramEnd">Program end</Label>
+              <Input
+                id="defaultProgramEnd"
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
+                title="Format 24h: HH:mm (ex: 08:00, 16:30)"
+                value={defaultProgramEnd}
+                onChange={(e) => {
+                  const next = e.target.value.replace(/[^\d:]/g, "").slice(0, 5)
+                  setDefaultProgramEnd(next)
+                }}
+                placeholder="16:30"
+                onBlur={() => {
+                  const normalized = normalizeTimeHHmmLoose(defaultProgramEnd)
+                  if (normalized === null) {
+                    toast({
+                      title: "Oră invalidă",
+                      description: "Folosește formatul 24h HH:mm (ex: 16:30).",
+                      variant: "destructive",
+                    })
+                    return
+                  }
+                  if (normalized !== defaultProgramEnd) setDefaultProgramEnd(normalized)
+                }}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Interval general de pauză</CardTitle>
+            <CardDescription>Pauza standard se aplică salariaților fără pauză particulară în fișă.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2 sm:items-end">
+            <div className="grid gap-2">
+              <Label htmlFor="defaultBreakStart">Pauză start</Label>
+              <Input
+                id="defaultBreakStart"
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
+                title="Format 24h: HH:mm (ex: 12:00, 12:30)"
+                value={defaultBreakStart}
+                onChange={(e) => {
+                  const next = e.target.value.replace(/[^\d:]/g, "").slice(0, 5)
+                  setDefaultBreakStart(next)
+                }}
+                placeholder="12:00"
+                onBlur={() => {
+                  const normalized = normalizeTimeHHmmLoose(defaultBreakStart)
+                  if (normalized === null) {
+                    toast({
+                      title: "Oră invalidă",
+                      description: "Folosește formatul 24h HH:mm (ex: 12:00).",
+                      variant: "destructive",
+                    })
+                    return
+                  }
+                  if (normalized !== defaultBreakStart) setDefaultBreakStart(normalized)
+                }}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="defaultBreakEnd">Pauză end</Label>
+              <Input
+                id="defaultBreakEnd"
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
+                title="Format 24h: HH:mm (ex: 12:00, 12:30)"
+                value={defaultBreakEnd}
+                onChange={(e) => {
+                  const next = e.target.value.replace(/[^\d:]/g, "").slice(0, 5)
+                  setDefaultBreakEnd(next)
+                }}
+                placeholder="12:30"
+                onBlur={() => {
+                  const normalized = normalizeTimeHHmmLoose(defaultBreakEnd)
+                  if (normalized === null) {
+                    toast({
+                      title: "Oră invalidă",
+                      description: "Folosește formatul 24h HH:mm (ex: 12:30).",
+                      variant: "destructive",
+                    })
+                    return
+                  }
+                  if (normalized !== defaultBreakEnd) setDefaultBreakEnd(normalized)
+                }}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="mb-4 flex justify-end">
+        <Button onClick={() => setConfirmDefaultsOpen(true)} disabled={savingDefaults}>
+          {savingDefaults ? "Se salvează..." : "Salvează"}
+        </Button>
+      </div>
 
       {hasLegacyData && (
         <div className="mb-4 rounded-lg border p-4 bg-muted/30">

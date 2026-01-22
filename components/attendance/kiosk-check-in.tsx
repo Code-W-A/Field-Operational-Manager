@@ -557,6 +557,14 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
       {/* Selfie Dialog */}
       <Dialog open={showDialog} onOpenChange={(open) => {
         if (!open) {
+          if (flowState === "selfie" || flowState === "processing") {
+            toast({
+              title: "Selfie obligatoriu",
+              description: "Nu poți continua fără selfie. Te rugăm să încerci din nou.",
+              variant: "destructive",
+            })
+            return
+          }
           resetFlow()
         }
       }}>
@@ -583,17 +591,9 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
                   if (!r.ok || !r.blob) {
                     toast({
                       title: "Selfie indisponibil",
-                      description: r.error || "Nu am putut captura selfie-ul. Continuăm fără selfie.",
+                      description: r.error || "Nu am putut captura selfie-ul. Te rugăm să încerci din nou.",
                       variant: "destructive",
                     })
-                    const base: FaceRecognitionResult = {
-                      success: true,
-                      faceId: `kiosk_pw_${selectedUser.uid}_${Date.now()}`,
-                      confidence: 1,
-                    }
-                    if (action === "check-in") (base as any).__selfieCheckIn = { checkInSelfieStatus: "error" }
-                    else (base as any).__selfieCheckOut = { checkOutSelfieStatus: "error" }
-                    await handleFaceRecognitionSuccess(base)
                     return
                   }
                   try {
@@ -620,31 +620,13 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
                   } catch (e) {
                     toast({
                       title: "Upload selfie eșuat",
-                      description: e instanceof Error ? e.message : "Nu am putut încărca poza. Continuăm fără selfie.",
+                      description: e instanceof Error ? e.message : "Nu am putut încărca poza. Te rugăm să încerci din nou.",
                       variant: "destructive",
                     })
-                    const base: FaceRecognitionResult = {
-                      success: true,
-                      faceId: `kiosk_pw_${selectedUser.uid}_${Date.now()}`,
-                      confidence: 1,
-                    }
-                    if (action === "check-in") (base as any).__selfieCheckIn = { checkInSelfieStatus: "error" }
-                    else (base as any).__selfieCheckOut = { checkOutSelfieStatus: "error" }
-                    await handleFaceRecognitionSuccess(base)
+                    return
                   }
                 }}
-                onSkip={async () => {
-                  if (!selectedUser || !action) return
-                  toast({ title: "Fără selfie", description: "Pontajul va fi salvat fără selfie." })
-                  const base: FaceRecognitionResult = {
-                    success: true,
-                    faceId: `kiosk_pw_${selectedUser.uid}_${Date.now()}`,
-                    confidence: 1,
-                  }
-                  if (action === "check-in") (base as any).__selfieCheckIn = { checkInSelfieStatus: "missing" }
-                  else (base as any).__selfieCheckOut = { checkOutSelfieStatus: "missing" }
-                  await handleFaceRecognitionSuccess(base)
-                }}
+                allowSkip={false}
               />
             </div>
           )}

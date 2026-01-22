@@ -263,9 +263,9 @@ export async function createCheckIn(request: CheckInRequest): Promise<string> {
     mode: request.mode,
     location: request.location,
     faceRecognitionId: request.faceRecognitionId,
-    checkInSelfieUrl: request.checkInSelfieUrl,
-    checkInSelfiePath: request.checkInSelfiePath,
-    checkInSelfieStatus: request.checkInSelfieStatus,
+    checkInSelfieUrl: request.checkInSelfieUrl ?? null,
+    checkInSelfiePath: request.checkInSelfiePath ?? null,
+    checkInSelfieStatus: request.checkInSelfieStatus ?? null,
     ...(late.lateStartMinutes > 0
       ? { lateStartMinutes: late.lateStartMinutes, lateStartAt: now, scheduledStart }
       : { scheduledStart }),
@@ -277,12 +277,18 @@ export async function createCheckIn(request: CheckInRequest): Promise<string> {
     updatedAt: now,
   }
 
-  await setDoc(doc(db, "attendance", sessionId), {
-    ...session,
-    sessionStart: Timestamp.fromMillis(now),
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  })
+  const withoutUndefined = (obj: Record<string, any>) =>
+    Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))
+
+  await setDoc(
+    doc(db, "attendance", sessionId),
+    withoutUndefined({
+      ...session,
+      sessionStart: Timestamp.fromMillis(now),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }) as any,
+  )
 
   debugPontajLog("check-in:written", {
     sessionId,
@@ -355,19 +361,25 @@ export async function createCheckOut(request: CheckOutRequest): Promise<UserDayS
   const programLucruEnd = raw.programLucruEnd ? String(raw.programLucruEnd) : DEFAULT_PROGRAM_END
   const extraTimeLogs = finalizeOpenExtraTimeLogs({ session: raw, now, programLucruStart, programLucruEnd })
 
-  await updateDoc(sessionRef, {
-    sessionEnd: Timestamp.fromMillis(now),
-    status: "completed",
-    checkOutMode: request.mode,
-    checkOutLocation: request.location,
-    checkOutFaceRecognitionId: request.faceRecognitionId ?? null,
-    checkOutSelfieUrl: request.checkOutSelfieUrl ?? null,
-    checkOutSelfiePath: request.checkOutSelfiePath ?? null,
-    checkOutSelfieStatus: request.checkOutSelfieStatus ?? null,
-    checkOutDeviceInfo: request.deviceInfo,
-    ...(extraTimeLogs ? { extraTimeLogs } : {}),
-    updatedAt: serverTimestamp(),
-  })
+  const withoutUndefined = (obj: Record<string, any>) =>
+    Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))
+
+  await updateDoc(
+    sessionRef,
+    withoutUndefined({
+      sessionEnd: Timestamp.fromMillis(now),
+      status: "completed",
+      checkOutMode: request.mode,
+      checkOutLocation: request.location,
+      checkOutFaceRecognitionId: request.faceRecognitionId ?? null,
+      checkOutSelfieUrl: request.checkOutSelfieUrl ?? null,
+      checkOutSelfiePath: request.checkOutSelfiePath ?? null,
+      checkOutSelfieStatus: request.checkOutSelfieStatus ?? null,
+      checkOutDeviceInfo: request.deviceInfo,
+      ...(extraTimeLogs ? { extraTimeLogs } : {}),
+      updatedAt: serverTimestamp(),
+    }) as any,
+  )
 
   debugPontajLog("check-out:written", {
     sessionId: request.sessionId,

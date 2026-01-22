@@ -635,6 +635,14 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
       {/* Biometric + Selfie Dialog */}
       <Dialog open={showFaceDialog} onOpenChange={(open) => {
         if (!open) {
+          if (flowState === "selfie") {
+            toast({
+              title: "Selfie obligatoriu",
+              description: "Nu poți închide pontajul fără selfie. Te rugăm să încerci din nou.",
+              variant: "destructive",
+            })
+            return
+          }
           setShowFaceDialog(false)
           setFlowState("idle")
           setAction(null)
@@ -648,7 +656,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
             </DialogTitle>
             <DialogDescription className="text-center">
               {flowState === "selfie"
-                ? "Fă un selfie pentru audit (opțional)."
+                ? "Fă un selfie pentru audit (obligatoriu)."
                 : `Confirmă cu biometria device-ului pentru ${action === "check-in" ? "Play" : "Stop"}`}
             </DialogDescription>
           </DialogHeader>
@@ -671,10 +679,9 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
                   if (!r.ok || !r.blob) {
                     toast({
                       title: "Selfie indisponibil",
-                      description: r.error || "Nu am putut captura selfie-ul. Continuăm fără selfie.",
+                      description: r.error || "Nu am putut captura selfie-ul. Te rugăm să încerci din nou.",
                       variant: "destructive",
                     })
-                    await continueAfterSelfie({ status: "error" })
                     return
                   }
                   try {
@@ -683,19 +690,13 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
                   } catch (e) {
                     toast({
                       title: "Upload selfie eșuat",
-                      description: e instanceof Error ? e.message : "Nu am putut încărca poza. Continuăm fără selfie.",
+                      description: e instanceof Error ? e.message : "Nu am putut încărca poza. Te rugăm să încerci din nou.",
                       variant: "destructive",
                     })
-                    await continueAfterSelfie({ status: "error" })
+                    return
                   }
                 }}
-                onSkip={async () => {
-                  toast({
-                    title: "Fără selfie",
-                    description: "Pontajul va fi salvat fără selfie.",
-                  })
-                  await continueAfterSelfie({ status: "missing" })
-                }}
+                allowSkip={false}
               />
             </div>
           )}

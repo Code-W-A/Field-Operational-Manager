@@ -17,11 +17,13 @@ export interface SelfieCaptureResult {
 export function SelfieCapture({
   onCaptured,
   onSkip,
+  allowSkip = true,
   autoStart = true,
   className,
 }: {
   onCaptured: (result: SelfieCaptureResult) => void
-  onSkip: () => void
+  onSkip?: () => void
+  allowSkip?: boolean
   autoStart?: boolean
   className?: string
 }) {
@@ -191,9 +193,11 @@ export function SelfieCapture({
             <RefreshCw className="mr-2 h-4 w-4" />
             Repornește camera
           </Button>
-          <Button type="button" variant="secondary" onClick={onSkip} className="min-w-[160px]">
-            Continuă fără selfie
-          </Button>
+          {allowSkip && onSkip && (
+            <Button type="button" variant="secondary" onClick={onSkip} className="min-w-[160px]">
+              Continuă fără selfie
+            </Button>
+          )}
         </div>
 
         {error && status !== "error" && <div className="text-sm text-red-600">{error}</div>}
