@@ -263,9 +263,9 @@ export async function createCheckIn(request: CheckInRequest): Promise<string> {
     mode: request.mode,
     location: request.location,
     faceRecognitionId: request.faceRecognitionId,
-    checkInSelfieUrl: request.checkInSelfieUrl ?? null,
-    checkInSelfiePath: request.checkInSelfiePath ?? null,
-    checkInSelfieStatus: request.checkInSelfieStatus ?? null,
+    checkInSelfieUrl: request.checkInSelfieUrl ?? undefined,
+    checkInSelfiePath: request.checkInSelfiePath ?? undefined,
+    checkInSelfieStatus: request.checkInSelfieStatus ?? undefined,
     ...(late.lateStartMinutes > 0
       ? { lateStartMinutes: late.lateStartMinutes, lateStartAt: now, scheduledStart }
       : { scheduledStart }),
@@ -354,7 +354,7 @@ export async function createCheckOut(request: CheckOutRequest): Promise<UserDayS
   // 1-minute rule: must wait at least 60 seconds before checking out
   if (elapsedSeconds < 60) {
     const remainingSeconds = Math.ceil(60 - elapsedSeconds)
-    throw new Error(`Please wait ${remainingSeconds} more seconds before checking out.`)
+    throw new Error(`Te rugăm să mai aștepți ${remainingSeconds} secunde înainte de a opri pontajul.`)
   }
 
   const programLucruStart = raw.programLucruStart ? String(raw.programLucruStart) : DEFAULT_PROGRAM_START
