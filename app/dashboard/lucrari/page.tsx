@@ -231,6 +231,37 @@ export default function Lucrari() {
     })
   }
 
+  const getInvoiceSearchTokens = (item: any): string[] => {
+    const doc = (item as any)?.facturaDocument
+    return [
+      (item as any)?.numarFactura,
+      doc?.numarFactura,
+      doc?.fileName,
+      doc?.dataFactura,
+      // Also allow search by status when user types "facturat"/"nefacturat"
+      (item as any)?.statusFacturare,
+    ]
+      .filter(Boolean)
+      .map((v) => String(v))
+  }
+
+  const matchesInvoiceLoose = (item: any, query: string) => {
+    const q = String(query || "").trim().toLowerCase()
+    if (!q) return false
+    const tokens = getInvoiceSearchTokens(item).map((t) => t.toLowerCase())
+    // 1) basic substring match (works for "frântură din nume")
+    if (tokens.some((t) => t.includes(q))) return true
+    // 2) digit-only match (helps for "Factura 000123" vs "123")
+    const qDigits = normalizeDigits(q)
+    if (!qDigits) return false
+    const qNorm = normalizeNumericId(qDigits)
+    return tokens.some((t) => {
+      const tDigits = normalizeDigits(t)
+      if (!tDigits) return false
+      return normalizeNumericId(tDigits).includes(qNorm)
+    })
+  }
+
   const shouldIgnoreTapDueToScroll = (e: React.PointerEvent | React.MouseEvent) => {
     const s = actionsTouchRef.current
     // Only relevant for touch pointer flows
@@ -681,6 +712,8 @@ export default function Lucrari() {
       filtered = filtered.filter((item) => {
         // Special case: numeric search should match ticket/report numbers ignoring leading zeros.
         if (matchesWorkNumberLoose(item, searchText)) return true
+        // Special case: allow searching invoices by partial file name / invoice number.
+        if (matchesInvoiceLoose(item, searchText)) return true
         return Object.keys(item).some((key) => {
           const value = item[key]
           if (value === null || value === undefined) return false
@@ -716,6 +749,8 @@ export default function Lucrari() {
           filtered = filtered.filter((item) => {
             // Special case: numeric search should match ticket/report numbers ignoring leading zeros.
             if (matchesWorkNumberLoose(item, searchText)) return true
+            // Special case: allow searching invoices by partial file name / invoice number.
+            if (matchesInvoiceLoose(item, searchText)) return true
             return Object.keys(item).some((key) => {
               const value = item[key]
               if (value === null || value === undefined) return false
@@ -2031,6 +2066,35 @@ export default function Lucrari() {
       cell: ({ row }) => (
         <Badge className={getInvoiceStatusClass(row.original.statusFacturare)}>{row.original.statusFacturare}</Badge>
       ),
+    },
+    {
+      accessorKey: "numarFactura",
+      header: "Nr. Factură",
+      enableHiding: true,
+      enableFiltering: true,
+      sortingFn: (rowA: any, rowB: any) => {
+        const aDoc = (rowA.original as any)?.facturaDocument
+        const bDoc = (rowB.original as any)?.facturaDocument
+        const a = String(aDoc?.numarFactura || rowA.original?.numarFactura || "").toLowerCase()
+        const b = String(bDoc?.numarFactura || rowB.original?.numarFactura || "").toLowerCase()
+        return a.localeCompare(b)
+      },
+      cell: ({ row }) => {
+        const doc = (row.original as any)?.facturaDocument
+        const num = doc?.numarFactura || row.original?.numarFactura
+        const fileName = doc?.fileName
+        if (!num && !fileName) return <span className="text-gray-400 text-xs">-</span>
+        return (
+          <div className="flex flex-col">
+            {num ? <div className="font-mono text-xs text-gray-900">{num}</div> : null}
+            {fileName ? (
+              <div className="text-[11px] text-gray-500 truncate max-w-[220px]" title={fileName}>
+                {fileName}
+              </div>
+            ) : null}
+          </div>
+        )
+      },
     },
     {
       accessorKey: "numarRaport",

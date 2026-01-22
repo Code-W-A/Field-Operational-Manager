@@ -12,6 +12,7 @@ import type { Employee, TimesheetCell, TimesheetMonthKey } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
 import { DateInput } from "@/components/ui/date-input"
 import { formatISODate } from "@/lib/utils/date-utils"
+import { calcEffectiveMinutes, type HMRange, isValidHMRange } from "@/lib/hr/time-calc"
 
 function parseMonthKeyFromDate(dateStr: string): TimesheetMonthKey | null {
   if (!dateStr) return null
@@ -33,6 +34,54 @@ function diffMinutes(start: string, end: string) {
   return Math.max(0, e - s)
 }
 
+function isValidHHMM(value: string) {
+  return /^([01]?\d|2[0-3]):[0-5]\d$/.test(String(value || "").trim())
+}
+
+function normalizeHHMM(value: string) {
+  const raw = String(value || "").trim()
+  const m = /^(\d{1,2}):(\d{1,2})$/.exec(raw)
+  if (!m) return raw
+  const hh = Number(m[1])
+  const mm = Number(m[2])
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return raw
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return raw
+  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`
+}
+
+function TimeInput24({
+  id,
+  label,
+  value,
+  onChange,
+}: {
+  id: string
+  label: string
+  value: string
+  onChange: (v: string) => void
+}) {
+  const invalid = value ? !isValidHHMM(value) : false
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={id} className="text-xs text-gray-600">
+        {label}
+      </Label>
+      <Input
+        id={id}
+        type="text"
+        inputMode="numeric"
+        placeholder="HH:mm"
+        value={value}
+        onChange={(ev) => onChange(ev.target.value)}
+        onBlur={() => onChange(normalizeHHMM(value))}
+        className={`h-10 bg-white border-gray-300 text-gray-900 font-mono ${invalid ? "border-red-500 focus-visible:ring-red-500" : ""}`}
+        aria-invalid={invalid}
+        autoComplete="off"
+      />
+    </div>
+  )
+}
+
 function calcHours(entries: Array<{ start: string; end: string }>, breaks: Array<{ start: string; end: string }>) {
   const work = entries.reduce((acc, it) => acc + diffMinutes(it.start, it.end), 0)
   const br = breaks.reduce((acc, it) => acc + diffMinutes(it.start, it.end), 0)
@@ -45,6 +94,8 @@ export function AddDayEntryDialog({
   employees,
   defaultEmployeeId,
   defaultStartDate,
+  defaultBreakStart,
+  defaultBreakEnd,
   onSubmitRange,
 }: {
   open: boolean
@@ -52,6 +103,8 @@ export function AddDayEntryDialog({
   employees: Employee[]
   defaultEmployeeId?: string
   defaultStartDate?: string // yyyy-mm-dd
+  defaultBreakStart?: string
+  defaultBreakEnd?: string
   onSubmitRange: (params: {
     employeeId: string
     startDate: string
@@ -82,6 +135,11 @@ export function AddDayEntryDialog({
   const [endDate, setEndDate] = useState(defaultStartDate ?? formatISODate(new Date()))
   const [project, setProject] = useState("")
 
+  const defaultBreak: HMRange | null = useMemo(() => {
+    const r = { start: String(defaultBreakStart || "").trim(), end: String(defaultBreakEnd || "").trim() }
+    return isValidHMRange(r) ? r : null
+  }, [defaultBreakStart, defaultBreakEnd])
+
   // Auto-selectează primul angajat când se încarcă lista SAU se deschide dialogul
   useEffect(() => {
     if (open && sortedEmployees.length > 0) {
@@ -94,10 +152,19 @@ export function AddDayEntryDialog({
         setStartDate(defaultStartDate)
         setEndDate(defaultStartDate)
       }
-    }
-  }, [open, sortedEmployees, defaultEmployeeId, defaultStartDate])
 
-  const [entries, setEntries] = useState<Array<{ start: string; end: string }>>([{ start: "08:00", end: "16:00" }])
+      // Apply default break when opening, but only if user hasn't already set a break.
+      setBreaks((prev) => {
+        const hasAny = prev.some((b) => String(b.start || "").trim() && String(b.end || "").trim())
+        if (hasAny) return prev
+        return defaultBreak ? [{ start: defaultBreak.start, end: defaultBreak.end }] : prev
+      })
+    }
+  }, [open, sortedEmployees, defaultEmployeeId, defaultStartDate, defaultBreak])
+
+  const [entries, setEntries] = useState<Array<{ start: string; end: string; travelToClient?: boolean }>>([
+    { start: "08:00", end: "16:00", travelToClient: false },
+  ])
   const [breaks, setBreaks] = useState<Array<{ start: string; end: string }>>([{ start: "12:00", end: "12:30" }])
 
   const [includeConcediu, setIncludeConcediu] = useState(false)
@@ -105,14 +172,26 @@ export function AddDayEntryDialog({
   const [includeSarbatori, setIncludeSarbatori] = useState(false)
   const [includeWeekend, setIncludeWeekend] = useState(false)
 
-  const hours = useMemo(() => calcHours(entries, breaks), [entries, breaks])
+  const hours = useMemo(() => {
+    return (
+      Math.round(
+        (calcEffectiveMinutes({
+          entries: entries as any,
+          breaks: breaks as any,
+          defaultBreak,
+        }) /
+          60) *
+          100,
+      ) / 100
+    )
+  }, [entries, breaks, defaultBreak])
 
   const monthKey = useMemo(() => parseMonthKeyFromDate(startDate), [startDate])
 
   const reset = () => {
     setProject("")
-    setEntries([{ start: "08:00", end: "16:00" }])
-    setBreaks([{ start: "12:00", end: "12:30" }])
+    setEntries([{ start: "08:00", end: "16:00", travelToClient: false }])
+    setBreaks(defaultBreak ? [{ start: defaultBreak.start, end: defaultBreak.end }] : [{ start: "12:00", end: "12:30" }])
     setIncludeConcediu(false)
     setIncludeEvenimente(false)
     setIncludeSarbatori(false)
@@ -154,7 +233,14 @@ export function AddDayEntryDialog({
     
     const payloadEntries = entries
       .filter((e) => e.start && e.end)
-      .map((e) => ({ ...e, project: project || undefined, methodStart: "Introdus manual de către manager", methodEnd: "Introdus manual de către manager" }))
+      .map((e) => ({
+        start: e.start,
+        end: e.end,
+        travelToClient: e.travelToClient ? true : undefined,
+        project: project || undefined,
+        methodStart: "Introdus manual de către manager",
+        methodEnd: "Introdus manual de către manager",
+      }))
     const payloadBreaks = breaks.filter((b) => b.start && b.end)
 
     // Validate intervals (avoid 07:03–07:03 or reversed end < start)
@@ -240,53 +326,62 @@ export function AddDayEntryDialog({
             </div>
           </div>
 
-          <div className="grid gap-2">
-            <Label className="text-gray-700 font-medium">Proiect (opțional)</Label>
-            <Input value={project} onChange={(e) => setProject(e.target.value)} placeholder="Alege proiect" className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400" />
-          </div>
+     
 
           <div className="grid gap-2">
             <Label className="text-gray-700 font-medium">Timp înregistrat</Label>
             <div className="space-y-2">
               {entries.map((e, idx) => (
-                <div key={idx} className="grid grid-cols-2 gap-2 items-end">
-                  <div className="grid gap-1.5">
-                    <Label htmlFor={`entry-start-${idx}`} className="text-xs text-gray-600">Început</Label>
-                  <Input
+                <div key={idx} className="space-y-2 rounded-lg border border-gray-200 p-3 bg-white">
+                  <div className="grid grid-cols-2 gap-2 items-end">
+                    <TimeInput24
                       id={`entry-start-${idx}`}
-                      type="time"
-                    value={e.start}
-                    onChange={(ev) => setEntries((prev) => prev.map((x, i) => (i === idx ? { ...x, start: ev.target.value } : x)))}
-                      className="h-10 bg-white border-gray-300 text-gray-900"
-                  />
-                  </div>
-                  <div className="flex gap-2">
-                    <div className="grid gap-1.5 flex-1">
-                      <Label htmlFor={`entry-end-${idx}`} className="text-xs text-gray-600">Sfârșit</Label>
-                    <Input
-                        id={`entry-end-${idx}`}
-                        type="time"
-                      value={e.end}
-                      onChange={(ev) => setEntries((prev) => prev.map((x, i) => (i === idx ? { ...x, end: ev.target.value } : x)))}
-                        className="h-10 bg-white border-gray-300 text-gray-900"
+                      label="Început"
+                      value={e.start}
+                      onChange={(v) => setEntries((prev) => prev.map((x, i) => (i === idx ? { ...x, start: v } : x)))}
                     />
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <TimeInput24
+                          id={`entry-end-${idx}`}
+                          label="Sfârșit"
+                          value={e.end}
+                          onChange={(v) => setEntries((prev) => prev.map((x, i) => (i === idx ? { ...x, end: v } : x)))}
+                        />
+                      </div>
+                      <div className="pt-6">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEntries((prev) => prev.filter((_, i) => i !== idx))}
+                          aria-label="Șterge interval"
+                          disabled={entries.length === 1}
+                          className="text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="pt-6">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setEntries((prev) => prev.filter((_, i) => i !== idx))}
-                      aria-label="Șterge interval"
-                      disabled={entries.length === 1}
-                      className="text-gray-500 hover:text-gray-900 hover:bg-gray-100"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={Boolean(e.travelToClient)}
+                      onCheckedChange={(v) =>
+                        setEntries((prev) =>
+                          prev.map((x, i) => (i === idx ? { ...x, travelToClient: Boolean(v) } : x)),
+                        )
+                      }
+                      className="border-gray-300 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">Traseu la client</span>
                   </div>
                 </div>
               ))}
-              <Button variant="outline" onClick={() => setEntries((prev) => [...prev, { start: "08:00", end: "16:00" }])}>
+              <Button
+                variant="outline"
+                onClick={() => setEntries((prev) => [...prev, { start: "08:00", end: "16:00", travelToClient: false }])}
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 Adaugă interval de lucru
               </Button>
@@ -298,26 +393,20 @@ export function AddDayEntryDialog({
             <div className="space-y-2">
               {breaks.map((b, idx) => (
                 <div key={idx} className="grid grid-cols-2 gap-2 items-end">
-                  <div className="grid gap-1.5">
-                    <Label htmlFor={`break-start-${idx}`} className="text-xs text-gray-600">Început pauză</Label>
-                  <Input
-                      id={`break-start-${idx}`}
-                      type="time"
+                  <TimeInput24
+                    id={`break-start-${idx}`}
+                    label="Început pauză"
                     value={b.start}
-                    onChange={(ev) => setBreaks((prev) => prev.map((x, i) => (i === idx ? { ...x, start: ev.target.value } : x)))}
-                      className="h-10 bg-white border-gray-300 text-gray-900"
+                    onChange={(v) => setBreaks((prev) => prev.map((x, i) => (i === idx ? { ...x, start: v } : x)))}
                   />
-                  </div>
                   <div className="flex gap-2">
-                    <div className="grid gap-1.5 flex-1">
-                      <Label htmlFor={`break-end-${idx}`} className="text-xs text-gray-600">Sfârșit pauză</Label>
-                    <Input
+                    <div className="flex-1">
+                      <TimeInput24
                         id={`break-end-${idx}`}
-                        type="time"
-                      value={b.end}
-                      onChange={(ev) => setBreaks((prev) => prev.map((x, i) => (i === idx ? { ...x, end: ev.target.value } : x)))}
-                        className="h-10 bg-white border-gray-300 text-gray-900"
-                    />
+                        label="Sfârșit pauză"
+                        value={b.end}
+                        onChange={(v) => setBreaks((prev) => prev.map((x, i) => (i === idx ? { ...x, end: v } : x)))}
+                      />
                     </div>
                     <div className="pt-6">
                     <Button

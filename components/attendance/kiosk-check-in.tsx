@@ -5,7 +5,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Button } from "@/components/ui/button"
 import { Play, Square, UserCircle2, LogOut } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import { FaceRecognitionCapture } from "./face-recognition-capture"
 import { createCheckIn, createCheckOut, getActiveSession } from "@/lib/attendance/storage"
 import { getCurrentLocation, determineMode } from "@/lib/attendance/location"
 import { extractTime24 } from "@/lib/utils/date-utils"
@@ -16,6 +15,8 @@ import { verifyUserPassword } from "@/lib/firebase/kiosk-verifier-auth"
 import { useAuth } from "@/contexts/AuthContext"
 import { signOut } from "@/lib/firebase/auth"
 import { useRouter } from "next/navigation"
+import { SelfieCapture } from "@/components/attendance/selfie-capture"
+import { uploadFile } from "@/lib/firebase/storage"
 
 export interface KioskUser {
   uid: string
@@ -32,7 +33,7 @@ export interface KioskCheckInProps {
   officeLocation?: OfficeLocation
 }
 
-type FlowState = "idle" | "select-action" | "select-user" | "verify-password" | "face-recognition" | "processing" | "success"
+type FlowState = "idle" | "select-action" | "select-user" | "verify-password" | "selfie" | "processing" | "success"
 
 export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
   const { user, userData } = useAuth()
@@ -235,10 +236,10 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
     try {
       setPasswordSubmitting(true)
       await verifyUserPassword(email, password)
-      // Success: continue to face recognition (mock)
+      // Success: continue to selfie capture (audit)
       setShowPasswordDialog(false)
       setShowDialog(true)
-      setFlowState("face-recognition")
+      setFlowState("selfie")
     } catch (error) {
       toast({
         title: "Parolă invalidă",
@@ -248,6 +249,19 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
     } finally {
       setPasswordSubmitting(false)
     }
+  }
+
+  const uploadSelfie = async (blob: Blob, kind: "checkin" | "checkout") => {
+    if (!selectedUser || !action) throw new Error("Utilizator/Acțiune lipsă")
+    const sessionId =
+      action === "check-out"
+        ? (await getActiveSession(selectedUser.uid))?.id || `att_${selectedUser.uid}_${Date.now()}`
+        : `att_${selectedUser.uid}_${Date.now()}`
+    const ts = Date.now()
+    const path = `attendance/selfies/${selectedUser.uid}/${sessionId}/${kind}-${ts}.jpg`
+    const file = new File([blob], `${kind}-${ts}.jpg`, { type: "image/jpeg" })
+    const { url } = await uploadFile(file, path)
+    return { url, path }
   }
 
   const handleFaceRecognitionSuccess = async (result: FaceRecognitionResult) => {
@@ -285,12 +299,26 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
             type: "kiosk",
             userAgent: navigator.userAgent,
           },
+          ...(result as any).__selfieCheckIn,
         })
 
         toast({
           title: "Check-In Reușit!",
           description: `Bun venit, ${selectedUser.displayName}!`,
         })
+        try {
+          const active = await getActiveSession(selectedUser.uid)
+          const lateMin = Number((active as any)?.lateStartMinutes ?? 0)
+          const sched = String((active as any)?.scheduledStart ?? (active as any)?.programLucruStart ?? "08:00")
+          if (lateMin > 0) {
+            toast({
+              title: "Întârziere (informativ)",
+              description: `Ai pornit pontajul cu ${lateMin} min după ora de start (${sched}).`,
+            })
+          }
+        } catch {
+          // non-blocking
+        }
       } else {
         // For check-out, get the active session
         const activeSession = await getActiveSession(selectedUser.uid)
@@ -308,6 +336,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
             type: "kiosk",
             userAgent: navigator.userAgent,
           },
+          ...(result as any).__selfieCheckOut,
           ...(debugEnabled && debugSimMinutes ? { debugSimulatedDurationMinutes: debugSimMinutes } : {}),
         })
 
@@ -346,7 +375,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
 
   const handleFaceRecognitionError = (error: string) => {
     // The component will auto-retry, just log
-    console.log("Face recognition attempt failed:", error)
+    console.log("Selfie step failed:", error)
   }
 
   return (
@@ -525,7 +554,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
         )}
       </div>
 
-      {/* Face Recognition Dialog */}
+      {/* Selfie Dialog */}
       <Dialog open={showDialog} onOpenChange={(open) => {
         if (!open) {
           resetFlow()
@@ -534,7 +563,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-center text-2xl">
-              Recunoaștere Facială
+              Selfie pontaj
             </DialogTitle>
           </DialogHeader>
           
@@ -546,14 +575,78 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
             </div>
           )}
 
-          {flowState === "face-recognition" && (
-            <FaceRecognitionCapture
-              onSuccess={handleFaceRecognitionSuccess}
-              onError={handleFaceRecognitionError}
-              userId={selectedUser?.uid}
-              userName={selectedUser?.displayName}
-              autoStart={true}
-            />
+          {flowState === "selfie" && (
+            <div className="py-2">
+              <SelfieCapture
+                onCaptured={async (r) => {
+                  if (!selectedUser || !action) return
+                  if (!r.ok || !r.blob) {
+                    toast({
+                      title: "Selfie indisponibil",
+                      description: r.error || "Nu am putut captura selfie-ul. Continuăm fără selfie.",
+                      variant: "destructive",
+                    })
+                    const base: FaceRecognitionResult = {
+                      success: true,
+                      faceId: `kiosk_pw_${selectedUser.uid}_${Date.now()}`,
+                      confidence: 1,
+                    }
+                    if (action === "check-in") (base as any).__selfieCheckIn = { checkInSelfieStatus: "error" }
+                    else (base as any).__selfieCheckOut = { checkOutSelfieStatus: "error" }
+                    await handleFaceRecognitionSuccess(base)
+                    return
+                  }
+                  try {
+                    const uploaded = await uploadSelfie(r.blob, action === "check-in" ? "checkin" : "checkout")
+                    const base: FaceRecognitionResult = {
+                      success: true,
+                      faceId: `kiosk_pw_${selectedUser.uid}_${Date.now()}`,
+                      confidence: 1,
+                    }
+                    if (action === "check-in") {
+                      ;(base as any).__selfieCheckIn = {
+                        checkInSelfieUrl: uploaded.url,
+                        checkInSelfiePath: uploaded.path,
+                        checkInSelfieStatus: "ok",
+                      }
+                    } else {
+                      ;(base as any).__selfieCheckOut = {
+                        checkOutSelfieUrl: uploaded.url,
+                        checkOutSelfiePath: uploaded.path,
+                        checkOutSelfieStatus: "ok",
+                      }
+                    }
+                    await handleFaceRecognitionSuccess(base)
+                  } catch (e) {
+                    toast({
+                      title: "Upload selfie eșuat",
+                      description: e instanceof Error ? e.message : "Nu am putut încărca poza. Continuăm fără selfie.",
+                      variant: "destructive",
+                    })
+                    const base: FaceRecognitionResult = {
+                      success: true,
+                      faceId: `kiosk_pw_${selectedUser.uid}_${Date.now()}`,
+                      confidence: 1,
+                    }
+                    if (action === "check-in") (base as any).__selfieCheckIn = { checkInSelfieStatus: "error" }
+                    else (base as any).__selfieCheckOut = { checkOutSelfieStatus: "error" }
+                    await handleFaceRecognitionSuccess(base)
+                  }
+                }}
+                onSkip={async () => {
+                  if (!selectedUser || !action) return
+                  toast({ title: "Fără selfie", description: "Pontajul va fi salvat fără selfie." })
+                  const base: FaceRecognitionResult = {
+                    success: true,
+                    faceId: `kiosk_pw_${selectedUser.uid}_${Date.now()}`,
+                    confidence: 1,
+                  }
+                  if (action === "check-in") (base as any).__selfieCheckIn = { checkInSelfieStatus: "missing" }
+                  else (base as any).__selfieCheckOut = { checkOutSelfieStatus: "missing" }
+                  await handleFaceRecognitionSuccess(base)
+                }}
+              />
+            </div>
           )}
 
           {flowState === "processing" && (

@@ -54,6 +54,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Spinner } from "@/components/ui/spinner"
+import { calcEffectiveMinutes, type HMRange, isValidHMRange } from "@/lib/hr/time-calc"
 
 function InfoTooltipButton({
   tooltip,
@@ -487,6 +488,14 @@ export default function CondicaPrezentaPage() {
     return Object.fromEntries(employees.map((e) => [e.id, e] as const))
   }, [employees])
 
+  const getEmployeeDefaultBreak = (employeeId: string): HMRange | null => {
+    const emp = employeeById[employeeId]
+    const start = String(emp?.pauzaStart || hrDefaults.pauzaStart || "").trim()
+    const end = String(emp?.pauzaEnd || hrDefaults.pauzaEnd || "").trim()
+    const r = { start, end }
+    return isValidHMRange(r) ? r : null
+  }
+
   const normalizeKey = (s: string) =>
     String(s || "")
       .trim()
@@ -572,6 +581,7 @@ export default function CondicaPrezentaPage() {
       zileLucrate += 1
 
       const entries = (c.entries ?? []) as NonNullable<TimesheetCell["entries"]>
+      const defaultBreak = getEmployeeDefaultBreak(employeeId)
       const schedule = getScheduleMinutes(employeeId)
       const [yStr, mStr] = monthKey.split("-")
       const dt = new Date(Number(yStr), Number(mStr) - 1, d)
@@ -646,7 +656,15 @@ export default function CondicaPrezentaPage() {
       }
 
       if (c.code === "WORK") {
-        const hours = Number(c.hours ?? 8)
+        const computedMinutes =
+          entries.length > 0
+            ? calcEffectiveMinutes({
+                entries: entries as any,
+                breaks: (c.breaks ?? null) as any,
+                defaultBreak,
+              })
+            : null
+        const hours = computedMinutes != null ? computedMinutes / 60 : Number(c.hours ?? 8)
         orePrezenta += hours
         oreLucrateEfectiv += hours
       } else if (c.code === "SL") {
@@ -1585,6 +1603,7 @@ export default function CondicaPrezentaPage() {
             requestMetaByEmployeeDay={requestMetaByEmployeeDay}
             className="shadow-sm"
             compact={compactMode}
+            getDefaultBreakForEmployee={getEmployeeDefaultBreak}
           />
         ) : (
           <TimesheetListView
@@ -1595,6 +1614,7 @@ export default function CondicaPrezentaPage() {
             isActiveCell={isActiveCell}
             holidayLabelsByDay={holidayLabelsByDay}
             requestMetaByEmployeeDay={requestMetaByEmployeeDay}
+            getDefaultBreakForEmployee={getEmployeeDefaultBreak}
           />
         )}
       </div>
@@ -1646,6 +1666,8 @@ export default function CondicaPrezentaPage() {
           }
           await upsertTimesheetCell({ monthKey, employeeId: selectedEmployeeId, day: selectedDay, cell: normalized })
         }}
+        dateISO={selectedDateISO}
+        defaultBreak={selectedEmployeeId ? getEmployeeDefaultBreak(selectedEmployeeId) : null}
       />
 
       <Dialog
@@ -1770,6 +1792,20 @@ export default function CondicaPrezentaPage() {
         employees={employees}
         defaultEmployeeId={addDefaults?.employeeId ?? (employeeFilter !== "all" ? employeeFilter : undefined)}
         defaultStartDate={addDefaults?.startDate}
+        defaultBreakStart={
+          (() => {
+            const id = addDefaults?.employeeId ?? (employeeFilter !== "all" ? employeeFilter : undefined)
+            if (!id) return hrDefaults.pauzaStart
+            return employeeById[id]?.pauzaStart || hrDefaults.pauzaStart
+          })() || undefined
+        }
+        defaultBreakEnd={
+          (() => {
+            const id = addDefaults?.employeeId ?? (employeeFilter !== "all" ? employeeFilter : undefined)
+            if (!id) return hrDefaults.pauzaEnd
+            return employeeById[id]?.pauzaEnd || hrDefaults.pauzaEnd
+          })() || undefined
+        }
         onSubmitRange={async ({ employeeId, startDate, endDate, project, entries, breaks, includeConcediu, includeSarbatori, includeWeekend, hours, monthKey }) => {
           // Basic date range: we only support same-month ranges for now.
           const start = new Date(startDate)

@@ -61,6 +61,11 @@ export function LeaveRequestsSection({
                             {hrRequestKindLabel(req.kind)}
                           </span>
                         </div>
+                        {req.timesheetClearedAt ? (
+                          <div className="text-xs text-amber-700 mt-1">
+                            Notă: cererea a fost <span className="font-medium">ștearsă din condică</span> după aprobare.
+                          </div>
+                        ) : null}
                         {(req.payload as any)?.reason && (
                           <div className="text-xs text-muted-foreground mt-1 italic">"{String((req.payload as any).reason)}"</div>
                         )}

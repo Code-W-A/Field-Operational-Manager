@@ -7,9 +7,13 @@ import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { Trash2, Plus, Pencil, X, Clock, MapPin, Briefcase, Calendar, Copy } from "lucide-react"
+import { Trash2, Plus, Pencil, X, Clock, MapPin, Briefcase, Calendar, Copy, Image as ImageIcon, ExternalLink } from "lucide-react"
 import type { TimesheetCell } from "@/lib/hr/types"
 import { toast } from "@/hooks/use-toast"
+import { useAuth } from "@/contexts/AuthContext"
+import { markHrRequestTimesheetCleared } from "@/lib/hr/storage"
+import { normalizeTimeHHmmLoose } from "@/lib/utils/time-input"
+import { calcEffectiveMinutes, type HMRange, minutesToHM as minutesToHMUtil } from "@/lib/hr/time-calc"
 
 function parseHM(v: string): number | null {
   const m = /^(\d{1,2}):(\d{2})$/.exec(v.trim())
@@ -46,6 +50,11 @@ function isValidInterval(it: { start: string; end: string }) {
   return s != null && en != null && s < en
 }
 
+function isValidBreak(it: { start: string; end: string }) {
+  // same validation as intervals; kept separate for clarity
+  return isValidInterval(it)
+}
+
 function sortEntries<T extends { start: string; end: string }>(arr: T[]): T[] {
   return [...arr].sort((a, b) => {
     const sa = parseHM(a.start) ?? 0
@@ -57,29 +66,13 @@ function sortEntries<T extends { start: string; end: string }>(arr: T[]): T[] {
 }
 
 function minutesToHM(total: number) {
-  const hh = Math.floor(total / 60)
-  const mm = total % 60
-  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`
+  return minutesToHMUtil(total)
 }
 
-function calcMinutes(cell: TimesheetCell | undefined) {
-  const entries = cell?.entries ?? []
-  const breaks = cell?.breaks ?? []
-  let work = 0
-  for (const e of entries) {
-    const s = parseHM(e.start)
-    const en = parseHM(e.end)
-    if (s == null || en == null) continue
-    work += Math.max(0, en - s)
-  }
-  let br = 0
-  for (const b of breaks) {
-    const s = parseHM(b.start)
-    const en = parseHM(b.end)
-    if (s == null || en == null) continue
-    br += Math.max(0, en - s)
-  }
-  return Math.max(0, work - br)
+function calcMinutes(cell: TimesheetCell | undefined, defaultBreak?: HMRange | null) {
+  const entries = (cell?.entries ?? []) as any
+  const breaks = (cell?.breaks ?? null) as any
+  return calcEffectiveMinutes({ entries, breaks, defaultBreak: defaultBreak ?? null })
 }
 
 export function DayEntryPopover({
@@ -95,6 +88,8 @@ export function DayEntryPopover({
   onOpenAddDialog,
   onOpenDeleteDialog,
   onSaveCell,
+  dateISO,
+  defaultBreak,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
@@ -108,23 +103,93 @@ export function DayEntryPopover({
   onOpenAddDialog: () => void
   onOpenDeleteDialog: () => void
   onSaveCell: (next: TimesheetCell) => Promise<void>
+  dateISO?: string | null
+  defaultBreak?: HMRange | null
 }) {
   const debugEnabled = process.env.NEXT_PUBLIC_ENABLE_DEBUG_PANEL === "true"
+  const { user, userData } = useAuth()
+  const canViewSelfies = userData?.role === "admin" || userData?.role === "dispecer"
   const [verificariOpen, setVerificariOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editingIdx, setEditingIdx] = useState<number | null>(null)
   const [start, setStart] = useState("")
   const [end, setEnd] = useState("")
+  const [travelToClient, setTravelToClient] = useState(false)
+  const [selfieDialogOpen, setSelfieDialogOpen] = useState(false)
+  const [selfieDialogTitle, setSelfieDialogTitle] = useState<string>("Selfie")
+  const [selfieUrl, setSelfieUrl] = useState<string | null>(null)
+  const [clearCoBusy, setClearCoBusy] = useState(false)
 
-  const minutes = useMemo(() => calcMinutes(cell), [cell])
+  const minutes = useMemo(() => calcMinutes(cell, defaultBreak), [cell, defaultBreak])
 
   const entries = cell?.entries ?? []
+  type Entry = NonNullable<TimesheetCell["entries"]>[number]
+  const breaks = (cell?.breaks ?? []) as Array<{ start: string; end: string }>
+  const validBreaks = breaks.filter((b) => isValidBreak(b))
+  const breaksLabel = validBreaks.length ? validBreaks.map((b) => `${b.start}–${b.end}`).join(", ") : ""
+  const showImplicitBreak = !breaksLabel && Boolean(defaultBreak)
+
+  const openSelfie = (title: string, url?: string) => {
+    if (!url) return
+    setSelfieDialogTitle(title)
+    setSelfieUrl(url)
+    setSelfieDialogOpen(true)
+  }
+
+  const clearCo = async () => {
+    if (!canViewSelfies) return // same role gate: admin/dispecer
+    if ((cell?.code as any) !== "CO") return
+    const sourceRequestId = (cell as any)?.sourceRequestId ? String((cell as any).sourceRequestId) : ""
+    const confirmed = window.confirm(
+      "Sigur vrei să elimini complet codul CO din condică pentru această zi? (Nu modifică cererea HR; doar curăță celula din condică.)"
+    )
+    if (!confirmed) return
+    try {
+      setClearCoBusy(true)
+      const next: TimesheetCell = {
+        ...(cell ?? { code: "EMPTY" }),
+        code: "EMPTY",
+      }
+      // Remove computed/manual fields to truly clear the day
+      delete (next as any).hours
+      delete (next as any).entries
+      delete (next as any).breaks
+      delete (next as any).sourceRequestId
+      delete (next as any).sourceRequestKind
+      await onSaveCell(next)
+      if (sourceRequestId && user?.uid) {
+        // Best-effort audit note on the HR request, so lists show that the CO was cleared after approval.
+        try {
+          await markHrRequestTimesheetCleared({
+            requestId: sourceRequestId,
+            clearedByUid: user.uid,
+            clearedByRole: userData?.role || undefined,
+            dateISO: dateISO ? String(dateISO) : undefined,
+            note: "CO eliminat din condică după aprobare.",
+          })
+        } catch (e) {
+          // Non-blocking: condica was cleared; we just couldn't write the audit note.
+          console.warn("Failed to mark hrRequest as cleared-from-timesheet:", e)
+        }
+      }
+      toast({ title: "CO eliminat", description: "Codul CO a fost eliminat din condică pentru această zi." })
+    } catch (e) {
+      toast({
+        title: "Eroare",
+        description: e instanceof Error ? e.message : "Nu am putut elimina CO.",
+        variant: "destructive",
+      })
+    } finally {
+      setClearCoBusy(false)
+    }
+  }
 
   const startEdit = (idx: number) => {
     const e = entries[idx]
     setEditingIdx(idx)
     setStart(e?.start ?? "")
     setEnd(e?.end ?? "")
+    setTravelToClient(Boolean((e as any)?.travelToClient))
     setEditDialogOpen(true)
   }
 
@@ -132,6 +197,7 @@ export function DayEntryPopover({
     setEditingIdx(null)
     setStart("")
     setEnd("")
+    setTravelToClient(false)
     setEditDialogOpen(false)
   }
 
@@ -147,7 +213,7 @@ export function DayEntryPopover({
     }
 
     const nextEntries = [...entries]
-    const item = { start, end }
+    const item = { start, end, travelToClient: travelToClient ? true : undefined }
     if (editingIdx === null) nextEntries.push(item as any)
     else nextEntries[editingIdx] = { ...(nextEntries[editingIdx] as any), ...item }
 
@@ -177,7 +243,7 @@ export function DayEntryPopover({
       ...(cell ?? { code: "WORK" }),
       code: (cell?.code ?? "WORK") === "EMPTY" ? "WORK" : (cell?.code ?? "WORK"),
       entries: sortedEntries,
-      hours: Math.round((calcMinutes({ ...(cell ?? { code: "WORK" }), entries: sortedEntries }) / 60) * 100) / 100,
+      hours: Math.round((calcMinutes({ ...(cell ?? { code: "WORK" }), entries: sortedEntries }, defaultBreak) / 60) * 100) / 100,
     }
     await onSaveCell(next)
     resetEdit()
@@ -196,7 +262,7 @@ export function DayEntryPopover({
       ...(cell ?? { code: "WORK" }),
       code: (cell?.code ?? "WORK") === "EMPTY" ? "WORK" : (cell?.code ?? "WORK"),
       entries: cleaned as any,
-      hours: Math.round((calcMinutes({ ...(cell ?? { code: "WORK" }), entries: cleaned as any }) / 60) * 100) / 100,
+      hours: Math.round((calcMinutes({ ...(cell ?? { code: "WORK" }), entries: cleaned as any }, defaultBreak) / 60) * 100) / 100,
     }
     await onSaveCell(next)
     toast({
@@ -210,7 +276,7 @@ export function DayEntryPopover({
     const next: TimesheetCell = {
       ...(cell ?? { code: "WORK" }),
       entries: nextEntries,
-      hours: Math.round((calcMinutes({ ...(cell ?? { code: "WORK" }), entries: nextEntries }) / 60) * 100) / 100,
+      hours: Math.round((calcMinutes({ ...(cell ?? { code: "WORK" }), entries: nextEntries }, defaultBreak) / 60) * 100) / 100,
     }
     await onSaveCell(next)
     if (editingIdx === idx) resetEdit()
@@ -285,6 +351,18 @@ export function DayEntryPopover({
                   >
                     Verificări pontaj
                   </Button>
+                  {canViewSelfies && cell?.code === "CO" ? (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => void clearCo()}
+                      disabled={clearCoBusy}
+                      className="h-8 text-xs"
+                      title="Elimină complet CO din această zi"
+                    >
+                      {clearCoBusy ? "Se elimină…" : "Elimină CO"}
+                    </Button>
+                  ) : null}
                   <Button
                     variant="secondary"
                     size="icon"
@@ -341,7 +419,13 @@ export function DayEntryPopover({
                   </div>
                   <div>
                     <div className="text-xs text-gray-600">Pauză înregistrată</div>
-                    <div className="text-xs text-gray-700">—</div>
+                    <div className="text-xs text-gray-700">{breaksLabel || "—"}</div>
+                    {showImplicitBreak && defaultBreak ? (
+                      <div className="text-[11px] text-gray-500 mt-0.5">
+                        Pauză implicită (fișă/standard):{" "}
+                        <span className="font-mono">{defaultBreak.start}–{defaultBreak.end}</span>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
 
@@ -361,6 +445,7 @@ export function DayEntryPopover({
                           setEditingIdx(null)
                           setStart("08:00")
                           setEnd("16:00")
+                          setTravelToClient(false)
                           setEditDialogOpen(true)
                         }}
                         className="h-7 text-xs"
@@ -398,8 +483,41 @@ export function DayEntryPopover({
                             <div className="font-mono text-sm font-bold text-gray-900">
                               {e.start} – {e.end}
                             </div>
+                            {Boolean((e as any)?.travelToClient) && (
+                              <span className="ml-1 rounded border border-blue-200 bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800">
+                                TRASEU
+                              </span>
+                            )}
                           </div>
                           <div className="flex items-center gap-1">
+                            {canViewSelfies && (
+                              <div className="flex items-center gap-1 mr-1">
+                                {Boolean((e as Entry).selfieStartUrl) && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 px-2 text-xs"
+                                    onClick={() => openSelfie(`Selfie Start (${e.start})`, (e as Entry).selfieStartUrl)}
+                                    title="Vezi selfie la început"
+                                  >
+                                    <ImageIcon className="h-3.5 w-3.5 mr-1" />
+                                    Start
+                                  </Button>
+                                )}
+                                {Boolean((e as Entry).selfieEndUrl) && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 px-2 text-xs"
+                                    onClick={() => openSelfie(`Selfie Stop (${e.end})`, (e as Entry).selfieEndUrl)}
+                                    title="Vezi selfie la sfârșit"
+                                  >
+                                    <ImageIcon className="h-3.5 w-3.5 mr-1" />
+                                    Stop
+                                  </Button>
+                                )}
+                              </div>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
@@ -429,6 +547,32 @@ export function DayEntryPopover({
           </div>
         </PopoverContent>
       </Popover>
+      <Dialog open={selfieDialogOpen} onOpenChange={setSelfieDialogOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{selfieDialogTitle}</DialogTitle>
+          </DialogHeader>
+          {selfieUrl ? (
+            <div className="space-y-3">
+              <div className="rounded-md border overflow-hidden bg-black/5">
+                <img src={selfieUrl} alt={selfieDialogTitle} className="w-full h-auto max-h-[70vh] object-contain" />
+              </div>
+              <div className="flex justify-end">
+                <a
+                  href={selfieUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline"
+                >
+                  Deschide în tab nou <ExternalLink className="h-4 w-4" />
+                </a>
+              </div>
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground">Nu există selfie pentru acest interval.</div>
+          )}
+        </DialogContent>
+      </Dialog>
       <VerificariDialog
         open={verificariOpen}
         onOpenChange={setVerificariOpen}
@@ -437,6 +581,7 @@ export function DayEntryPopover({
         cell={cell}
         minutes={minutes}
         entries={entries}
+        approvedRequestLabel={approvedRequestLabel}
       />
       <EditIntervalDialog
         open={editDialogOpen}
@@ -444,8 +589,10 @@ export function DayEntryPopover({
         editingIdx={editingIdx}
         start={start}
         end={end}
+        travelToClient={travelToClient}
         onStartChange={setStart}
         onEndChange={setEnd}
+        onTravelToClientChange={setTravelToClient}
         onSave={saveEdit}
         onCancel={resetEdit}
       />
@@ -459,8 +606,10 @@ function EditIntervalDialog({
   editingIdx,
   start,
   end,
+  travelToClient,
   onStartChange,
   onEndChange,
+  onTravelToClientChange,
   onSave,
   onCancel,
 }: {
@@ -469,8 +618,10 @@ function EditIntervalDialog({
   editingIdx: number | null
   start: string
   end: string
+  travelToClient: boolean
   onStartChange: (v: string) => void
   onEndChange: (v: string) => void
+  onTravelToClientChange: (v: boolean) => void
   onSave: () => Promise<void>
   onCancel: () => void
 }) {
@@ -493,9 +644,26 @@ function EditIntervalDialog({
                 <span className="text-green-600">▶</span> Început
               </Label>
               <Input
-                type="time"
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="08:00"
+                pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
+                title="Format 24h: HH:mm (ex: 08:00, 16:30)"
                 value={start}
-                onChange={(e) => onStartChange(e.target.value)}
+                onChange={(e) => onStartChange(e.target.value.replace(/[^\d:]/g, "").slice(0, 5))}
+                onBlur={() => {
+                  const normalized = normalizeTimeHHmmLoose(start)
+                  if (normalized === null) {
+                    toast({
+                      title: "Oră invalidă",
+                      description: "Folosește formatul 24h HH:mm (ex: 08:00).",
+                      variant: "destructive",
+                    })
+                    return
+                  }
+                  if (normalized !== start) onStartChange(normalized)
+                }}
                 className="bg-white border-gray-300 text-gray-900 text-lg font-mono h-12"
               />
             </div>
@@ -504,12 +672,41 @@ function EditIntervalDialog({
                 <span className="text-red-600">■</span> Sfârșit
               </Label>
               <Input
-                type="time"
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="16:30"
+                pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
+                title="Format 24h: HH:mm (ex: 08:00, 16:30)"
                 value={end}
-                onChange={(e) => onEndChange(e.target.value)}
+                onChange={(e) => onEndChange(e.target.value.replace(/[^\d:]/g, "").slice(0, 5))}
+                onBlur={() => {
+                  const normalized = normalizeTimeHHmmLoose(end)
+                  if (normalized === null) {
+                    toast({
+                      title: "Oră invalidă",
+                      description: "Folosește formatul 24h HH:mm (ex: 16:30).",
+                      variant: "destructive",
+                    })
+                    return
+                  }
+                  if (normalized !== end) onEndChange(normalized)
+                }}
                 className="bg-white border-gray-300 text-gray-900 text-lg font-mono h-12"
               />
             </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              id="travelToClient"
+              type="checkbox"
+              checked={travelToClient}
+              onChange={(e) => onTravelToClientChange(e.target.checked)}
+              className="h-4 w-4"
+            />
+            <Label htmlFor="travelToClient" className="text-sm text-gray-700">
+              Traseu la client
+            </Label>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={onCancel} size="sm">
@@ -534,6 +731,7 @@ function VerificariDialog({
   cell,
   minutes,
   entries,
+  approvedRequestLabel,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
@@ -542,7 +740,57 @@ function VerificariDialog({
   cell: TimesheetCell | undefined
   minutes: number
   entries: Array<{ start: string; end: string; methodStart?: string; methodEnd?: string; project?: string }>
+  approvedRequestLabel?: string | null
 }) {
+  const hasEntries = Array.isArray(entries) && entries.length > 0
+  const approvedKindLabel = (() => {
+    const s = String(approvedRequestLabel || "").trim()
+    if (!s) return ""
+    // label format in condica-page is: "{Kind} • ..." so we keep only the kind part for status.
+    return s.split("•")[0]?.trim() || s
+  })()
+  const code = (cell?.code || "EMPTY") as any
+  const statusLabel =
+    code === "WORK"
+      ? "Lucrat"
+      : code === "CO"
+        ? "Concediu (CO)"
+        : code === "CFP"
+          ? "Concediu fără plată (CFP)"
+          : code === "CM"
+            ? "Concediu medical (CM)"
+            : code === "DEL"
+              ? "Delegație (DEL)"
+              : code === "IN"
+                ? "Învoire (IN)"
+                : code === "SL"
+                  ? "Sărbătoare legală (SL)"
+                  : code === "WE"
+                    ? "Weekend (WE)"
+                    : approvedKindLabel
+                      ? `${approvedKindLabel} (aprobat)`
+                      : hasEntries
+                        ? "Pontat"
+                        : "Necompletat"
+  const statusClass =
+    code === "WORK" || hasEntries
+      ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+      : code === "CO"
+        ? "bg-yellow-100 text-yellow-900 border border-yellow-300"
+        : code === "CFP"
+          ? "bg-orange-100 text-orange-700 border border-orange-200"
+          : code === "CM"
+            ? "bg-rose-100 text-rose-900 border border-rose-300"
+            : code === "DEL"
+              ? "bg-violet-100 text-violet-700 border border-violet-200"
+              : code === "IN"
+                ? "bg-gray-100 text-gray-700 border border-gray-200"
+                : code === "SL" || code === "WE"
+                  ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                  : approvedKindLabel
+                    ? "bg-amber-100 text-amber-900 border border-amber-200"
+                    : "bg-gray-100 text-gray-600 border border-gray-200"
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl bg-white border-gray-200">
@@ -567,43 +815,9 @@ function VerificariDialog({
               <div className="flex justify-between items-center">
                 <span className="text-xs text-gray-600">Status</span>
                 <span
-                  className={`text-xs font-semibold px-2 py-1 rounded ${
-                    cell?.code === "WORK"
-                      ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
-                      : cell?.code === "CO"
-                        ? "bg-yellow-100 text-yellow-900 border border-yellow-300"
-                        : cell?.code === "CFP"
-                          ? "bg-orange-100 text-orange-700 border border-orange-200"
-                          : cell?.code === "CM"
-                            ? "bg-rose-100 text-rose-900 border border-rose-300"
-                            : cell?.code === "DEL"
-                              ? "bg-violet-100 text-violet-700 border border-violet-200"
-                              : cell?.code === "IN"
-                                ? "bg-gray-100 text-gray-700 border border-gray-200"
-                                : cell?.code === "SL"
-                                  ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
-                                  : cell?.code === "WE"
-                                    ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
-                                    : "bg-gray-100 text-gray-600 border border-gray-200"
-                  }`}
+                  className={`text-xs font-semibold px-2 py-1 rounded ${statusClass}`}
                 >
-                  {cell?.code === "WORK"
-                    ? "Lucrat"
-                    : cell?.code === "CO"
-                      ? "Concediu"
-                      : cell?.code === "CFP"
-                        ? "Concediu fără plată"
-                        : cell?.code === "CM"
-                          ? "Concediu medical"
-                          : cell?.code === "DEL"
-                            ? "Delegație"
-                            : cell?.code === "IN"
-                              ? "Învoire"
-                              : cell?.code === "SL"
-                                ? "Sărbătoare legală"
-                                : cell?.code === "WE"
-                                  ? "Weekend"
-                                  : "Necompletat"}
+                  {statusLabel}
                 </span>
               </div>
               <div className="flex justify-between items-center">
@@ -624,9 +838,16 @@ function VerificariDialog({
                   <div key={idx} className="rounded-md border border-gray-200 bg-white p-2.5 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-gray-600">Interval #{idx + 1}</span>
-                      <span className="font-mono text-xs font-semibold text-gray-900">
-                        {entry.start} – {entry.end}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {Boolean((entry as any)?.travelToClient) && (
+                          <span className="rounded border border-blue-200 bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800">
+                            TRASEU
+                          </span>
+                        )}
+                        <span className="font-mono text-xs font-semibold text-gray-900">
+                          {entry.start} – {entry.end}
+                        </span>
+                      </div>
                     </div>
 
                     {entry.methodStart && (
@@ -649,15 +870,7 @@ function VerificariDialog({
                       </div>
                     )}
 
-                    {entry.project && (
-                      <div className="flex items-start gap-2">
-                        <Briefcase className="h-3.5 w-3.5 text-blue-600 mt-0.5 flex-shrink-0" />
-                        <div className="flex-1">
-                          <div className="text-xs text-gray-600">Proiect / Client</div>
-                          <div className="text-xs text-gray-900">{entry.project}</div>
-                        </div>
-                      </div>
-                    )}
+                
                   </div>
                 ))}
               </div>

@@ -51,6 +51,8 @@ export default function HrEmployeesPage() {
   const [importing, setImporting] = useState(false)
   const [defaultProgramStart, setDefaultProgramStart] = useState("")
   const [defaultProgramEnd, setDefaultProgramEnd] = useState("")
+  const [defaultBreakStart, setDefaultBreakStart] = useState("")
+  const [defaultBreakEnd, setDefaultBreakEnd] = useState("")
   const [savingDefaults, setSavingDefaults] = useState(false)
   const [confirmDefaultsOpen, setConfirmDefaultsOpen] = useState(false)
 
@@ -121,6 +123,8 @@ export default function HrEmployeesPage() {
       onChange: (d) => {
         setDefaultProgramStart(d.programLucruStart ?? "")
         setDefaultProgramEnd(d.programLucruEnd ?? "")
+        setDefaultBreakStart(d.pauzaStart ?? "")
+        setDefaultBreakEnd(d.pauzaEnd ?? "")
       },
     })
     return () => unsub()
@@ -166,7 +170,8 @@ export default function HrEmployeesPage() {
             Programul standard se aplică salariaților fără program particular.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <CardContent className="flex flex-col gap-3">
+          <div className="grid gap-3 sm:grid-cols-4 sm:items-end">
           <div className="grid gap-2">
             <Label htmlFor="defaultProgramStart">Program start</Label>
             <Input
@@ -225,6 +230,65 @@ export default function HrEmployeesPage() {
               }}
             />
           </div>
+          <div className="grid gap-2">
+            <Label htmlFor="defaultBreakStart">Pauză start</Label>
+            <Input
+              id="defaultBreakStart"
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
+              title="Format 24h: HH:mm (ex: 12:00, 12:30)"
+              value={defaultBreakStart}
+              onChange={(e) => {
+                const next = e.target.value.replace(/[^\d:]/g, "").slice(0, 5)
+                setDefaultBreakStart(next)
+              }}
+              placeholder="12:00"
+              onBlur={() => {
+                const normalized = normalizeTimeHHmmLoose(defaultBreakStart)
+                if (normalized === null) {
+                  toast({
+                    title: "Oră invalidă",
+                    description: "Folosește formatul 24h HH:mm (ex: 12:00).",
+                    variant: "destructive",
+                  })
+                  return
+                }
+                if (normalized !== defaultBreakStart) setDefaultBreakStart(normalized)
+              }}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="defaultBreakEnd">Pauză end</Label>
+            <Input
+              id="defaultBreakEnd"
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
+              title="Format 24h: HH:mm (ex: 12:00, 12:30)"
+              value={defaultBreakEnd}
+              onChange={(e) => {
+                const next = e.target.value.replace(/[^\d:]/g, "").slice(0, 5)
+                setDefaultBreakEnd(next)
+              }}
+              placeholder="12:30"
+              onBlur={() => {
+                const normalized = normalizeTimeHHmmLoose(defaultBreakEnd)
+                if (normalized === null) {
+                  toast({
+                    title: "Oră invalidă",
+                    description: "Folosește formatul 24h HH:mm (ex: 12:30).",
+                    variant: "destructive",
+                  })
+                  return
+                }
+                if (normalized !== defaultBreakEnd) setDefaultBreakEnd(normalized)
+              }}
+            />
+          </div>
+          </div>
           <Button onClick={() => setConfirmDefaultsOpen(true)} disabled={savingDefaults}>
             {savingDefaults ? "Se salvează..." : "Salvează"}
           </Button>
@@ -279,6 +343,8 @@ export default function HrEmployeesPage() {
         employee={editing}
         defaultProgramStart={defaultProgramStart}
         defaultProgramEnd={defaultProgramEnd}
+        defaultBreakStart={defaultBreakStart}
+        defaultBreakEnd={defaultBreakEnd}
         users={users}
         departments={departments}
       />
@@ -297,25 +363,33 @@ export default function HrEmployeesPage() {
                 try {
                   const normalizedStart = normalizeTimeHHmmLoose(defaultProgramStart)
                   const normalizedEnd = normalizeTimeHHmmLoose(defaultProgramEnd)
-                  if (normalizedStart === null || normalizedEnd === null) {
+                  const normalizedBreakStart = normalizeTimeHHmmLoose(defaultBreakStart)
+                  const normalizedBreakEnd = normalizeTimeHHmmLoose(defaultBreakEnd)
+                  if (normalizedStart === null || normalizedEnd === null || normalizedBreakStart === null || normalizedBreakEnd === null) {
                     toast({
                       title: "Program invalid",
-                      description: "Completează orele în format 24h HH:mm (ex: 08:00, 16:30).",
+                      description: "Completează orele în format 24h HH:mm (ex: 08:00, 16:30; 12:00, 12:30).",
                       variant: "destructive",
                     })
                     return
                   }
                   if (normalizedStart !== defaultProgramStart) setDefaultProgramStart(normalizedStart)
                   if (normalizedEnd !== defaultProgramEnd) setDefaultProgramEnd(normalizedEnd)
+                  if (normalizedBreakStart !== defaultBreakStart) setDefaultBreakStart(normalizedBreakStart)
+                  if (normalizedBreakEnd !== defaultBreakEnd) setDefaultBreakEnd(normalizedBreakEnd)
 
                   setSavingDefaults(true)
                   await saveHrDefaults({
                     programLucruStart: normalizedStart.trim() || undefined,
                     programLucruEnd: normalizedEnd.trim() || undefined,
+                    pauzaStart: normalizedBreakStart.trim() || undefined,
+                    pauzaEnd: normalizedBreakEnd.trim() || undefined,
                   })
                   const updated = await applyHrDefaultsToEmployees({
                     programLucruStart: normalizedStart.trim() || undefined,
                     programLucruEnd: normalizedEnd.trim() || undefined,
+                    pauzaStart: normalizedBreakStart.trim() || undefined,
+                    pauzaEnd: normalizedBreakEnd.trim() || undefined,
                   })
                   toast({
                     title: "Salvat",
@@ -337,25 +411,33 @@ export default function HrEmployeesPage() {
                 try {
                   const normalizedStart = normalizeTimeHHmmLoose(defaultProgramStart)
                   const normalizedEnd = normalizeTimeHHmmLoose(defaultProgramEnd)
-                  if (normalizedStart === null || normalizedEnd === null) {
+                  const normalizedBreakStart = normalizeTimeHHmmLoose(defaultBreakStart)
+                  const normalizedBreakEnd = normalizeTimeHHmmLoose(defaultBreakEnd)
+                  if (normalizedStart === null || normalizedEnd === null || normalizedBreakStart === null || normalizedBreakEnd === null) {
                     toast({
                       title: "Program invalid",
-                      description: "Completează orele în format 24h HH:mm (ex: 08:00, 16:30).",
+                      description: "Completează orele în format 24h HH:mm (ex: 08:00, 16:30; 12:00, 12:30).",
                       variant: "destructive",
                     })
                     return
                   }
                   if (normalizedStart !== defaultProgramStart) setDefaultProgramStart(normalizedStart)
                   if (normalizedEnd !== defaultProgramEnd) setDefaultProgramEnd(normalizedEnd)
+                  if (normalizedBreakStart !== defaultBreakStart) setDefaultBreakStart(normalizedBreakStart)
+                  if (normalizedBreakEnd !== defaultBreakEnd) setDefaultBreakEnd(normalizedBreakEnd)
 
                   setSavingDefaults(true)
                   await saveHrDefaults({
                     programLucruStart: normalizedStart.trim() || undefined,
                     programLucruEnd: normalizedEnd.trim() || undefined,
+                    pauzaStart: normalizedBreakStart.trim() || undefined,
+                    pauzaEnd: normalizedBreakEnd.trim() || undefined,
                   })
                   const updated = await applyHrDefaultsToAllEmployees({
                     programLucruStart: normalizedStart.trim() || undefined,
                     programLucruEnd: normalizedEnd.trim() || undefined,
+                    pauzaStart: normalizedBreakStart.trim() || undefined,
+                    pauzaEnd: normalizedBreakEnd.trim() || undefined,
                   })
                   toast({
                     title: "Salvat",

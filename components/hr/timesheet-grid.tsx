@@ -6,6 +6,7 @@ import { getEmployeeFullName } from "@/lib/hr/types"
 import { daysInMonth } from "@/lib/hr/storage"
 import type React from "react"
 import { useState, useEffect } from "react"
+import { calcEffectiveMinutes, type HMRange } from "@/lib/hr/time-calc"
 
 function cellClasses(cell: TimesheetCell | undefined) {
   const code = cell?.code ?? "EMPTY"
@@ -31,7 +32,17 @@ function weekdayMeta(monthKey: TimesheetMonthKey, day: number) {
   return { isWeekend, shortRo, longRo }
 }
 
-function cellLabel(cell: TimesheetCell | undefined, compact: boolean = false): React.ReactNode {
+function isLateCell(cell: TimesheetCell | undefined) {
+  const entries: any[] = (cell as any)?.entries || []
+  if (!Array.isArray(entries) || entries.length === 0) return false
+  return entries.some((e: any) => Number(e?.lateStartMinutes || 0) > 0)
+}
+
+function cellLabel(
+  cell: TimesheetCell | undefined,
+  compact: boolean = false,
+  defaultBreak: HMRange | null = null
+): React.ReactNode {
   const code = cell?.code ?? "EMPTY"
   const entries = cell?.entries ?? []
   
@@ -45,7 +56,15 @@ function cellLabel(cell: TimesheetCell | undefined, compact: boolean = false): R
   // Normal mode: show total time as HH:mm
   const shouldShowTime = code === "WORK" || code === "DEL" || code === "WE" || code === "SL"
   if (shouldShowTime) {
-    const totalMinutes = Math.round(Number(cell?.hours ?? 0) * 60)
+    const computedMinutes =
+      entries.length > 0
+        ? calcEffectiveMinutes({
+            entries: entries as any,
+            breaks: (cell?.breaks ?? null) as any,
+            defaultBreak,
+          })
+        : null
+    const totalMinutes = computedMinutes != null ? computedMinutes : Math.round(Number(cell?.hours ?? 0) * 60)
     const hh = Math.floor(totalMinutes / 60)
     const mm = totalMinutes % 60
     const hasTime = totalMinutes > 0 || entries.length > 0
@@ -84,6 +103,7 @@ export function TimesheetGrid({
   requestMetaByEmployeeDay,
   className,
   compact = false,
+  getDefaultBreakForEmployee,
 }: {
   monthKey: TimesheetMonthKey
   employees: Employee[]
@@ -95,6 +115,7 @@ export function TimesheetGrid({
   requestMetaByEmployeeDay?: Record<string, Record<number, { kind: string; label: string }>>
   className?: string
   compact?: boolean
+  getDefaultBreakForEmployee?: (employeeId: string) => HMRange | null
 }) {
   const dim = daysInMonth(monthKey)
   
@@ -266,6 +287,8 @@ export function TimesheetGrid({
                 const req = requestMetaByEmployeeDay?.[e.id]?.[d]
                 const { isWeekend, longRo } = weekdayMeta(monthKey, d)
                 const isEmpty = !c || c.code === "EMPTY"
+                const isLate = isLateCell(c)
+                const defaultBreak = getDefaultBreakForEmployee?.(e.id) ?? null
                 return (
                   <button
                     key={d}
@@ -277,6 +300,7 @@ export function TimesheetGrid({
                       cellClasses(c),
                       req && isEmpty ? requestBgClass(req.kind) : "",
                       req && !isEmpty ? requestRingClass(req.kind) : "",
+                      isLate && "ring-2 ring-red-400 ring-inset",
                       // Weekends / legal holidays: full-cell background (only for empty cells, so we don't fight code colors)
                       (isEmpty && (holidayLabel || isWeekend)) ? "bg-sky-50 text-sky-900 hover:bg-sky-100" : "",
                       isActive && "bg-emerald-200 text-emerald-900 hover:bg-emerald-300"
@@ -296,7 +320,7 @@ export function TimesheetGrid({
                       })
                     }}
                   >
-                    {cellLabel(c, compact)}
+                    {cellLabel(c, compact, defaultBreak)}
                   </button>
                 )
               })}

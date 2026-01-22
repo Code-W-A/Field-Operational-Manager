@@ -5,6 +5,7 @@ import type { Employee, TimesheetCell, TimesheetMonthKey } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
 import { daysInMonth } from "@/lib/hr/storage"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { calcEffectiveMinutes, type HMRange } from "@/lib/hr/time-calc"
 
 function weekdayMeta(monthKey: TimesheetMonthKey, day: number) {
   const [yStr, mStr] = monthKey.split("-")
@@ -29,6 +30,12 @@ function cellClasses(cell: TimesheetCell | undefined) {
   return "bg-background text-muted-foreground hover:bg-muted/30"
 }
 
+function isLateCell(cell: TimesheetCell | undefined) {
+  const entries: any[] = (cell as any)?.entries || []
+  if (!Array.isArray(entries) || entries.length === 0) return false
+  return entries.some((e: any) => Number(e?.lateStartMinutes || 0) > 0)
+}
+
 export function TimesheetListView({
   monthKey,
   employees,
@@ -37,6 +44,7 @@ export function TimesheetListView({
   isActiveCell,
   holidayLabelsByDay,
   requestMetaByEmployeeDay,
+  getDefaultBreakForEmployee,
 }: {
   monthKey: TimesheetMonthKey
   employees: Employee[]
@@ -45,6 +53,7 @@ export function TimesheetListView({
   isActiveCell?: (employeeId: string, day: number) => boolean
   holidayLabelsByDay?: Record<number, string | undefined>
   requestMetaByEmployeeDay?: Record<string, Record<number, { kind: string; label: string }>>
+  getDefaultBreakForEmployee?: (employeeId: string) => HMRange | null
 }) {
   const dim = daysInMonth(monthKey)
 
@@ -75,7 +84,17 @@ export function TimesheetListView({
         for (let d = 1; d <= dim; d++) {
           const cell = getCell(emp.id, d)
           if (cell?.code === "WORK") {
-            totalHours += Number(cell.hours ?? 8)
+            const entries = cell?.entries ?? []
+            const defaultBreak = getDefaultBreakForEmployee?.(emp.id) ?? null
+            const computedMinutes =
+              entries.length > 0
+                ? calcEffectiveMinutes({
+                    entries: entries as any,
+                    breaks: (cell?.breaks ?? null) as any,
+                    defaultBreak,
+                  })
+                : null
+            totalHours += computedMinutes != null ? computedMinutes / 60 : Number(cell.hours ?? 8)
             workDays++
           }
         }
@@ -104,6 +123,7 @@ export function TimesheetListView({
                   const holidayLabel = holidayLabelsByDay?.[d]
                   const req = requestMetaByEmployeeDay?.[emp.id]?.[d]
                   const { isWeekend, longRo } = weekdayMeta(monthKey, d)
+                  const isLate = isLateCell(cell)
                   
                   return (
                     <button
@@ -117,7 +137,8 @@ export function TimesheetListView({
                         // Weekends / legal holidays: full-cell background (only for empty cells)
                         (!hasData && (holidayLabel || isWeekend)) ? "bg-sky-50 text-sky-900 hover:bg-sky-100" : "",
                         isActive && "bg-emerald-200 text-emerald-900 hover:bg-emerald-300",
-                        hasData && "ring-1 ring-offset-1 ring-border/40"
+                        hasData && "ring-1 ring-offset-1 ring-border/40",
+                        isLate && "ring-2 ring-red-400 ring-inset"
                       )}
                       onClick={(ev) => {
                         const r = (ev.currentTarget as HTMLElement).getBoundingClientRect()

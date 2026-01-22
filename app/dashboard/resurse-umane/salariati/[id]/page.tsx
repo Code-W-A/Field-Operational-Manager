@@ -496,6 +496,17 @@ export default function HrEmployeeDetailsPage() {
                     <Separator />
                   </>
                 )}
+                {(employee.pauzaStart || employee.pauzaEnd) && (
+                  <>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pauză</Label>
+                      <div className="text-sm font-semibold text-foreground/80">
+                        {employee.pauzaStart || "—"} - {employee.pauzaEnd || "—"}
+                      </div>
+                    </div>
+                    <Separator />
+                  </>
+                )}
                 {employee.zileConcediuAnuale && (
                   <>
                     <div className="space-y-1">
@@ -504,7 +515,7 @@ export default function HrEmployeeDetailsPage() {
                     </div>
                   </>
                 )}
-                {!employee.poziteCOR && !employee.superiorUid && !employee.sectorIds?.length && !employee.loculDeMunca && !employee.programLucruStart && !employee.programLucruEnd && !employee.zileConcediuAnuale && (
+                {!employee.poziteCOR && !employee.superiorUid && !employee.sectorIds?.length && !employee.loculDeMunca && !employee.programLucruStart && !employee.programLucruEnd && !employee.pauzaStart && !employee.pauzaEnd && !employee.zileConcediuAnuale && (
                   <div className="text-sm text-muted-foreground italic">Nicio informație despre locul de muncă</div>
                 )}
               </CardContent>

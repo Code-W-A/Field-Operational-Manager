@@ -37,6 +37,14 @@ export interface AttendanceSession {
   location: AttendanceLocation
   /** Check-in face scan audit id (no image stored). Prefix may encode method, e.g. face_cam_* vs face_mock_*. */
   faceRecognitionId?: string
+  /** Optional selfie captured at check-in (stored in Firebase Storage). */
+  checkInSelfieUrl?: string
+  checkInSelfiePath?: string
+  checkInSelfieStatus?: "ok" | "missing" | "error"
+  /** Late start metadata (computed at check-in vs scheduled start). */
+  lateStartMinutes?: number
+  lateStartAt?: number
+  scheduledStart?: string // "HH:mm"
   /** Backward-compatible check-in device info. */
   extraTimeLogs?: ExtraTimeLog[]
   /** Optional work schedule captured at check-in (used for extra-time caps). */
@@ -47,6 +55,10 @@ export interface AttendanceSession {
   checkOutLocation?: AttendanceLocation
   /** Check-out face scan audit id (no image stored). Prefix may encode method, e.g. face_cam_* vs face_mock_*. */
   checkOutFaceRecognitionId?: string
+  /** Optional selfie captured at check-out (stored in Firebase Storage). */
+  checkOutSelfieUrl?: string
+  checkOutSelfiePath?: string
+  checkOutSelfieStatus?: "ok" | "missing" | "error"
   checkOutDeviceInfo?: DeviceInfo
   status: AttendanceStatus
   deviceInfo: DeviceInfo
@@ -68,6 +80,9 @@ export interface CheckInRequest {
   mode: AttendanceMode
   location: AttendanceLocation
   faceRecognitionId?: string
+  checkInSelfieUrl?: string
+  checkInSelfiePath?: string
+  checkInSelfieStatus?: "ok" | "missing" | "error"
   deviceInfo: DeviceInfo
 }
 
@@ -76,6 +91,9 @@ export interface CheckOutRequest {
   mode: AttendanceMode
   location: AttendanceLocation
   faceRecognitionId?: string
+  checkOutSelfieUrl?: string
+  checkOutSelfiePath?: string
+  checkOutSelfieStatus?: "ok" | "missing" | "error"
   deviceInfo: DeviceInfo
   /**
    * DEBUG ONLY: simulate longer sessions without waiting.

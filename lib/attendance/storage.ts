@@ -82,6 +82,13 @@ function timeOnSameDay(ts: number, hhmm: string | undefined, fallback: { h: numb
   return d.getTime()
 }
 
+function computeLateStart(params: { now: number; scheduledStart: string }) {
+  const scheduledMs = timeOnSameDay(params.now, params.scheduledStart, { h: 8, m: 0 })
+  const diffMin = Math.floor((params.now - scheduledMs) / 60000)
+  const lateStartMinutes = Math.max(0, diffMin)
+  return { lateStartMinutes, scheduledMs }
+}
+
 async function getEmployeeScheduleForUser(
   userId: string
 ): Promise<(Pick<Employee, "programLucruStart" | "programLucruEnd"> & { employeeId: string }) | null> {
@@ -246,6 +253,9 @@ export async function createCheckIn(request: CheckInRequest): Promise<string> {
     deviceType: request.deviceInfo?.type,
   })
 
+  const scheduledStart = schedule?.programLucruStart ?? DEFAULT_PROGRAM_START
+  const late = computeLateStart({ now, scheduledStart })
+
   const session: Omit<AttendanceSession, "id"> = {
     userId: request.userId,
     employeeId: schedule?.employeeId,
@@ -253,9 +263,15 @@ export async function createCheckIn(request: CheckInRequest): Promise<string> {
     mode: request.mode,
     location: request.location,
     faceRecognitionId: request.faceRecognitionId,
+    checkInSelfieUrl: request.checkInSelfieUrl,
+    checkInSelfiePath: request.checkInSelfiePath,
+    checkInSelfieStatus: request.checkInSelfieStatus,
+    ...(late.lateStartMinutes > 0
+      ? { lateStartMinutes: late.lateStartMinutes, lateStartAt: now, scheduledStart }
+      : { scheduledStart }),
     status: "active",
     deviceInfo: request.deviceInfo,
-    programLucruStart: schedule?.programLucruStart ?? DEFAULT_PROGRAM_START,
+    programLucruStart: scheduledStart,
     programLucruEnd: schedule?.programLucruEnd ?? DEFAULT_PROGRAM_END,
     createdAt: now,
     updatedAt: now,
@@ -345,6 +361,9 @@ export async function createCheckOut(request: CheckOutRequest): Promise<UserDayS
     checkOutMode: request.mode,
     checkOutLocation: request.location,
     checkOutFaceRecognitionId: request.faceRecognitionId ?? null,
+    checkOutSelfieUrl: request.checkOutSelfieUrl ?? null,
+    checkOutSelfiePath: request.checkOutSelfiePath ?? null,
+    checkOutSelfieStatus: request.checkOutSelfieStatus ?? null,
     checkOutDeviceInfo: request.deviceInfo,
     ...(extraTimeLogs ? { extraTimeLogs } : {}),
     updatedAt: serverTimestamp(),

@@ -148,6 +148,15 @@ export function buildNav(ctx: NavCtx): NavNode[] {
         },
         {
           type: "link",
+          id: "tichete-facturi",
+          label: "Facturi",
+          href: "/dashboard/facturi",
+          icon: FileText,
+          activeMatch: "prefix",
+          visible: () => isAdminOrDispatcher,
+        },
+        {
+          type: "link",
           id: "tichete-arhivate",
           label: "Arhivate",
           href: "/dashboard/arhivate",

@@ -42,6 +42,8 @@ export function EmployeeEditDialog({
   employee,
   defaultProgramStart,
   defaultProgramEnd,
+  defaultBreakStart,
+  defaultBreakEnd,
   users,
   departments,
   onSaved,
@@ -51,6 +53,8 @@ export function EmployeeEditDialog({
   employee: Employee | null
   defaultProgramStart?: string
   defaultProgramEnd?: string
+  defaultBreakStart?: string
+  defaultBreakEnd?: string
   users: EmployeeEditDialogUser[]
   departments: Department[]
   onSaved?: (employee: Employee) => void
@@ -90,6 +94,8 @@ export function EmployeeEditDialog({
   const [loculDeMunca, setLoculDeMunca] = useState("")
   const [programLucruStart, setProgramLucruStart] = useState("")
   const [programLucruEnd, setProgramLucruEnd] = useState("")
+  const [pauzaStart, setPauzaStart] = useState("")
+  const [pauzaEnd, setPauzaEnd] = useState("")
   const [zileConcediuAnuale, setZileConcediuAnuale] = useState("21")
 
   useEffect(() => {
@@ -117,6 +123,8 @@ export function EmployeeEditDialog({
       setLoculDeMunca("")
       setProgramLucruStart(defaultProgramStart || "")
       setProgramLucruEnd(defaultProgramEnd || "")
+      setPauzaStart(defaultBreakStart || "")
+      setPauzaEnd(defaultBreakEnd || "")
       setZileConcediuAnuale("21")
       return
     }
@@ -142,8 +150,10 @@ export function EmployeeEditDialog({
     setLoculDeMunca(employee.loculDeMunca || "")
     setProgramLucruStart(employee.programLucruStart || "")
     setProgramLucruEnd(employee.programLucruEnd || "")
+    setPauzaStart(employee.pauzaStart || "")
+    setPauzaEnd(employee.pauzaEnd || "")
     setZileConcediuAnuale(String(employee.zileConcediuAnuale || 21))
-  }, [open, employee, defaultProgramStart, defaultProgramEnd])
+  }, [open, employee, defaultProgramStart, defaultProgramEnd, defaultBreakStart, defaultBreakEnd])
 
   useEffect(() => {
     if (!photoFile) {
@@ -167,16 +177,28 @@ export function EmployeeEditDialog({
 
     const normalizedStart = normalizeTimeHHmmLoose(programLucruStart)
     const normalizedEnd = normalizeTimeHHmmLoose(programLucruEnd)
-    if (normalizedStart === null || normalizedEnd === null) {
+    const normalizedBreakStart = normalizeTimeHHmmLoose(pauzaStart)
+    const normalizedBreakEnd = normalizeTimeHHmmLoose(pauzaEnd)
+    if (normalizedStart === null || normalizedEnd === null || normalizedBreakStart === null || normalizedBreakEnd === null) {
       toast({
-        title: "Program invalid",
-        description: "Completează orele în format 24h HH:mm (ex: 08:00, 16:30).",
+        title: "Program / pauză invalidă",
+        description: "Completează orele în format 24h HH:mm (ex: 08:00–16:30, pauză 12:00–12:30).",
+        variant: "destructive",
+      })
+      return
+    }
+    if ((normalizedBreakStart && !normalizedBreakEnd) || (!normalizedBreakStart && normalizedBreakEnd)) {
+      toast({
+        title: "Pauză incompletă",
+        description: "Completează atât pauză start cât și pauză end (sau lasă ambele goale).",
         variant: "destructive",
       })
       return
     }
     if (normalizedStart !== programLucruStart) setProgramLucruStart(normalizedStart)
     if (normalizedEnd !== programLucruEnd) setProgramLucruEnd(normalizedEnd)
+    if (normalizedBreakStart !== pauzaStart) setPauzaStart(normalizedBreakStart)
+    if (normalizedBreakEnd !== pauzaEnd) setPauzaEnd(normalizedBreakEnd)
 
     const employeeId = employee?.id ?? (draftEmployeeId || makeId())
 
@@ -224,6 +246,8 @@ export function EmployeeEditDialog({
             loculDeMunca: loculDeMunca.trim() || undefined,
             programLucruStart: normalizedStart.trim() || undefined,
             programLucruEnd: normalizedEnd.trim() || undefined,
+            pauzaStart: normalizedBreakStart.trim() || undefined,
+            pauzaEnd: normalizedBreakEnd.trim() || undefined,
             zileConcediuAnuale: zileConcediuAnuale.trim() ? Number(zileConcediuAnuale) : undefined,
           }
         : {
@@ -246,6 +270,8 @@ export function EmployeeEditDialog({
             loculDeMunca: loculDeMunca.trim() || undefined,
             programLucruStart: normalizedStart.trim() || undefined,
             programLucruEnd: normalizedEnd.trim() || undefined,
+            pauzaStart: normalizedBreakStart.trim() || undefined,
+            pauzaEnd: normalizedBreakEnd.trim() || undefined,
             zileConcediuAnuale: zileConcediuAnuale.trim() ? Number(zileConcediuAnuale) : undefined,
           }
 
@@ -604,6 +630,60 @@ export function EmployeeEditDialog({
                         return
                       }
                       if (normalized !== programLucruEnd) setProgramLucruEnd(normalized)
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-2">
+                  <Label htmlFor="employeePauzaStart">Pauză start</Label>
+                  <Input
+                    id="employeePauzaStart"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder="12:00"
+                    pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
+                    title="Format 24h: HH:mm (ex: 12:00, 12:30)"
+                    value={pauzaStart}
+                    onChange={(e) => setPauzaStart(e.target.value.replace(/[^\d:]/g, "").slice(0, 5))}
+                    onBlur={() => {
+                      const normalized = normalizeTimeHHmmLoose(pauzaStart)
+                      if (normalized === null) {
+                        toast({
+                          title: "Oră invalidă",
+                          description: "Folosește formatul 24h HH:mm (ex: 12:00).",
+                          variant: "destructive",
+                        })
+                        return
+                      }
+                      if (normalized !== pauzaStart) setPauzaStart(normalized)
+                    }}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="employeePauzaEnd">Pauză end</Label>
+                  <Input
+                    id="employeePauzaEnd"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder="12:30"
+                    pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
+                    title="Format 24h: HH:mm (ex: 12:00, 12:30)"
+                    value={pauzaEnd}
+                    onChange={(e) => setPauzaEnd(e.target.value.replace(/[^\d:]/g, "").slice(0, 5))}
+                    onBlur={() => {
+                      const normalized = normalizeTimeHHmmLoose(pauzaEnd)
+                      if (normalized === null) {
+                        toast({
+                          title: "Oră invalidă",
+                          description: "Folosește formatul 24h HH:mm (ex: 12:30).",
+                          variant: "destructive",
+                        })
+                        return
+                      }
+                      if (normalized !== pauzaEnd) setPauzaEnd(normalized)
                     }}
                   />
                 </div>

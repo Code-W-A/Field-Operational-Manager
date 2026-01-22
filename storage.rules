@@ -1,0 +1,31 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Best-effort: mirror Firestore role model (users/{uid}.role).
+    // Note: This requires Storage rules support for firestore.get (available in Firebase Rules v2).
+    function userRole() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdminOrDispatcher() {
+      return isSignedIn() && (userRole() == 'admin' || userRole() == 'dispecer');
+    }
+
+    // Attendance selfies: write by the user themselves; read by admin/dispecer (per requirements).
+    match /attendance/selfies/{userId}/{sessionId}/{fileName} {
+      allow write: if isSignedIn() && request.auth.uid == userId;
+      allow read: if isAdminOrDispatcher();
+    }
+
+    // Fallback: keep authenticated access for existing uploads (docs, profile photos, etc.)
+    match /{allPaths=**} {
+      allow read, write: if isSignedIn();
+    }
+  }
+}
+

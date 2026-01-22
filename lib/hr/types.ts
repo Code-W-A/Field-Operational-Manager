@@ -13,6 +13,15 @@ export type TimesheetCell = {
     methodStart?: string
     methodEnd?: string
     project?: string
+    /** Mark this interval as "traseu la client" (client travel). */
+    travelToClient?: boolean
+    /** Optional link back to the attendance session that generated this entry. */
+    attendanceSessionId?: string
+    /** Optional selfie URLs for start/stop (when generated from attendance). */
+    selfieStartUrl?: string
+    selfieEndUrl?: string
+    /** Optional lateness marker (minutes) for the day (set from attendance check-in). */
+    lateStartMinutes?: number
     /** If this entry was created by an approved HR request, keep traceability. */
     sourceRequestId?: string
     sourceRequestKind?: HrRequestKind
@@ -49,6 +58,10 @@ export type Employee = {
   loculDeMunca?: string // Workplace location
   programLucruStart?: string // Work schedule start (HH:mm format, e.g. "8:00")
   programLucruEnd?: string // Work schedule end (HH:mm format, e.g. "16:30")
+  /** Optional general break interval for the employee (HH:mm). */
+  pauzaStart?: string
+  /** Optional general break interval for the employee (HH:mm). */
+  pauzaEnd?: string
   zileConcediuAnuale?: number // Annual vacation days entitlement (default 21)
   
   // System fields
@@ -80,6 +93,8 @@ export type Department = {
 export type HrDefaults = {
   programLucruStart?: string
   programLucruEnd?: string
+  pauzaStart?: string
+  pauzaEnd?: string
 }
 
 export type TimesheetMonthKey = `${number}-${string}` // e.g. "2026-01"
@@ -120,7 +135,7 @@ export type HrRequestPayload =
   | {
       kind: "CORRECT_HOURS"
       date: string // yyyy-mm-dd
-      entries: Array<{ start: string; end: string; project?: string }>
+      entries: Array<{ start: string; end: string; project?: string; travelToClient?: boolean }>
       breaks?: Array<{ start: string; end: string }>
       reason?: string
     }
@@ -143,6 +158,12 @@ export type HrRequest = {
   status: HrRequestStatus
   payload: HrRequestPayload
   rejectionReason?: string
+  /** Optional audit: condica cell was cleared after approval (e.g. CO removed manually). */
+  timesheetClearedAt?: number
+  timesheetClearedByUid?: string
+  timesheetClearedByRole?: string
+  timesheetClearedDateISO?: string
+  timesheetClearedNote?: string
   /** Optional: which backend channel sends email notifications. */
   emailChannel?: "nextjs" | "firebase"
   createdAt: number

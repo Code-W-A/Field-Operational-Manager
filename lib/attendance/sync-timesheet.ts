@@ -13,6 +13,7 @@ import { db } from "@/lib/firebase/config"
 import type { AttendanceSession } from "@/types/attendance"
 import type { TimesheetCell, TimesheetMonthKey, TimesheetCode } from "@/lib/hr/types"
 import { getCurrentMonthKey, timesheetDocId } from "@/lib/hr/storage"
+import { calcEffectiveMinutes, type HMRange, isValidHMRange } from "@/lib/hr/time-calc"
 
 const DEBUG_PONTAJ = process.env.NEXT_PUBLIC_ENABLE_DEBUG_PANEL === "true"
 
@@ -98,6 +99,51 @@ function calcHoursFromEntries(entries: NonNullable<TimesheetCell["entries"]>) {
     return sum + (en - s)
   }, 0)
   return Math.round((minutes / 60) * 100) / 100
+}
+
+let cachedHrDefaults: { pauzaStart?: string; pauzaEnd?: string } | null | undefined = undefined
+async function getHrDefaultsBreak(): Promise<{ pauzaStart?: string; pauzaEnd?: string } | null> {
+  if (cachedHrDefaults !== undefined) return cachedHrDefaults
+  try {
+    const ref = doc(db, "hrSettings", "defaults")
+    const snap = await getDoc(ref)
+    if (!snap.exists()) {
+      cachedHrDefaults = null
+      return null
+    }
+    const data = snap.data() as any
+    cachedHrDefaults = {
+      pauzaStart: data?.pauzaStart ? String(data.pauzaStart) : undefined,
+      pauzaEnd: data?.pauzaEnd ? String(data.pauzaEnd) : undefined,
+    }
+    return cachedHrDefaults
+  } catch {
+    cachedHrDefaults = null
+    return null
+  }
+}
+
+const employeeBreakCache = new Map<string, HMRange | null>()
+async function getEmployeeDefaultBreak(employeeId: string): Promise<HMRange | null> {
+  if (employeeBreakCache.has(employeeId)) return employeeBreakCache.get(employeeId) ?? null
+  const defaults = await getHrDefaultsBreak()
+  try {
+    const snap = await getDoc(doc(db, "hrEmployees", employeeId))
+    const data = snap.exists() ? (snap.data() as any) : null
+    const start = String(data?.pauzaStart || defaults?.pauzaStart || "").trim()
+    const end = String(data?.pauzaEnd || defaults?.pauzaEnd || "").trim()
+    const r = { start, end }
+    const res = isValidHMRange(r) ? r : null
+    employeeBreakCache.set(employeeId, res)
+    return res
+  } catch {
+    const start = String(defaults?.pauzaStart || "").trim()
+    const end = String(defaults?.pauzaEnd || "").trim()
+    const r = { start, end }
+    const res = isValidHMRange(r) ? r : null
+    employeeBreakCache.set(employeeId, res)
+    return res
+  }
 }
 
 /**
@@ -188,6 +234,10 @@ export async function syncAttendanceToTimesheet(date: Date): Promise<void> {
           methodStart: `Play (${s.mode})`,
           methodEnd: `Stop (${s.checkOutMode || s.mode})`,
           project: "Pontaj",
+          attendanceSessionId: s.id,
+          selfieStartUrl: (s as any).checkInSelfieUrl,
+          selfieEndUrl: (s as any).checkOutSelfieUrl,
+          lateStartMinutes: Number((s as any).lateStartMinutes ?? 0) || undefined,
         })
 
         for (const log of s.extraTimeLogs || []) {
@@ -203,11 +253,12 @@ export async function syncAttendanceToTimesheet(date: Date): Promise<void> {
       }
 
       const normalizedEntries = normalizeNonOverlappingEntries(entries)
-      const totalHours = calcHoursFromEntries(normalizedEntries)
+      const defaultBreak = await getEmployeeDefaultBreak(employeeId)
 
       const timesheetRef = doc(db, "hrTimesheets", timesheetDocId(employeeId, monthKey as TimesheetMonthKey))
       // Preserve special day codes (DEL/WE/SL) while still syncing pontaj hours+entries.
       let code: TimesheetCode = "WORK"
+      let existingBreaks: TimesheetCell["breaks"] | undefined = undefined
       try {
         const existingSnap = await getDoc(timesheetRef)
         const existingDay = existingSnap.exists() ? ((existingSnap.data() as any)?.days?.[dayKey] as TimesheetCell | undefined) : undefined
@@ -215,14 +266,25 @@ export async function syncAttendanceToTimesheet(date: Date): Promise<void> {
         if (existingCode === "DEL" || existingCode === "WE" || existingCode === "SL") {
           code = existingCode
         }
+        existingBreaks = existingDay?.breaks
       } catch {
         // ignore
       }
+
+      const totalMinutesEffective = calcEffectiveMinutes({
+        entries: normalizedEntries as any,
+        breaks: (existingBreaks ?? null) as any,
+        defaultBreak,
+      })
+      const totalHours = Math.round((totalMinutesEffective / 60) * 100) / 100
 
       const cell: TimesheetCell = {
         code,
         hours: totalHours,
         entries: normalizedEntries,
+      }
+      if (existingBreaks) {
+        ;(cell as any).breaks = existingBreaks
       }
       batch.set(
         timesheetRef,
@@ -525,7 +587,13 @@ export async function syncAttendanceUserDayToTimesheet(userId: string, date: Dat
   const preservedEntries = (existingDay?.entries ?? []).filter((e) => !pontajProjects.has(String(e.project ?? "")))
   const normalizedComputed = normalizeNonOverlappingEntries(computedEntries)
   const safeComputed = filterOverlappingEntries(preservedEntries, normalizedComputed)
-  const totalHours = calcHoursFromEntries(safeComputed)
+  const defaultBreak = await getEmployeeDefaultBreak(employeeId)
+  const totalMinutesEffective = calcEffectiveMinutes({
+    entries: safeComputed as any,
+    breaks: (existingDay?.breaks ?? null) as any,
+    defaultBreak,
+  })
+  const totalHours = Math.round((totalMinutesEffective / 60) * 100) / 100
 
   const code: TimesheetCode = (existingCode === "DEL" || existingCode === "WE" || existingCode === "SL") ? existingCode : "WORK"
   const cell: TimesheetCell = {

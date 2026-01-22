@@ -244,6 +244,11 @@ export default function CereriAprobariPage() {
                               <span>{hrRequestDateLabel(r)}</span>
                               <span>Departament: {r.sectorId ? (departmentsById[r.sectorId] || "—") : "—"}</span>
                             </div>
+                            {r.timesheetClearedAt ? (
+                              <div className="text-xs text-amber-700 mt-1">
+                                Notă: șters din condică după aprobare.
+                              </div>
+                            ) : null}
                           </div>
                           <div className="flex items-center gap-2 ml-3">
                             <Badge variant="secondary">{hrRequestStatusLabel(r.status)}</Badge>
@@ -274,6 +279,11 @@ export default function CereriAprobariPage() {
                               <span>{hrRequestDateLabel(r)}</span>
                               <span>Departament: {r.sectorId ? (departmentsById[r.sectorId] || "—") : "—"}</span>
                             </div>
+                            {r.timesheetClearedAt ? (
+                              <div className="text-xs text-amber-700 mt-1">
+                                Notă: șters din condică după aprobare.
+                              </div>
+                            ) : null}
                           </div>
                           <div className="flex items-center gap-2 ml-3">
                             <Badge
@@ -347,6 +357,16 @@ export default function CereriAprobariPage() {
                 <div className="rounded-lg border p-3">
                   <div className="text-xs text-muted-foreground">Motiv</div>
                   <div className="text-sm">{String((selected.payload as any).reason)}</div>
+                </div>
+              ) : null}
+
+              {selected.timesheetClearedAt ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                  <div className="text-xs font-semibold text-amber-900">Notă</div>
+                  <div className="text-sm text-amber-900/90">
+                    Cererea a fost <b>ștearsă din condică</b> după aprobare{selected.timesheetClearedDateISO ? ` (zi: ${selected.timesheetClearedDateISO})` : ""}.
+                    {selected.timesheetClearedNote ? ` ${selected.timesheetClearedNote}` : ""}
+                  </div>
                 </div>
               ) : null}
 

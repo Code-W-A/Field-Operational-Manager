@@ -98,6 +98,8 @@ function normalizeEmployee(id: string, data: any): Employee {
     loculDeMunca: data.loculDeMunca ? String(data.loculDeMunca) : undefined,
     programLucruStart: data.programLucruStart ? String(data.programLucruStart) : undefined,
     programLucruEnd: data.programLucruEnd ? String(data.programLucruEnd) : undefined,
+    pauzaStart: data.pauzaStart ? String(data.pauzaStart) : undefined,
+    pauzaEnd: data.pauzaEnd ? String(data.pauzaEnd) : undefined,
     zileConcediuAnuale: data.zileConcediuAnuale ? Number(data.zileConcediuAnuale) : undefined,
     // System fields
     active: Boolean(data.active),
@@ -165,6 +167,8 @@ export async function createOrUpdateEmployee(employee: Employee) {
     loculDeMunca: employee.loculDeMunca ?? null,
     programLucruStart: employee.programLucruStart ?? null,
     programLucruEnd: employee.programLucruEnd ?? null,
+    pauzaStart: employee.pauzaStart ?? null,
+    pauzaEnd: employee.pauzaEnd ?? null,
     zileConcediuAnuale: employee.zileConcediuAnuale ?? null,
     // System fields
       active: employee.active,
@@ -237,6 +241,8 @@ export async function seedHrIfEmpty(params: { monthKey: TimesheetMonthKey }): Pr
         loculDeMunca: e.loculDeMunca ?? null,
         programLucruStart: e.programLucruStart ?? null,
         programLucruEnd: e.programLucruEnd ?? null,
+        pauzaStart: (e as any).pauzaStart ?? null,
+        pauzaEnd: (e as any).pauzaEnd ?? null,
         zileConcediuAnuale: e.zileConcediuAnuale ?? null,
         active: e.active,
         userUid: e.userUid ?? null,
@@ -413,6 +419,8 @@ export async function importLegacyLocalStorageHrDataToFirestore(): Promise<{ emp
         loculDeMunca: e.loculDeMunca ?? null,
         programLucruStart: e.programLucruStart ?? null,
         programLucruEnd: e.programLucruEnd ?? null,
+        pauzaStart: (e as any).pauzaStart ?? null,
+        pauzaEnd: (e as any).pauzaEnd ?? null,
         zileConcediuAnuale: e.zileConcediuAnuale ?? null,
         active: e.active,
         userUid: e.userUid ?? null,
@@ -459,12 +467,35 @@ function normalizeHrRequest(id: string, data: any): HrRequest {
     status: String(data.status) as HrRequestStatus,
     payload: (data.payload ?? {}) as any,
     rejectionReason: data.rejectionReason ? String(data.rejectionReason) : undefined,
+    timesheetClearedAt: data.timesheetClearedAt?.toMillis?.() ?? undefined,
+    timesheetClearedByUid: data.timesheetClearedByUid ? String(data.timesheetClearedByUid) : undefined,
+    timesheetClearedByRole: data.timesheetClearedByRole ? String(data.timesheetClearedByRole) : undefined,
+    timesheetClearedDateISO: data.timesheetClearedDateISO ? String(data.timesheetClearedDateISO) : undefined,
+    timesheetClearedNote: data.timesheetClearedNote ? String(data.timesheetClearedNote) : undefined,
     emailChannel: data.emailChannel ? String(data.emailChannel) as any : undefined,
     createdAt: data.createdAt?.toMillis?.() ?? Date.now(),
     updatedAt: data.updatedAt?.toMillis?.() ?? Date.now(),
     decidedAt: data.decidedAt?.toMillis?.() ?? undefined,
     decidedByUid: data.decidedByUid ? String(data.decidedByUid) : undefined,
   }
+}
+
+export async function markHrRequestTimesheetCleared(params: {
+  requestId: string
+  clearedByUid: string
+  clearedByRole?: string
+  dateISO?: string
+  note?: string
+}) {
+  const ref = doc(db, "hrRequests", params.requestId)
+  await updateDoc(ref, {
+    timesheetClearedAt: serverTimestamp(),
+    timesheetClearedByUid: params.clearedByUid,
+    timesheetClearedByRole: params.clearedByRole ?? null,
+    timesheetClearedDateISO: params.dateISO ?? null,
+    timesheetClearedNote: params.note ?? "Cod șters din condică după aprobare.",
+    updatedAt: serverTimestamp(),
+  } as any)
 }
 
 export function subscribeHrRequestsForEmployee(params: {
@@ -867,6 +898,8 @@ function normalizeHrDefaults(data: any): HrDefaults {
   return {
     programLucruStart: data?.programLucruStart ? String(data.programLucruStart) : undefined,
     programLucruEnd: data?.programLucruEnd ? String(data.programLucruEnd) : undefined,
+    pauzaStart: data?.pauzaStart ? String(data.pauzaStart) : undefined,
+    pauzaEnd: data?.pauzaEnd ? String(data.pauzaEnd) : undefined,
   }
 }
 
@@ -891,6 +924,8 @@ export async function saveHrDefaults(defaults: HrDefaults) {
     {
       programLucruStart: defaults.programLucruStart ?? null,
       programLucruEnd: defaults.programLucruEnd ?? null,
+      pauzaStart: defaults.pauzaStart ?? null,
+      pauzaEnd: defaults.pauzaEnd ?? null,
       updatedAt: serverTimestamp(),
     },
     { merge: true }
@@ -906,20 +941,33 @@ export async function applyHrDefaultsToEmployees(defaults: HrDefaults): Promise<
   let ops = 0
 
   const shouldUpdate = (data: any) => {
-    const s = data?.programLucruStart ? String(data.programLucruStart).trim() : ""
-    const e = data?.programLucruEnd ? String(data.programLucruEnd).trim() : ""
-    return !s && !e
+    const ps = data?.programLucruStart ? String(data.programLucruStart).trim() : ""
+    const pe = data?.programLucruEnd ? String(data.programLucruEnd).trim() : ""
+    const bs = data?.pauzaStart ? String(data.pauzaStart).trim() : ""
+    const be = data?.pauzaEnd ? String(data.pauzaEnd).trim() : ""
+    const missingProgram = !ps && !pe
+    const missingBreak = !bs && !be
+    return missingProgram || missingBreak
   }
 
   for (const docSnap of snap.docs) {
     const data = docSnap.data()
     if (!shouldUpdate(data)) continue
     const ref = doc(db, "hrEmployees", docSnap.id)
-    batch.update(ref, {
-      programLucruStart: defaults.programLucruStart ?? null,
-      programLucruEnd: defaults.programLucruEnd ?? null,
-      updatedAt: serverTimestamp(),
-    })
+    const updateData: Record<string, unknown> = { updatedAt: serverTimestamp() }
+    const ps = data?.programLucruStart ? String(data.programLucruStart).trim() : ""
+    const pe = data?.programLucruEnd ? String(data.programLucruEnd).trim() : ""
+    const bs = data?.pauzaStart ? String(data.pauzaStart).trim() : ""
+    const be = data?.pauzaEnd ? String(data.pauzaEnd).trim() : ""
+    if (!ps && !pe) {
+      updateData.programLucruStart = defaults.programLucruStart ?? null
+      updateData.programLucruEnd = defaults.programLucruEnd ?? null
+    }
+    if (!bs && !be) {
+      updateData.pauzaStart = defaults.pauzaStart ?? null
+      updateData.pauzaEnd = defaults.pauzaEnd ?? null
+    }
+    batch.update(ref, updateData)
     updated++
     ops++
     if (ops >= 450) {
@@ -948,6 +996,8 @@ export async function applyHrDefaultsToAllEmployees(defaults: HrDefaults): Promi
     batch.update(ref, {
       programLucruStart: defaults.programLucruStart ?? null,
       programLucruEnd: defaults.programLucruEnd ?? null,
+      pauzaStart: defaults.pauzaStart ?? null,
+      pauzaEnd: defaults.pauzaEnd ?? null,
       updatedAt: serverTimestamp(),
     })
     updated++

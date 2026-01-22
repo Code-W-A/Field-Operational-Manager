@@ -21,6 +21,8 @@ import { extractTime24 } from "@/lib/utils/date-utils"
 import type { AttendanceSession, FaceRecognitionResult, AttendanceLocation } from "@/types/attendance"
 import type { OfficeLocation } from "@/lib/firebase/auth"
 import { verifyWithDeviceBiometrics } from "@/lib/auth/webauthn-biometric"
+import { SelfieCapture } from "@/components/attendance/selfie-capture"
+import { uploadFile } from "@/lib/firebase/storage"
 
 interface FieldCheckInCardProps {
   userId: string
@@ -28,7 +30,7 @@ interface FieldCheckInCardProps {
   officeLocation?: OfficeLocation
 }
 
-type FlowState = "idle" | "face-recognition" | "processing"
+type FlowState = "idle" | "face-recognition" | "selfie" | "processing"
 
 export function FieldCheckInCard({ userId, userName, officeLocation }: FieldCheckInCardProps) {
   const debugEnabled = process.env.NEXT_PUBLIC_ENABLE_DEBUG_PANEL === "true"
@@ -42,6 +44,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
   const [checkOutTimer, setCheckOutTimer] = useState<number>(0)
   const [currentTime, setCurrentTime] = useState(Date.now())
   const [debugSimMinutes, setDebugSimMinutes] = useState<number | null>(null)
+  const [pendingAuditId, setPendingAuditId] = useState<string | null>(null)
 
   // Extra time tracking
   const [clientRouteActive, setClientRouteActive] = useState(false)
@@ -216,6 +219,8 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
             type: "field",
             userAgent: navigator.userAgent,
           },
+          // selfie (optional)
+          ...(result as any).__selfieCheckIn,
         })
 
         toast({
@@ -225,6 +230,19 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
 
         // Reload session
         await loadActiveSession()
+        try {
+          const active = await getActiveSession(userId)
+          const lateMin = Number((active as any)?.lateStartMinutes ?? 0)
+          const sched = String((active as any)?.scheduledStart ?? (active as any)?.programLucruStart ?? "08:00")
+          if (lateMin > 0) {
+            toast({
+              title: "Întârziere (informativ)",
+              description: `Ai pornit pontajul cu ${lateMin} min după ora de start (${sched}).`,
+            })
+          }
+        } catch {
+          // non-blocking
+        }
       } else if (action === "check-out") {
         if (!activeSession) {
           throw new Error("Nu există o sesiune activă")
@@ -239,6 +257,8 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
             type: "field",
             userAgent: navigator.userAgent,
           },
+          // selfie (optional)
+          ...(result as any).__selfieCheckOut,
           ...(debugEnabled && debugSimMinutes ? { debugSimulatedDurationMinutes: debugSimMinutes } : {}),
         })
 
@@ -282,6 +302,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
       setFlowState("idle")
       setAction(null)
       setDebugSimMinutes(null)
+      setPendingAuditId(null)
     } catch (error) {
       console.error("Field check-in/out error:", error)
       const message = error instanceof Error ? error.message : "A apărut o eroare"
@@ -295,6 +316,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
       setFlowState("idle")
       setAction(null)
       setDebugSimMinutes(null)
+      setPendingAuditId(null)
     }
   }
 
@@ -315,7 +337,37 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
       })
       return
     }
-    await handleFaceRecognitionSuccess({ success: true, faceId: res.auditId, confidence: 1 })
+    setPendingAuditId(res.auditId)
+    setFlowState("selfie")
+  }
+
+  const uploadSelfie = async (blob: Blob, kind: "checkin" | "checkout") => {
+    const sessionId = action === "check-out" ? (activeSession?.id || `att_${userId}_${Date.now()}`) : `att_${userId}_${Date.now()}`
+    const ts = Date.now()
+    const path = `attendance/selfies/${userId}/${sessionId}/${kind}-${ts}.jpg`
+    const file = new File([blob], `${kind}-${ts}.jpg`, { type: "image/jpeg" })
+    const { url } = await uploadFile(file, path)
+    return { url, path }
+  }
+
+  const continueAfterSelfie = async (selfie: { url?: string; path?: string; status: "ok" | "missing" | "error" }) => {
+    if (!action || !pendingAuditId) return
+    const base: FaceRecognitionResult = { success: true, faceId: pendingAuditId, confidence: 1 }
+    // piggyback optional fields to avoid refactoring signature (kept local)
+    if (action === "check-in") {
+      ;(base as any).__selfieCheckIn = {
+        checkInSelfieUrl: selfie.url,
+        checkInSelfiePath: selfie.path,
+        checkInSelfieStatus: selfie.status,
+      }
+    } else {
+      ;(base as any).__selfieCheckOut = {
+        checkOutSelfieUrl: selfie.url,
+        checkOutSelfiePath: selfie.path,
+        checkOutSelfieStatus: selfie.status,
+      }
+    }
+    await handleFaceRecognitionSuccess(base)
   }
 
   const handleStartClientRoute = async () => {
@@ -580,21 +632,24 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
         </CardContent>
       </Card>
 
-      {/* Face Recognition Dialog */}
+      {/* Biometric + Selfie Dialog */}
       <Dialog open={showFaceDialog} onOpenChange={(open) => {
         if (!open) {
           setShowFaceDialog(false)
           setFlowState("idle")
           setAction(null)
+          setPendingAuditId(null)
         }
       }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-center text-2xl">
-              Verificare biometrică
+              {flowState === "selfie" ? "Selfie pontaj" : "Verificare biometrică"}
             </DialogTitle>
             <DialogDescription className="text-center">
-              Confirmă cu biometria device-ului pentru {action === "check-in" ? "Play" : "Stop"}
+              {flowState === "selfie"
+                ? "Fă un selfie pentru audit (opțional)."
+                : `Confirmă cu biometria device-ului pentru ${action === "check-in" ? "Play" : "Stop"}`}
             </DialogDescription>
           </DialogHeader>
 
@@ -606,6 +661,42 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
               <Button onClick={handleBiometricConfirm} className="w-full">
                 Confirmă acum
               </Button>
+            </div>
+          )}
+
+          {flowState === "selfie" && (
+            <div className="py-4">
+              <SelfieCapture
+                onCaptured={async (r) => {
+                  if (!r.ok || !r.blob) {
+                    toast({
+                      title: "Selfie indisponibil",
+                      description: r.error || "Nu am putut captura selfie-ul. Continuăm fără selfie.",
+                      variant: "destructive",
+                    })
+                    await continueAfterSelfie({ status: "error" })
+                    return
+                  }
+                  try {
+                    const uploaded = await uploadSelfie(r.blob, action === "check-in" ? "checkin" : "checkout")
+                    await continueAfterSelfie({ status: "ok", url: uploaded.url, path: uploaded.path })
+                  } catch (e) {
+                    toast({
+                      title: "Upload selfie eșuat",
+                      description: e instanceof Error ? e.message : "Nu am putut încărca poza. Continuăm fără selfie.",
+                      variant: "destructive",
+                    })
+                    await continueAfterSelfie({ status: "error" })
+                  }
+                }}
+                onSkip={async () => {
+                  toast({
+                    title: "Fără selfie",
+                    description: "Pontajul va fi salvat fără selfie.",
+                  })
+                  await continueAfterSelfie({ status: "missing" })
+                }}
+              />
             </div>
           )}
 
