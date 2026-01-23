@@ -5,7 +5,7 @@ import { useState, useEffect, forwardRef, useImperativeHandle, useRef } from "re
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, Loader2, Plus, Trash2, MapPin, Wrench, AlertTriangle, FileText } from "lucide-react"
+import { AlertCircle, Loader2, Plus, Trash2, MapPin, Wrench, AlertTriangle, FileText, Check, ChevronsUpDown } from "lucide-react"
 import { addClient, updateClient, type Client, type PersoanaContact, type Locatie, type Echipament, isEchipamentCodeUnique } from "@/lib/firebase/firestore"
 import { uploadFile } from "@/lib/firebase/storage"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
@@ -50,6 +50,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { useAuth } from "@/contexts/AuthContext"
 import { v4 as uuidv4 } from "uuid"
+import { cn } from "@/lib/utils"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 
 interface ClientFormProps {
   mode?: "add" | "edit"
@@ -1754,6 +1756,7 @@ function TemplateSelector({
   const [useFlag] = useState<boolean>(true)
   const [childOpts, setChildOpts] = useState<Array<{ id: string; name: string }>>([])
   const [selectedChild, setSelectedChild] = useState<string>(parentId || "")
+  const [childOpen, setChildOpen] = useState(false)
 
   useEffect(() => {
     const unsub = subscribeRevisionChecklistTemplates((settings: any[]) => {
@@ -1844,29 +1847,64 @@ function TemplateSelector({
       <div className="grid sm:grid-cols-2 gap-3">
         <div className="space-y-1">
           <label className="text-sm font-medium">Fisa de operatiuni</label>
-          <Select
-            value={selectedChild}
-            onValueChange={(id) => {
-              setSelectedChild(id)
-              // fire an app-level event so the parent can store it in dynamic settings alongside template
-              try {
-                const name = childOpts.find((o) => o.id === id)?.name || ""
-                window.dispatchEvent(new CustomEvent("revision-template-child-change", {
-                  detail: { parentId: id, parentName: name },
-                } as any))
-              } catch {}
-            }}
-            disabled={!selectedId || childOpts.length === 0}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder={selectedId ? "Selectați secțiunea" : "Alegeți întâi șablonul"} />
-            </SelectTrigger>
-            <SelectContent>
-              {childOpts.map((t) => (
-                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {(() => {
+            const disabled = !selectedId || childOpts.length === 0
+            const selectedName = childOpts.find((o) => o.id === selectedChild)?.name || ""
+            const placeholder = selectedId ? "Selectați secțiunea" : "Alegeți întâi șablonul"
+            return (
+              <Popover open={childOpen} onOpenChange={(o) => !disabled && setChildOpen(o)}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={childOpen}
+                    disabled={disabled}
+                    className={cn("w-full justify-between", disabled && "opacity-50 cursor-not-allowed")}
+                  >
+                    <span className={cn("truncate", !selectedName && "text-muted-foreground")}>
+                      {selectedName || placeholder}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="p-0 w-[--radix-popover-trigger-width] max-w-[90vw]">
+                  <Command shouldFilter={true}>
+                    <CommandInput placeholder="Căutați secțiunea..." />
+                    <CommandEmpty>Nu s-au găsit rezultate.</CommandEmpty>
+                    <CommandList className="max-h-[240px] overflow-auto">
+                      <CommandGroup>
+                        {childOpts.map((t) => (
+                          <CommandItem
+                            key={t.id}
+                            value={`${t.name} ${t.id}`}
+                            onSelect={() => {
+                              const id = t.id
+                              setSelectedChild(id)
+                              try {
+                                const name = childOpts.find((o) => o.id === id)?.name || ""
+                                window.dispatchEvent(
+                                  new CustomEvent(
+                                    "revision-template-child-change",
+                                    { detail: { parentId: id, parentName: name } } as any,
+                                  ),
+                                )
+                              } catch {}
+                              setChildOpen(false)
+                            }}
+                            className="whitespace-nowrap"
+                          >
+                            <Check className={cn("mr-2 h-4 w-4", t.id === selectedChild ? "opacity-100" : "opacity-0")} />
+                            <span className="inline-block min-w-max">{t.name}</span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            )
+          })()}
           <p className="text-xs text-muted-foreground">
             În funcție de selecție, fișa va porni din această secțiune.
           </p>
