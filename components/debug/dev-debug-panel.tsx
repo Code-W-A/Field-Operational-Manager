@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Bug, Copy } from "lucide-react"
 import { WORK_STATUS } from "@/lib/utils/constants"
+import { useAuth } from "@/contexts/AuthContext"
 
 function toDate(input: any | undefined): Date | null {
   if (!input) return null
@@ -39,6 +40,10 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
   const enabled = process.env.NEXT_PUBLIC_ENABLE_DEBUG_PANEL === "true"
   if (!enabled) return null
 
+  const { userData } = useAuth()
+  const isAdmin = userData?.role === "admin"
+  if (!isAdmin) return null
+
   const [open, setOpen] = useState(false)
 
   const computed = useMemo(() => {
@@ -67,11 +72,28 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
     const raportGenerat = Boolean(l.raportGenerat)
     const preluatDispecer = Boolean(l.preluatDispecer)
 
+    // "Preluare" (dispatcher/admin pickup) visibility rules are implemented in multiple places.
+    // Keep the debug mirror explicit so admins can copy/paste reasons.
+    const isTechnicianRole = userData?.role === "tehnician"
+    const isAdminOrDispatcherRole = userData?.role === "admin" || userData?.role === "dispecer"
+    const isPostponed = eqInsensitive(status, WORK_STATUS.POSTPONED) || status === WORK_STATUS.POSTPONED
+
+    // /dashboard/lucrari (list) - shows the "Preia" button ONLY for completed-with-report, not for postponed.
+    const list_shouldShowPreia =
+      !isTechnicianRole && status === "Finalizat" && raportGenerat === true && preluatDispecer === false
+
+    // /dashboard/lucrari/[id] (details) - shows "Preia lucrare" for completed-with-report OR postponed, if not already picked up.
+    const details_shouldShowPreia =
+      isAdminOrDispatcherRole &&
+      preluatDispecer === false &&
+      ((status === "Finalizat" && raportGenerat === true) || status === WORK_STATUS.POSTPONED)
+
     return {
       execDate: execDate ? execDate.toISOString() : null,
       now: now.toISOString(),
       isAssigned,
       techniciansCount: technicians.length,
+      technicians,
       notScanned,
       equipmentVerified: Boolean(l.equipmentVerified),
       isPastDay,
@@ -81,8 +103,20 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
       isFinalizat,
       raportGenerat,
       preluatDispecer,
+      // context fields that are often suspected (but may or may not be used in preluare logic)
+      tipLucrare: l.tipLucrare ?? null,
+      lockedAfterReintervention: Boolean((l as any).lockedAfterReintervention),
+      reinterventieMotiv: (l as any)?.reinterventieMotiv ?? null,
+      mesajReatribuire: (l as any)?.mesajReatribuire ?? null,
+      // preluare debug
+      role: userData?.role ?? null,
+      isTechnicianRole,
+      isAdminOrDispatcherRole,
+      isPostponed,
+      list_shouldShowPreia,
+      details_shouldShowPreia,
     }
-  }, [lucrare])
+  }, [lucrare, userData?.role])
 
   const jsonText = useMemo(() => {
     try {
@@ -92,9 +126,58 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
     }
   }, [lucrare])
 
+  const preluareDebugText = useMemo(() => {
+    const l = lucrare || {}
+    const status = String(l.statusLucrare || "")
+    const technicians = Array.isArray(l.tehnicieni) ? l.tehnicieni : []
+    const technNames = technicians.map((t) => String(t)).filter(Boolean)
+    const tipLucrare = String(l.tipLucrare || "")
+
+    const lines: string[] = []
+    lines.push("=== Preluare debug (dispecer/admin) ===")
+    lines.push(`lucrare.id: ${String(l.id || "")}`)
+    lines.push(`client: ${String(l.client || "")}`)
+    lines.push(`locatie: ${String(l.locatie || "")}`)
+    lines.push(`tipLucrare: ${tipLucrare}`)
+    lines.push(`statusLucrare: ${status}`)
+    lines.push(`raportGenerat: ${String(Boolean(l.raportGenerat))}`)
+    lines.push(`preluatDispecer: ${String(Boolean(l.preluatDispecer))}`)
+    lines.push(`lockedAfterReintervention: ${String(Boolean((l as any).lockedAfterReintervention))}`)
+    lines.push(`reinterventieMotiv: ${String((l as any)?.reinterventieMotiv ?? "")}`)
+    lines.push(`mesajReatribuire: ${String((l as any)?.mesajReatribuire ?? "")}`)
+    lines.push(`tehnicieni (${technNames.length}): ${technNames.join(", ") || "-"}`)
+    lines.push(`viewer.role: ${String(userData?.role || "")}`)
+    lines.push("")
+
+    lines.push("Context A: /dashboard/lucrari (LISTĂ) – butonul 'Preia' (coloana 'Preluat Dispecer')")
+    lines.push(`- role != 'tehnician': ${String(!computed.isTechnicianRole)}`)
+    lines.push(`- statusLucrare == 'Finalizat': ${String(status === "Finalizat")}`)
+    lines.push(`- raportGenerat == true: ${String(Boolean(l.raportGenerat) === true)}`)
+    lines.push(`- preluatDispecer == false: ${String(Boolean(l.preluatDispecer) === false)}`)
+    lines.push(`=> REZULTAT: ${computed.list_shouldShowPreia ? "ARATĂ butonul 'Preia'" : "NU arată butonul 'Preia'"}`)
+    lines.push("")
+
+    lines.push("Context B: /dashboard/lucrari/[id] (DETALII) – butonul 'Preia lucrare'")
+    lines.push(`- role in {'admin','dispecer'}: ${String(computed.isAdminOrDispatcherRole)}`)
+    lines.push(`- preluatDispecer == false: ${String(Boolean(l.preluatDispecer) === false)}`)
+    lines.push(
+      `- (Finalizat+raport) OR (Amânată): ${String(
+        (status === "Finalizat" && Boolean(l.raportGenerat) === true) || status === WORK_STATUS.POSTPONED,
+      )}`,
+    )
+    lines.push(`=> REZULTAT: ${computed.details_shouldShowPreia ? "ARATĂ butonul 'Preia lucrare'" : "NU arată butonul 'Preia lucrare'"}`)
+    lines.push("")
+
+    lines.push("Notă: câmpurile tipLucrare / reintervenție / tehnicieni sunt incluse aici ca 'context',")
+    lines.push("dar butoanele de 'preluare dispecer' sunt decise în principal de statusLucrare/raportGenerat/preluatDispecer + rol.")
+
+    return lines.join("\n")
+  }, [lucrare, userData?.role, computed, ])
+
   return (
     <>
-      <div className="fixed bottom-4 right-4 z-50">
+      {/* Admin-only debug button (kept behind NEXT_PUBLIC_ENABLE_DEBUG_PANEL) */}
+      <div className="fixed top-20 right-4 z-50">
         <Button
           onClick={() => setOpen(true)}
           className="shadow-lg"
@@ -109,11 +192,26 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
         <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between gap-3">
-              <span>Debug (development)</span>
+              <span>Debug (admin)</span>
               <div className="flex items-center gap-2">
                 <Badge variant={computed.intarziataByDashboardRules ? "destructive" : "secondary"}>
                   Întârziată: {computed.intarziataByDashboardRules ? "DA" : "NU"}
                 </Badge>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(preluareDebugText)
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copiază debug preluare
+                </Button>
                 <Button
                   type="button"
                   variant="outline"
@@ -137,6 +235,11 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
             <div className="rounded-lg border p-3">
               <div className="text-sm font-semibold mb-2">Computed</div>
               <pre className="text-xs whitespace-pre-wrap break-words">{JSON.stringify(computed, null, 2)}</pre>
+            </div>
+
+            <div className="rounded-lg border p-3">
+              <div className="text-sm font-semibold mb-2">Preluare debug (copy/paste)</div>
+              <pre className="text-xs whitespace-pre-wrap break-words">{preluareDebugText}</pre>
             </div>
 
             <div className="rounded-lg border">
