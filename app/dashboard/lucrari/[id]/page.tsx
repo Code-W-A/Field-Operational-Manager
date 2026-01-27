@@ -2814,54 +2814,101 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       <div className="flex flex-wrap gap-8">
                         {/* Necesită ofertă - switch dedesubt */}
                         <div className="space-y-2">
-                          <Label htmlFor="necesitaOfertaSwitch" className={`text-sm font-medium ${(!lucrare.preluatDispecer && !isAdminOrDispatcher) ? 'text-gray-500' : 'text-blue-800'}`}>Necesită ofertă</Label>
+                          <div className="flex items-center gap-2">
+                            <Label
+                              htmlFor="necesitaOfertaSwitch"
+                              className={`text-sm font-medium ${(!lucrare.preluatDispecer && !isAdminOrDispatcher) ? 'text-gray-500' : 'text-blue-800'}`}
+                            >
+                              Necesită ofertă
+                            </Label>
+                            {(() => {
+                              const offerSendCount = Number((lucrare as any)?.offerSendCount || 0)
+                              const offerAlreadySent = offerSendCount > 0
+                              const msg = offerAlreadySent
+                                ? `Nu se poate dezactiva: oferta a fost transmisă pe email (${offerSendCount}).`
+                                : "Activează/dezactivează necesitatea unei oferte pentru această lucrare."
+                              return (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="inline-flex items-center justify-center h-5 w-5 rounded-full border border-blue-200 text-blue-700 hover:bg-blue-50"
+                                      onClick={(e) => e.stopPropagation()}
+                                      aria-label="Info necesită ofertă"
+                                    >
+                                      i
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="max-w-xs">
+                                    {msg}
+                                  </TooltipContent>
+                                </Tooltip>
+                              )
+                            })()}
+                          </div>
                           <div>
-                            <Switch
-                              id="necesitaOfertaSwitch"
-                              checked={Boolean(lucrare.necesitaOferta)}
-                              onCheckedChange={async (checked) => {
-                                try {
-                                  console.log("[OfertaSwitch] toggle attempt", {
-                                    checked,
-                                    lucrareId: lucrare?.id,
-                                    preluatDispecer: lucrare?.preluatDispecer,
-                                    role,
-                                    isAdminOrDispatcher,
-                                    lockedAfterReintervention: (lucrare as any)?.lockedAfterReintervention,
-                                    statusLucrare: lucrare?.statusLucrare,
-                                    currentNecesitaOferta: Boolean(lucrare?.necesitaOferta),
-                                  })
-                                } catch (e) {
-                                  // ignore
-                                }
-                                // Doar non-admin/dispecer sunt blocați dacă lucrarea nu e preluată
-                                if (!isAdminOrDispatcher && !lucrare.preluatDispecer) {
-                                  console.warn("[OfertaSwitch] blocked: non-admin/dispecer and not picked up")
-                                  toast({ title: 'Acțiune indisponibilă', description: 'Lucrarea trebuie preluată de dispecer/admin pentru a modifica setările ofertei.', variant: 'destructive' })
-                                  return
-                                }
-                                try {
-                                  setIsUpdating(true)
-                                  const updateData: any = { necesitaOferta: checked }
-                                  if (!checked) {
-                                    updateData.comentariiOferta = ""
-                                    updateData.statusOferta = deleteField() as any
-                                  }
-                                  console.log("[OfertaSwitch] calling updateLucrare with", updateData)
-                                  await updateLucrare(lucrare.id!, updateData)
-                                  setLucrare(prev => prev ? { ...prev, ...updateData } : null)
-                                  console.log("[OfertaSwitch] update success")
-                                  toast({ title: "Actualizat", description: "Setarea 'Necesită ofertă' a fost actualizată." })
-                                } catch (error) {
-                                  console.error("[OfertaSwitch] error updating necesitaOferta:", error)
-                                  toast({ title: "Eroare", description: "Nu s-a putut actualiza setarea.", variant: 'destructive' })
-                                } finally {
-                                  setIsUpdating(false)
-                                }
-                              }}
-                              disabled={isUpdating ? true : false}
-                              className={!isAdminOrDispatcher && !lucrare.preluatDispecer ? 'opacity-50' : ''}
-                            />
+                            {(() => {
+                              const offerSendCount = Number((lucrare as any)?.offerSendCount || 0)
+                              const offerAlreadySent = offerSendCount > 0
+                              const lockDisable = offerAlreadySent && Boolean(lucrare.necesitaOferta)
+                              return (
+                                <Switch
+                                  id="necesitaOfertaSwitch"
+                                  checked={Boolean(lucrare.necesitaOferta)}
+                                  onCheckedChange={async (checked) => {
+                                    try {
+                                      console.log("[OfertaSwitch] toggle attempt", {
+                                        checked,
+                                        lucrareId: lucrare?.id,
+                                        preluatDispecer: lucrare?.preluatDispecer,
+                                        role,
+                                        isAdminOrDispatcher,
+                                        lockedAfterReintervention: (lucrare as any)?.lockedAfterReintervention,
+                                        statusLucrare: lucrare?.statusLucrare,
+                                        currentNecesitaOferta: Boolean(lucrare?.necesitaOferta),
+                                        offerSendCount,
+                                      })
+                                    } catch (e) {
+                                      // ignore
+                                    }
+                                    if (!checked && offerAlreadySent) {
+                                      toast({
+                                        title: "Dezactivare blocată",
+                                        description: `Oferta a fost deja transmisă pe email (${offerSendCount}). Nu se poate dezactiva.`,
+                                        variant: "destructive",
+                                      })
+                                      return
+                                    }
+                                    // Doar non-admin/dispecer sunt blocați dacă lucrarea nu e preluată
+                                    if (!isAdminOrDispatcher && !lucrare.preluatDispecer) {
+                                      console.warn("[OfertaSwitch] blocked: non-admin/dispecer and not picked up")
+                                      toast({ title: 'Acțiune indisponibilă', description: 'Lucrarea trebuie preluată de dispecer/admin pentru a modifica setările ofertei.', variant: 'destructive' })
+                                      return
+                                    }
+                                    try {
+                                      setIsUpdating(true)
+                                      const updateData: any = { necesitaOferta: checked }
+                                      if (!checked) {
+                                        updateData.comentariiOferta = ""
+                                        updateData.statusOferta = deleteField() as any
+                                      }
+                                      console.log("[OfertaSwitch] calling updateLucrare with", updateData)
+                                      await updateLucrare(lucrare.id!, updateData)
+                                      setLucrare(prev => prev ? { ...prev, ...updateData } : null)
+                                      console.log("[OfertaSwitch] update success")
+                                      toast({ title: "Actualizat", description: "Setarea 'Necesită ofertă' a fost actualizată." })
+                                    } catch (error) {
+                                      console.error("[OfertaSwitch] error updating necesitaOferta:", error)
+                                      toast({ title: "Eroare", description: "Nu s-a putut actualiza setarea.", variant: 'destructive' })
+                                    } finally {
+                                      setIsUpdating(false)
+                                    }
+                                  }}
+                                  disabled={isUpdating || lockDisable}
+                                  className={`${!isAdminOrDispatcher && !lucrare.preluatDispecer ? 'opacity-50' : ''}${lockDisable ? ' opacity-50 cursor-not-allowed' : ''}`}
+                                />
+                              )
+                            })()}
                           </div>
                         </div>
 

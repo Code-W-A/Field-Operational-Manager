@@ -405,10 +405,12 @@ export default function Lucrari() {
   const { data: tehnicieni } = useFirebaseCollection("users", [])
   const filterOptions = useMemo(() => {
     // Extragem toate valorile unice pentru tipuri de lucrări
-    const tipuriLucrare = Array.from(new Set(filteredLucrari.map((lucrare) => lucrare.tipLucrare))).map((tip) => ({
-      value: tip,
-      label: tip,
-    }))
+    const tipuriLucrare = Array.from(new Set(filteredLucrari.map((lucrare) => lucrare.tipLucrare)))
+      .filter((tip) => tip !== WORK_TYPES.OFFER && tip !== WORK_TYPES.CONTRACTING)
+      .map((tip) => ({
+        value: tip,
+        label: tip,
+      }))
 
     // Extragem toți tehnicienii unici
     const tehnicieniOptions = Array.from(new Set(filteredLucrari.flatMap((lucrare) => lucrare.tehnicieni))).map(
@@ -1079,6 +1081,14 @@ export default function Lucrari() {
     if (formData.tipLucrare === "Intervenție în contract" && !formData.contract) {
       errors.push("contract")
     }
+    // IMPORTANT: "Intervenție în contract" este permisă doar pe contracte de tip "Abonament"
+    if (
+      formData.tipLucrare === "Intervenție în contract" &&
+      formData.contract &&
+      String(formData.contractType || "").trim() !== "Abonament"
+    ) {
+      errors.push("contract")
+    }
 
     setFieldErrors(errors)
 
@@ -1150,6 +1160,19 @@ export default function Lucrari() {
     try {
       setIsSubmitting(true)
       setError(null)
+
+      // Guard: "Intervenție în contract" doar pentru contracte de tip "Abonament"
+      if (
+        formData.tipLucrare === "Intervenție în contract" &&
+        String(formData.contractType || "").trim() !== "Abonament"
+      ) {
+        setFieldErrors((prev) => (prev.includes("contract") ? prev : [...prev, "contract"]))
+        setError(
+          "Tichetele „Intervenție în contract” se pot lansa doar pe contracte de tip „Abonament”. Pentru „La cerere” folosește un tip facturabil.",
+        )
+        setIsSubmitting(false)
+        return
+      }
 
       if (!validateForm()) {
         setError("Vă rugăm să completați toate câmpurile obligatorii")

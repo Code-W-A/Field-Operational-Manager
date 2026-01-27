@@ -1,7 +1,86 @@
 import { NextResponse } from "next/server"
 // NOTE: For server-side logging, use Admin SDK (adminDb). Do not use client SDK here.
 import { cookies } from "next/headers"
-import { adminAuth, adminDb } from "@/lib/firebase/admin"
+import { adminApp, adminAuth, adminDb } from "@/lib/firebase/admin"
+import { getStorage } from "firebase-admin/storage"
+
+function wantsHtml(request: Request) {
+  const accept = request.headers.get("accept") || ""
+  return accept.includes("text/html")
+}
+
+function htmlResponse(title: string, message: string, details?: Record<string, any>, status = 400) {
+  const detailText = details ? JSON.stringify(details, null, 2) : ""
+  const html = `<!doctype html>
+<html lang="ro">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(title)}</title>
+    <style>
+      body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 0; padding: 24px; background: #f8fafc; color: #0f172a; }
+      .card { max-width: 860px; margin: 0 auto; background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 18px 14px; box-shadow: 0 2px 12px rgba(15,23,42,.06); }
+      h1 { font-size: 18px; margin: 0 0 8px; }
+      p { margin: 0 0 10px; line-height: 1.45; }
+      .hint { font-size: 13px; color: #334155; }
+      pre { margin: 10px 0 0; padding: 12px; background: #0b1220; color: #e2e8f0; border-radius: 10px; overflow: auto; font-size: 12px; }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+      .badge { display:inline-block; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; margin-left: 8px; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>${escapeHtml(title)} <span class="badge">Descărcare documentație</span></h1>
+      <p class="hint">${escapeHtml(message)}</p>
+      ${detailText ? `<pre><code>${escapeHtml(detailText)}</code></pre>` : ""}
+    </div>
+  </body>
+</html>`
+  return new NextResponse(html, {
+    status,
+    headers: { "content-type": "text/html; charset=utf-8" },
+  })
+}
+
+function escapeHtml(s: string) {
+  return String(s || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;")
+}
+
+function decodeUntilStable(input: string, maxRounds = 3) {
+  let cur = String(input || "")
+  for (let i = 0; i < maxRounds; i++) {
+    try {
+      const next = decodeURIComponent(cur)
+      if (next === cur) break
+      cur = next
+    } catch {
+      break
+    }
+  }
+  return cur
+}
+
+function parseFirebaseStorageObject(downloadUrl: string): { bucket: string; objectPath: string } | null {
+  try {
+    const u = new URL(downloadUrl)
+    if (!u.hostname.includes("firebasestorage.googleapis.com")) return null
+    // Expected: /v0/b/{bucket}/o/{objectPath}
+    const m = u.pathname.match(/^\/v0\/b\/([^/]+)\/o\/(.+)$/)
+    if (!m) return null
+    const bucket = String(m[1] || "").trim()
+    const rawObject = String(m[2] || "").trim()
+    const objectPath = decodeUntilStable(rawObject, 3)
+    if (!bucket || !objectPath) return null
+    return { bucket, objectPath }
+  } catch {
+    return null
+  }
+}
 
 export async function GET(request: Request) {
   try {
@@ -16,6 +95,14 @@ export async function GET(request: Request) {
 
     if (!lucrareId || !url) {
       console.warn(`[DOWNLOAD] [${requestId}] Missing params`, { lucrareId, urlPresent: Boolean(url) })
+      if (wantsHtml(request)) {
+        return htmlResponse(
+          "Parametri lipsă",
+          "Link-ul de descărcare este incomplet. Reîncarcă pagina și încearcă din nou. Dacă persistă, contactează administratorul.",
+          { requestId, lucrareId, urlPresent: Boolean(url), docType },
+          400,
+        )
+      }
       return NextResponse.json({ error: "Parametri lipsă" }, { status: 400 })
     }
 
@@ -323,15 +410,61 @@ export async function GET(request: Request) {
 
     if (!isAbsoluteHttpUrl(redirectUrl)) {
       console.warn(`[DOWNLOAD] [${requestId}] Invalid redirect URL (not absolute)`, { redirectUrl })
-      return NextResponse.json(
-        {
-          error:
-            "URL invalid pentru descărcare (nu este un link complet). Verifică documentul din Setări/Documentație: câmpul URL trebuie să fie de forma https://...",
-          requestId,
-          redirectUrl,
-        },
-        { status: 400 },
-      )
+      const payload = {
+        error:
+          "URL invalid pentru descărcare (nu este un link complet). Verifică documentul din Setări/Documentație: câmpul URL trebuie să fie de forma https://...",
+        requestId,
+        redirectUrl,
+      }
+      if (wantsHtml(request)) {
+        return htmlResponse(
+          "URL invalid pentru descărcare",
+          "Documentul pare configurat cu un URL incomplet. Deschide Setări → Documentație și verifică acel element (câmpul URL trebuie să înceapă cu https://).",
+          payload,
+          400,
+        )
+      }
+      return NextResponse.json(payload, { status: 400 })
+    }
+
+    // If the URL points to Firebase Storage, verify the object exists.
+    // This avoids confusing 404 pages / broken downloads for technicians.
+    const storageObj = parseFirebaseStorageObject(redirectUrl)
+    if (storageObj) {
+      try {
+        const envBucket = String(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "").trim()
+        const bucketName = envBucket || storageObj.bucket
+        const storage = getStorage(adminApp)
+        const bucket = storage.bucket(bucketName)
+        const [exists] = await bucket.file(storageObj.objectPath).exists()
+        if (!exists) {
+          console.warn(`[DOWNLOAD] [${requestId}] Storage object missing`, {
+            bucketName,
+            objectPath: storageObj.objectPath,
+            redirectUrl,
+          })
+          const payload = {
+            error:
+              "Document indisponibil (fișierul nu există în Storage sau a fost mutat/șters). Verifică Setări/Documentație: elementul trebuie să aibă un fișier încărcat (URL valid) care există în Storage.",
+            requestId,
+            bucketName,
+            objectPath: storageObj.objectPath,
+            redirectUrl,
+          }
+          if (wantsHtml(request)) {
+            return htmlResponse(
+              "Document indisponibil",
+              "Fișierul nu a fost găsit în Storage. Cel mai des înseamnă că în Setări → Documentație e doar o referință/URL greșit sau fișierul a fost șters/mutat. Rog administratorul să reîncarce documentul sau să corecteze URL-ul.",
+              payload,
+              404,
+            )
+          }
+          return NextResponse.json(payload, { status: 404 })
+        }
+      } catch (e) {
+        // Non-blocking: if validation fails, still attempt redirect.
+        console.warn(`[DOWNLOAD] [${requestId}] Storage exists-check failed (non-blocking)`, e)
+      }
     }
 
     return NextResponse.redirect(redirectUrl, { status: 302 })

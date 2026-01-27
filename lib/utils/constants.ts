@@ -60,7 +60,9 @@ export const WORK_TYPES = {
 /**
  * Array cu toate tipurile de lucrări pentru dropdown-uri
  */
-export const WORK_TYPE_OPTIONS = Object.values(WORK_TYPES)
+export const WORK_TYPE_OPTIONS = Object.values(WORK_TYPES).filter(
+  (type) => type !== WORK_TYPES.OFFER && type !== WORK_TYPES.CONTRACTING,
+)
 
 // Actualizez și funcția getWorkTypeClass pentru a include toate tipurile noi
 /**

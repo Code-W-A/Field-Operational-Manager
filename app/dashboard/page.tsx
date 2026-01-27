@@ -231,6 +231,14 @@ export default function Dashboard() {
     if (formData.tipLucrare === "Intervenție în contract" && !formData.contract) {
       errors.push("contract")
     }
+    // IMPORTANT: "Intervenție în contract" este permisă doar pe contracte de tip "Abonament"
+    if (
+      formData.tipLucrare === "Intervenție în contract" &&
+      formData.contract &&
+      String(formData.contractType || "").trim() !== "Abonament"
+    ) {
+      errors.push("contract")
+    }
 
     setFieldErrors(errors)
 
@@ -239,6 +247,20 @@ export default function Dashboard() {
 
   const handleSubmit = async () => {
     try {
+      // Guard: "Intervenție în contract" doar pentru contracte de tip "Abonament"
+      if (
+        formData.tipLucrare === "Intervenție în contract" &&
+        String(formData.contractType || "").trim() !== "Abonament"
+      ) {
+        setFieldErrors((prev) => (prev.includes("contract") ? prev : [...prev, "contract"]))
+        toast({
+          title: "Contract invalid",
+          description:
+            "Tichetele „Intervenție în contract” se pot lansa doar pe contracte de tip „Abonament”. Pentru „La cerere” folosește un tip facturabil.",
+          variant: "destructive",
+        })
+        return
+      }
       if (!validateForm()) {
         toast({
           title: "Eroare",

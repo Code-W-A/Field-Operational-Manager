@@ -212,6 +212,14 @@ export default function EditLucrarePage({ params }: { params: Promise<{ id: stri
     if (!formData.persoanaContact) errors.push("persoanaContact")
     if (!formData.telefon) errors.push("telefon")
     if (formData.tipLucrare === "Intervenție în contract" && !formData.contract) errors.push("contract")
+    // IMPORTANT: "Intervenție în contract" este permisă doar pe contracte de tip "Abonament"
+    if (
+      formData.tipLucrare === "Intervenție în contract" &&
+      formData.contract &&
+      String(formData.contractType || "").trim() !== "Abonament"
+    ) {
+      errors.push("contract")
+    }
 
     setFieldErrors(errors)
     return errors.length === 0
@@ -220,6 +228,22 @@ export default function EditLucrarePage({ params }: { params: Promise<{ id: stri
   const handleSubmit = async (data: Partial<Lucrare>) => {
     try {
       setIsSubmitting(true)
+
+      // Guard: "Intervenție în contract" doar pentru contracte de tip "Abonament"
+      if (data?.tipLucrare === "Intervenție în contract") {
+        const ct = String((data as any)?.contractType || "").trim()
+        if (ct !== "Abonament") {
+          setFieldErrors((prev) => (prev.includes("contract") ? prev : [...prev, "contract"]))
+          toast({
+            title: "Contract invalid",
+            description:
+              "Tichetele „Intervenție în contract” se pot lansa doar pe contracte de tip „Abonament”. Pentru „La cerere” folosește un tip facturabil.",
+            variant: "destructive",
+          })
+          setIsSubmitting(false)
+          return
+        }
+      }
 
       // Păstrăm dataEmiterii originală, nu permitem modificarea ei
       const originalEmiterii = initialData?.dataEmiterii || new Date().toISOString()

@@ -48,7 +48,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { INVOICE_STATUS_OPTIONS, WORK_TYPE_OPTIONS } from "@/lib/utils/constants"
+import { INVOICE_STATUS_OPTIONS, WORK_TYPE_OPTIONS, WORK_TYPES } from "@/lib/utils/constants"
 import { getWorkStatusClass } from "@/lib/utils/status-classes"
 // Adăugăm importurile pentru calcularea garanției
 import { calculateWarranty, getWarrantyDisplayInfo, updateWorkOrderWarrantyInfo } from "@/lib/utils/warranty-calculator"
@@ -2099,7 +2099,12 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 <SelectValue placeholder="Selectați tipul intervenției" />
               </SelectTrigger>
               <SelectContent>
-                {(dynamicWorkTypes && dynamicWorkTypes.length ? dynamicWorkTypes.map((it) => it.name) : WORK_TYPE_OPTIONS).map((option) => (
+                {(dynamicWorkTypes && dynamicWorkTypes.length
+                  ? dynamicWorkTypes.map((it) => it.name).filter(
+                      (name) => name !== WORK_TYPES.OFFER && name !== WORK_TYPES.CONTRACTING,
+                    )
+                  : WORK_TYPE_OPTIONS
+                ).map((option) => (
                   <SelectItem key={option} value={option}>
                     {option}
                   </SelectItem>
@@ -2287,6 +2292,11 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
               {formData.contractType && (
                 <p className="text-xs text-blue-600">
                   Tip contract: <span className="font-medium">{formData.contractType}</span>
+                </p>
+              )}
+              {formData.tipLucrare === "Intervenție în contract" && (
+                <p className="text-xs text-muted-foreground">
+                  Intervențiile în contract se pot lansa doar pe contracte de tip <span className="font-medium">Abonament</span> (nu se facturează).
                 </p>
               )}
               <p className="text-xs text-muted-foreground">Selectați contractul asociat intervenției</p>
