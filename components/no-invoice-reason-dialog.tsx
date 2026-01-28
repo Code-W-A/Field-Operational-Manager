@@ -1,7 +1,17 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -35,6 +45,9 @@ export function NoInvoiceReasonDialog({
   const [selectedReason, setSelectedReason] = useState<string>("")
   const [customReason, setCustomReason] = useState<string>("")
   const [error, setError] = useState<string>("")
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
+  const isClosingRef = useRef(false)
+  const hasUnsavedChanges = Boolean(selectedReason) || customReason.trim().length > 0
 
   const handleConfirm = () => {
     // Validare
@@ -86,9 +99,39 @@ export function NoInvoiceReasonDialog({
     onClose()
   }
 
+  const requestClose = () => {
+    if (!hasUnsavedChanges) {
+      isClosingRef.current = true
+      handleClose()
+      return
+    }
+    setShowCloseConfirm(true)
+  }
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className={`sm:max-w-[500px] ${className}`}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) {
+          if (isClosingRef.current) {
+            isClosingRef.current = false
+            return
+          }
+          requestClose()
+        }
+      }}
+    >
+      <DialogContent
+        className={`sm:max-w-[500px] ${className}`}
+        onEscapeKeyDown={(e) => {
+          e.preventDefault()
+          requestClose()
+        }}
+        onInteractOutside={(e) => {
+          e.preventDefault()
+          requestClose()
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertCircle className="h-5 w-5 text-orange-600" />
@@ -160,6 +203,28 @@ export function NoInvoiceReasonDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+      <AlertDialog open={showCloseConfirm} onOpenChange={setShowCloseConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmați închiderea</AlertDialogTitle>
+            <AlertDialogDescription>
+              Aveți modificări nesalvate. Sunteți sigur că doriți să închideți dialogul?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowCloseConfirm(false)}>Nu, rămân</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowCloseConfirm(false)
+                isClosingRef.current = true
+                handleClose()
+              }}
+            >
+              Da, închide
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 }

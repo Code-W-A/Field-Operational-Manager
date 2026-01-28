@@ -5,9 +5,8 @@ import { useState, useEffect, forwardRef, useImperativeHandle, useRef } from "re
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, Loader2, Plus, Trash2, MapPin, Wrench, AlertTriangle, FileText, Check, ChevronsUpDown } from "lucide-react"
+import { AlertCircle, Loader2, Plus, Trash2, MapPin, Wrench, AlertTriangle, FileText, Check, ChevronsUpDown, Folder, ChevronRight } from "lucide-react"
 import { addClient, updateClient, type Client, type PersoanaContact, type Locatie, type Echipament, isEchipamentCodeUnique } from "@/lib/firebase/firestore"
-import { uploadFile } from "@/lib/firebase/storage"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
@@ -22,7 +21,14 @@ import {
 import { Badge } from "@/components/ui/badge"
 // Adăugăm importul pentru componenta EquipmentQRCode
 import { EquipmentQRCode } from "@/components/equipment-qr-code"
-import { EquipmentDocsTemplateDialog } from "@/components/equipment-docs-template-dialog"
+import {
+  subscribeDocumentatiiFiles,
+  subscribeDocumentatiiFolders,
+  subscribeDocumentatiiSubfolders,
+  type DocumentatiiFile,
+  type DocumentatiiFolder,
+  type DocumentatiiSubfolder,
+} from "@/lib/firebase/documentatii"
 import { formatDate, formatUiDate, toDateSafe } from "@/lib/utils/time-format"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { CustomDatePicker } from "@/components/custom-date-picker"
@@ -146,6 +152,10 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
     dataInstalare: "",
     ultimaInterventie: "",
     observatii: "",
+    documentationFolderId: "",
+    documentationSubfolderId: "",
+    documentationFileIds: [],
+    documentationLabel: "",
     dynamicSettings: {} as any,
   })
   const [echipamentDataInstalareInput, setEchipamentDataInstalareInput] = useState<string>("")
@@ -219,17 +229,16 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
   const [echipamentFormErrors, setEchipamentFormErrors] = useState<string[]>([])
   const [isCheckingCode, setIsCheckingCode] = useState(false)
   const [isCodeUnique, setIsCodeUnique] = useState(true)
-  const [isUploadingDocs, setIsUploadingDocs] = useState(false)
-  const [pendingFiles, setPendingFiles] = useState<Array<{ file: File; documentType: string }>>([])
-  // Stocăm fișierele selectate (neîncărcate) per echipament (cheie = id echipament)
-  const [pendingDocsByEquip, setPendingDocsByEquip] = useState<
-    Record<string, Array<{ file: File; documentType: string }>>
-  >({})
-  // State pentru tipul de document selectat
-  const [selectedDocumentType, setSelectedDocumentType] = useState<string>("")
-  // State pentru lista de tipuri de documente din variabile
-  const [documentTypes, setDocumentTypes] = useState<Array<{ id: string; name: string }>>([])
-  const [isDocsTemplateDialogOpen, setIsDocsTemplateDialogOpen] = useState(false)
+  // Legacy documentație upload removed (Documentații uses folder-based selection)
+
+  // Documentații: dosare + subdosare (nou)
+  const [docFolders, setDocFolders] = useState<DocumentatiiFolder[]>([])
+  const [docSubfolders, setDocSubfolders] = useState<DocumentatiiSubfolder[]>([])
+  const [docFiles, setDocFiles] = useState<DocumentatiiFile[]>([])
+  const [docsPickerOpen, setDocsPickerOpen] = useState(false)
+  const [docsPickerFolderId, setDocsPickerFolderId] = useState("")
+  const [docsPickerSubfolderId, setDocsPickerSubfolderId] = useState("")
+  const [docsPickerFileIds, setDocsPickerFileIds] = useState<string[]>([])
   
   // State pentru confirmarea închiderii dialog-ului de echipament
   const [showEchipamentCloseAlert, setShowEchipamentCloseAlert] = useState(false)
@@ -242,6 +251,10 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
     dataInstalare: "",
     ultimaInterventie: "",
     observatii: "",
+    documentationFolderId: "",
+    documentationSubfolderId: "",
+    documentationFileIds: [],
+    documentationLabel: "",
     dynamicSettings: {} as any,
   })
 
@@ -249,20 +262,82 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
   const { showDialog, handleNavigation, confirmNavigation, cancelNavigation, pendingUrl } =
     useUnsavedChanges(formModified)
 
-  // Încărcare tipuri de documente din variabile
+  // (Documentații no longer uses equipment.documentTypes)
+
+  // Documentații: încărcăm dosarele (nou)
   useEffect(() => {
-    const unsub = subscribeToSettings("equipment.documentTypes", (settings: any[]) => {
-      const types = ((settings || []) as any[])
-        .map((s) => {
-          const raw = (s.name || s.path || s.id || "").toString().trim()
-          if (!raw) return null
-          return { id: String(s.id), name: raw }
-        })
-        .filter((t): t is { id: string; name: string } => Boolean(t))
-      setDocumentTypes(types)
-    })
-    return () => unsub()
+    const unsub = subscribeDocumentatiiFolders((items) => setDocFolders(items))
+    return () => {
+      try { (unsub as any)?.() } catch {}
+    }
   }, [])
+
+  const activeDocsFolderId = docsPickerOpen
+    ? docsPickerFolderId
+    : String((echipamentFormData as any)?.documentationFolderId || "").trim()
+  const activeDocsSubfolderId = docsPickerOpen
+    ? docsPickerSubfolderId
+    : String((echipamentFormData as any)?.documentationSubfolderId || "").trim()
+
+  const openDocsPicker = () => {
+    const currentFolderId = String((echipamentFormData as any)?.documentationFolderId || "")
+    const currentSubfolderId = String((echipamentFormData as any)?.documentationSubfolderId || "")
+    const currentFileIds = Array.isArray((echipamentFormData as any)?.documentationFileIds)
+      ? (echipamentFormData as any).documentationFileIds
+      : []
+    setDocsPickerFolderId(currentFolderId)
+    setDocsPickerSubfolderId(currentSubfolderId)
+    setDocsPickerFileIds(currentFileIds)
+    setDocsPickerOpen(true)
+  }
+
+  const handleDocsPickerConfirm = () => {
+    if (!docsPickerFileIds.length) {
+      toast({
+        title: "Selectați fișiere",
+        description: "Alegeți cel puțin un fișier pentru a continua.",
+        variant: "destructive",
+      })
+      return
+    }
+    const folder = docFolders.find((f) => f.id === docsPickerFolderId)
+    const sub = docSubfolders.find((s) => s.id === docsPickerSubfolderId)
+    setEchipamentFormData((prev: any) => ({
+      ...prev,
+      documentationFolderId: docsPickerFolderId,
+      documentationSubfolderId: docsPickerSubfolderId,
+      documentationFileIds: docsPickerFileIds,
+      documentationLabel: folder ? `${folder.name}${sub ? ` / ${sub.name}` : ""}` : "",
+    }))
+    setDocsPickerOpen(false)
+  }
+
+  // Documentații: încărcăm subdosarele pentru dosarul selectat
+  useEffect(() => {
+    const folderId = String(activeDocsFolderId || "").trim()
+    if (!folderId) {
+      setDocSubfolders([])
+      return
+    }
+    const unsub = subscribeDocumentatiiSubfolders(folderId, (items) => setDocSubfolders(items))
+    return () => {
+      try { (unsub as any)?.() } catch {}
+    }
+  }, [activeDocsFolderId])
+
+  // Documentații: încărcăm fișierele pentru dosar/subdosar
+  useEffect(() => {
+    const folderId = String(activeDocsFolderId || "").trim()
+    if (!folderId) {
+      setDocFiles([])
+      return
+    }
+    const subfolderId = activeDocsSubfolderId ? String(activeDocsSubfolderId) : null
+    const unsub = subscribeDocumentatiiFiles(folderId, subfolderId, setDocFiles)
+    return () => {
+      try { (unsub as any)?.() } catch {}
+    }
+  }, [activeDocsFolderId, activeDocsSubfolderId])
 
   // Check if form has been modified
   useEffect(() => {
@@ -452,11 +527,14 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
       dataInstalare: "",
       ultimaInterventie: "",
       observatii: "",
+      documentationFolderId: "",
+      documentationSubfolderId: "",
+      documentationFileIds: [],
+      documentationLabel: "",
       dynamicSettings: {} as any,
     })
     setEchipamentFormErrors([])
     setIsCodeUnique(true)
-    setPendingFiles([])
     setIsEchipamentDialogOpen(true)
   }
 
@@ -484,7 +562,6 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
     setEchipamentFormData({ ...echipament, dynamicSettings: (echipament as any).dynamicSettings || {} })
     setEchipamentFormErrors([])
     setIsCodeUnique(true)
-    setPendingFiles([])
     setIsEchipamentDialogOpen(true)
   }
 
@@ -548,10 +625,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
         ...equipmentToSave,
         id: existingId,
       }
-      // Stocăm fișierele pending pe id-ul echipamentului
-      if (existingId) {
-        setPendingDocsByEquip((prev) => ({ ...prev, [existingId]: [...pendingFiles] }))
-      }
+      // Documentații: nu mai încărcăm fișiere aici (folosim folder-based selection)
     } else {
       // Adăugare echipament nou
       // IMPORTANT: ID stabil (nu "temp-*") ca să prevenim ambiguități la selecție/salvare în lucrări.
@@ -560,12 +634,12 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
         ...equipmentToSave,
         id: generatedId,
       })
-      setPendingDocsByEquip((prev) => ({ ...prev, [generatedId]: [...pendingFiles] }))
+      // Documentații: nu mai încărcăm fișiere aici (folosim folder-based selection)
     }
 
     setLocatii(updatedLocatii)
     setIsEchipamentDialogOpen(false)
-    setPendingFiles([])
+    // Documentații: nu mai gestionăm fișiere locale aici
   }
 
   // Funcție pentru ștergerea unui echipament
@@ -619,6 +693,10 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
       dataInstalare: "",
       ultimaInterventie: "",
       observatii: "",
+      documentationFolderId: "",
+      documentationSubfolderId: "",
+      documentationFileIds: [],
+      documentationLabel: "",
       dynamicSettings: {} as any,
     })
     setInitialEchipamentState({
@@ -629,6 +707,10 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
       dataInstalare: "",
       ultimaInterventie: "",
       observatii: "",
+      documentationFolderId: "",
+      documentationSubfolderId: "",
+      documentationFileIds: [],
+      documentationLabel: "",
       dynamicSettings: {} as any,
     })
     setEchipamentFormModified(false)
@@ -762,43 +844,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
       const clientId = (created as any)?.id
       console.log("Client adăugat cu ID:", clientId)
 
-      // 2) Încărcăm documentația pentru fiecare echipament care are pending docs
-      try {
-        setIsSubmitting(true)
-        const updatedLocatiiForDocs = [...filteredLocatii]
-        for (let i = 0; i < updatedLocatiiForDocs.length; i++) {
-          const loc = updatedLocatiiForDocs[i]
-          const newEquipList: any[] = []
-          for (const eq of (loc.echipamente || [])) {
-            const pending = pendingDocsByEquip[eq.id || ""] || []
-            if (pending.length === 0) {
-              newEquipList.push(eq)
-              continue
-            }
-            const uploads = await Promise.all(
-              pending.map(async (f) => {
-                const safeCod = String(eq.cod || "no-cod")
-                const path = `clienti/${clientId}/echipamente/${safeCod}/docs/${Date.now()}-${f.file.name}`
-                const { url, fileName } = await uploadFile(f.file, path)
-                return {
-                  url,
-                  fileName,
-                  documentType: f.documentType,
-                  uploadedAt: new Date().toISOString(),
-                  uploadedBy: formData?.nume || "Formular client",
-                }
-              })
-            )
-            const finalDocs = Array.isArray(eq.documentatie) ? [...eq.documentatie, ...uploads] : uploads
-            newEquipList.push({ ...eq, documentatie: finalDocs })
-          }
-          updatedLocatiiForDocs[i] = { ...loc, echipamente: newEquipList }
-        }
-        // 3) Persistăm documentația încărcată în client
-        await updateClient(clientId, { locatii: updatedLocatiiForDocs } as any)
-      } catch (e) {
-        console.error("Eroare la upload documentație echipamente:", e)
-      }
+      // 2) Documentațiile sunt gestionate separat (folder-based); nu încărcăm aici fișiere.
 
         setFormModified(false)
       if (onSuccess) onSuccess(formData.nume)
@@ -1477,97 +1523,261 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
               />
             </div>
 
-            {/* Documentație (selectare + preview; upload la salvarea echipamentului) */}
+            {/* Documentații (nou) – selectare dosar / subdosar */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Documentație (PDF) – vizibil tehnicienilor</label>
-              
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-600">Selectează din bibliotecă</label>
-                <Button
+              <label className="text-sm font-medium">Documentații – vizibil tehnicienilor</label>
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-gray-600">Dosar</label>
+                <button
                   type="button"
-                  variant="secondary"
-                  className="w-full"
-                  onClick={() => setIsDocsTemplateDialogOpen(true)}
+                  onClick={openDocsPicker}
+                  className="w-full border rounded-md px-3 py-2 text-sm flex items-center justify-between gap-2 hover:border-gray-400"
                 >
-                  Alege din setări
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  Navighează ierarhic (categorii → documente) definite în Setări. Nu se încarcă fișiere locale aici.
-                </p>
+                  <span className="truncate">
+                    {(echipamentFormData as any)?.documentationLabel || "Selectați dosarul"}
+                  </span>
+                  <ChevronsUpDown className="h-4 w-4 text-muted-foreground" />
+                </button>
               </div>
 
-              {(echipamentFormData as any)?.documentatie?.length ? (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-gray-700">
-                    <FileText className="h-3.5 w-3.5" />
-                    <span>Documentație existentă</span>
-                  </div>
-                  <div className="rounded-lg border bg-white shadow-sm max-h-[160px] overflow-y-auto">
-                    <ul className="divide-y">
-                      {(echipamentFormData as any).documentatie.map((d: any, idx: number) => (
-                        <li key={idx} className="flex items-center justify-between gap-2 px-3 py-2">
-                          <div className="flex items-start gap-2 min-w-0">
-                            <div className="p-1.5 rounded-md bg-muted text-muted-foreground">
-                              <FileText className="h-4 w-4" />
-                            </div>
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-medium text-gray-800">{d.fileName}</p>
-                              {d.documentType && (
-                                <p className="text-[11px] text-muted-foreground">Tip: {d.documentType}</p>
-                              )}
-                            </div>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setEchipamentFormData((prev: any) => ({
-                                ...prev,
-                                documentatie: (prev.documentatie || []).filter((_: any, i: number) => i !== idx),
-                              }))
-                            }}
-                            className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 shrink-0"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+              {(echipamentFormData as any)?.documentationLabel ? (
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span>
+                      Selectat: <span className="font-medium">{(echipamentFormData as any).documentationLabel}</span>
+                    </span>
+                    {Array.isArray((echipamentFormData as any)?.documentationFileIds) &&
+                      (echipamentFormData as any).documentationFileIds.length > 0 && (
+                        <span>
+                          • {(echipamentFormData as any).documentationFileIds.length} fișier(e)
+                        </span>
+                      )}
+                   
+              </div>
+                  {Array.isArray((echipamentFormData as any)?.documentationFileIds) &&
+                    (echipamentFormData as any).documentationFileIds.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {(echipamentFormData as any).documentationFileIds.map((id: string) => {
+                          const match = docFiles.find((f) => f.id === id)
+                          const label = match?.name || id
+                          return (
+                            <span
+                              key={id}
+                              className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] bg-muted"
+                            >
+                              <span className="max-w-[220px] truncate">{label}</span>
+                              <button
+                                type="button"
+                                className="text-muted-foreground hover:text-red-600"
+                                onClick={() =>
+                    setEchipamentFormData((prev: any) => ({
+                      ...prev,
+                                    documentationFileIds: (prev?.documentationFileIds || []).filter((fid: string) => fid !== id),
+                                  }))
+                                }
+                              >
+                                ✕
+                              </button>
+                            </span>
+                          )
+                        })}
+                      </div>
+                    )}
                 </div>
               ) : (
-                <div className="text-xs text-muted-foreground text-center py-6 border rounded-md bg-gray-50">
-                  Nu există documentație
-                </div>
+                <p className="text-xs text-muted-foreground">Nu a fost selectată documentație.</p>
               )}
-              {pendingFiles.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-gray-700">Fișiere selectate (se vor încărca la salvare):</p>
-                  <div className="rounded-md border p-3 max-h-[120px] overflow-y-auto bg-yellow-50 border-yellow-200">
-                    <ul className="text-sm space-y-2">
-                      {pendingFiles.map((item, idx) => (
-                        <li key={idx} className="flex items-center justify-between gap-2 p-2 bg-white rounded border border-yellow-300">
-                          <div className="flex-1 min-w-0">
-                            <p className="truncate text-gray-700 font-medium">{item.file.name}</p>
-                            <p className="text-xs text-gray-500">Tip: {item.documentType}</p>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setPendingFiles((prev) => prev.filter((_, i) => i !== idx))}
-                            className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 shrink-0"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </li>
+              </div>
+
+            <Dialog open={docsPickerOpen} onOpenChange={setDocsPickerOpen}>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                <DialogHeader>
+                  <DialogTitle>Selectează documentația</DialogTitle>
+                  <DialogDescription>Alege un dosar, un subdosar (opțional) și fișierele dorite.</DialogDescription>
+                </DialogHeader>
+
+                <div className="flex-1 flex gap-4 overflow-hidden pt-2">
+                  <div className="w-64 flex-shrink-0 border rounded-md bg-muted/40 overflow-hidden">
+                    <div className="px-3 py-2 text-xs font-semibold text-muted-foreground border-b bg-muted/60 flex items-center gap-2">
+                      <Folder className="h-3.5 w-3.5" />
+                      Dosare
+                    </div>
+                    <div className="max-h-[320px] overflow-y-auto p-2 space-y-1">
+                      {docFolders.length === 0 && (
+                        <div className="text-xs text-muted-foreground px-2 py-4">Nu există dosare.</div>
+                      )}
+                      {docFolders.map((f) => (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => {
+                            setDocsPickerFolderId(f.id)
+                            setDocsPickerSubfolderId("")
+                            setDocsPickerFileIds([])
+                          }}
+                          className={cn(
+                            "w-full text-left text-xs px-2 py-2 rounded-md flex items-center gap-2 transition-colors hover:bg-muted",
+                            docsPickerFolderId === f.id && "bg-muted font-semibold"
+                          )}
+                        >
+                          <Folder className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="truncate">{f.name}</span>
+                        </button>
                       ))}
-                    </ul>
+                    </div>
                   </div>
-                </div>
-              )}
+
+                  <div className="flex-1 border rounded-md bg-muted/20 flex flex-col overflow-hidden">
+                    <div className="px-3 py-2 flex items-center justify-between border-b bg-muted/40">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                        <FileText className="h-3.5 w-3.5" />
+                        <span>Subdosare & fișiere</span>
+                      </div>
+                    </div>
+                    <div className="px-3 py-2 border-b bg-background/60 text-[11px] text-muted-foreground flex items-center gap-1">
+                      <span>Documentații</span>
+                      {docsPickerFolderId ? (
+                        <>
+                          <ChevronRight className="h-3 w-3" />
+                          <span className="font-medium text-foreground">
+                            {docFolders.find((f) => f.id === docsPickerFolderId)?.name || "Dosar"}
+                          </span>
+                          {docsPickerSubfolderId && (
+                            <>
+                              <ChevronRight className="h-3 w-3" />
+                              <span className="font-medium text-foreground">
+                                {docSubfolders.find((s) => s.id === docsPickerSubfolderId)?.name || "Subdosar"}
+                              </span>
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <ChevronRight className="h-3 w-3" />
+                          <span>—</span>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                      {!docsPickerFolderId && (
+                        <div className="text-xs text-muted-foreground">Selectează un dosar din stânga.</div>
+                      )}
+                      {docsPickerFolderId && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDocsPickerSubfolderId("")
+                              setDocsPickerFileIds([])
+                            }}
+                            className={cn(
+                              "w-full text-left text-xs px-3 py-2 rounded-md border bg-background hover:bg-muted",
+                              docsPickerSubfolderId === "" && "border-blue-500 ring-2 ring-blue-200"
+                            )}
+                          >
+                            Fără subdosar
+                          </button>
+                    {docSubfolders.length === 0 ? (
+                            <div className="text-xs text-muted-foreground">Nu există subdosare.</div>
+                    ) : (
+                      docSubfolders.map((s) => (
+                              <button
+                                key={s.id}
+                                type="button"
+                                onClick={() => {
+                                  setDocsPickerSubfolderId(s.id)
+                                  setDocsPickerFileIds([])
+                                }}
+                                className={cn(
+                                  "w-full text-left text-xs px-3 py-2 rounded-md border bg-background hover:bg-muted",
+                                  docsPickerSubfolderId === s.id && "border-blue-500 ring-2 ring-blue-200"
+                                )}
+                              >
+                          {s.name}
+                              </button>
+                            ))
+                          )}
+                          <div className="pt-2 border-t">
+                            <div className="text-xs font-semibold text-muted-foreground mb-2">Fișiere</div>
+                            {docFiles.length === 0 ? (
+                              <div className="text-xs text-muted-foreground">Nu există fișiere în această locație.</div>
+                            ) : (
+                              <div className="space-y-1">
+                            {docFiles.map((f) => {
+                              const isSelected = docsPickerFileIds.includes(f.id)
+                              return (
+                                <div
+                                  key={f.id}
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={() =>
+                                    setDocsPickerFileIds((prev) =>
+                                      prev.includes(f.id) ? prev.filter((id) => id !== f.id) : [...prev, f.id]
+                                    )
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                      e.preventDefault()
+                                      setDocsPickerFileIds((prev) =>
+                                        prev.includes(f.id) ? prev.filter((id) => id !== f.id) : [...prev, f.id]
+                                      )
+                                    }
+                                  }}
+                                  className={cn(
+                                    "w-full text-left text-xs px-2 py-1 rounded-md flex items-center gap-2 hover:bg-muted border focus:outline-none focus:ring-2 focus:ring-blue-200",
+                                    isSelected ? "border-blue-500 bg-white" : "border-transparent"
+                                  )}
+                                >
+                                  <span
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="flex items-center"
+                                  >
+                                    <Checkbox
+                                      checked={isSelected}
+                                      onCheckedChange={(checked) =>
+                                        setDocsPickerFileIds((prev) =>
+                                          checked ? [...new Set([...prev, f.id])] : prev.filter((id) => id !== f.id)
+                                        )
+                                      }
+                                    />
+                                  </span>
+                                  <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <span className="truncate flex-1">{f.name}</span>
+                                  <a
+                                    href={f.downloadUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-[11px] text-blue-600 hover:underline"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    Deschide
+                                  </a>
+                                </div>
+                              )
+                            })}
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
             </div>
+
+                <DialogFooter className="mt-4 flex-col gap-2 sm:flex-row sm:justify-end">
+                  <Button variant="outline" onClick={() => setDocsPickerOpen(false)} className="w-full sm:w-auto">
+                    Anulează
+                  </Button>
+                  <Button
+                    onClick={handleDocsPickerConfirm}
+                    disabled={!docsPickerFolderId || docsPickerFileIds.length === 0}
+                    className="w-full sm:w-auto"
+                  >
+                    Selectează
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             {/* Câmpuri din setări (legate de acest dialog) */}
             <div className="pt-1">
@@ -1625,16 +1835,11 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
                 !echipamentFormData.nume ||
                 !echipamentFormData.cod ||
                 !isCodeUnique ||
-                isCheckingCode ||
-                isUploadingDocs
+                isCheckingCode
               }
               className="w-full sm:w-auto"
             >
-              {isUploadingDocs ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se încarcă documentația...
-                </>
-              ) : isCheckingCode ? (
+              {isCheckingCode ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verificare...
                 </>
@@ -1665,42 +1870,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
         </Button>
       </div>
 
-      {/* Dialog selectare documente din setări */}
-      <EquipmentDocsTemplateDialog
-        open={isDocsTemplateDialogOpen}
-        onOpenChange={setIsDocsTemplateDialogOpen}
-        onConfirm={(docs) => {
-          if (!docs || docs.length === 0) return
-          setEchipamentFormData((prev: any) => {
-            const existing = prev.documentatie || []
-            const existingKeys = new Set(
-              existing.map((d: any) => `${String(d.url || "")}::${String(d.fileName || "")}`)
-            )
-
-            const now = new Date().toISOString()
-            const additions = docs
-              .filter((d: any) => d.documentUrl)
-              .map((d: any) => ({
-                url: d.documentUrl!,
-                fileName: d.fileName || d.name,
-                documentType: (d as any).parentName || "Bibliotecă",
-                uploadedAt: now,
-                uploadedBy: userData?.displayName || userData?.email || "biblioteca",
-              }))
-              .filter((d) => {
-                const key = `${d.url}::${d.fileName}`
-                if (existingKeys.has(key)) return false
-                existingKeys.add(key)
-                return true
-              })
-
-            return {
-              ...prev,
-              documentatie: [...existing, ...additions],
-            }
-          })
-        }}
-      />
+      {/* Documentațiile se gestionează în tab-ul Documentații */}
 
       {/* Internal AlertDialog removed in favor of parent-level confirmation */}
 

@@ -5,6 +5,16 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { RefreshCw, AlertTriangle, Clock, Package, Wrench } from "lucide-react"
 import { updateLucrare } from "@/lib/firebase/firestore"
@@ -44,6 +54,8 @@ export function ReinterventionReasonDialog({
   const { items: dynamicReasons, loading: loadingReasons } = useTargetList("works.create.reinterventionReasons")
   const dynamicLabels = useMemo(() => (dynamicReasons || []).map((r) => r.name), [dynamicReasons])
   const [dynSelection, setDynSelection] = useState<Record<string, boolean>>({})
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
+  const isClosingRef = React.useRef(false)
 
   useEffect(() => {
     // initialize selection for dynamic labels
@@ -60,6 +72,7 @@ export function ReinterventionReasonDialog({
   }
 
   const hasSelectedReasons = Object.values(reasons).some(Boolean) || Object.values(dynSelection).some(Boolean)
+  const hasUnsavedChanges = hasSelectedReasons || textReinterventie.trim().length > 0
 
   const handleConfirm = async () => {
     if (!hasSelectedReasons) {
@@ -120,21 +133,39 @@ export function ReinterventionReasonDialog({
     onClose()
   }
 
+  const requestClose = () => {
+    if (!hasUnsavedChanges) {
+      isClosingRef.current = true
+      handleCancel()
+      return
+    }
+    setShowCloseConfirm(true)
+  }
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!open) {
-        // resetăm toate stările locale când se închide fără confirmare
-        setReasons({
-          remediereNeconforma: false,
-          necesitaTimpSuplimentar: false,
-          necesitaPieseSuplimentare: false
-        })
-        setTextReinterventie("")
-        setDynSelection({})
-        onClose()
-      }
-    }}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) {
+          if (isClosingRef.current) {
+            isClosingRef.current = false
+            return
+          }
+          requestClose()
+        }
+      }}
+    >
+      <DialogContent
+        className="sm:max-w-md"
+        onEscapeKeyDown={(e) => {
+          e.preventDefault()
+          requestClose()
+        }}
+        onInteractOutside={(e) => {
+          e.preventDefault()
+          requestClose()
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <RefreshCw className="h-5 w-5 text-orange-600" />
@@ -296,6 +327,28 @@ export function ReinterventionReasonDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+      <AlertDialog open={showCloseConfirm} onOpenChange={setShowCloseConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmați închiderea</AlertDialogTitle>
+            <AlertDialogDescription>
+              Aveți modificări nesalvate. Sunteți sigur că doriți să închideți dialogul?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowCloseConfirm(false)}>Nu, rămân</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowCloseConfirm(false)
+                isClosingRef.current = true
+                handleCancel()
+              }}
+            >
+              Da, închide
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 } 

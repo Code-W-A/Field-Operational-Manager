@@ -316,6 +316,11 @@ export interface Echipament {
     uploadedAt: string
     uploadedBy: string
   }>
+  // Documentații (nou) - referință către biblioteca Documentații
+  documentationFolderId?: string
+  documentationSubfolderId?: string
+  documentationFileIds?: string[]
+  documentationLabel?: string
 }
 
 export interface Contract {

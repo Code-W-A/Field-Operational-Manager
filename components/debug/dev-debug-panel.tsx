@@ -177,7 +177,7 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
   return (
     <>
       {/* Admin-only debug button (kept behind NEXT_PUBLIC_ENABLE_DEBUG_PANEL) */}
-      <div className="fixed top-20 right-4 z-50">
+      <div className="fixed bottom-4 right-4 z-50">
         <Button
           onClick={() => setOpen(true)}
           className="shadow-lg"

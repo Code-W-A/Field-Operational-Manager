@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { Plus, Search, List, Grid3x3, Folder, Settings, Save, RefreshCw, Download, Loader2, Archive, Info, BarChart3 } from "lucide-react"
+import { Plus, Search, List, Grid3x3, Folder, Settings, Save, RefreshCw, Download, Loader2, Archive, Info, BarChart3, FileText } from "lucide-react"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
@@ -48,6 +48,7 @@ import { SettingCard } from "@/components/settings/setting-card"
 import { SettingRow } from "@/components/settings/setting-row"
 import { SettingEditorDialog } from "@/components/settings/setting-editor-dialog"
 import { SettingHistoryDialog } from "@/components/settings/setting-history-dialog"
+import { DocumentatiiTab } from "@/components/settings/documentatii-tab"
 import { 
   PREDEFINED_SETTINGS, 
   ensurePredefinedSettings, 
@@ -149,7 +150,9 @@ export default function SetariPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [multiSelectMode, setMultiSelectMode] = useState(false)
-  const [activeTab, setActiveTab] = useState<"sistem" | "variabile">("variabile")
+  const TAB_KEYS = ["variabile", "sistem", "documentatii"] as const
+  type TabKey = (typeof TAB_KEYS)[number]
+  const [activeTab, setActiveTab] = useState<TabKey>("variabile")
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
   const [stopHierarchy, setStopHierarchy] = useState(false)
   const [stopHierarchyLoading, setStopHierarchyLoading] = useState(false)
@@ -159,12 +162,14 @@ export default function SetariPage() {
   useEffect(() => {
     if (currentParentId) return
     const tab = searchParams.get("tab")
-    if (tab === "sistem" || tab === "variabile") {
-      setActiveTab(tab)
+    if (TAB_KEYS.includes(tab as TabKey)) {
+      setActiveTab(tab as TabKey)
+    } else {
+      setActiveTab("variabile")
     }
   }, [searchParams, currentParentId])
 
-  const handleTabChange = (value: "sistem" | "variabile") => {
+  const handleTabChange = (value: TabKey) => {
     setActiveTab(value)
     // Keep URL in sync so menu deep-links work reliably
     try {
@@ -587,7 +592,7 @@ export default function SetariPage() {
         {/* Tabs pentru Setări Sistem și Variabile - Afișate doar la root level */}
         {!currentParentId ? (
           <Tabs value={activeTab} onValueChange={(value: any) => handleTabChange(value)} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="sistem" className="flex items-center gap-2">
                 <Settings className="h-4 w-4" />
                 Setări Sistem
@@ -595,6 +600,10 @@ export default function SetariPage() {
               <TabsTrigger value="variabile" className="flex items-center gap-2">
                 <Folder className="h-4 w-4" />
                 Variabile
+              </TabsTrigger>
+              <TabsTrigger value="documentatii" className="flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                Documentații
               </TabsTrigger>
             </TabsList>
 
@@ -1303,6 +1312,11 @@ export default function SetariPage() {
           </DndContext>
         )}
               </div>
+            </TabsContent>
+
+            {/* Tab Content: Documentații */}
+            <TabsContent value="documentatii" className="mt-6">
+              <DocumentatiiTab />
             </TabsContent>
           </Tabs>
         ) : (

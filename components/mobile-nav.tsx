@@ -26,6 +26,7 @@ export function MobileNav({ className, ...props }: React.HTMLAttributes<HTMLDivE
 
   const getLinkHref = (link: NavLink) => {
     if (link.id === "setari-variabile") return `${link.href}?tab=variabile`
+    if (link.id === "setari-documentatii") return `${link.href}?tab=documentatii`
     if (link.id === "setari-sistem") return `${link.href}?tab=sistem`
     return link.href
   }
@@ -34,7 +35,8 @@ export function MobileNav({ className, ...props }: React.HTMLAttributes<HTMLDivE
     if (link.href === "/dashboard/setari") {
       if (!pathname.startsWith("/dashboard/setari")) return false
       if (link.id === "setari-sistem") return tab === "sistem"
-      if (link.id === "setari-variabile") return tab !== "sistem"
+      if (link.id === "setari-documentatii") return tab === "documentatii"
+      if (link.id === "setari-variabile") return tab === "variabile"
     }
     return isNavLinkActive(pathname, link)
   }

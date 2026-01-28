@@ -307,6 +307,15 @@ export function buildNav(ctx: NavCtx): NavNode[] {
         },
         {
           type: "link",
+          id: "setari-documentatii",
+          label: "Documentații",
+          href: "/dashboard/setari",
+          icon: Sliders,
+          activeMatch: "prefix",
+          visible: () => isAdmin,
+        },
+        {
+          type: "link",
           id: "setari-sistem",
           label: "Setări de sistem",
           href: "/dashboard/setari",

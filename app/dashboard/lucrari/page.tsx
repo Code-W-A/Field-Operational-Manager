@@ -1015,7 +1015,7 @@ export default function Lucrari() {
     setFormData(prev => ({ ...prev, [field]: value }))
   }, [])
 
-  const handleCloseAddDialog = useCallback(() => {
+  const closeAddDialogAndReset = useCallback(() => {
     setIsAddDialogOpen(false)
     setIsReassignment(false)
     setOriginalWorkOrderId(null)
@@ -1044,6 +1044,14 @@ export default function Lucrari() {
     })
     setFieldErrors([])
   }, [])
+
+  const handleCloseAddDialog = useCallback(() => {
+    if (addFormRef.current?.hasUnsavedChanges()) {
+      setShowCloseAlert(true)
+    } else {
+      closeAddDialogAndReset()
+    }
+  }, [closeAddDialogAndReset])
 
   const resetForm = () => {
     setDataEmiterii(new Date())
@@ -2348,7 +2356,7 @@ export default function Lucrari() {
 
     // Determine which dialog to close
     if (isAddDialogOpen) {
-      setIsAddDialogOpen(false)
+      closeAddDialogAndReset()
     } else if (isEditDialogOpen) {
       setIsEditDialogOpen(false)
     }
@@ -2478,9 +2486,13 @@ export default function Lucrari() {
 
       {!isTechnician && (
         <DashboardHeader
-          heading="Tichete"
+          heading={
+            <span className="flex items-center gap-2">
+              <span>Tichete</span>
+              <LucrariNotificationsBell lucrari={rawLucrari || []} />
+            </span>
+          }
           text="Gestionați toate tichetele și intervențiile"
-          headerAction={<LucrariNotificationsBell lucrari={rawLucrari || []} />}
         >
           <Dialog
             open={isAddDialogOpen}
@@ -2497,7 +2509,13 @@ export default function Lucrari() {
                 <Plus className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Adaugă</span> Tichet
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent
+              className="max-w-4xl max-h-[90vh] overflow-y-auto"
+              onEscapeKeyDown={(e) => {
+                e.preventDefault()
+                handleCloseAddDialog()
+              }}
+            >
               <DialogHeader>
                 <DialogTitle>Adaugă Tichet Nou</DialogTitle>
               </DialogHeader>
@@ -2558,7 +2576,13 @@ export default function Lucrari() {
             }
           }}
         >
-          <DialogContent className="w-[calc(100%-2rem)] max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogContent
+            className="w-[calc(100%-2rem)] max-w-[600px] max-h-[90vh] overflow-y-auto"
+            onEscapeKeyDown={(e) => {
+              e.preventDefault()
+              handleCloseEditDialog()
+            }}
+          >
             <DialogHeader>
               <DialogTitle>Editează Tichet</DialogTitle>
               <DialogDescription>Modificați detaliile tichetului</DialogDescription>

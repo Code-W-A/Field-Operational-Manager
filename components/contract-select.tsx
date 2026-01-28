@@ -413,7 +413,17 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
           setIsAddDialogOpen(open)
         }
       }}>
-        <DialogContent className="w-[calc(100%-2rem)] max-w-[400px]">
+        <DialogContent
+          className="w-[calc(100%-2rem)] max-w-[400px]"
+          onEscapeKeyDown={(e) => {
+            e.preventDefault()
+            handleCloseAttempt()
+          }}
+          onInteractOutside={(e) => {
+            e.preventDefault()
+            handleCloseAttempt()
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Adaugă Contract Nou</DialogTitle>
           </DialogHeader>

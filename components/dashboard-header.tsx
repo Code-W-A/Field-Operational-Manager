@@ -10,11 +10,12 @@ interface DashboardHeaderProps {
 }
 
 export function DashboardHeader({ heading, text, children, headerAction, className }: DashboardHeaderProps) {
+  const headingContent = typeof heading === "string" ? <span className="truncate">{heading}</span> : heading
   return (
     <div className={cn("flex flex-col gap-1 pb-5 md:flex-row md:items-center md:justify-between", className)}>
       <div className="grid gap-1 flex-1 min-w-0">
         <div className="flex items-center justify-between gap-3 min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight truncate min-w-0">{heading}</h1>
+          <h1 className="text-2xl font-bold tracking-tight min-w-0">{headingContent}</h1>
           {headerAction && <div className="flex items-center shrink-0">{headerAction}</div>}
         </div>
         {text && <p className="text-muted-foreground">{text}</p>}

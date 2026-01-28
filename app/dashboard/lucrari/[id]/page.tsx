@@ -40,6 +40,7 @@ import {
   History,
 } from "lucide-react"
 import { getLucrareById, deleteLucrare, updateLucrare, getClientById, addLucrare } from "@/lib/firebase/firestore"
+import { subscribeDocumentatiiFiles, type DocumentatiiFile } from "@/lib/firebase/documentatii"
 import { WORK_STATUS, WORK_STATUS_OPTIONS } from "@/lib/utils/constants"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TehnicianInterventionForm } from "@/components/tehnician-intervention-form"
@@ -75,6 +76,54 @@ const debugClient = (...args: any[]) => {
 // Funcție utilitar pentru a extrage CUI-ul indiferent de cum este salvat
 const extractCUI = (client: any) => {
   return client?.cif || "N/A"
+}
+
+function EquipmentDocumentationList({
+  folderId,
+  subfolderId,
+  fileIds,
+}: {
+  folderId?: string | null
+  subfolderId?: string | null
+  fileIds?: string[] | null
+}) {
+  const [docs, setDocs] = useState<DocumentatiiFile[]>([])
+
+  useEffect(() => {
+    const fid = String(folderId || "").trim()
+    if (!fid) {
+      setDocs([])
+      return
+    }
+    const unsub = subscribeDocumentatiiFiles(fid, subfolderId || null, setDocs)
+    return () => {
+      try { (unsub as any)?.() } catch {}
+    }
+  }, [folderId, subfolderId])
+
+  if (!folderId) {
+    return <div className="text-sm text-muted-foreground">Nu este asociată documentație pentru acest echipament.</div>
+  }
+  const selectedDocs =
+    Array.isArray(fileIds) && fileIds.length > 0 ? docs.filter((d) => fileIds.includes(d.id)) : docs
+
+  if (!selectedDocs.length) {
+    return <div className="text-sm text-muted-foreground">Nu există documentație disponibilă.</div>
+  }
+  return (
+    <ul className="text-sm space-y-1">
+      {selectedDocs.map((d) => (
+        <li key={d.id} className="flex items-center justify-between gap-2">
+          <a href={d.downloadUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline truncate">
+            {d.name || "Document"}
+          </a>
+          {d.uploadedAt ? (
+            <span className="text-xs text-muted-foreground">{formatUiDate(d.uploadedAt?.toDate?.() || new Date(d.uploadedAt))}</span>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 // Funcție pentru calcularea corectă a duratei intervenției
@@ -1122,27 +1171,12 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         (l: any) => l?.nume === lucrare?.locatie || l?.adresa === lucrare?.clientInfo?.locationAddress
       )
       const eq = loc?.echipamente?.find((e: any) => e?.cod === lucrare?.echipamentCod)
-      const docs = eq?.documentatie || []
-      if (!docs.length) {
-        return <div className="text-sm text-muted-foreground">Nu există documentație disponibilă.</div>
-      }
-      const eqId = String(eq?.id || eq?.cod || "").trim()
       return (
-        <ul className="text-sm space-y-1">
-          {docs.map((d: any, i: number) => (
-            <li key={i} className="flex items-center justify-between gap-2">
-              <a
-                href={`/api/download?lucrareId=${encodeURIComponent(String(lucrare.id || ""))}&type=documentatie&url=${encodeURIComponent(String(d?.url || ""))}${eqId ? `&equipmentId=${encodeURIComponent(eqId)}` : ""}`}
-                target="_blank"
-                rel="noreferrer"
-                className="text-blue-600 hover:underline truncate"
-              >
-                {d.fileName || "Document"}
-              </a>
-              <span className="text-xs text-muted-foreground">{formatUiDate(new Date(d.uploadedAt))}</span>
-            </li>
-          ))}
-        </ul>
+        <EquipmentDocumentationList
+          folderId={(eq as any)?.documentationFolderId}
+          subfolderId={(eq as any)?.documentationSubfolderId}
+          fileIds={(eq as any)?.documentationFileIds}
+        />
       )
     } catch {
       return <div className="text-sm text-muted-foreground">Nu există documentație disponibilă.</div>
@@ -1877,33 +1911,15 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                   )}
                                 </div>
 
-                                {/* Documente echipament selectate din Setări (vizibile tehnicianului) */}
-                                {role === "tehnician" && Array.isArray(eq?.documentatie) && eq.documentatie.length > 0 && (
+                                {/* Documentații pentru echipament (vizibile tehnicianului) */}
+                                {role === "tehnician" && (
                                   <div className="mb-4 space-y-1">
                                     <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Documente</p>
-                                    <ul className="space-y-1 text-sm">
-                                      {eq.documentatie.map((doc: any, idx: number) => {
-                                        const eqId = String(eq?.id || eq?.cod || eid || "")
-                                        const downloadUrl = `/api/download?lucrareId=${encodeURIComponent(lucrare.id!)}&type=documentatie&url=${encodeURIComponent(doc.url)}${eqId ? `&equipmentId=${encodeURIComponent(eqId)}` : ""}`
-                                        return (
-                                          <li key={idx} className="flex items-center justify-between gap-2">
-                                            <a
-                                              href={downloadUrl}
-                                              target="_blank"
-                                              rel="noreferrer"
-                                              className="text-blue-600 hover:underline truncate"
-                                            >
-                                              {doc.fileName || "Document"}
-                                            </a>
-                                            {doc.uploadedAt ? (
-                                              <span className="text-[11px] text-muted-foreground whitespace-nowrap">
-                                                {formatUiDate(new Date(doc.uploadedAt))}
-                                              </span>
-                                            ) : null}
-                                          </li>
-                                        )
-                                      })}
-                                    </ul>
+                                    <EquipmentDocumentationList
+                                      folderId={(eq as any)?.documentationFolderId}
+                                      subfolderId={(eq as any)?.documentationSubfolderId}
+                                        fileIds={(eq as any)?.documentationFileIds}
+                                    />
                                   </div>
                                 )}
 
