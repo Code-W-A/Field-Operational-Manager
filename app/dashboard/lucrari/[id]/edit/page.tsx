@@ -114,8 +114,8 @@ export default function EditLucrarePage({ params }: { params: Promise<{ id: stri
           // Set dates (robust parsing for Timestamp | ISO | date-only | dd.MM.yyyy)
           const today = new Date()
           setDataEmiterii(coerceDate(lucrare.dataEmiterii) || today)
-          // Cerință: la editare, data intervenției se pune automat pe azi
-          setDataInterventie(today)
+          // La editare, resetăm data intervenției pentru selecție manuală
+          setDataInterventie(undefined)
 
           // Set form data
           setFormData({
@@ -137,8 +137,6 @@ export default function EditLucrarePage({ params }: { params: Promise<{ id: stri
             persoaneContact: lucrare.persoaneContact || [],
             echipamentId: lucrare.echipamentId || "",
             echipamentCod: lucrare.echipamentCod || "",
-            // Actualizăm data intervenției și în formData pentru submit
-            dataInterventie: today.toISOString(),
           })
 
           // Adăugăm un log pentru debugging

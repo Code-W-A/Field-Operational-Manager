@@ -22,7 +22,7 @@ export default function NewLucrarePage() {
   const router = useRouter()
   const { userData } = useAuth()
   const [dataEmiterii, setDataEmiterii] = useState<Date>(new Date())
-  const [dataInterventie, setDataInterventie] = useState<Date | undefined>(new Date())
+  const [dataInterventie, setDataInterventie] = useState<Date | undefined>(undefined)
   
   // Verificăm dacă suntem în modul de reatribuire
   const [isReassignment, setIsReassignment] = useState(false)
@@ -130,6 +130,14 @@ export default function NewLucrarePage() {
 
   const handleSubmit = async (dataFromForm?: any) => {
     try {
+      if (!dataInterventie) {
+        toast({
+          title: "Data intervenție lipsă",
+          description: "Selectați data la care se solicită intervenția.",
+          variant: "destructive",
+        })
+        return
+      }
       // Asigurăm că folosim data și ora curentă pentru dataEmiterii
       const currentDateTime = new Date()
 
@@ -138,7 +146,7 @@ export default function NewLucrarePage() {
         ...formData,
         ...(dataFromForm && typeof dataFromForm === "object" ? dataFromForm : {}),
         dataEmiterii: currentDateTime.toISOString(),
-        dataInterventie: dataInterventie ? dataInterventie.toISOString() : new Date().toISOString(),
+        dataInterventie: dataInterventie.toISOString(),
       }
       // Revizie: setăm metadatele și lista de echipamente
       if (formData.tipLucrare === "Revizie") {
@@ -206,7 +214,7 @@ export default function NewLucrarePage() {
           ...formData,
           ...(dataFromForm && typeof dataFromForm === "object" ? dataFromForm : {}),
           dataEmiterii: currentDateTime.toISOString(),
-          dataInterventie: dataInterventie ? dataInterventie.toISOString() : new Date().toISOString(),
+          dataInterventie: dataInterventie.toISOString(),
         }
 
         const notificationResult = await sendWorkOrderNotifications(workOrderData)

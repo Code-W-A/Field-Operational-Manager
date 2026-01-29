@@ -96,7 +96,7 @@ export default function Dashboard() {
   const [historyFailedScanAttempts, setHistoryFailedScanAttempts] = React.useState(0)
   const [showHistoryManualInput, setShowHistoryManualInput] = React.useState(false)
   const [dataEmiterii, setDataEmiterii] = React.useState<Date | undefined>(new Date())
-  const [dataInterventie, setDataInterventie] = React.useState<Date | undefined>(new Date())
+  const [dataInterventie, setDataInterventie] = React.useState<Date | undefined>(undefined)
   const [formData, setFormData] = React.useState<DashboardLucrareFormData>({
     tipLucrare: "",
     tehnicieni: [],
@@ -132,7 +132,7 @@ export default function Dashboard() {
   React.useEffect(() => {
     if (isAddDialogOpen) {
       setDataEmiterii(new Date())
-      setDataInterventie(new Date())
+      setDataInterventie(undefined)
     }
   }, [isAddDialogOpen])
 

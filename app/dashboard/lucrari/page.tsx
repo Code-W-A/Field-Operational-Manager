@@ -127,7 +127,7 @@ export default function Lucrari() {
   // State pentru dialogul de motive reintervenție
   const [isReinterventionReasonDialogOpen, setIsReinterventionReasonDialogOpen] = useState(false)
   const [selectedLucrareForReintervention, setSelectedLucrareForReintervention] = useState<any>(null)
-  const [dataInterventie, setDataInterventie] = useState<Date | undefined>(new Date())
+  const [dataInterventie, setDataInterventie] = useState<Date | undefined>(undefined)
   const [activeTab, setActiveTab] = useState("tabel")
   const [selectedLucrare, setSelectedLucrare] = useState(null)
   const [formData, setFormData] = useState({
@@ -868,7 +868,7 @@ export default function Lucrari() {
   useEffect(() => {
     if (isAddDialogOpen) {
       setDataEmiterii(new Date())
-      setDataInterventie(new Date())
+      setDataInterventie(undefined)
     }
   }, [isAddDialogOpen])
 
@@ -1055,7 +1055,7 @@ export default function Lucrari() {
 
   const resetForm = () => {
     setDataEmiterii(new Date())
-    setDataInterventie(new Date())
+    setDataInterventie(undefined)
     setFormData({
       tipLucrare: "",
       tehnicieni: [],
@@ -1410,8 +1410,8 @@ export default function Lucrari() {
     // Convertim datele cu parsare robustă (ISO, Timestamp, dd.MM, etc.)
     const parsedEmitere = toDateSafe(lucrare.dataEmiterii)
     setDataEmiterii(parsedEmitere || new Date())
-    // Cerință: la editare, afișăm în UI data de azi pentru solicitarea intervenției (doar vizual)
-    setDataInterventie(new Date())
+    // La editare, resetăm data intervenției pentru selecție manuală
+    setDataInterventie(undefined)
 
     // Populăm formularul cu datele lucrării
     setFormData({
@@ -2917,45 +2917,44 @@ export default function Lucrari() {
                   <CardContent className="p-0 relative z-10">
                     {/* Mobile compact card - Appointment style */}
                     <div className="md:hidden p-4 space-y-3">
-                      {/* Header: ID + Status Badges */}
+                      {/* Header: Client + Status Badges (ascuns pentru tehnician) */}
                       <div className="flex items-start justify-between gap-3">
                         <div className="text-lg font-bold text-gray-900 line-clamp-2">
                           {lucrare.client || "-"}
                         </div>
-                        <div className="flex flex-col gap-1.5 items-end shrink-0">
-                          <Badge className={cn("shadow-sm font-semibold text-xs", getWorkStatusClass(lucrare.statusLucrare))}>
-                            {workStatusLabel}
-                          </Badge>
-                          {lucrare.statusFacturare && (
-                            <Badge variant="outline" className="text-xs border-blue-300 text-blue-700 bg-blue-50">
-                              {lucrare.statusFacturare}
+                        {!isTechnician && (
+                          <div className="flex flex-col gap-1.5 items-end shrink-0">
+                            <Badge className={cn("shadow-sm font-semibold text-xs", getWorkStatusClass(lucrare.statusLucrare))}>
+                              {workStatusLabel}
                             </Badge>
-                          )}
-                        </div>
+                            {lucrare.statusFacturare && (
+                              <Badge variant="outline" className="text-xs border-blue-300 text-blue-700 bg-blue-50">
+                                {lucrare.statusFacturare}
+                              </Badge>
+                            )}
+                          </div>
+                        )}
                       </div>
 
-                      {/* Layout: stânga (coloană) + dreapta (tip lucrare) */}
-                      <div className="grid grid-cols-[1fr_auto] gap-4 text-sm">
-                        {/* Coloana stângă: Număr, Locație, Echipament */}
-                        <div className="space-y-3">
-                          <div>
-                            <div className="text-gray-500 text-xs mb-1">Număr tichet</div>
-                            <div className="font-medium text-gray-900">#{workNo}</div>
-                          </div>
-                          <div>
-                            <div className="text-gray-500 text-xs mb-1">Locație</div>
-                            <div className="font-medium text-gray-900 line-clamp-1">{lucrare.locatie || "-"}</div>
-                          </div>
-                          <div>
-                            <div className="text-gray-500 text-xs mb-1">Echipament</div>
-                            <div className="font-medium text-gray-900 line-clamp-1">{doorName}</div>
-                          </div>
+                      {/* Badges: Număr tichet + Tip lucrare */}
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <Badge variant="outline" className="border-gray-300 text-gray-700">
+                          #{workNo}
+                        </Badge>
+                        <Badge variant="secondary" className="text-gray-800">
+                          {lucrare.tipLucrare || "-"}
+                        </Badge>
+                      </div>
+
+                      {/* Locație + Echipament */}
+                      <div className="space-y-3 text-sm">
+                        <div>
+                          <div className="text-gray-500 text-xs mb-1">Locație</div>
+                          <div className="font-medium text-gray-900 line-clamp-1">{lucrare.locatie || "-"}</div>
                         </div>
-                        
-                        {/* Coloana dreaptă: Tip lucrare */}
-                        <div className="flex flex-col justify-start">
-                          <div className="text-gray-500 text-xs mb-1 text-right">Tip lucrare</div>
-                          <div className="font-medium text-gray-900 text-right">{lucrare.tipLucrare || "-"}</div>
+                        <div>
+                          <div className="text-gray-500 text-xs mb-1">Echipament</div>
+                          <div className="font-medium text-gray-900 line-clamp-1">{doorName}</div>
                         </div>
                       </div>
 
@@ -2981,45 +2980,44 @@ export default function Lucrari() {
 
                     {/* Desktop / tablet card - same layout as mobile */}
                     <div className="hidden md:block p-4 space-y-3">
-                      {/* Header: ID + Status Badges */}
+                      {/* Header: Client + Status Badges (ascuns pentru tehnician) */}
                       <div className="flex items-start justify-between gap-3">
                         <div className="text-lg font-bold text-gray-900 line-clamp-2">
                           {lucrare.client || "-"}
                         </div>
-                        <div className="flex flex-col gap-1.5 items-end shrink-0">
-                          <Badge className={cn("shadow-sm font-semibold text-xs", getWorkStatusClass(lucrare.statusLucrare))}>
-                            {workStatusLabel}
-                          </Badge>
-                          {lucrare.statusFacturare && (
-                            <Badge variant="outline" className="text-xs border-blue-300 text-blue-700 bg-blue-50">
-                              {lucrare.statusFacturare}
+                        {!isTechnician && (
+                          <div className="flex flex-col gap-1.5 items-end shrink-0">
+                            <Badge className={cn("shadow-sm font-semibold text-xs", getWorkStatusClass(lucrare.statusLucrare))}>
+                              {workStatusLabel}
                             </Badge>
-                          )}
-                        </div>
+                            {lucrare.statusFacturare && (
+                              <Badge variant="outline" className="text-xs border-blue-300 text-blue-700 bg-blue-50">
+                                {lucrare.statusFacturare}
+                              </Badge>
+                            )}
+                          </div>
+                        )}
                       </div>
 
-                      {/* Layout: stânga (coloană) + dreapta (tip lucrare) */}
-                      <div className="grid grid-cols-[1fr_auto] gap-4 text-sm">
-                        {/* Coloana stângă: Număr, Locație, Echipament */}
-                        <div className="space-y-3">
-                          <div>
-                            <div className="text-gray-500 text-xs mb-1">Număr tichet</div>
-                            <div className="font-medium text-gray-900">#{workNo}</div>
-                          </div>
-                          <div>
-                            <div className="text-gray-500 text-xs mb-1">Locație</div>
-                            <div className="font-medium text-gray-900 line-clamp-1">{lucrare.locatie || "-"}</div>
-                          </div>
-                          <div>
-                            <div className="text-gray-500 text-xs mb-1">Echipament</div>
-                            <div className="font-medium text-gray-900 line-clamp-1">{doorName}</div>
-                          </div>
+                      {/* Badges: Număr tichet + Tip lucrare */}
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <Badge variant="outline" className="border-gray-300 text-gray-700">
+                          #{workNo}
+                        </Badge>
+                        <Badge variant="secondary" className="text-gray-800">
+                          {lucrare.tipLucrare || "-"}
+                        </Badge>
+                      </div>
+
+                      {/* Locație + Echipament */}
+                      <div className="space-y-3 text-sm">
+                        <div>
+                          <div className="text-gray-500 text-xs mb-1">Locație</div>
+                          <div className="font-medium text-gray-900 line-clamp-1">{lucrare.locatie || "-"}</div>
                         </div>
-                        
-                        {/* Coloana dreaptă: Tip lucrare */}
-                        <div className="flex flex-col justify-start">
-                          <div className="text-gray-500 text-xs mb-1 text-right">Tip lucrare</div>
-                          <div className="font-medium text-gray-900 text-right">{lucrare.tipLucrare || "-"}</div>
+                        <div>
+                          <div className="text-gray-500 text-xs mb-1">Echipament</div>
+                          <div className="font-medium text-gray-900 line-clamp-1">{doorName}</div>
                         </div>
                       </div>
 
