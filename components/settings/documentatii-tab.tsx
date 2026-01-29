@@ -52,6 +52,7 @@ export function DocumentatiiTab() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const folderId = String(searchParams.get("folderId") || "")
+  const subfolderIdFromQuery = String(searchParams.get("subfolderId") || "")
   const activeFolder = useMemo(() => folders.find((f) => f.id === folderId) || null, [folders, folderId])
   const activeSubfolder = useMemo(
     () => subfolders.find((sf) => sf.id === selectedSubfolderId) || null,
@@ -66,6 +67,11 @@ export function DocumentatiiTab() {
   useEffect(() => {
     setSelectedSubfolderId(null)
   }, [folderId])
+
+  useEffect(() => {
+    const next = subfolderIdFromQuery ? subfolderIdFromQuery : null
+    setSelectedSubfolderId((prev) => (prev === next ? prev : next))
+  }, [subfolderIdFromQuery])
 
   useEffect(() => {
     if (!folderId) {
@@ -91,6 +97,10 @@ export function DocumentatiiTab() {
       else params.set(key, val)
     })
     router.replace(`/dashboard/setari?${params.toString()}`)
+  }
+
+  const setSubfolderAndUrl = (nextId: string | null) => {
+    updateQuery({ subfolderId: nextId })
   }
 
   const openNameDialog = (mode: NameDialogMode, initial = "", id?: string) => {
@@ -133,7 +143,7 @@ export function DocumentatiiTab() {
     try {
       await deleteDocumentatiiFolder(id)
       if (folderId === id) {
-        updateQuery({ folderId: null })
+        updateQuery({ folderId: null, subfolderId: null })
       }
       toast({ title: "Șters", description: "Dosarul a fost șters." })
     } catch {
@@ -146,7 +156,7 @@ export function DocumentatiiTab() {
     if (!window.confirm(`Ștergeți subdosarul "${name || "fără nume"}" și tot conținutul lui?`)) return
     try {
       await deleteDocumentatiiSubfolder(folderId, id)
-      if (selectedSubfolderId === id) setSelectedSubfolderId(null)
+      if (selectedSubfolderId === id) setSubfolderAndUrl(null)
       toast({ title: "Șters", description: "Subdosarul a fost șters." })
     } catch {
       toast({ title: "Eroare", description: "Nu s-a putut șterge subdosarul.", variant: "destructive" })
@@ -202,7 +212,7 @@ export function DocumentatiiTab() {
         <CardContent className="flex flex-wrap items-center justify-between gap-2">
           {activeFolder ? (
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              <Button variant="ghost" size="sm" onClick={() => updateQuery({ folderId: null })}>
+              <Button variant="ghost" size="sm" onClick={() => updateQuery({ folderId: null, subfolderId: null })}>
                 <ArrowLeft className="h-4 w-4 mr-1" /> Înapoi
               </Button>
               <div className="flex items-center gap-1">
@@ -211,7 +221,7 @@ export function DocumentatiiTab() {
                 <button
                   type="button"
                   className="font-medium text-foreground hover:underline"
-                  onClick={() => setSelectedSubfolderId(null)}
+                  onClick={() => setSubfolderAndUrl(null)}
                 >
                   {activeFolder.name}
                 </button>
@@ -274,7 +284,7 @@ export function DocumentatiiTab() {
                     <button
                       type="button"
                       className="flex items-center gap-2 text-sm font-medium text-blue-700 hover:underline"
-                      onClick={() => updateQuery({ folderId: f.id })}
+                      onClick={() => updateQuery({ folderId: f.id, subfolderId: null })}
                     >
                       <Folder className="h-4 w-4" />
                       {f.name}
@@ -305,7 +315,7 @@ export function DocumentatiiTab() {
           </CardHeader>
           <CardContent className="space-y-3">
             {activeSubfolder && (
-              <Button variant="outline" size="sm" onClick={() => setSelectedSubfolderId(null)}>
+              <Button variant="outline" size="sm" onClick={() => setSubfolderAndUrl(null)}>
                 <ArrowLeft className="h-4 w-4 mr-2" /> Înapoi la dosar
               </Button>
             )}
@@ -319,7 +329,7 @@ export function DocumentatiiTab() {
                     <button
                       type="button"
                       className="flex items-center gap-2 text-sm font-medium text-blue-700 hover:underline"
-                      onClick={() => setSelectedSubfolderId(sf.id)}
+                      onClick={() => setSubfolderAndUrl(sf.id)}
                     >
                       <Folder className="h-4 w-4" />
                       {sf.name}

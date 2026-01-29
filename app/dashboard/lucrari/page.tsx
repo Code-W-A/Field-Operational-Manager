@@ -2783,7 +2783,7 @@ export default function Lucrari() {
             )}
 
             {/* Grid cu cards */}
-            <div className="grid gap-4 px-4 sm:px-0 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 w-full overflow-x-hidden">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 w-full overflow-x-hidden">
               {paginatedCardsData.map((lucrare) => {
               // Check if the work order is completed with report but not picked up
               const isCompletedNotPickedUp = isCompletedWithReportNotPickedUp(lucrare)
@@ -2872,7 +2872,9 @@ export default function Lucrari() {
                 }
               }
 
-              const workNo = `${String(lucrare.nrLucrare || lucrare.numarRaport || "-")}${Number((lucrare as any)?.offerSendCount || 0) > 0 ? `-${Number((lucrare as any)?.offerSendCount || 0)}` : ""}`
+              const rawWorkNo = String(lucrare.nrLucrare || lucrare.numarRaport || "-")
+              const normalizedWorkNo = rawWorkNo.replace(/^#\s*/, "")
+              const workNo = `${normalizedWorkNo}${Number((lucrare as any)?.offerSendCount || 0) > 0 ? `-${Number((lucrare as any)?.offerSendCount || 0)}` : ""}`
 
               const escapeRegExp = (s: string) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
               const doorNameRaw = String(lucrare.echipament || (lucrare as any).echipamentModel || "").trim()
@@ -2897,7 +2899,7 @@ export default function Lucrari() {
                 <Card
                   key={lucrare.id}
                   className={cn(
-                    "relative overflow-hidden min-w-0 w-full transition-all duration-300",
+                    "relative overflow-hidden min-w-0 w-full max-w-xl md:max-w-none mx-auto md:mx-0 transition-all duration-300",
                     isTechnician && isCompletedNotPickedUp 
                       ? "cursor-default border-gray-200" 
                       : "cursor-pointer hover:shadow-lg hover:shadow-gray-200/50 border-gray-100 hover:border-gray-200",
@@ -2917,8 +2919,8 @@ export default function Lucrari() {
                     <div className="md:hidden p-4 space-y-3">
                       {/* Header: ID + Status Badges */}
                       <div className="flex items-start justify-between gap-3">
-                        <div className="text-lg font-bold text-gray-900">
-                          {lucrare.client} #{workNo}
+                        <div className="text-lg font-bold text-gray-900 line-clamp-2">
+                          {lucrare.client || "-"}
                         </div>
                         <div className="flex flex-col gap-1.5 items-end shrink-0">
                           <Badge className={cn("shadow-sm font-semibold text-xs", getWorkStatusClass(lucrare.statusLucrare))}>
@@ -2932,42 +2934,36 @@ export default function Lucrari() {
                         </div>
                       </div>
 
-                      {/* Timestamp with icon */}
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <svg className="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <circle cx="12" cy="12" r="10" strokeWidth="2"/>
-                          <path strokeLinecap="round" strokeWidth="2" d="M12 6v6l4 2"/>
-                        </svg>
-                        <span>Emis: {dataEmiteriiText}</span>
+                      {/* Layout: stânga (coloană) + dreapta (tip lucrare) */}
+                      <div className="grid grid-cols-[1fr_auto] gap-4 text-sm">
+                        {/* Coloana stângă: Număr, Locație, Echipament */}
+                        <div className="space-y-3">
+                          <div>
+                            <div className="text-gray-500 text-xs mb-1">Număr tichet</div>
+                            <div className="font-medium text-gray-900">#{workNo}</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-500 text-xs mb-1">Locație</div>
+                            <div className="font-medium text-gray-900 line-clamp-1">{lucrare.locatie || "-"}</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-500 text-xs mb-1">Echipament</div>
+                            <div className="font-medium text-gray-900 line-clamp-1">{doorName}</div>
+                          </div>
+                        </div>
+                        
+                        {/* Coloana dreaptă: Tip lucrare */}
+                        <div className="flex flex-col justify-start">
+                          <div className="text-gray-500 text-xs mb-1 text-right">Tip lucrare</div>
+                          <div className="font-medium text-gray-900 text-right">{lucrare.tipLucrare || "-"}</div>
+                        </div>
                       </div>
 
-                      {/* Details Grid */}
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <div className="text-gray-500 text-xs mb-1">Tip lucrare</div>
-                          <div className="font-medium text-gray-900">{lucrare.tipLucrare || "-"}</div>
-                        </div>
-                        <div>
-                          <div className="text-gray-500 text-xs mb-1">Locație</div>
-                          <div className="font-medium text-gray-900 line-clamp-1">{lucrare.locatie || "-"}</div>
-                        </div>
+                      {/* Defect reclamat - full width */}
+                      <div className="text-sm">
+                        <div className="text-gray-500 text-xs mb-1">Defect reclamat</div>
+                        <div className="text-gray-900 line-clamp-2">{lucrare.defectReclamat || "-"}</div>
                       </div>
-
-                      {/* Equipment info */}
-                      {doorName !== "-" && (
-                        <div className="text-sm">
-                          <div className="text-gray-500 text-xs mb-1">Ușă echipament</div>
-                          <div className="font-medium text-gray-900 line-clamp-1">{doorName}</div>
-                        </div>
-                      )}
-
-                      {/* Defect description */}
-                      {lucrare.defectReclamat && (
-                        <div className="text-sm">
-                          <div className="text-gray-500 text-xs mb-1">Defect</div>
-                          <div className="text-gray-900 line-clamp-2">{lucrare.defectReclamat}</div>
-                        </div>
-                      )}
 
                       {/* View More Button */}
                       <Button
@@ -2979,7 +2975,7 @@ export default function Lucrari() {
                           handleViewDetails(lucrare)
                         }}
                       >
-                        Vezi mai mult
+                        Vezi detalii
                       </Button>
                     </div>
 
@@ -2987,8 +2983,8 @@ export default function Lucrari() {
                     <div className="hidden md:block p-4 space-y-3">
                       {/* Header: ID + Status Badges */}
                       <div className="flex items-start justify-between gap-3">
-                        <div className="text-lg font-bold text-gray-900">
-                          {lucrare.client} #{workNo}
+                        <div className="text-lg font-bold text-gray-900 line-clamp-2">
+                          {lucrare.client || "-"}
                         </div>
                         <div className="flex flex-col gap-1.5 items-end shrink-0">
                           <Badge className={cn("shadow-sm font-semibold text-xs", getWorkStatusClass(lucrare.statusLucrare))}>
@@ -3002,42 +2998,36 @@ export default function Lucrari() {
                         </div>
                       </div>
 
-                      {/* Timestamp with icon */}
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <svg className="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <circle cx="12" cy="12" r="10" strokeWidth="2"/>
-                          <path strokeLinecap="round" strokeWidth="2" d="M12 6v6l4 2"/>
-                        </svg>
-                        <span>Emis: {dataEmiteriiText}</span>
+                      {/* Layout: stânga (coloană) + dreapta (tip lucrare) */}
+                      <div className="grid grid-cols-[1fr_auto] gap-4 text-sm">
+                        {/* Coloana stângă: Număr, Locație, Echipament */}
+                        <div className="space-y-3">
+                          <div>
+                            <div className="text-gray-500 text-xs mb-1">Număr tichet</div>
+                            <div className="font-medium text-gray-900">#{workNo}</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-500 text-xs mb-1">Locație</div>
+                            <div className="font-medium text-gray-900 line-clamp-1">{lucrare.locatie || "-"}</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-500 text-xs mb-1">Echipament</div>
+                            <div className="font-medium text-gray-900 line-clamp-1">{doorName}</div>
+                          </div>
+                        </div>
+                        
+                        {/* Coloana dreaptă: Tip lucrare */}
+                        <div className="flex flex-col justify-start">
+                          <div className="text-gray-500 text-xs mb-1 text-right">Tip lucrare</div>
+                          <div className="font-medium text-gray-900 text-right">{lucrare.tipLucrare || "-"}</div>
+                        </div>
                       </div>
 
-                      {/* Details Grid */}
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <div className="text-gray-500 text-xs mb-1">Tip lucrare</div>
-                          <div className="font-medium text-gray-900">{lucrare.tipLucrare || "-"}</div>
-                        </div>
-                        <div>
-                          <div className="text-gray-500 text-xs mb-1">Locație</div>
-                          <div className="font-medium text-gray-900 line-clamp-1">{lucrare.locatie || "-"}</div>
-                        </div>
+                      {/* Defect reclamat - full width */}
+                      <div className="text-sm">
+                        <div className="text-gray-500 text-xs mb-1">Defect reclamat</div>
+                        <div className="text-gray-900 line-clamp-2">{lucrare.defectReclamat || "-"}</div>
                       </div>
-
-                      {/* Equipment info */}
-                      {doorName !== "-" && (
-                        <div className="text-sm">
-                          <div className="text-gray-500 text-xs mb-1">Ușă echipament</div>
-                          <div className="font-medium text-gray-900 line-clamp-1">{doorName}</div>
-                        </div>
-                      )}
-
-                      {/* Defect description */}
-                      {lucrare.defectReclamat && (
-                        <div className="text-sm">
-                          <div className="text-gray-500 text-xs mb-1">Defect</div>
-                          <div className="text-gray-900 line-clamp-2">{lucrare.defectReclamat}</div>
-                        </div>
-                      )}
 
                       {/* View More Button */}
                       <Button
@@ -3049,7 +3039,7 @@ export default function Lucrari() {
                           handleViewDetails(lucrare)
                         }}
                       >
-                        Vezi mai mult
+                        Vezi detalii
                       </Button>
                     </div>
                   </CardContent>
