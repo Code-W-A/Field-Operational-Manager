@@ -155,6 +155,21 @@ export default function Lucrari() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState([])
+
+  const fieldLabels: Record<string, string> = {
+    dataEmiterii: "Data emiterii",
+    dataInterventie: "Data intervenției",
+    tipLucrare: "Tip lucrare",
+    client: "Client",
+    contract: "Contract",
+  }
+
+  const missingFieldsMessage =
+    fieldErrors.length > 0
+      ? `Vă rugăm să completați: ${fieldErrors
+          .map((field) => fieldLabels[field] || field)
+          .join(", ")}.`
+      : ""
   const [tableInstance, setTableInstance] = useState(null)
   const [searchText, setSearchText] = useState("")
   const [filteredData, setFilteredData] = useState([])
@@ -1183,6 +1198,19 @@ export default function Lucrari() {
       }
 
       if (!validateForm()) {
+        if (!dataInterventie) {
+          toast({
+            title: "Data intervenție lipsă",
+            description: "Selectați data la care se solicită intervenția.",
+            variant: "destructive",
+          })
+        } else {
+          toast({
+            title: "Eroare",
+            description: "Vă rugăm să completați toate câmpurile obligatorii",
+            variant: "destructive",
+          })
+        }
         setError("Vă rugăm să completați toate câmpurile obligatorii")
         setIsSubmitting(false)
         return
@@ -1447,6 +1475,19 @@ export default function Lucrari() {
       setError(null)
 
       if (!validateForm()) {
+        if (!dataInterventie) {
+          toast({
+            title: "Data intervenție lipsă",
+            description: "Selectați data la care se solicită intervenția.",
+            variant: "destructive",
+          })
+        } else {
+          toast({
+            title: "Eroare",
+            description: "Vă rugăm să completați toate câmpurile obligatorii",
+            variant: "destructive",
+          })
+        }
         setError("Vă rugăm să completați toate câmpurile obligatorii")
         setIsSubmitting(false)
         return
@@ -2562,6 +2603,9 @@ export default function Lucrari() {
                   )}
                 </Button>
               </DialogFooter>
+              {missingFieldsMessage && (
+                <div className="mt-2 text-xs text-destructive">{missingFieldsMessage}</div>
+              )}
             </DialogContent>
           </Dialog>
 
@@ -2623,6 +2667,9 @@ export default function Lucrari() {
                 )}
               </Button>
             </DialogFooter>
+            {missingFieldsMessage && (
+              <div className="mt-2 text-xs text-destructive">{missingFieldsMessage}</div>
+            )}
           </DialogContent>
         </Dialog>
       </DashboardHeader>

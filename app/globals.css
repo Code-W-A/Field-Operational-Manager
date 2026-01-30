@@ -93,6 +93,12 @@
   z-index: calc(var(--modal-z-index) + 1);
 }
 
+/* Ensure toast is always above modal overlays */
+[data-radix-toast-viewport] {
+  position: fixed !important;
+  z-index: 2147483647 !important;
+}
+
 /* Prevent interaction with background elements when modal is open */
 html.modal-open {
   overflow: hidden;
