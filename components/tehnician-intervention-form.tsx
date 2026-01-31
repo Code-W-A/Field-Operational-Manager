@@ -751,12 +751,12 @@ export function TehnicianInterventionForm({
                 </AlertDescription>
               </Alert>
             ) : (
-              <div className="flex justify-end space-x-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:justify-end sm:space-x-2">
                 <Button
                   type="button"
                   onClick={handleSave}
                   disabled={isSaving || formDisabled}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
                 >
                   {isSaving ? (
                     <>
@@ -776,7 +776,7 @@ export function TehnicianInterventionForm({
                     type="button"
                     onClick={handleFinalizeLater}
                     disabled={isFinalizingLater || isSaving || isGeneratingReport || formDisabled}
-                    className="bg-amber-500 hover:bg-amber-600 text-white"
+                    className="bg-amber-500 hover:bg-amber-600 text-white w-full sm:w-auto"
                   >
                     {isFinalizingLater ? (
                       <>
@@ -793,7 +793,7 @@ export function TehnicianInterventionForm({
                   type="button"
                   onClick={handleGenerateReport}
                   disabled={isGeneratingReport || formDisabled || !descriereInterventie}
-                  className="bg-green-600 hover:bg-green-700"
+                  className="bg-green-600 hover:bg-green-700 w-full sm:w-auto"
                 >
                   {isGeneratingReport ? (
                     <>
