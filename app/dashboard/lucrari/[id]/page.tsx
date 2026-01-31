@@ -3228,6 +3228,14 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
         {role === "tehnician" && isAssignedTehnician && lucrare.statusLucrare !== WORK_STATUS.POSTPONED && (
           <TabsContent value="interventie" className="mt-4">
+            {lucrare.statusLucrare === WORK_STATUS.NO_SIGNATURE && (
+              <div className="mb-3 flex items-center gap-2">
+                <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-200">Fără semnătură</Badge>
+                <span className="text-xs text-muted-foreground">
+                  Intervenția este salvată fără raport. Poți reveni pentru semnare și generare raport.
+                </span>
+              </div>
+            )}
             {!equipmentVerified ? (
               <Card>
                 <CardHeader>

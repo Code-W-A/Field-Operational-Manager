@@ -1496,7 +1496,11 @@ export default function Lucrari() {
       // Recalculăm statusul automat, protejând statusurile terminale
       let statusLucrare = formData.statusLucrare
       const hasTechnicians = Array.isArray(formData.tehnicieni) && formData.tehnicieni.length > 0
-      if (statusLucrare !== "Finalizat" && statusLucrare !== "Arhivată") {
+      if (
+        statusLucrare !== "Finalizat" &&
+        statusLucrare !== "Arhivată" &&
+        statusLucrare !== WORK_STATUS.NO_SIGNATURE
+      ) {
         statusLucrare = hasTechnicians ? "Atribuită" : "Listată"
       }
 
@@ -2982,6 +2986,11 @@ export default function Lucrari() {
                           </div>
                         )}
                       </div>
+                      {isTechnician && lucrare.statusLucrare === WORK_STATUS.NO_SIGNATURE && (
+                        <div className="flex">
+                          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-200">Fără semnătură</Badge>
+                        </div>
+                      )}
 
                       {/* Badges: Număr tichet + Tip lucrare */}
                       <div className="flex flex-wrap gap-2 text-xs">
@@ -3045,6 +3054,11 @@ export default function Lucrari() {
                           </div>
                         )}
                       </div>
+                      {isTechnician && lucrare.statusLucrare === WORK_STATUS.NO_SIGNATURE && (
+                        <div className="flex">
+                          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-200">Fără semnătură</Badge>
+                        </div>
+                      )}
 
                       {/* Badges: Număr tichet + Tip lucrare */}
                       <div className="flex flex-wrap gap-2 text-xs">

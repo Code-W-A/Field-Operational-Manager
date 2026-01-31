@@ -729,9 +729,7 @@ FOM by NRG`,
         emailDestinatar: manualEmails,
         ...(typeof clientRating === 'number' ? { clientRating: Math.max(1, Math.min(5, clientRating)) } : {}),
         ...(clientReview?.trim() ? { clientReview: clientReview.trim() } : {}),
-        // NU setăm raportGenerat: true aici - va fi setat de ReportGenerator
-        statusLucrare: "Finalizat",
-        statusFinalizareInterventie: "FINALIZAT",
+        // NU setăm raportGenerat sau statusul aici - vor fi setate de ReportGenerator
         updatedAt: serverTimestamp(),
         preluatDispecer: false,
       }

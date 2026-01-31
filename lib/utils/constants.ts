@@ -7,6 +7,7 @@ export const WORK_STATUS = {
   IN_PROGRESS: "În lucru",
   WAITING: "În așteptare",
   POSTPONED: "Amânată",
+  NO_SIGNATURE: "Fără semnătură",
   COMPLETED: "Finalizat",
   ARCHIVED: "Arhivată",
 }
@@ -20,6 +21,7 @@ export const WORK_STATUS_OPTIONS = [
   WORK_STATUS.IN_PROGRESS,
   WORK_STATUS.WAITING,
   WORK_STATUS.POSTPONED,
+  WORK_STATUS.NO_SIGNATURE,
   WORK_STATUS.COMPLETED,
   WORK_STATUS.ARCHIVED,
 ]
@@ -118,6 +120,8 @@ export function getWorkStatusClass(status: string): string {
       return "bg-orange-100 text-orange-800 hover:bg-orange-200"
     case WORK_STATUS.POSTPONED.toLowerCase():
       return "bg-purple-100 text-purple-800 hover:bg-purple-200"
+    case WORK_STATUS.NO_SIGNATURE.toLowerCase():
+      return "bg-amber-100 text-amber-800 hover:bg-amber-200"
     case WORK_STATUS.COMPLETED.toLowerCase():
       return "bg-green-100 text-green-800 hover:bg-green-200"
     default:
@@ -159,6 +163,8 @@ export function getWorkStatusRowClass(lucrare: any): string {
       return "bg-orange-50"
     case WORK_STATUS.POSTPONED.toLowerCase():
       return "bg-purple-50"
+    case WORK_STATUS.NO_SIGNATURE.toLowerCase():
+      return "bg-amber-50"
     case WORK_STATUS.COMPLETED.toLowerCase():
       return "bg-green-50"
     default:
