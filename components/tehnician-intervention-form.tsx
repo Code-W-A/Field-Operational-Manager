@@ -9,8 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, Info, FileText, Check } from "lucide-react"
 import { updateLucrare, getLucrareById } from "@/lib/firebase/firestore"
-import { collection, getDocs, query, where } from "firebase/firestore"
-import { db } from "@/lib/firebase/firebase"
 import { toast } from "@/hooks/use-toast"
 import { useStableCallback } from "@/lib/utils/hooks"
 import { Label } from "@/components/ui/label"
@@ -25,8 +23,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ImageDefectUpload } from "@/components/image-defect-upload"
 import { uploadFile, deleteFile } from "@/lib/firebase/storage"
 import { useAuth } from "@/contexts/AuthContext"
-import { WORK_STATUS } from "@/lib/utils/constants"
-import { calculateDuration, formatDate, formatTime } from "@/lib/utils/time-format"
 
 
 // First, let's update the interface to include statusEchipament
@@ -90,8 +86,6 @@ export function TehnicianInterventionForm({
   const [comentariiOferta, setComentariiOferta] = useState(initialData.comentariiOferta || "")
   const [formDisabled, setFormDisabled] = useState(isCompleted || initialData.raportGenerat)
   const [notaInternaTehnician, setNotaInternaTehnician] = useState(initialData.notaInternaTehnician || "")
-  const [allowFinalizeLater, setAllowFinalizeLater] = useState(false)
-  const [isFinalizingLater, setIsFinalizingLater] = useState(false)
 
   // State pentru imaginile selectate local
   const [selectedImages, setSelectedImages] = useState<File[]>([])
@@ -142,61 +136,6 @@ export function TehnicianInterventionForm({
     checkWorkOrderStatus()
   }, [lucrareId])
 
-  useEffect(() => {
-    let mounted = true
-    const checkAllowFinalizeLater = async () => {
-      try {
-        const lucrare: any = await getLucrareById(lucrareId)
-        if (!mounted || !lucrare) return
-
-        if (
-          lucrare.raportGenerat === true ||
-          String(lucrare.statusLucrare || "").toLowerCase() === WORK_STATUS.NO_SIGNATURE.toLowerCase() ||
-          String(lucrare.statusLucrare || "").toLowerCase() === WORK_STATUS.COMPLETED.toLowerCase() ||
-          String(lucrare.statusLucrare || "").toLowerCase() === WORK_STATUS.ARCHIVED.toLowerCase()
-        ) {
-          setAllowFinalizeLater(false)
-          return
-        }
-
-        const clientId = String(lucrare.clientId || "").trim()
-        const clientName =
-          typeof lucrare.client === "string"
-            ? lucrare.client
-            : lucrare?.client?.nume || lucrare?.client?.name || ""
-
-        if (!clientId && !clientName) {
-          setAllowFinalizeLater(false)
-          return
-        }
-
-        const lucrariRef = collection(db, "lucrari")
-        const q = clientId
-          ? query(lucrariRef, where("clientId", "==", clientId))
-          : query(lucrariRef, where("client", "==", clientName))
-        const snap = await getDocs(q)
-        const activeCount = snap.docs.reduce((acc, d) => {
-          const data: any = d.data()
-          const status = String(data.statusLucrare || "").toLowerCase()
-          const isActive =
-            status &&
-            status !== WORK_STATUS.COMPLETED.toLowerCase() &&
-            status !== WORK_STATUS.ARCHIVED.toLowerCase()
-          return acc + (isActive ? 1 : 0)
-        }, 0)
-
-        setAllowFinalizeLater(activeCount >= 2)
-      } catch (error) {
-        console.warn("Nu s-a putut determina numărul de lucrări active pentru client:", error)
-        if (mounted) setAllowFinalizeLater(false)
-      }
-    }
-
-    checkAllowFinalizeLater()
-    return () => {
-      mounted = false
-    }
-  }, [lucrareId])
 
   // Am eliminat useEffect-ul care resetează câmpurile pentru a preveni ștergerea textului introdus de utilizator
 
@@ -370,62 +309,6 @@ export function TehnicianInterventionForm({
     }
   }
 
-  const handleFinalizeLater = async () => {
-    try {
-      setIsFinalizingLater(true)
-
-      const remainingImages = await applyImageDeletions()
-      const newUploadedImages = await uploadSelectedImages()
-      const allImages = [...remainingImages, ...newUploadedImages]
-
-      const lucrare: any = await getLucrareById(lucrareId)
-      const now = new Date()
-      const timpPlecare = now.toISOString()
-      const dataPlecare = formatDate(now)
-      const oraPlecare = formatTime(now)
-      const durataInterventie = lucrare?.timpSosire
-        ? calculateDuration(lucrare.timpSosire, timpPlecare)
-        : "-"
-
-      const updateData: any = {
-        constatareLaLocatie,
-        descriereInterventie,
-        statusEchipament,
-        necesitaOferta,
-        comentariiOferta: necesitaOferta ? comentariiOferta : "",
-        imaginiDefecte: allImages,
-        notaInternaTehnician,
-        statusLucrare: WORK_STATUS.NO_SIGNATURE,
-        statusFinalizareInterventie: "NEFINALIZAT",
-        timpPlecare,
-        dataPlecare,
-        oraPlecare,
-        durataInterventie,
-      }
-
-      if (isWarrantyWork) {
-        updateData.tehnicianConfirmaGarantie = tehnicianConfirmaGarantie
-      }
-
-      await updateLucrare(lucrareId, updateData)
-
-      toast({
-        title: "Salvat fără semnătură",
-        description: "Intervenția a fost închisă. Puteți genera raportul mai târziu.",
-      })
-
-      onUpdate()
-    } catch (error) {
-      console.error("Eroare la salvarea fără semnătură:", error)
-      toast({
-        title: "Eroare",
-        description: "Nu s-a putut salva intervenția fără semnătură.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsFinalizingLater(false)
-    }
-  }
 
   const handleToggleOferta = (checked: boolean) => {
     setNecesitaOferta(checked)
@@ -770,24 +653,6 @@ export function TehnicianInterventionForm({
                     </>
                   )}
                 </Button>
-
-                {allowFinalizeLater && (
-                  <Button
-                    type="button"
-                    onClick={handleFinalizeLater}
-                    disabled={isFinalizingLater || isSaving || isGeneratingReport || formDisabled}
-                    className="bg-amber-500 hover:bg-amber-600 text-white w-full sm:w-auto"
-                  >
-                    {isFinalizingLater ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Se finalizează...
-                      </>
-                    ) : (
-                      "Salvează și finalizează mai târziu"
-                    )}
-                  </Button>
-                )}
 
                 <Button
                   type="button"

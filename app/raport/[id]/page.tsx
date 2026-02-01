@@ -19,7 +19,8 @@ import { ReportGenerator } from "@/components/report-generator"
 import { MultiEmailInput } from "@/components/ui/multi-email-input"
 import { doc, updateDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
-import { calculateDuration, formatUiDate, toDateSafe } from "@/lib/utils/time-format"
+import { calculateDuration, formatDate, formatTime, formatUiDate, toDateSafe } from "@/lib/utils/time-format"
+import { WORK_STATUS } from "@/lib/utils/constants"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { generateRevisionOperationsPDF } from "@/lib/pdf/revision-operations"
@@ -93,6 +94,8 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
   const [editingFindingsOnSite, setEditingFindingsOnSite] = useState("")
   const [editingInterventionDescription, setEditingInterventionDescription] = useState("")
   const [isSavingMissingData, setIsSavingMissingData] = useState(false)
+  const [allowFinalizeLater, setAllowFinalizeLater] = useState(false)
+  const [isFinalizingLater, setIsFinalizingLater] = useState(false)
 
   const reportGeneratorRef = useRef<React.ElementRef<typeof ReportGenerator>>(null)
   const submitButtonRef = useRef<HTMLButtonElement>(null)
@@ -347,6 +350,62 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
 
     checkAccess()
   }, [loading, lucrare, userData, router])
+
+  useEffect(() => {
+    let mounted = true
+    const checkAllowFinalizeLater = async () => {
+      try {
+        const lucrareData: any = await getLucrareById(paramsId)
+        if (!mounted || !lucrareData) return
+
+        if (
+          lucrareData.raportGenerat === true ||
+          String(lucrareData.statusLucrare || "").toLowerCase() === WORK_STATUS.NO_SIGNATURE.toLowerCase() ||
+          String(lucrareData.statusLucrare || "").toLowerCase() === WORK_STATUS.COMPLETED.toLowerCase() ||
+          String(lucrareData.statusLucrare || "").toLowerCase() === WORK_STATUS.ARCHIVED.toLowerCase()
+        ) {
+          setAllowFinalizeLater(false)
+          return
+        }
+
+        const clientId = String(lucrareData.clientId || "").trim()
+        const clientName =
+          typeof lucrareData.client === "string"
+            ? lucrareData.client
+            : lucrareData?.client?.nume || lucrareData?.client?.name || ""
+
+        if (!clientId && !clientName) {
+          setAllowFinalizeLater(false)
+          return
+        }
+
+        const lucrariRef = collection(db, "lucrari")
+        const q = clientId
+          ? query(lucrariRef, where("clientId", "==", clientId))
+          : query(lucrariRef, where("client", "==", clientName))
+        const snap = await getDocs(q)
+        const activeCount = snap.docs.reduce((acc, d) => {
+          const data: any = d.data()
+          const status = String(data.statusLucrare || "").toLowerCase()
+          const isActive =
+            status &&
+            status !== WORK_STATUS.COMPLETED.toLowerCase() &&
+            status !== WORK_STATUS.ARCHIVED.toLowerCase()
+          return acc + (isActive ? 1 : 0)
+        }, 0)
+
+        setAllowFinalizeLater(activeCount >= 2)
+      } catch (error) {
+        console.warn("Nu s-a putut determina numărul de lucrări active pentru client:", error)
+        if (mounted) setAllowFinalizeLater(false)
+      }
+    }
+
+    checkAllowFinalizeLater()
+    return () => {
+      mounted = false
+    }
+  }, [paramsId])
 
   // Effect to trigger PDF generation when updatedLucrare changes
   useEffect(() => {
@@ -863,6 +922,75 @@ FOM by NRG`,
         description: "Raportul a fost generat, dar nu s-a putut actualiza starea în sistem.",
         variant: "destructive",
       })
+    }
+  }
+
+  const handleFinalizeLater = async () => {
+    try {
+      if (!tichet?.id) {
+        toast({
+          title: "Eroare",
+          description: "Nu s-a putut identifica lucrarea.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      setIsFinalizingLater(true)
+
+      const now = new Date()
+      const timpPlecare = now.toISOString()
+      const dataPlecare = formatDate(now)
+      const oraPlecare = formatTime(now)
+      const durataInterventie = tichet?.timpSosire
+        ? calculateDuration(tichet.timpSosire, timpPlecare)
+        : "-"
+
+      const updateData: any = {
+        constatareLaLocatie: tichet?.constatareLaLocatie || "",
+        descriereInterventie: tichet?.descriereInterventie || "",
+        statusEchipament: tichet?.statusEchipament || "Funcțional",
+        necesitaOferta: Boolean(tichet?.necesitaOferta),
+        comentariiOferta: tichet?.necesitaOferta ? tichet?.comentariiOferta || "" : "",
+        imaginiDefecte: Array.isArray(tichet?.imaginiDefecte) ? tichet.imaginiDefecte : [],
+        notaInternaTehnician: tichet?.notaInternaTehnician || "",
+        statusLucrare: WORK_STATUS.NO_SIGNATURE,
+        statusFinalizareInterventie: "NEFINALIZAT",
+        timpPlecare,
+        dataPlecare,
+        oraPlecare,
+        durataInterventie,
+      }
+
+      if (String(tichet?.tipLucrare || "") === "Intervenție în garanție") {
+        if (typeof (tichet as any)?.tehnicianConfirmaGarantie === "boolean") {
+          updateData.tehnicianConfirmaGarantie = (tichet as any).tehnicianConfirmaGarantie
+        }
+      }
+
+      await updateLucrare(tichet.id, updateData)
+
+      const updatedLucrareData = {
+        ...tichet,
+        ...updateData,
+      }
+      setLucrare(updatedLucrareData)
+      setUpdatedLucrare(updatedLucrareData)
+      setStatusLucrare(WORK_STATUS.NO_SIGNATURE)
+
+      toast({
+        title: "Salvat fără semnătură",
+        description: "Intervenția a fost închisă. Puteți genera raportul mai târziu.",
+      })
+    } catch (error) {
+      console.error("Eroare la salvarea fără semnătură:", error)
+      toast({
+        title: "Eroare",
+        description: "Nu s-a putut salva intervenția fără semnătură.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsFinalizingLater(false)
     }
   }
 
@@ -2213,7 +2341,24 @@ FOM by NRG`,
           </div>
           
           {!showDownloadInterface && (
-            <div className="order-1 sm:order-2 w-full sm:w-auto mb-2 sm:mb-0">
+            <div className="order-1 sm:order-2 w-full sm:w-auto mb-2 sm:mb-0 flex flex-col gap-2">
+              {allowFinalizeLater && (
+                <Button
+                  type="button"
+                  onClick={handleFinalizeLater}
+                  disabled={isFinalizingLater || isSubmitting || lucrare?.raportDataLocked}
+                  className="bg-amber-500 hover:bg-amber-600 text-white w-full sm:w-auto"
+                >
+                  {isFinalizingLater ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Se finalizează...
+                    </>
+                  ) : (
+                    "Semnează mai târziu"
+                  )}
+                </Button>
+              )}
               <Button
                 ref={submitButtonRef}
                 className="gap-2 bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
