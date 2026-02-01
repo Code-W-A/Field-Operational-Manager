@@ -975,13 +975,14 @@ FOM by NRG`,
         ...updateData,
       }
       setLucrare(updatedLucrareData)
-      setUpdatedLucrare(updatedLucrareData)
       setStatusLucrare(WORK_STATUS.NO_SIGNATURE)
 
       toast({
         title: "Salvat fără semnătură",
         description: "Intervenția a fost închisă. Puteți genera raportul mai târziu.",
       })
+
+      router.push("/dashboard/lucrari")
     } catch (error) {
       console.error("Eroare la salvarea fără semnătură:", error)
       toast({
