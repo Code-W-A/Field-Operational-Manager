@@ -230,6 +230,17 @@ export default function ContractDetailsPage() {
   }
 
   const equipmentCount = contract.equipmentIds?.length || 0
+  const equipmentLabels = (() => {
+    if (!Array.isArray(contract.equipmentIds) || contract.equipmentIds.length === 0) return []
+    const ids = contract.equipmentIds.map((id) => String(id))
+    const fromClient = client?.locatii?.flatMap((loc) => Array.isArray(loc?.echipamente) ? loc.echipamente : []) || []
+    const byIdOrCode = (eid: string) =>
+      fromClient.find((eq) => String(eq?.id || "") === eid || String(eq?.cod || "") === eid)
+    return ids.map((eid) => {
+      const eq = byIdOrCode(eid)
+      return eq?.nume || eq?.cod || eid
+    })
+  })()
   const hasRecurrence = contract.recurrenceInterval && contract.recurrenceInterval > 0
 
   return (
@@ -341,9 +352,16 @@ export default function ContractDetailsPage() {
                       <Wrench className="inline h-3 w-3 mr-1" />
                       Echipamente
                     </p>
-                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-sm py-1 px-3">
-                      {equipmentCount} {equipmentCount === 1 ? "echipament" : "echipamente"}
-                    </Badge>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-sm py-1 px-3">
+                        {equipmentCount} {equipmentCount === 1 ? "echipament" : "echipamente"}
+                      </Badge>
+                      {equipmentLabels.map((label, index) => (
+                        <Badge key={`${label}-${index}`} variant="outline" className="bg-gray-50 text-gray-700 border-gray-200 text-sm">
+                          {label}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
