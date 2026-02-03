@@ -32,6 +32,8 @@ export default function OfferActionPage() {
   const [isVerifyingCode, setIsVerifyingCode] = useState(false)
   const [isVerified, setIsVerified] = useState(false)
   const [verifiedEmail, setVerifiedEmail] = useState("")
+  const [codeSent, setCodeSent] = useState(false)
+  const [resendCooldown, setResendCooldown] = useState(0)
   const [errorDetails, setErrorDetails] = useState<any>(null)
 
   useEffect(() => {
@@ -107,6 +109,22 @@ export default function OfferActionPage() {
     run()
   }, [id, token, action])
 
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+    const t = window.setInterval(() => {
+      setResendCooldown((s) => (s <= 1 ? 0 : s - 1))
+    }, 1000)
+    return () => window.clearInterval(t)
+  }, [resendCooldown])
+
+  useEffect(() => {
+    // dacă utilizatorul schimbă emailul, revenim la pasul 1
+    setCodeSent(false)
+    setResendCooldown(0)
+    setVerificationCode("")
+    setVerificationMessage("")
+  }, [verificationEmail])
+
   const sendVerificationCode = async () => {
     if (!verificationEmail.trim()) return
     try {
@@ -122,6 +140,8 @@ export default function OfferActionPage() {
         throw new Error(json?.message || "Nu s-a putut trimite codul.")
       }
       setVerificationMessage("Codul a fost trimis pe email. Verificați inbox-ul.")
+      setCodeSent(true)
+      setResendCooldown(30)
     } catch (e: any) {
       setVerificationMessage(String(e?.message || "Eroare la trimiterea codului."))
     } finally {
@@ -369,30 +389,47 @@ export default function OfferActionPage() {
                   Pentru validarea ofertei, vă rugăm să introduceți emailul și să confirmați codul primit.
                 </AlertDescription>
               </Alert>
-              <div className="space-y-2">
-                <Input
-                  type="email"
-                  placeholder="Email pentru validare"
-                  value={verificationEmail}
-                  onChange={(e) => setVerificationEmail(e.target.value)}
-                  disabled={isSendingCode || isVerifyingCode}
-                />
-                <Button onClick={sendVerificationCode} disabled={isSendingCode || !verificationEmail.trim()}>
-                  {isSendingCode ? "Se trimite..." : "Trimite cod"}
-                </Button>
-              </div>
-              <div className="space-y-2">
-                <Input
-                  type="text"
-                  placeholder="Cod validare (6 caractere)"
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value.toUpperCase())}
-                  disabled={isSendingCode || isVerifyingCode}
-                />
-                <Button onClick={verifyCode} disabled={isVerifyingCode || !verificationCode.trim()}>
-                  {isVerifyingCode ? "Se verifică..." : "Verifică codul"}
-                </Button>
-              </div>
+              {!codeSent ? (
+                <div className="space-y-2">
+                  <Input
+                    type="email"
+                    placeholder="Email pentru validare"
+                    value={verificationEmail}
+                    onChange={(e) => setVerificationEmail(e.target.value)}
+                    disabled={isSendingCode || isVerifyingCode}
+                  />
+                  <Button onClick={sendVerificationCode} disabled={isSendingCode || !verificationEmail.trim()}>
+                    {isSendingCode ? "Se trimite..." : "Trimite cod"}
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="text-xs text-muted-foreground">
+                    Am trimis codul către <strong>{verificationEmail.trim().toLowerCase()}</strong>.
+                  </div>
+                  <Input
+                    type="text"
+                    placeholder="Cod validare (6 caractere)"
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value.toUpperCase())}
+                    disabled={isSendingCode || isVerifyingCode}
+                  />
+                  <Button onClick={verifyCode} disabled={isVerifyingCode || !verificationCode.trim()}>
+                    {isVerifyingCode ? "Se verifică..." : "Verifică codul"}
+                  </Button>
+                  <button
+                    type="button"
+                    className={`text-xs underline ${resendCooldown > 0 ? "text-muted-foreground cursor-not-allowed" : "text-blue-600"}`}
+                    onClick={() => {
+                      if (resendCooldown > 0) return
+                      sendVerificationCode()
+                    }}
+                    disabled={resendCooldown > 0}
+                  >
+                    {resendCooldown > 0 ? `Retrimite cod (${resendCooldown}s)` : "Retrimite cod"}
+                  </button>
+                </div>
+              )}
               {verificationMessage && (
                 <div className="text-sm text-muted-foreground">{verificationMessage}</div>
               )}
