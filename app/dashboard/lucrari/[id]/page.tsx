@@ -30,6 +30,7 @@ import {
   MapPin,
   Phone,
   Info,
+  X,
   Check,
   RefreshCw,
   ArchiveRestore,
@@ -1970,6 +1971,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                       equipment={eq}
                                       clientName={lucrare.client}
                                       locationName={lucrare.locatie}
+                                      useSimpleFormat={true}
                                     />
                                   </div>
                                 )}

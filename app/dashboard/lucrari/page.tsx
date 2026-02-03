@@ -363,13 +363,16 @@ export default function Lucrari() {
         const isCompletedWithReportAndPickedUp = isFinalized && hasReportGenerated && isPickedUpByDispatcher
 
         const isPostponed = lucrare.statusLucrare === WORK_STATUS.POSTPONED
+        const isCanceled = lucrare.statusLucrare === WORK_STATUS.CANCELED
 
         // Pentru tehnician:
         // - lucrarea amânată rămâne vizibilă până este preluată (preluatDispecer === true)
         // - lucrarea finalizată cu raport și preluată dispare
         // - lucrarea amânată și preluată dispare
+        // - lucrarea anulată nu trebuie să apară
         return (
           isAssignedToTechnician &&
+          !isCanceled &&
           !isCompletedWithReportAndPickedUp &&
           !(isPostponed && isPickedUpByDispatcher)
         )
