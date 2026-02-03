@@ -155,6 +155,8 @@ export default function Lucrari() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState([])
+  const [activeWorkCount, setActiveWorkCount] = useState(0)
+  const [activeWorkEquipmentName, setActiveWorkEquipmentName] = useState("")
 
   const fieldLabels: Record<string, string> = {
     dataEmiterii: "Data emiterii",
@@ -522,6 +524,16 @@ export default function Lucrari() {
         value: [],
       },
       {
+        id: "anulat",
+        label: "Anulat",
+        type: "multiselect",
+        options: [
+          { value: "da", label: "Da" },
+          { value: "nu", label: "Nu" },
+        ],
+        value: [],
+      },
+      {
         id: "statusFacturare",
         label: "Status facturare",
         type: "multiselect",
@@ -687,6 +699,14 @@ export default function Lucrari() {
               return filter.value.some((val) => {
                 if (val === "cu_numar") return item.raportGenerat && item.numarRaport
                 if (val === "fara_numar") return !item.raportGenerat || !item.numarRaport
+                return false
+              })
+            case "anulat":
+              if (!filter.value || filter.value.length === 0) return true
+              return filter.value.some((val) => {
+                const isCanceled = item.statusLucrare === WORK_STATUS.CANCELED || item.statusLucrare === "Anulat"
+                if (val === "da") return isCanceled
+                if (val === "nu") return !isCanceled
                 return false
               })
 
@@ -1184,6 +1204,16 @@ export default function Lucrari() {
       setIsSubmitting(true)
       setError(null)
 
+      if (activeWorkCount > 0) {
+        toast({
+          title: "Eroare",
+          description: "Nu puteți crea o tichet nouă pe acest echipament. Există deja tichete active pe acest echipament.",
+          variant: "destructive",
+        })
+        setIsSubmitting(false)
+        return
+      }
+
       // Guard: "Intervenție în contract" doar pentru contracte de tip "Abonament"
       if (
         formData.tipLucrare === "Intervenție în contract" &&
@@ -1499,7 +1529,8 @@ export default function Lucrari() {
       if (
         statusLucrare !== "Finalizat" &&
         statusLucrare !== "Arhivată" &&
-        statusLucrare !== WORK_STATUS.NO_SIGNATURE
+        statusLucrare !== WORK_STATUS.NO_SIGNATURE &&
+        statusLucrare !== WORK_STATUS.CANCELED
       ) {
         statusLucrare = hasTechnicians ? "Atribuită" : "Listată"
       }
@@ -2592,12 +2623,26 @@ export default function Lucrari() {
                 fieldErrors={fieldErrors}
                 setFieldErrors={setFieldErrors}
                 isReintervention={isReassignment}
+                onActiveWorkChange={(count, equipmentName) => {
+                  setActiveWorkCount(count)
+                  setActiveWorkEquipmentName(equipmentName || "")
+                }}
               />
               <DialogFooter className="flex-col gap-2 sm:flex-row">
+                {activeWorkCount > 0 && (
+                  <div className="w-full text-xs text-destructive sm:mr-auto">
+                    Există deja un tichet activ pentru echipamentul{" "}
+                    <strong>{activeWorkEquipmentName || formData.echipament || "selectat"}</strong>. Nu puteți salva o lucrare nouă.
+                  </div>
+                )}
                 <Button variant="outline" onClick={handleCloseAddDialog}>
                   Anulează
                 </Button>
-                <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSubmit} disabled={isSubmitting}>
+                <Button
+                  className="bg-blue-600 hover:bg-blue-700"
+                  onClick={handleSubmit}
+                  disabled={isSubmitting || activeWorkCount > 0}
+                >
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...

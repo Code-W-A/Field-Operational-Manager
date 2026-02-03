@@ -6,6 +6,8 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { LucrareForm } from "@/components/lucrare-form"
 import { addLucrare, getNextReportNumber } from "@/lib/firebase/firestore"
+import { collection, getDocs, query, where } from "firebase/firestore"
+import { db } from "@/lib/firebase/config"
 import { addLog } from "@/lib/firebase/firestore"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
@@ -128,6 +130,62 @@ export default function NewLucrarePage() {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
+  const checkActiveWorkOrdersForEquipment = async (payload: any) => {
+    // Statusi care indică o lucrare activă
+    const activeStatuses = [
+      "Listată",
+      "Atribuită",
+      "În lucru",
+      "În așteptare",
+      "Amânată",
+      "Programată",
+    ]
+
+    const isActive = (work: any) =>
+      activeStatuses.some((status) =>
+        String(work.statusLucrare || "").toLowerCase().includes(status.toLowerCase()),
+      )
+
+    const results: any[] = []
+
+    // Revizie: verificăm pentru fiecare equipmentId
+    if (payload.tipLucrare === "Revizie" && Array.isArray(payload.equipmentIds)) {
+      const ids = payload.equipmentIds.map((id: any) => String(id)).filter(Boolean)
+      const snapshots = await Promise.all(
+        ids.map((eid) =>
+          getDocs(query(collection(db, "lucrari"), where("equipmentIds", "array-contains", eid))),
+        ),
+      )
+      snapshots.forEach((snap) => {
+        snap.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() }))
+          .filter(isActive)
+          .forEach((work) => results.push(work))
+      })
+    } else {
+      const equipmentId = String(payload.echipamentId || "").trim()
+      const equipmentCod = String(payload.echipamentCod || "").trim()
+
+      if (equipmentId) {
+        const snap = await getDocs(query(collection(db, "lucrari"), where("echipamentId", "==", equipmentId)))
+        snap.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() }))
+          .filter(isActive)
+          .forEach((work) => results.push(work))
+      }
+
+      if (results.length === 0 && equipmentCod) {
+        const snap = await getDocs(query(collection(db, "lucrari"), where("echipamentCod", "==", equipmentCod)))
+        snap.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() }))
+          .filter(isActive)
+          .forEach((work) => results.push(work))
+      }
+    }
+
+    return results
+  }
+
   const handleSubmit = async (dataFromForm?: any) => {
     try {
       if (!dataInterventie) {
@@ -147,6 +205,17 @@ export default function NewLucrarePage() {
         ...(dataFromForm && typeof dataFromForm === "object" ? dataFromForm : {}),
         dataEmiterii: currentDateTime.toISOString(),
         dataInterventie: dataInterventie.toISOString(),
+      }
+
+      // Blocăm crearea dacă există deja tichete active pe echipamentul selectat
+      const existingWorks = await checkActiveWorkOrdersForEquipment(newWorkOrderData)
+      if (existingWorks.length > 0) {
+        toast({
+          title: "Eroare",
+          description: "Nu puteți crea o tichet nouă pe acest echipament. Există deja tichete active pe acest echipament.",
+          variant: "destructive",
+        })
+        return
       }
       // Revizie: setăm metadatele și lista de echipamente
       if (formData.tipLucrare === "Revizie") {

@@ -126,6 +126,7 @@ interface LucrareFormProps {
   onSubmit?: (data: Partial<Lucrare>) => Promise<void>
   onCancel?: () => void
   initialData?: Lucrare | null
+  onActiveWorkChange?: (count: number, equipmentName?: string) => void
 }
 
 // Define a ref type for the form
@@ -154,6 +155,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       onSubmit,
       onCancel,
       initialData,
+      onActiveWorkChange,
     },
     ref,
   ) => {
@@ -250,6 +252,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
     // Adăugăm state pentru informațiile de garanție
     const [warrantyInfo, setWarrantyInfo] = useState<any>(null)
+
     const [selectedEquipment, setSelectedEquipment] = useState<Echipament | null>(null)
 
     // State pentru editarea echipamentului din cardul de garanție
@@ -259,6 +262,12 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     // State pentru validarea echipamentelor duplicate
     const [existingWorkOnEquipment, setExistingWorkOnEquipment] = useState<any[]>([])
     const [checkingEquipment, setCheckingEquipment] = useState(false)
+
+    useEffect(() => {
+      if (!onActiveWorkChange) return
+      const equipmentName = selectedEquipment?.nume || formData.echipament || ""
+      onActiveWorkChange(existingWorkOnEquipment.length, equipmentName)
+    }, [existingWorkOnEquipment, selectedEquipment?.nume, formData.echipament, onActiveWorkChange])
 
     // Revizie – filtrare și selecție multi-echipament
     const [equipSearch, setEquipSearch] = useState("")
@@ -696,7 +705,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
     // Funcție pentru verificarea lucrărilor existente pe echipament
     const checkExistingWorkOrders = async (equipmentId: string, equipmentCod: string) => {
-      if (isEdit) return // Nu verificăm la editare, doar la creare
+      if (isEdit) return [] as any[] // Nu verificăm la editare, doar la creare
       
       setCheckingEquipment(true)
       try {
@@ -745,8 +754,10 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         }
         
         setExistingWorkOnEquipment(existingWorks)
+        return existingWorks
       } catch (error) {
         console.error("Eroare la verificarea tichetelor existente:", error)
+        return [] as any[]
       } finally {
         setCheckingEquipment(false)
       }
@@ -1201,8 +1212,10 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     }, [availableEquipments, formData.locatie, formData.echipamentId, formData.echipament])
 
     // Modificăm funcția handleClientAdded pentru a gestiona corect adăugarea clientului
-    const handleClientAdded = (clientName: string) => {
-      handleSelectChange("client", clientName)
+    const handleClientAdded = (clientName?: string) => {
+      if (clientName) {
+        handleSelectChange("client", clientName)
+      }
       setIsAddClientDialogOpen(false)
     }
 
@@ -1426,6 +1439,26 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       }
 
       // Verificăm dacă există lucrări active pe echipamentul selectat
+      if (!isEdit && formData.tipLucrare !== "Revizie") {
+        const equipmentId = String(formData.echipamentId || "")
+        const equipmentCod = String(formData.echipamentCod || "")
+        const currentExisting =
+          existingWorkOnEquipment.length > 0
+            ? existingWorkOnEquipment
+            : (equipmentId || equipmentCod)
+              ? await checkExistingWorkOrders(equipmentId, equipmentCod)
+              : []
+        if (currentExisting.length > 0) {
+          setError("Nu puteți crea o tichet nouă pe acest echipament. Există deja tichete active pe acest echipament.")
+          toast({
+            title: "Eroare",
+            description: "Nu puteți crea o tichet nouă pe acest echipament. Există deja tichete active pe acest echipament.",
+            variant: "destructive",
+          })
+          return
+        }
+      }
+
       if (!isEdit && existingWorkOnEquipment.length > 0) {
         setError("Nu puteți crea o tichet nouă pe acest echipament. Există deja tichete active pe acest echipament.")
         toast({
@@ -2287,6 +2320,10 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 hasError={hasError("contract")}
                 errorStyle={errorStyle}
                 clientIdFilter={selectedClient?.id}
+                locationIdFilter={(selectedLocatie as any)?.id ? String((selectedLocatie as any)?.id) : undefined}
+                locationNameFilter={formData.locatie || ""}
+                equipmentIdFilter={formData.echipamentId || ""}
+                equipmentCodeFilter={formData.echipamentCod || ""}
                 excludeTypes={formData.tipLucrare === "Intervenție în contract" ? ["La cerere"] : []}
               />
               {formData.contractType && (
@@ -2528,7 +2565,14 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         </div>
 
         {(onSubmit || onCancel) && (
-          <div className="flex justify-end space-x-2 mt-6">
+          <div className="mt-6">
+            {!isEdit && existingWorkOnEquipment.length > 0 && (
+              <div className="mb-3 text-sm text-destructive">
+                Există deja un tichet activ pentru echipamentul{" "}
+                <strong>{selectedEquipment?.nume || formData.echipament || "selectat"}</strong>. Nu puteți salva o lucrare nouă.
+              </div>
+            )}
+            <div className="flex justify-end space-x-2">
             {/* {onCancel && (
               <Button variant="outline" onClick={handleCloseAttempt}>
                 Anulează
@@ -2549,6 +2593,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 )}
               </Button>
             )}
+            </div>
           </div>
         )}
 

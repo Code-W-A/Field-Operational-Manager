@@ -52,6 +52,16 @@ import { useStableCallback } from "@/lib/utils/hooks"
 import { ContractDisplay } from "@/components/contract-display"
 import { QRCodeScanner } from "@/components/qr-code-scanner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { formatDate, formatTime, formatUiDate, toDateSafe } from "@/lib/utils/time-format"
 import { EquipmentQRCode } from "@/components/equipment-qr-code"
 // Adăugăm importurile pentru calculul garanției
@@ -214,6 +224,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const isReadOnlyTechView = role === "tehnician" && fromIstoricEchipament && !isAssignedTehnician
   const [activeTab, setActiveTab] = useState("detalii")
   const [isReinterventionReasonDialogOpen, setIsReinterventionReasonDialogOpen] = useState(false)
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false)
+  const [cancelReason, setCancelReason] = useState("")
+  const [isCancelling, setIsCancelling] = useState(false)
 
   const [equipmentVerified, setEquipmentVerified] = useState(false)
   const [locationAddress, setLocationAddress] = useState<string | null>(null)
@@ -1113,6 +1126,57 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     }
   }
 
+  const handleCancelWorkOrder = async () => {
+    if (!lucrare?.id) return
+    if (!cancelReason.trim()) {
+      toast({
+        title: "Motiv obligatoriu",
+        description: "Vă rugăm să introduceți motivul anulării.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      setIsCancelling(true)
+      await updateLucrare(lucrare.id, {
+        statusLucrare: WORK_STATUS.CANCELED,
+        motivAnulare: cancelReason.trim(),
+        anulatAt: serverTimestamp(),
+        anulatDe: userData?.displayName || userData?.email || "Dispecer",
+        anulatDeId: userData?.uid || "",
+      } as any)
+
+      setLucrare((prev) =>
+        prev
+          ? {
+              ...prev,
+              statusLucrare: WORK_STATUS.CANCELED,
+              motivAnulare: cancelReason.trim(),
+              anulatAt: new Date().toISOString(),
+              anulatDe: userData?.displayName || userData?.email || "Dispecer",
+              anulatDeId: userData?.uid || "",
+            }
+          : null,
+      )
+      setIsCancelDialogOpen(false)
+      setCancelReason("")
+      toast({
+        title: "Tichet anulat",
+        description: "Tichetul a fost marcat ca anulat.",
+      })
+    } catch (error) {
+      console.error("Eroare la anularea tichetului:", error)
+      toast({
+        title: "Eroare",
+        description: "Nu s-a putut anula tichetul.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsCancelling(false)
+    }
+  }
+
   // Funcție pentru formatarea numărului de telefon pentru apelare
   const formatPhoneForCall = (phone: string) => {
     // Eliminăm toate caracterele non-numerice
@@ -1207,12 +1271,14 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   }
 
   const isCompletedWithReport = lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true
+  const isCanceled = lucrare.statusLucrare === WORK_STATUS.CANCELED
   
   // Condiții pentru reintervenție: raport generat + lucrare preluată + fără reintervenții existente + nelockată
   const needsReintervention = (lucrare: any) => {
     return Boolean(
       lucrare?.raportGenerat === true &&
       lucrare?.preluatDispecer === true &&
+      lucrare?.statusLucrare !== WORK_STATUS.CANCELED &&
       !lucrare?.lockedAfterReintervention &&
       (Array.isArray(reinterventii) ? reinterventii.length === 0 : true)
     )
@@ -1256,6 +1322,17 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           <Button variant="outline" onClick={() => router.back()}>
             <ChevronLeft className="mr-2 h-4 w-4" /> Înapoi
           </Button>
+
+          {isAdminOrDispatcher && lucrare.statusLucrare !== WORK_STATUS.CANCELED && lucrare.statusLucrare !== WORK_STATUS.ARCHIVED && (
+            <Button
+              variant="destructive"
+              onClick={() => setIsCancelDialogOpen(true)}
+              disabled={isUpdating || isCancelling}
+            >
+              <X className="mr-2 h-4 w-4" />
+              Anulează
+            </Button>
+          )}
 
           {/* Tehnician: verifică istoricul echipamentului (după echipamentCod) */}
           {role === "tehnician" && lucrare?.echipamentCod && (
@@ -1479,7 +1556,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           })()}
 
           {/* Buton de preluare pentru admin/dispecer: vizibil pentru Finalizat (cu raport) sau Amânată, dacă nu e preluată */}
-          {isAdminOrDispatcher && !lucrare.preluatDispecer && (isCompletedWithReport || lucrare.statusLucrare === WORK_STATUS.POSTPONED) && (
+          {isAdminOrDispatcher && !lucrare.preluatDispecer && !isCanceled && (isCompletedWithReport || lucrare.statusLucrare === WORK_STATUS.POSTPONED) && (
             <Button
               variant="default"
               className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -1729,6 +1806,30 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                     </div>
                   )}
                 </div>
+
+                {lucrare.statusLucrare === WORK_STATUS.CANCELED && (
+                  <Alert variant="destructive" className="mt-3">
+                    <AlertTitle>Tichet anulat</AlertTitle>
+                    <AlertDescription>
+                      <div className="space-y-1">
+                        <div><strong>Motiv:</strong> {(lucrare as any)?.motivAnulare || "N/A"}</div>
+                        <div><strong>Anulat de:</strong> {(lucrare as any)?.anulatDe || "N/A"}</div>
+                        <div>
+                          <strong>Data:</strong>{" "}
+                          {(() => {
+                            try {
+                              const at: any = (lucrare as any)?.anulatAt
+                              const d = at?.toDate ? at.toDate() : new Date(at)
+                              return isNaN(d?.getTime?.() ?? Number.NaN) ? "N/A" : formatUiDate(d)
+                            } catch {
+                              return "N/A"
+                            }
+                          })()}
+                        </div>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
 
                 {/* Linie de separare */}
                 <Separator className="my-4" />
@@ -2739,13 +2840,13 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   setIsUpdating(false)
                 }
               }}
-              disabled={isUpdating}
+              disabled={isUpdating || isCanceled}
             >
               <SelectTrigger className="w-[180px] mt-0.5">
                 <SelectValue placeholder="Selectează status" />
               </SelectTrigger>
               <SelectContent>
-                {WORK_STATUS_OPTIONS.map((status) => (
+                {WORK_STATUS_OPTIONS.filter((status) => status !== WORK_STATUS.CANCELED).map((status) => (
                   <SelectItem key={status} value={status}>
                     {status === "Finalizat" ? "Raport generat" : status}
                   </SelectItem>
@@ -2796,8 +2897,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       </div>
     </div>
   )}
-                {/* Setări ofertă – ascunse integral dacă lucrarea este arhivată */}
-                {(role === "admin" || role === "dispecer") && lucrare.statusLucrare !== "Arhivată" && (
+                {/* Setări ofertă – ascunse integral dacă lucrarea este arhivată sau anulată */}
+                {(role === "admin" || role === "dispecer") && lucrare.statusLucrare !== "Arhivată" && !isCanceled && (
                   <div className="p-4 border rounded-md bg-blue-50 border-blue-200 mb-4">
                     {/* Header cu titlu */}
                     <div className="flex items-center justify-between mb-3">
@@ -2809,7 +2910,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       </div>
                     </div>
 
-                    {(!lucrare.preluatDispecer || lucrare.statusLucrare === "Arhivată") && (
+                    {(!lucrare.preluatDispecer || lucrare.statusLucrare === "Arhivată" || isCanceled) && (
                       <div className="flex items-start gap-3 text-sm bg-gradient-to-r from-amber-50 to-orange-50 text-amber-800 border-l-4 border-amber-400 rounded-r-lg px-4 py-3 shadow-sm mb-4">
                         <div className="flex-shrink-0">
                           <AlertCircle className="h-4 w-4 text-amber-500" />
@@ -2819,7 +2920,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                           <p className="text-amber-700 mt-1">
                             {lucrare.statusLucrare === "Arhivată"
                               ? "Lucrarea este arhivată. Editorul de ofertă nu este disponibil."
-                              : "Lucrarea trebuie preluată de dispecer/admin pentru a edita oferta."}
+                              : isCanceled
+                                ? "Lucrarea este anulată. Editorul de ofertă nu este disponibil."
+                                : "Lucrarea trebuie preluată de dispecer/admin pentru a edita oferta."}
                           </p>
                         </div>
                       </div>
@@ -2930,14 +3033,20 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
                         {/* Editor ofertă - buton dedesubt */}
                         <div className="space-y-2">
-                          <Label className={`text-sm font-medium ${!lucrare.preluatDispecer || !lucrare.necesitaOferta || lucrare.statusLucrare === 'Arhivată' ? 'text-gray-500' : 'text-blue-800'}`}>Editor ofertă</Label>
+                          <Label className={`text-sm font-medium ${!lucrare.preluatDispecer || !lucrare.necesitaOferta || lucrare.statusLucrare === 'Arhivată' || isCanceled ? 'text-gray-500' : 'text-blue-800'}`}>Editor ofertă</Label>
                           <div>
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => {
-                                if (lucrare.statusLucrare === "Arhivată") {
-                                  toast({ title: 'Editor indisponibil', description: 'Editorul de ofertă nu este disponibil pentru tichete arhivate.', variant: 'destructive' })
+                                if (lucrare.statusLucrare === "Arhivată" || isCanceled) {
+                                  toast({
+                                    title: 'Editor indisponibil',
+                                    description: isCanceled
+                                      ? 'Editorul de ofertă nu este disponibil pentru tichete anulate.'
+                                      : 'Editorul de ofertă nu este disponibil pentru tichete arhivate.',
+                                    variant: 'destructive',
+                                  })
                                   return
                                 }
                                 if (!lucrare.preluatDispecer) {
@@ -2946,8 +3055,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                 }
                                 setIsOfferEditorOpen(true)
                               }}
-                              disabled={isUpdating || !lucrare.preluatDispecer || !lucrare.necesitaOferta || lucrare.statusLucrare === 'Arhivată'}
-                              className={!lucrare.preluatDispecer || !lucrare.necesitaOferta || lucrare.statusLucrare === 'Arhivată' ? 'bg-gray-100 text-gray-500 border-gray-300 hover:bg-gray-100 hover:text-gray-500 cursor-not-allowed' : ''}
+                              disabled={isUpdating || !lucrare.preluatDispecer || !lucrare.necesitaOferta || lucrare.statusLucrare === 'Arhivată' || isCanceled}
+                              className={!lucrare.preluatDispecer || !lucrare.necesitaOferta || lucrare.statusLucrare === 'Arhivată' || isCanceled ? 'bg-gray-100 text-gray-500 border-gray-300 hover:bg-gray-100 hover:text-gray-500 cursor-not-allowed' : ''}
                             >
                               Deschide editor
                             </Button>
@@ -3017,6 +3126,14 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                           {lucrare.offerResponse.reason && (
                             <div className="text-sm text-gray-700">Motiv: {lucrare.offerResponse.reason}</div>
                           )}
+                          {(() => {
+                            const verifiedBy =
+                              (lucrare as any)?.offerResponse?.verifiedEmail ||
+                              (lucrare as any)?.offerActionVerification?.email
+                            return verifiedBy ? (
+                              <div className="text-sm text-gray-700">Confirmată de către: {verifiedBy}</div>
+                            ) : null
+                          })()}
                           {lucrare.offerResponse.at && (
                             <div className="text-xs text-gray-500 mt-1">
                               {(() => {
@@ -3030,7 +3147,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                               })()}
                             </div>
                           )}
-                          {(lucrare as any)?.acceptedOfferSnapshot && lucrare.statusLucrare !== 'Arhivată' && (
+                          {(lucrare as any)?.acceptedOfferSnapshot && lucrare.statusLucrare !== 'Arhivată' && !isCanceled && (
                             <div className="mt-2">
                               <Button
                                 variant="secondary"
@@ -3101,7 +3218,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 )}
 
                 {/* Offer editor dialog - disponibil doar după preluare de către dispecer/admin */}
-                {lucrare && role !== "tehnician" && lucrare.preluatDispecer && lucrare.statusLucrare !== 'Arhivată' && (
+                {lucrare && role !== "tehnician" && lucrare.preluatDispecer && lucrare.statusLucrare !== 'Arhivată' && !isCanceled && (
                   <OfferEditorDialog
                     lucrareId={lucrare.id!}
                     open={isOfferEditorOpen}
@@ -3475,6 +3592,37 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       lucrareId={paramsId}
       onSuccess={handleReinterventionAfterReasons}
     />
+    <AlertDialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Anulează tichetul</AlertDialogTitle>
+          <AlertDialogDescription>
+            Introduceți motivul anulării. Această acțiune marchează tichetul ca „Anulat”.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="cancelReason">Motiv anulare</Label>
+          <Textarea
+            id="cancelReason"
+            placeholder="Ex.: Beneficiarul a anulat solicitarea..."
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            rows={4}
+            disabled={isCancelling}
+          />
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isCancelling}>Renunță</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleCancelWorkOrder}
+            className="bg-red-600 hover:bg-red-700"
+            disabled={isCancelling || !cancelReason.trim()}
+          >
+            {isCancelling ? "Se anulează..." : "Anulează"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     </TooltipProvider>
   )
 }

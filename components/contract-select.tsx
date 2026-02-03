@@ -31,11 +31,27 @@ interface ContractSelectProps {
   errorStyle?: string
   // Dacă este setat, listează doar contractele asignate acestui client
   clientIdFilter?: string
+  // Filtre suplimentare pentru locație/echipament
+  locationIdFilter?: string
+  locationNameFilter?: string
+  equipmentIdFilter?: string
+  equipmentCodeFilter?: string
   // Exclude contractele cu anumite tipuri (ex. "La cerere")
   excludeTypes?: string[]
 }
 
-export function ContractSelect({ value, onChange, hasError = false, errorStyle = "", clientIdFilter, excludeTypes = [] }: ContractSelectProps) {
+export function ContractSelect({
+  value,
+  onChange,
+  hasError = false,
+  errorStyle = "",
+  clientIdFilter,
+  locationIdFilter,
+  locationNameFilter,
+  equipmentIdFilter,
+  equipmentCodeFilter,
+  excludeTypes = [],
+}: ContractSelectProps) {
   const [contracts, setContracts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
@@ -118,6 +134,8 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
 
   const normalizedExcluded = excludeTypes.map((t) => t.toLowerCase().trim())
 
+  const normalize = (value?: string) => String(value || "").trim()
+
   // Excludem tipurile nedorite (ex. "La cerere") din listă
   const allowedContracts = contractsForClient.filter((c) => {
     const t =
@@ -125,8 +143,29 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
     return !normalizedExcluded.includes(t)
   })
 
+  const filteredByAssignment = allowedContracts.filter((contract) => {
+    let locationMatch = true
+    if (locationIdFilter) {
+      locationMatch = normalize(contract.locationId) === normalize(locationIdFilter)
+    } else if (locationNameFilter) {
+      const target = normalize(locationNameFilter)
+      const direct = normalize(contract.locationName)
+      const list = Array.isArray(contract.locationNames) ? contract.locationNames.map((l: any) => normalize(l)) : []
+      locationMatch = Boolean(target) && (direct === target || list.includes(target))
+    }
+
+    let equipmentMatch = true
+    const equipmentTarget = normalize(equipmentIdFilter) || normalize(equipmentCodeFilter)
+    if (equipmentTarget) {
+      const ids = Array.isArray(contract.equipmentIds) ? contract.equipmentIds.map((id: any) => normalize(id)) : []
+      equipmentMatch = ids.includes(equipmentTarget)
+    }
+
+    return locationMatch && equipmentMatch
+  })
+
   // Filtrăm contractele pe baza termenului de căutare peste lista deja filtrată după client
-  const filteredContracts = allowedContracts.filter((contract) => {
+  const filteredContracts = filteredByAssignment.filter((contract) => {
     if (!searchTerm.trim()) return true
     const searchLower = searchTerm.toLowerCase()
     return (
@@ -138,7 +177,7 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
   })
 
   // Găsim contractul selectat pentru afișare (doar dacă nu este exclus)
-  const selectedContract = allowedContracts.find((contract) => contract.id === value)
+  const selectedContract = filteredByAssignment.find((contract) => contract.id === value)
 
   // Funcție pentru deschiderea dialogului de selecție
   const handleOpenSelectDialog = () => {
@@ -148,7 +187,7 @@ export function ContractSelect({ value, onChange, hasError = false, errorStyle =
 
   // Funcție pentru selectarea unui contract din dialog
   const handleSelectContract = (contractId: string) => {
-    const selectedContract = contractsForClient.find((contract) => contract.id === contractId)
+    const selectedContract = filteredByAssignment.find((contract) => contract.id === contractId)
     if (!selectedContract) {
       toast({
         title: "Contract indisponibil",

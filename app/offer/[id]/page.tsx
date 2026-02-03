@@ -5,6 +5,7 @@ import { useSearchParams, useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Input } from "@/components/ui/input"
 import { Check, X, AlertCircle } from "lucide-react"
 import { doc, getDoc, updateDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
@@ -18,34 +19,152 @@ export default function OfferActionPage() {
   const token = params.get("t") || ""
   const action = params.get("action") as ("accept" | "reject" | null)
 
-  const [state, setState] = useState<"loading" | "success" | "error" | "expired" | "used" | "invalid">("loading")
+  const [state, setState] = useState<"loading" | "ready" | "success" | "error" | "expired" | "used" | "invalid">("loading")
   const [message, setMessage] = useState<string>("")
   const [offerUrl, setOfferUrl] = useState<string>("")
   const [generating, setGenerating] = useState<boolean>(false)
   const [downloading, setDownloading] = useState<boolean>(false)
   const [reason, setReason] = useState<string>("")
+  const [verificationEmail, setVerificationEmail] = useState("")
+  const [verificationCode, setVerificationCode] = useState("")
+  const [verificationMessage, setVerificationMessage] = useState("")
+  const [isSendingCode, setIsSendingCode] = useState(false)
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false)
+  const [isVerified, setIsVerified] = useState(false)
+  const [verifiedEmail, setVerifiedEmail] = useState("")
   const [errorDetails, setErrorDetails] = useState<any>(null)
 
   useEffect(() => {
     const run = async () => {
       try {
+        setState("loading")
+        setIsVerified(false)
+        setVerifiedEmail("")
         if (!id || !token || !action || (action !== "accept" && action !== "reject")) {
           setState("invalid")
           setMessage("Link invalid. Contactați operatorul.")
           return
         }
-        if (action === "reject") {
-          // Așteptăm motivul refuzului înainte de a înregistra răspunsul
-          setState("await_reason" as any)
-          setMessage("Vă rugăm să indicați motivul refuzului.")
+
+        const workRef = doc(db, "lucrari", id)
+        const workSnap = await getDoc(workRef)
+        if (!workSnap.exists()) {
+          setState("invalid")
+          setMessage("Lucrarea nu a fost găsită.")
           return
         }
 
-        // Procesează pe server pentru fiabilitate maximă
+        const data: any = workSnap.data()
+        if (!data.offerActionToken || data.offerActionToken !== token) {
+          setState("invalid")
+          setMessage("Link invalid. Contactați operatorul.")
+          return
+        }
+        if (data.offerActionUsedAt) {
+          setState("used")
+          setMessage("Oferta a fost deja acceptată sau refuzată. Contactați operatorul.")
+          return
+        }
+        const exp = data.offerActionExpiresAt ? (
+          typeof data.offerActionExpiresAt.toDate === "function" ? data.offerActionExpiresAt.toDate() : new Date(data.offerActionExpiresAt)
+        ) : null
+        if (exp && Date.now() > exp.getTime()) {
+          setState("expired")
+          setMessage("Link expirat. Contactați operatorul pentru o ofertă nouă.")
+          return
+        }
+
+        const verification = data.offerActionVerification || {}
+        if (verification?.verifiedAt && verification?.email) {
+          setIsVerified(true)
+          setVerifiedEmail(String(verification.email))
+          setVerificationEmail(String(verification.email))
+        }
+        setState("ready")
+      } catch (e) {
+        console.error(e)
+        setState("error")
+        setMessage("A apărut o eroare. Încercați mai târziu sau contactați operatorul.")
+        try {
+          const err: any = e
+          setErrorDetails({
+            context: {
+              action,
+              workId: id,
+              hasToken: Boolean(token),
+              time: new Date().toISOString(),
+            },
+            error: {
+              message: String(err?.message || err),
+              code: err?.code || undefined,
+              name: err?.name || undefined,
+              stack: typeof err?.stack === "string" ? err.stack : undefined,
+            },
+          })
+        } catch {}
+      }
+    }
+    run()
+  }, [id, token, action])
+
+  const sendVerificationCode = async () => {
+    if (!verificationEmail.trim()) return
+    try {
+      setIsSendingCode(true)
+      setVerificationMessage("")
+      const resp = await fetch("/api/offer/send-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lucrareId: id, token, email: verificationEmail.trim() }),
+      })
+      const json = await resp.json()
+      if (!resp.ok || json.status !== "sent") {
+        throw new Error(json?.message || "Nu s-a putut trimite codul.")
+      }
+      setVerificationMessage("Codul a fost trimis pe email. Verificați inbox-ul.")
+    } catch (e: any) {
+      setVerificationMessage(String(e?.message || "Eroare la trimiterea codului."))
+    } finally {
+      setIsSendingCode(false)
+    }
+  }
+
+  const verifyCode = async () => {
+    if (!verificationEmail.trim() || !verificationCode.trim()) return
+    try {
+      setIsVerifyingCode(true)
+      setVerificationMessage("")
+      const resp = await fetch("/api/offer/verify-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lucrareId: id,
+          token,
+          email: verificationEmail.trim(),
+          code: verificationCode.trim().toUpperCase(),
+        }),
+      })
+      const json = await resp.json()
+      if (!resp.ok || json.status !== "verified") {
+        throw new Error(json?.message || "Cod invalid.")
+      }
+      setIsVerified(true)
+      setVerifiedEmail(json.email || verificationEmail.trim().toLowerCase())
+      setVerificationMessage("Email verificat cu succes.")
+    } catch (e: any) {
+      setVerificationMessage(String(e?.message || "Cod invalid."))
+    } finally {
+      setIsVerifyingCode(false)
+    }
+  }
+
+  const processResponse = async (finalAction: "accept" | "reject", finalReason?: string) => {
+    try {
+      setState("loading")
         const resp = await fetch("/api/offer/respond", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ lucrareId: id, token, action }),
+        body: JSON.stringify({ lucrareId: id, token, action: finalAction, ...(finalReason ? { reason: finalReason } : {}) }),
         })
         const json = await resp.json()
         if (!resp.ok || json.status !== "success") {
@@ -58,14 +177,17 @@ export default function OfferActionPage() {
           if (json.status === "invalid") {
             setState("invalid"); setMessage("Link invalid. Contactați operatorul."); return
           }
-          throw new Error(json?.message || "Eroare la procesare pe server")
+        if (json.status === "verification_required") {
+          setState("ready")
+          setVerificationMessage("Este necesară validarea în doi pași înainte de accept/refuz.")
+          return
         }
+        throw new Error(json?.message || "Eroare la procesare pe server")
+      }
 
-        // Continuăm cu pașii opționali (email/PDF) non-blocanți
         const ref = doc(db, "tichete", id)
         const snap = await getDoc(ref)
         const data: any = snap.exists() ? snap.data() : null
-        // Helper: return ONLY the email for the exact contact of the work's location
         const resolveRecipientEmailForLocation = (client: any, work: any): string | null => {
           const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(e || "")
           const norm = (s?: string) => String(s || "").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "").trim()
@@ -83,14 +205,12 @@ export default function OfferActionPage() {
           return isValid(email) ? String(email) : null
         }
 
-        // Pregătim emailul de confirmare pentru accept/refuz – strict către emailul locației din Firestore
         try {
           const freshSnap = await getDoc(ref)
           const fresh = freshSnap.exists() ? (freshSnap.data() as any) : null
           if (fresh) {
-            // La accept: generăm (dacă lipsește) și salvăm PDF-ul în Storage pentru a putea oferi link de descărcare
             let ofertaUrl: string | undefined = fresh?.ofertaDocument?.url
-            if (action === "accept" && !ofertaUrl) {
+          if (finalAction === "accept" && !ofertaUrl) {
               const products = Array.isArray(fresh?.products) ? fresh.products : []
               if (products.length) {
                 const blob = await generateOfferPdf({
@@ -116,8 +236,6 @@ export default function OfferActionPage() {
                     : undefined,
                   equipmentName: String((fresh as any)?.echipament || ''),
                   locationName: String((fresh as any)?.locatie || ''),
-                  // Cerință: pe PDF să apară dispecerul/adminul care a preluat lucrarea (preluatDe),
-                  // altfel păstrăm fallback-urile existente.
                   preparedBy: String((fresh as any)?.preluatDe || (fresh as any)?.offerPreparedBy || (fresh as any)?.updatedByName || (fresh as any)?.createdByName || ''),
                   preparedAt: ((fresh as any)?.offerPreparedAt ? (() => {
                     try { const d = (fresh as any).offerPreparedAt?.toDate ? (fresh as any).offerPreparedAt.toDate() : new Date((fresh as any).offerPreparedAt); return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}` } catch { return new Date().toISOString().slice(0,10).split('-').reverse().join('.') }
@@ -148,7 +266,6 @@ export default function OfferActionPage() {
               }
             }
 
-            // Determinăm destinatarul (doar email-ul persoanei de contact a locației)
             let clientData: any = null
             try {
               const cid = fresh?.clientInfo?.id
@@ -158,15 +275,15 @@ export default function OfferActionPage() {
 
             if (recipient) {
               const to = [recipient]
-              const subject = `${action === "accept" ? "Confirmare acceptare ofertă" : "Confirmare răspuns – refuz ofertă"} – tichet ${fresh?.numarRaport || String(id)}`
+            const subject = `${finalAction === "accept" ? "Confirmare acceptare ofertă" : "Confirmare răspuns – refuz ofertă"} – tichet ${fresh?.numarRaport || String(id)}`
               const base = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "")
               const downloadLink = ofertaUrl ? `${base}/api/download?lucrareId=${encodeURIComponent(String(id))}&type=oferta&url=${encodeURIComponent(ofertaUrl)}&recipient=${encodeURIComponent(String(recipient))}` : ""
 
-              const messageParagraph = action === "accept"
+            const messageParagraph = finalAction === "accept"
                 ? "Va multumim pentru acceptarea ofertei noastre. In continuare veti fi contactat de un reprezentant NRG pt a stabili urmatorii pasi."
                 : "Va multumim pentru raspunsul dvs. In continuare veti fi contactat de un reprezentant NRG pt a stabili urmatorii pasi."
 
-              const linkSection = action === "accept" && downloadLink
+            const linkSection = finalAction === "accept" && downloadLink
                 ? `<p style="margin:12px 0"><a href="${downloadLink}" style="background:#2563eb;border-radius:6px;color:#ffffff;display:inline-block;font-weight:600;padding:10px 14px;text-decoration:none">Descarcă oferta</a></p>`
                 : ""
 
@@ -191,110 +308,9 @@ export default function OfferActionPage() {
         } catch (e) {
           console.warn('Post-response email or attachment handling failed (non-blocant):', e)
         }
-        if (action === "accept") setGenerating(false)
-        setState("success")
-        setMessage(action === "accept" ? "Ați acceptat oferta. Vă mulțumim!" : "Ați refuzat oferta. Am înregistrat răspunsul.")
-      } catch (e) {
-        console.error(e)
-        setState("error")
-        setMessage("A apărut o eroare. Încercați mai târziu sau contactați operatorul.")
-        try {
-          const err: any = e
-          setErrorDetails({
-            context: {
-              action,
-              workId: id,
-              hasToken: Boolean(token),
-              time: new Date().toISOString(),
-            },
-            error: {
-              message: String(err?.message || err),
-              code: err?.code || undefined,
-              name: err?.name || undefined,
-              stack: typeof err?.stack === "string" ? err.stack : undefined,
-            },
-          })
-        } catch {}
-      }
-    }
-    run()
-  }, [id, token, action])
-
-  const submitReject = async () => {
-    try {
-      setState("loading")
-      const resp = await fetch("/api/offer/respond", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lucrareId: id, token, action: "reject", reason }),
-      })
-      const json = await resp.json()
-      if (!resp.ok || json.status !== "success") {
-        if (json.status === "expired") {
-          setState("expired"); setMessage("Link expirat. Contactați operatorul pentru o ofertă nouă."); return
-        }
-        if (json.status === "used") {
-          setState("used"); setMessage("Oferta a fost deja acceptată sau refuzată. Contactați operatorul."); return
-        }
-        if (json.status === "invalid") {
-          setState("invalid"); setMessage("Link invalid. Contactați operatorul."); return
-        }
-        throw new Error(json?.message || "Eroare la procesare pe server")
-      }
-
-      // Trimite emailul de confirmare (secțiunea existentă reutilizată)
-      try {
-        const ref = doc(db, "tichete", id)
-        const freshSnap = await getDoc(ref)
-        const fresh = freshSnap.exists() ? (freshSnap.data() as any) : null
-        if (fresh) {
-          // Determinăm destinatarul (doar email-ul persoanei de contact a locației)
-          const resolveRecipientEmailForLocation = (client: any, work: any): string | null => {
-            const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(e || "")
-            const norm = (s?: string) => String(s || "").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "").trim()
-            const locatii = Array.isArray(client?.locatii) ? client.locatii : []
-            const targetName = norm(work?.locatie || work?.clientInfo?.locationName)
-            const targetAddr = norm(work?.clientInfo?.locationAddress)
-            const targetContactName = norm(work?.persoanaContact)
-            const loc = locatii.find((l: any) => norm(l?.nume) === targetName || norm(l?.adresa) === targetAddr)
-            if (!loc) return null
-            const exact = (loc.persoaneContact || []).find((c: any) => norm(c?.nume) === targetContactName)
-            const email = exact?.email
-            return isValid(email) ? String(email) : null
-          }
-
-          let clientData: any = null
-          try {
-            const cid = fresh?.clientInfo?.id
-            if (cid) clientData = await getClientById(cid)
-          } catch {}
-          const recipient = resolveRecipientEmailForLocation(clientData, fresh)
-          if (recipient) {
-            const to = [recipient]
-            const subject = `Confirmare răspuns – refuz ofertă – tichet ${fresh?.numarRaport || String(id)}`
-            const html = `
-              <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0b1220">
-                <p>Am înregistrat refuzul ofertei.</p>
-                ${reason ? `<p><strong>Motiv indicat:</strong> ${reason.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>` : ''}
-              </div>
-            `
-            try {
-              await fetch('/api/users/invite', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ to, subject, html })
-              })
-            } catch (e) {
-              console.warn('Trimitere email confirmare refuz ofertă eșuată (non-blocant):', e)
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('Post-response email handling (reject) failed (non-blocant):', e)
-      }
-
+      if (finalAction === "accept") setGenerating(false)
       setState("success")
-      setMessage("Ați refuzat oferta. Am înregistrat răspunsul.")
+      setMessage(finalAction === "accept" ? "Ați acceptat oferta. Vă mulțumim!" : "Ați refuzat oferta. Am înregistrat răspunsul.")
     } catch (e) {
       console.error(e)
       setState("error")
@@ -303,7 +319,7 @@ export default function OfferActionPage() {
         const err: any = e
         setErrorDetails({
           context: {
-            action: "reject",
+            action: finalAction,
             workId: id,
             hasToken: Boolean(token),
             time: new Date().toISOString(),
@@ -319,6 +335,22 @@ export default function OfferActionPage() {
     }
   }
 
+  const handleAccept = async () => {
+    if (!isVerified) {
+      setVerificationMessage("Este necesară validarea în doi pași înainte de acceptare.")
+      return
+    }
+    await processResponse("accept")
+  }
+
+  const submitReject = async () => {
+    if (!isVerified) {
+      setVerificationMessage("Este necesară validarea în doi pași înainte de refuz.")
+      return
+    }
+    await processResponse("reject", reason)
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
@@ -329,25 +361,75 @@ export default function OfferActionPage() {
           {state === "loading" && (
             <div className="text-sm text-muted-foreground">Se procesează...</div>
           )}
-          {String(state) === "await_reason" && (
+          {state === "ready" && !isVerified && (
             <div className="space-y-3">
               <Alert>
-                <X className="h-4 w-4" />
-                <AlertDescription>Vă rugăm să indicați motivul refuzului (opțional).</AlertDescription>
+                <Check className="h-4 w-4" />
+                <AlertDescription>
+                  Pentru validarea ofertei, vă rugăm să introduceți emailul și să confirmați codul primit.
+                </AlertDescription>
               </Alert>
-              <textarea
-                className="w-full border rounded p-2 text-sm"
-                rows={4}
-                placeholder="Ex.: Preț prea mare / Nu mai este necesar / Alt motiv"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-              />
-              <div className="flex gap-2 justify-end">
-                <Button variant="outline" asChild>
-                  <a href="/">Renunță</a>
+              <div className="space-y-2">
+                <Input
+                  type="email"
+                  placeholder="Email pentru validare"
+                  value={verificationEmail}
+                  onChange={(e) => setVerificationEmail(e.target.value)}
+                  disabled={isSendingCode || isVerifyingCode}
+                />
+                <Button onClick={sendVerificationCode} disabled={isSendingCode || !verificationEmail.trim()}>
+                  {isSendingCode ? "Se trimite..." : "Trimite cod"}
                 </Button>
-                <Button variant="destructive" onClick={submitReject}>Trimite refuzul</Button>
               </div>
+              <div className="space-y-2">
+                <Input
+                  type="text"
+                  placeholder="Cod validare (6 caractere)"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value.toUpperCase())}
+                  disabled={isSendingCode || isVerifyingCode}
+                />
+                <Button onClick={verifyCode} disabled={isVerifyingCode || !verificationCode.trim()}>
+                  {isVerifyingCode ? "Se verifică..." : "Verifică codul"}
+                </Button>
+              </div>
+              {verificationMessage && (
+                <div className="text-sm text-muted-foreground">{verificationMessage}</div>
+              )}
+            </div>
+          )}
+          {state === "ready" && isVerified && (
+            <div className="space-y-3">
+              <Alert>
+                <Check className="h-4 w-4" />
+                <AlertDescription>Validare reușită pentru {verifiedEmail || verificationEmail}.</AlertDescription>
+              </Alert>
+              {action === "accept" && (
+                <div className="flex justify-end">
+                  <Button onClick={handleAccept}>Acceptă oferta</Button>
+                </div>
+              )}
+              {action === "reject" && (
+                <div className="space-y-3">
+                  <Alert>
+                    <X className="h-4 w-4" />
+                    <AlertDescription>Vă rugăm să indicați motivul refuzului (opțional).</AlertDescription>
+                  </Alert>
+                  <textarea
+                    className="w-full border rounded p-2 text-sm"
+                    rows={4}
+                    placeholder="Ex.: Preț prea mare / Nu mai este necesar / Alt motiv"
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                  />
+                  <div className="flex gap-2 justify-end">
+                    <Button variant="outline" asChild>
+                      <a href="/">Renunță</a>
+                    </Button>
+                    <Button variant="destructive" onClick={submitReject}>Trimite refuzul</Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           {state === "success" && (

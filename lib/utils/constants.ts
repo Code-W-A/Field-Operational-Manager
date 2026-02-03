@@ -10,6 +10,7 @@ export const WORK_STATUS = {
   NO_SIGNATURE: "Fără semnătură",
   COMPLETED: "Finalizat",
   ARCHIVED: "Arhivată",
+  CANCELED: "Anulat",
 }
 
 /**
@@ -24,6 +25,7 @@ export const WORK_STATUS_OPTIONS = [
   WORK_STATUS.NO_SIGNATURE,
   WORK_STATUS.COMPLETED,
   WORK_STATUS.ARCHIVED,
+  WORK_STATUS.CANCELED,
 ]
 
 /**
@@ -124,6 +126,8 @@ export function getWorkStatusClass(status: string): string {
       return "bg-amber-100 text-amber-800 hover:bg-amber-200"
     case WORK_STATUS.COMPLETED.toLowerCase():
       return "bg-green-100 text-green-800 hover:bg-green-200"
+    case WORK_STATUS.CANCELED.toLowerCase():
+      return "bg-red-100 text-red-800 hover:bg-red-200"
     default:
       return "bg-gray-100 text-gray-800 hover:bg-gray-200"
   }
@@ -167,6 +171,8 @@ export function getWorkStatusRowClass(lucrare: any): string {
       return "bg-amber-50"
     case WORK_STATUS.COMPLETED.toLowerCase():
       return "bg-green-50"
+    case WORK_STATUS.CANCELED.toLowerCase():
+      return "bg-red-50"
     default:
       return "" // Folosim stilizarea alternativă implicită
   }

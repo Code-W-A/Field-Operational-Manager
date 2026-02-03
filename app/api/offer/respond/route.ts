@@ -30,8 +30,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: "expired", message: "Link expirat." }, { status: 410 })
     }
 
+    const verification = data?.offerActionVerification || {}
+    if (!verification?.verifiedAt) {
+      return NextResponse.json({ status: "verification_required", message: "Validarea în doi pași este necesară." }, { status: 403 })
+    }
+    const verifiedEmail = typeof verification?.email === "string" ? verification.email : ""
     const update: Record<string, any> = {
-      offerResponse: { status: action, at: new Date(), ...(action === "reject" && reason ? { reason } : {}) },
+      offerResponse: {
+        status: action,
+        at: new Date(),
+        ...(verifiedEmail ? { verifiedEmail } : {}),
+        ...(action === "reject" && reason ? { reason } : {}),
+      },
       offerActionUsedAt: new Date(),
     }
     // Păstrăm logica existentă pentru statusOferta și snapshot de ofertă acceptată
