@@ -11,14 +11,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { format, parse, isAfter, isBefore, addMonths, addDays } from "date-fns"
 import { ro } from "date-fns/locale"
-import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Plus, Mail, Check, Info, RefreshCw, Archive, History } from "lucide-react"
+import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Mail, Check, Info, RefreshCw, Archive, History } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { addLucrare, deleteLucrare, updateLucrare, getLucrareById, getNextReportNumber, type Lucrare } from "@/lib/firebase/firestore"
@@ -26,6 +25,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { orderBy, where, collection, getDocs, serverTimestamp } from "firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import { LucrareForm, type LucrareFormRef } from "@/components/lucrare-form"
+import { AddLucrareDialog } from "@/components/add-lucrare-dialog"
 import { ArchiveButton } from "@/components/archive-button"
 import { DataTable } from "@/components/data-table/data-table"
 import { useTablePersistence } from "@/hooks/use-table-persistence"
@@ -2573,93 +2573,34 @@ export default function Lucrari() {
           }
           text="Gestionați toate tichetele și intervențiile"
         >
-          <Dialog
+          <AddLucrareDialog
             open={isAddDialogOpen}
-            onOpenChange={(open) => {
-              if (!open) {
-                handleCloseAddDialog()
-              } else {
-                setIsAddDialogOpen(open)
-              }
+            setOpen={setIsAddDialogOpen}
+            onClose={handleCloseAddDialog}
+            dataEmiterii={dataEmiterii}
+            setDataEmiterii={setDataEmiterii}
+            dataInterventie={dataInterventie}
+            setDataInterventie={setDataInterventie}
+            formData={formData}
+            handleInputChange={handleInputChange}
+            handleSelectChange={handleSelectChange}
+            handleTehnicieniChange={handleTehnicieniChange}
+            handleCustomChange={handleCustomChange}
+            fieldErrors={fieldErrors}
+            setFieldErrors={setFieldErrors}
+            isReintervention={isReassignment}
+            originalWorkOrderId={originalWorkOrderId}
+            formRef={addFormRef}
+            onActiveWorkChange={(count, equipmentName) => {
+              setActiveWorkCount(count)
+              setActiveWorkEquipmentName(equipmentName || "")
             }}
-          >
-            <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700">
-                <Plus className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Adaugă</span> Tichet
-              </Button>
-            </DialogTrigger>
-            <DialogContent
-              className="max-w-4xl max-h-[90vh] overflow-y-auto"
-              onEscapeKeyDown={(e) => {
-                e.preventDefault()
-                handleCloseAddDialog()
-              }}
-            >
-              <DialogHeader>
-                <DialogTitle>Adaugă Tichet Nou</DialogTitle>
-              </DialogHeader>
-              
-              {/* Banner pentru re-intervenții */}
-              {isReassignment && originalWorkOrderId && (
-                <div className="mb-4 p-3 bg-blue-100 border border-blue-300 rounded-md">
-                  <div className="flex items-center">
-                    <span className="text-blue-800 font-medium">
-                      Re-intervenție: Acest formular este precompletat cu datele din lucrarea originală pentru{" "}
-                      <strong>{formData.originalWorkOrderInfo || originalWorkOrderId}</strong>
-                      <span className="ml-2 text-xs text-blue-700">(Câmpurile client/locație/echipament sunt înghețate)</span>
-                    </span>
-                  </div>
-                </div>
-              )}
-              
-              <LucrareForm
-                ref={addFormRef}
-                dataEmiterii={dataEmiterii}
-                setDataEmiterii={setDataEmiterii}
-                dataInterventie={dataInterventie}
-                setDataInterventie={setDataInterventie}
-                formData={formData}
-                handleInputChange={handleInputChange}
-                handleSelectChange={handleSelectChange}
-                handleTehnicieniChange={handleTehnicieniChange}
-                handleCustomChange={handleCustomChange}
-                fieldErrors={fieldErrors}
-                setFieldErrors={setFieldErrors}
-                isReintervention={isReassignment}
-                onActiveWorkChange={(count, equipmentName) => {
-                  setActiveWorkCount(count)
-                  setActiveWorkEquipmentName(equipmentName || "")
-                }}
-              />
-              <DialogFooter className="flex-col gap-2 sm:flex-row">
-                {activeWorkCount > 0 && (
-                  <div className="w-full text-xs text-destructive sm:mr-auto">
-                    Există deja un tichet activ pentru echipamentul{" "}
-                    <strong>{activeWorkEquipmentName || formData.echipament || "selectat"}</strong>. Nu puteți salva o lucrare nouă.
-                  </div>
-                )}
-                <Button variant="outline" onClick={handleCloseAddDialog}>
-                  Anulează
-                </Button>
-                <Button
-                  className="bg-blue-600 hover:bg-blue-700"
-                  onClick={handleSubmit}
-                  disabled={isSubmitting || activeWorkCount > 0}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
-                    </>
-                  ) : (
-                    "Salvează"
-                  )}
-                </Button>
-              </DialogFooter>
-              {missingFieldsMessage && (
-                <div className="mt-2 text-xs text-destructive">{missingFieldsMessage}</div>
-              )}
-            </DialogContent>
-          </Dialog>
+            activeWorkCount={activeWorkCount}
+            activeWorkEquipmentName={activeWorkEquipmentName}
+            isSubmitting={isSubmitting}
+            missingFieldsMessage={missingFieldsMessage}
+            onSave={handleSubmit}
+          />
 
         {/* Dialog pentru editarea lucrării */}
         <Dialog

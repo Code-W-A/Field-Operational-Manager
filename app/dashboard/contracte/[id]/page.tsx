@@ -353,9 +353,9 @@ export default function ContractDetailsPage() {
                       Echipamente
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-sm py-1 px-3">
-                        {equipmentCount} {equipmentCount === 1 ? "echipament" : "echipamente"}
-                      </Badge>
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-sm py-1 px-3">
+                      {equipmentCount} {equipmentCount === 1 ? "echipament" : "echipamente"}
+                    </Badge>
                       {equipmentLabels.map((label, index) => (
                         <Badge key={`${label}-${index}`} variant="outline" className="bg-gray-50 text-gray-700 border-gray-200 text-sm">
                           {label}

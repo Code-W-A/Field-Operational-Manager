@@ -7,7 +7,7 @@ import { Plus, Loader2, Search, X } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, where } from "firebase/firestore"
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, where, updateDoc, doc } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { validateContractAssignment } from "@/lib/firebase/firestore"
 import { toast } from "@/hooks/use-toast"
@@ -36,6 +36,8 @@ interface ContractSelectProps {
   locationNameFilter?: string
   equipmentIdFilter?: string
   equipmentCodeFilter?: string
+  // Include doar contractele cu tipurile specificate (ex. "Abonament")
+  includeTypes?: string[]
   // Exclude contractele cu anumite tipuri (ex. "La cerere")
   excludeTypes?: string[]
 }
@@ -50,6 +52,7 @@ export function ContractSelect({
   locationNameFilter,
   equipmentIdFilter,
   equipmentCodeFilter,
+  includeTypes = [],
   excludeTypes = [],
 }: ContractSelectProps) {
   const [contracts, setContracts] = useState<any[]>([])
@@ -132,33 +135,56 @@ export function ContractSelect({
     return undefined
   }
 
-  const normalizedExcluded = excludeTypes.map((t) => t.toLowerCase().trim())
+  const normalizedIncluded = includeTypes.map((t) => t.toLowerCase().trim()).filter(Boolean)
+  const normalizedExcluded = excludeTypes.map((t) => t.toLowerCase().trim()).filter(Boolean)
 
   const normalize = (value?: string) => String(value || "").trim()
 
-  // Excludem tipurile nedorite (ex. "La cerere") din listă
+  // Filtrăm tipurile (include/exclude)
   const allowedContracts = contractsForClient.filter((c) => {
     const t =
       ((resolveContractType(c) || c.type || "") as string).toString().trim().toLowerCase()
+    if (normalizedIncluded.length > 0 && !normalizedIncluded.includes(t)) return false
     return !normalizedExcluded.includes(t)
   })
 
   const filteredByAssignment = allowedContracts.filter((contract) => {
+    // Location matching:
+    // - prefer ID match when both have IDs
+    // - fallback to name match when contract doesn't have locationId (backward compatibility)
+    const targetLocationId = normalize(locationIdFilter)
+    const targetLocationName = normalize(locationNameFilter)
+    const contractLocationId = normalize(contract.locationId)
+    const contractLocationName = normalize(contract.locationName)
+    const contractLocationNames = Array.isArray(contract.locationNames)
+      ? contract.locationNames.map((l: any) => normalize(l))
+      : []
+
     let locationMatch = true
-    if (locationIdFilter) {
-      locationMatch = normalize(contract.locationId) === normalize(locationIdFilter)
-    } else if (locationNameFilter) {
-      const target = normalize(locationNameFilter)
-      const direct = normalize(contract.locationName)
-      const list = Array.isArray(contract.locationNames) ? contract.locationNames.map((l: any) => normalize(l)) : []
-      locationMatch = Boolean(target) && (direct === target || list.includes(target))
+    if (targetLocationId) {
+      // Accept match by id OR by name (contracts saved with location name in locationId)
+      locationMatch =
+        (Boolean(contractLocationId) && contractLocationId === targetLocationId) ||
+        (Boolean(targetLocationName) &&
+          (contractLocationName === targetLocationName || contractLocationNames.includes(targetLocationName)))
+    } else if (targetLocationName) {
+      locationMatch = contractLocationName === targetLocationName || contractLocationNames.includes(targetLocationName)
     }
 
+    // Equipment matching:
+    // contract.equipmentIds may contain either equipmentId OR equipmentCode, depending on older/newer data
+    const equipmentIdTarget = normalize(equipmentIdFilter)
+    const equipmentCodeTarget = normalize(equipmentCodeFilter)
+    const ids = Array.isArray(contract.equipmentIds) ? contract.equipmentIds.map((id: any) => normalize(id)) : []
+    const hasEquipmentFilter = Boolean(equipmentIdTarget || equipmentCodeTarget)
     let equipmentMatch = true
-    const equipmentTarget = normalize(equipmentIdFilter) || normalize(equipmentCodeFilter)
-    if (equipmentTarget) {
-      const ids = Array.isArray(contract.equipmentIds) ? contract.equipmentIds.map((id: any) => normalize(id)) : []
-      equipmentMatch = ids.includes(equipmentTarget)
+    if (hasEquipmentFilter) {
+      equipmentMatch =
+        (equipmentIdTarget ? ids.includes(equipmentIdTarget) : false) ||
+        (equipmentCodeTarget ? ids.includes(equipmentCodeTarget) : false)
+    } else if (includeTypes.length > 0) {
+      // For "Intervenție în contract", we require an equipment selection
+      equipmentMatch = false
     }
 
     return locationMatch && equipmentMatch
@@ -175,6 +201,38 @@ export function ContractSelect({
       (resolveContractType(contract)?.toLowerCase().includes(searchLower))
     )
   })
+
+  useEffect(() => {
+    // Debug: ajută să vedem de ce nu apar contractele în selecție
+    console.log("[ContractSelect] filters", {
+      clientIdFilter,
+      locationIdFilter,
+      locationNameFilter,
+      equipmentIdFilter,
+      equipmentCodeFilter,
+      includeTypes,
+      excludeTypes,
+      equipmentRequired: includeTypes.length > 0,
+      totalContracts: contracts.length,
+      contractsForClient: contractsForClient.length,
+      allowedContracts: allowedContracts.length,
+      filteredByAssignment: filteredByAssignment.length,
+      filteredContracts: filteredContracts.length,
+    })
+  }, [
+    clientIdFilter,
+    locationIdFilter,
+    locationNameFilter,
+    equipmentIdFilter,
+    equipmentCodeFilter,
+    includeTypes,
+    excludeTypes,
+    contracts.length,
+    contractsForClient.length,
+    allowedContracts.length,
+    filteredByAssignment.length,
+    filteredContracts.length,
+  ])
 
   // Găsim contractul selectat pentru afișare (doar dacă nu este exclus)
   const selectedContract = filteredByAssignment.find((contract) => contract.id === value)

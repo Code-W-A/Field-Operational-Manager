@@ -1214,7 +1214,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     // Modificăm funcția handleClientAdded pentru a gestiona corect adăugarea clientului
     const handleClientAdded = (clientName?: string) => {
       if (clientName) {
-        handleSelectChange("client", clientName)
+      handleSelectChange("client", clientName)
       }
       setIsAddClientDialogOpen(false)
     }
@@ -2324,6 +2324,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 locationNameFilter={formData.locatie || ""}
                 equipmentIdFilter={formData.echipamentId || ""}
                 equipmentCodeFilter={formData.echipamentCod || ""}
+                includeTypes={formData.tipLucrare === "Intervenție în contract" ? ["Abonament"] : []}
                 excludeTypes={formData.tipLucrare === "Intervenție în contract" ? ["La cerere"] : []}
               />
               {formData.contractType && (

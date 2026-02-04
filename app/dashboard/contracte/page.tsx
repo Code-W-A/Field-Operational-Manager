@@ -2234,6 +2234,10 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
                 sorting={tableSorting}
                 onSortingChange={handleSortingChange}
                 onRowClick={(row) => router.push(`/dashboard/contracte/${row.id}`)}
+                getRowClassName={(row) => {
+                  const missing = !Array.isArray((row as any)?.equipmentIds) || ((row as any).equipmentIds?.length ?? 0) === 0
+                  return missing ? "bg-red-100/70" : ""
+                }}
                 table={table}
                 setTable={setTable}
                 showFilters={false}

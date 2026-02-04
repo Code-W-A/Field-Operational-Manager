@@ -202,8 +202,8 @@ export default function OfferActionPage() {
           setVerificationMessage("Este necesară validarea în doi pași înainte de accept/refuz.")
           return
         }
-        throw new Error(json?.message || "Eroare la procesare pe server")
-      }
+          throw new Error(json?.message || "Eroare la procesare pe server")
+        }
 
         const ref = doc(db, "tichete", id)
         const snap = await getDoc(ref)
@@ -447,24 +447,24 @@ export default function OfferActionPage() {
                 </div>
               )}
               {action === "reject" && (
-                <div className="space-y-3">
-                  <Alert>
-                    <X className="h-4 w-4" />
-                    <AlertDescription>Vă rugăm să indicați motivul refuzului (opțional).</AlertDescription>
-                  </Alert>
-                  <textarea
-                    className="w-full border rounded p-2 text-sm"
-                    rows={4}
-                    placeholder="Ex.: Preț prea mare / Nu mai este necesar / Alt motiv"
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                  />
-                  <div className="flex gap-2 justify-end">
-                    <Button variant="outline" asChild>
-                      <a href="/">Renunță</a>
-                    </Button>
-                    <Button variant="destructive" onClick={submitReject}>Trimite refuzul</Button>
-                  </div>
+            <div className="space-y-3">
+              <Alert>
+                <X className="h-4 w-4" />
+                <AlertDescription>Vă rugăm să indicați motivul refuzului (opțional).</AlertDescription>
+              </Alert>
+              <textarea
+                className="w-full border rounded p-2 text-sm"
+                rows={4}
+                placeholder="Ex.: Preț prea mare / Nu mai este necesar / Alt motiv"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+              />
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" asChild>
+                  <a href="/">Renunță</a>
+                </Button>
+                <Button variant="destructive" onClick={submitReject}>Trimite refuzul</Button>
+              </div>
                 </div>
               )}
             </div>

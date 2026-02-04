@@ -12,11 +12,11 @@ import { useDashboardStatusSettings } from "@/hooks/use-dashboard-status-setting
 import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { History, Plus } from "lucide-react"
+import { History } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { LucrareForm } from "@/components/lucrare-form"
+import { AddLucrareDialog } from "@/components/add-lucrare-dialog"
 import { addLucrare, getNextReportNumber, type PersoanaContact } from "@/lib/firebase/firestore"
 import { toast } from "@/hooks/use-toast"
 import { format } from "date-fns"
@@ -51,6 +51,9 @@ export default function Dashboard() {
   }
   // State pentru dialoguri mobile (trebuie definit înainte de orice return condițional)
   const [mobileDialogOpen, setMobileDialogOpen] = React.useState<string | null>(null)
+  const [activeWorkCount, setActiveWorkCount] = React.useState(0)
+  const [activeWorkEquipmentName, setActiveWorkEquipmentName] = React.useState("")
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
 
   const MobileStatCard = React.useCallback(
     ({
@@ -197,6 +200,8 @@ export default function Dashboard() {
 
   const handleCloseAddDialog = React.useCallback(() => {
     setIsAddDialogOpen(false)
+    setActiveWorkCount(0)
+    setActiveWorkEquipmentName("")
     setFormData({
       tipLucrare: "",
       tehnicieni: [],
@@ -246,33 +251,35 @@ export default function Dashboard() {
   }
 
   const handleSubmit = async () => {
+    if (isSubmitting) return
+    // Guard: "Intervenție în contract" doar pentru contracte de tip "Abonament"
+    if (
+      formData.tipLucrare === "Intervenție în contract" &&
+      String(formData.contractType || "").trim() !== "Abonament"
+    ) {
+      setFieldErrors((prev) => (prev.includes("contract") ? prev : [...prev, "contract"]))
+      toast({
+        title: "Contract invalid",
+        description:
+          "Tichetele „Intervenție în contract” se pot lansa doar pe contracte de tip „Abonament”. Pentru „La cerere” folosește un tip facturabil.",
+        variant: "destructive",
+      })
+      return
+    }
+    if (!validateForm()) {
+      toast({
+        title: "Eroare",
+        description: "Vă rugăm să completați toate câmpurile obligatorii",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Narrow types for TS (validateForm already ensures these exist)
+    if (!dataEmiterii || !dataInterventie) return
+
+    setIsSubmitting(true)
     try {
-      // Guard: "Intervenție în contract" doar pentru contracte de tip "Abonament"
-      if (
-        formData.tipLucrare === "Intervenție în contract" &&
-        String(formData.contractType || "").trim() !== "Abonament"
-      ) {
-        setFieldErrors((prev) => (prev.includes("contract") ? prev : [...prev, "contract"]))
-        toast({
-          title: "Contract invalid",
-          description:
-            "Tichetele „Intervenție în contract” se pot lansa doar pe contracte de tip „Abonament”. Pentru „La cerere” folosește un tip facturabil.",
-          variant: "destructive",
-        })
-        return
-      }
-      if (!validateForm()) {
-        toast({
-          title: "Eroare",
-          description: "Vă rugăm să completați toate câmpurile obligatorii",
-          variant: "destructive",
-        })
-        return
-      }
-
-      // Narrow types for TS (validateForm already ensures these exist)
-      if (!dataEmiterii || !dataInterventie) return
-
       // Setăm automat statusul tichetului în funcție de prezența tehnicienilor
       const statusLucrare = (formData.tehnicieni && formData.tehnicieni.length > 0) ? "Atribuită" : "Listată"
 
@@ -315,6 +322,8 @@ export default function Dashboard() {
         description: "A apărut o eroare la adăugarea tichetului.",
         variant: "destructive",
       })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -450,42 +459,29 @@ export default function Dashboard() {
         text=""
         headerAction={
           !isTechnician ? (
-            <Dialog
+            <AddLucrareDialog
               open={isAddDialogOpen}
-              onOpenChange={(open) => {
-                if (!open) {
-                  handleCloseAddDialog()
-                } else {
-                  setIsAddDialogOpen(open)
-                }
+              setOpen={setIsAddDialogOpen}
+              onClose={handleCloseAddDialog}
+              dataEmiterii={dataEmiterii}
+              setDataEmiterii={setDataEmiterii}
+              dataInterventie={dataInterventie}
+              setDataInterventie={setDataInterventie}
+              formData={formData}
+              handleInputChange={handleInputChange}
+              handleSelectChange={handleSelectChange}
+              handleTehnicieniChange={handleTehnicieniChange}
+              handleCustomChange={handleCustomChange}
+              fieldErrors={fieldErrors}
+              onActiveWorkChange={(count, equipmentName) => {
+                setActiveWorkCount(count)
+                setActiveWorkEquipmentName(equipmentName || "")
               }}
-            >
-              <DialogTrigger asChild>
-                <Button className="bg-blue-600 hover:bg-blue-700">
-                  <Plus className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Adaugă</span> Tichet
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Adaugă Tichet Nou</DialogTitle>
-                </DialogHeader>
-
-                <LucrareForm
-                  dataEmiterii={dataEmiterii}
-                  setDataEmiterii={setDataEmiterii}
-                  dataInterventie={dataInterventie}
-                  setDataInterventie={setDataInterventie}
-                  formData={formData}
-                  handleInputChange={handleInputChange}
-                  handleSelectChange={handleSelectChange}
-                  handleTehnicieniChange={handleTehnicieniChange}
-                  handleCustomChange={handleCustomChange}
-                  onSubmit={handleSubmit}
-                  onCancel={handleCloseAddDialog}
-                  fieldErrors={fieldErrors}
-                />
-              </DialogContent>
-            </Dialog>
+              activeWorkCount={activeWorkCount}
+              activeWorkEquipmentName={activeWorkEquipmentName}
+              isSubmitting={isSubmitting}
+              onSave={handleSubmit}
+            />
           ) : null
         }
       >

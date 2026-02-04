@@ -2924,7 +2924,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                               ? "Lucrarea este arhivată. Editorul de ofertă nu este disponibil."
                               : isCanceled
                                 ? "Lucrarea este anulată. Editorul de ofertă nu este disponibil."
-                                : "Lucrarea trebuie preluată de dispecer/admin pentru a edita oferta."}
+                              : "Lucrarea trebuie preluată de dispecer/admin pentru a edita oferta."}
                           </p>
                         </div>
                       </div>
