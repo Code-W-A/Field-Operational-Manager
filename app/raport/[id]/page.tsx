@@ -2308,17 +2308,30 @@ FOM by NRG`,
                             // Redirect to dashboard after a short delay
                             router.push("/dashboard/lucrari")
                           } else {
-                            setIsSubmitting(false)
+                            toast({
+                              title: "Raport finalizat",
+                              description: "Raportul a fost generat, dar trimiterea pe email a eșuat. Lucrarea a fost finalizată.",
+                              variant: "destructive",
+                            })
+
+                            if (updatedLucrare && updatedLucrare.id) {
+                              updateWorkOrderStatus(updatedLucrare.id)
+                            }
+
+                            router.push("/dashboard/lucrari")
                           }
                         })
                         .catch((error) => {
                           console.error("Eroare la trimiterea emailului:", error)
                           toast({
                             title: "Eroare",
-                            description: "Raportul a fost generat, dar trimiterea pe email a eșuat.",
+                            description: "Raportul a fost generat, dar trimiterea pe email a eșuat. Lucrarea a fost finalizată.",
                             variant: "destructive",
                           })
-                          setIsSubmitting(false)
+                          if (updatedLucrare && updatedLucrare.id) {
+                            updateWorkOrderStatus(updatedLucrare.id)
+                          }
+                          router.push("/dashboard/lucrari")
                         })
                     }}
                   />
