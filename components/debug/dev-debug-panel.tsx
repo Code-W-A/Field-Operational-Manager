@@ -59,13 +59,14 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
 
     const isAssigned = technicians.length > 0 || eqInsensitive(status, WORK_STATUS.ASSIGNED)
     const notScanned = !l.equipmentVerified
+    const notPickedUp = !(l as any).preluatDispecer
     const isPastDay = Boolean(execDate && execDate < startOfToday)
     const isToday = Boolean(execDate && execDate >= startOfToday && execDate <= endOfToday)
     const after18 = now >= todayAt18
 
     // Mirrors default dashboard config (see hooks/use-dashboard-status.ts)
     const dateCondition = Boolean(isPastDay || (isToday && after18))
-    const intarziataByDashboardRules = Boolean(execDate && dateCondition && isAssigned && notScanned)
+    const intarziataByDashboardRules = Boolean(execDate && dateCondition && isAssigned && notScanned && notPickedUp)
 
     // Common archive-related flags (informational)
     const isFinalizat = eqInsensitive(status, WORK_STATUS.COMPLETED) || status === "Finalizat"
@@ -95,6 +96,7 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
       techniciansCount: technicians.length,
       technicians,
       notScanned,
+      notPickedUp,
       equipmentVerified: Boolean(l.equipmentVerified),
       isPastDay,
       isToday,

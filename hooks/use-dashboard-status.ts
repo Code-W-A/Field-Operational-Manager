@@ -366,6 +366,7 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
         } else if (execDate) {
       const isAssigned = technicians.length > 0 || eqInsensitive(status, WORK_STATUS.ASSIGNED)
       const notScanned = !l.equipmentVerified
+      const notPickedUp = !(l as any).preluatDispecer
           const isPastDay = execDate < startOfToday
           const isToday = execDate >= startOfToday && execDate <= endOfToday
 
@@ -381,8 +382,9 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
 
           const assignedOk = cfg.intarziateRequireAssigned ? isAssigned : true
           const notScannedOk = cfg.intarziateRequireNotScanned ? notScanned : true
+          const notPickedOk = notPickedUp
 
-          if (dateCondition && assignedOk && notScannedOk) {
+          if (dateCondition && assignedOk && notScannedOk && notPickedOk) {
         // sortăm după data programării pentru relevanță
         res.intarziate.push(buildBubble(l, undefined, execDate || undefined))
           }
