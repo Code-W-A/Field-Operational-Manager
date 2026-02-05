@@ -21,7 +21,7 @@ import { ContractSelect } from "./contract-select"
 // Importăm componenta ClientForm
 import { ClientForm } from "./client-form"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { formatDateTime24, formatTime24 } from "@/lib/utils/time-format"
+import { formatDateTime24, formatTime24, toDateSafe } from "@/lib/utils/time-format"
 // Import the TimeSelector component
 import { TimeSelector } from "./time-selector"
 // Import our new CustomDatePicker component
@@ -205,6 +205,34 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       dataInterventie,
       formData: JSON.stringify(formData),
     })
+
+    // Dacă suntem în editare și nu avem date setate în state, le preluăm din initialData
+    useEffect(() => {
+      if (!isEdit || !initialData) return
+
+      if (!dataEmiterii) {
+        const initialEmiterii = toDateSafe((initialData as any)?.dataEmiterii)
+        if (initialEmiterii) {
+          setDataEmiterii(initialEmiterii)
+          setTimeEmiterii(formatTime24(initialEmiterii))
+        }
+      }
+
+      if (!dataInterventie) {
+        const initialInterventie = toDateSafe((initialData as any)?.dataInterventie)
+        if (initialInterventie) {
+          setDataInterventie(initialInterventie)
+          setTimeInterventie(formatTime24(initialInterventie))
+        }
+      }
+    }, [
+      isEdit,
+      initialData,
+      dataEmiterii,
+      dataInterventie,
+      setDataEmiterii,
+      setDataInterventie,
+    ])
 
     // Use the unsaved changes hook
     const { showDialog, handleNavigation, confirmNavigation, cancelNavigation, pendingUrl } =

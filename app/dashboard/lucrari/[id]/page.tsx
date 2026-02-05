@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { DashboardHeader } from "@/components/dashboard-header"
@@ -19,6 +19,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/hooks/use-toast"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import {
   ChevronLeft,
   FileText,
@@ -209,6 +210,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const { config: archiveRulesConfig } = useArchiveRulesSettings()
   const role = userData?.role || "tehnician"
   const isAdminOrDispatcher = role === "admin" || role === "dispecer"
+  const debugRevizie = searchParams.get("debugRevizie") === "1"
   const fromArhivate = searchParams.get('from') === 'arhivate'
   const fromIstoricEchipament = searchParams.get("from") === "istoric-echipament"
   
@@ -244,6 +246,153 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const [otherActiveWork, setOtherActiveWork] = useState<null | { id: string; numar: string; client?: string; locatie?: string }>(null)
   const [checkingOtherActive, setCheckingOtherActive] = useState(false)
   const debugLoggedOnceRef = useState({ did: false })[0]
+  const [isRevizieDebugDialogOpen, setIsRevizieDebugDialogOpen] = useState(false)
+
+  // Revizie: folosim lista de echipamente din equipmentIds, cu fallback la revision.equipment
+  const revizieEquipmentIds = useMemo(() => {
+    if (!lucrare || lucrare.tipLucrare !== "Revizie") {
+      return Array.isArray(lucrare?.equipmentIds) ? (lucrare?.equipmentIds as string[]) : []
+    }
+    const workAny: any = lucrare as any
+    const equipmentIds = Array.isArray(workAny?.equipmentIds) ? (workAny.equipmentIds as string[]) : []
+    const revList = Array.isArray(workAny?.revision?.equipment) ? (workAny.revision.equipment as any[]) : []
+    const derived = revList
+      .map((r: any) => r?.equipmentId || r?.equipmentCode || r?.id || r?.code)
+      .filter(Boolean)
+      .map((v: any) => String(v))
+    const unique = Array.from(new Set(derived))
+    return unique.length > equipmentIds.length ? unique : equipmentIds
+  }, [lucrare])
+
+  const revizieReportDebug = useMemo(() => {
+    if (!lucrare) return null
+    const status = ((lucrare as any)?.revision?.equipmentStatus || {}) as Record<string, string>
+    const completedIds = revizieEquipmentIds.filter((id) => status[id] === "done")
+    const wouldTechSeeGenerateButton = !lucrare.raportGenerat && role === "tehnician"
+    const isRevizie = lucrare.tipLucrare === "Revizie"
+    const revizieComplete = revizieEquipmentIds.length > 0 && completedIds.length === revizieEquipmentIds.length
+
+    const disabledReasonForRevizie = (() => {
+      if (!isRevizie) return null
+      if (revizieEquipmentIds.length === 0) return "Nu există revizieEquipmentIds (lista echipamentelor pentru revizie e goală)."
+      if (!revizieComplete) return `Revizia nu e completă: ${completedIds.length}/${revizieEquipmentIds.length} done.`
+      return null
+    })()
+
+    const notVisibleReasonForTech = (() => {
+      if (role !== "tehnician") return `Butonul „Generează raport” e afișat doar pentru tehnician. (role=${role})`
+      if (lucrare.raportGenerat) return "Butonul nu apare pentru că `raportGenerat=true` (se afișează „Descarcă raport”)."
+      if (!isRevizie && !(lucrare as any)?.equipmentVerified) return "Lucrare normală: echipamentul nu e verificat (`equipmentVerified=false`)."
+      if (isRevizie && disabledReasonForRevizie) return disabledReasonForRevizie
+      return null
+    })()
+
+    return {
+      when: new Date().toISOString(),
+      lucrare: {
+        id: lucrare.id,
+        nrLucrare: (lucrare as any)?.nrLucrare || "",
+        tipLucrare: lucrare.tipLucrare,
+        statusLucrare: lucrare.statusLucrare,
+        raportGenerat: Boolean(lucrare.raportGenerat),
+        equipmentVerified: Boolean((lucrare as any)?.equipmentVerified),
+      },
+      viewer: {
+        role,
+        uid: userData?.uid || null,
+        displayName: userData?.displayName || null,
+        email: userData?.email || null,
+      },
+      revizie: {
+        revizieEquipmentIds,
+        counts: {
+          total: revizieEquipmentIds.length,
+          done: completedIds.length,
+        },
+        completedIds,
+        equipmentStatus: status,
+      },
+      ui: {
+        wouldTechSeeGenerateButton,
+        notVisibleReasonForTech,
+        showDownloadReportButton: Boolean(lucrare.raportGenerat) && role !== "client",
+      },
+    }
+  }, [lucrare, revizieEquipmentIds, role, userData])
+
+  const openRevizieDebug = useCallback(() => {
+    if (!revizieReportDebug) return
+    console.log("🧪 [Revizie Report Debug] JSON:", revizieReportDebug)
+    setIsRevizieDebugDialogOpen(true)
+  }, [revizieReportDebug])
+
+  const copyRevizieDebugJson = useCallback(async () => {
+    try {
+      if (!revizieReportDebug) return
+      const txt = JSON.stringify(revizieReportDebug, null, 2)
+      await navigator.clipboard.writeText(txt)
+      toast({ title: "Copiat", description: "JSON-ul de debug a fost copiat în clipboard." })
+    } catch (e) {
+      console.error("Eroare la copiere:", e)
+      toast({ title: "Eroare", description: "Nu s-a putut copia JSON-ul.", variant: "destructive" })
+    }
+  }, [revizieReportDebug])
+
+  // Debug Revizie: logăm o singură dată, doar când e cerut explicit din URL (?debugRevizie=1)
+  useEffect(() => {
+    if (!debugRevizie) return
+    if (!lucrare || lucrare.tipLucrare !== "Revizie") return
+    if (debugLoggedOnceRef.did) return
+    debugLoggedOnceRef.did = true
+
+    const workAny: any = lucrare as any
+    const equipmentIds = Array.isArray(workAny?.equipmentIds) ? workAny.equipmentIds : []
+    const equipmentIdSingle = workAny?.echipamentId || workAny?.equipmentId
+    const equipmentCodeSingle = workAny?.echipamentCod || workAny?.equipmentCode
+    const status = (workAny?.revision?.equipmentStatus || {}) as Record<string, string>
+    const statusKeys = Object.keys(status || {})
+    const revisionEquipment = Array.isArray(workAny?.revision?.equipment) ? (workAny.revision.equipment as any[]) : []
+    const completed = equipmentIds.filter((eid: string) => status[eid] === "done")
+
+    const locatii = Array.isArray(clientData?.locatii) ? clientData.locatii : []
+    const workLocationId = workAny?.locationId || workAny?.clientInfo?.locationId || workAny?.clientInfo?.locatieId
+    const loc =
+      (workLocationId ? locatii.find((l: any) => String(l?.id || "") === String(workLocationId)) : null) ||
+      locatii.find((l: any) => l?.nume === lucrare.locatie) ||
+      null
+
+    const resolvedEqSamples = equipmentIds.slice(0, 15).map((eid: string) => {
+      const eq =
+        loc?.echipamente?.find(
+          (e: any) => String(e?.id || "") === String(eid) || String(e?.cod || "") === String(eid),
+        ) || null
+      return { eid, found: !!eq, id: eq?.id, cod: eq?.cod, nume: eq?.nume }
+    })
+
+    // Linie simplă (ușor de văzut/căutat) + grup detaliat
+    console.log("🔎 [Revizie Debug] summary", {
+      lucrareId: lucrare.id,
+      nrLucrare: (lucrare as any)?.nrLucrare || "",
+      equipmentIdsCount: equipmentIds.length,
+      revizieEquipmentIdsCount: revizieEquipmentIds.length,
+      revisionEquipmentCount: revisionEquipment.length,
+      revisionStatusKeys: statusKeys.length,
+      completedCount: completed.length,
+    })
+
+    console.groupCollapsed(`🔎 [Revizie Debug] lucrare=${lucrare.id} nr=${(lucrare as any)?.nrLucrare || ""}`)
+    console.log("tipLucrare:", lucrare.tipLucrare)
+    console.log("equipmentIds (array):", { count: equipmentIds.length, equipmentIds })
+    console.log("revizieEquipmentIds (computed):", { count: revizieEquipmentIds.length, revizieEquipmentIds })
+    console.log("single equipment fields:", { echipamentId: equipmentIdSingle, echipamentCod: equipmentCodeSingle })
+    console.log("revision.equipmentStatus:", { keys: statusKeys.length, sample: statusKeys.slice(0, 20), status })
+    console.log("revision.equipment (list):", { count: revisionEquipment.length, revisionEquipment })
+    console.log("progress computed from equipmentIds:", { completed: completed.length, total: equipmentIds.length, completedIds: completed })
+    console.log("location resolve:", { workLocationId, locatieName: lucrare.locatie, locFound: !!loc, locId: loc?.id, locatiiCount: locatii.length })
+    console.log("equipment resolve samples:", resolvedEqSamples)
+    console.log("hint:", "Dacă equipmentIds are 1 dar revision.equipment are >1, lista afișată e limitată de equipmentIds.")
+    console.groupEnd()
+  }, [debugRevizie, lucrare, clientData, debugLoggedOnceRef, revizieEquipmentIds])
 
   // Asigurăm feedback atunci când se încearcă deschiderea editorului fără preluare
   useEffect(() => {
@@ -658,9 +807,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     }
 
     // Pentru revizii, verificăm dacă toate echipamentele au fost revizuite
-    if (lucrare.tipLucrare === "Revizie" && Array.isArray(lucrare.equipmentIds)) {
+    if (lucrare.tipLucrare === "Revizie" && revizieEquipmentIds.length > 0) {
       const status = (lucrare.revision?.equipmentStatus || {}) as Record<string, string>
-      const all = lucrare.equipmentIds
+      const all = revizieEquipmentIds
       const completed = all.filter((id) => status[id] === "done")
       
       if (completed.length < all.length) {
@@ -699,7 +848,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       description: "Raportul se va descărca automat...",
       variant: "default",
     })
-  }, [router, lucrare, toast])
+  }, [router, lucrare, toast, revizieEquipmentIds])
 
   // Funcție pentru a reîncărca datele lucrării
   // Important UX: toast "Actualizat" doar pentru acțiuni explicite (ex: salvare), nu la refresh automat (ex: focus).
@@ -743,9 +892,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
   // Finalizare parțială pentru revizii: închide lucrarea curentă și creează o lucrare nouă cu echipamentele rămase
   const handleFinalizePartial = useStableCallback(async () => {
-    if (!lucrare || lucrare.tipLucrare !== "Revizie" || !Array.isArray(lucrare.equipmentIds)) return
+    if (!lucrare || lucrare.tipLucrare !== "Revizie" || revizieEquipmentIds.length === 0) return
     const status = (lucrare.revision?.equipmentStatus || {}) as Record<string, string>
-    const all = lucrare.equipmentIds
+    const all = revizieEquipmentIds
     const done = all.filter((id) => status[id] === "done")
     const remaining = all.filter((id) => status[id] !== "done")
     if (done.length === 0 || remaining.length === 0) {
@@ -1305,6 +1454,33 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   return (
     <TooltipProvider>
       <DashboardShell>
+        {/* Dialog debug: doar admin/dispecer, doar cu ?debugRevizie=1 */}
+        {isAdminOrDispatcher && debugRevizie && revizieReportDebug && (
+          <Dialog open={isRevizieDebugDialogOpen} onOpenChange={setIsRevizieDebugDialogOpen}>
+            <DialogContent className="max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>Debug „Generează raport” (Revizie)</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Acest JSON explică de ce butonul apare / nu apare / este dezactivat (în funcție de rol, `raportGenerat`,
+                  statusuri pe echipamente).
+                </p>
+                <Textarea
+                  readOnly
+                  className="min-h-[360px] font-mono text-xs"
+                  value={JSON.stringify(revizieReportDebug, null, 2)}
+                />
+              </div>
+              <DialogFooter className="flex gap-2 sm:justify-end">
+                <Button variant="outline" onClick={copyRevizieDebugJson}>
+                  Copiază JSON
+                </Button>
+                <Button onClick={() => setIsRevizieDebugDialogOpen(false)}>Închide</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       <DashboardHeader 
         heading={
           <span className="flex items-center gap-2">
@@ -1381,16 +1557,23 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 (lucrare.tipLucrare === "Revizie" 
                   ? (() => {
                       // Pentru revizii: verificăm dacă toate echipamentele sunt completate
-                      if (!Array.isArray(lucrare.equipmentIds)) return true
+                      if (revizieEquipmentIds.length === 0) return true
                       const status = (lucrare.revision?.equipmentStatus || {}) as Record<string, string>
-                      const completed = lucrare.equipmentIds.filter((id) => status[id] === "done")
-                      return completed.length < lucrare.equipmentIds.length
+                      const completed = revizieEquipmentIds.filter((id) => status[id] === "done")
+                      return completed.length < revizieEquipmentIds.length
                     })()
                   : !equipmentVerified // Pentru lucrări normale: verificare QR echipament
                 )
               }
             >
               <FileText className="mr-2 h-4 w-4" /> Generează raport
+            </Button>
+          )}
+
+          {/* Debug: admin/dispecer + ?debugRevizie=1 */}
+          {isAdminOrDispatcher && debugRevizie && lucrare.tipLucrare === "Revizie" && (
+            <Button variant="outline" onClick={openRevizieDebug}>
+              Debug raport (revizie)
             </Button>
           )}
 
@@ -1686,16 +1869,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         </Alert>
       )}
 
-      {/* Alert special pentru revizii */}
-      {role === "tehnician" && lucrare.tipLucrare === "Revizie" && lucrare.statusLucrare !== WORK_STATUS.POSTPONED && (
-        <Alert variant="default" className="mb-4 bg-blue-50 border-blue-200">
-          <AlertCircle className="h-4 w-4 text-blue-500" />
-          <AlertTitle>Tichet de revizie</AlertTitle>
-          <AlertDescription>
-            Aceasta este o revizie cu mai multe echipamente. Pentru fiecare echipament din lista de mai jos, deschide fișa de operațiuni, scanează codul QR și completează verificările necesare.
-          </AlertDescription>
-        </Alert>
-      )}
+  
 
       {/* Adăugăm un banner de confirmare dacă echipamentul a fost verificat - doar pentru lucrări normale */}
       {role === "tehnician" && equipmentVerified && lucrare.statusLucrare !== WORK_STATUS.POSTPONED && lucrare.tipLucrare !== "Revizie" && (
@@ -1853,10 +2027,10 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                     {/* Header cu progres - responsive */}
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3 sm:mb-4 bg-slate-50 p-3 rounded-lg">
                       <h3 className="text-lg sm:text-xl font-semibold text-gray-900">Echipamente în revizie</h3>
-                      {Array.isArray(lucrare.equipmentIds) && lucrare.equipmentIds.length > 0 && (
+                    {revizieEquipmentIds.length > 0 && (
                         <div className="flex items-center gap-2">
                           <Badge variant="secondary" className="text-sm sm:text-base font-semibold px-3 py-1.5">
-                            {lucrare.equipmentIds.filter((eid: string) => (lucrare.revision?.equipmentStatus || {})[eid] === "done").length} / {lucrare.equipmentIds.length} completate
+                          {revizieEquipmentIds.filter((eid: string) => (lucrare.revision?.equipmentStatus || {})[eid] === "done").length} / {revizieEquipmentIds.length} completate
                           </Badge>
                         </div>
                       )}
@@ -1873,9 +2047,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       </div>
                     )}
 
-                    {Array.isArray(lucrare.equipmentIds) && lucrare.equipmentIds.length > 0 ? (
+                    {revizieEquipmentIds.length > 0 ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {lucrare.equipmentIds.map((eid: string, index: number) => {
+                        {revizieEquipmentIds.map((eid: string, index: number) => {
                           const status = (lucrare.revision?.equipmentStatus || {})[eid] || "pending"
                           const locatii = Array.isArray(clientData?.locatii) ? clientData.locatii : []
                           const workLocationId =
@@ -1905,17 +2079,17 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                             ? `${Math.floor((eqTime.durationMinutes || 0) / 60)}h ${(eqTime.durationMinutes || 0) % 60}m`
                             : undefined)
                           
-                          // Debug logging
-                          if (index === 0) {
-                            console.log("🔍 Debug Revizie QR:", { 
-                              eid, 
+                          // Debug logging (doar la cerere, ca să nu spamăm producția)
+                          if (debugRevizie && index === 0) {
+                            console.log("🔍 Debug Revizie QR:", {
+                              eid,
                               hasEq: !!eq,
-                              eq: eq,
-                              role, 
+                              eq,
+                              role,
                               isDispatcherOrAdmin: role === "dispecer" || role === "admin",
                               shouldShowQR: (role === "dispecer" || role === "admin") && !!eq,
                               client: lucrare.client,
-                              locatie: lucrare.locatie
+                              locatie: lucrare.locatie,
                             })
                           }
                           
@@ -2112,11 +2286,11 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                               onClick={handleGenerateReport}
                               disabled={
                                 (() => {
-                                  if (!Array.isArray(lucrare.equipmentIds)) return true
+                                  if (revizieEquipmentIds.length === 0) return true
                                   const status = (lucrare.revision?.equipmentStatus || {}) as Record<string, string>
-                                  const completed = lucrare.equipmentIds.filter((id) => status[id] === "done")
+                                  const completed = revizieEquipmentIds.filter((id) => status[id] === "done")
                                   // Generare raport disponibilă DOAR când toate echipamentele sunt finalizate
-                                  return completed.length !== lucrare.equipmentIds.length
+                                  return completed.length !== revizieEquipmentIds.length
                                 })()
                               }
                               className="w-full h-14 text-base font-bold rounded-xl shadow-lg bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
@@ -2126,9 +2300,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                               Generează raport
                             </Button>
                             {/* Finalizare parțială – disponibilă dacă cel puțin un echipament este finalizat dar nu toate */}
-                            {Array.isArray(lucrare.equipmentIds) && (() => {
+                            {revizieEquipmentIds.length > 0 && (() => {
                               const st = (lucrare.revision?.equipmentStatus || {}) as Record<string, string>
-                              const all = lucrare.equipmentIds || []
+                              const all = revizieEquipmentIds || []
                               const done = all.filter((id) => st[id] === "done")
                               return done.length > 0 && done.length < all.length
                             })() && (
@@ -3296,11 +3470,11 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                           </p>
                         ) : null}
 
-                        {lucrare?.tipLucrare === "Revizie" && Array.isArray(lucrare.equipmentIds) && (
+                        {lucrare?.tipLucrare === "Revizie" && revizieEquipmentIds.length > 0 && (
                           <div className="space-y-2">
                             <p className="text-sm font-medium">Fișe de operațiuni (echipamente finalizate)</p>
                             <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
-                              {lucrare.equipmentIds
+                              {revizieEquipmentIds
                                 .filter((eid: string) => (lucrare.revision?.equipmentStatus || {})[eid] === "done")
                                 .map((eid: string) => {
                                   const loc = clientData?.locatii?.find((l: any) => l.nume === lucrare.locatie)
@@ -3324,7 +3498,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                     </Button>
                                   )
                                 })}
-                              {lucrare.equipmentIds.filter((eid: string) => (lucrare.revision?.equipmentStatus || {})[eid] === "done").length === 0 && (
+                              {revizieEquipmentIds.filter((eid: string) => (lucrare.revision?.equipmentStatus || {})[eid] === "done").length === 0 && (
                                 <p className="text-sm text-muted-foreground sm:col-span-2 md:col-span-3">
                                   Nicio fișă disponibilă încă. Echipamentele trebuie finalizate.
                                 </p>
