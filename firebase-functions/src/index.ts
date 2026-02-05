@@ -661,19 +661,25 @@ async function generateRevisionWorks(params: { now: Date; contractId?: string })
       if (!contract.revisionSchedulePreview || !Array.isArray(contract.revisionSchedulePreview)) continue
 
       const clientPayload = await fetchClient(contract.clientId)
-      const locationEquipments = new Map<string, string[]>()
+      const locationEquipments = new Map<string, { id?: string; cod?: string }[]>()
+      const contractEquipmentIds = Array.isArray((contract as any)?.equipmentIds)
+        ? (contract as any).equipmentIds.map((id: any) => String(id))
+        : []
       const locs = (clientPayload.data as any)?.locatii
       if (Array.isArray(locs)) {
         for (const loc of locs) {
           const locName = loc?.nume
           if (!locName) continue
-          const eqIds = Array.isArray(loc?.echipamente)
+          const eqList = Array.isArray(loc?.echipamente)
             ? loc.echipamente
-                .map((eq: any) => eq?.id)
-                .filter((id: any) => typeof id === "string" && id.length > 0)
+                .map((eq: any) => ({
+                  id: typeof eq?.id === "string" && eq.id.length > 0 ? String(eq.id) : undefined,
+                  cod: typeof eq?.cod === "string" && eq.cod.length > 0 ? String(eq.cod) : undefined,
+                }))
+                .filter((eq: any) => eq.id || eq.cod)
             : []
-          if (eqIds.length) {
-            locationEquipments.set(locName, eqIds)
+          if (eqList.length) {
+            locationEquipments.set(locName, eqList)
           }
         }
       }
@@ -716,6 +722,33 @@ async function generateRevisionWorks(params: { now: Date; contractId?: string })
         if (exists) continue
 
         const nrLucrare = await getNextReportNumberAdmin()
+        const locEqList = locationEquipments.get(entry.locationName || "") || []
+        const locEqMatchSet = new Set(
+          locEqList
+            .flatMap((eq) => [eq.id, eq.cod])
+            .filter((v) => typeof v === "string" && v.length > 0)
+            .map((v) => String(v)),
+        )
+        let equipmentIdsForWork: string[] | undefined
+        if (contractEquipmentIds.length > 0) {
+          const filtered = contractEquipmentIds.filter((id: string) => locEqMatchSet.has(id))
+          if (filtered.length === 0) {
+            console.warn("generateRevisionWorks: contract has equipmentIds but none match location", {
+              contractId: contract.id,
+              locationName: entry.locationName,
+              contractEquipmentIds,
+              locEqList,
+            })
+            continue
+          }
+          equipmentIdsForWork = filtered
+        } else {
+          const fallbackIds = locEqList
+            .map((eq) => (eq.id ? eq.id : eq.cod))
+            .filter((v): v is string => typeof v === "string" && v.length > 0)
+          equipmentIdsForWork = fallbackIds.length ? fallbackIds : undefined
+        }
+
         const payload = createWorkPayload({
           contract,
           clientName: clientPayload.name,
@@ -724,7 +757,7 @@ async function generateRevisionWorks(params: { now: Date; contractId?: string })
           locationName: entry.locationName,
           scheduledDate: entry.scheduledAt,
           nrLucrare,
-          equipmentIds: locationEquipments.get(entry.locationName || "") || undefined,
+          equipmentIds: equipmentIdsForWork,
         })
 
       // Safety net: chiar dacă o altă bucată de cod ar crea prematur, UI va ascunde lucrarea până la generateAt.
