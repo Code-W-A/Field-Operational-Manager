@@ -350,6 +350,13 @@ export default function Lucrari() {
     })
   }, [rawLucrari])
 
+  const isFinalizatByReport = useCallback((lucrare: any) => {
+    const status = String(lucrare?.statusLucrare || "").toLowerCase()
+    const byStatus = status === "finalizat"
+    const byFinalizare = String(lucrare?.statusFinalizareInterventie || "").toUpperCase() === "FINALIZAT"
+    return byStatus || byFinalizare
+  }, [])
+
   // Update the filteredLucrari function to include completed work orders that haven't been picked up
   const filteredLucrari = useMemo(() => {
     if (userData?.role === "tehnician" && userData?.displayName) {
@@ -357,7 +364,7 @@ export default function Lucrari() {
         const isAssignedToTechnician =
           lucrare.tehnicieni && Array.isArray(lucrare.tehnicieni) && lucrare.tehnicieni.includes(userData.displayName)
 
-        const isFinalized = lucrare.statusLucrare === "Finalizat"
+        const isFinalized = isFinalizatByReport(lucrare)
         const hasReportGenerated = lucrare.raportGenerat === true
         const isPickedUpByDispatcher = lucrare.preluatDispecer === true
         const isCompletedWithReportAndPickedUp = isFinalized && hasReportGenerated && isPickedUpByDispatcher
@@ -413,9 +420,10 @@ export default function Lucrari() {
   }, [filteredLucrari, db])
 
   // Helper function to check if a work order is completed with report but not picked up
-  const isCompletedWithReportNotPickedUp = useCallback((lucrare) => {
-    return lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true && lucrare.preluatDispecer === false
-  }, [])
+  const isCompletedWithReportNotPickedUp = useCallback(
+    (lucrare) => isFinalizatByReport(lucrare) && lucrare.raportGenerat === true && lucrare.preluatDispecer === false,
+    [isFinalizatByReport],
+  )
 
   const isPostponedNotPickedUp = useCallback((lucrare) => {
     return lucrare.statusLucrare === WORK_STATUS.POSTPONED && lucrare.preluatDispecer === false
@@ -678,12 +686,12 @@ export default function Lucrari() {
                 if (val === "preluat") return item.preluatDispecer === true
                 if (val === "nepreluat")
                   return (
-                    item.preluatDispecer === false && item.statusLucrare === "Finalizat" && item.raportGenerat === true
+                    item.preluatDispecer === false && isFinalizatByReport(item) && item.raportGenerat === true
                   )
                 if (val === "nedefinit")
                   return (
                     item.preluatDispecer === undefined ||
-                    item.statusLucrare !== "Finalizat" ||
+                    !isFinalizatByReport(item) ||
                     item.raportGenerat !== true
                   )
                 return false
@@ -2165,7 +2173,9 @@ export default function Lucrari() {
       enableHiding: true,
       enableFiltering: true,
       cell: ({ row }) => (
-        <Badge className={getWorkStatusClass(row.original.statusLucrare)}>{row.original.statusLucrare === "Finalizat" ? "Raport generat" : row.original.statusLucrare}</Badge>
+        <Badge className={getWorkStatusClass(row.original.statusLucrare)}>
+          {isFinalizatByReport(row.original) ? "Raport generat" : row.original.statusLucrare}
+        </Badge>
       ),
     },
     {
@@ -2231,7 +2241,7 @@ export default function Lucrari() {
       enableHiding: true,
       enableFiltering: true,
       cell: ({ row }) => {
-        const isFinalized = row.original.statusLucrare === "Finalizat"
+        const isFinalized = isFinalizatByReport(row.original)
         const hasReportGenerated = row.original.raportGenerat === true
         const isPickedUp = row.original.preluatDispecer === true
 
@@ -2577,18 +2587,18 @@ export default function Lucrari() {
             open={isAddDialogOpen}
             setOpen={setIsAddDialogOpen}
             onClose={handleCloseAddDialog}
-            dataEmiterii={dataEmiterii}
-            setDataEmiterii={setDataEmiterii}
-            dataInterventie={dataInterventie}
-            setDataInterventie={setDataInterventie}
-            formData={formData}
-            handleInputChange={handleInputChange}
-            handleSelectChange={handleSelectChange}
-            handleTehnicieniChange={handleTehnicieniChange}
-            handleCustomChange={handleCustomChange}
-            fieldErrors={fieldErrors}
-            setFieldErrors={setFieldErrors}
-            isReintervention={isReassignment}
+                dataEmiterii={dataEmiterii}
+                setDataEmiterii={setDataEmiterii}
+                dataInterventie={dataInterventie}
+                setDataInterventie={setDataInterventie}
+                formData={formData}
+                handleInputChange={handleInputChange}
+                handleSelectChange={handleSelectChange}
+                handleTehnicieniChange={handleTehnicieniChange}
+                handleCustomChange={handleCustomChange}
+                fieldErrors={fieldErrors}
+                setFieldErrors={setFieldErrors}
+                isReintervention={isReassignment}
             originalWorkOrderId={originalWorkOrderId}
             formRef={addFormRef}
             onActiveWorkChange={(count, equipmentName) => {
@@ -2932,8 +2942,9 @@ export default function Lucrari() {
                 return s || "-"
               })()
 
-              const workStatusLabel =
-                lucrare.statusLucrare === "Finalizat" ? "Raport generat" : String(lucrare.statusLucrare || "")
+              const workStatusLabel = isFinalizatByReport(lucrare)
+                ? "Raport generat"
+                : String(lucrare.statusLucrare || "")
 
               return (
                 <Card

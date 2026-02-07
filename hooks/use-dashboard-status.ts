@@ -13,6 +13,7 @@ export interface DashboardBubbleItem {
   lucrareId?: string
   locatie: string
   equipmentLabel: string
+  equipmentList?: string[]
   client?: string
   nrLucrare?: string
   statusLucrare?: string
@@ -108,11 +109,32 @@ function eqInsensitive(a?: string, ...candidates: string[]): boolean {
 }
 
 function buildBubble(l: any, offerStatus?: "accept" | "reject", sortDate?: Date, equipmentStatus?: string): DashboardBubbleItem {
-  const equipmentLabel = l.echipament || l.echipamentModel || l.echipamentCod || "-"
+  const fallbackLabel = l.echipament || l.echipamentModel || l.echipamentCod || "-"
+  const isRevizie = String(l?.tipLucrare || "") === "Revizie"
+  let equipmentLabel = fallbackLabel
+  let equipmentList: string[] | undefined
+
+  if (isRevizie) {
+    const revList = Array.isArray((l as any)?.revision?.equipment) ? (l as any).revision.equipment : []
+    const revLabels = revList
+      .map((r: any) => r?.equipmentName || r?.equipmentCode || r?.equipmentId || r?.id || r?.code || r?.nume || r?.denumire)
+      .filter(Boolean)
+      .map((v: any) => String(v).trim())
+      .filter((v: string) => v.length > 0)
+    if (revLabels.length === 1) {
+      equipmentLabel = revLabels[0]
+      equipmentList = revLabels
+    } else if (revLabels.length > 1) {
+      equipmentLabel = "Echipamente"
+      equipmentList = revLabels
+    }
+  }
+
   return {
     id: String(l.id),
     locatie: String(l.locatie || "-"),
     equipmentLabel: String(equipmentLabel),
+    equipmentList: equipmentList,
     client: l.client,
     nrLucrare: l.nrLucrare || l.numarRaport,
     statusLucrare: l.statusLucrare,

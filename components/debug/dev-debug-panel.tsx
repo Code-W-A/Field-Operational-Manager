@@ -1,10 +1,11 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Bug, Copy } from "lucide-react"
 import { WORK_STATUS } from "@/lib/utils/constants"
 import { useAuth } from "@/contexts/AuthContext"
@@ -42,10 +43,34 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
   if (!isAdmin) return null
 
   const [open, setOpen] = useState(false)
+  const [buildInfo, setBuildInfo] = useState<any>(null)
+  const [buildInfoError, setBuildInfoError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const run = async () => {
+      try {
+        const res = await fetch("/api/build-info", { cache: "no-store" })
+        const json = await res.json()
+        if (cancelled) return
+        setBuildInfo(json)
+        setBuildInfoError(null)
+      } catch (e: any) {
+        if (cancelled) return
+        setBuildInfo(null)
+        setBuildInfoError(String(e?.message || e || "unknown"))
+      }
+    }
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const computed = useMemo(() => {
     const l = lucrare || {}
     const status = String(l.statusLucrare || "")
+    const statusFinalizareInterventie = String((l as any)?.statusFinalizareInterventie || "")
     const technicians = Array.isArray(l.tehnicieni) ? l.tehnicieni : []
     const semnaturaTehnician = String(l.semnaturaTehnician || "")
     const semnaturaBeneficiar = String(l.semnaturaBeneficiar || "")
@@ -78,6 +103,7 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
 
     // Common archive-related flags (informational)
     const isFinalizat = eqInsensitive(status, WORK_STATUS.COMPLETED) || status === "Finalizat"
+    const isFinalizatByReport = isFinalizat || statusFinalizareInterventie.toUpperCase() === "FINALIZAT"
     const raportGenerat = Boolean(l.raportGenerat)
     const preluatDispecer = Boolean(l.preluatDispecer)
 
@@ -89,13 +115,13 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
 
     // /dashboard/lucrari (list) - shows the "Preia" button ONLY for completed-with-report, not for postponed.
     const list_shouldShowPreia =
-      !isTechnicianRole && status === "Finalizat" && raportGenerat === true && preluatDispecer === false
+      !isTechnicianRole && isFinalizatByReport && raportGenerat === true && preluatDispecer === false
 
     // /dashboard/lucrari/[id] (details) - shows "Preia lucrare" for completed-with-report OR postponed, if not already picked up.
     const details_shouldShowPreia =
       isAdminOrDispatcherRole &&
       preluatDispecer === false &&
-      ((status === "Finalizat" && raportGenerat === true) || status === WORK_STATUS.POSTPONED)
+      ((isFinalizatByReport && raportGenerat === true) || status === WORK_STATUS.POSTPONED)
 
     return {
       execDate: execDate ? execDate.toISOString() : null,
@@ -111,6 +137,8 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
       after18,
       intarziataByDashboardRules,
       isFinalizat,
+      isFinalizatByReport,
+      statusFinalizareInterventie: statusFinalizareInterventie || null,
       raportGenerat,
       preluatDispecer,
       statusFinalizareInterventie: (l as any)?.statusFinalizareInterventie ?? null,
@@ -163,6 +191,7 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
     const technicians = Array.isArray(l.tehnicieni) ? l.tehnicieni : []
     const technNames = technicians.map((t) => String(t)).filter(Boolean)
     const tipLucrare = String(l.tipLucrare || "")
+    const statusFinalizareInterventie = String((l as any)?.statusFinalizareInterventie || "")
     const semnaturaTehnician = String(l.semnaturaTehnician || "")
     const semnaturaBeneficiar = String(l.semnaturaBeneficiar || "")
     const raportSnapshot = (l as any)?.raportSnapshot || null
@@ -174,6 +203,7 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
     lines.push(`locatie: ${String(l.locatie || "")}`)
     lines.push(`tipLucrare: ${tipLucrare}`)
     lines.push(`statusLucrare: ${status}`)
+    lines.push(`statusFinalizareInterventie: ${statusFinalizareInterventie}`)
     lines.push(`raportGenerat: ${String(Boolean(l.raportGenerat))}`)
     lines.push(`preluatDispecer: ${String(Boolean(l.preluatDispecer))}`)
     lines.push(`lockedAfterReintervention: ${String(Boolean((l as any).lockedAfterReintervention))}`)
@@ -204,6 +234,7 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
     lines.push("Context A: /dashboard/lucrari (LISTĂ) – butonul 'Preia' (coloana 'Preluat Dispecer')")
     lines.push(`- role != 'tehnician': ${String(!computed.isTechnicianRole)}`)
     lines.push(`- statusLucrare == 'Finalizat': ${String(status === "Finalizat")}`)
+    lines.push(`- statusFinalizareInterventie == 'FINALIZAT': ${String(statusFinalizareInterventie.toUpperCase() === "FINALIZAT")}`)
     lines.push(`- raportGenerat == true: ${String(Boolean(l.raportGenerat) === true)}`)
     lines.push(`- preluatDispecer == false: ${String(Boolean(l.preluatDispecer) === false)}`)
     lines.push(`=> REZULTAT: ${computed.list_shouldShowPreia ? "ARATĂ butonul 'Preia'" : "NU arată butonul 'Preia'"}`)
@@ -214,7 +245,8 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
     lines.push(`- preluatDispecer == false: ${String(Boolean(l.preluatDispecer) === false)}`)
     lines.push(
       `- (Finalizat+raport) OR (Amânată): ${String(
-        (status === "Finalizat" && Boolean(l.raportGenerat) === true) || status === WORK_STATUS.POSTPONED,
+        ((status === "Finalizat" || statusFinalizareInterventie.toUpperCase() === "FINALIZAT") && Boolean(l.raportGenerat) === true) ||
+          status === WORK_STATUS.POSTPONED,
       )}`,
     )
     lines.push(`=> REZULTAT: ${computed.details_shouldShowPreia ? "ARATĂ butonul 'Preia lucrare'" : "NU arată butonul 'Preia lucrare'"}`)
@@ -241,7 +273,8 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden">
+          <div className="flex flex-col max-h-[85vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between gap-3">
               <span>Debug (admin)</span>
@@ -283,17 +316,46 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
             </DialogTitle>
           </DialogHeader>
 
-          <div className="grid gap-4 md:grid-cols-2">
+            <Tabs defaultValue="build" className="mt-4 flex flex-col min-h-0">
+              <TabsList className="self-start">
+                <TabsTrigger value="build">Build</TabsTrigger>
+                <TabsTrigger value="computed">Computed</TabsTrigger>
+                <TabsTrigger value="preluare">Preluare</TabsTrigger>
+                <TabsTrigger value="lucrare">Lucrare</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="build" className="mt-3 min-h-0">
+                <div className="rounded-lg border p-3">
+                  <div className="text-sm font-semibold mb-2">Build info (domain sanity)</div>
+                  <ScrollArea className="h-[60vh]">
+                    {buildInfoError ? (
+                      <div className="text-xs text-red-600">Eroare: {buildInfoError}</div>
+                    ) : (
+                      <pre className="text-xs whitespace-pre-wrap break-words">{JSON.stringify(buildInfo, null, 2)}</pre>
+                    )}
+                  </ScrollArea>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="computed" className="mt-3 min-h-0">
             <div className="rounded-lg border p-3">
               <div className="text-sm font-semibold mb-2">Computed</div>
+                  <ScrollArea className="h-[60vh]">
               <pre className="text-xs whitespace-pre-wrap break-words">{JSON.stringify(computed, null, 2)}</pre>
+                  </ScrollArea>
             </div>
+              </TabsContent>
 
+              <TabsContent value="preluare" className="mt-3 min-h-0">
             <div className="rounded-lg border p-3">
               <div className="text-sm font-semibold mb-2">Preluare debug (copy/paste)</div>
+                  <ScrollArea className="h-[60vh]">
               <pre className="text-xs whitespace-pre-wrap break-words">{preluareDebugText}</pre>
+                  </ScrollArea>
             </div>
+              </TabsContent>
 
+              <TabsContent value="lucrare" className="mt-3 min-h-0">
             <div className="rounded-lg border">
               <div className="p-3 border-b flex items-center justify-between">
                 <div className="text-sm font-semibold">Lucrare (doc dump)</div>
@@ -303,6 +365,8 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
                 <pre className="text-xs whitespace-pre-wrap break-words">{jsonText}</pre>
               </ScrollArea>
             </div>
+              </TabsContent>
+            </Tabs>
           </div>
         </DialogContent>
       </Dialog>

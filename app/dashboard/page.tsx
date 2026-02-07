@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { AddLucrareDialog } from "@/components/add-lucrare-dialog"
 import { addLucrare, getNextReportNumber, type PersoanaContact } from "@/lib/firebase/firestore"
+import { WORK_STATUS } from "@/lib/utils/constants"
 import { toast } from "@/hooks/use-toast"
 import { format } from "date-fns"
 import { Scanner } from "@yudiel/react-qr-scanner"
@@ -252,31 +253,31 @@ export default function Dashboard() {
 
   const handleSubmit = async () => {
     if (isSubmitting) return
-    // Guard: "Intervenție în contract" doar pentru contracte de tip "Abonament"
-    if (
-      formData.tipLucrare === "Intervenție în contract" &&
-      String(formData.contractType || "").trim() !== "Abonament"
-    ) {
-      setFieldErrors((prev) => (prev.includes("contract") ? prev : [...prev, "contract"]))
-      toast({
-        title: "Contract invalid",
-        description:
-          "Tichetele „Intervenție în contract” se pot lansa doar pe contracte de tip „Abonament”. Pentru „La cerere” folosește un tip facturabil.",
-        variant: "destructive",
-      })
-      return
-    }
-    if (!validateForm()) {
-      toast({
-        title: "Eroare",
-        description: "Vă rugăm să completați toate câmpurile obligatorii",
-        variant: "destructive",
-      })
-      return
-    }
+      // Guard: "Intervenție în contract" doar pentru contracte de tip "Abonament"
+      if (
+        formData.tipLucrare === "Intervenție în contract" &&
+        String(formData.contractType || "").trim() !== "Abonament"
+      ) {
+        setFieldErrors((prev) => (prev.includes("contract") ? prev : [...prev, "contract"]))
+        toast({
+          title: "Contract invalid",
+          description:
+            "Tichetele „Intervenție în contract” se pot lansa doar pe contracte de tip „Abonament”. Pentru „La cerere” folosește un tip facturabil.",
+          variant: "destructive",
+        })
+        return
+      }
+      if (!validateForm()) {
+        toast({
+          title: "Eroare",
+          description: "Vă rugăm să completați toate câmpurile obligatorii",
+          variant: "destructive",
+        })
+        return
+      }
 
-    // Narrow types for TS (validateForm already ensures these exist)
-    if (!dataEmiterii || !dataInterventie) return
+      // Narrow types for TS (validateForm already ensures these exist)
+      if (!dataEmiterii || !dataInterventie) return
 
     setIsSubmitting(true)
     try {
@@ -363,6 +364,7 @@ export default function Dashboard() {
       key={it.id}
       title={it.locatie}
       subtitle={it.equipmentLabel}
+      equipmentList={it.equipmentList}
       colorClass={color}
       onClick={() => router.push(`/dashboard/lucrari/${it.id}`)}
       className="mb-2"
@@ -373,8 +375,9 @@ export default function Dashboard() {
     const s = String(status || "").trim().toLowerCase()
     const finalized = ["finalizată", "finalizata", "finalizat", "raportată", "raportata", "închisă", "inchisa", "închis", "inchis"]
     if (finalized.includes(s)) return "bg-green-700"
-    // Pentru tehnicieni: orice non-finalizat e tratat ca "în lucru" (doar 2 culori)
-    return "bg-blue-700"
+    if (s === WORK_STATUS.IN_PROGRESS.toLowerCase()) return "bg-blue-700"
+    // Atribuită / orice alt status non-finalizat rămâne gri
+    return "bg-gray-700"
   }
 
   const technicianAssignedBubble = (it: any) => (
@@ -382,6 +385,7 @@ export default function Dashboard() {
       key={it.id}
       title={it.locatie}
       subtitle={it.equipmentLabel}
+      equipmentList={it.equipmentList}
       status={it.statusLucrare}
       colorClass={getTechnicianWorkColor(it.statusLucrare)}
       onClick={() => router.push(`/dashboard/lucrari/${it.id}`)}
@@ -483,16 +487,16 @@ export default function Dashboard() {
               open={isAddDialogOpen}
               setOpen={setIsAddDialogOpen}
               onClose={handleCloseAddDialog}
-              dataEmiterii={dataEmiterii}
-              setDataEmiterii={setDataEmiterii}
-              dataInterventie={dataInterventie}
-              setDataInterventie={setDataInterventie}
-              formData={formData}
-              handleInputChange={handleInputChange}
-              handleSelectChange={handleSelectChange}
-              handleTehnicieniChange={handleTehnicieniChange}
-              handleCustomChange={handleCustomChange}
-              fieldErrors={fieldErrors}
+                  dataEmiterii={dataEmiterii}
+                  setDataEmiterii={setDataEmiterii}
+                  dataInterventie={dataInterventie}
+                  setDataInterventie={setDataInterventie}
+                  formData={formData}
+                  handleInputChange={handleInputChange}
+                  handleSelectChange={handleSelectChange}
+                  handleTehnicieniChange={handleTehnicieniChange}
+                  handleCustomChange={handleCustomChange}
+                  fieldErrors={fieldErrors}
               onActiveWorkChange={(count, equipmentName) => {
                 setActiveWorkCount(count)
                 setActiveWorkEquipmentName(equipmentName || "")

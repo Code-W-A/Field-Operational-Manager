@@ -536,7 +536,6 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
                     <div className="text-xs text-slate-600 space-y-1">
                       <div><strong>Client:</strong> {expectedClient || "—"}</div>
                       <div><strong>Locație:</strong> {expectedLocation || "—"}</div>
-                      <div><strong>Cod echipament așteptat:</strong> {expectedCode || "—"}</div>
                     </div>
                   </div>
 

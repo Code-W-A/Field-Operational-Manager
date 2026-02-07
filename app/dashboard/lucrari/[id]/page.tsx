@@ -249,6 +249,13 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const debugLoggedOnceRef = useState({ did: false })[0]
   const [isRevizieDebugDialogOpen, setIsRevizieDebugDialogOpen] = useState(false)
 
+  const isFinalizatByReport = useMemo(() => {
+    const status = String(lucrare?.statusLucrare || "").toLowerCase()
+    const byStatus = status === "finalizat"
+    const byFinalizare = String((lucrare as any)?.statusFinalizareInterventie || "").toUpperCase() === "FINALIZAT"
+    return byStatus || byFinalizare
+  }, [lucrare])
+
   // Revizie: folosim lista de echipamente din equipmentIds, cu fallback la revision.equipment
   const revizieEquipmentIds = useMemo(() => {
     if (!lucrare || lucrare.tipLucrare !== "Revizie") {
@@ -1421,7 +1428,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     )
   }
 
-  const isCompletedWithReport = lucrare.statusLucrare === "Finalizat" && lucrare.raportGenerat === true
+  const isCompletedWithReport = isFinalizatByReport && lucrare.raportGenerat === true
   const isCanceled = lucrare.statusLucrare === WORK_STATUS.CANCELED
   
   // Condiții pentru reintervenție: raport generat + lucrare preluată + fără reintervenții existente + nelockată
@@ -1936,11 +1943,11 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
         <TabsContent value="detalii" className="mt-4">
           <div className="grid gap-4 md:grid-cols-2">
-            <Card>
+            <Card className="border-0 shadow-none bg-transparent md:border md:bg-card md:shadow-sm">
               <CardHeader>
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                <CardTitle>Detalii lucrare</CardTitle>
+                <CardTitle className="text-xl md:text-2xl">Detalii lucrare</CardTitle>
             
                   </div>
                 </div>
@@ -1954,30 +1961,30 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 )}
               </CardHeader>
               <CardContent>
-                <div className="text-sm flex flex-wrap items-start gap-x-3 gap-y-2 mt-2">
+                <div className="text-base md:text-sm flex flex-wrap items-start gap-x-3 gap-y-2 mt-2">
                   <div className="flex flex-col min-w-[140px]">
-                    <div className="text-xs font-medium text-muted-foreground">Data emiterii:</div>
+                    <div className="text-sm md:text-xs font-medium text-muted-foreground">Data emiterii:</div>
                     <div className="text-gray-900 whitespace-nowrap">{formatDateSafe(lucrare.dataEmiterii)}</div>
                   </div>
                   <div className="flex flex-col min-w-[140px]">
-                    <div className="text-xs font-medium text-muted-foreground">Data intervenție:</div>
+                    <div className="text-sm md:text-xs font-medium text-muted-foreground">Data intervenție:</div>
                     <div className="text-gray-900 whitespace-nowrap">{formatDateSafe(lucrare.dataInterventie)}</div>
                   </div>
                   {lucrare.timpSosire && (
                     <div className="flex flex-col min-w-[160px]">
-                      <div className="text-xs font-medium text-muted-foreground">Sosire la locație:</div>
+                      <div className="text-sm md:text-xs font-medium text-muted-foreground">Sosire la locație:</div>
                       <div className="text-gray-900 whitespace-nowrap">{formatDateSafe(lucrare.timpSosire || lucrare.dataSosire)} {lucrare.oraSosire}</div>
                     </div>
                   )}
                   {lucrare.timpPlecare && (
                     <div className="flex flex-col min-w-[160px]">
-                      <div className="text-xs font-medium text-muted-foreground">Plecare de la locație:</div>
+                      <div className="text-sm md:text-xs font-medium text-muted-foreground">Plecare de la locație:</div>
                       <div className="text-gray-900 whitespace-nowrap">{formatDateSafe(lucrare.timpPlecare || lucrare.dataPlecare)} {lucrare.oraPlecare}</div>
                     </div>
                   )}
                   {lucrare.timpSosire && lucrare.timpPlecare && (
                     <div className="flex flex-col min-w-[120px]">
-                      <div className="text-xs font-medium text-muted-foreground">Durata intervenție:</div>
+                      <div className="text-sm md:text-xs font-medium text-muted-foreground">Durata intervenție:</div>
                       <div className="text-gray-900 whitespace-nowrap">{calculateInterventionDuration(lucrare)}</div>
                     </div>
                   )}
@@ -2082,11 +2089,11 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                           
                           // Debug logging (doar la cerere, ca să nu spamăm producția)
                           if (debugRevizie && index === 0) {
-                            console.log("🔍 Debug Revizie QR:", {
-                              eid,
+                            console.log("🔍 Debug Revizie QR:", { 
+                              eid, 
                               hasEq: !!eq,
                               eq,
-                              role,
+                              role, 
                               isDispatcherOrAdmin: role === "dispecer" || role === "admin",
                               shouldShowQR: (role === "dispecer" || role === "admin") && !!eq,
                               client: lucrare.client,
@@ -2905,7 +2912,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-0 shadow-none bg-transparent md:border md:bg-card md:shadow-sm">
               <CardHeader>
                 <div className="flex items-start justify-between gap-2">
                   <div>
@@ -3610,13 +3617,13 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
         {role === "tehnician" && isAssignedTehnician && (
           <TabsContent value="verificare" className="mt-4">
-            <Card>
+            <Card className="border-0 shadow-none bg-transparent md:border md:bg-card md:shadow-sm">
               <CardHeader>
                 {/* Layout responsive: pe mobil butonul apare sub text, pe desktop alături */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div>
-                    <CardTitle>Verificare Echipament</CardTitle>
-                    <CardDescription>
+                    <CardTitle className="text-xl md:text-2xl">Verificare Echipament</CardTitle>
+                    <CardDescription className="text-base md:text-sm">
                       {otherActiveWork
                         ? "Ai deja o tichet în lucru. Finalizează sau închide lucrarea deschisă înainte de a începe alta."
                         : "Scanați QR code-ul echipamentului pentru a verifica dacă corespunde cu lucrarea."}
@@ -3678,7 +3685,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 ) : (
                   <>
                     <div className="flex flex-col items-center justify-center p-4 border rounded-lg">
-                      <p className="mb-4 text-center">
+                      <p className="mb-4 text-center text-base md:text-sm">
                         Scanați QR code-ul echipamentului pentru a verifica dacă este cel corect pentru această lucrare.
                       </p>
                       <QRCodeScanner

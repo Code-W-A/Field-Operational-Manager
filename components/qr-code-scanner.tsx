@@ -519,7 +519,7 @@ export function QRCodeScanner({
 
   const handleScan = (detectedCodes: any[]) => {
     if (detectedCodes && detectedCodes.length > 0 && detectedCodes[0].rawValue) {
-      console.log("QR Code detected:", detectedCodes[0].rawValue)
+      if (debugMode) console.log("QR Code detected:", detectedCodes[0].rawValue)
       lastDetectedRawRef.current = String(detectedCodes[0].rawValue)
       setScanResult(detectedCodes[0].rawValue)
       setIsScanning(false) // Oprim starea de scanare când am detectat un QR code
@@ -867,9 +867,15 @@ export function QRCodeScanner({
                   <Scanner
                     constraints={{
                       facingMode: isMobile ? "environment" : "user",
-                      width: isMobile ? { ideal: 1280, max: 1920 } : { min: 640, ideal: 1280 },
-                      height: isMobile ? { ideal: 720, max: 1080 } : { min: 480, ideal: 720 },
+                      // IMPORTANT: keep resolution + frameRate modest on mobile to avoid CPU spikes on mid-range phones
+                      frameRate: isMobile ? { ideal: 10, max: 15 } : { ideal: 30, max: 60 },
+                      width: isMobile ? { ideal: 640, max: 1280 } : { min: 640, ideal: 1280 },
+                      height: isMobile ? { ideal: 480, max: 720 } : { min: 480, ideal: 720 },
                     }}
+                    // IMPORTANT: only detect QR codes (faster than scanning all barcode formats)
+                    formats={["qr_code"] as any}
+                    // Prevent duplicate detections / repeated verification work if the same code is seen again quickly
+                    scanDelay={1200}
                     onScan={handleScan}
                     onError={handleError}
                     paused={!isScanning}
