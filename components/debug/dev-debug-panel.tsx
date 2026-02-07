@@ -37,9 +37,6 @@ function eqInsensitive(a: any, b: any) {
 }
 
 export function DevDebugPanel({ lucrare }: { lucrare: any }) {
-  const enabled = process.env.NEXT_PUBLIC_ENABLE_DEBUG_PANEL === "true"
-  if (!enabled) return null
-
   const { userData } = useAuth()
   const isAdmin = userData?.role === "admin"
   if (!isAdmin) return null
@@ -50,6 +47,17 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
     const l = lucrare || {}
     const status = String(l.statusLucrare || "")
     const technicians = Array.isArray(l.tehnicieni) ? l.tehnicieni : []
+    const semnaturaTehnician = String(l.semnaturaTehnician || "")
+    const semnaturaBeneficiar = String(l.semnaturaBeneficiar || "")
+    const raportSnapshot = (l as any)?.raportSnapshot || null
+    const snapshotTechSig = String(raportSnapshot?.semnaturaTehnician || "")
+    const snapshotClientSig = String(raportSnapshot?.semnaturaBeneficiar || "")
+    const hasTechSignature = Boolean(semnaturaTehnician.trim())
+    const hasClientSignature = Boolean(semnaturaBeneficiar.trim())
+    const hasAnySignature = hasTechSignature || hasClientSignature
+    const snapshotHasTechSig = Boolean(snapshotTechSig.trim())
+    const snapshotHasClientSig = Boolean(snapshotClientSig.trim())
+    const snapshotHasAnySig = snapshotHasTechSig || snapshotHasClientSig
 
     const execDate = toDate(l.dataInterventie)
     const now = new Date()
@@ -105,6 +113,27 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
       isFinalizat,
       raportGenerat,
       preluatDispecer,
+      statusFinalizareInterventie: (l as any)?.statusFinalizareInterventie ?? null,
+      // semnături (raw + snapshot)
+      hasTechSignature,
+      hasClientSignature,
+      hasAnySignature,
+      snapshotHasTechSig,
+      snapshotHasClientSig,
+      snapshotHasAnySig,
+      numeTehnician: l.numeTehnician ?? null,
+      numeBeneficiar: l.numeBeneficiar ?? null,
+      raportDataLocked: Boolean((l as any)?.raportDataLocked),
+      raportSnapshotExists: Boolean(raportSnapshot),
+      raportSnapshotDataGenerare: raportSnapshot?.dataGenerare ?? null,
+      // timestamps utile pentru “semnare”
+      timpSosire: l.timpSosire ?? null,
+      dataSosire: l.dataSosire ?? null,
+      oraSosire: l.oraSosire ?? null,
+      timpPlecare: l.timpPlecare ?? null,
+      dataPlecare: l.dataPlecare ?? null,
+      oraPlecare: l.oraPlecare ?? null,
+      durataInterventie: l.durataInterventie ?? null,
       // context fields that are often suspected (but may or may not be used in preluare logic)
       tipLucrare: l.tipLucrare ?? null,
       lockedAfterReintervention: Boolean((l as any).lockedAfterReintervention),
@@ -134,6 +163,9 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
     const technicians = Array.isArray(l.tehnicieni) ? l.tehnicieni : []
     const technNames = technicians.map((t) => String(t)).filter(Boolean)
     const tipLucrare = String(l.tipLucrare || "")
+    const semnaturaTehnician = String(l.semnaturaTehnician || "")
+    const semnaturaBeneficiar = String(l.semnaturaBeneficiar || "")
+    const raportSnapshot = (l as any)?.raportSnapshot || null
 
     const lines: string[] = []
     lines.push("=== Preluare debug (dispecer/admin) ===")
@@ -149,6 +181,24 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
     lines.push(`mesajReatribuire: ${String((l as any)?.mesajReatribuire ?? "")}`)
     lines.push(`tehnicieni (${technNames.length}): ${technNames.join(", ") || "-"}`)
     lines.push(`viewer.role: ${String(userData?.role || "")}`)
+    lines.push("")
+    lines.push("Semnături (raw + snapshot)")
+    lines.push(`- semnaturaTehnician: ${semnaturaTehnician ? "DA" : "NU"}`)
+    lines.push(`- semnaturaBeneficiar: ${semnaturaBeneficiar ? "DA" : "NU"}`)
+    lines.push(`- numeTehnician: ${String(l.numeTehnician || "")}`)
+    lines.push(`- numeBeneficiar: ${String(l.numeBeneficiar || "")}`)
+    lines.push(`- raportDataLocked: ${String(Boolean((l as any)?.raportDataLocked))}`)
+    lines.push(`- raportSnapshotExists: ${String(Boolean(raportSnapshot))}`)
+    lines.push(`- raportSnapshot.dataGenerare: ${String(raportSnapshot?.dataGenerare || "")}`)
+    lines.push(`- raportSnapshot.semnaturaTehnician: ${String(Boolean(raportSnapshot?.semnaturaTehnician))}`)
+    lines.push(`- raportSnapshot.semnaturaBeneficiar: ${String(Boolean(raportSnapshot?.semnaturaBeneficiar))}`)
+    lines.push("")
+    lines.push("Timpuri (pentru raport/semnare)")
+    lines.push(`- dataSosire: ${String(l.dataSosire || "")}`)
+    lines.push(`- oraSosire: ${String(l.oraSosire || "")}`)
+    lines.push(`- dataPlecare: ${String(l.dataPlecare || "")}`)
+    lines.push(`- oraPlecare: ${String(l.oraPlecare || "")}`)
+    lines.push(`- durataInterventie: ${String(l.durataInterventie || "")}`)
     lines.push("")
 
     lines.push("Context A: /dashboard/lucrari (LISTĂ) – butonul 'Preia' (coloana 'Preluat Dispecer')")

@@ -210,6 +210,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const { config: archiveRulesConfig } = useArchiveRulesSettings()
   const role = userData?.role || "tehnician"
   const isAdminOrDispatcher = role === "admin" || role === "dispecer"
+  const isAdmin = role === "admin"
   const debugRevizie = searchParams.get("debugRevizie") === "1"
   const fromArhivate = searchParams.get('from') === 'arhivate'
   const fromIstoricEchipament = searchParams.get("from") === "istoric-echipament"
@@ -1454,8 +1455,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   return (
     <TooltipProvider>
       <DashboardShell>
-        {/* Dialog debug: doar admin/dispecer, doar cu ?debugRevizie=1 */}
-        {isAdminOrDispatcher && debugRevizie && revizieReportDebug && (
+        {/* Dialog debug: doar admin */}
+        {isAdmin && revizieReportDebug && (
           <Dialog open={isRevizieDebugDialogOpen} onOpenChange={setIsRevizieDebugDialogOpen}>
             <DialogContent className="max-w-3xl">
               <DialogHeader>
@@ -1570,8 +1571,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
             </Button>
           )}
 
-          {/* Debug: admin/dispecer + ?debugRevizie=1 */}
-          {isAdminOrDispatcher && debugRevizie && lucrare.tipLucrare === "Revizie" && (
+          {/* Debug: admin */}
+          {isAdmin && lucrare.tipLucrare === "Revizie" && (
             <Button variant="outline" onClick={openRevizieDebug}>
               Debug raport (revizie)
             </Button>
