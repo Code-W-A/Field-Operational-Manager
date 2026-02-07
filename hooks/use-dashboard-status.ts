@@ -15,6 +15,7 @@ export interface DashboardBubbleItem {
   equipmentLabel: string
   client?: string
   nrLucrare?: string
+  statusLucrare?: string
   offerStatus?: "accept" | "reject"
   equipmentStatus?: string
   contractId?: string
@@ -114,6 +115,7 @@ function buildBubble(l: any, offerStatus?: "accept" | "reject", sortDate?: Date,
     equipmentLabel: String(equipmentLabel),
     client: l.client,
     nrLucrare: l.nrLucrare || l.numarRaport,
+    statusLucrare: l.statusLucrare,
     createdAt: toDate(l.createdAt) || undefined,
     sortDate: sortDate,
     offerStatus: offerStatus,

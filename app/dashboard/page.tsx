@@ -369,6 +369,26 @@ export default function Dashboard() {
     />
   )
 
+  const getTechnicianWorkColor = (status?: string) => {
+    const s = String(status || "").trim().toLowerCase()
+    const finalized = ["finalizată", "finalizata", "finalizat", "raportată", "raportata", "închisă", "inchisa", "închis", "inchis"]
+    if (finalized.includes(s)) return "bg-green-700"
+    // Pentru tehnicieni: orice non-finalizat e tratat ca "în lucru" (doar 2 culori)
+    return "bg-blue-700"
+  }
+
+  const technicianAssignedBubble = (it: any) => (
+    <WorkBubbleAssigned
+      key={it.id}
+      title={it.locatie}
+      subtitle={it.equipmentLabel}
+      status={it.statusLucrare}
+      colorClass={getTechnicianWorkColor(it.statusLucrare)}
+      onClick={() => router.push(`/dashboard/lucrari/${it.id}`)}
+      className="mb-2"
+    />
+  )
+
   // Bubble cu culoare dinamică în funcție de offerStatus
   const offerStatusBubble = () => (it: any) => {
     const color = it.offerStatus === "accept" ? "bg-green-600" : "bg-red-700"
@@ -881,7 +901,7 @@ export default function Dashboard() {
             </DialogHeader>
             <ScrollArea className="max-h-[60vh]">
               <div className="space-y-2 pr-4">
-                {tech.items.map(assignedBubble("bg-gray-700"))}
+                {tech.items.map(technicianAssignedBubble)}
               </div>
             </ScrollArea>
           </DialogContent>
@@ -939,7 +959,7 @@ export default function Dashboard() {
             </StatusBox>
             {personal.technicians.map((col) => (
               <StatusBox key={col.name} title={col.name} count={col.items.length}>
-                {col.items.map(assignedBubble("bg-gray-700"))}
+                {col.items.map(technicianAssignedBubble)}
               </StatusBox>
             ))}
           </div>

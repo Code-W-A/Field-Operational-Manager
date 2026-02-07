@@ -1898,7 +1898,41 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             </p>
           </div>
 
-          {/* 2. Client */}
+             {/* 2. Tipul de intervenție */}
+             <div className="space-y-2">
+            <label htmlFor="tipLucrare" className="text-sm font-medium">
+              Tip Intervenție *
+            </label>
+            <Select 
+              value={formData.tipLucrare} 
+              onValueChange={(value) => { if (isReintervention) return; handleSelectChange("tipLucrare", value) }}
+              disabled={isReintervention}
+            >
+              <SelectTrigger id="tipLucrare" className={`${hasError("tipLucrare") ? errorStyle : ""} ${isReintervention ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                <SelectValue placeholder="Selectați tipul intervenției" />
+              </SelectTrigger>
+              <SelectContent>
+                {(dynamicWorkTypes && dynamicWorkTypes.length
+                  ? dynamicWorkTypes.map((it) => it.name).filter(
+                      (name) => name !== WORK_TYPES.OFFER && name !== WORK_TYPES.CONTRACTING,
+                    )
+                  : WORK_TYPE_OPTIONS
+                ).map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {formData.tipLucrare === "Intervenție în garanție" && (
+              <p className="text-xs text-amber-600 mt-1">
+                Notă: Garanția nu poate depăși 24 de luni de la instalare. Există cazuri cu 12 luni și cazuri cu 24
+                luni de la predare.
+              </p>
+            )}
+          </div>
+
+          {/* 3. Client */}
           <div className="space-y-2">
             <label htmlFor="client" className="text-sm font-medium">
               Client *
@@ -2022,7 +2056,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             </div>
           </div>
 
-          {/* 3. Locația */}
+          {/* 4. Locația */}
           {locatii.length > 0 && (
             <div className="space-y-2">
               <label htmlFor="locatie" className="text-sm font-medium">
@@ -2062,7 +2096,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             </div>
           )}
 
-          {/* 4. Echipamentul – ascundem complet pentru Revizie */}
+          {/* 5. Echipamentul – ascundem complet pentru Revizie */}
           {formData.tipLucrare !== "Revizie" && (
             <div className="space-y-2">
               <label htmlFor="echipament" className="text-sm font-medium">
@@ -2146,39 +2180,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             />
           </div>
 
-          {/* 5. Tipul de intervenție */}
-          <div className="space-y-2">
-            <label htmlFor="tipLucrare" className="text-sm font-medium">
-              Tip Intervenție *
-            </label>
-            <Select 
-              value={formData.tipLucrare} 
-              onValueChange={(value) => { if (isReintervention) return; handleSelectChange("tipLucrare", value) }}
-              disabled={isReintervention}
-            >
-              <SelectTrigger id="tipLucrare" className={`${hasError("tipLucrare") ? errorStyle : ""} ${isReintervention ? 'opacity-60 cursor-not-allowed' : ''}`}>
-                <SelectValue placeholder="Selectați tipul intervenției" />
-              </SelectTrigger>
-              <SelectContent>
-                {(dynamicWorkTypes && dynamicWorkTypes.length
-                  ? dynamicWorkTypes.map((it) => it.name).filter(
-                      (name) => name !== WORK_TYPES.OFFER && name !== WORK_TYPES.CONTRACTING,
-                    )
-                  : WORK_TYPE_OPTIONS
-                ).map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {formData.tipLucrare === "Intervenție în garanție" && (
-              <p className="text-xs text-amber-600 mt-1">
-                Notă: Garanția nu poate depăși 24 de luni de la instalare. Există cazuri cu 12 luni și cazuri cu 24
-                luni de la predare.
-              </p>
-            )}
-          </div>
+       
           
           {/* Revizie: listă echipamente multi-select pentru locația aleasă */}
           {formData.tipLucrare === "Revizie" && (

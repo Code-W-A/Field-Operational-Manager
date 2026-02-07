@@ -21,11 +21,12 @@ const BUBBLE_CONFIG = {
 export interface WorkBubbleAssignedProps extends React.HTMLAttributes<HTMLDivElement> {
   title?: string
   subtitle?: string
+  status?: string
   colorClass?: string
   onClick?: () => void
 }
 
-export function WorkBubbleAssigned({ title, subtitle, colorClass = "bg-slate-600", onClick, className, ...props }: WorkBubbleAssignedProps) {
+export function WorkBubbleAssigned({ title, subtitle, status, colorClass = "bg-slate-600", onClick, className, ...props }: WorkBubbleAssignedProps) {
   return (
     <TooltipProvider>
       <Tooltip>
@@ -59,11 +60,12 @@ export function WorkBubbleAssigned({ title, subtitle, colorClass = "bg-slate-600
             <div className="text-xs opacity-90 leading-tight min-w-0 max-w-full w-full whitespace-normal break-words">{subtitle || "-"}</div>
           </div>
         </TooltipTrigger>
-        {(title || subtitle) && (
+        {(title || subtitle || status) && (
           <TooltipContent>
             <div className="text-xs">
               <div className="font-medium">{title}</div>
               <div className="opacity-80">{subtitle}</div>
+              {status ? <div className="opacity-80 mt-1">Status: {status}</div> : null}
             </div>
           </TooltipContent>
         )}
