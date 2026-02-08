@@ -121,7 +121,6 @@ export default function Lucrari() {
   const [isReassignment, setIsReassignment] = useState(false)
   const [originalWorkOrderId, setOriginalWorkOrderId] = useState(null)
   const [revEquipmentNames, setRevEquipmentNames] = useState<Record<string, string[]>>({})
-  const [expandedRevEquip, setExpandedRevEquip] = useState<Record<string, boolean>>({})
   const [dataEmiterii, setDataEmiterii] = useState<Date | undefined>(new Date())
   
   // State pentru dialogul de motive reintervenție
@@ -390,6 +389,92 @@ export default function Lucrari() {
     return lucrari
   }, [lucrari, userData?.role, userData?.displayName])
 
+  const getRevisionEquipmentIds = useCallback((work: any): string[] => {
+    if (!work || String(work?.tipLucrare || "").toLowerCase() !== "revizie") return []
+
+    const toStr = (v: any) => String(v ?? "").trim()
+    const fromEquipmentIds = Array.isArray((work as any)?.equipmentIds)
+      ? (work as any).equipmentIds.map(toStr).filter(Boolean)
+      : []
+    if (fromEquipmentIds.length > 0) return Array.from(new Set(fromEquipmentIds))
+
+    const statusByEquipment = (work as any)?.revision?.equipmentStatus
+    if (statusByEquipment && typeof statusByEquipment === "object") {
+      const fromRevision = Object.keys(statusByEquipment).map(toStr).filter(Boolean)
+      if (fromRevision.length > 0) return Array.from(new Set(fromRevision))
+    }
+
+    return []
+  }, [])
+
+  const resolveRevisionEquipmentNamesFromClientInfo = useCallback((work: any, equipmentIds: string[]): string[] => {
+    if (!Array.isArray(equipmentIds) || equipmentIds.length === 0) return []
+
+    const toStr = (v: any) => String(v ?? "").trim()
+    const ci: any = (work as any)?.clientInfo
+    const locatii = Array.isArray(ci?.locatii) ? ci.locatii : []
+    const directEquipments = Array.isArray(ci?.echipamente) ? ci.echipamente : []
+    const allEquipments = [...locatii.flatMap((loc: any) => (Array.isArray(loc?.echipamente) ? loc.echipamente : [])), ...directEquipments]
+
+    if (allEquipments.length === 0) return []
+
+    const lookup = new Map<string, string>()
+    for (const eq of allEquipments) {
+      const id = toStr((eq as any)?.id)
+      const cod = toStr((eq as any)?.cod)
+      const name = toStr((eq as any)?.nume || (eq as any)?.name || (eq as any)?.model)
+      const fallback = name || cod || id
+      if (!fallback) continue
+      if (id) lookup.set(id, fallback)
+      if (cod) lookup.set(cod, fallback)
+    }
+
+    const resolved = equipmentIds.map((id) => lookup.get(id) || id).filter(Boolean)
+    return Array.from(new Set(resolved))
+  }, [])
+
+  const getRevisionEquipmentNames = useCallback((work: any): string[] => {
+    const ids = getRevisionEquipmentIds(work)
+    if (ids.length === 0) return []
+
+    const toStr = (v: any) => String(v ?? "").trim()
+    const workId = toStr((work as any)?.id || (work as any)?._id)
+    const namesFromRevisions = workId
+      ? ((revEquipmentNames[workId] || []).map(toStr).filter(Boolean))
+      : []
+    if (namesFromRevisions.length > 0) return Array.from(new Set(namesFromRevisions))
+
+    const namesFromClientInfo = resolveRevisionEquipmentNamesFromClientInfo(work, ids)
+    if (namesFromClientInfo.length > 0) return namesFromClientInfo
+
+    return ids
+  }, [getRevisionEquipmentIds, resolveRevisionEquipmentNamesFromClientInfo, revEquipmentNames])
+
+  const getRevisionEquipmentInlineLabel = useCallback(
+    (work: any, maxChars: number) => {
+      if (!work || String(work?.tipLucrare || "").toLowerCase() !== "revizie") return "-"
+
+      const items = getRevisionEquipmentNames(work)
+      if (!items.length) return "-"
+
+      const cleanItems = items.map((x) => String(x || "").trim()).filter(Boolean)
+      if (!cleanItems.length) return "-"
+
+      let out = ""
+      for (const item of cleanItems) {
+        const next = out ? `${out}, ${item}` : item
+        if (next.length > maxChars) {
+          if (!out) return `${item.slice(0, Math.max(1, maxChars - 3)).trimEnd()}...`
+          return `${out}...`
+        }
+        out = next
+      }
+
+      return out || "-"
+    },
+    [getRevisionEquipmentNames],
+  )
+
   // Load equipment names for Revizie works (from revisions subcollection)
   useEffect(() => {
     const loadNames = async () => {
@@ -403,21 +488,27 @@ export default function Lucrari() {
           try {
             const revCol = collection(db, "lucrari", workId, "revisions")
             const snap = await getDocs(revCol)
-            const names = snap.docs.map(d => {
-              const data: any = d.data()
-              return String(data?.equipmentName || data?.name || d.id || "").trim()
-            }).filter(Boolean)
-            setRevEquipmentNames(prev => ({ ...prev, [workId]: names }))
+            const fromRevisions = snap.docs
+              .map((d) => {
+                const data: any = d.data()
+                return String(data?.equipmentName || data?.name || d.id || "").trim()
+              })
+              .filter(Boolean)
+            const ids = getRevisionEquipmentIds(w)
+            const fallbackNames = resolveRevisionEquipmentNamesFromClientInfo(w, ids)
+            const finalNames = fromRevisions.length > 0 ? fromRevisions : (fallbackNames.length > 0 ? fallbackNames : ids)
+            setRevEquipmentNames((prev) => ({ ...prev, [workId]: Array.from(new Set(finalNames)) }))
           } catch (e) {
-            // fallback: derive names from equipmentIds
-            const names = Array.isArray((w as any).equipmentIds) ? (w as any).equipmentIds.map((id: any) => String(id)) : []
-            setRevEquipmentNames(prev => ({ ...prev, [String(workId)]: names }))
+            // fallback: derive names from clientInfo/equipmentIds
+            const ids = getRevisionEquipmentIds(w)
+            const names = resolveRevisionEquipmentNamesFromClientInfo(w, ids)
+            setRevEquipmentNames((prev) => ({ ...prev, [String(workId)]: names.length > 0 ? names : ids }))
           }
         }
       } catch {}
     }
     loadNames()
-  }, [filteredLucrari, db])
+  }, [filteredLucrari, db, getRevisionEquipmentIds, resolveRevisionEquipmentNamesFromClientInfo])
 
   // Helper function to check if a work order is completed with report but not picked up
   const isCompletedWithReportNotPickedUp = useCallback(
@@ -2140,17 +2231,25 @@ export default function Lucrari() {
       enableHiding: true,
       enableFiltering: true,
       cell: ({ row }) => {
-            return (
-              <div>
-            <div className="font-medium">{row.original.locatie}</div>
-            {row.original.echipament && (
-              <div className="text-sm text-gray-600">Echipament: {row.original.echipament}</div>
-            )}
-            {row.original.echipamentCod && (
-              <div className="text-sm text-gray-500">Cod: {row.original.echipamentCod}</div>
-            )}
+        const work = row.original as any
+        const isRevision = String(work?.tipLucrare || "").toLowerCase() === "revizie"
+        return (
+          <div>
+            <div className="font-medium">{work?.locatie || "-"}</div>
+            {isRevision ? (
+              <div className="mt-1">
+                <div className="text-sm text-gray-600">
+                  Echipamente: {getRevisionEquipmentInlineLabel(work, 72)}
+                </div>
               </div>
-            )
+            ) : (
+              <>
+                {work?.echipament && <div className="text-sm text-gray-600">Echipament: {work.echipament}</div>}
+                {work?.echipamentCod && <div className="text-sm text-gray-500">Cod: {work.echipamentCod}</div>}
+              </>
+            )}
+          </div>
+        )
       },
     },
     {
@@ -2837,65 +2936,9 @@ export default function Lucrari() {
               {paginatedCardsData.map((lucrare) => {
               // Check if the work order is completed with report but not picked up
               const isCompletedNotPickedUp = isCompletedWithReportNotPickedUp(lucrare)
-              // Precompute revizie equipment line to avoid inline IIFEs (stability)
-              let revEquipNode: any = null
+              const isRevisionWork = String((lucrare as any)?.tipLucrare || "").toLowerCase() === "revizie"
               let dataEmiteriiText: string = ""
               let dataInterventieText: string = ""
-              if (
-                lucrare &&
-                !lucrare.echipament &&
-                !(lucrare as any)?.echipamentModel &&
-                !lucrare.echipamentCod &&
-                lucrare.tipLucrare === "Revizie" &&
-                Array.isArray((lucrare as any).equipmentIds) &&
-                (lucrare as any).equipmentIds.length > 0
-              ) {
-                const workId = String(lucrare.id || "")
-                const allNames = (revEquipmentNames[workId] && revEquipmentNames[workId].length > 0)
-                  ? revEquipmentNames[workId]
-                  : []
-                const isExpanded = !!expandedRevEquip[workId]
-                const shown = isExpanded ? allNames : allNames.slice(0, 3)
-                const remaining = Math.max(0, (allNames.length || 0) - shown.length)
-                const fallbackText = `${(lucrare as any).equipmentIds.length} selectate`
-                revEquipNode = (
-                  <span className="text-xs text-gray-600">
-                    Echipamente: {shown.length > 0 ? shown.join(", ") : fallbackText}
-                    {remaining > 0 && (
-                      <>
-                        ,{" "}
-                        <button
-                          type="button"
-                          className="text-blue-600 underline hover:no-underline"
-                          onClick={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            setExpandedRevEquip((prev) => ({ ...prev, [workId]: true }))
-                          }}
-                        >
-                          +{remaining} mai multe
-                        </button>
-                      </>
-                    )}
-                    {isExpanded && allNames.length > 3 && (
-                      <>
-                        {" "}
-                        <button
-                          type="button"
-                          className="text-blue-600 underline hover:no-underline ml-1"
-                          onClick={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            setExpandedRevEquip((prev) => ({ ...prev, [workId]: false }))
-                          }}
-                        >
-                          arată mai puțin
-                        </button>
-                      </>
-                    )}
-                  </span>
-                )
-              }
               // Precompute dates
               try {
                 const { toDateSafe, formatUiDate } = require("@/lib/utils/time-format")
@@ -3009,8 +3052,10 @@ export default function Lucrari() {
                           <div className="font-medium text-gray-900 line-clamp-1">{lucrare.locatie || "-"}</div>
                         </div>
                         <div>
-                          <div className="text-gray-500 text-xs mb-1">Echipament</div>
-                          <div className="font-medium text-gray-900 line-clamp-1">{doorName}</div>
+                          <div className="text-gray-500 text-xs mb-1">{isRevisionWork ? "Echipamente" : "Echipament"}</div>
+                          <div className={cn("font-medium text-gray-900", !isRevisionWork && "line-clamp-1")}>
+                            {isRevisionWork ? getRevisionEquipmentInlineLabel(lucrare, 66) : doorName}
+                          </div>
                         </div>
                       </div>
 
@@ -3077,8 +3122,10 @@ export default function Lucrari() {
                           <div className="font-medium text-gray-900 line-clamp-1">{lucrare.locatie || "-"}</div>
                         </div>
                         <div>
-                          <div className="text-gray-500 text-xs mb-1">Echipament</div>
-                          <div className="font-medium text-gray-900 line-clamp-1">{doorName}</div>
+                          <div className="text-gray-500 text-xs mb-1">{isRevisionWork ? "Echipamente" : "Echipament"}</div>
+                          <div className={cn("font-medium text-gray-900", !isRevisionWork && "line-clamp-1")}>
+                            {isRevisionWork ? getRevisionEquipmentInlineLabel(lucrare, 66) : doorName}
+                          </div>
                         </div>
                       </div>
 

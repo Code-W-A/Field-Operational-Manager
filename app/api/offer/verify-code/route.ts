@@ -2,58 +2,179 @@ import { NextResponse, type NextRequest } from "next/server"
 import { adminDb } from "@/lib/firebase/admin"
 
 const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+const DEFAULT_MAX_VERIFY_ATTEMPTS = 5
+const DEFAULT_LOCK_DURATION_MS = 15 * 60 * 1000
+const RESPONSE_PROOF_TTL_MS = 10 * 60 * 1000
+
+function toDate(value: any): Date | null {
+  if (!value) return null
+  try {
+    if (typeof value?.toDate === "function") {
+      const d = value.toDate()
+      return Number.isNaN(d.getTime()) ? null : d
+    }
+    const d = new Date(value)
+    return Number.isNaN(d.getTime()) ? null : d
+  } catch {
+    return null
+  }
+}
+
+type VerifyTxResult =
+  | { kind: "verified"; email: string; verificationProof: string }
+  | {
+      kind: "error"
+      status: "invalid" | "used" | "expired" | "code_expired" | "invalid_code" | "locked"
+      statusCode: number
+      message: string
+      attemptsRemaining?: number
+      retryAfterSec?: number
+    }
 
 export async function POST(req: NextRequest) {
   try {
     const { lucrareId, token, email, code } = await req.json()
-    if (!lucrareId || !token || !email || !code || !isValidEmail(String(email))) {
+    const workId = String(lucrareId || "").trim()
+    const providedToken = String(token || "").trim()
+    const cleanEmail = String(email || "").trim().toLowerCase()
+    const normalizedCode = String(code || "").trim().toUpperCase()
+
+    if (!workId || !providedToken || !cleanEmail || !normalizedCode || !isValidEmail(cleanEmail)) {
       return NextResponse.json({ status: "invalid", message: "Parametri lipsă sau email invalid." }, { status: 400 })
     }
 
-    const workRef = adminDb.collection("lucrari").doc(String(lucrareId))
-    const workSnap = await workRef.get()
-    if (!workSnap.exists) {
-      return NextResponse.json({ status: "invalid", message: "Lucrarea nu există." }, { status: 404 })
-    }
-
-    const data: any = workSnap.data()
-    if (!data.offerActionToken || data.offerActionToken !== token) {
-      return NextResponse.json({ status: "invalid", message: "Link invalid sau utilizat." }, { status: 400 })
-    }
-    if (data.offerActionUsedAt) {
-      return NextResponse.json({ status: "used", message: "Oferta a fost deja acceptată sau refuzată." }, { status: 409 })
-    }
-    const exp = data.offerActionExpiresAt ? (
-      typeof data.offerActionExpiresAt.toDate === "function" ? data.offerActionExpiresAt.toDate() : new Date(data.offerActionExpiresAt)
-    ) : null
-    if (exp && Date.now() > exp.getTime()) {
-      return NextResponse.json({ status: "expired", message: "Link expirat." }, { status: 410 })
-    }
-
-    const verification = data.offerActionVerification || {}
-    const cleanEmail = String(email).trim().toLowerCase()
-    if (!verification?.codeHash || !verification?.email || verification.email !== cleanEmail) {
-      return NextResponse.json({ status: "invalid_code", message: "Cod invalid sau email diferit." }, { status: 400 })
-    }
-
-    const expiresAt = verification.codeExpiresAt
-      ? (typeof verification.codeExpiresAt.toDate === "function" ? verification.codeExpiresAt.toDate() : new Date(verification.codeExpiresAt))
-      : null
-    if (!expiresAt || Date.now() > expiresAt.getTime()) {
-      return NextResponse.json({ status: "code_expired", message: "Cod expirat." }, { status: 410 })
-    }
-
+    const now = new Date()
     const crypto = await import("crypto")
-    const codeHash = crypto.createHash("sha256").update(`${String(code).trim().toUpperCase()}:${cleanEmail}`).digest("hex")
-    if (codeHash !== verification.codeHash) {
-      return NextResponse.json({ status: "invalid_code", message: "Cod invalid." }, { status: 400 })
-    }
+    const workRef = adminDb.collection("lucrari").doc(workId)
 
-    await workRef.update({
-      "offerActionVerification.verifiedAt": new Date(),
+    const txResult = await adminDb.runTransaction<VerifyTxResult>(async (tx) => {
+      const workSnap = await tx.get(workRef)
+      if (!workSnap.exists) {
+        return { kind: "error", status: "invalid", statusCode: 404, message: "Lucrarea nu există." }
+      }
+
+      const data: any = workSnap.data() || {}
+      if (!data.offerActionToken || data.offerActionToken !== providedToken) {
+        return { kind: "error", status: "invalid", statusCode: 400, message: "Link invalid sau utilizat." }
+      }
+      if (data.offerActionUsedAt) {
+        return {
+          kind: "error",
+          status: "used",
+          statusCode: 409,
+          message: "Oferta a fost deja acceptată sau refuzată.",
+        }
+      }
+      const exp = toDate(data.offerActionExpiresAt)
+      if (exp && now.getTime() > exp.getTime()) {
+        return { kind: "error", status: "expired", statusCode: 410, message: "Link expirat." }
+      }
+
+      const verification = data.offerActionVerification || {}
+      const verificationEmail = String(verification?.email || "").trim().toLowerCase()
+      const verificationCodeHash = typeof verification?.codeHash === "string" ? verification.codeHash : ""
+      if (!verificationCodeHash || !verificationEmail || verificationEmail !== cleanEmail) {
+        return {
+          kind: "error",
+          status: "invalid_code",
+          statusCode: 400,
+          message: "Cod invalid sau email diferit.",
+        }
+      }
+
+      const lockUntil = toDate(verification?.lockUntil)
+      const isLockActive = !!lockUntil && lockUntil.getTime() > now.getTime()
+      if (isLockActive) {
+        return {
+          kind: "error",
+          status: "locked",
+          statusCode: 429,
+          message: "Prea multe încercări. Codul este blocat temporar.",
+          retryAfterSec: Math.max(1, Math.ceil((lockUntil.getTime() - now.getTime()) / 1000)),
+        }
+      }
+
+      const codeExpiresAt = toDate(verification?.codeExpiresAt)
+      if (!codeExpiresAt || now.getTime() > codeExpiresAt.getTime()) {
+        return { kind: "error", status: "code_expired", statusCode: 410, message: "Cod expirat." }
+      }
+
+      const version = Number(verification?.version || 0)
+      const safeVersion = Math.max(1, version || 1)
+      const hashV2 = crypto.createHash("sha256").update(`${normalizedCode}:${cleanEmail}:${safeVersion}`).digest("hex")
+      const hashLegacy = crypto.createHash("sha256").update(`${normalizedCode}:${cleanEmail}`).digest("hex")
+      const isLegacyCode = version <= 0
+      const isMatch = verificationCodeHash === hashV2 || (isLegacyCode && verificationCodeHash === hashLegacy)
+
+      const maxAttempts = Math.max(1, Number(verification?.maxAttempts || DEFAULT_MAX_VERIFY_ATTEMPTS))
+      const lockDurationMs = Math.max(1000, Number(verification?.lockDurationMs || DEFAULT_LOCK_DURATION_MS))
+      const rawAttemptCount = Math.max(0, Number(verification?.attemptCount || 0))
+      const attemptCount = lockUntil && !isLockActive ? 0 : rawAttemptCount
+
+      if (!isMatch) {
+        const nextAttemptCount = attemptCount + 1
+        const updates: Record<string, any> = {
+          "offerActionVerification.attemptCount": nextAttemptCount,
+          "offerActionVerification.lastAttemptAt": now,
+        }
+        if (lockUntil && !isLockActive) {
+          updates["offerActionVerification.lockUntil"] = null
+        }
+
+        if (nextAttemptCount >= maxAttempts) {
+          const nextLockUntil = new Date(now.getTime() + lockDurationMs)
+          updates["offerActionVerification.lockUntil"] = nextLockUntil
+          tx.update(workRef, updates)
+          return {
+            kind: "error",
+            status: "locked",
+            statusCode: 429,
+            message: "Prea multe încercări. Codul este blocat temporar.",
+            retryAfterSec: Math.max(1, Math.ceil((nextLockUntil.getTime() - now.getTime()) / 1000)),
+          }
+        }
+
+        tx.update(workRef, updates)
+        return {
+          kind: "error",
+          status: "invalid_code",
+          statusCode: 400,
+          message: "Cod invalid. Dacă ai cerut un cod nou, folosește ultimul cod primit.",
+          attemptsRemaining: maxAttempts - nextAttemptCount,
+        }
+      }
+
+      const successUpdates: Record<string, any> = {
+        "offerActionVerification.verifiedAt": now,
+        "offerActionVerification.attemptCount": 0,
+        "offerActionVerification.lockUntil": null,
+        "offerActionVerification.lastVerifiedAt": now,
+      }
+      const responseProof = crypto.randomBytes(24).toString("base64url")
+      const responseProofHash = crypto.createHash("sha256").update(responseProof).digest("hex")
+      successUpdates["offerActionVerification.responseProofHash"] = responseProofHash
+      successUpdates["offerActionVerification.responseProofIssuedAt"] = now
+      successUpdates["offerActionVerification.responseProofExpiresAt"] = new Date(now.getTime() + RESPONSE_PROOF_TTL_MS)
+      successUpdates["offerActionVerification.responseProofUsedAt"] = null
+      if (version > 0) {
+        successUpdates["offerActionVerification.verifiedVersion"] = version
+      }
+      tx.update(workRef, successUpdates)
+      return { kind: "verified", email: cleanEmail, verificationProof: responseProof }
     })
 
-    return NextResponse.json({ status: "verified", email: cleanEmail })
+    if (txResult.kind === "error") {
+      return NextResponse.json(
+        {
+          status: txResult.status,
+          message: txResult.message,
+          attemptsRemaining: txResult.attemptsRemaining,
+          retryAfterSec: txResult.retryAfterSec,
+        },
+        { status: txResult.statusCode },
+      )
+    }
+    return NextResponse.json({ status: "verified", email: txResult.email, verificationProof: txResult.verificationProof })
   } catch (error: any) {
     return NextResponse.json(
       {

@@ -5,6 +5,7 @@ import { useSearchParams, useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Check, X, AlertCircle } from "lucide-react"
 import { doc, getDoc, updateDoc } from "firebase/firestore"
@@ -17,12 +18,11 @@ export default function OfferActionPage() {
   const { id } = useParams<{ id: string }>()
   const params = useSearchParams()
   const token = params.get("t") || ""
-  const action = params.get("action") as ("accept" | "reject" | null)
+  const action = params.get("action") as "accept" | "reject" | null
 
   const [state, setState] = useState<"loading" | "ready" | "success" | "error" | "expired" | "used" | "invalid">("loading")
   const [message, setMessage] = useState<string>("")
   const [offerUrl, setOfferUrl] = useState<string>("")
-  const [generating, setGenerating] = useState<boolean>(false)
   const [downloading, setDownloading] = useState<boolean>(false)
   const [reason, setReason] = useState<string>("")
   const [verificationEmail, setVerificationEmail] = useState("")
@@ -31,17 +31,249 @@ export default function OfferActionPage() {
   const [isSendingCode, setIsSendingCode] = useState(false)
   const [isVerifyingCode, setIsVerifyingCode] = useState(false)
   const [isVerified, setIsVerified] = useState(false)
+  const [verificationProof, setVerificationProof] = useState("")
   const [verifiedEmail, setVerifiedEmail] = useState("")
   const [codeSent, setCodeSent] = useState(false)
   const [resendCooldown, setResendCooldown] = useState(0)
   const [errorDetails, setErrorDetails] = useState<any>(null)
+
+  const [isDownloadErrorDialogOpen, setIsDownloadErrorDialogOpen] = useState(false)
+  const [downloadErrorTitle, setDownloadErrorTitle] = useState("Nu am putut descărca oferta")
+  const [downloadErrorMessage, setDownloadErrorMessage] = useState("")
+  const [downloadErrorTechnical, setDownloadErrorTechnical] = useState("")
+  const [isReportingError, setIsReportingError] = useState(false)
+  const [reportSent, setReportSent] = useState(false)
+  const [reportFeedbackMessage, setReportFeedbackMessage] = useState("")
+
+  const openDownloadErrorDialog = (friendlyMessage: string, technicalMessage?: string) => {
+    setDownloadErrorTitle("Nu am putut descărca oferta")
+    setDownloadErrorMessage(friendlyMessage)
+    setDownloadErrorTechnical((technicalMessage || "").slice(0, 2000))
+    setReportSent(false)
+    setReportFeedbackMessage("")
+    setIsDownloadErrorDialogOpen(true)
+  }
+
+  const triggerBlobDownload = (blob: Blob, fileName: string) => {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  const buildStoredDownloadLink = (urlToDownload?: string | null) => {
+    if (!id || !urlToDownload) return null
+    return `/api/download?lucrareId=${encodeURIComponent(String(id))}&type=oferta&url=${encodeURIComponent(urlToDownload)}`
+  }
+
+  const validateStoredDownloadLink = async (downloadLink: string) => {
+    const resp = await fetch(downloadLink, {
+      method: "GET",
+      redirect: "manual",
+      cache: "no-store",
+    })
+
+    const redirectLocation = resp.headers.get("location")
+    if (resp.type === "opaqueredirect" || (resp.status >= 300 && resp.status < 400) || resp.ok) {
+      return {
+        ok: true as const,
+        redirectLocation: redirectLocation || null,
+      }
+    }
+
+    let detail = ""
+    try {
+      const json = await resp.json()
+      detail = String(json?.error || json?.message || "")
+    } catch {
+      try {
+        const text = await resp.text()
+        detail = String(text || "").slice(0, 240)
+      } catch {
+        detail = ""
+      }
+    }
+
+    return {
+      ok: false as const,
+      technical: `URL stocat indisponibil (HTTP ${resp.status}${detail ? `: ${detail}` : ""}).`,
+    }
+  }
+
+  const generateOfferBlobFromWork = async (work: any) => {
+    const products = Array.isArray(work?.products) ? work.products : []
+    if (!products.length) {
+      throw new Error("Oferta nu poate fi generată deoarece nu există produse în lucrare.")
+    }
+
+    const blob = await generateOfferPdf({
+      id: String(id),
+      numarRaport: String(work?.numarRaport || ""),
+      client: work?.client || "",
+      attentionTo: work?.persoanaContact || "",
+      fromCompany: "NRG Access Systems SRL",
+      products: products.map((p: any) => ({
+        name: p?.name || p?.denumire || "",
+        quantity: Number(p?.quantity || p?.cantitate || 0),
+        price: Number(p?.price || p?.pretUnitar || 0),
+      })),
+      offerVAT: typeof work?.offerVAT === "number" ? work.offerVAT : 19,
+      adjustmentPercent: Number(work?.offerAdjustmentPercent || 0),
+      damages: String(work?.constatareLaLocatie || work?.raportSnapshot?.constatareLaLocatie || work?.comentariiOferta || "")
+        .split(/\r?\n|\u2022|\-|\*/)
+        .map((s: string) => s.trim())
+        .filter(Boolean),
+      conditions: Array.isArray(work?.conditiiOferta) ? work.conditiiOferta : undefined,
+      equipmentName: String(work?.echipament || ""),
+      locationName: String(work?.locatie || ""),
+      beneficiar: {
+        name: String(work?.client || work?.clientInfo?.nume || ""),
+        cui: String(work?.clientInfo?.cui || ""),
+        reg: String(work?.clientInfo?.rc || ""),
+        address: String(work?.clientInfo?.adresa || ""),
+      },
+    })
+
+    return { blob, fileName: `oferta_${id}.pdf` }
+  }
+
+  const handleDownloadOffer = async () => {
+    if (!id) return
+
+    setDownloading(true)
+    try {
+      const ref = doc(db, "lucrari", id)
+      const freshSnap = await getDoc(ref)
+      if (!freshSnap.exists()) {
+        openDownloadErrorDialog(
+          "Oferta nu mai poate fi descărcată deoarece lucrarea nu a fost găsită.",
+          "Lucrarea nu există în Firestore.",
+        )
+        return
+      }
+
+      const fresh = freshSnap.data() as any
+      const latestStoredUrl = typeof fresh?.ofertaDocument?.url === "string" ? fresh.ofertaDocument.url : ""
+      if (latestStoredUrl) {
+        setOfferUrl(latestStoredUrl)
+      }
+
+      const technicalParts: string[] = []
+      const candidateUrl = latestStoredUrl || offerUrl
+
+      if (candidateUrl) {
+        const downloadLink = buildStoredDownloadLink(candidateUrl)
+        if (downloadLink) {
+          const validation = await validateStoredDownloadLink(downloadLink)
+          if (validation.ok) {
+            const target = validation.redirectLocation || downloadLink
+            const opened = window.open(target, "_blank", "noopener,noreferrer")
+            if (!opened) {
+              window.location.href = target
+            }
+            return
+          }
+          technicalParts.push(validation.technical)
+        } else {
+          technicalParts.push("Nu s-a putut construi linkul API de descărcare pentru URL-ul stocat.")
+        }
+      } else {
+        technicalParts.push("Nu există ofertăDocument.url în lucrare.")
+      }
+
+      try {
+        const { blob, fileName } = await generateOfferBlobFromWork(fresh)
+        triggerBlobDownload(blob, fileName)
+        return
+      } catch (fallbackError: any) {
+        technicalParts.push(`Fallback generare locală eșuat: ${String(fallbackError?.message || fallbackError)}`)
+      }
+
+      openDownloadErrorDialog(
+        "Descărcarea ofertei a eșuat. Poți trimite eroarea către admin pentru investigație.",
+        technicalParts.join(" | "),
+      )
+    } catch (e: any) {
+      console.error("Download offer failed:", e)
+      openDownloadErrorDialog(
+        "A apărut o eroare neașteptată la descărcare. Trimite raportul către admin.",
+        String(e?.message || e),
+      )
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  const sendDownloadErrorToAdmin = async () => {
+    if (!id || isReportingError || reportSent) return
+
+    try {
+      setIsReportingError(true)
+      setReportFeedbackMessage("")
+
+      const browserContext =
+        typeof window !== "undefined"
+          ? {
+              userAgent: navigator.userAgent,
+              language: navigator.language,
+              location: window.location.href,
+              timestamp: new Date().toISOString(),
+            }
+          : null
+
+      const fallbackTechnical = errorDetails
+        ? JSON.stringify(errorDetails, null, 2).slice(0, 2000)
+        : ""
+
+      const resp = await fetch("/api/offer/report-error", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lucrareId: id,
+          action,
+          state,
+          token,
+          userMessage: downloadErrorMessage || message || "Eroare la descărcarea ofertei",
+          technicalError: downloadErrorTechnical || fallbackTechnical,
+          offerUrlPresent: Boolean(offerUrl),
+          hasErrorDetails: Boolean(errorDetails),
+          browser: browserContext,
+        }),
+      })
+
+      const json = await resp.json().catch(() => ({}))
+      if (!resp.ok || !json?.ok) {
+        throw new Error(json?.error || json?.message || "Nu s-a putut trimite raportul către admin.")
+      }
+
+      setReportSent(true)
+      setReportFeedbackMessage("Raportul a fost trimis către admin.")
+    } catch (e: any) {
+      setReportFeedbackMessage(String(e?.message || "Nu s-a putut trimite raportul către admin."))
+    } finally {
+      setIsReportingError(false)
+    }
+  }
 
   useEffect(() => {
     const run = async () => {
       try {
         setState("loading")
         setIsVerified(false)
+        setVerificationProof("")
         setVerifiedEmail("")
+        setVerificationEmail("")
+        setVerificationCode("")
+        setVerificationMessage("")
+        setCodeSent(false)
+        setResendCooldown(0)
+        setOfferUrl("")
+        setErrorDetails(null)
+
         if (!id || !token || !action || (action !== "accept" && action !== "reject")) {
           setState("invalid")
           setMessage("Link invalid. Contactați operatorul.")
@@ -57,6 +289,8 @@ export default function OfferActionPage() {
         }
 
         const data: any = workSnap.data()
+        setOfferUrl(typeof data?.ofertaDocument?.url === "string" ? data.ofertaDocument.url : "")
+
         if (!data.offerActionToken || data.offerActionToken !== token) {
           setState("invalid")
           setMessage("Link invalid. Contactați operatorul.")
@@ -67,21 +301,17 @@ export default function OfferActionPage() {
           setMessage("Oferta a fost deja acceptată sau refuzată. Contactați operatorul.")
           return
         }
-        const exp = data.offerActionExpiresAt ? (
-          typeof data.offerActionExpiresAt.toDate === "function" ? data.offerActionExpiresAt.toDate() : new Date(data.offerActionExpiresAt)
-        ) : null
+        const exp = data.offerActionExpiresAt
+          ? typeof data.offerActionExpiresAt.toDate === "function"
+            ? data.offerActionExpiresAt.toDate()
+            : new Date(data.offerActionExpiresAt)
+          : null
         if (exp && Date.now() > exp.getTime()) {
           setState("expired")
           setMessage("Link expirat. Contactați operatorul pentru o ofertă nouă.")
           return
         }
 
-        const verification = data.offerActionVerification || {}
-        if (verification?.verifiedAt && verification?.email) {
-          setIsVerified(true)
-          setVerifiedEmail(String(verification.email))
-          setVerificationEmail(String(verification.email))
-        }
         setState("ready")
       } catch (e) {
         console.error(e)
@@ -118,9 +348,11 @@ export default function OfferActionPage() {
   }, [resendCooldown])
 
   useEffect(() => {
-    // dacă utilizatorul schimbă emailul, revenim la pasul 1
     setCodeSent(false)
     setResendCooldown(0)
+    setIsVerified(false)
+    setVerifiedEmail("")
+    setVerificationProof("")
     setVerificationCode("")
     setVerificationMessage("")
   }, [verificationEmail])
@@ -129,6 +361,10 @@ export default function OfferActionPage() {
     if (!verificationEmail.trim()) return
     try {
       setIsSendingCode(true)
+      setIsVerified(false)
+      setVerifiedEmail("")
+      setVerificationProof("")
+      setVerificationCode("")
       setVerificationMessage("")
       const resp = await fetch("/api/offer/send-code", {
         method: "POST",
@@ -168,6 +404,11 @@ export default function OfferActionPage() {
       if (!resp.ok || json.status !== "verified") {
         throw new Error(json?.message || "Cod invalid.")
       }
+      const proof = typeof json?.verificationProof === "string" ? json.verificationProof.trim() : ""
+      if (!proof) {
+        throw new Error("Verificarea nu a putut fi confirmată complet. Solicitați un cod nou.")
+      }
+      setVerificationProof(proof)
       setIsVerified(true)
       setVerifiedEmail(json.email || verificationEmail.trim().toLowerCase())
       setVerificationMessage("Email verificat cu succes.")
@@ -180,155 +421,216 @@ export default function OfferActionPage() {
 
   const processResponse = async (finalAction: "accept" | "reject", finalReason?: string) => {
     try {
+      if (!verificationProof) {
+        setState("ready")
+        setIsVerified(false)
+        setVerificationMessage("Este necesară reverificarea în doi pași.")
+        return
+      }
       setState("loading")
-        const resp = await fetch("/api/offer/respond", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lucrareId: id, token, action: finalAction, ...(finalReason ? { reason: finalReason } : {}) }),
-        })
-        const json = await resp.json()
-        if (!resp.ok || json.status !== "success") {
-          if (json.status === "expired") {
-            setState("expired"); setMessage("Link expirat. Contactați operatorul pentru o ofertă nouă."); return
-          }
-          if (json.status === "used") {
-            setState("used"); setMessage("Oferta a fost deja acceptată sau refuzată. Contactați operatorul."); return
-          }
-          if (json.status === "invalid") {
-            setState("invalid"); setMessage("Link invalid. Contactați operatorul."); return
-          }
-        if (json.status === "verification_required") {
-          setState("ready")
-          setVerificationMessage("Este necesară validarea în doi pași înainte de accept/refuz.")
+      const resp = await fetch("/api/offer/respond", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lucrareId: id,
+          token,
+          action: finalAction,
+          verificationProof,
+          ...(finalReason ? { reason: finalReason } : {}),
+        }),
+      })
+      const json = await resp.json()
+      if (!resp.ok || json.status !== "success") {
+        if (json.status === "expired") {
+          setState("expired")
+          setMessage("Link expirat. Contactați operatorul pentru o ofertă nouă.")
           return
         }
-          throw new Error(json?.message || "Eroare la procesare pe server")
+        if (json.status === "used") {
+          setState("used")
+          setMessage("Oferta a fost deja acceptată sau refuzată. Contactați operatorul.")
+          return
         }
-
-        const ref = doc(db, "tichete", id)
-        const snap = await getDoc(ref)
-        const data: any = snap.exists() ? snap.data() : null
-        const resolveRecipientEmailForLocation = (client: any, work: any): string | null => {
-          const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(e || "")
-          const norm = (s?: string) => String(s || "").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "").trim()
-
-          const locatii = Array.isArray(client?.locatii) ? client.locatii : []
-          const targetName = norm(work?.locatie || work?.clientInfo?.locationName)
-          const targetAddr = norm(work?.clientInfo?.locationAddress)
-          const targetContactName = norm(work?.persoanaContact)
-
-          const loc = locatii.find((l: any) => norm(l?.nume) === targetName || norm(l?.adresa) === targetAddr)
-          if (!loc) return null
-
-          const exact = (loc.persoaneContact || []).find((c: any) => norm(c?.nume) === targetContactName)
-          const email = exact?.email
-          return isValid(email) ? String(email) : null
+        if (json.status === "invalid") {
+          setState("invalid")
+          setMessage("Link invalid. Contactați operatorul.")
+          return
         }
+        if (json.status === "verification_required" || json.status === "verification_invalid") {
+          setState("ready")
+          setIsVerified(false)
+          setVerifiedEmail("")
+          setVerificationProof("")
+          setVerificationEmail("")
+          setVerificationCode("")
+          setCodeSent(false)
+          setResendCooldown(0)
+          setVerificationMessage(
+            json?.message || "Este necesară validarea în doi pași înainte de acceptare/refuz.",
+          )
+          return
+        }
+        throw new Error(json?.message || "Eroare la procesare pe server")
+      }
 
-        try {
-          const freshSnap = await getDoc(ref)
-          const fresh = freshSnap.exists() ? (freshSnap.data() as any) : null
-          if (fresh) {
-            let ofertaUrl: string | undefined = fresh?.ofertaDocument?.url
+      const ref = doc(db, "lucrari", id)
+      const snap = await getDoc(ref)
+      const data: any = snap.exists() ? snap.data() : null
+      const resolveRecipientEmailForLocation = (client: any, work: any): string | null => {
+        const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(e || "")
+        const norm = (s?: string) =>
+          String(s || "")
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/\p{Diacritic}/gu, "")
+            .trim()
+
+        const locatii = Array.isArray(client?.locatii) ? client.locatii : []
+        const targetName = norm(work?.locatie || work?.clientInfo?.locationName)
+        const targetAddr = norm(work?.clientInfo?.locationAddress)
+        const targetContactName = norm(work?.persoanaContact)
+
+        const loc = locatii.find((l: any) => norm(l?.nume) === targetName || norm(l?.adresa) === targetAddr)
+        if (!loc) return null
+
+        const exact = (loc.persoaneContact || []).find((c: any) => norm(c?.nume) === targetContactName)
+        const email = exact?.email
+        return isValid(email) ? String(email) : null
+      }
+
+      try {
+        const freshSnap = await getDoc(ref)
+        const fresh = freshSnap.exists() ? (freshSnap.data() as any) : null
+        if (fresh) {
+          let ofertaUrl: string | undefined = fresh?.ofertaDocument?.url
+          if (ofertaUrl) {
+            setOfferUrl(ofertaUrl)
+          }
+
           if (finalAction === "accept" && !ofertaUrl) {
-              const products = Array.isArray(fresh?.products) ? fresh.products : []
-              if (products.length) {
-                const blob = await generateOfferPdf({
-                  id: String(id),
-                  numarRaport: String(data?.numarRaport || ''),
-                  offerNumber: Number((fresh as any)?.offerSendCount || 0) + 1,
-                  client: fresh?.client || "",
-                  attentionTo: fresh?.persoanaContact || "",
-                  fromCompany: "NRG Access Systems SRL",
-                  products: products.map((p: any) => ({
-                    name: p?.name || p?.denumire || "",
-                    quantity: Number(p?.quantity || p?.cantitate || 0),
-                    price: Number(p?.price || p?.pretUnitar || 0),
-                  })),
-                  offerVAT: typeof (fresh as any)?.offerVAT === "number" ? (fresh as any).offerVAT : 19,
-                  adjustmentPercent: Number((fresh as any)?.offerAdjustmentPercent || 0),
-                  damages: String((fresh as any)?.constatareLaLocatie || (fresh as any)?.raportSnapshot?.constatareLaLocatie || fresh?.comentariiOferta || "")
-                    .split(/\r?\n|\u2022|\-|\*/)
-                    .map((s: string) => s.trim())
-                    .filter(Boolean),
-                  conditions: Array.isArray((fresh as any)?.conditiiOferta)
-                    ? (fresh as any).conditiiOferta
-                    : undefined,
-                  equipmentName: String((fresh as any)?.echipament || ''),
-                  locationName: String((fresh as any)?.locatie || ''),
-                  preparedBy: String((fresh as any)?.preluatDe || (fresh as any)?.offerPreparedBy || (fresh as any)?.updatedByName || (fresh as any)?.createdByName || ''),
-                  preparedAt: ((fresh as any)?.offerPreparedAt ? (() => {
-                    try { const d = (fresh as any).offerPreparedAt?.toDate ? (fresh as any).offerPreparedAt.toDate() : new Date((fresh as any).offerPreparedAt); return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}` } catch { return new Date().toISOString().slice(0,10).split('-').reverse().join('.') }
-                  })() : new Date().toISOString().slice(0,10).split('-').reverse().join('.')),
-                  beneficiar: {
-                    name: String((fresh as any)?.client || (fresh as any)?.clientInfo?.nume || ''),
-                    cui: String((fresh as any)?.clientInfo?.cui || ''),
-                    reg: String((fresh as any)?.clientInfo?.rc || ''),
-                    address: String((fresh as any)?.clientInfo?.adresa || ''),
-                  },
-                })
-                const fileName = `oferta_${id}.pdf`
-                const file = new File([blob], fileName, { type: "application/pdf" })
-                const path = `tichete/${id}/oferta/${fileName}`
-                const uploaded = await uploadFile(file, path)
-                ofertaUrl = uploaded.url
-                await updateDoc(ref, {
-                  ofertaDocument: {
-                    url: uploaded.url,
-                    fileName: uploaded.fileName,
-                    uploadedAt: new Date().toISOString(),
-                    uploadedBy: "Portal client",
-                    numarOferta: (fresh as any)?.numarOferta || "",
-                    dataOferta: new Date().toISOString().slice(0, 10),
-                  },
-                  offerSendCount: Number((fresh as any)?.offerSendCount || 0) + 1,
-                })
-              }
+            const products = Array.isArray(fresh?.products) ? fresh.products : []
+            if (products.length) {
+              const blob = await generateOfferPdf({
+                id: String(id),
+                numarRaport: String(data?.numarRaport || ""),
+                offerNumber: Number((fresh as any)?.offerSendCount || 0) + 1,
+                client: fresh?.client || "",
+                attentionTo: fresh?.persoanaContact || "",
+                fromCompany: "NRG Access Systems SRL",
+                products: products.map((p: any) => ({
+                  name: p?.name || p?.denumire || "",
+                  quantity: Number(p?.quantity || p?.cantitate || 0),
+                  price: Number(p?.price || p?.pretUnitar || 0),
+                })),
+                offerVAT: typeof (fresh as any)?.offerVAT === "number" ? (fresh as any).offerVAT : 19,
+                adjustmentPercent: Number((fresh as any)?.offerAdjustmentPercent || 0),
+                damages: String(
+                  (fresh as any)?.constatareLaLocatie ||
+                    (fresh as any)?.raportSnapshot?.constatareLaLocatie ||
+                    fresh?.comentariiOferta ||
+                    "",
+                )
+                  .split(/\r?\n|\u2022|\-|\*/)
+                  .map((s: string) => s.trim())
+                  .filter(Boolean),
+                conditions: Array.isArray((fresh as any)?.conditiiOferta) ? (fresh as any).conditiiOferta : undefined,
+                equipmentName: String((fresh as any)?.echipament || ""),
+                locationName: String((fresh as any)?.locatie || ""),
+                preparedBy: String(
+                  (fresh as any)?.preluatDe ||
+                    (fresh as any)?.offerPreparedBy ||
+                    (fresh as any)?.updatedByName ||
+                    (fresh as any)?.createdByName ||
+                    "",
+                ),
+                preparedAt:
+                  (fresh as any)?.offerPreparedAt
+                    ? (() => {
+                        try {
+                          const d = (fresh as any).offerPreparedAt?.toDate
+                            ? (fresh as any).offerPreparedAt.toDate()
+                            : new Date((fresh as any).offerPreparedAt)
+                          return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`
+                        } catch {
+                          return new Date().toISOString().slice(0, 10).split("-").reverse().join(".")
+                        }
+                      })()
+                    : new Date().toISOString().slice(0, 10).split("-").reverse().join("."),
+                beneficiar: {
+                  name: String((fresh as any)?.client || (fresh as any)?.clientInfo?.nume || ""),
+                  cui: String((fresh as any)?.clientInfo?.cui || ""),
+                  reg: String((fresh as any)?.clientInfo?.rc || ""),
+                  address: String((fresh as any)?.clientInfo?.adresa || ""),
+                },
+              })
+              const fileName = `oferta_${id}.pdf`
+              const file = new File([blob], fileName, { type: "application/pdf" })
+              const path = `tichete/${id}/oferta/${fileName}`
+              const uploaded = await uploadFile(file, path)
+              ofertaUrl = uploaded.url
+              setOfferUrl(uploaded.url)
+              await updateDoc(ref, {
+                ofertaDocument: {
+                  url: uploaded.url,
+                  fileName: uploaded.fileName,
+                  uploadedAt: new Date().toISOString(),
+                  uploadedBy: "Portal client",
+                  numarOferta: (fresh as any)?.numarOferta || "",
+                  dataOferta: new Date().toISOString().slice(0, 10),
+                },
+                offerSendCount: Number((fresh as any)?.offerSendCount || 0) + 1,
+              })
             }
+          }
 
-            let clientData: any = null
-            try {
-              const cid = fresh?.clientInfo?.id
-              if (cid) clientData = await getClientById(cid)
-            } catch {}
-            const recipient = resolveRecipientEmailForLocation(clientData, fresh)
+          let clientData: any = null
+          try {
+            const cid = fresh?.clientInfo?.id
+            if (cid) clientData = await getClientById(cid)
+          } catch {}
+          const recipient = resolveRecipientEmailForLocation(clientData, fresh)
 
-            if (recipient) {
-              const to = [recipient]
-            const subject = `${finalAction === "accept" ? "Confirmare acceptare ofertă" : "Confirmare răspuns – refuz ofertă"} – tichet ${fresh?.numarRaport || String(id)}`
-              const base = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "")
-              const downloadLink = ofertaUrl ? `${base}/api/download?lucrareId=${encodeURIComponent(String(id))}&type=oferta&url=${encodeURIComponent(ofertaUrl)}&recipient=${encodeURIComponent(String(recipient))}` : ""
+          if (recipient) {
+            const to = [recipient]
+            const subject = `${
+              finalAction === "accept" ? "Confirmare acceptare ofertă" : "Confirmare răspuns – refuz ofertă"
+            } – tichet ${fresh?.numarRaport || String(id)}`
+            const base = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "")
+            const downloadLink = ofertaUrl
+              ? `${base}/api/download?lucrareId=${encodeURIComponent(String(id))}&type=oferta&url=${encodeURIComponent(ofertaUrl)}&recipient=${encodeURIComponent(String(recipient))}`
+              : ""
 
-            const messageParagraph = finalAction === "accept"
+            const messageParagraph =
+              finalAction === "accept"
                 ? "Va multumim pentru acceptarea ofertei noastre. In continuare veti fi contactat de un reprezentant NRG pt a stabili urmatorii pasi."
                 : "Va multumim pentru raspunsul dvs. In continuare veti fi contactat de un reprezentant NRG pt a stabili urmatorii pasi."
 
-            const linkSection = finalAction === "accept" && downloadLink
+            const linkSection =
+              finalAction === "accept" && downloadLink
                 ? `<p style="margin:12px 0"><a href="${downloadLink}" style="background:#2563eb;border-radius:6px;color:#ffffff;display:inline-block;font-weight:600;padding:10px 14px;text-decoration:none">Descarcă oferta</a></p>`
                 : ""
 
-              const html = `
+            const html = `
                 <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0b1220">
                   <p>${messageParagraph}</p>
                   ${linkSection}
                 </div>
               `
 
-              try {
-                await fetch('/api/users/invite', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ to, subject, html })
-                })
-              } catch (e) {
-                console.warn('Trimitere email confirmare ofertă eșuată (non-blocant):', e)
-              }
+            try {
+              await fetch("/api/users/invite", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ to, subject, html }),
+              })
+            } catch (e) {
+              console.warn("Trimitere email confirmare ofertă eșuată (non-blocant):", e)
             }
           }
-        } catch (e) {
-          console.warn('Post-response email or attachment handling failed (non-blocant):', e)
         }
-      if (finalAction === "accept") setGenerating(false)
+      } catch (e) {
+        console.warn("Post-response email or attachment handling failed (non-blocant):", e)
+      }
       setState("success")
       setMessage(finalAction === "accept" ? "Ați acceptat oferta. Vă mulțumim!" : "Ați refuzat oferta. Am înregistrat răspunsul.")
     } catch (e) {
@@ -356,7 +658,7 @@ export default function OfferActionPage() {
   }
 
   const handleAccept = async () => {
-    if (!isVerified) {
+    if (!isVerified || !verificationProof) {
       setVerificationMessage("Este necesară validarea în doi pași înainte de acceptare.")
       return
     }
@@ -364,7 +666,7 @@ export default function OfferActionPage() {
   }
 
   const submitReject = async () => {
-    if (!isVerified) {
+    if (!isVerified || !verificationProof) {
       setVerificationMessage("Este necesară validarea în doi pași înainte de refuz.")
       return
     }
@@ -378,9 +680,8 @@ export default function OfferActionPage() {
           <CardTitle>Confirmare ofertă</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {state === "loading" && (
-            <div className="text-sm text-muted-foreground">Se procesează...</div>
-          )}
+          {state === "loading" && <div className="text-sm text-muted-foreground">Se procesează...</div>}
+
           {state === "ready" && !isVerified && (
             <div className="space-y-3">
               <Alert>
@@ -430,11 +731,10 @@ export default function OfferActionPage() {
                   </button>
                 </div>
               )}
-              {verificationMessage && (
-                <div className="text-sm text-muted-foreground">{verificationMessage}</div>
-              )}
+              {verificationMessage && <div className="text-sm text-muted-foreground">{verificationMessage}</div>}
             </div>
           )}
+
           {state === "ready" && isVerified && (
             <div className="space-y-3">
               <Alert>
@@ -447,28 +747,31 @@ export default function OfferActionPage() {
                 </div>
               )}
               {action === "reject" && (
-            <div className="space-y-3">
-              <Alert>
-                <X className="h-4 w-4" />
-                <AlertDescription>Vă rugăm să indicați motivul refuzului (opțional).</AlertDescription>
-              </Alert>
-              <textarea
-                className="w-full border rounded p-2 text-sm"
-                rows={4}
-                placeholder="Ex.: Preț prea mare / Nu mai este necesar / Alt motiv"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-              />
-              <div className="flex gap-2 justify-end">
-                <Button variant="outline" asChild>
-                  <a href="/">Renunță</a>
-                </Button>
-                <Button variant="destructive" onClick={submitReject}>Trimite refuzul</Button>
-              </div>
+                <div className="space-y-3">
+                  <Alert>
+                    <X className="h-4 w-4" />
+                    <AlertDescription>Vă rugăm să indicați motivul refuzului (opțional).</AlertDescription>
+                  </Alert>
+                  <textarea
+                    className="w-full border rounded p-2 text-sm"
+                    rows={4}
+                    placeholder="Ex.: Preț prea mare / Nu mai este necesar / Alt motiv"
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                  />
+                  <div className="flex gap-2 justify-end">
+                    <Button variant="outline" asChild>
+                      <a href="/">Renunță</a>
+                    </Button>
+                    <Button variant="destructive" onClick={submitReject}>
+                      Trimite refuzul
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
           )}
+
           {state === "success" && (
             <div className="space-y-3">
               <Alert>
@@ -477,102 +780,70 @@ export default function OfferActionPage() {
               </Alert>
               {action === "accept" && (
                 <div className="space-y-2">
-                  <Button onClick={async () => {
-                    try {
-                      setDownloading(true)
-                      const ref = doc(db, "tichete", id)
-                      const freshSnap = await getDoc(ref)
-                      const fresh = freshSnap.exists() ? (freshSnap.data() as any) : null
-                      const products = Array.isArray(fresh?.products) ? fresh.products : []
-                      if (!products.length) return
-                const blob = await generateOfferPdf({
-                  id: id,
-                  numarRaport: String(fresh?.numarRaport || ''),
-                        client: fresh?.client || "",
-                        attentionTo: fresh?.persoanaContact || "",
-                        fromCompany: "NRG Access Systems SRL",
-                        products: products.map((p: any) => ({
-                          name: p?.name || p?.denumire || "",
-                          quantity: Number(p?.quantity || p?.cantitate || 0),
-                          price: Number(p?.price || p?.pretUnitar || 0),
-                        })),
-                        offerVAT: typeof (fresh as any)?.offerVAT === "number" ? (fresh as any).offerVAT : 19,
-                        damages: String((fresh as any)?.constatareLaLocatie || (fresh as any)?.raportSnapshot?.constatareLaLocatie || fresh?.comentariiOferta || "")
-                          .split(/\r?\n|\u2022|\-|\*/)
-                          .map((s: string) => s.trim())
-                          .filter(Boolean),
-                        conditions: Array.isArray((fresh as any)?.conditiiOferta)
-                          ? (fresh as any).conditiiOferta
-                          : undefined,
-                        equipmentName: String((fresh as any)?.echipament || ''),
-                        locationName: String((fresh as any)?.locatie || ''),
-                        beneficiar: {
-                          name: String((fresh as any)?.client || (fresh as any)?.clientInfo?.nume || ''),
-                          cui: String((fresh as any)?.clientInfo?.cui || ''),
-                          reg: String((fresh as any)?.clientInfo?.rc || ''),
-                          address: String((fresh as any)?.clientInfo?.adresa || ''),
-                        },
-                      })
-                      const fileName = `oferta_${id}.pdf`
-                      const url = URL.createObjectURL(blob)
-                      const a = document.createElement('a')
-                      a.href = url
-                      a.download = fileName
-                      document.body.appendChild(a)
-                      a.click()
-                      a.remove()
-                      URL.revokeObjectURL(url)
-                    } finally {
-                      setDownloading(false)
-                    }
-                  }} disabled={downloading}>
-                    {downloading ? "Se generează..." : "Descarcă oferta"}
+                  <Button onClick={handleDownloadOffer} disabled={downloading}>
+                    {downloading ? "Se descarcă..." : "Descarcă oferta"}
                   </Button>
                 </div>
               )}
             </div>
           )}
+
           {(state === "error" || state === "expired" || state === "used" || state === "invalid") && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{message}</AlertDescription>
             </Alert>
           )}
-          {(state === "error" || state === "expired" || state === "used" || state === "invalid") && id && token && (
+
+          {(state === "error" || state === "expired" || state === "used" || state === "invalid") && id && (
             <div className="flex flex-wrap gap-2 justify-between items-center">
-              <Button variant="outline" onClick={() => window.location.reload()}>Reîncearcă</Button>
-              <Button
-                onClick={async () => {
-                  try {
-                    const resp = await fetch("/api/offer/reissue", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ lucrareId: id, token }),
-                    })
-                    const json = await resp.json()
-                    if (!resp.ok || !json?.acceptUrl || !json?.rejectUrl) {
-                      throw new Error(json?.error || "Nu s-a putut reemite link-ul.")
-                    }
-                    const target = action === "reject" ? json.rejectUrl : json.acceptUrl
-                    window.location.href = target
-                  } catch (e) {
-                    console.error(e)
-                    alert("Nu s-a putut reemite link-ul. Contactați operatorul.")
-                  }
-                }}
-              >
-                Solicită link nou
+              <Button variant="outline" onClick={() => window.location.reload()}>
+                Reîncearcă
+              </Button>
+              <Button onClick={handleDownloadOffer} disabled={downloading}>
+                {downloading ? "Se descarcă..." : "Descarcă oferta"}
               </Button>
             </div>
           )}
+
           {state === "error" && errorDetails && (
             <div className="rounded-md border bg-muted/30 p-3">
               <div className="text-xs font-medium mb-1">Detalii tehnice eroare (pentru suport)</div>
-              <pre className="text-xs overflow-auto max-h-48 whitespace-pre-wrap">
-{JSON.stringify(errorDetails, null, 2)}
-              </pre>
+              <pre className="text-xs overflow-auto max-h-48 whitespace-pre-wrap">{JSON.stringify(errorDetails, null, 2)}</pre>
             </div>
           )}
+
+          <Dialog open={isDownloadErrorDialogOpen} onOpenChange={setIsDownloadErrorDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{downloadErrorTitle}</DialogTitle>
+                <DialogDescription>{downloadErrorMessage}</DialogDescription>
+              </DialogHeader>
+
+              {downloadErrorTechnical && (
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-muted-foreground">Detalii tehnice</div>
+                  <pre className="max-h-40 overflow-auto rounded-md border bg-muted/30 p-2 text-xs whitespace-pre-wrap">
+                    {downloadErrorTechnical}
+                  </pre>
+                </div>
+              )}
+
+              {reportFeedbackMessage && (
+                <div className={`text-xs ${reportSent ? "text-green-600" : "text-red-600"}`}>{reportFeedbackMessage}</div>
+              )}
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsDownloadErrorDialogOpen(false)}>
+                  Închide
+                </Button>
+                <Button onClick={sendDownloadErrorToAdmin} disabled={isReportingError || reportSent || !id}>
+                  {isReportingError ? "Se trimite..." : reportSent ? "Raport trimis" : "Trimite către admin"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
           <div className="pt-2">
             <Button asChild variant="outline">
               <a href="/">Înapoi la FOM</a>

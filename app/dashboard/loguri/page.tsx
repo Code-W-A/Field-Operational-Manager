@@ -31,6 +31,25 @@ import { useTablePersistence } from "@/hooks/use-table-persistence"
 import { LogDetailsDialog } from "@/components/log-details-dialog"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
+interface OfferErrorReport {
+  id: string
+  createdAt?: any
+  source?: string
+  status?: string
+  lucrareId?: string
+  nrLucrare?: string
+  client?: string
+  action?: string
+  pageState?: string
+  userMessage?: string
+  technicalMessage?: string
+  tokenStatus?: string
+  tokenPreview?: string
+  browser?: any
+  requestMeta?: any
+  [key: string]: any
+}
+
 export default function Loguri() {
   const [activeTab, setActiveTab] = useState("tabel")
   const [activeMainTab, setActiveMainTab] = useState("sistem")
@@ -42,6 +61,13 @@ export default function Loguri() {
   const [isEmailFilterModalOpen, setIsEmailFilterModalOpen] = useState(false)
   const [selectedEmailEvent, setSelectedEmailEvent] = useState<EmailEvent | null>(null)
   const [isEmailDetailsOpen, setIsEmailDetailsOpen] = useState(false)
+  const [offerErrorReports, setOfferErrorReports] = useState<OfferErrorReport[]>([])
+  const [offerErrorReportsFiltered, setOfferErrorReportsFiltered] = useState<OfferErrorReport[]>([])
+  const [offerErrorSearchText, setOfferErrorSearchText] = useState("")
+  const [offerErrorLoading, setOfferErrorLoading] = useState(false)
+  const [offerErrorLoadError, setOfferErrorLoadError] = useState<string | null>(null)
+  const [selectedOfferError, setSelectedOfferError] = useState<OfferErrorReport | null>(null)
+  const [isOfferErrorDetailsOpen, setIsOfferErrorDetailsOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [table, setTable] = useState<any>(null)
@@ -136,6 +162,28 @@ export default function Loguri() {
     fetchEmailEvents()
   }, [])
 
+  // Încărcăm raportările de erori trimise din portal ofertă
+  useEffect(() => {
+    const fetchOfferErrors = async () => {
+      try {
+        setOfferErrorLoading(true)
+        const q = query(collection(db, "eroriTrimise"), orderBy("createdAt", "desc"))
+        const qs = await getDocs(q)
+        const reports: OfferErrorReport[] = []
+        qs.forEach((d) => reports.push({ id: d.id, ...(d.data() as any) }))
+        setOfferErrorReports(reports)
+        setOfferErrorReportsFiltered(reports)
+        setOfferErrorLoadError(null)
+      } catch (e) {
+        console.error("Eroare la încărcarea eroriTrimise:", e)
+        setOfferErrorLoadError("A apărut o eroare la încărcarea raportărilor trimise.")
+      } finally {
+        setOfferErrorLoading(false)
+      }
+    }
+    fetchOfferErrors()
+  }, [])
+
   // Email filters: build options dynamically
   const emailFilterOptions = useMemo((): FilterOption[] => {
     const types = Array.from(new Set(emailEvents.map((e: any) => e.type))).map((v) => ({ value: v, label: v }))
@@ -205,6 +253,30 @@ export default function Loguri() {
     }
     setEmailFiltered(result)
   }, [emailEvents, emailFilters, emailSearchText, applyEmailFilters])
+
+  useEffect(() => {
+    let result = [...offerErrorReports]
+    const q = offerErrorSearchText.trim().toLowerCase()
+    if (q) {
+      result = result.filter((item) => {
+        const fields = [
+          item.lucrareId,
+          item.nrLucrare,
+          item.client,
+          item.action,
+          item.pageState,
+          item.status,
+          item.userMessage,
+          item.technicalMessage,
+          item.tokenStatus,
+          item.tokenPreview,
+          item.source,
+        ]
+        return fields.some((f) => (f ? String(f).toLowerCase().includes(q) : false))
+      })
+    }
+    setOfferErrorReportsFiltered(result)
+  }, [offerErrorReports, offerErrorSearchText])
 
   // Încărcăm setările salvate la inițializare
   useEffect(() => {
@@ -819,6 +891,7 @@ export default function Loguri() {
           <TabsList>
             <TabsTrigger value="sistem">Loguri sistem</TabsTrigger>
             <TabsTrigger value="emailuri">Emailuri</TabsTrigger>
+            <TabsTrigger value="erori-trimise">Erori trimise</TabsTrigger>
           </TabsList>
           <TabsContent value="sistem">
         <div className="flex flex-col sm:flex-row sm:justify-between gap-4">
@@ -1297,6 +1370,159 @@ export default function Loguri() {
                 ) : null}
                 <DialogFooter>
                   <Button variant="outline" onClick={() => { setIsEmailDetailsOpen(false); setSelectedEmailEvent(null) }}>Închide</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </TabsContent>
+
+          <TabsContent value="erori-trimise">
+            <div className="space-y-3">
+              <UniversalSearch
+                onSearch={setOfferErrorSearchText}
+                initialValue={offerErrorSearchText}
+                className="flex-1"
+              />
+
+              {offerErrorLoading ? (
+                <div className="flex items-center gap-2 py-8">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span>Se încarcă raportările trimise...</span>
+                </div>
+              ) : offerErrorLoadError ? (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{offerErrorLoadError}</AlertDescription>
+                </Alert>
+              ) : offerErrorReportsFiltered.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nu există raportări de erori trimise.</p>
+              ) : (
+                <div className="grid gap-3 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3">
+                  {offerErrorReportsFiltered.map((rep) => (
+                    <Card
+                      key={rep.id}
+                      className="cursor-pointer hover:bg-muted/40"
+                      onClick={() => {
+                        setSelectedOfferError(rep)
+                        setIsOfferErrorDetailsOpen(true)
+                      }}
+                    >
+                      <CardContent className="p-4 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <Badge variant="outline">{rep.status || "nou"}</Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {rep.createdAt ? formatDate(rep.createdAt) : "-"}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 gap-1 text-sm">
+                          <div>
+                            Tichet:{" "}
+                            {rep.lucrareId ? (
+                              <a
+                                className="text-blue-600 hover:underline font-mono"
+                                href={`/dashboard/lucrari/${rep.lucrareId}`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {rep.nrLucrare || rep.lucrareId}
+                              </a>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </div>
+                          {rep.client && (
+                            <div>
+                              Client: <span className="truncate inline-block max-w-full align-top">{rep.client}</span>
+                            </div>
+                          )}
+                          <div>
+                            Stare pagină: <span>{rep.pageState || "-"}</span>
+                          </div>
+                          <div>
+                            Acțiune: <span>{rep.action || "-"}</span>
+                          </div>
+                          <div>
+                            Token: <span>{rep.tokenStatus || "-"}</span>
+                          </div>
+                          {rep.userMessage && (
+                            <div>
+                              Mesaj:{" "}
+                              <span className="text-muted-foreground line-clamp-2">
+                                {rep.userMessage}
+                              </span>
+                            </div>
+                          )}
+                          {rep.technicalMessage && (
+                            <div>
+                              Tech:{" "}
+                              <span className="text-muted-foreground line-clamp-2">
+                                {rep.technicalMessage}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <Dialog
+              open={isOfferErrorDetailsOpen}
+              onOpenChange={(open) => {
+                setIsOfferErrorDetailsOpen(open)
+                if (!open) setSelectedOfferError(null)
+              }}
+            >
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Detalii raport eroare ofertă</DialogTitle>
+                </DialogHeader>
+                {selectedOfferError ? (
+                  <div className="space-y-3 text-sm">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="outline">{selectedOfferError.status || "nou"}</Badge>
+                      <Badge variant="outline">{selectedOfferError.pageState || "-"}</Badge>
+                      <Badge variant="outline">{selectedOfferError.tokenStatus || "-"}</Badge>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-muted-foreground">Tichet:</span>{" "}
+                        <span className="font-mono">{selectedOfferError.lucrareId || "-"}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Număr:</span>{" "}
+                        <span>{selectedOfferError.nrLucrare || "-"}</span>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <span className="text-muted-foreground">Client:</span> {selectedOfferError.client || "-"}
+                      </div>
+                      <div className="sm:col-span-2">
+                        <span className="text-muted-foreground">Mesaj utilizator:</span>{" "}
+                        {selectedOfferError.userMessage || "-"}
+                      </div>
+                      <div className="sm:col-span-2">
+                        <span className="text-muted-foreground">Mesaj tehnic:</span>{" "}
+                        {selectedOfferError.technicalMessage || "-"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground mb-1">Payload complet</div>
+                      <pre className="max-h-[300px] overflow-auto rounded bg-muted p-3 text-xs">
+{JSON.stringify(selectedOfferError, null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+                ) : null}
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsOfferErrorDetailsOpen(false)
+                      setSelectedOfferError(null)
+                    }}
+                  >
+                    Închide
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>

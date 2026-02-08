@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
       offerActionToken: token,
       offerActionExpiresAt: expiresAt,
       offerActionUsedAt: null,
+      offerActionVerification: null,
     }
     // Persist optional snapshot of the offer being sent so we can later show exactly what was accepted
     if (snapshot && typeof snapshot === 'object') {
