@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { Scanner } from "@yudiel/react-qr-scanner"
 import { Button } from "@/components/ui/button"
 import {
@@ -48,6 +48,65 @@ type ManualCodeFormValues = z.infer<typeof manualCodeSchema>
 
 // Constanta pentru durata timeout-ului global (în milisecunde)
 const GLOBAL_SCAN_TIMEOUT = 15000 // 15 secunde
+
+type CameraAccessErrorInfo = {
+  message: string
+  permissionDenied: boolean
+}
+
+const getCameraAccessErrorInfo = (error: unknown): CameraAccessErrorInfo => {
+  const err = error as { name?: string; message?: string } | null
+  const name = err?.name ?? ""
+  const message = err?.message ?? ""
+  const text = `${name} ${message}`.toLowerCase()
+
+  if (
+    name === "NotAllowedError" ||
+    name === "PermissionDeniedError" ||
+    name === "SecurityError" ||
+    text.includes("permission denied") ||
+    text.includes("permission dismissed")
+  ) {
+    return {
+      permissionDenied: true,
+      message:
+        "Accesul la cameră este blocat. Permiteți camera din setările browserului pentru acest site și reîncercați.",
+    }
+  }
+
+  if (!text && typeof window !== "undefined" && !window.isSecureContext) {
+    return {
+      permissionDenied: false,
+      message: "Camera poate fi folosită doar într-un context securizat (HTTPS).",
+    }
+  }
+
+  if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+    return {
+      permissionDenied: false,
+      message: "Nu a fost detectată nicio cameră pe dispozitiv.",
+    }
+  }
+
+  if (name === "NotReadableError" || name === "TrackStartError") {
+    return {
+      permissionDenied: false,
+      message: "Camera este ocupată de altă aplicație. Închideți celelalte aplicații și încercați din nou.",
+    }
+  }
+
+  if (name === "OverconstrainedError" || name === "ConstraintNotSatisfiedError") {
+    return {
+      permissionDenied: false,
+      message: "Setările camerei nu sunt compatibile pe acest dispozitiv. Încercați din nou.",
+    }
+  }
+
+  return {
+    permissionDenied: false,
+    message: "Nu s-a putut accesa camera. Verificați setările browserului și încercați din nou.",
+  }
+}
 
 export function QRCodeScanner({
   expectedEquipmentCode,
@@ -122,6 +181,91 @@ export function QRCodeScanner({
     }
 
     checkMobile()
+  }, [])
+
+  const browserCameraHelp = useMemo(() => {
+    if (typeof navigator === "undefined") {
+      return {
+        browser: "browser",
+        steps: [
+          "Deschide setările site-ului din bara de adrese.",
+          "Setează Camera pe «Permite».",
+          "Reîncarcă pagina și încearcă din nou scanarea.",
+        ],
+      }
+    }
+
+    const ua = navigator.userAgent.toLowerCase()
+    const isIOS = /iphone|ipad|ipod/.test(ua)
+    const isAndroid = /android/.test(ua)
+    const isSamsung = /samsungbrowser/.test(ua)
+    const isChrome = /chrome|crios/.test(ua) && !/edg|opr|opera/.test(ua)
+    const isFirefox = /firefox|fxios/.test(ua)
+    const isSafari = /safari/.test(ua) && !/chrome|crios|android/.test(ua)
+
+    if (isSamsung) {
+      return {
+        browser: "Samsung Internet",
+        steps: [
+          "Apasă pe iconița lacăt din bara de adrese.",
+          "Intră la Permissions/Permisiuni și setează Camera pe «Allow».",
+          "Reîncarcă pagina și apasă «Am permis din setări».",
+        ],
+      }
+    }
+
+    if (isChrome && isAndroid) {
+      return {
+        browser: "Chrome Android",
+        steps: [
+          "Apasă pe iconița lacăt din bara de adrese.",
+          "Site settings > Camera > Allow.",
+          "Reîncarcă pagina și apasă «Am permis din setări».",
+        ],
+      }
+    }
+
+    if (isSafari && isIOS) {
+      return {
+        browser: "Safari iOS",
+        steps: [
+          "Deschide «aA» din bara de adrese și intră la Website Settings.",
+          "Setează Camera pe «Allow».",
+          "Reîncarcă pagina și apasă «Am permis din setări».",
+        ],
+      }
+    }
+
+    if (isChrome && isIOS) {
+      return {
+        browser: "Chrome iOS",
+        steps: [
+          "iOS Settings > Chrome > Camera și activează accesul.",
+          "Revino în aplicație și reîncarcă pagina.",
+          "Apasă «Am permis din setări».",
+        ],
+      }
+    }
+
+    if (isFirefox) {
+      return {
+        browser: "Firefox",
+        steps: [
+          "Apasă pe iconița lacăt de lângă adresă.",
+          "La Permissions, permite Camera pentru acest site.",
+          "Reîncarcă pagina și apasă «Am permis din setări».",
+        ],
+      }
+    }
+
+    return {
+      browser: "browserul curent",
+      steps: [
+        "Deschide setările site-ului din bara de adrese (iconița lacăt).",
+        "Setează Camera pe «Permite».",
+        "Reîncarcă pagina și apasă «Am permis din setări».",
+      ],
+    }
   }, [])
 
   // Efect pentru a afișa butonul de introducere manuală când timerul global expiră
@@ -278,34 +422,69 @@ export function QRCodeScanner({
   // Verificăm permisiunile camerei
   const checkCameraPermissions = async () => {
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setCameraPermissionStatus("unknown")
+        setScanError("Browserul sau aplicația nu permite accesul la cameră pe acest dispozitiv.")
+        setIsScanning(false)
+        setShowManualEntryButton(true)
+        return
+      }
+
       // Verificăm dacă API-ul de permisiuni este disponibil
       if (navigator.permissions && navigator.permissions.query) {
-        const permissionStatus = await navigator.permissions.query({ name: "camera" as PermissionName })
-        setCameraPermissionStatus(permissionStatus.state as "prompt" | "granted" | "denied")
-
-        permissionStatus.onchange = () => {
+        try {
+          const permissionStatus = await navigator.permissions.query({ name: "camera" as PermissionName })
           setCameraPermissionStatus(permissionStatus.state as "prompt" | "granted" | "denied")
+
+          permissionStatus.onchange = () => {
+            setCameraPermissionStatus(permissionStatus.state as "prompt" | "granted" | "denied")
+          }
+        } catch (permissionQueryError) {
+          // Unele browsere mobile/PWA nu suportă `permissions.query({name:'camera'})`.
+          console.warn("Camera permission query is not supported in this browser:", permissionQueryError)
+          setCameraPermissionStatus("unknown")
         }
       }
 
-      // Încercăm să accesăm camera
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: isMobile ? "environment" : "user",
-          width: isMobile ? { ideal: 1280, max: 1920 } : { min: 640, ideal: 1280 },
-          height: isMobile ? { ideal: 720, max: 1080 } : { min: 480, ideal: 720 },
-        },
-      })
+      let stream: MediaStream | null = null
+      const preferredVideoConstraints = {
+        facingMode: isMobile ? "environment" : "user",
+        width: isMobile ? { ideal: 1280, max: 1920 } : { min: 640, ideal: 1280 },
+        height: isMobile ? { ideal: 720, max: 1080 } : { min: 480, ideal: 720 },
+      }
+
+      try {
+        // Încercăm întâi cu constrângerile preferate (camera spate pe mobil).
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: preferredVideoConstraints,
+        })
+      } catch (primaryError: any) {
+        const name = primaryError?.name
+        const canRetryWithGeneric =
+          name === "OverconstrainedError" || name === "ConstraintNotSatisfiedError" || name === "NotFoundError"
+
+        if (!canRetryWithGeneric) {
+          throw primaryError
+        }
+
+        // Fallback: cerem orice cameră disponibilă pe device.
+        stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      }
 
       // Eliberăm stream-ul după ce am verificat că avem acces
       stream.getTracks().forEach((track) => track.stop())
 
       setScanError(null)
+      setCameraPermissionStatus("granted")
+      setIsScanning(true)
     } catch (err) {
       console.error("Camera permission error:", err)
-      setScanError("Nu s-a putut accesa camera. Verificați permisiunile browserului.")
-      setCameraPermissionStatus("denied")
+      const errorInfo = getCameraAccessErrorInfo(err)
+
+      setScanError(errorInfo.message)
+      setCameraPermissionStatus(errorInfo.permissionDenied ? "denied" : "unknown")
       setIsScanning(false)
+      setShowManualEntryButton(true)
 
       // Considerăm și aceasta o încercare eșuată
       incrementFailedAttempts()
@@ -643,31 +822,50 @@ export function QRCodeScanner({
           <AlertTitle>Acces cameră blocat</AlertTitle>
           <AlertDescription>
             <p>
-              Browserul a blocat accesul la cameră. Pentru a scana QR code-uri, trebuie să permiteți accesul la
-              cameră.
+              După ce a fost apăsat „Block”, browserul nu mai poate cere automat accesul din nou.
             </p>
             <p className="mt-2">
-              Pe dispozitive mobile, verificați setările browserului sau ale aplicației pentru a permite accesul la
-              cameră.
+              După Block, trebuie permis din setările site-ului (iconița lacăt din bara de adrese).
             </p>
-            <Button variant="outline" className="mt-2" onClick={checkCameraPermissions}>
-              <Camera className="mr-2 h-4 w-4" />
-              Solicită din nou acces la cameră
-            </Button>
+            <div className="mt-3 rounded-md border border-red-200 bg-red-50/60 p-2 text-xs">
+              <p className="font-medium">Pași pentru {browserCameraHelp.browser}:</p>
+              <ol className="mt-1 list-decimal space-y-1 pl-4">
+                {browserCameraHelp.steps.map((step, idx) => (
+                  <li key={`${browserCameraHelp.browser}-${idx}`}>{step}</li>
+                ))}
+              </ol>
+            </div>
+            {scanError ? <p className="mt-2 text-xs opacity-90">Detaliu: {scanError}</p> : null}
+            <div className="mt-3 flex flex-col gap-2">
+              <Button variant="outline" onClick={checkCameraPermissions}>
+                <Camera className="mr-2 h-4 w-4" />
+                Am permis din setări, verifică din nou
+              </Button>
+              {!showManualCodeInput ? (
+                <Button onClick={activateManualCodeInput}>
+                  <KeyRound className="mr-2 h-4 w-4" />
+                  Introdu codul manual
+                </Button>
+              ) : null}
+            </div>
           </AlertDescription>
         </Alert>
       )
     }
 
-    if (cameraPermissionStatus === "prompt") {
+    if (cameraPermissionStatus === "prompt" || cameraPermissionStatus === "unknown") {
       return (
         <Alert className="mt-4">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Permisiune cameră necesară</AlertTitle>
           <AlertDescription>
             <p>
-              Pentru a scana QR code-uri, trebuie să permiteți accesul la cameră când browserul vă solicită acest lucru.
+              Pentru a scana QR code-uri, permiteți accesul la cameră când browserul solicită acest lucru.
             </p>
+            <Button variant="outline" className="mt-2" onClick={checkCameraPermissions}>
+              <Camera className="mr-2 h-4 w-4" />
+              Solicită din nou acces la cameră
+            </Button>
           </AlertDescription>
         </Alert>
       )

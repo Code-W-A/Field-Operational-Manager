@@ -506,11 +506,11 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
   }
 
   return (
-    <Card>
+    <Card className="border-0 sm:border">
       <CardHeader className="pb-3">
         <CardTitle className="text-lg">Fișa de operațiuni – {equipmentName || "Echipament"}</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3 px-3 pb-3">
+      <CardContent className="space-y-3 px-2 pb-3 sm:px-3">
         {/* QR validation gate */}
         {!verified && (
           <Alert className="bg-slate-50 border-slate-300">
@@ -893,5 +893,3 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
     </Card>
   )
 }
-
-
