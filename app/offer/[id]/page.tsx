@@ -70,6 +70,38 @@ export default function OfferActionPage() {
     return `/api/download?lucrareId=${encodeURIComponent(String(id))}&type=oferta&url=${encodeURIComponent(urlToDownload)}`
   }
 
+  const fetchOfferContext = async () => {
+    const workId = String(id || "").trim()
+    const currentToken = String(token || "").trim()
+    if (!workId || !currentToken) {
+      throw new Error("Nu s-au primit datele necesare pentru validarea ofertei.")
+    }
+
+    const query = new URLSearchParams({
+      lucrareId: workId,
+      token: currentToken,
+    })
+
+    const resp = await fetch(`/api/offer?${query.toString()}`, {
+      method: "GET",
+      cache: "no-store",
+    })
+    const json = await resp.json().catch(() => ({}))
+
+    // Pentru status-uri business (invalid/expired/used) endpointul poate răspunde cu non-2xx,
+    // dar cu payload util pentru UI.
+    if (!resp.ok && !json?.status) {
+      throw new Error(json?.error || json?.message || `Eroare API (${resp.status})`)
+    }
+
+    return json as {
+      status?: "ready" | "used" | "expired" | "invalid" | "error"
+      message?: string
+      offerUrl?: string
+      work?: any
+    }
+  }
+
   const validateStoredDownloadLink = async (downloadLink: string) => {
     const resp = await fetch(downloadLink, {
       method: "GET",
@@ -146,23 +178,20 @@ export default function OfferActionPage() {
 
     setDownloading(true)
     try {
-      const ref = doc(db, "lucrari", id)
-      const freshSnap = await getDoc(ref)
-      if (!freshSnap.exists()) {
-        openDownloadErrorDialog(
-          "Oferta nu mai poate fi descărcată deoarece lucrarea nu a fost găsită.",
-          "Lucrarea nu există în Firestore.",
-        )
-        return
-      }
-
-      const fresh = freshSnap.data() as any
-      const latestStoredUrl = typeof fresh?.ofertaDocument?.url === "string" ? fresh.ofertaDocument.url : ""
+      const context = await fetchOfferContext()
+      const fresh = context?.work || null
+      const latestStoredUrl = typeof context?.offerUrl === "string" ? context.offerUrl : ""
       if (latestStoredUrl) {
         setOfferUrl(latestStoredUrl)
       }
 
       const technicalParts: string[] = []
+      if (context?.status && context.status !== "ready") {
+        technicalParts.push(`Status link ofertă: ${context.status}`)
+      }
+      if (context?.message) {
+        technicalParts.push(`Mesaj server: ${context.message}`)
+      }
       const candidateUrl = latestStoredUrl || offerUrl
 
       if (candidateUrl) {
@@ -186,6 +215,9 @@ export default function OfferActionPage() {
       }
 
       try {
+        if (!fresh) {
+          throw new Error("Datele lucrării nu sunt disponibile în răspunsul serverului.")
+        }
         const { blob, fileName } = await generateOfferBlobFromWork(fresh)
         triggerBlobDownload(blob, fileName)
         return
@@ -280,36 +312,29 @@ export default function OfferActionPage() {
           return
         }
 
-        const workRef = doc(db, "lucrari", id)
-        const workSnap = await getDoc(workRef)
-        if (!workSnap.exists()) {
+        const context = await fetchOfferContext()
+        setOfferUrl(typeof context?.offerUrl === "string" ? context.offerUrl : "")
+
+        if (context?.status === "invalid") {
           setState("invalid")
-          setMessage("Lucrarea nu a fost găsită.")
+          setMessage(context?.message || "Link invalid. Contactați operatorul.")
           return
         }
-
-        const data: any = workSnap.data()
-        setOfferUrl(typeof data?.ofertaDocument?.url === "string" ? data.ofertaDocument.url : "")
-
-        if (!data.offerActionToken || data.offerActionToken !== token) {
-          setState("invalid")
-          setMessage("Link invalid. Contactați operatorul.")
-          return
-        }
-        if (data.offerActionUsedAt) {
+        if (context?.status === "used") {
           setState("used")
-          setMessage("Oferta a fost deja acceptată sau refuzată. Contactați operatorul.")
+          setMessage(context?.message || "Oferta a fost deja acceptată sau refuzată. Contactați operatorul.")
           return
         }
-        const exp = data.offerActionExpiresAt
-          ? typeof data.offerActionExpiresAt.toDate === "function"
-            ? data.offerActionExpiresAt.toDate()
-            : new Date(data.offerActionExpiresAt)
-          : null
-        if (exp && Date.now() > exp.getTime()) {
+        if (context?.status === "expired") {
           setState("expired")
-          setMessage("Link expirat. Contactați operatorul pentru o ofertă nouă.")
+          setMessage(context?.message || "Link expirat. Contactați operatorul pentru o ofertă nouă.")
           return
+        }
+        if (context?.status === "error") {
+          throw new Error(context?.message || "Eroare server la încărcarea ofertei.")
+        }
+        if (context?.status && context.status !== "ready") {
+          throw new Error(`Status neașteptat la încărcare: ${context.status}`)
         }
 
         setState("ready")
@@ -473,9 +498,6 @@ export default function OfferActionPage() {
         throw new Error(json?.message || "Eroare la procesare pe server")
       }
 
-      const ref = doc(db, "lucrari", id)
-      const snap = await getDoc(ref)
-      const data: any = snap.exists() ? snap.data() : null
       const resolveRecipientEmailForLocation = (client: any, work: any): string | null => {
         const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(e || "")
         const norm = (s?: string) =>
@@ -499,6 +521,9 @@ export default function OfferActionPage() {
       }
 
       try {
+        const ref = doc(db, "lucrari", id)
+        const snap = await getDoc(ref)
+        const data: any = snap.exists() ? snap.data() : null
         const freshSnap = await getDoc(ref)
         const fresh = freshSnap.exists() ? (freshSnap.data() as any) : null
         if (fresh) {

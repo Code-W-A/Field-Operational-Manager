@@ -1,6 +1,102 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { adminDb } from "@/lib/firebase/admin"
 
+function toDate(value: any): Date | null {
+  if (!value) return null
+  try {
+    if (typeof value?.toDate === "function") {
+      const d = value.toDate()
+      return Number.isNaN(d.getTime()) ? null : d
+    }
+    const d = new Date(value)
+    return Number.isNaN(d.getTime()) ? null : d
+  } catch {
+    return null
+  }
+}
+
+type OfferPageStatus = "ready" | "used" | "expired" | "invalid"
+
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url)
+    const workId = String(searchParams.get("lucrareId") || "").trim()
+    const providedToken = String(searchParams.get("token") || "").trim()
+
+    if (!workId || !providedToken) {
+      return NextResponse.json(
+        { status: "invalid", message: "Parametri lipsă sau nevalizi." },
+        { status: 400 },
+      )
+    }
+
+    const workRef = adminDb.collection("lucrari").doc(workId)
+    const workSnap = await workRef.get()
+    if (!workSnap.exists) {
+      return NextResponse.json(
+        { status: "invalid", message: "Lucrarea nu a fost găsită." },
+        { status: 404 },
+      )
+    }
+
+    const data: any = workSnap.data() || {}
+    if (!data.offerActionToken || data.offerActionToken !== providedToken) {
+      return NextResponse.json(
+        { status: "invalid", message: "Link invalid. Contactați operatorul." },
+        { status: 400 },
+      )
+    }
+
+    let status: OfferPageStatus = "ready"
+    let message = ""
+    if (data.offerActionUsedAt) {
+      status = "used"
+      message = "Oferta a fost deja acceptată sau refuzată. Contactați operatorul."
+    } else {
+      const exp = toDate(data.offerActionExpiresAt)
+      if (exp && Date.now() > exp.getTime()) {
+        status = "expired"
+        message = "Link expirat. Contactați operatorul pentru o ofertă nouă."
+      }
+    }
+
+    const payload = {
+      status,
+      message,
+      offerUrl: typeof data?.ofertaDocument?.url === "string" ? data.ofertaDocument.url : "",
+      work: {
+        id: workId,
+        numarRaport: String(data?.numarRaport || ""),
+        client: String(data?.client || data?.clientInfo?.nume || ""),
+        persoanaContact: String(data?.persoanaContact || ""),
+        products: Array.isArray(data?.products) ? data.products : [],
+        offerVAT: typeof data?.offerVAT === "number" ? data.offerVAT : 19,
+        offerAdjustmentPercent: Number(data?.offerAdjustmentPercent || 0),
+        constatareLaLocatie: String(
+          data?.constatareLaLocatie || data?.raportSnapshot?.constatareLaLocatie || data?.comentariiOferta || "",
+        ),
+        conditiiOferta: Array.isArray(data?.conditiiOferta) ? data.conditiiOferta : [],
+        echipament: String(data?.echipament || ""),
+        locatie: String(data?.locatie || ""),
+        comentariiOferta: String(data?.comentariiOferta || ""),
+        clientInfo: {
+          nume: String(data?.clientInfo?.nume || ""),
+          cui: String(data?.clientInfo?.cui || ""),
+          rc: String(data?.clientInfo?.rc || ""),
+          adresa: String(data?.clientInfo?.adresa || ""),
+        },
+      },
+    }
+
+    return NextResponse.json(payload)
+  } catch (e: any) {
+    return NextResponse.json(
+      { status: "error", message: "Eroare server.", error: String(e?.message || e) },
+      { status: 500 },
+    )
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { lucrareId, snapshot } = await req.json()
