@@ -556,8 +556,10 @@ export default function Utilizatori() {
       const code = err?.code || ""
       const map: Record<string, string> = {
         "auth/email-already-in-use": "Adresa de email este deja utilizată.",
+        "auth/email-already-exists": "Adresa de email este deja utilizată.",
         "auth/invalid-email": "Adresa de email nu este validă.",
         "auth/weak-password": "Parola este prea slabă (minim 6 caractere).",
+        "auth/invalid-password": "Parola este invalidă (minim 6 caractere).",
         "auth/operation-not-allowed": "Crearea de conturi este dezactivată.",
         "auth/network-request-failed": "Eroare de rețea. Încercați din nou.",
       }

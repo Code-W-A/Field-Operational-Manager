@@ -1,13 +1,11 @@
 import {
-  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
-  updateProfile,
   sendPasswordResetEmail,
   type User,
 } from "firebase/auth"
 import { auth, db } from "./config"
-import { doc, setDoc, serverTimestamp, deleteDoc } from "firebase/firestore"
+import { doc, setDoc, serverTimestamp } from "firebase/firestore"
 
 // Tipuri pentru autentificare
 export type UserRole = "admin" | "dispecer" | "tehnician" | "client" | "kiosk"
@@ -25,6 +23,7 @@ export interface UserData {
   role: UserRole
   phoneNumber?: string
   telefon?: string
+  notes?: string
   // Client access: multiple clients with multiple locations
   clientAccess?: Array<{ clientId: string; locationNames: string[] }>
   // Kiosk mode - prevents auto-logout
@@ -33,6 +32,7 @@ export interface UserData {
   officeLocation?: OfficeLocation
   createdAt?: Date
   lastLogin?: Date
+  updatedAt?: Date
 }
 
 // Înregistrare utilizator nou
@@ -45,38 +45,28 @@ export const registerUser = async (
   clientAccess?: Array<{ clientId: string; locationNames: string[] }>,
 ): Promise<UserData> => {
   try {
-    // Creăm utilizatorul în Firebase Auth
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password)
-    const user = userCredential.user
-
-    // Actualizăm profilul utilizatorului
-    await updateProfile(user, { displayName })
-
-    // Creăm documentul utilizatorului în Firestore
-    const userData: UserData = {
-      uid: user.uid,
-      email: user.email,
-      displayName: user.displayName,
-      role,
-      phoneNumber,
-      // keep legacy field in Firestore for backward compatibility
-      telefon: phoneNumber,
-      clientAccess: clientAccess || [],
-      isKioskMode: role === "kiosk" ? true : undefined,
-      createdAt: new Date(),
-      lastLogin: new Date(),
-    }
-
-    await setDoc(doc(db, "users", user.uid), {
-      ...userData,
-      createdAt: serverTimestamp(),
-      lastLogin: serverTimestamp(),
+    // Creare cont prin API server-side (Admin SDK), pentru a evita conturi orfane în Auth.
+    const response = await fetch("/api/users/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        password,
+        displayName,
+        role,
+        phoneNumber,
+        clientAccess: clientAccess || [],
+      }),
     })
 
-    // Adăugăm un log pentru crearea utilizatorului
-    await addAuthLog("Creare utilizator", `Utilizatorul ${displayName} a fost creat`, user)
+    const data = await response.json()
+    if (!response.ok) {
+      const error = new Error(data?.error || "A apărut o eroare la înregistrarea utilizatorului")
+      ;(error as any).code = data?.code
+      throw error
+    }
 
-    return userData
+    return data?.user as UserData
   } catch (error) {
     console.error("Eroare la înregistrarea utilizatorului:", error)
     throw error
