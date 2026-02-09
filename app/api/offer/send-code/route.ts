@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import nodemailer from "nodemailer"
 import { adminDb } from "@/lib/firebase/admin"
 import { getEmailFrom } from "@/lib/email/from"
+import { logOfferPortalEvent } from "@/lib/offer/portal-audit"
 
 const CODE_LENGTH = 6
 const CODE_TTL_MS = 15 * 60 * 1000
@@ -44,13 +45,25 @@ type SendCodeTxResult =
   | { kind: "ready"; version: number }
 
 export async function POST(req: NextRequest) {
+  let workId = ""
+  let providedToken = ""
+  let cleanEmail = ""
   try {
     const { lucrareId, token, email } = await req.json()
-    const workId = String(lucrareId || "").trim()
-    const providedToken = String(token || "").trim()
-    const cleanEmail = String(email || "").trim().toLowerCase()
+    workId = String(lucrareId || "").trim()
+    providedToken = String(token || "").trim()
+    cleanEmail = String(email || "").trim().toLowerCase()
 
     if (!workId || !providedToken || !cleanEmail || !isValidEmail(cleanEmail)) {
+      await logOfferPortalEvent({
+        lucrareId: workId || undefined,
+        action: "send-code",
+        status: "invalid",
+        token: providedToken,
+        email: cleanEmail,
+        details: "Parametri lipsă sau email invalid.",
+        meta: { route: "/api/offer/send-code", reason: "invalid_params" },
+      })
       return NextResponse.json({ status: "invalid", message: "Parametri lipsă sau email invalid." }, { status: 400 })
     }
 
@@ -126,18 +139,63 @@ export async function POST(req: NextRequest) {
     })
 
     if (txResult.kind === "not_found") {
+      await logOfferPortalEvent({
+        lucrareId: workId,
+        action: "send-code",
+        status: "invalid",
+        token: providedToken,
+        email: cleanEmail,
+        details: "Lucrarea nu există.",
+        meta: { route: "/api/offer/send-code", reason: "work_not_found" },
+      })
       return NextResponse.json({ status: "invalid", message: "Lucrarea nu există." }, { status: 404 })
     }
     if (txResult.kind === "invalid") {
+      await logOfferPortalEvent({
+        lucrareId: workId,
+        action: "send-code",
+        status: "invalid",
+        token: providedToken,
+        email: cleanEmail,
+        details: "Link invalid sau utilizat.",
+        meta: { route: "/api/offer/send-code", reason: "token_invalid" },
+      })
       return NextResponse.json({ status: "invalid", message: "Link invalid sau utilizat." }, { status: 400 })
     }
     if (txResult.kind === "used") {
+      await logOfferPortalEvent({
+        lucrareId: workId,
+        action: "send-code",
+        status: "used",
+        token: providedToken,
+        email: cleanEmail,
+        details: "Oferta a fost deja acceptată sau refuzată.",
+        meta: { route: "/api/offer/send-code" },
+      })
       return NextResponse.json({ status: "used", message: "Oferta a fost deja acceptată sau refuzată." }, { status: 409 })
     }
     if (txResult.kind === "expired") {
+      await logOfferPortalEvent({
+        lucrareId: workId,
+        action: "send-code",
+        status: "expired",
+        token: providedToken,
+        email: cleanEmail,
+        details: "Link expirat.",
+        meta: { route: "/api/offer/send-code" },
+      })
       return NextResponse.json({ status: "expired", message: "Link expirat." }, { status: 410 })
     }
     if (txResult.kind === "locked") {
+      await logOfferPortalEvent({
+        lucrareId: workId,
+        action: "send-code",
+        status: "locked",
+        token: providedToken,
+        email: cleanEmail,
+        details: `Prea multe încercări. Retry în ${txResult.retryAfterSec}s.`,
+        meta: { route: "/api/offer/send-code", retryAfterSec: txResult.retryAfterSec },
+      })
       return NextResponse.json(
         {
           status: "locked",
@@ -148,6 +206,15 @@ export async function POST(req: NextRequest) {
       )
     }
     if (txResult.kind === "throttled") {
+      await logOfferPortalEvent({
+        lucrareId: workId,
+        action: "send-code",
+        status: "throttled",
+        token: providedToken,
+        email: cleanEmail,
+        details: `Cooldown activ. Retry în ${txResult.retryAfterSec}s.`,
+        meta: { route: "/api/offer/send-code", retryAfterSec: txResult.retryAfterSec },
+      })
       return NextResponse.json(
         {
           status: "throttled",
@@ -194,12 +261,31 @@ export async function POST(req: NextRequest) {
       throw sendError
     }
 
+    await logOfferPortalEvent({
+      lucrareId: workId,
+      action: "send-code",
+      status: "sent",
+      token: providedToken,
+      email: cleanEmail,
+      details: "Codul de verificare a fost trimis.",
+      meta: { route: "/api/offer/send-code", version: txResult.version },
+    })
+
     return NextResponse.json({
       status: "sent",
       version: txResult.version,
       cooldownSec: Math.floor(CODE_RESEND_COOLDOWN_MS / 1000),
     })
   } catch (error: any) {
+    await logOfferPortalEvent({
+      lucrareId: workId || undefined,
+      action: "send-code",
+      status: "error",
+      token: providedToken,
+      email: cleanEmail,
+      details: String(error?.message || error || "unknown"),
+      meta: { route: "/api/offer/send-code", reason: "exception" },
+    })
     return NextResponse.json(
       {
         status: "error",

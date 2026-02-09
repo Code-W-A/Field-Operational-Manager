@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { adminDb } from "@/lib/firebase/admin"
+import { logOfferPortalEvent } from "@/lib/offer/portal-audit"
 
 const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 const DEFAULT_MAX_VERIFY_ATTEMPTS = 5
@@ -32,14 +33,26 @@ type VerifyTxResult =
     }
 
 export async function POST(req: NextRequest) {
+  let workId = ""
+  let providedToken = ""
+  let cleanEmail = ""
   try {
     const { lucrareId, token, email, code } = await req.json()
-    const workId = String(lucrareId || "").trim()
-    const providedToken = String(token || "").trim()
-    const cleanEmail = String(email || "").trim().toLowerCase()
+    workId = String(lucrareId || "").trim()
+    providedToken = String(token || "").trim()
+    cleanEmail = String(email || "").trim().toLowerCase()
     const normalizedCode = String(code || "").trim().toUpperCase()
 
     if (!workId || !providedToken || !cleanEmail || !normalizedCode || !isValidEmail(cleanEmail)) {
+      await logOfferPortalEvent({
+        lucrareId: workId || undefined,
+        action: "verify-code",
+        status: "invalid",
+        token: providedToken,
+        email: cleanEmail,
+        details: "Parametri lipsă sau email invalid.",
+        meta: { route: "/api/offer/verify-code", reason: "invalid_params" },
+      })
       return NextResponse.json({ status: "invalid", message: "Parametri lipsă sau email invalid." }, { status: 400 })
     }
 
@@ -164,6 +177,19 @@ export async function POST(req: NextRequest) {
     })
 
     if (txResult.kind === "error") {
+      await logOfferPortalEvent({
+        lucrareId: workId,
+        action: "verify-code",
+        status: txResult.status,
+        token: providedToken,
+        email: cleanEmail,
+        details: txResult.message,
+        meta: {
+          route: "/api/offer/verify-code",
+          retryAfterSec: txResult.retryAfterSec ?? null,
+          attemptsRemaining: txResult.attemptsRemaining ?? null,
+        },
+      })
       return NextResponse.json(
         {
           status: txResult.status,
@@ -174,8 +200,26 @@ export async function POST(req: NextRequest) {
         { status: txResult.statusCode },
       )
     }
+    await logOfferPortalEvent({
+      lucrareId: workId,
+      action: "verify-code",
+      status: "verified",
+      token: providedToken,
+      email: cleanEmail,
+      details: "Cod validat cu succes.",
+      meta: { route: "/api/offer/verify-code" },
+    })
     return NextResponse.json({ status: "verified", email: txResult.email, verificationProof: txResult.verificationProof })
   } catch (error: any) {
+    await logOfferPortalEvent({
+      lucrareId: workId || undefined,
+      action: "verify-code",
+      status: "error",
+      token: providedToken,
+      email: cleanEmail,
+      details: String(error?.message || error || "unknown"),
+      meta: { route: "/api/offer/verify-code", reason: "exception" },
+    })
     return NextResponse.json(
       {
         status: "error",

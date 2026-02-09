@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { adminDb } from "@/lib/firebase/admin"
+import { logOfferPortalEvent } from "@/lib/offer/portal-audit"
 
 function toDate(value: any): Date | null {
   if (!value) return null
@@ -24,6 +25,14 @@ export async function GET(req: NextRequest) {
     const providedToken = String(searchParams.get("token") || "").trim()
 
     if (!workId || !providedToken) {
+      await logOfferPortalEvent({
+        lucrareId: workId || undefined,
+        action: "link-open",
+        status: "invalid",
+        token: providedToken,
+        details: "Parametri lipsă sau nevalizi.",
+        meta: { route: "/api/offer", reason: "missing_params" },
+      })
       return NextResponse.json(
         { status: "invalid", message: "Parametri lipsă sau nevalizi." },
         { status: 400 },
@@ -33,6 +42,14 @@ export async function GET(req: NextRequest) {
     const workRef = adminDb.collection("lucrari").doc(workId)
     const workSnap = await workRef.get()
     if (!workSnap.exists) {
+      await logOfferPortalEvent({
+        lucrareId: workId,
+        action: "link-open",
+        status: "invalid",
+        token: providedToken,
+        details: "Lucrarea nu a fost găsită.",
+        meta: { route: "/api/offer", reason: "work_not_found" },
+      })
       return NextResponse.json(
         { status: "invalid", message: "Lucrarea nu a fost găsită." },
         { status: 404 },
@@ -41,6 +58,14 @@ export async function GET(req: NextRequest) {
 
     const data: any = workSnap.data() || {}
     if (!data.offerActionToken || data.offerActionToken !== providedToken) {
+      await logOfferPortalEvent({
+        lucrareId: workId,
+        action: "link-open",
+        status: "invalid",
+        token: providedToken,
+        details: "Token invalid sau depășit.",
+        meta: { route: "/api/offer", reason: "token_mismatch" },
+      })
       return NextResponse.json(
         { status: "invalid", message: "Link invalid. Contactați operatorul." },
         { status: 400 },
@@ -88,10 +113,26 @@ export async function GET(req: NextRequest) {
       },
     }
 
+    await logOfferPortalEvent({
+      lucrareId: workId,
+      action: "link-open",
+      status,
+      token: providedToken,
+      details: message || "Link valid.",
+      meta: { route: "/api/offer" },
+    })
+
     return NextResponse.json(payload)
   } catch (e: any) {
+    const msg = String(e?.message || e || "unknown")
+    await logOfferPortalEvent({
+      action: "link-open",
+      status: "error",
+      details: msg,
+      meta: { route: "/api/offer", reason: "exception" },
+    })
     return NextResponse.json(
-      { status: "error", message: "Eroare server.", error: String(e?.message || e) },
+      { status: "error", message: "Eroare server.", error: msg },
       { status: 500 },
     )
   }
