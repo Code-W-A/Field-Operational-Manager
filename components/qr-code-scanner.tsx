@@ -48,13 +48,10 @@ type ManualCodeFormValues = z.infer<typeof manualCodeSchema>
 
 // Constanta pentru durata timeout-ului global (în milisecunde)
 const GLOBAL_SCAN_TIMEOUT = 15000 // 15 secunde
-const CAMERA_AUTO_RETRY_DELAY_MS = 700
-const MAX_CAMERA_AUTO_RETRIES = 3
 
 type CameraAccessErrorInfo = {
   message: string
   permissionDenied: boolean
-  retryable: boolean
 }
 
 const getCameraAccessErrorInfo = (error: unknown): CameraAccessErrorInfo => {
@@ -72,7 +69,6 @@ const getCameraAccessErrorInfo = (error: unknown): CameraAccessErrorInfo => {
   ) {
     return {
       permissionDenied: true,
-      retryable: false,
       message:
         "Accesul la cameră este blocat. Permiteți camera din setările browserului pentru acest site și reîncercați.",
     }
@@ -81,7 +77,6 @@ const getCameraAccessErrorInfo = (error: unknown): CameraAccessErrorInfo => {
   if (!text && typeof window !== "undefined" && !window.isSecureContext) {
     return {
       permissionDenied: false,
-      retryable: false,
       message: "Camera poate fi folosită doar într-un context securizat (HTTPS).",
     }
   }
@@ -89,7 +84,6 @@ const getCameraAccessErrorInfo = (error: unknown): CameraAccessErrorInfo => {
   if (name === "NotFoundError" || name === "DevicesNotFoundError") {
     return {
       permissionDenied: false,
-      retryable: false,
       message: "Nu a fost detectată nicio cameră pe dispozitiv.",
     }
   }
@@ -97,22 +91,19 @@ const getCameraAccessErrorInfo = (error: unknown): CameraAccessErrorInfo => {
   if (name === "NotReadableError" || name === "TrackStartError") {
     return {
       permissionDenied: false,
-      retryable: true,
-      message: "Camera nu poate fi pornită momentan. Încercăm automat din nou...",
+      message: "Camera nu poate fi pornită momentan. Se reîncearcă automat.",
     }
   }
 
   if (name === "OverconstrainedError" || name === "ConstraintNotSatisfiedError") {
     return {
       permissionDenied: false,
-      retryable: false,
       message: "Setările camerei nu sunt compatibile pe acest dispozitiv. Încercați din nou.",
     }
   }
 
   return {
     permissionDenied: false,
-    retryable: false,
     message: "Nu s-a putut accesa camera. Verificați setările browserului și încercați din nou.",
   }
 }
@@ -167,8 +158,8 @@ export function QRCodeScanner({
   const [timeRemaining, setTimeRemaining] = useState(GLOBAL_SCAN_TIMEOUT / 1000)
   const [reporting, setReporting] = useState(false)
   const lastDetectedRawRef = useRef<string | null>(null)
+  const [scannerSessionKey, setScannerSessionKey] = useState(0)
   const cameraRetryTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const cameraAutoRetryCountRef = useRef(0)
   const isDialogOpenRef = useRef(false)
   const manualInputVisibleRef = useRef(false)
 
@@ -315,7 +306,6 @@ export function QRCodeScanner({
       setShowWarrantyVerification(false)
       setTechnicianWarrantyDeclaration(null)
       form.reset()
-      cameraAutoRetryCountRef.current = 0
       if (cameraRetryTimeoutRef.current) {
         clearTimeout(cameraRetryTimeoutRef.current)
         cameraRetryTimeoutRef.current = null
@@ -337,8 +327,8 @@ export function QRCodeScanner({
     } else {
       // Verificăm permisiunile camerei când se deschide dialogul
       checkCameraPermissions()
-      // Activăm starea de scanare când se deschide dialogul
-      setIsScanning(true)
+      // Forțăm remount scanner la fiecare deschidere, pentru a evita stream-uri rămase blocate
+      setScannerSessionKey((prev) => prev + 1)
       // Resetăm contorul de încercări eșuate
       setFailedScanAttempts(0)
       // Resetăm timestamp-ul ultimei scanări
@@ -347,7 +337,6 @@ export function QRCodeScanner({
       setGlobalTimeoutExpired(false)
       // Resetăm timpul rămas
       setTimeRemaining(GLOBAL_SCAN_TIMEOUT / 1000)
-      cameraAutoRetryCountRef.current = 0
       if (cameraRetryTimeoutRef.current) {
         clearTimeout(cameraRetryTimeoutRef.current)
         cameraRetryTimeoutRef.current = null
@@ -451,30 +440,6 @@ export function QRCodeScanner({
   }
 
   // Verificăm permisiunile camerei
-  const scheduleCameraAutoRetry = (message: string) => {
-    const nextAttempt = cameraAutoRetryCountRef.current + 1
-    cameraAutoRetryCountRef.current = nextAttempt
-
-    if (cameraRetryTimeoutRef.current) {
-      clearTimeout(cameraRetryTimeoutRef.current)
-      cameraRetryTimeoutRef.current = null
-    }
-
-    setScanError(`${message} Reîncercare automată (${nextAttempt}/${MAX_CAMERA_AUTO_RETRIES})...`)
-    setCameraPermissionStatus("unknown")
-    setIsScanning(false)
-    setShowManualEntryButton(false)
-
-    const delay = CAMERA_AUTO_RETRY_DELAY_MS * nextAttempt
-    cameraRetryTimeoutRef.current = setTimeout(() => {
-      cameraRetryTimeoutRef.current = null
-      if (!isDialogOpenRef.current || manualInputVisibleRef.current) {
-        return
-      }
-      void checkCameraPermissions()
-    }, delay)
-  }
-
   const checkCameraPermissions = async () => {
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -501,55 +466,19 @@ export function QRCodeScanner({
         }
       }
 
-      let stream: MediaStream | null = null
-      const preferredVideoConstraints = {
-        facingMode: isMobile ? "environment" : "user",
-        width: isMobile ? { ideal: 1280, max: 1920 } : { min: 640, ideal: 1280 },
-        height: isMobile ? { ideal: 720, max: 1080 } : { min: 480, ideal: 720 },
-      }
-
-      try {
-        // Încercăm întâi cu constrângerile preferate (camera spate pe mobil).
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: preferredVideoConstraints,
-        })
-      } catch (primaryError: any) {
-        const name = primaryError?.name
-        const canRetryWithGeneric =
-          name === "OverconstrainedError" || name === "ConstraintNotSatisfiedError" || name === "NotFoundError"
-
-        if (!canRetryWithGeneric) {
-          throw primaryError
-        }
-
-        // Fallback: cerem orice cameră disponibilă pe device.
-        stream = await navigator.mediaDevices.getUserMedia({ video: true })
-      }
-
-      // Eliberăm stream-ul după ce am verificat că avem acces
-      stream.getTracks().forEach((track) => track.stop())
-
+      // Nu mai facem pre-check cu getUserMedia aici; scannerul cere stream-ul direct.
+      // Pre-check-ul dă false negative pe unele device-uri și obliga utilizatorul să reîncerce manual.
       if (cameraRetryTimeoutRef.current) {
         clearTimeout(cameraRetryTimeoutRef.current)
         cameraRetryTimeoutRef.current = null
       }
-      cameraAutoRetryCountRef.current = 0
       setScanError(null)
       setCameraPermissionStatus("granted")
+      setShowManualEntryButton(false)
       setIsScanning(true)
     } catch (err) {
       console.error("Camera permission error:", err)
       const errorInfo = getCameraAccessErrorInfo(err)
-
-      if (
-        errorInfo.retryable &&
-        cameraAutoRetryCountRef.current < MAX_CAMERA_AUTO_RETRIES
-      ) {
-        scheduleCameraAutoRetry(errorInfo.message)
-        return
-      }
-
-      cameraAutoRetryCountRef.current = 0
 
       setScanError(errorInfo.message)
       setCameraPermissionStatus(errorInfo.permissionDenied ? "denied" : "unknown")
@@ -744,7 +673,6 @@ export function QRCodeScanner({
       clearTimeout(cameraRetryTimeoutRef.current)
       cameraRetryTimeoutRef.current = null
     }
-    cameraAutoRetryCountRef.current = 0
   }
 
   // Funcție pentru a reveni la scanare
@@ -760,11 +688,11 @@ export function QRCodeScanner({
     setGlobalTimeoutExpired(false) // Resetăm starea de expirare a timerului global
     setTimeRemaining(GLOBAL_SCAN_TIMEOUT / 1000) // Resetăm timpul rămas
     form.reset()
-    cameraAutoRetryCountRef.current = 0
     if (cameraRetryTimeoutRef.current) {
       clearTimeout(cameraRetryTimeoutRef.current)
       cameraRetryTimeoutRef.current = null
     }
+    setScannerSessionKey((prev) => prev + 1)
 
     // Resetăm timestamp-ul ultimei scanări
     lastScanAttemptRef.current = Date.now()
@@ -806,17 +734,26 @@ export function QRCodeScanner({
 
   const handleError = (error: any) => {
     console.error("Eroare la scanarea QR code-ului:", error)
-    const errorInfo = getCameraAccessErrorInfo(error)
+    const name = String(error?.name || "")
+    const isTransientStartError =
+      name === "NotReadableError" || name === "TrackStartError" || name === "AbortError"
 
-    if (
-      errorInfo.retryable &&
-      cameraAutoRetryCountRef.current < MAX_CAMERA_AUTO_RETRIES
-    ) {
-      scheduleCameraAutoRetry(errorInfo.message)
+    if (isTransientStartError) {
+      if (cameraRetryTimeoutRef.current) {
+        clearTimeout(cameraRetryTimeoutRef.current)
+      }
+      setScanError(null)
+      setIsScanning(false)
+      cameraRetryTimeoutRef.current = setTimeout(() => {
+        cameraRetryTimeoutRef.current = null
+        if (!isDialogOpenRef.current || manualInputVisibleRef.current) return
+        setScannerSessionKey((prev) => prev + 1)
+        setIsScanning(true)
+      }, 350)
       return
     }
 
-    cameraAutoRetryCountRef.current = 0
+    const errorInfo = getCameraAccessErrorInfo(error)
     setScanError(errorInfo.message)
     setIsScanning(false)
     if (onScanError) onScanError("Eroare la scanare")
@@ -1158,6 +1095,7 @@ export function QRCodeScanner({
               <>
                 <div className="relative aspect-square w-full max-w-sm mx-auto overflow-hidden rounded-lg">
                   <Scanner
+                    key={scannerSessionKey}
                     constraints={{
                       facingMode: isMobile ? "environment" : "user",
                       // IMPORTANT: keep resolution + frameRate modest on mobile to avoid CPU spikes on mid-range phones
