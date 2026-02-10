@@ -1341,6 +1341,16 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     return phone.replace(/\D/g, "")
   }
 
+  const getRevisionSheetNumberLabel = useCallback((equipmentId: string): string => {
+    const rawBase = String(lucrare?.nrLucrare || lucrare?.numarRaport || lucrare?.id || "")
+      .replace(/^#\s*/, "")
+      .trim()
+    const baseNumber = /^\d+$/.test(rawBase) ? rawBase.padStart(6, "0") : (rawBase || "000000")
+    const idx = revizieEquipmentIds.findIndex((id: string) => String(id) === String(equipmentId))
+    const n = idx >= 0 ? idx + 1 : 1
+    return `${baseNumber} - ${n}`
+  }, [lucrare?.nrLucrare, lucrare?.numarRaport, lucrare?.id, revizieEquipmentIds])
+
   // --- UTILITARE DESCĂRCĂRI CLIENT ---
   const handleClientDownloadReport = useCallback(() => {
     if (!lucrare?.raportGenerat || !lucrare?.id) return
@@ -1359,17 +1369,18 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     async (equipmentId: string, equipmentLabel?: string, headerOverride?: string) => {
       if (!lucrare?.id) return
       try {
+        const sheetNumberLabel = getRevisionSheetNumberLabel(String(equipmentId))
         const blob = await generateRevisionEquipmentPDF(String(lucrare.id), String(equipmentId), {
           headerLabelOverride: headerOverride,
+          sheetNumberLabel,
         })
         const url = URL.createObjectURL(blob)
         const a = document.createElement("a")
         a.href = url
         const finalLabel = headerOverride || equipmentLabel || equipmentId || "Echipament"
         const safeLabel = finalLabel.replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
-        const workNumRaw = String(lucrare.nrLucrare || lucrare.numarRaport || lucrare.id || "")
-        const workNum = workNumRaw.replace(/^#\s*/, "").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
-        a.download = `Fisa_Operatiuni_${safeLabel}_${workNum}.pdf`
+        const safeSheetNumber = sheetNumberLabel.replace(/[\\/:*?"<>|]+/g, "").trim()
+        a.download = `Fisa_Operatiuni_${safeLabel}_${safeSheetNumber}.pdf`
         document.body.appendChild(a)
         a.click()
         a.remove()
@@ -1383,7 +1394,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         })
       }
     },
-    [lucrare?.id, lucrare?.nrLucrare, lucrare?.numarRaport, toast]
+    [lucrare?.id, getRevisionSheetNumberLabel, toast]
   )
 
   const renderEquipmentDocumentation = (): React.ReactNode => {
@@ -2232,8 +2243,10 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                           (eq as any)?.dynamicSettings?.["revision.checklistParentName"] ||
                                           (eq as any)?.dynamicSettings?.["revision.templateName"] ||
                                           (eq as any)?.dynamicSettings?.["revision.checklistName"]
+                                        const sheetNumberLabel = getRevisionSheetNumberLabel(String(eid))
                                         const blob = await generateRevisionEquipmentPDF(String(lucrare.id), String(eid), {
                                           headerLabelOverride: headerOverride,
+                                          sheetNumberLabel,
                                         })
                                         const url = URL.createObjectURL(blob)
                                         const a = document.createElement("a")
@@ -2241,9 +2254,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                         // Construim numele fișierului pe baza selecției (headerOverride) sau fallback
                                         const fileLabel = headerOverride || eq?.nume || eq?.name || eq?.model || eid || "Echipament"
                                         const safeLabel = String(fileLabel).replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
-                                        const workNumRaw = String(lucrare?.nrLucrare || lucrare?.numarRaport || lucrare?.id || "")
-                                        const workNum = workNumRaw.replace(/^#\s*/, "").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
-                                        a.download = `Fisa_Operatiuni_${safeLabel}_${workNum}.pdf`
+                                        const safeSheetNumber = sheetNumberLabel.replace(/[\\/:*?"<>|]+/g, "").trim()
+                                        a.download = `Fisa_Operatiuni_${safeLabel}_${safeSheetNumber}.pdf`
                                         document.body.appendChild(a)
                                         a.click()
                                         a.remove()
@@ -2418,6 +2430,12 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                             <span className="text-blue-700 font-medium">Necesită piese suplimentare</span>
                           </div>
                         )}
+                        {lucrare.reinterventieMotiv.garantieInterventiei && (
+                          <div className="flex items-center space-x-2 text-sm">
+                            <div className="w-2 h-2 bg-emerald-600 rounded-full flex-shrink-0"></div>
+                            <span className="text-emerald-700 font-medium">Garanția intervenției</span>
+                          </div>
+                        )}
                       </div>
                       {/* Motive dinamice din Setări */}
                       {Array.isArray(lucrare.reinterventieMotiv.motive) && lucrare.reinterventieMotiv.motive.length > 0 && (
@@ -2534,7 +2552,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                   <div className="text-xs text-blue-600 mt-1">
                                     {reinterventie.reinterventieMotiv.remediereNeconforma && "Remediere neconformă "}
                                     {reinterventie.reinterventieMotiv.necesitaTimpSuplimentar && "Timp suplimentar "}
-                                    {reinterventie.reinterventieMotiv.necesitaPieseSuplimentare && "Piese suplimentare"}
+                                    {reinterventie.reinterventieMotiv.necesitaPieseSuplimentare && "Piese suplimentare "}
+                                    {reinterventie.reinterventieMotiv.garantieInterventiei && "Garanția intervenției"}
                                   </div>
                                 )}
                           {reinterventie.defectReclamat && (
@@ -3774,6 +3793,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       isOpen={isReinterventionReasonDialogOpen}
       onClose={() => setIsReinterventionReasonDialogOpen(false)}
       lucrareId={paramsId}
+      interventionDate={lucrare?.dataInterventie}
       onSuccess={handleReinterventionAfterReasons}
     />
     <AlertDialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>

@@ -204,6 +204,7 @@ export interface Lucrare {
     remediereNeconforma?: boolean     // Remediere neconformă
     necesitaTimpSuplimentar?: boolean // Necesită timp suplimentar
     necesitaPieseSuplimentare?: boolean // Necesită piese suplimentare
+    garantieInterventiei?: boolean    // Garanția intervenției (maxim 6 luni)
     motive?: string[]                 // Motive dinamice din setări
     dataReinterventie?: string        // Data când s-a decis reintervenția
     decisaDe?: string                 // Cine a decis reintervenția (admin/dispecer)

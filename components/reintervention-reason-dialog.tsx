@@ -16,17 +16,20 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { RefreshCw, AlertTriangle, Clock, Package, Wrench } from "lucide-react"
+import { addMonths, endOfDay } from "date-fns"
+import { RefreshCw, AlertTriangle, Clock, Package, Wrench, ShieldCheck } from "lucide-react"
 import { updateLucrare } from "@/lib/firebase/firestore"
 import { toast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/AuthContext"
 import { useTargetList } from "@/hooks/use-settings"
+import { formatUiDate, toDateSafe } from "@/lib/utils/time-format"
 
 interface ReinterventionReasonDialogProps {
   isOpen: boolean
   onClose: () => void
   lucrareId: string
   onSuccess: (textReinterventie?: string) => void
+  interventionDate?: unknown
   className?: string
 }
 
@@ -34,6 +37,7 @@ interface ReinterventionReasons {
   remediereNeconforma: boolean
   necesitaTimpSuplimentar: boolean
   necesitaPieseSuplimentare: boolean
+  garantieInterventiei: boolean
 }
 
 export function ReinterventionReasonDialog({ 
@@ -41,12 +45,14 @@ export function ReinterventionReasonDialog({
   onClose, 
   lucrareId, 
   onSuccess,
+  interventionDate,
   className 
 }: ReinterventionReasonDialogProps) {
   const [reasons, setReasons] = useState<ReinterventionReasons>({
     remediereNeconforma: false,
     necesitaTimpSuplimentar: false,
-    necesitaPieseSuplimentare: false
+    necesitaPieseSuplimentare: false,
+    garantieInterventiei: false,
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { userData } = useAuth()
@@ -56,6 +62,36 @@ export function ReinterventionReasonDialog({
   const [dynSelection, setDynSelection] = useState<Record<string, boolean>>({})
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
   const isClosingRef = React.useRef(false)
+  const warrantyEligibility = useMemo(() => {
+    const parsedInterventionDate = toDateSafe(interventionDate)
+    if (!parsedInterventionDate) {
+      return {
+        isEligible: false,
+        reason: "missing" as const,
+        limitDate: null as Date | null,
+      }
+    }
+
+    const limitDate = endOfDay(addMonths(parsedInterventionDate, 6))
+    const isEligible = new Date().getTime() <= limitDate.getTime()
+
+    return {
+      isEligible,
+      reason: isEligible ? null : ("expired" as const),
+      limitDate,
+    }
+  }, [interventionDate])
+
+  const warrantyDisabledMessage = useMemo(() => {
+    if (warrantyEligibility.isEligible) return ""
+    if (warrantyEligibility.reason === "missing") {
+      return "Opțiunea nu poate fi validată deoarece data intervenției este indisponibilă."
+    }
+    if (warrantyEligibility.limitDate) {
+      return `Eligibilă maximum 6 luni de la intervenție. Fereastra a expirat pe ${formatUiDate(warrantyEligibility.limitDate)}.`
+    }
+    return "Opțiunea de garanție nu este eligibilă."
+  }, [warrantyEligibility])
 
   useEffect(() => {
     // initialize selection for dynamic labels
@@ -92,6 +128,7 @@ export function ReinterventionReasonDialog({
         remediereNeconforma: reasons.remediereNeconforma,
         necesitaTimpSuplimentar: reasons.necesitaTimpSuplimentar,
         necesitaPieseSuplimentare: reasons.necesitaPieseSuplimentare,
+        garantieInterventiei: reasons.garantieInterventiei,
         motive: selectedDynamic, // motive dinamice din setări
         dataReinterventie: new Date().toLocaleString('ro-RO'),
         decisaDe: userData?.displayName || "Administrator necunoscut"
@@ -126,7 +163,8 @@ export function ReinterventionReasonDialog({
     setReasons({
       remediereNeconforma: false,
       necesitaTimpSuplimentar: false,
-      necesitaPieseSuplimentare: false
+      necesitaPieseSuplimentare: false,
+      garantieInterventiei: false,
     })
     setTextReinterventie("")
     setDynSelection({})
@@ -156,7 +194,7 @@ export function ReinterventionReasonDialog({
       }}
     >
       <DialogContent
-        className="sm:max-w-md"
+        className={["sm:max-w-md", className].filter(Boolean).join(" ")}
         onEscapeKeyDown={(e) => {
           e.preventDefault()
           requestClose()
@@ -272,6 +310,28 @@ export function ReinterventionReasonDialog({
                 
               </div>
             </div>
+
+            <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+              <Checkbox
+                id="garantie-interventiei"
+                checked={reasons.garantieInterventiei}
+                onCheckedChange={(checked) => handleReasonChange('garantieInterventiei', checked as boolean)}
+                disabled={isSubmitting || !warrantyEligibility.isEligible}
+                className="mt-0.5"
+              />
+              <div className="flex-1">
+                <Label 
+                  htmlFor="garantie-interventiei" 
+                  className="flex items-center gap-2 font-medium cursor-pointer"
+                >
+                  <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                  Garanția intervenției
+                </Label>
+                {!warrantyEligibility.isEligible && (
+                  <p className="mt-1 text-xs text-amber-700">{warrantyDisabledMessage}</p>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Text reintervenție (opțional) */}
@@ -294,6 +354,7 @@ export function ReinterventionReasonDialog({
                 {reasons.remediereNeconforma && <li>• Remediere neconformă</li>}
                 {reasons.necesitaTimpSuplimentar && <li>• Necesită timp suplimentar</li>}
                 {reasons.necesitaPieseSuplimentare && <li>• Necesită piese suplimentare</li>}
+                {reasons.garantieInterventiei && <li>• Garanția intervenției</li>}
               </ul>
             </div>
           )}

@@ -3239,6 +3239,7 @@ export default function Lucrari() {
           setSelectedLucrareForReintervention(null)
         }}
         lucrareId={selectedLucrareForReintervention?.id || ""}
+        interventionDate={selectedLucrareForReintervention?.dataInterventie}
         onSuccess={handleReinterventionAfterReasons}
       />
       </DashboardShell>

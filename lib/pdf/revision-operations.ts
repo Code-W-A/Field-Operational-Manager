@@ -76,6 +76,13 @@ function normalizeTextForPdf(text = ""): string {
   return s
 }
 
+function buildEquipmentSheetHeaderTitle(level2Label: string, sheetNumberLabel?: string): string {
+  if (sheetNumberLabel && String(sheetNumberLabel).trim().length > 0) {
+    return `Fișa nr. ${sheetNumberLabel} – Lista operațiuni – ${level2Label}`
+  }
+  return `Lista operațiuni – ${level2Label}`
+}
+
 export async function generateRevisionOperationsPDF(lucrareId: string): Promise<Blob> {
   const doc = new jsPDF({ unit: "mm", format: "a4" })
   let currentY = MARGIN
@@ -261,7 +268,7 @@ function docRef(collectionName: string, id: string) {
 export async function generateRevisionEquipmentPDF(
   lucrareId: string,
   equipmentId: string,
-  opts?: { headerLabelOverride?: string }
+  opts?: { headerLabelOverride?: string; sheetNumberLabel?: string }
 ): Promise<Blob> {
   const js = new jsPDF({ unit: "mm", format: "a4" })
   let currentY = MARGIN
@@ -283,7 +290,11 @@ export async function generateRevisionEquipmentPDF(
         fr.readAsDataURL(bl)
       })
     } catch {}
-    currentY = drawSimpleHeader(js, { title: "Lista operațiuni – Nivel 2 — Fie categorii, fie variabile", logoDataUrl: emptyLogo })
+    const missingHeaderTitle = buildEquipmentSheetHeaderTitle(
+      "Nivel 2 — Fie categorii, fie variabile",
+      opts?.sheetNumberLabel
+    )
+    currentY = drawSimpleHeader(js, { title: missingHeaderTitle, logoDataUrl: emptyLogo })
     try { js.setFont("NotoSans", "normal") } catch {}
     js.setFontSize(10)
     js.text(normalizeTextForPdf("Fișa de operațiuni nu a fost găsită pentru acest echipament."), MARGIN + 2, currentY + 4)
@@ -298,7 +309,7 @@ export async function generateRevisionEquipmentPDF(
     { ...rev, headerOverride: opts?.headerLabelOverride },
     sectionsForHeader
   )
-  const title = `Lista operațiuni – ${level2Label}`
+  const title = buildEquipmentSheetHeaderTitle(level2Label, opts?.sheetNumberLabel)
   let logoDataUrl: string | null = null
   try {
     const resp = await fetch("/nrglogo.png")
@@ -430,5 +441,4 @@ export async function generateRevisionEquipmentPDF(
   drawFooter(js)
   return js.output("blob")
 }
-
 

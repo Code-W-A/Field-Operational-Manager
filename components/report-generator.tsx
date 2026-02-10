@@ -874,7 +874,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           if (equipmentNames.length) {
             checkPageBreak(12)
             doc.setFont("NotoSans", "bold").setFontSize(11).setTextColor(0, 0, 0)
-            doc.text(normalize("Am efectuat revizie pentru:"), M + 2, currentY + 6)
+            doc.text(normalize("Am efectuat revizie tehnica conform listei de operatiuni pentru:"), M + 2, currentY + 6)
             currentY += 8
             doc.setFont("NotoSans", "normal").setFontSize(10).setTextColor(0, 0, 0)
             for (const name of equipmentNames) {
