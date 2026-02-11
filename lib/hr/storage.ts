@@ -615,7 +615,7 @@ export async function createHrRequest(request: Omit<HrRequest, "id" | "createdAt
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
-  await notifyHrRequestEmail({ requestId: ref.id, event: "created" })
+  void notifyHrRequestEmail({ requestId: ref.id, event: "created" })
   return ref.id
 }
 
@@ -1130,4 +1130,3 @@ export async function migrateEmployeesFullNameToSplit(): Promise<{ migrated: num
   
   return { migrated, skipped, errors }
 }
-
