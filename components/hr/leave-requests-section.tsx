@@ -75,7 +75,7 @@ export function LeaveRequestsSection({
                           variant="ghost"
                           size="icon"
                           onClick={() => generateHrRequestPDF(req)}
-                          title="Descarcă PDF"
+                          title="Descarcă document"
                         >
                           <Download className="h-4 w-4" />
                         </Button>

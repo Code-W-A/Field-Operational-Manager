@@ -35,6 +35,11 @@ function calculateWorkDays(startStr: string, endStr: string): number {
   return count
 }
 
+function isTimeRangeValid(start: string, end: string) {
+  if (!start || !end) return false
+  return start < end
+}
+
 export function CreateLeaveRequestDialog({
   open,
   onOpenChange,
@@ -51,7 +56,7 @@ export function CreateLeaveRequestDialog({
   departments?: Department[]
 }) {
   const sortedEmployees = useMemo(
-    () => [...employees].sort((a, b) => a.fullName.localeCompare(b.fullName)),
+    () => [...employees].sort((a, b) => getEmployeeFullName(a).localeCompare(getEmployeeFullName(b))),
     [employees]
   )
   
@@ -60,6 +65,9 @@ export function CreateLeaveRequestDialog({
   const [endDate, setEndDate] = useState("")
   const [type, setType] = useState<"CO" | "CFP" | "CM" | "DEL">("CO")
   const [reason, setReason] = useState("")
+  const [eventStartTime, setEventStartTime] = useState("08:00")
+  const [eventEndTime, setEventEndTime] = useState("16:30")
+  const [clientName, setClientName] = useState("")
   const [sectorId, setSectorId] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -88,6 +96,12 @@ export function CreateLeaveRequestDialog({
     if (availableSectors.includes(sectorId)) return
     setSectorId(availableSectors[0])
   }, [availableSectors, sectorId])
+
+  useEffect(() => {
+    if (!selectedEmployee) return
+    setEventStartTime(selectedEmployee.programLucruStart || "08:00")
+    setEventEndTime(selectedEmployee.programLucruEnd || "16:30")
+  }, [selectedEmployee?.id])
   
   const handleSubmit = async () => {
     setError(null)
@@ -111,6 +125,15 @@ export function CreateLeaveRequestDialog({
         setError("Delegația poate fi introdusă doar pentru zile anterioare sau curente.")
         return
       }
+      if (!clientName.trim()) {
+        setError("Completează numele clientului pentru delegație.")
+        return
+      }
+    }
+
+    if (type === "CO" && !isTimeRangeValid(eventStartTime, eventEndTime)) {
+      setError("Intervalul orar pentru eveniment trebuie să fie valid (ora de început < ora de sfârșit).")
+      return
     }
     
     if (workDays <= 0) {
@@ -134,39 +157,38 @@ export function CreateLeaveRequestDialog({
       }
 
       setSubmitting(true)
+      const rangePayload = {
+        kind: type,
+        startDate,
+        endDate,
+        reason: reason.trim() || undefined,
+        eventStartTime: type === "CO" ? eventStartTime : undefined,
+        eventEndTime: type === "CO" ? eventEndTime : undefined,
+        clientName: type === "DEL" ? clientName.trim() : undefined,
+      }
 
-      await createHrRequest({
+      const requestId = await createHrRequest({
         employeeId,
         employeeName: selectedEmployee ? getEmployeeFullName(selectedEmployee) : undefined,
         requesterUid,
         sectorId,
         managerUid,
-        kind: type as HrRequestKind,
+        kind: type,
         status: "pending",
-        payload: {
-          kind: type as HrRequestKind,
-          startDate,
-          endDate,
-          reason: reason.trim() || undefined,
-        },
+        payload: rangePayload,
       })
 
       if (selectedEmployee) {
         generateHrRequestPDF({
-          id: "temp",
+          id: requestId,
           employeeId,
           employeeName: getEmployeeFullName(selectedEmployee),
           requesterUid,
           sectorId,
           managerUid,
-          kind: type as HrRequestKind,
+          kind: type,
           status: "pending",
-          payload: {
-            kind: type as HrRequestKind,
-            startDate,
-            endDate,
-            reason: reason.trim() || undefined,
-          },
+          payload: rangePayload,
           createdAt: Date.now(),
           updatedAt: Date.now(),
         })
@@ -177,6 +199,9 @@ export function CreateLeaveRequestDialog({
       setEndDate("")
       setType("CO")
       setReason("")
+      setEventStartTime(selectedEmployee?.programLucruStart || "08:00")
+      setEventEndTime(selectedEmployee?.programLucruEnd || "16:30")
+      setClientName("")
       setError(null)
       
       onOpenChange(false)
@@ -283,6 +308,41 @@ export function CreateLeaveRequestDialog({
                 />
               </div>
             </div>
+
+            {type === "CO" && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="eventStartTime">Ora început eveniment *</Label>
+                  <Input
+                    id="eventStartTime"
+                    type="time"
+                    value={eventStartTime}
+                    onChange={(e) => setEventStartTime(e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="eventEndTime">Ora sfârșit eveniment *</Label>
+                  <Input
+                    id="eventEndTime"
+                    type="time"
+                    value={eventEndTime}
+                    onChange={(e) => setEventEndTime(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
+            {type === "DEL" && (
+              <div className="grid gap-2">
+                <Label htmlFor="clientName">Nume client (delegație) *</Label>
+                <Input
+                  id="clientName"
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                  placeholder="Ex: ACME Industrial SRL"
+                />
+              </div>
+            )}
             
             <div className="grid gap-2">
               <Label htmlFor="type">Tip concediu *</Label>
@@ -322,9 +382,9 @@ export function CreateLeaveRequestDialog({
             <div className="flex gap-2">
               <CalendarDays className="h-4 w-4 mt-0.5 flex-shrink-0" />
               <div>
-                <div className="font-semibold mb-1">Generare automată PDF</div>
+                <div className="font-semibold mb-1">Generare automată document</div>
                 <div className="text-xs">
-                  După crearea cererii, se va descărca automat un document PDF cu cererea de concediu 
+                  După crearea cererii, se va descărca automat documentul cu cererea
                   completată conform modelului oficial, gata de semnat și depus la HR.
                 </div>
               </div>
@@ -336,12 +396,21 @@ export function CreateLeaveRequestDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
             Anulează
           </Button>
-          <Button onClick={handleSubmit} disabled={submitting || !employeeId || !startDate || !endDate}>
-            {submitting ? "Se creează..." : "Creează cerere + PDF"}
+          <Button
+            onClick={handleSubmit}
+            disabled={
+              submitting ||
+              !employeeId ||
+              !startDate ||
+              !endDate ||
+              (type === "CO" && (!eventStartTime || !eventEndTime)) ||
+              (type === "DEL" && !clientName.trim())
+            }
+          >
+            {submitting ? "Se creează..." : "Creează cerere + document"}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   )
 }
-

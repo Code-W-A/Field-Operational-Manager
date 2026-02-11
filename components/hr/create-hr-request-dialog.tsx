@@ -22,6 +22,11 @@ function asNumber(v: string) {
   return Number.isFinite(n) ? n : 0
 }
 
+function isTimeRangeValid(start: string, end: string) {
+  if (!start || !end) return false
+  return start < end
+}
+
 export function CreateHrRequestDialog({
   open,
   onOpenChange,
@@ -44,6 +49,9 @@ export function CreateHrRequestDialog({
   // Range kinds
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
+  const [eventStartTime, setEventStartTime] = useState(employee.programLucruStart || "08:00")
+  const [eventEndTime, setEventEndTime] = useState(employee.programLucruEnd || "16:30")
+  const [clientName, setClientName] = useState("")
 
   // Invoire / single date
   const [date, setDate] = useState("")
@@ -80,17 +88,22 @@ export function CreateHrRequestDialog({
   const canSubmit = useMemo(() => {
     if (!sectorId) return false
     if (!managerUid) return false
-    if (kind === "CO" || kind === "CFP" || kind === "CM" || kind === "DEL") return !!startDate && !!endDate
+    if (kind === "CO") return !!startDate && !!endDate && !!eventStartTime && !!eventEndTime
+    if (kind === "DEL") return !!startDate && !!endDate && !!clientName.trim()
+    if (kind === "CFP" || kind === "CM") return !!startDate && !!endDate
     if (kind === "IN") return !!date && !!startTime && !!endTime
     if (kind === "CORRECT_HOURS") return !!date && entries.some((e) => e.start && e.end)
     if (kind === "ADD_OVERTIME") return !!date && asNumber(overtimeHours) > 0
     return false
-  }, [sectorId, managerUid, kind, startDate, endDate, date, startTime, endTime, entries, overtimeHours])
+  }, [sectorId, managerUid, kind, startDate, endDate, eventStartTime, eventEndTime, clientName, date, startTime, endTime, entries, overtimeHours])
 
   const reset = () => {
     setReason("")
     setStartDate("")
     setEndDate("")
+    setEventStartTime(employee.programLucruStart || "08:00")
+    setEventEndTime(employee.programLucruEnd || "16:30")
+    setClientName("")
     setDate("")
     setStartTime("08:00")
     setEndTime("16:00")
@@ -125,8 +138,22 @@ export function CreateHrRequestDialog({
           if (startDate > todayIso || endDate > todayIso) {
             throw new Error("Delegația poate fi introdusă doar pentru zile anterioare sau curente.")
           }
+          if (!clientName.trim()) {
+            throw new Error("Completează numele clientului pentru delegație.")
+          }
         }
-        payload = { kind, startDate, endDate, reason: reason.trim() || undefined }
+        if (kind === "CO" && !isTimeRangeValid(eventStartTime, eventEndTime)) {
+          throw new Error("Intervalul orar pentru eveniment trebuie să fie valid (ora de început < ora de sfârșit).")
+        }
+        payload = {
+          kind,
+          startDate,
+          endDate,
+          reason: reason.trim() || undefined,
+          eventStartTime: kind === "CO" ? eventStartTime : undefined,
+          eventEndTime: kind === "CO" ? eventEndTime : undefined,
+          clientName: kind === "DEL" ? clientName.trim() : undefined,
+        }
       } else if (kind === "IN") {
         if (!date || !startTime || !endTime) throw new Error("Completează data și intervalul.")
         payload = { kind, date, startTime, endTime, reason: reason.trim() || undefined }
@@ -241,25 +268,51 @@ export function CreateHrRequestDialog({
           </div>
 
           {(kind === "CO" || kind === "CFP" || kind === "CM" || kind === "DEL") && (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label>De la *</Label>
-                <DateInput
-                  value={startDate}
-                  onChange={setStartDate}
-                  min={kind === "DEL" ? monthStartIso : undefined}
-                  max={kind === "DEL" ? todayIso : undefined}
-                />
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label>De la *</Label>
+                  <DateInput
+                    value={startDate}
+                    onChange={setStartDate}
+                    min={kind === "DEL" ? monthStartIso : undefined}
+                    max={kind === "DEL" ? todayIso : undefined}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Până la *</Label>
+                  <DateInput
+                    value={endDate}
+                    onChange={setEndDate}
+                    min={kind === "DEL" ? monthStartIso : undefined}
+                    max={kind === "DEL" ? todayIso : undefined}
+                  />
+                </div>
               </div>
-              <div className="grid gap-2">
-                <Label>Până la *</Label>
-                <DateInput
-                  value={endDate}
-                  onChange={setEndDate}
-                  min={kind === "DEL" ? monthStartIso : undefined}
-                  max={kind === "DEL" ? todayIso : undefined}
-                />
-              </div>
+
+              {kind === "CO" ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label>Ora început eveniment *</Label>
+                    <Input type="time" value={eventStartTime} onChange={(e) => setEventStartTime(e.target.value)} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Ora sfârșit eveniment *</Label>
+                    <Input type="time" value={eventEndTime} onChange={(e) => setEventEndTime(e.target.value)} />
+                  </div>
+                </div>
+              ) : null}
+
+              {kind === "DEL" ? (
+                <div className="grid gap-2">
+                  <Label>Nume client (delegație) *</Label>
+                  <Input
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    placeholder="Ex: ACME Industrial SRL"
+                  />
+                </div>
+              ) : null}
             </div>
           )}
 
@@ -412,4 +465,3 @@ export function CreateHrRequestDialog({
     </Dialog>
   )
 }
-

@@ -915,7 +915,7 @@ export default function HrEmployeeDetailsPage() {
                         onClick={() => {
                           generateHrRequestPDF(req)
                         }}
-                        title="Descarcă PDF"
+                        title="Descarcă document"
                       >
                         <ClipboardList className="h-5 w-5" />
                       </Button>
@@ -949,5 +949,4 @@ export default function HrEmployeeDetailsPage() {
     </DashboardShell>
   )
 }
-
 

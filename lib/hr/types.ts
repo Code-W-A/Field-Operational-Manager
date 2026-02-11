@@ -124,6 +124,12 @@ export type HrRequestPayload =
       startDate: string // yyyy-mm-dd
       endDate: string // yyyy-mm-dd
       reason?: string
+      /** Optional event start time (used for CO template export). */
+      eventStartTime?: string // HH:mm
+      /** Optional event end time (used for CO template export). */
+      eventEndTime?: string // HH:mm
+      /** Optional client name (used for delegatie template export). */
+      clientName?: string
     }
   | {
       kind: "IN"
@@ -188,5 +194,4 @@ export type HrHoliday = {
   /** Optional label shown in tooltips/UI */
   label?: string
 }
-
 

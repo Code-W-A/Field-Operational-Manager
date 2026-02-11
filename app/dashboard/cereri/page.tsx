@@ -124,7 +124,7 @@ export default function CereriTehnicianPage() {
                       variant="ghost"
                       size="icon"
                       onClick={() => generateHrRequestPDF(r)}
-                      title="Descarcă PDF"
+                      title="Descarcă document"
                     >
                       <Download className="h-4 w-4" />
                     </Button>
@@ -149,4 +149,3 @@ export default function CereriTehnicianPage() {
     </DashboardShell>
   )
 }
-

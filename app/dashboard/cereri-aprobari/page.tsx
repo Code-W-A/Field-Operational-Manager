@@ -384,7 +384,7 @@ export default function CereriAprobariPage() {
               <>
                 <Button variant="outline" onClick={() => selected && generateHrRequestPDF(selected)} disabled={saving}>
                   <Download className="h-4 w-4 mr-2" />
-                  PDF
+                  Document
                 </Button>
                 <Button variant="outline" onClick={beginEdit} disabled={saving || !canEditPayload(selected.kind)}>
                   <Pencil className="h-4 w-4 mr-2" />
@@ -413,7 +413,7 @@ export default function CereriAprobariPage() {
                 {selected ? (
                   <Button variant="outline" onClick={() => generateHrRequestPDF(selected)}>
                     <Download className="h-4 w-4 mr-2" />
-                    PDF
+                    Document
                   </Button>
                 ) : null}
                 <Button variant="outline" onClick={() => setDetailOpen(false)}>
@@ -475,23 +475,57 @@ export default function CereriAprobariPage() {
             <div className="space-y-4">
               {(selected.kind === "CO" || selected.kind === "CFP" || selected.kind === "CM" || selected.kind === "DEL") &&
               editPayload.kind === selected.kind ? (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label>De la</Label>
-                    <Input
-                      type="date"
-                      value={editPayload.startDate}
-                      onChange={(e) => setEditPayload({ ...editPayload, startDate: e.target.value } as any)}
-                    />
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label>De la</Label>
+                      <Input
+                        type="date"
+                        value={editPayload.startDate}
+                        onChange={(e) => setEditPayload({ ...editPayload, startDate: e.target.value } as any)}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Până la</Label>
+                      <Input
+                        type="date"
+                        value={editPayload.endDate}
+                        onChange={(e) => setEditPayload({ ...editPayload, endDate: e.target.value } as any)}
+                      />
+                    </div>
                   </div>
-                  <div className="grid gap-2">
-                    <Label>Până la</Label>
-                    <Input
-                      type="date"
-                      value={editPayload.endDate}
-                      onChange={(e) => setEditPayload({ ...editPayload, endDate: e.target.value } as any)}
-                    />
-                  </div>
+
+                  {selected.kind === "CO" ? (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label>Ora început eveniment</Label>
+                        <Input
+                          type="time"
+                          value={(editPayload as any).eventStartTime || ""}
+                          onChange={(e) => setEditPayload({ ...(editPayload as any), eventStartTime: e.target.value } as any)}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label>Ora sfârșit eveniment</Label>
+                        <Input
+                          type="time"
+                          value={(editPayload as any).eventEndTime || ""}
+                          onChange={(e) => setEditPayload({ ...(editPayload as any), eventEndTime: e.target.value } as any)}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {selected.kind === "DEL" ? (
+                    <div className="grid gap-2">
+                      <Label>Nume client (delegație)</Label>
+                      <Input
+                        value={(editPayload as any).clientName || ""}
+                        onChange={(e) => setEditPayload({ ...(editPayload as any), clientName: e.target.value } as any)}
+                        placeholder="Ex: ACME Industrial SRL"
+                      />
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -570,4 +604,3 @@ export default function CereriAprobariPage() {
     </DashboardShell>
   )
 }
-
