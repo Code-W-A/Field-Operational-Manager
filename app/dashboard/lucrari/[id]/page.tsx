@@ -1470,6 +1470,11 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     router.push(`/dashboard/lucrari?reintervention=${lucrare.id}${extra}`)
   }
 
+  const ticketBadgeText =
+    lucrare.nrLucrare && lucrare.tipLucrare === "Revizie" && revizieEquipmentIds.length > 0
+      ? `${lucrare.nrLucrare} - ${revizieEquipmentIds.length}`
+      : lucrare.nrLucrare
+
   return (
     <TooltipProvider>
       <DashboardShell>
@@ -1506,7 +1511,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
             Tichetul: 
             {lucrare.nrLucrare && (
               <Badge className="bg-purple-100 text-purple-800 border border-purple-200 hover:bg-purple-100 text-base font-semibold px-3 py-1 rounded-md">
-                {lucrare.nrLucrare}
+                {ticketBadgeText}
               </Badge>
             )}
             {" - "}
