@@ -72,6 +72,8 @@ interface ClientFormProps {
   }
 }
 
+const REVISION_CHECKLIST_PARENT_ERROR = "revision.checklistParentId"
+
 // Funcție pentru verificarea CUI-ului
 const checkCuiExists = async (cui: string): Promise<boolean> => {
   if (!cui || cui.trim() === "") return false
@@ -174,12 +176,13 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
           "revision.checklistParentName": parentName,
         },
       }))
+      setEchipamentFormErrors((prev) => prev.filter((error) => error !== REVISION_CHECKLIST_PARENT_ERROR))
     }
     try { window.addEventListener("revision-template-child-change", handler as any) } catch {}
     return () => {
       try { window.removeEventListener("revision-template-child-change", handler as any) } catch {}
     }
-  }, [])
+  }, [REVISION_CHECKLIST_PARENT_ERROR])
 
   // Sincronizăm câmpul de input text pentru data instalării cu valoarea salvată
   useEffect(() => {
@@ -587,6 +590,9 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
   const handleSaveEchipament = async () => {
     // Validăm datele echipamentului
     const errors: string[] = []
+    const selectedChecklistParentId = String(
+      (echipamentFormData as any)?.dynamicSettings?.["revision.checklistParentId"] || "",
+    ).trim()
 
     if (!echipamentFormData.nume) errors.push("nume")
     if (!echipamentFormData.cod) errors.push("cod")
@@ -599,9 +605,23 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
       errors.push("cod")
     }
 
-    setEchipamentFormErrors(errors)
+    if (!selectedChecklistParentId) {
+      errors.push(REVISION_CHECKLIST_PARENT_ERROR)
+    }
 
-    if (errors.length > 0 || !isCodeUnique) {
+    const normalizedErrors = Array.from(new Set(errors))
+    setEchipamentFormErrors(normalizedErrors)
+
+    if (normalizedErrors.includes(REVISION_CHECKLIST_PARENT_ERROR)) {
+      toast({
+        title: "Checklist revizie lipsă",
+        description: "Selectați „Fișa de operațiuni” pentru acest echipament înainte de salvare.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (normalizedErrors.length > 0 || !isCodeUnique) {
       return
     }
 
@@ -902,6 +922,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
 
   // Stilul pentru câmpurile cu eroare
   const errorStyle = "border-red-500 focus-visible:ring-red-500"
+  const checklistParentHasError = echipamentFormErrors.includes(REVISION_CHECKLIST_PARENT_ERROR)
 
   // Test function to show the dialog directly
   const showAlertDialogDirectly = () => {
@@ -1796,12 +1817,13 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
 
             {/* Check-list revizie per echipament */}
             <div className="pt-1">
-              <div className="space-y-2 rounded-md border p-3">
+              <div className={cn("space-y-2 rounded-md border p-3", checklistParentHasError && "border-red-500 ring-1 ring-red-200")}>
                 <label className="text-sm font-medium">Checklist revizie (șablon din Setări)</label>
                 <TemplateSelector
                   valueId={(((echipamentFormData as any)?.dynamicSettings) || {})["revision.checklistTemplateId"] || ""}
                   useForSheet={!!((((echipamentFormData as any)?.dynamicSettings) || {})["revision.useChecklistForSheet"])}
                   parentId={(((echipamentFormData as any)?.dynamicSettings) || {})["revision.checklistParentId"] || ""}
+                  hasParentError={checklistParentHasError}
                   onChange={(payload) => {
                     setEchipamentFormData((prev: any) => ({
                       ...prev,
@@ -1814,6 +1836,11 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
                     }))
                   }}
                 />
+                {checklistParentHasError && (
+                  <p className="text-xs text-red-500">
+                    Selectați fișa de operațiuni pentru revizie.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -1910,12 +1937,14 @@ function TemplateSelector({
   valueId,
   useForSheet,
   parentId,
+  hasParentError = false,
   onChange,
   hideTemplateSelect = true,
 }: {
   valueId: string
   useForSheet: boolean
   parentId?: string
+  hasParentError?: boolean
   onChange: (payload: { templateId: string; templateName: string; useForSheet: boolean }) => void
   /** Dacă este true, nu afișăm dropdown-ul „Șablon checklist”, doar lista de fișe de operațiuni. */
   hideTemplateSelect?: boolean
@@ -2030,7 +2059,11 @@ function TemplateSelector({
                     role="combobox"
                     aria-expanded={childOpen}
                     disabled={disabled}
-                    className={cn("w-full justify-between", disabled && "opacity-50 cursor-not-allowed")}
+                    className={cn(
+                      "w-full justify-between",
+                      disabled && "opacity-50 cursor-not-allowed",
+                      hasParentError && "border-red-500 focus-visible:ring-red-500",
+                    )}
                   >
                     <span className={cn("truncate", !selectedName && "text-muted-foreground")}>
                       {selectedName || placeholder}

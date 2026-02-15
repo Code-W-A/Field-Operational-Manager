@@ -38,6 +38,7 @@ export default function RevisionEquipmentPage() {
       try {
         const work = await getLucrareById(workId)
         if (work) {
+          setChecklistRootId(undefined)
           // 1) Încercăm mai întâi din metadata de revizie (are deja nume/cod)
           const revList = Array.isArray((work as any)?.revision?.equipment)
             ? (work as any).revision.equipment
@@ -45,13 +46,11 @@ export default function RevisionEquipmentPage() {
           const byId = revList.find((r: any) => String(r.equipmentId) === String(equipmentId))
           const byCode = revList.find((r: any) => String(r.equipmentCode) === String(equipmentId))
           const revMatch = byId || byCode
+          const revFallbackRootId = revMatch?.revisionChecklistTemplateId
+            ? String(revMatch.revisionChecklistTemplateId)
+            : undefined
           if (revMatch?.equipmentName) {
             setEquipmentName(revMatch.equipmentName)
-            // Per‑equipment template selection (saved alongside the mapped equipment in work.revision.equipment)
-            if (revMatch?.revisionChecklistTemplateId) {
-              setChecklistRootId(String(revMatch.revisionChecklistTemplateId))
-            }
-            return
           }
 
           // 2) Căutăm în client/locație după id sau cod
@@ -86,24 +85,13 @@ export default function RevisionEquipmentPage() {
           const eq = eqById || eqByCode
           const name = eq?.denumire || eq?.nume || eq?.name
           if (name) setEquipmentName(name)
-          // Per‑equipment template selection saved on equipment object
-          if (eq?.revisionChecklistTemplateId) {
-            setChecklistRootId(String(eq.revisionChecklistTemplateId))
-          } else if (eq?.revisionChecklistTemplate?.id) {
-            // legacy/alternate shape
-            setChecklistRootId(String(eq.revisionChecklistTemplate.id))
-          } else if (eq?.dynamicSettings?.["revision.checklistParentId"]) {
-            // Highest priority: explicit selected category/section
-            const useForSheet = eq?.dynamicSettings?.["revision.useChecklistForSheet"]
-            if (useForSheet === undefined || !!useForSheet) {
-              setChecklistRootId(String(eq.dynamicSettings["revision.checklistParentId"]))
-            }
-          } else if (eq?.dynamicSettings?.["revision.checklistTemplateId"]) {
-            // stored in dynamicSettings
-            const useForSheet = eq?.dynamicSettings?.["revision.useChecklistForSheet"]
-            if (useForSheet === undefined || !!useForSheet) {
-              setChecklistRootId(String(eq.dynamicSettings["revision.checklistTemplateId"]))
-            }
+          // Source of truth: explicit selected fișă on equipment; fallback only from work revision metadata
+          const selectedParentId = String(eq?.dynamicSettings?.["revision.checklistParentId"] || "").trim()
+          const useForSheet = eq?.dynamicSettings?.["revision.useChecklistForSheet"]
+          if (selectedParentId && (useForSheet === undefined || !!useForSheet)) {
+            setChecklistRootId(selectedParentId)
+          } else if (revFallbackRootId) {
+            setChecklistRootId(revFallbackRootId)
           }
         }
       } catch (error) {
@@ -243,5 +231,4 @@ export default function RevisionEquipmentPage() {
     </DashboardShell>
   )
 }
-
 
