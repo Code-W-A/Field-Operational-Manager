@@ -37,7 +37,11 @@ type RevisionDoc = {
 type RevisionSheetContext = {
   client: string
   location: string
-  equipment: string
+  equipment: {
+    name: string
+    code: string
+    model: string
+  }
 }
 
 type ChecklistLayout = {
@@ -183,7 +187,7 @@ function resolveRevisionContext(work: any, rev: any, fallbackEquipmentId?: strin
     return keys.some((k: string) => targetKeys.has(k))
   })
 
-  const equipment = firstNonEmpty([
+  const equipmentName = firstNonEmpty([
     rev?.equipmentName,
     rev?.equipmentLabel,
     rev?.name,
@@ -202,7 +206,46 @@ function resolveRevisionContext(work: any, rev: any, fallbackEquipmentId?: strin
     rev?.id,
   ]) || "-"
 
-  return { client, location, equipment }
+  const equipmentCode = firstNonEmpty([
+    rev?.equipmentCode,
+    rev?.equipmentCod,
+    rev?.code,
+    rev?.cod,
+    revisionEquipmentMatch?.equipmentCode,
+    revisionEquipmentMatch?.equipmentCod,
+    revisionEquipmentMatch?.code,
+    revisionEquipmentMatch?.cod,
+    clientEquipmentMatch?.equipmentCode,
+    clientEquipmentMatch?.equipmentCod,
+    clientEquipmentMatch?.code,
+    clientEquipmentMatch?.cod,
+    work?.echipamentCod,
+    work?.equipmentCode,
+    fallbackEquipmentId,
+    rev?.equipmentId,
+    rev?.id,
+  ]) || "-"
+
+  const equipmentModel = firstNonEmpty([
+    rev?.equipmentModel,
+    rev?.model,
+    revisionEquipmentMatch?.equipmentModel,
+    revisionEquipmentMatch?.model,
+    clientEquipmentMatch?.equipmentModel,
+    clientEquipmentMatch?.model,
+    work?.echipamentModel,
+    work?.equipmentModel,
+  ]) || "-"
+
+  return {
+    client,
+    location,
+    equipment: {
+      name: equipmentName,
+      code: equipmentCode,
+      model: equipmentModel,
+    },
+  }
 }
 
 function splitTextToSizeClamped(pdf: jsPDF, text: string, width: number, maxLines = 3): string[] {
@@ -225,9 +268,9 @@ function splitTextToSizeClamped(pdf: jsPDF, text: string, width: number, maxLine
 
 function drawRevisionContextBlock(pdf: jsPDF, startY: number, context: RevisionSheetContext): number {
   const cols = [
-    { label: "Client", value: context.client },
-    { label: "Locație", value: context.location },
-    { label: "Echipament", value: context.equipment },
+    { label: "Client" },
+    { label: "Locație" },
+    { label: "Echipament" },
   ]
   const colW = CONTENT_WIDTH / 3
   const padX = 2
@@ -235,8 +278,19 @@ function drawRevisionContextBlock(pdf: jsPDF, startY: number, context: RevisionS
   const valueTop = 8.1
   const lineHeight = 3.7
   const maxLinesPerCell = 3
+  const usableWidth = colW - padX * 2
 
-  const linesByCol = cols.map((c) => splitTextToSizeClamped(pdf, c.value, colW - padX * 2, maxLinesPerCell))
+  const equipmentLines = [
+    splitTextToSizeClamped(pdf, `Nume echipament: ${context.equipment.name}`, usableWidth, 1)[0] || "-",
+    splitTextToSizeClamped(pdf, `Cod unic: ${context.equipment.code}`, usableWidth, 1)[0] || "-",
+    splitTextToSizeClamped(pdf, `Model: ${context.equipment.model}`, usableWidth, 1)[0] || "-",
+  ]
+
+  const linesByCol = [
+    splitTextToSizeClamped(pdf, context.client, usableWidth, maxLinesPerCell),
+    splitTextToSizeClamped(pdf, context.location, usableWidth, maxLinesPerCell),
+    equipmentLines,
+  ]
   const maxLines = Math.max(1, ...linesByCol.map((lines) => lines.length))
   const blockHeight = Math.max(14, valueTop + maxLines * lineHeight + 2.2)
 
