@@ -124,9 +124,33 @@ function normalizeSearchKey(value: unknown): string {
   return toCleanString(value).toLowerCase()
 }
 
-function resolveRevisionContext(work: any, rev: any, fallbackEquipmentId?: string): RevisionSheetContext {
+function normalizeComparableText(value: unknown): string {
+  const raw = toCleanString(value)
+  if (!raw) return ""
+  try {
+    return raw
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .replace(/\s+/g, " ")
+      .trim()
+  } catch {
+    return raw.toLowerCase().replace(/\s+/g, " ").trim()
+  }
+}
+
+function sanitizeEquipmentDisplayValue(value: string): string {
+  const cleaned = toCleanString(value)
+  if (!cleaned) return "-"
+  // Legacy fallback IDs like "temp-*" are not valid display values for equipment fields.
+  if (/^temp-\d+/i.test(cleaned)) return "-"
+  return cleaned
+}
+
+function resolveRevisionContext(work: any, rev: any, fallbackEquipmentId?: string, clientData?: any): RevisionSheetContext {
   const client = firstNonEmpty([
     work?.client,
+    clientData?.nume,
     work?.clientInfo?.nume,
     work?.clientInfo?.name,
     work?.clientInfo?.client,
@@ -168,12 +192,25 @@ function resolveRevisionContext(work: any, rev: any, fallbackEquipmentId?: strin
     return keys.some((k: string) => targetKeys.has(k))
   })
 
-  const clientInfo = work?.clientInfo
-  const locationEquipments = Array.isArray(clientInfo?.locatii)
-    ? clientInfo.locatii.flatMap((loc: any) => (Array.isArray(loc?.echipamente) ? loc.echipamente : []))
-    : []
-  const directEquipments = Array.isArray(clientInfo?.echipamente) ? clientInfo.echipamente : []
-  const allClientEquipments = [...locationEquipments, ...directEquipments]
+  const clientSource = clientData || work?.clientInfo || {}
+  const locations = Array.isArray(clientSource?.locatii) ? clientSource.locatii : []
+  const workLocationId = firstNonEmpty([
+    work?.locationId,
+    work?.clientInfo?.locationId,
+    work?.clientInfo?.locatieId,
+  ])
+  const matchedLocation =
+    (workLocationId
+      ? locations.find((loc: any) => String(loc?.id || "").trim() === workLocationId)
+      : null) ||
+    locations.find((loc: any) => normalizeComparableText(loc?.nume) === normalizeComparableText(location)) ||
+    null
+
+  const matchedLocationEquipments = Array.isArray(matchedLocation?.echipamente) ? matchedLocation.echipamente : []
+  const allLocationEquipments = locations.flatMap((loc: any) => (Array.isArray(loc?.echipamente) ? loc.echipamente : []))
+  const directEquipments = Array.isArray(clientSource?.echipamente) ? clientSource.echipamente : []
+  // Prioritize selected location equipment, then all client equipment as fallback.
+  const allClientEquipments = [...matchedLocationEquipments, ...allLocationEquipments, ...directEquipments]
 
   const clientEquipmentMatch = allClientEquipments.find((item: any) => {
     const keys = [
@@ -187,7 +224,30 @@ function resolveRevisionContext(work: any, rev: any, fallbackEquipmentId?: strin
     return keys.some((k: string) => targetKeys.has(k))
   })
 
-  const equipmentName = firstNonEmpty([
+  const equipmentNameHint = firstNonEmpty([
+    rev?.equipmentName,
+    rev?.equipmentLabel,
+    rev?.name,
+    rev?.title,
+    rev?.label,
+    revisionEquipmentMatch?.equipmentName,
+    revisionEquipmentMatch?.name,
+    revisionEquipmentMatch?.title,
+    revisionEquipmentMatch?.label,
+    work?.echipament,
+  ])
+  const clientEquipmentMatchByName =
+    clientEquipmentMatch ||
+    allClientEquipments.find(
+      (item: any) =>
+        normalizeComparableText(item?.nume || item?.name || item?.label) ===
+        normalizeComparableText(equipmentNameHint),
+    )
+  const resolvedClientEquipment = clientEquipmentMatchByName || clientEquipmentMatch
+
+  const equipmentNameRaw = firstNonEmpty([
+    resolvedClientEquipment?.nume,
+    resolvedClientEquipment?.name,
     rev?.equipmentName,
     rev?.equipmentLabel,
     rev?.name,
@@ -199,14 +259,17 @@ function resolveRevisionContext(work: any, rev: any, fallbackEquipmentId?: strin
     revisionEquipmentMatch?.label,
     clientEquipmentMatch?.nume,
     clientEquipmentMatch?.name,
+    resolvedClientEquipment?.model,
     clientEquipmentMatch?.model,
     work?.echipament,
-    fallbackEquipmentId,
-    rev?.equipmentId,
-    rev?.id,
   ]) || "-"
+  const equipmentName = sanitizeEquipmentDisplayValue(equipmentNameRaw)
 
-  const equipmentCode = firstNonEmpty([
+  const equipmentCodeRaw = firstNonEmpty([
+    resolvedClientEquipment?.cod,
+    resolvedClientEquipment?.code,
+    resolvedClientEquipment?.equipmentCode,
+    resolvedClientEquipment?.equipmentCod,
     rev?.equipmentCode,
     rev?.equipmentCod,
     rev?.code,
@@ -221,12 +284,12 @@ function resolveRevisionContext(work: any, rev: any, fallbackEquipmentId?: strin
     clientEquipmentMatch?.cod,
     work?.echipamentCod,
     work?.equipmentCode,
-    fallbackEquipmentId,
-    rev?.equipmentId,
-    rev?.id,
   ]) || "-"
+  const equipmentCode = sanitizeEquipmentDisplayValue(equipmentCodeRaw)
 
-  const equipmentModel = firstNonEmpty([
+  const equipmentModelRaw = firstNonEmpty([
+    resolvedClientEquipment?.model,
+    resolvedClientEquipment?.equipmentModel,
     rev?.equipmentModel,
     rev?.model,
     revisionEquipmentMatch?.equipmentModel,
@@ -236,6 +299,7 @@ function resolveRevisionContext(work: any, rev: any, fallbackEquipmentId?: strin
     work?.echipamentModel,
     work?.equipmentModel,
   ]) || "-"
+  const equipmentModel = sanitizeEquipmentDisplayValue(equipmentModelRaw)
 
   return {
     client,
@@ -248,12 +312,13 @@ function resolveRevisionContext(work: any, rev: any, fallbackEquipmentId?: strin
   }
 }
 
-function splitTextToSizeClamped(pdf: jsPDF, text: string, width: number, maxLines = 3): string[] {
+function splitTextToSizeClamped(pdf: jsPDF, text: string, width: number, maxLines?: number): string[] {
   const source = normalizeTextForPdf(text || "-")
   const raw = pdf.splitTextToSize(source, Math.max(1, width))
   const lines = (Array.isArray(raw) ? raw : [String(raw)])
     .map((line) => String(line || "").trim())
     .filter(Boolean)
+  if (!maxLines || maxLines < 1) return lines.length > 0 ? lines : ["-"]
   if (lines.length <= maxLines) return lines.length > 0 ? lines : ["-"]
   const clamped = lines.slice(0, maxLines)
   const lastIndex = maxLines - 1
@@ -277,13 +342,13 @@ function drawRevisionContextBlock(pdf: jsPDF, startY: number, context: RevisionS
   const labelTop = 3.8
   const valueTop = 8.1
   const lineHeight = 3.7
-  const maxLinesPerCell = 3
+  const maxLinesPerCell = 0
   const usableWidth = colW - padX * 2
 
   const equipmentLines = [
-    splitTextToSizeClamped(pdf, `Nume echipament: ${context.equipment.name}`, usableWidth, 1)[0] || "-",
-    splitTextToSizeClamped(pdf, `Cod unic: ${context.equipment.code}`, usableWidth, 1)[0] || "-",
-    splitTextToSizeClamped(pdf, `Model: ${context.equipment.model}`, usableWidth, 1)[0] || "-",
+    ...splitTextToSizeClamped(pdf, `Nume echipament: ${context.equipment.name}`, usableWidth),
+    ...splitTextToSizeClamped(pdf, `Cod unic: ${context.equipment.code}`, usableWidth),
+    ...splitTextToSizeClamped(pdf, `Model: ${context.equipment.model}`, usableWidth),
   ]
 
   const linesByCol = [
@@ -338,6 +403,22 @@ function drawChecklistTableHeader(pdf: jsPDF, startY: number, layout: ChecklistL
   return startY + layout.rowH
 }
 
+async function loadLiveClientData(work: any): Promise<any | null> {
+  const clientId = firstNonEmpty([
+    work?.clientId,
+    work?.clientInfo?.id,
+    work?.clientInfo?.clientId,
+  ])
+  if (!clientId) return null
+  try {
+    const snap = await getDoc(doc(db, "clienti", String(clientId)))
+    if (!snap.exists()) return null
+    return snap.data() as any
+  } catch {
+    return null
+  }
+}
+
 function measureChecklistItemHeight(pdf: jsPDF, it: any, layout: ChecklistLayout): number {
   const label = normalizeTextForPdf(it.label || it.name || "-")
   const obs = normalizeTextForPdf(it.obs || "")
@@ -373,6 +454,7 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
   // Load lucrare (for client/location context if needed later)
   const workSnap = await getDoc(docRef("lucrari", lucrareId))
   const work = workSnap.exists() ? (workSnap.data() as any) : null
+  const liveClientData = await loadLiveClientData(work)
 
   // Load revisions
   const revCol = collection(db, "lucrari", lucrareId, "revisions")
@@ -391,7 +473,7 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
     const level2Label = resolveHeaderLabel(rev, sectionsForHeader)
     const sheetNumberLabel = `${workNumberBase} - ${idx + 1}`
     const headerTitle = buildEquipmentSheetHeaderTitle(level2Label, sheetNumberLabel)
-    const context = resolveRevisionContext(work, rev, rev?.equipmentId || rev?.id)
+    const context = resolveRevisionContext(work, rev, rev?.equipmentId || rev?.id, liveClientData)
 
     const drawPageStart = () => {
       currentY = drawSimpleHeader(doc, { title: headerTitle, logoDataUrl })
@@ -519,6 +601,7 @@ export async function generateRevisionEquipmentPDF(
   const layout = getChecklistLayout()
   const workSnap = await getDoc(docRef("lucrari", lucrareId))
   const work = workSnap.exists() ? (workSnap.data() as any) : null
+  const liveClientData = await loadLiveClientData(work)
 
   // Load single revision
   const revSnap = await getDoc(doc(db, "lucrari", lucrareId, "revisions", equipmentId))
@@ -529,7 +612,7 @@ export async function generateRevisionEquipmentPDF(
       "Nivel 2 — Fie categorii, fie variabile",
       opts?.sheetNumberLabel
     )
-    const context = resolveRevisionContext(work, null, equipmentId)
+    const context = resolveRevisionContext(work, null, equipmentId, liveClientData)
     currentY = drawSimpleHeader(js, { title: missingHeaderTitle, logoDataUrl: emptyLogo })
     currentY = drawRevisionContextBlock(js, currentY, context)
     try { js.setFont("NotoSans", "normal") } catch {}
@@ -548,7 +631,7 @@ export async function generateRevisionEquipmentPDF(
   )
   const title = buildEquipmentSheetHeaderTitle(level2Label, opts?.sheetNumberLabel)
   const logoDataUrl = await loadLogoDataUrl()
-  const context = resolveRevisionContext(work, rev, equipmentId)
+  const context = resolveRevisionContext(work, rev, equipmentId, liveClientData)
 
   const drawPageStart = () => {
     currentY = drawSimpleHeader(js, { title, logoDataUrl })
