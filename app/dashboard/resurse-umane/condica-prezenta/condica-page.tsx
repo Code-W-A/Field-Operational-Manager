@@ -558,6 +558,7 @@ export default function CondicaPrezentaPage() {
   const getSummary = (employeeId: string) => {
     const ts = getEmployeeTimesheet(employeeId)
     let zileLucrate = 0
+    let ticheteMasa = 0
     let orePrezenta = 0
     let oreLucrateEfectiv = 0
     let oreSarbatoriLegale = 0
@@ -590,6 +591,13 @@ export default function CondicaPrezentaPage() {
       const isSunday = dow === 0
       const isHoliday = Boolean(holidayLabelsByDay[d])
       const isWeekendOrHoliday = isSaturday || isSunday || isHoliday
+      const approvedKindForDay = requestMetaByEmployeeDay[employeeId]?.[d]?.kind
+      const isExcludedByApprovedRequest =
+        approvedKindForDay === "CO" ||
+        approvedKindForDay === "CFP" ||
+        approvedKindForDay === "CM" ||
+        approvedKindForDay === "DEL" ||
+        approvedKindForDay === "IN"
 
       const toClientKey = "traseu catre client"
       const toHomeKey = "traseu catre casa"
@@ -667,6 +675,9 @@ export default function CondicaPrezentaPage() {
         const hours = computedMinutes != null ? computedMinutes / 60 : Number(c.hours ?? 8)
         orePrezenta += hours
         oreLucrateEfectiv += hours
+        if (!isWeekendOrHoliday && !isExcludedByApprovedRequest && hours > 0) {
+          ticheteMasa += 1
+        }
       } else if (c.code === "SL") {
         oreSarbatoriLegale += Number(c.hours ?? 8)
       }
@@ -691,8 +702,6 @@ export default function CondicaPrezentaPage() {
         }
       }
     })
-
-    const ticheteMasa = Math.max(0, zileLucrate - del)
 
     return {
       zileLucrate,
@@ -989,10 +998,11 @@ export default function CondicaPrezentaPage() {
               <div className="space-y-2">
                 <div className="font-semibold">Formula</div>
                 <div>
-                  <b>Tichete</b> = <b>max(0, Zile lucrate − Zile DEL)</b>.
+                  <b>Tichete</b> = numărul de zile cu <b>WORK</b>, doar <b>L–V</b>, non-sărbătoare legală, fără
+                  cereri aprobate <b>CO/CFP/CM/DEL/IN</b>, cu ore efective <b>{">"} 0</b>.
                 </div>
                 <div className="text-muted-foreground">
-                  <b>Zile DEL</b> vin din cererile de <b>Delegație</b> aprobate și se numără pe zile calendaristice care se suprapun cu luna.
+                  Orele efective sunt calculate din intervalele zilei (cu pauze), iar fallback-ul este câmpul de ore al celulei.
                 </div>
               </div>
             }
@@ -1928,5 +1938,3 @@ export default function CondicaPrezentaPage() {
     </TooltipProvider>
   )
 }
-
-

@@ -802,6 +802,16 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     router.push(`/dashboard/lucrari?edit=${lucrare.id}`)
   }, [router, lucrare])
 
+  // Navigare unificată către istoricul echipamentului (același mecanism folosit în aplicație)
+  const openEquipmentHistoryByCode = useCallback(
+    (rawCode?: string | null) => {
+      const code = String(rawCode || "").trim()
+      if (!code) return
+      router.push(`/dashboard/istoric-interventii/echipament?cod=${encodeURIComponent(code)}`)
+    },
+    [router],
+  )
+
   // Modificăm funcția handleGenerateReport pentru a descărca direct raportul dacă este generat
   const handleGenerateReport = useCallback(() => {
     if (!lucrare?.id) {
@@ -1539,11 +1549,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           {role === "tehnician" && lucrare?.echipamentCod && (
             <Button
               variant="outline"
-              onClick={() => {
-                const cod = String(lucrare.echipamentCod || "").trim()
-                if (!cod) return
-                router.push(`/dashboard/istoric-interventii/echipament?cod=${encodeURIComponent(cod)}`)
-              }}
+              onClick={() => openEquipmentHistoryByCode(lucrare.echipamentCod)}
             >
               <History className="mr-2 h-4 w-4" /> Vezi istoric
             </Button>
@@ -2703,6 +2709,17 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         <div className="text-sm flex items-center gap-2">
                           <span className="font-medium text-blue-600">Cod:</span>
                           <span className="text-blue-600">{resolvedEquipment?.cod || lucrare.echipamentCod}</span>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => openEquipmentHistoryByCode(resolvedEquipment?.cod || lucrare.echipamentCod)}
+                            aria-label="Vezi istoric echipament"
+                            title="Vezi istoric echipament"
+                          >
+                            <History className="h-3.5 w-3.5" />
+                          </Button>
                           <EquipmentQRCode
                             equipment={{
                               id: String(resolvedEquipment?.id || (lucrare as any)?.echipamentId || (lucrare as any)?.echipamentCod || ""),

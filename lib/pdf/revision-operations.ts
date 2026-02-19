@@ -95,10 +95,11 @@ function normalizeTextForPdf(text = ""): string {
 }
 
 function buildEquipmentSheetHeaderTitle(level2Label: string, sheetNumberLabel?: string): string {
+  void level2Label
   if (sheetNumberLabel && String(sheetNumberLabel).trim().length > 0) {
-    return `Fișa nr. ${sheetNumberLabel} – Lista operațiuni – ${level2Label}`
+    return `Lista de operatiuni nr. ${sheetNumberLabel}`
   }
-  return `Lista operațiuni – ${level2Label}`
+  return "Lista de operatiuni"
 }
 
 function buildWorkNumberBase(work: any, fallbackId: string): string {
@@ -495,24 +496,31 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
       }
     }
 
-    const sections = Array.isArray(rev.sections) ? rev.sections : []
+  const sections = Array.isArray(rev.sections) ? rev.sections : []
 
-    for (const s of sections) {
-      const sectionTitle = normalizeTextForPdf(s.title || s.name || "Secțiune")
-      const items = Array.isArray(s.items) ? s.items : []
+  for (const s of sections) {
+    const sectionTitle = normalizeTextForPdf(s.title || s.name || "Secțiune")
+    const items = Array.isArray(s.items) ? s.items : []
 
-      // Înălțimea totală a secțiunii (header + toate item-urile)
-      const sectionHeight = layout.rowH + items.reduce((sum: number, it: any) => sum + measureChecklistItemHeight(doc, it, layout), 0)
+      const isRootSection = String(s?.id || "").endsWith("__root")
+      const isGenericTitle = normalizeComparableText(sectionTitle) === normalizeComparableText("Puncte de control")
+      const shouldRenderSectionHeader = !(isRootSection || isGenericTitle)
+
+      // Înălțimea totală a secțiunii (header opțional + toate item-urile)
+      const sectionHeaderH = shouldRenderSectionHeader ? layout.rowH : 0
+      const sectionHeight = sectionHeaderH + items.reduce((sum: number, it: any) => sum + measureChecklistItemHeight(doc, it, layout), 0)
       // Dacă nu încape întreaga secțiune pe pagină, mutăm pe pagina următoare
       checkBreak(sectionHeight)
 
-      // Section row (category)
-      doc.setFillColor(240, 240, 240)
-      doc.rect(MARGIN, currentY, layout.totalW, layout.rowH, "F")
-      try { doc.setFont("NotoSans", "bold") } catch {}
-      doc.setFontSize(10).setTextColor(0, 0, 0)
-      doc.text(sectionTitle, MARGIN + 2, currentY + 5)
-      currentY += layout.rowH
+      if (shouldRenderSectionHeader) {
+        // Section row (category)
+        doc.setFillColor(240, 240, 240)
+        doc.rect(MARGIN, currentY, layout.totalW, layout.rowH, "F")
+        try { doc.setFont("NotoSans", "bold") } catch {}
+        doc.setFontSize(10).setTextColor(0, 0, 0)
+        doc.text(sectionTitle, MARGIN + 2, currentY + 5)
+        currentY += layout.rowH
+      }
 
       // Items
       try { doc.setFont("NotoSans", "normal") } catch {}
@@ -658,17 +666,24 @@ export async function generateRevisionEquipmentPDF(
     const sectionTitle = normalizeTextForPdf(s.title || s.name || "Secțiune")
     const items = Array.isArray(s.items) ? s.items : []
 
-    // Înălțimea totală a secțiunii (header + toate item-urile)
-    const sectionHeight = layout.rowH + items.reduce((sum: number, it: any) => sum + measureChecklistItemHeight(js, it, layout), 0)
+    const isRootSection = String(s?.id || "").endsWith("__root")
+    const isGenericTitle = normalizeComparableText(sectionTitle) === normalizeComparableText("Puncte de control")
+    const shouldRenderSectionHeader = !(isRootSection || isGenericTitle)
+
+    // Înălțimea totală a secțiunii (header opțional + toate item-urile)
+    const sectionHeaderH = shouldRenderSectionHeader ? layout.rowH : 0
+    const sectionHeight = sectionHeaderH + items.reduce((sum: number, it: any) => sum + measureChecklistItemHeight(js, it, layout), 0)
     // Dacă nu încape întreaga secțiune pe pagină, mutăm pe pagina următoare
     checkBreak(sectionHeight)
 
-    js.setFillColor(240, 240, 240)
-    js.rect(MARGIN, currentY, layout.totalW, layout.rowH, "F")
-    try { js.setFont("NotoSans", "bold") } catch {}
-    js.setFontSize(10).setTextColor(0, 0, 0)
-    js.text(sectionTitle, MARGIN + 2, currentY + 5)
-    currentY += layout.rowH
+    if (shouldRenderSectionHeader) {
+      js.setFillColor(240, 240, 240)
+      js.rect(MARGIN, currentY, layout.totalW, layout.rowH, "F")
+      try { js.setFont("NotoSans", "bold") } catch {}
+      js.setFontSize(10).setTextColor(0, 0, 0)
+      js.text(sectionTitle, MARGIN + 2, currentY + 5)
+      currentY += layout.rowH
+    }
 
     try { js.setFont("NotoSans", "normal") } catch {}
     js.setFontSize(9).setTextColor(0, 0, 0)

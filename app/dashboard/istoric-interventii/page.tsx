@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DataTable } from "@/components/data-table/data-table"
-import { DataTableFilters } from "@/components/data-table/data-table-filters"
 import { ClampedText } from "@/components/history/clamped-text"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { useTablePersistence } from "@/hooks/use-table-persistence"
@@ -81,6 +80,43 @@ function escapeCsvCell(v: unknown) {
   return needsQuotes ? `"${escaped}"` : escaped
 }
 
+function normalizeSearchText(value: unknown) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+}
+
+function buildHistorySearchHaystack(row: HistoryRow) {
+  const d = toDateSafe(row.dataInterventie)
+  const dateText = d ? formatUiDate(d) : ""
+  const equipmentText = [row.echipamentNume, row.echipamentCod ? `(${row.echipamentCod})` : ""]
+    .filter(Boolean)
+    .join(" ")
+    .trim()
+
+  return [
+    row.nrLucrare,
+    dateText,
+    row.locatie,
+    equipmentText,
+    row.client,
+    (row.tehnicieni || []).join(" "),
+    row.defectReclamat,
+    row.constatareLaLocatie,
+    row.descriereInterventie,
+    row.durataInterventie,
+  ]
+    .filter(Boolean)
+    .join(" | ")
+}
+
+function rowMatchesSearch(row: HistoryRow, query: string) {
+  const q = normalizeSearchText(query).trim()
+  if (!q) return true
+  return normalizeSearchText(buildHistorySearchHaystack(row)).includes(q)
+}
+
 export default function IstoricInterventiiPage() {
   const { userData } = useAuth()
   const router = useRouter()
@@ -97,6 +133,7 @@ export default function IstoricInterventiiPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
   const [activeFilters, setActiveFilters] = useState<FilterOption[]>([])
+  const [tableSearch, setTableSearch] = useState("")
   const [cardsSearch, setCardsSearch] = useState("")
 
   const { loadSettings, saveFilters } = useTablePersistence("istoric-interventii")
@@ -422,28 +459,12 @@ export default function IstoricInterventiiPage() {
   ])
 
   const cardsVisibleRows = useMemo(() => {
-    const q = cardsSearch.trim().toLowerCase()
-    if (!q) return visibleRows
-    return visibleRows.filter((r) => {
-      const hay = [
-        r.nrLucrare,
-        r.dataInterventie,
-        r.locatie,
-        r.echipamentNume,
-        r.echipamentCod,
-        r.client,
-        (r.tehnicieni || []).join(" "),
-        r.defectReclamat,
-        r.constatareLaLocatie,
-        r.descriereInterventie,
-        r.durataInterventie,
-      ]
-        .filter(Boolean)
-        .join(" | ")
-        .toLowerCase()
-      return hay.includes(q)
-    })
+    return visibleRows.filter((r) => rowMatchesSearch(r, cardsSearch))
   }, [visibleRows, cardsSearch])
+
+  const tableVisibleRows = useMemo(() => {
+    return visibleRows.filter((r) => rowMatchesSearch(r, tableSearch))
+  }, [visibleRows, tableSearch])
 
   const columns = useMemo<ColumnDef<HistoryRow>[]>(
     () => [
@@ -873,158 +894,177 @@ export default function IstoricInterventiiPage() {
           </Card>
         ) : viewMode === "table" ? (
           <div className="space-y-4" ref={exportRef}>
-          {table ? <DataTableFilters table={table} showAdvancedFilters={false} globalPlaceholder="Caută în intervenții..." /> : null}
-          <DataTable
-            columns={columns}
-            data={visibleRows}
-            setTable={setTable}
-            defaultSort={{ id: "nrLucrare", desc: true }}
-            tableClassName="table-fixed w-full"
-            enablePagination={true}
-            initialPageSize={10}
-            onRowClick={(row) => setSelectedId((row as any)?.id || null)}
-            getRowClassName={(row) =>
-              selectedId && (row as any)?.id === selectedId
-                ? "bg-blue-50 border-l-4 border-blue-600"
-                : ""
-            }
-          />
-          {!loading && visibleRows.length === 0 ? (
-            <div className="text-sm text-muted-foreground px-1">Nu există intervenții (rapoarte generate) de afișat.</div>
-          ) : null}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4" ref={exportRef}>
-          {/* Search bar pentru Carduri (în table mode există deja DataTableFilters) */}
-          <div className="px-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-              <Input
-                placeholder="Caută în intervenții..."
-                value={cardsSearch}
-                onChange={(e) => {
-                  setCardsSearch(e.target.value)
-                  setCardsPageIndex(0)
-                }}
-                className="pl-9 pr-9"
-              />
-              {cardsSearch ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 p-0"
-                  onClick={() => {
-                    setCardsSearch("")
+            <div className="px-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+                <Input
+                  placeholder="Caută în intervenții..."
+                  value={tableSearch}
+                  onChange={(e) => setTableSearch(e.target.value)}
+                  className="pl-9 pr-9"
+                />
+                {tableSearch ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 p-0"
+                    onClick={() => setTableSearch("")}
+                    title="Șterge căutarea"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+            <DataTable
+              columns={columns}
+              data={tableVisibleRows}
+              setTable={setTable}
+              defaultSort={{ id: "nrLucrare", desc: true }}
+              tableClassName="table-fixed w-full"
+              enablePagination={true}
+              initialPageSize={10}
+              onRowClick={(row) => setSelectedId((row as any)?.id || null)}
+              getRowClassName={(row) =>
+                selectedId && (row as any)?.id === selectedId
+                  ? "bg-blue-50 border-l-4 border-blue-600"
+                  : ""
+              }
+            />
+            {!loading && tableVisibleRows.length === 0 ? (
+              <div className="text-sm text-muted-foreground px-1">Nu există intervenții (rapoarte generate) de afișat.</div>
+            ) : null}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4" ref={exportRef}>
+            {/* Search bar pentru Carduri */}
+            <div className="px-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+                <Input
+                  placeholder="Caută în intervenții..."
+                  value={cardsSearch}
+                  onChange={(e) => {
+                    setCardsSearch(e.target.value)
                     setCardsPageIndex(0)
                   }}
-                  title="Șterge căutarea"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              ) : null}
+                  className="pl-9 pr-9"
+                />
+                {cardsSearch ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 p-0"
+                    onClick={() => {
+                      setCardsSearch("")
+                      setCardsPageIndex(0)
+                    }}
+                    title="Șterge căutarea"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                ) : null}
+              </div>
             </div>
-          </div>
 
-          {pagedCardRows.map((r) => (
-            <Card key={r.id} className="border-gray-200">
-              <CardHeader className="py-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <div className="font-semibold text-gray-900">{r.nrLucrare || "-"}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {(() => {
-                          const d = toDateSafe(r.dataInterventie)
-                          return d ? formatUiDate(d) : "-"
-                        })()}
+            {pagedCardRows.map((r) => (
+              <Card key={r.id} className="border-gray-200">
+                <CardHeader className="py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="font-semibold text-gray-900">{r.nrLucrare || "-"}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {(() => {
+                            const d = toDateSafe(r.dataInterventie)
+                            return d ? formatUiDate(d) : "-"
+                          })()}
+                        </div>
+                        <div className="text-xs text-muted-foreground">{r.durataInterventie || "-"}</div>
                       </div>
-                      <div className="text-xs text-muted-foreground">{r.durataInterventie || "-"}</div>
+                      <div className="text-sm text-gray-900 mt-1">
+                        <span className="font-medium">Locație:</span> {r.locatie || "-"}
+                      </div>
+                      <div className="text-sm text-gray-900">
+                        <span className="font-medium">Echipament:</span>{" "}
+                        {[r.echipamentNume, r.echipamentCod ? `(${r.echipamentCod})` : ""].filter(Boolean).join(" ") || "-"}
+                      </div>
+                      <div className="text-sm text-gray-900">
+                        <span className="font-medium">Tehnicieni:</span> {(r.tehnicieni || []).join(", ") || "-"}
+                      </div>
                     </div>
-                    <div className="text-sm text-gray-900 mt-1">
-                      <span className="font-medium">Locație:</span> {r.locatie || "-"}
+                    <Button asChild size="sm" variant="outline" className="shrink-0">
+                      <Link href={`/dashboard/lucrari/${r.id}`}>Vezi tichetul</Link>
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0 pb-3">
+                  <div className="grid grid-cols-1 gap-3">
+                    <div>
+                      <div className="text-xs font-medium text-muted-foreground mb-1">Defect reclamat</div>
+                      <ClampedText text={r.defectReclamat} />
                     </div>
-                    <div className="text-sm text-gray-900">
-                      <span className="font-medium">Echipament:</span>{" "}
-                      {[r.echipamentNume, r.echipamentCod ? `(${r.echipamentCod})` : ""].filter(Boolean).join(" ") || "-"}
+                    <div>
+                      <div className="text-xs font-medium text-muted-foreground mb-1">Constatare la locație</div>
+                      <ClampedText text={r.constatareLaLocatie} />
                     </div>
-                    <div className="text-sm text-gray-900">
-                      <span className="font-medium">Tehnicieni:</span> {(r.tehnicieni || []).join(", ") || "-"}
+                    <div>
+                      <div className="text-xs font-medium text-muted-foreground mb-1">Intervenție</div>
+                      <ClampedText text={r.descriereInterventie} />
                     </div>
                   </div>
-                  <Button asChild size="sm" variant="outline" className="shrink-0">
-                    <Link href={`/dashboard/lucrari/${r.id}`}>Vezi tichetul</Link>
+                </CardContent>
+              </Card>
+            ))}
+
+            {cardsTotalPages > 1 ? (
+              <div className="flex items-center justify-between gap-4 flex-wrap pt-3 px-1">
+                <div className="text-sm text-muted-foreground">
+                  {cardsStart}-{cardsEnd} din {cardsTotal}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Carduri/pagină:</span>
+                  <select
+                    className="h-9 rounded-md border bg-background px-2 text-sm"
+                    value={cardsPageSize}
+                    onChange={(e) => {
+                      const n = Number(e.target.value) || 10
+                      setCardsPageSize(n)
+                      setCardsPageIndex(0)
+                    }}
+                  >
+                    {[5, 10, 20, 50].map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCardsPageIndex((p) => Math.max(0, p - 1))}
+                    disabled={cardsPageIndex <= 0}
+                  >
+                    Înapoi
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCardsPageIndex((p) => Math.min(cardsTotalPages - 1, p + 1))}
+                    disabled={cardsPageIndex >= cardsTotalPages - 1}
+                  >
+                    Înainte
                   </Button>
                 </div>
-              </CardHeader>
-              <CardContent className="pt-0 pb-3">
-                <div className="grid grid-cols-1 gap-3">
-                  <div>
-                    <div className="text-xs font-medium text-muted-foreground mb-1">Defect reclamat</div>
-                    <ClampedText text={r.defectReclamat} />
-                  </div>
-                  <div>
-                    <div className="text-xs font-medium text-muted-foreground mb-1">Constatare la locație</div>
-                    <ClampedText text={r.constatareLaLocatie} />
-                  </div>
-                  <div>
-                    <div className="text-xs font-medium text-muted-foreground mb-1">Intervenție</div>
-                    <ClampedText text={r.descriereInterventie} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-
-          {cardsTotalPages > 1 ? (
-            <div className="flex items-center justify-between gap-4 flex-wrap pt-3 px-1">
-              <div className="text-sm text-muted-foreground">
-                {cardsStart}-{cardsEnd} din {cardsTotal}
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Carduri/pagină:</span>
-                <select
-                  className="h-9 rounded-md border bg-background px-2 text-sm"
-                  value={cardsPageSize}
-                  onChange={(e) => {
-                    const n = Number(e.target.value) || 10
-                    setCardsPageSize(n)
-                    setCardsPageIndex(0)
-                  }}
-                >
-                  {[5, 10, 20, 50].map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCardsPageIndex((p) => Math.max(0, p - 1))}
-                  disabled={cardsPageIndex <= 0}
-                >
-                  Înapoi
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCardsPageIndex((p) => Math.min(cardsTotalPages - 1, p + 1))}
-                  disabled={cardsPageIndex >= cardsTotalPages - 1}
-                >
-                  Înainte
-                </Button>
-              </div>
-            </div>
-          ) : null}
+            ) : null}
 
-          {!loading && cardsVisibleRows.length === 0 ? (
-            <div className="text-sm text-muted-foreground px-1">Nu există intervenții (rapoarte generate) de afișat.</div>
-          ) : null}
-        </div>
-      )}
+            {!loading && cardsVisibleRows.length === 0 ? (
+              <div className="text-sm text-muted-foreground px-1">Nu există intervenții (rapoarte generate) de afișat.</div>
+            ) : null}
+          </div>
+        )}
       </div>
     </DashboardShell>
   )
 }
-
-

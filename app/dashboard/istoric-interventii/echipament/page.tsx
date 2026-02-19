@@ -374,7 +374,7 @@ export default function IstoricEchipamentPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="mt-3 grid grid-cols-1 gap-3">
+        <div className="mt-3 grid grid-cols-1 gap-3 pb-8">
           {rows.map((r) => (
             isTechnician ? (
               <TechnicianHistoryCard key={r.id} r={r} />
@@ -438,5 +438,4 @@ export default function IstoricEchipamentPage() {
     </DashboardShell>
   )
 }
-
 
