@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import type { Department, Employee, HrRequestKind } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
 import { createHrRequest } from "@/lib/hr/storage"
-import { generateHrRequestPDF } from "@/lib/hr/request-pdf-generator"
+import { generateHrRequestDOCX } from "@/lib/hr/request-docx-generator"
 import { hrRequestKindLabel } from "@/lib/hr/hr-requests"
 import { CalendarDays, FileText } from "lucide-react"
 import { DateInput } from "@/components/ui/date-input"
@@ -179,7 +179,7 @@ export function CreateLeaveRequestDialog({
       })
 
       if (selectedEmployee) {
-        generateHrRequestPDF({
+        generateHrRequestDOCX({
           id: requestId,
           employeeId,
           employeeName: getEmployeeFullName(selectedEmployee),
@@ -382,9 +382,9 @@ export function CreateLeaveRequestDialog({
             <div className="flex gap-2">
               <CalendarDays className="h-4 w-4 mt-0.5 flex-shrink-0" />
               <div>
-                <div className="font-semibold mb-1">Generare automată document</div>
+                <div className="font-semibold mb-1">Generare automată document DOCX</div>
                 <div className="text-xs">
-                  După crearea cererii, se va descărca automat documentul cu cererea
+                  După crearea cererii, se va descărca automat documentul DOCX cu cererea
                   completată conform modelului oficial, gata de semnat și depus la HR.
                 </div>
               </div>

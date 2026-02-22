@@ -106,6 +106,8 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
     const isFinalizatByReport = isFinalizat || statusFinalizareInterventie.toUpperCase() === "FINALIZAT"
     const raportGenerat = Boolean(l.raportGenerat)
     const preluatDispecer = Boolean(l.preluatDispecer)
+    const hasPostponeContext = Boolean((l as any)?.motivAmanare || (l as any)?.dataAmanare || (l as any)?.amanataDe)
+    const isCanceled = eqInsensitive(status, WORK_STATUS.CANCELED) || status === WORK_STATUS.CANCELED
 
     // "Preluare" (dispatcher/admin pickup) visibility rules are implemented in multiple places.
     // Keep the debug mirror explicit so admins can copy/paste reasons.
@@ -123,6 +125,14 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
       preluatDispecer === false &&
       ((isFinalizatByReport && raportGenerat === true) || status === WORK_STATUS.POSTPONED)
 
+    // /dashboard/lucrari/[id] (details) - "Reintervenție" appears for picked-up work
+    // when it has either generated report OR postpone context, and it's not canceled.
+    const details_shouldShowReintervention =
+      isAdminOrDispatcherRole &&
+      preluatDispecer === true &&
+      !isCanceled &&
+      (raportGenerat === true || hasPostponeContext)
+
     return {
       execDate: execDate ? execDate.toISOString() : null,
       now: now.toISOString(),
@@ -138,7 +148,6 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
       intarziataByDashboardRules,
       isFinalizat,
       isFinalizatByReport,
-      statusFinalizareInterventie: statusFinalizareInterventie || null,
       raportGenerat,
       preluatDispecer,
       statusFinalizareInterventie: (l as any)?.statusFinalizareInterventie ?? null,
@@ -172,8 +181,11 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
       isTechnicianRole,
       isAdminOrDispatcherRole,
       isPostponed,
+      isCanceled,
+      hasPostponeContext,
       list_shouldShowPreia,
       details_shouldShowPreia,
+      details_shouldShowReintervention,
     }
   }, [lucrare, userData?.role])
 
@@ -189,7 +201,7 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
     const l = lucrare || {}
     const status = String(l.statusLucrare || "")
     const technicians = Array.isArray(l.tehnicieni) ? l.tehnicieni : []
-    const technNames = technicians.map((t) => String(t)).filter(Boolean)
+    const technNames = technicians.map((t: unknown) => String(t)).filter(Boolean)
     const tipLucrare = String(l.tipLucrare || "")
     const statusFinalizareInterventie = String((l as any)?.statusFinalizareInterventie || "")
     const semnaturaTehnician = String(l.semnaturaTehnician || "")
@@ -206,6 +218,7 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
     lines.push(`statusFinalizareInterventie: ${statusFinalizareInterventie}`)
     lines.push(`raportGenerat: ${String(Boolean(l.raportGenerat))}`)
     lines.push(`preluatDispecer: ${String(Boolean(l.preluatDispecer))}`)
+    lines.push(`hasPostponeContext (motiv/data/de): ${String(computed.hasPostponeContext)}`)
     lines.push(`lockedAfterReintervention: ${String(Boolean((l as any).lockedAfterReintervention))}`)
     lines.push(`reinterventieMotiv: ${String((l as any)?.reinterventieMotiv ?? "")}`)
     lines.push(`mesajReatribuire: ${String((l as any)?.mesajReatribuire ?? "")}`)
@@ -252,8 +265,16 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
     lines.push(`=> REZULTAT: ${computed.details_shouldShowPreia ? "ARATĂ butonul 'Preia lucrare'" : "NU arată butonul 'Preia lucrare'"}`)
     lines.push("")
 
-    lines.push("Notă: câmpurile tipLucrare / reintervenție / tehnicieni sunt incluse aici ca 'context',")
-    lines.push("dar butoanele de 'preluare dispecer' sunt decise în principal de statusLucrare/raportGenerat/preluatDispecer + rol.")
+    lines.push("Context C: /dashboard/lucrari/[id] (DETALII) – butonul 'Reintervenție'")
+    lines.push(`- role in {'admin','dispecer'}: ${String(computed.isAdminOrDispatcherRole)}`)
+    lines.push(`- preluatDispecer == true: ${String(Boolean(l.preluatDispecer) === true)}`)
+    lines.push(`- statusLucrare != 'Anulat': ${String(computed.isCanceled === false)}`)
+    lines.push(`- raportGenerat == true OR hasPostponeContext == true: ${String(Boolean(l.raportGenerat) === true || computed.hasPostponeContext)}`)
+    lines.push(`=> REZULTAT: ${computed.details_shouldShowReintervention ? "ARATĂ butonul 'Reintervenție'" : "NU arată butonul 'Reintervenție'"}`)
+    lines.push("")
+
+    lines.push("Notă: lock-ul de reintervenție blochează editarea lucrării originale,")
+    lines.push("dar regulile de afișare pentru 'Reintervenție' folosesc preluare/raport/context amânare + rol.")
 
     return lines.join("\n")
   }, [lucrare, userData?.role, computed, ])
@@ -373,4 +394,3 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
     </>
   )
 }
-

@@ -90,6 +90,23 @@ const extractCUI = (client: any) => {
   return client?.cif || "N/A"
 }
 
+type ActiveWorkSummary = {
+  id: string
+  nrDisplay: string
+  statusLucrare: string
+  dataInterventie?: string
+  tehnicieni?: string[]
+}
+
+const ACTIVE_WORK_STATUSES = [
+  "Listată",
+  "Atribuită",
+  "În lucru",
+  "În așteptare",
+  "Amânată",
+  "Programată",
+]
+
 function EquipmentDocumentationList({
   folderId,
   subfolderId,
@@ -246,6 +263,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   // Blocare scanare dacă tehnicianul are deja altă lucrare "În lucru"
   const [otherActiveWork, setOtherActiveWork] = useState<null | { id: string; numar: string; client?: string; locatie?: string }>(null)
   const [checkingOtherActive, setCheckingOtherActive] = useState(false)
+  const [equipmentActiveConflicts, setEquipmentActiveConflicts] = useState<ActiveWorkSummary[]>([])
+  const [loadingEquipmentActiveConflicts, setLoadingEquipmentActiveConflicts] = useState(false)
+  const [showConflictDetails, setShowConflictDetails] = useState(false)
   const debugLoggedOnceRef = useState({ did: false })[0]
   const [isRevizieDebugDialogOpen, setIsRevizieDebugDialogOpen] = useState(false)
 
@@ -443,6 +463,94 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       loadReinterventii(lucrare.id)
     }
   }, [lucrare?.id, loadReinterventii])
+
+  // Verifică lucrările active pe același echipament (inclusiv lucrarea curentă),
+  // pentru a clarifica blocajul la creare reintervenție.
+  useEffect(() => {
+    let mounted = true
+
+    const loadEquipmentActiveConflicts = async () => {
+      if (!isAdminOrDispatcher || !lucrare?.id) {
+        if (mounted) {
+          setEquipmentActiveConflicts([])
+          setLoadingEquipmentActiveConflicts(false)
+        }
+        return
+      }
+
+      const equipmentId = String((lucrare as any)?.echipamentId || "").trim()
+      const equipmentCod = String((lucrare as any)?.echipamentCod || "").trim()
+
+      if (!equipmentId && !equipmentCod) {
+        if (mounted) {
+          setEquipmentActiveConflicts([])
+          setLoadingEquipmentActiveConflicts(false)
+        }
+        return
+      }
+
+      setLoadingEquipmentActiveConflicts(true)
+      try {
+        const byId = new Map<string, ActiveWorkSummary>()
+        const isActiveStatus = (status: unknown) => {
+          const normalized = String(status || "").toLowerCase()
+          return ACTIVE_WORK_STATUSES.some((activeStatus) => normalized.includes(activeStatus.toLowerCase()))
+        }
+
+        const toSummary = (id: string, raw: any): ActiveWorkSummary => ({
+          id,
+          nrDisplay: String(raw?.nrLucrare || raw?.numarRaport || id),
+          statusLucrare: String(raw?.statusLucrare || "N/A"),
+          dataInterventie: raw?.dataInterventie ? String(raw.dataInterventie) : undefined,
+          tehnicieni: Array.isArray(raw?.tehnicieni) ? raw.tehnicieni.map((t: unknown) => String(t)) : [],
+        })
+
+        const addSnapshotEntries = (snapshot: any) => {
+          snapshot.docs.forEach((docSnap: any) => {
+            const docId = String(docSnap?.id || "")
+            if (!docId) return
+            const raw = docSnap.data()
+            if (!isActiveStatus(raw?.statusLucrare)) return
+            byId.set(docId, toSummary(docId, raw))
+          })
+        }
+
+        if (equipmentId) {
+          const byIdQuery = query(collection(db, "lucrari"), where("echipamentId", "==", equipmentId))
+          const byIdSnapshot = await getDocs(byIdQuery)
+          addSnapshotEntries(byIdSnapshot)
+        }
+
+        if (equipmentCod && (byId.size === 0 || !equipmentId)) {
+          const byCodQuery = query(collection(db, "lucrari"), where("echipamentCod", "==", equipmentCod))
+          const byCodSnapshot = await getDocs(byCodQuery)
+          addSnapshotEntries(byCodSnapshot)
+        }
+
+        if (!mounted) return
+        setEquipmentActiveConflicts(Array.from(byId.values()))
+      } catch (error) {
+        console.error("Eroare la încărcarea conflictelor active pe echipament:", error)
+        if (mounted) setEquipmentActiveConflicts([])
+      } finally {
+        if (mounted) setLoadingEquipmentActiveConflicts(false)
+      }
+    }
+
+    loadEquipmentActiveConflicts()
+    return () => { mounted = false }
+  }, [isAdminOrDispatcher, lucrare?.id, lucrare?.statusLucrare, (lucrare as any)?.echipamentId, (lucrare as any)?.echipamentCod])
+
+  // UX implicit pentru lista de conflicte:
+  // 1 conflict => listă deschisă; 2+ conflicte => listă închisă (compact).
+  useEffect(() => {
+    if (loadingEquipmentActiveConflicts) return
+    if (equipmentActiveConflicts.length === 1) {
+      setShowConflictDetails(true)
+      return
+    }
+    setShowConflictDetails(false)
+  }, [lucrare?.id, loadingEquipmentActiveConflicts, equipmentActiveConflicts.length])
 
   // Backfill: pentru lucrări vechi, setăm flag-ul de reintervenție pe lucrarea originală
   // ca regulile de arhivare să recunoască faptul că există deja o reintervenție creată.
@@ -775,6 +883,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
   // Funcție pentru a șterge o lucrare
   const handleDeleteLucrare = useStableCallback(async () => {
+    if (role !== "admin") return
     if (!lucrare?.id) return
 
     try {
@@ -1449,23 +1558,32 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     )
   }
 
+  const hasPostponeContext = Boolean(lucrare?.motivAmanare || lucrare?.dataAmanare || lucrare?.amanataDe)
   const isCompletedWithReport = isFinalizatByReport && lucrare.raportGenerat === true
   const isCanceled = lucrare.statusLucrare === WORK_STATUS.CANCELED
   
-  // Condiții pentru reintervenție: raport generat + lucrare preluată + fără reintervenții existente + nelockată
+  // Condiții pentru reintervenție: lucrare preluată + (raport generat sau context de amânare) + neanulată
   const needsReintervention = (lucrare: any) => {
+    const hasWorkPostponeContext = Boolean(lucrare?.motivAmanare || lucrare?.dataAmanare || lucrare?.amanataDe)
     return Boolean(
-      lucrare?.raportGenerat === true &&
       lucrare?.preluatDispecer === true &&
-      lucrare?.statusLucrare !== WORK_STATUS.CANCELED &&
-      !lucrare?.lockedAfterReintervention &&
-      (Array.isArray(reinterventii) ? reinterventii.length === 0 : true)
+      (lucrare?.raportGenerat === true || hasWorkPostponeContext) &&
+      lucrare?.statusLucrare !== WORK_STATUS.CANCELED
     )
   }
   
   // Funcție pentru a gestiona reintervenția - deschide dialogul de motive
   const handleReintervention = () => {
     if (!lucrare) return
+    if (loadingEquipmentActiveConflicts || equipmentActiveConflicts.length > 0) {
+      toast({
+        title: "Reintervenție blocată",
+        description:
+          "Nu poți crea încă o reintervenție: există deja tichete active pe acest echipament.",
+        variant: "destructive",
+      })
+      return
+    }
     
     // Deschidem dialogul pentru selectarea motivelor reintervenției
     setIsReinterventionReasonDialogOpen(true)
@@ -1484,6 +1602,34 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     lucrare.nrLucrare && lucrare.tipLucrare === "Revizie" && revizieEquipmentIds.length > 0
       ? `${lucrare.nrLucrare} - ${revizieEquipmentIds.length}`
       : lucrare.nrLucrare
+
+  const hasExternalConflict = equipmentActiveConflicts.some((conflict) => conflict.id !== lucrare.id)
+  const onlyCurrentTicketConflict = equipmentActiveConflicts.length > 0 && !hasExternalConflict
+  const conflictTitle = loadingEquipmentActiveConflicts
+    ? "Verificare tichete active"
+    : onlyCurrentTicketConflict
+      ? "Tichetul curent este deja activ"
+      : "Reintervenția este blocată de un tichet activ"
+  const conflictDescription = loadingEquipmentActiveConflicts
+    ? "Verificăm tichetele active pe acest echipament..."
+    : onlyCurrentTicketConflict
+      ? "Acest tichet este activ pe echipament; nu poți crea încă o reintervenție nouă."
+      : `Există deja ${equipmentActiveConflicts.length} ${
+          equipmentActiveConflicts.length === 1 ? "tichet activ" : "tichete active"
+        } pe acest echipament.`
+  const conflictCardClass = loadingEquipmentActiveConflicts
+    ? "bg-amber-50 border-amber-200"
+    : onlyCurrentTicketConflict
+      ? "bg-blue-50 border-blue-200"
+      : "bg-amber-50 border-amber-200"
+  const conflictIconClass = loadingEquipmentActiveConflicts
+    ? "text-amber-600"
+    : onlyCurrentTicketConflict
+      ? "text-blue-600"
+      : "text-amber-600"
+  const conflictBadgeClass = onlyCurrentTicketConflict
+    ? "border-blue-300 bg-blue-100 text-blue-800"
+    : "border-amber-300 bg-amber-100 text-amber-900"
 
   return (
     <TooltipProvider>
@@ -1529,21 +1675,22 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           </span>
         } 
       >
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Button variant="outline" onClick={() => router.back()}>
+        <div className="space-y-2">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => router.back()}>
             <ChevronLeft className="mr-2 h-4 w-4" /> Înapoi
-          </Button>
-
-          {isAdminOrDispatcher && lucrare.statusLucrare !== WORK_STATUS.CANCELED && lucrare.statusLucrare !== WORK_STATUS.ARCHIVED && (
-            <Button
-              variant="destructive"
-              onClick={() => setIsCancelDialogOpen(true)}
-              disabled={isUpdating || isCancelling}
-            >
-              <X className="mr-2 h-4 w-4" />
-              Anulează
             </Button>
-          )}
+
+            {isAdminOrDispatcher && lucrare.statusLucrare !== WORK_STATUS.CANCELED && lucrare.statusLucrare !== WORK_STATUS.ARCHIVED && (
+              <Button
+                variant="destructive"
+                onClick={() => setIsCancelDialogOpen(true)}
+                disabled={isUpdating || isCancelling}
+              >
+                <X className="mr-2 h-4 w-4" />
+                Anulează
+              </Button>
+            )}
 
           {/* Tehnician: verifică istoricul echipamentului (după echipamentCod) */}
           {role === "tehnician" && lucrare?.echipamentCod && (
@@ -1642,6 +1789,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               variant="outline"
               className="text-orange-600 border-orange-200 hover:bg-orange-50"
               onClick={handleReintervention}
+              disabled={loadingEquipmentActiveConflicts || equipmentActiveConflicts.length > 0}
             >
               <RefreshCw className="mr-2 h-4 w-4" />
               Reintervenție
@@ -1835,23 +1983,94 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               </TooltipContent>
             </Tooltip>
           )}
-          {role === "admin" && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  onClick={() => {
-                    if (window.confirm("Sigur doriți să ștergeți această tichet?")) {
-                      handleDeleteLucrare()
-                    }
-                  }}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Șterge</TooltipContent>
-            </Tooltip>
+            {role === "admin" && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    onClick={() => {
+                      if (window.confirm("Sigur doriți să ștergeți această tichet?")) {
+                        handleDeleteLucrare()
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Șterge</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+
+          {isAdminOrDispatcher && needsReintervention(lucrare) && (loadingEquipmentActiveConflicts || equipmentActiveConflicts.length > 0) && (
+            <Alert variant="default" className={conflictCardClass}>
+              <AlertCircle className={`h-4 w-4 ${conflictIconClass}`} />
+              <AlertDescription>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold">{conflictTitle}</p>
+                    {!loadingEquipmentActiveConflicts && (
+                      <Badge variant="outline" className={`text-xs ${conflictBadgeClass}`}>
+                        {equipmentActiveConflicts.length}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-sm">{conflictDescription}</p>
+
+                  {!loadingEquipmentActiveConflicts && equipmentActiveConflicts.length > 0 && (
+                    <div className="space-y-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => setShowConflictDetails((prev) => !prev)}
+                      >
+                        {showConflictDetails ? "Ascunde tichetele active" : "Vezi tichetele active"}
+                      </Button>
+
+                      {showConflictDetails && (
+                        <div className="space-y-1">
+                          {equipmentActiveConflicts.map((conflict) => {
+                            const displayNrRaw = String(conflict.nrDisplay || conflict.id || "").trim()
+                            const displayNr = displayNrRaw.startsWith("#") ? displayNrRaw : `#${displayNrRaw}`
+                            const isCurrentTicket = conflict.id === lucrare.id
+                            return (
+                              <div
+                                key={conflict.id}
+                                className="flex flex-col gap-2 rounded border border-border bg-white/70 px-2 py-2 sm:flex-row sm:items-center sm:justify-between"
+                              >
+                                <div className="flex flex-wrap items-center gap-2 text-sm">
+                                  <span className="font-medium">{displayNr}</span>
+                                  <Badge variant="outline" className="text-xs">
+                                    {conflict.statusLucrare || "N/A"}
+                                  </Badge>
+                                  {isCurrentTicket && (
+                                    <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                                      acest tichet
+                                    </Badge>
+                                  )}
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 px-2 text-xs self-start sm:self-center"
+                                  onClick={() => router.push(`/dashboard/lucrari/${conflict.id}`)}
+                                >
+                                  Deschide
+                                </Button>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </AlertDescription>
+            </Alert>
           )}
         </div>
       </DashboardHeader>
@@ -2376,12 +2595,12 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   </div>
                 )}
 
-                {/* Afișăm informațiile de amânare dacă există */}
-                {lucrare.statusLucrare === WORK_STATUS.POSTPONED && lucrare.motivAmanare && (
+                {/* Afișăm istoricul de amânare dacă există datele de context */}
+                {hasPostponeContext && (
                   <div className="p-3 bg-purple-50 border border-purple-200 rounded-md mb-4">
                     <div className="flex items-center space-x-2 mb-2">
                       <Clock className="h-4 w-4 text-purple-600" />
-                      <p className="text-sm font-medium text-purple-800">Tichet amânat</p>
+                      <p className="text-sm font-medium text-purple-800">Istoric amânare</p>
                     </div>
                     <div className="space-y-2">
                       <div>

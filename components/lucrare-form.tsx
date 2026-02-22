@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect, useCallback, useImperativeHandle, forwardRef, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -83,6 +84,14 @@ interface Lucrare {
   echipamentCod?: string
 }
 
+export type ActiveWorkSummary = {
+  id: string
+  nrDisplay: string
+  statusLucrare: string
+  dataInterventie?: string
+  tehnicieni?: string[]
+}
+
 // În componenta LucrareForm, actualizăm interfața LucrareFormProps pentru a include contractType
 interface LucrareFormProps {
   isEdit?: boolean
@@ -126,7 +135,8 @@ interface LucrareFormProps {
   onSubmit?: (data: Partial<Lucrare>) => Promise<void>
   onCancel?: () => void
   initialData?: Lucrare | null
-  onActiveWorkChange?: (count: number, equipmentName?: string) => void
+  onActiveWorkChange?: (count: number, equipmentName?: string, activeWorks?: ActiveWorkSummary[]) => void
+  currentWorkOrderId?: string
 }
 
 // Define a ref type for the form
@@ -156,9 +166,11 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       onCancel,
       initialData,
       onActiveWorkChange,
+      currentWorkOrderId,
     },
     ref,
   ) => {
+    const router = useRouter()
     const { userData } = useAuth()
     const userRole = userData?.role
     const isAdminOrDispatcher = userRole === "admin" || userRole === "dispecer"
@@ -288,13 +300,13 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     const [equipmentToEdit, setEquipmentToEdit] = useState<{ equipment: Echipament; locationIndex: number; equipmentIndex: number } | null>(null)
 
     // State pentru validarea echipamentelor duplicate
-    const [existingWorkOnEquipment, setExistingWorkOnEquipment] = useState<any[]>([])
+    const [existingWorkOnEquipment, setExistingWorkOnEquipment] = useState<ActiveWorkSummary[]>([])
     const [checkingEquipment, setCheckingEquipment] = useState(false)
 
     useEffect(() => {
       if (!onActiveWorkChange) return
       const equipmentName = selectedEquipment?.nume || formData.echipament || ""
-      onActiveWorkChange(existingWorkOnEquipment.length, equipmentName)
+      onActiveWorkChange(existingWorkOnEquipment.length, equipmentName, existingWorkOnEquipment)
     }, [existingWorkOnEquipment, selectedEquipment?.nume, formData.echipament, onActiveWorkChange])
 
     // Revizie – filtrare și selecție multi-echipament
@@ -733,7 +745,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
     // Funcție pentru verificarea lucrărilor existente pe echipament
     const checkExistingWorkOrders = async (equipmentId: string, equipmentCod: string) => {
-      if (isEdit) return [] as any[] // Nu verificăm la editare, doar la creare
+      if (isEdit) return [] as ActiveWorkSummary[] // Nu verificăm la editare, doar la creare
       
       setCheckingEquipment(true)
       try {
@@ -746,46 +758,55 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           "Amânată",
           "Programată"
         ]
-        
-        // Query pentru lucrări cu acest echipament
-        const lucrariQuery = query(
-          collection(db, "lucrari"),
-          where("echipamentId", "==", equipmentId)
-        )
-        
-        const snapshot = await getDocs(lucrariQuery)
-        const existingWorks = snapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter((work: any) => 
-            activeStatuses.some(status => 
-              work.statusLucrare?.toLowerCase().includes(status.toLowerCase())
-            )
+
+        const isActiveStatus = (status: unknown) => {
+          const normalized = String(status || "").toLowerCase()
+          return activeStatuses.some((activeStatus) => normalized.includes(activeStatus.toLowerCase()))
+        }
+
+        const toSummary = (id: string, raw: any): ActiveWorkSummary => ({
+          id,
+          nrDisplay: String(raw?.nrLucrare || raw?.numarRaport || id),
+          statusLucrare: String(raw?.statusLucrare || "N/A"),
+          dataInterventie: raw?.dataInterventie ? String(raw.dataInterventie) : undefined,
+          tehnicieni: Array.isArray(raw?.tehnicieni) ? raw.tehnicieni.map((t: unknown) => String(t)) : [],
+        })
+
+        const byId = new Map<string, ActiveWorkSummary>()
+        const addSnapshotToMap = (snapshot: any) => {
+          snapshot.docs.forEach((docSnap: any) => {
+            const raw = docSnap.data()
+            if (!isActiveStatus(raw?.statusLucrare)) return
+            const docId = String(docSnap.id || "")
+            if (!docId) return
+            byId.set(docId, toSummary(docId, raw))
+          })
+        }
+
+        if (equipmentId) {
+          const lucrariQuery = query(
+            collection(db, "lucrari"),
+            where("echipamentId", "==", equipmentId)
           )
-        
-        // Încercăm și după cod dacă nu găsim după ID
-        if (existingWorks.length === 0 && equipmentCod) {
+          const snapshot = await getDocs(lucrariQuery)
+          addSnapshotToMap(snapshot)
+        }
+
+        if (equipmentCod && (byId.size === 0 || !equipmentId)) {
           const lucrariByCodQuery = query(
             collection(db, "lucrari"),
             where("echipamentCod", "==", equipmentCod)
           )
-          
           const codSnapshot = await getDocs(lucrariByCodQuery)
-          const worksByCod = codSnapshot.docs
-            .map(doc => ({ id: doc.id, ...doc.data() }))
-            .filter((work: any) => 
-              activeStatuses.some(status => 
-                work.statusLucrare?.toLowerCase().includes(status.toLowerCase())
-              )
-            )
-          
-          existingWorks.push(...worksByCod)
+          addSnapshotToMap(codSnapshot)
         }
-        
+
+        const existingWorks = Array.from(byId.values())
         setExistingWorkOnEquipment(existingWorks)
         return existingWorks
       } catch (error) {
         console.error("Eroare la verificarea tichetelor existente:", error)
-        return [] as any[]
+        return [] as ActiveWorkSummary[]
       } finally {
         setCheckingEquipment(false)
       }
@@ -837,7 +858,10 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     // Actualizăm clientul selectat și locațiile când se schimbă clientul
     useEffect(() => {
       if (formData && formData.client && clienti && clienti.length > 0) {
-        const client = clienti.find((c) => c.nume === formData.client)
+        const wantedClientId = String((formData as any)?.clientId || "").trim()
+        const client =
+          (wantedClientId ? clienti.find((c: any) => String(c?.id || "").trim() === wantedClientId) : undefined) ||
+          clienti.find((c) => c.nume === formData.client)
         if (client) {
           setSelectedClient(client)
 
@@ -866,6 +890,19 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             setAvailableEquipments([])
             setEquipmentsLoaded(false)
           }
+
+          // Backfill la editare/reintervenție: dacă avem doar locationId, completăm numele locației în formular.
+          if (!formData.locatie) {
+            const wantedLocationId = String((formData as any)?.locationId || "").trim()
+            if (wantedLocationId) {
+              const byLocationId = (client.locatii || []).find(
+                (loc: any) => String((loc as any)?.id || "").trim() === wantedLocationId,
+              )
+              if (byLocationId?.nume) {
+                handleSelectChange("locatie", String(byLocationId.nume))
+              }
+            }
+          }
         }
       }
     }, [formData, formData?.client, clienti, selectedLocatie])
@@ -891,10 +928,18 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
         // Găsim locația selectată în client
         const selectedLocName = formData.locatie || (initialData as any)?.locatie
-        const locatie = selectedClient.locatii?.find((loc) => loc.nume === selectedLocName)
+        const selectedLocationId = String((formData as any)?.locationId || (initialData as any)?.locationId || "").trim()
+        const locatie =
+          selectedClient.locatii?.find((loc: any) => loc.nume === selectedLocName) ||
+          (selectedLocationId
+            ? selectedClient.locatii?.find((loc: any) => String((loc as any)?.id || "").trim() === selectedLocationId)
+            : undefined)
 
         if (locatie) {
           console.log("Locație găsită în client:", locatie)
+          if (!formData.locatie && (locatie as any)?.nume) {
+            handleSelectChange("locatie", String((locatie as any).nume))
+          }
           setSelectedLocatie(locatie)
 
           // Setăm persoanele de contact
@@ -2143,8 +2188,27 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                       </p>
                       <div className="space-y-1 mt-2">
                         <p className="text-sm font-medium">Lucrări active:</p>
-                        {existingWorkOnEquipment.map((work: any, index: number) => (
+                        {existingWorkOnEquipment.map((work: ActiveWorkSummary, index: number) => (
                           <div key={work.id || index} className="text-sm bg-white/50 p-2 rounded border border-red-200">
+                            <div className="mb-1 flex items-center justify-between gap-2">
+                              <p><strong>Tichet:</strong> {work.nrDisplay}</p>
+                              <div className="flex items-center gap-2">
+                                {currentWorkOrderId && work.id === currentWorkOrderId && (
+                                  <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-800 border-amber-200">
+                                    acest tichet
+                                  </Badge>
+                                )}
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-6 px-2 text-xs"
+                                  onClick={() => router.push(`/dashboard/lucrari/${work.id}`)}
+                                >
+                                  Deschide tichet
+                                </Button>
+                              </div>
+                            </div>
                             <p><strong>Status:</strong> {work.statusLucrare || 'N/A'}</p>
                             <p><strong>Data:</strong> {work.dataInterventie || 'N/A'}</p>
                             <p><strong>Tehnician:</strong> {Array.isArray(work.tehnicieni) ? work.tehnicieni.join(', ') : 'N/A'}</p>

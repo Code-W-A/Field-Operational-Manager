@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Calendar, Download } from "lucide-react"
-import { generateHrRequestPDF } from "@/lib/hr/request-pdf-generator"
+import { generateHrRequestDOCX } from "@/lib/hr/request-docx-generator"
 import { hrRequestDateLabel, hrRequestKindLabel, hrRequestStatusLabel } from "@/lib/hr/hr-requests"
 import Link from "next/link"
 
@@ -74,7 +74,7 @@ export function LeaveRequestsSection({
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => generateHrRequestPDF(req)}
+                          onClick={() => generateHrRequestDOCX(req)}
                           title="Descarcă document"
                         >
                           <Download className="h-4 w-4" />

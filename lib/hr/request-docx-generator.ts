@@ -1,15 +1,25 @@
-import jsPDF from "jspdf"
-import type { HrRequest } from "@/lib/hr/types"
-import { hrRequestKindLabel, hrRequestStatusLabel } from "@/lib/hr/hr-requests"
+"use client"
+
+import Docxtemplater from "docxtemplater"
+import PizZip from "pizzip"
 import { doc as firestoreDoc, getDoc } from "firebase/firestore"
+import type { HrRequest } from "@/lib/hr/types"
+import { hrRequestKindLabel } from "@/lib/hr/hr-requests"
 import { db } from "@/lib/firebase/firebase"
 import { formatRomanianDateDots, formatRomanianDateDotsISO } from "@/lib/utils/date-utils"
-import { drawFooter as drawCommonFooter } from "@/lib/pdf/common"
+import { generateHrRequestPDF } from "@/lib/hr/request-pdf-generator"
+import { toast } from "@/hooks/use-toast"
 
 const HR_COMPANY = {
   name: process.env.NEXT_PUBLIC_HR_COMPANY_NAME || "NRG Access Systems SRL",
   cui: process.env.NEXT_PUBLIC_HR_COMPANY_CUI || "RO34272913",
   registrationNumber: process.env.NEXT_PUBLIC_HR_COMPANY_REG_NO || "J23/991/2015",
+}
+
+const TEMPLATE_BY_KIND: Partial<Record<HrRequest["kind"], string>> = {
+  CO: "/docx/Cerere concediu de odihna.docx",
+  CFP: "/docx/Cerere concediu fara plata.docx",
+  DEL: "/docx/delegatie.docx",
 }
 
 type EmployeeSnapshot = {
@@ -26,14 +36,6 @@ type EmployeeSnapshot = {
 type UserSnapshot = {
   displayName?: string
   email?: string
-}
-
-function formatNowRo() {
-  try {
-    return new Date().toLocaleString("ro-RO")
-  } catch {
-    return new Date().toISOString()
-  }
 }
 
 function safeText(value: unknown, fallback = "—"): string {
@@ -82,7 +84,14 @@ function buildDurationText(params: {
   const workDays = countWeekDays(params.startDateISO, params.endDateISO)
   const startMinutes = parseTimeToMinutes(params.startTime)
   const endMinutes = parseTimeToMinutes(params.endTime)
-  if (params.startDateISO && params.endDateISO && params.startDateISO === params.endDateISO && startMinutes != null && endMinutes != null && endMinutes > startMinutes) {
+  if (
+    params.startDateISO &&
+    params.endDateISO &&
+    params.startDateISO === params.endDateISO &&
+    startMinutes != null &&
+    endMinutes != null &&
+    endMinutes > startMinutes
+  ) {
     const diffMinutes = endMinutes - startMinutes
     const h = Math.floor(diffMinutes / 60)
     const m = diffMinutes % 60
@@ -98,6 +107,25 @@ function requestNumberFromId(requestId: string): string {
   const clean = String(requestId || "").trim()
   if (!clean) return `HR-${Date.now()}`
   return `HR-${clean.slice(0, 8).toUpperCase()}`
+}
+
+function sanitizeFileNameChunk(raw: string): string {
+  return String(raw || "")
+    .trim()
+    .replace(/[^\p{L}\p{N}_-]+/gu, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+}
+
+function triggerBlobDownload(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = fileName
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
 }
 
 async function fetchDepartmentName(departmentId: string, fallback?: string): Promise<string> {
@@ -148,87 +176,12 @@ async function fetchUserByUid(uid: string): Promise<UserSnapshot | null> {
   }
 }
 
-function writeParagraph(doc: jsPDF, text: string, x: number, y: number, maxWidth: number, lineHeight = 5): number {
-  const content = String(text || "").trim()
-  if (!content) return y
-  const lines = doc.splitTextToSize(content, maxWidth) as string[]
-  doc.text(lines, x, y)
-  return y + lines.length * lineHeight
-}
-
-function drawSignatureArea(doc: jsPDF, params: {
-  margin: number
-  pageWidth: number
-  y: number
-  leftLabel: string
-  leftName: string
-  rightLabel: string
-  rightName: string
-}) {
-  const gap = 14
-  const colWidth = (params.pageWidth - params.margin * 2 - gap) / 2
-  const leftLineX1 = params.margin
-  const leftLineX2 = params.margin + colWidth
-  const rightLineX1 = params.pageWidth - params.margin - colWidth
-  const rightLineX2 = params.pageWidth - params.margin
-
-  doc.setLineWidth(0.3)
-  doc.line(leftLineX1, params.y, leftLineX2, params.y)
-  doc.line(rightLineX1, params.y, rightLineX2, params.y)
-
-  doc.setFontSize(10)
-  doc.text(params.leftLabel, leftLineX1, params.y + 5)
-  doc.text(params.leftName, leftLineX1, params.y + 10)
-  doc.text(params.rightLabel, rightLineX1, params.y + 5)
-  doc.text(params.rightName, rightLineX1, params.y + 10)
-}
-
-function drawRequestHeader(doc: jsPDF, params: {
-  margin: number
-  pageWidth: number
-  documentTitle: string
-  companyName: string
-  companyCui: string
-  companyRegistrationNumber: string
-  statusLabel: string
-  requestDate: string
-}): number {
-  const titleBarHeight = 12
-  const titleBarColor: [number, number, number] = [73, 100, 155]
-  const contentWidth = params.pageWidth - params.margin * 2
-  let y = params.margin
-
-  doc.setFillColor(titleBarColor[0], titleBarColor[1], titleBarColor[2])
-  doc.rect(params.margin, y, contentWidth, titleBarHeight, "F")
-
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(12)
-  doc.setTextColor(255, 255, 255)
-  doc.text(params.documentTitle, params.margin + 4, y + 8)
-
-  y += titleBarHeight + 6
-  doc.setTextColor(0, 0, 0)
-
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(11)
-  doc.text(params.companyName, params.pageWidth / 2, y, { align: "center" })
-  y += 5
-
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(9)
-  doc.text(`CUI: ${params.companyCui} • Nr. Reg. Com.: ${params.companyRegistrationNumber}`, params.pageWidth / 2, y, {
-    align: "center",
-  })
-  y += 5
-
-  doc.text(`Data cererii: ${params.requestDate}`, params.margin, y)
-  doc.text(`Status: ${params.statusLabel}`, params.pageWidth - params.margin, y, { align: "right" })
-  y += 4
-
-  doc.setLineWidth(0.25)
-  doc.setDrawColor(180, 180, 180)
-  doc.line(params.margin, y, params.pageWidth - params.margin, y)
-  return y + 7
+async function loadTemplate(templatePath: string): Promise<ArrayBuffer> {
+  const response = await fetch(templatePath)
+  if (!response.ok) {
+    throw new Error(`Nu am putut încărca template-ul (${response.status})`)
+  }
+  return response.arrayBuffer()
 }
 
 function buildPlaceholderMap(params: {
@@ -266,7 +219,7 @@ function buildPlaceholderMap(params: {
     "data-de-început-a-cererii": params.startDateLabel,
     "data-de-sfârșit-a-cererii": params.endDateLabel,
     "data-cererii": params.requestDateLabel,
-    "solicitant": params.requesterLabel,
+    solicitant: params.requesterLabel,
     "superior-direct": params.managerLabel,
     "număr-de-înregistrare": params.registrationNumber,
     "motiv-delegare": params.reason,
@@ -276,27 +229,37 @@ function buildPlaceholderMap(params: {
   }
 }
 
-export function generateHrRequestPDF(request: HrRequest) {
-  // Legacy sync signature kept by returning void; internal implementation is async-safe.
-  void generateHrRequestPDFAsync(request)
+export function generateHrRequestDOCX(request: HrRequest) {
+  void generateHrRequestDOCXAsync(request)
 }
 
-export async function generateHrRequestPDFAsync(
+export async function generateHrRequestDOCXAsync(
   request: HrRequest,
-  opts?: { departmentName?: string }
+  opts?: { departmentName?: string },
 ): Promise<void> {
+  const templatePath = TEMPLATE_BY_KIND[request.kind]
+  if (!templatePath) {
+    // Fallback pentru tipuri fără template DOCX explicit.
+    toast({
+      title: "Template DOCX indisponibil",
+      description: `Pentru tipul „${hrRequestKindLabel(request.kind)}” se folosește fallback PDF.`,
+    })
+    generateHrRequestPDF(request)
+    return
+  }
+
   const payload: any = request.payload as any
-  const [employee, requesterUser, managerUser, departmentName] = await Promise.all([
+  const [employee, requesterUser, managerUser] = await Promise.all([
     fetchEmployeeById(request.employeeId),
     fetchUserByUid(request.requesterUid),
     fetchUserByUid(request.managerUid),
-    fetchDepartmentName(request.sectorId, opts?.departmentName),
   ])
+  await fetchDepartmentName(request.sectorId, opts?.departmentName)
 
   const fallbackFullName = safeText(request.employeeName || request.employeeId, request.employeeId)
   const employeeFullName = safeText(
     [employee?.prenume, employee?.nume].filter(Boolean).join(" ") || fallbackFullName,
-    fallbackFullName
+    fallbackFullName,
   )
   const split = splitEmployeeName(employeeFullName)
   const employeeFirstName = safeText(employee?.prenume || split.firstName, "—")
@@ -342,153 +305,33 @@ export async function generateHrRequestPDFAsync(
     reason,
   })
 
-  const doc = new jsPDF()
-  const margin = 16
-  const pageWidth = doc.internal.pageSize.width
-  const pageHeight = doc.internal.pageSize.height
-  const contentWidth = pageWidth - margin * 2
-  const documentTitle =
-    request.kind === "DEL" ? "Delegație" : `Cerere ${hrRequestKindLabel(request.kind)}`
+  try {
+    const content = await loadTemplate(templatePath)
+    const zip = new PizZip(content)
+    const doc = new Docxtemplater(zip, {
+      delimiters: { start: "{{", end: "}}" },
+      paragraphLoop: true,
+      linebreaks: true,
+      nullGetter: () => "—",
+    })
 
-  let y = drawRequestHeader(doc, {
-    margin,
-    pageWidth,
-    documentTitle,
-    companyName: placeholders["nume-companie"],
-    companyCui: placeholders["cui-companie"],
-    companyRegistrationNumber: placeholders["număr-de-înregistrare-companie"],
-    statusLabel: hrRequestStatusLabel(request.status),
-    requestDate: placeholders["data-cererii"],
-  })
+    doc.render(placeholders as any)
+    const blob = doc.getZip().generate({
+      type: "blob",
+      mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }) as Blob
 
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(11)
-
-  y = writeParagraph(
-    doc,
-    `Subsemnatul(a), ${placeholders["prenume-angajat"]} ${placeholders["nume-angajat"]}, având funcția de ${placeholders["funcție-angajat"]}, în cadrul ${placeholders["nume-companie"]}.`,
-    margin,
-    y,
-    contentWidth,
-  )
-  y += 2
-
-  if (request.kind === "CO") {
-    y = writeParagraph(
-      doc,
-      `Vă rog să-mi aprobați ${placeholders["tip-eveniment"]} pentru perioada ${placeholders["data-de-început-a-evenimentului"]} - ${placeholders["data-de-sfârșit-a-evenimentului"]}.`,
-      margin,
-      y,
-      contentWidth
-    )
-    y += 2
-    y = writeParagraph(
-      doc,
-      `Interval orar: ${placeholders["ora-de-început-a-evenimentului"]} - ${placeholders["ora-de-sfârșit-a-evenimentului"]}. Durata evenimentului: ${placeholders["durata-evenimentului"]}.`,
-      margin,
-      y,
-      contentWidth
-    )
-    y += 2
-    y = writeParagraph(
-      doc,
-      `Departament: ${safeText(departmentName)}.`,
-      margin,
-      y,
-      contentWidth
-    )
-    if (placeholders["motiv-delegare"] !== "—") {
-      y += 2
-      y = writeParagraph(doc, `Motiv: ${placeholders["motiv-delegare"]}.`, margin, y, contentWidth)
-    }
-  } else if (request.kind === "CFP") {
-    y = writeParagraph(
-      doc,
-      `Solicit aprobarea pentru concediu fără plată în perioada ${placeholders["data-de-început-a-cererii"]} - ${placeholders["data-de-sfârșit-a-cererii"]}.`,
-      margin,
-      y,
-      contentWidth
-    )
-    y += 2
-    y = writeParagraph(
-      doc,
-      `Departament: ${safeText(departmentName)}.`,
-      margin,
-      y,
-      contentWidth
-    )
-    if (placeholders["motiv-delegare"] !== "—") {
-      y += 2
-      y = writeParagraph(doc, `Motiv: ${placeholders["motiv-delegare"]}.`, margin, y, contentWidth)
-    }
-  } else if (request.kind === "DEL") {
-    y = writeParagraph(doc, `Număr de înregistrare: ${placeholders["număr-de-înregistrare"]}`, margin, y, contentWidth)
-    y += 2
-    y = writeParagraph(
-      doc,
-      `Sunt delegat(ă) de către ${placeholders["nume-companie"]} pentru clientul ${placeholders["nume-client"]}.`,
-      margin,
-      y,
-      contentWidth
-    )
-    y += 2
-    y = writeParagraph(
-      doc,
-      `Data de început a delegației: ${placeholders["data-de-început-a-evenimentului"]}. Serie și număr CI: ${placeholders["serie-si-numar-CI"]}.`,
-      margin,
-      y,
-      contentWidth
-    )
-    y += 2
-    y = writeParagraph(doc, `Motiv delegare: ${placeholders["motiv-delegare"]}.`, margin, y, contentWidth)
-  } else {
-    y = writeParagraph(
-      doc,
-      `Angajat: ${employeeFullName}. Tip cerere: ${hrRequestKindLabel(request.kind)}.`,
-      margin,
-      y,
-      contentWidth
-    )
-    y += 2
-    y = writeParagraph(
-      doc,
-      `Perioadă/zi: ${startDateLabel}${endDateLabel !== "—" ? ` - ${endDateLabel}` : ""}. Departament: ${safeText(departmentName)}.`,
-      margin,
-      y,
-      contentWidth
-    )
-    if (payload?.reason) {
-      y += 2
-      y = writeParagraph(doc, `Motiv: ${String(payload.reason)}.`, margin, y, contentWidth)
-    }
+    const safeName = sanitizeFileNameChunk(employeeFullName || request.employeeId || "angajat")
+    const fileName = `Cerere_${request.kind}_${safeName}_${Date.now()}.docx`
+    triggerBlobDownload(blob, fileName)
+  } catch (error) {
+    console.error("Eroare la generarea DOCX; fallback PDF:", error)
+    toast({
+      title: "Eroare la DOCX",
+      description: "Nu am putut genera DOCX-ul din template. Se descarcă varianta PDF fallback.",
+      variant: "destructive",
+    })
+    generateHrRequestPDF(request)
   }
-
-  if (request.status === "rejected" && request.rejectionReason) {
-    y += 6
-    doc.setFont("helvetica", "bold")
-    y = writeParagraph(doc, `Motiv respingere: ${request.rejectionReason}`, margin, y, contentWidth)
-    doc.setFont("helvetica", "normal")
-  }
-
-  y += 14
-  const signatureY = Math.min(y, pageHeight - 45)
-  drawSignatureArea(doc, {
-    margin,
-    pageWidth,
-    y: signatureY,
-    leftLabel: "Solicitant",
-    leftName: placeholders["solicitant"],
-    rightLabel: "Superior direct",
-    rightName: placeholders["superior-direct"],
-  })
-
-  doc.setFontSize(8)
-  doc.setTextColor(128, 128, 128)
-  doc.text(`Generat automat la ${formatNowRo()}`, margin, pageHeight - 22)
-  drawCommonFooter(doc)
-  doc.setTextColor(0, 0, 0)
-
-  const safeName = employeeFullName.replace(/\s+/g, "_")
-  const fileName = `Cerere_${request.kind}_${safeName}_${Date.now()}.pdf`
-  doc.save(fileName)
 }
+

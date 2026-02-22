@@ -12,7 +12,7 @@ import type { Employee, HrRequest } from "@/lib/hr/types"
 import { getEmployeeByUserUid, subscribeDepartments, subscribeHrRequestsForEmployee, subscribeHrRequestsForRequester } from "@/lib/hr/storage"
 import { hrRequestDateLabel, hrRequestKindLabel, hrRequestStatusLabel } from "@/lib/hr/hr-requests"
 import { CreateHrRequestDialog } from "@/components/hr/create-hr-request-dialog"
-import { generateHrRequestPDF } from "@/lib/hr/request-pdf-generator"
+import { generateHrRequestDOCX } from "@/lib/hr/request-docx-generator"
 
 export default function CereriTehnicianPage() {
   const [open, setOpen] = useState(false)
@@ -123,7 +123,7 @@ export default function CereriTehnicianPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => generateHrRequestPDF(r)}
+                      onClick={() => generateHrRequestDOCX(r)}
                       title="Descarcă document"
                     >
                       <Download className="h-4 w-4" />

@@ -17,14 +17,14 @@ import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { format, parse, isAfter, isBefore, addMonths, addDays } from "date-fns"
 import { ro } from "date-fns/locale"
-import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Mail, Check, Info, RefreshCw, Archive, History } from "lucide-react"
+import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Mail, Check, Info, RefreshCw } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { addLucrare, deleteLucrare, updateLucrare, getLucrareById, getNextReportNumber, type Lucrare } from "@/lib/firebase/firestore"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { orderBy, where, collection, getDocs, serverTimestamp } from "firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
-import { LucrareForm, type LucrareFormRef } from "@/components/lucrare-form"
+import { LucrareForm, type ActiveWorkSummary, type LucrareFormRef } from "@/components/lucrare-form"
 import { AddLucrareDialog } from "@/components/add-lucrare-dialog"
 import { ArchiveButton } from "@/components/archive-button"
 import { DataTable } from "@/components/data-table/data-table"
@@ -66,6 +66,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
 
 const ContractDisplay = ({ contractId }) => {
   const [contractNumber, setContractNumber] = useState(null)
@@ -113,11 +114,10 @@ export default function Lucrari() {
   const reinterventionId = searchParams.get("reintervention")
   const { userData } = useAuth()
   const isTechnician = userData?.role === "tehnician"
+  const canDeleteWorks = userData?.role === "admin"
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editLucrareId, setEditLucrareId] = useState<string | null>(null)
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [lucrareToDelete, setLucrareToDelete] = useState<string | null>(null)
   const [isReassignment, setIsReassignment] = useState(false)
   const [originalWorkOrderId, setOriginalWorkOrderId] = useState(null)
   const [revEquipmentNames, setRevEquipmentNames] = useState<Record<string, string[]>>({})
@@ -156,6 +156,7 @@ export default function Lucrari() {
   const [fieldErrors, setFieldErrors] = useState([])
   const [activeWorkCount, setActiveWorkCount] = useState(0)
   const [activeWorkEquipmentName, setActiveWorkEquipmentName] = useState("")
+  const [activeWorkItems, setActiveWorkItems] = useState<ActiveWorkSummary[]>([])
 
   const fieldLabels: Record<string, string> = {
     dataEmiterii: "Data emiterii",
@@ -179,11 +180,14 @@ export default function Lucrari() {
   const [isColumnModalOpen, setIsColumnModalOpen] = useState(false)
   const [columnOptions, setColumnOptions] = useState<any[]>([])
   const [showCloseAlert, setShowCloseAlert] = useState(false)
-  const [openActionsMenuId, setOpenActionsMenuId] = useState<string | null>(null)
   const actionsTouchRef = useRef<{ pointerId: number; x: number; y: number; moved: boolean } | null>(null)
   const addFormRef = useRef<LucrareFormRef>(null)
   const editFormRef = useRef<LucrareFormRef>(null)
   const assigningNumbersRef = useRef<Set<string>>(new Set())
+  const [multiSelectMode, setMultiSelectMode] = useState(false)
+  const [selectedWorkIds, setSelectedWorkIds] = useState<Set<string>>(new Set())
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
   
 
   // Persistența tabelului
@@ -964,6 +968,136 @@ export default function Lucrari() {
   }, [filteredData, cardsCurrentPage, cardsPageSize, isTechnician])
 
   const totalCardsPages = Math.ceil(filteredData.length / cardsPageSize)
+  const showTableSelectionColumn = canDeleteWorks && !isTechnician && activeTab === "tabel" && multiSelectMode
+
+  const currentPageWorkIds = useMemo(() => {
+    const source = activeTab === "carduri" ? paginatedCardsData : filteredData
+    return (source as any[])
+      .map((w: any) => String(w?.id || "").trim())
+      .filter(Boolean)
+  }, [activeTab, paginatedCardsData, filteredData])
+
+  const allCurrentPageSelected =
+    currentPageWorkIds.length > 0 && currentPageWorkIds.every((id) => selectedWorkIds.has(id))
+  const hasCurrentPageSelection = currentPageWorkIds.some((id) => selectedWorkIds.has(id))
+  const selectedCount = selectedWorkIds.size
+  const currentPageSelectedCount = currentPageWorkIds.filter((id) => selectedWorkIds.has(id)).length
+  const visibleSelectableCount = filteredData.length
+
+  const toggleWorkSelection = useCallback(
+    (workId: string) => {
+      if (!canDeleteWorks || !multiSelectMode) return
+      const id = String(workId || "").trim()
+      if (!id) return
+      setSelectedWorkIds((prev) => {
+        const next = new Set(prev)
+        if (next.has(id)) next.delete(id)
+        else next.add(id)
+        return next
+      })
+    },
+    [canDeleteWorks, multiSelectMode],
+  )
+
+  const clearSelection = useCallback(() => {
+    setSelectedWorkIds(new Set())
+  }, [])
+
+  const toggleSelectCurrentPage = useCallback(() => {
+    if (!canDeleteWorks || !multiSelectMode || currentPageWorkIds.length === 0) return
+    setSelectedWorkIds((prev) => {
+      const next = new Set(prev)
+      const everySelected = currentPageWorkIds.every((id) => next.has(id))
+      if (everySelected) {
+        currentPageWorkIds.forEach((id) => next.delete(id))
+      } else {
+        currentPageWorkIds.forEach((id) => next.add(id))
+      }
+      return next
+    })
+  }, [canDeleteWorks, multiSelectMode, currentPageWorkIds])
+
+  const toggleMultiSelectMode = useCallback(() => {
+    if (!canDeleteWorks) return
+    setMultiSelectMode((prev) => !prev)
+    if (multiSelectMode) {
+      clearSelection()
+    }
+  }, [canDeleteWorks, clearSelection, multiSelectMode])
+
+  const handleBulkDeleteSelected = useCallback(async () => {
+    if (bulkDeleting) return
+    const ids = Array.from(selectedWorkIds)
+    if (!canDeleteWorks || ids.length === 0) return
+
+    setBulkDeleteOpen(false)
+    setBulkDeleting(true)
+    try {
+      const results = await Promise.allSettled(ids.map((id) => deleteLucrare(id)))
+      const successIds: string[] = []
+      const failedIds: string[] = []
+
+      results.forEach((result, idx) => {
+        if (result.status === "fulfilled") {
+          successIds.push(ids[idx])
+        } else {
+          failedIds.push(ids[idx])
+        }
+      })
+
+      if (failedIds.length === 0) {
+        toast({
+          title: "Tichete șterse",
+          description: `${successIds.length} ${successIds.length === 1 ? "tichet a fost șters" : "tichete au fost șterse"} cu succes.`,
+        })
+        setSelectedWorkIds(new Set())
+        setMultiSelectMode(false)
+        return
+      }
+
+      if (successIds.length > 0) {
+        toast({
+          title: "Ștergere parțială",
+          description: `${successIds.length} ${successIds.length === 1 ? "tichet șters" : "tichete șterse"}, ${failedIds.length} ${failedIds.length === 1 ? "a eșuat" : "au eșuat"}.`,
+          variant: "default",
+        })
+        setSelectedWorkIds(new Set(failedIds))
+      } else {
+        toast({
+          title: "Eroare la ștergere",
+          description: "Nu s-au putut șterge tichetele selectate.",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Eroare la ștergerea multiplă a tichetelor:", error)
+      toast({
+        title: "Eroare la ștergere",
+        description: "A apărut o eroare neașteptată la ștergerea multiplă.",
+        variant: "destructive",
+      })
+    } finally {
+      setBulkDeleting(false)
+    }
+  }, [bulkDeleting, canDeleteWorks, selectedWorkIds])
+
+  useEffect(() => {
+    if (!canDeleteWorks) {
+      setMultiSelectMode(false)
+      setSelectedWorkIds(new Set())
+    }
+  }, [canDeleteWorks])
+
+  useEffect(() => {
+    setSelectedWorkIds((prev) => {
+      if (prev.size === 0) return prev
+      const visibleIds = new Set(
+        (filteredData as any[]).map((w: any) => String(w?.id || "").trim()).filter(Boolean),
+      )
+      const next = new Set(Array.from(prev).filter((id) => visibleIds.has(id)))
+      return next.size === prev.size ? prev : next
+    })
+  }, [filteredData])
 
   // Reset paginația când se schimbă filtrele
   useEffect(() => {
@@ -1156,6 +1290,9 @@ export default function Lucrari() {
     setIsAddDialogOpen(false)
     setIsReassignment(false)
     setOriginalWorkOrderId(null)
+    setActiveWorkCount(0)
+    setActiveWorkEquipmentName("")
+    setActiveWorkItems([])
     setFormData({
       tipLucrare: "",
       tehnicieni: [],
@@ -1193,6 +1330,9 @@ export default function Lucrari() {
   const resetForm = () => {
     setDataEmiterii(new Date())
     setDataInterventie(undefined)
+    setActiveWorkCount(0)
+    setActiveWorkEquipmentName("")
+    setActiveWorkItems([])
     setFormData({
       tipLucrare: "",
       tehnicieni: [],
@@ -1286,6 +1426,9 @@ export default function Lucrari() {
       })
       setFieldErrors([])
       setIsAddDialogOpen(false)
+      setActiveWorkCount(0)
+      setActiveWorkEquipmentName("")
+      setActiveWorkItems([])
       
       toast({
         title: "Succes",
@@ -1307,9 +1450,18 @@ export default function Lucrari() {
       setError(null)
 
       if (activeWorkCount > 0) {
+        const firstConflict = activeWorkItems[0]
+        const equipmentLabel = activeWorkEquipmentName || formData.echipament || "selectat"
+        const conflictNrRaw = String(firstConflict?.nrDisplay || firstConflict?.id || "")
+        const conflictNr = conflictNrRaw ? (conflictNrRaw.startsWith("#") ? conflictNrRaw : `#${conflictNrRaw}`) : "N/A"
+        const conflictStatus = String(firstConflict?.statusLucrare || "N/A")
+        const conflictPath = firstConflict?.id ? `/dashboard/lucrari/${firstConflict.id}` : ""
+        const detailedMessage = firstConflict
+          ? `Blocat de tichet activ ${conflictNr} (${conflictStatus}) pe echipamentul ${equipmentLabel}.${conflictPath ? ` Deschide: ${conflictPath}` : ""}`
+          : "Nu puteți crea o tichet nouă pe acest echipament. Există deja tichete active pe acest echipament."
         toast({
-          title: "Eroare",
-          description: "Nu puteți crea o tichet nouă pe acest echipament. Există deja tichete active pe acest echipament.",
+          title: "Creare blocată",
+          description: detailedMessage,
           variant: "destructive",
         })
         setIsSubmitting(false)
@@ -1747,6 +1899,7 @@ export default function Lucrari() {
   }
 
   const handleDelete = async (id) => {
+    if (!canDeleteWorks) return
     if (window.confirm("Sunteți sigur că doriți să ștergeți această tichet?")) {
       try {
         await deleteLucrare(id)
@@ -2040,6 +2193,54 @@ export default function Lucrari() {
 
   // Definim coloanele pentru DataTable
   const columns = [
+    ...(showTableSelectionColumn
+      ? [
+          {
+            id: "select",
+            header: () => {
+              const checkedState: boolean | "indeterminate" = allCurrentPageSelected
+                ? true
+                : hasCurrentPageSelection
+                  ? "indeterminate"
+                  : false
+              return (
+                <div className="flex items-center justify-center">
+                  <Checkbox
+                    aria-label="Selectează pagina curentă"
+                    checked={checkedState}
+                    onCheckedChange={() => toggleSelectCurrentPage()}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+              )
+            },
+            cell: ({ row }) => {
+              const workId = String((row.original as any)?.id || "").trim()
+              const checked = workId ? selectedWorkIds.has(workId) : false
+              return (
+                <div className="flex items-center justify-center">
+                  <Checkbox
+                    aria-label="Selectează tichet"
+                    checked={checked}
+                    disabled={!workId}
+                    onCheckedChange={() => {
+                      if (workId) toggleWorkSelection(workId)
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+              )
+            },
+            enableHiding: false,
+            enableFiltering: false,
+            enableSorting: false,
+            meta: {
+              thClassName: "w-12",
+              tdClassName: "w-12",
+            },
+          },
+        ]
+      : []),
     {
       accessorKey: "nrLucrareDisplay",
       header: "Număr tichet",
@@ -2504,7 +2705,7 @@ export default function Lucrari() {
               </Tooltip>
             )}
             {/* Arhivarea este disponibilă doar în pagina de detalii lucrare */}
-            {userData?.role === "admin" && (
+            {canDeleteWorks && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -2700,12 +2901,14 @@ export default function Lucrari() {
                 isReintervention={isReassignment}
             originalWorkOrderId={originalWorkOrderId}
             formRef={addFormRef}
-            onActiveWorkChange={(count, equipmentName) => {
+            onActiveWorkChange={(count, equipmentName, activeWorks) => {
               setActiveWorkCount(count)
               setActiveWorkEquipmentName(equipmentName || "")
+              setActiveWorkItems(Array.isArray(activeWorks) ? activeWorks : [])
             }}
             activeWorkCount={activeWorkCount}
             activeWorkEquipmentName={activeWorkEquipmentName}
+            activeWorkItems={activeWorkItems}
             isSubmitting={isSubmitting}
             missingFieldsMessage={missingFieldsMessage}
             onSave={handleSubmit}
@@ -2817,8 +3020,8 @@ export default function Lucrari() {
 
       <div className="space-y-4">
         {!isTechnician && (
-        <div className="flex flex-col sm:flex-row sm:justify-between gap-4">
-          <div className="flex items-center space-x-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-[200px]">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="tabel">Tabel</TabsTrigger>
@@ -2826,6 +3029,19 @@ export default function Lucrari() {
               </TabsList>
             </Tabs>
           </div>
+          {canDeleteWorks && multiSelectMode && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="bg-blue-600 text-white">
+                Selectate: {selectedCount}
+              </Badge>
+              <Badge variant="outline" className="border-blue-300 bg-white text-blue-800">
+                Vizibile: {selectedCount}/{visibleSelectableCount || 0}
+              </Badge>
+              <Badge variant="outline" className="border-sky-300 bg-sky-50 text-sky-800">
+                Pagina: {currentPageSelectedCount}/{currentPageWorkIds.length || 0}
+              </Badge>
+            </div>
+          )}
         </div>
         )}
 
@@ -2839,8 +3055,53 @@ export default function Lucrari() {
               onClick={() => setIsColumnModalOpen(true)}
               hiddenColumnsCount={columnOptions.filter((col) => !col.isVisible).length}
             />
+            {canDeleteWorks && (
+              <Button variant={multiSelectMode ? "default" : "outline"} onClick={toggleMultiSelectMode} disabled={bulkDeleting}>
+                {multiSelectMode ? `Deselectează (${selectedCount})` : "Selectare multiplă"}
+              </Button>
+            )}
           </div>
         </div>
+        )}
+
+        {canDeleteWorks && multiSelectMode && (
+          <div className="flex flex-col gap-2 rounded-md border border-blue-200 bg-blue-50/80 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <div className="text-sm font-medium text-blue-900">
+                Selectate: {selectedCount} din {visibleSelectableCount}
+              </div>
+              <div className="text-xs text-blue-700">
+                Pagina curentă: {currentPageSelectedCount} din {currentPageWorkIds.length}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleSelectCurrentPage}
+                disabled={bulkDeleting || currentPageWorkIds.length === 0}
+              >
+                {allCurrentPageSelected ? "Deselectează pagina" : "Selectează pagina"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearSelection}
+                disabled={bulkDeleting || selectedCount === 0}
+              >
+                Deselectează
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setBulkDeleteOpen(true)}
+                disabled={bulkDeleting || selectedCount === 0}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                {bulkDeleting ? "Se șterge..." : "Șterge selectate"}
+              </Button>
+            </div>
+          </div>
         )}
 
         {/* Adaugă acest cod după secțiunea de căutare universală și butonul de filtrare */}
@@ -2895,7 +3156,11 @@ export default function Lucrari() {
               columns={columns}
               data={filteredData}
             defaultSort={{ id: "nrLucrareDisplay", desc: true }}
-              onRowClick={(lucrare) => handleViewDetails(lucrare)}
+              onRowClick={
+                showTableSelectionColumn
+                  ? (lucrare) => toggleWorkSelection(String((lucrare as any)?.id || ""))
+                  : (lucrare) => handleViewDetails(lucrare)
+              }
               table={tableInstance}
               setTable={setTableInstance}
               showFilters={false}
@@ -2988,18 +3253,26 @@ export default function Lucrari() {
               const workStatusLabel = isFinalizatByReport(lucrare)
                 ? "Raport generat"
                 : String(lucrare.statusLucrare || "")
+              const workId = String((lucrare as any)?.id || "").trim()
+              const isBulkSelectionMode = canDeleteWorks && multiSelectMode
+              const isSelectedForBulk = workId ? selectedWorkIds.has(workId) : false
 
               return (
                 <Card
                   key={lucrare.id}
                   className={cn(
                     "relative overflow-hidden min-w-0 w-full max-w-xl md:max-w-none mx-auto md:mx-0 transition-all duration-300",
+                    isBulkSelectionMode && isSelectedForBulk && "border-2 border-blue-500",
                     isTechnician && isCompletedNotPickedUp 
-                      ? "cursor-default border-gray-200" 
-                      : "cursor-pointer hover:shadow-lg hover:shadow-gray-200/50 border-gray-100 hover:border-gray-200",
+                      ? cn("cursor-default", !isSelectedForBulk && "border-gray-200")
+                      : cn("cursor-pointer hover:shadow-lg hover:shadow-gray-200/50", !isSelectedForBulk && "border-gray-100 hover:border-gray-200"),
                     lucrare ? getWorkStatusRowClass(lucrare) : "",
                   )}
                   onClick={() => {
+                    if (isBulkSelectionMode) {
+                      if (workId) toggleWorkSelection(workId)
+                      return
+                    }
                     if (!(isTechnician && isCompletedNotPickedUp)) {
                       handleViewDetails(lucrare)
                     }
@@ -3072,10 +3345,14 @@ export default function Lucrari() {
                         className="w-full mt-2 border-2 text-blue-600 border-blue-200 hover:bg-blue-50"
                         onClick={(e) => {
                           e.stopPropagation()
+                          if (isBulkSelectionMode) {
+                            if (workId) toggleWorkSelection(workId)
+                            return
+                          }
                           handleViewDetails(lucrare)
                         }}
                       >
-                        Vezi detalii
+                        {isBulkSelectionMode ? (isSelectedForBulk ? "Selectat" : "Selectează") : "Vezi detalii"}
                       </Button>
                     </div>
 
@@ -3142,10 +3419,14 @@ export default function Lucrari() {
                         className="w-full mt-2 border-2 text-blue-600 border-blue-200 hover:bg-blue-50"
                         onClick={(e) => {
                           e.stopPropagation()
+                          if (isBulkSelectionMode) {
+                            if (workId) toggleWorkSelection(workId)
+                            return
+                          }
                           handleViewDetails(lucrare)
                         }}
                       >
-                        Vezi detalii
+                        {isBulkSelectionMode ? (isSelectedForBulk ? "Selectat" : "Selectează") : "Vezi detalii"}
                       </Button>
                     </div>
                   </CardContent>
@@ -3215,6 +3496,57 @@ export default function Lucrari() {
           </div>
         )}
       </div>
+      {canDeleteWorks && multiSelectMode && (
+        <div className="fixed bottom-4 right-4 z-40 sm:hidden">
+          <div className="min-w-[170px] rounded-xl border border-blue-300 bg-white/95 p-3 shadow-lg backdrop-blur">
+            <div className="text-[11px] font-medium uppercase tracking-wide text-blue-700">Selectare activă</div>
+            <div className="mt-1 text-lg font-semibold text-blue-900">{selectedCount}</div>
+            <div className="text-xs text-blue-700">
+              selectate din {visibleSelectableCount}
+            </div>
+            <div className="mt-2 text-[11px] text-sky-700">
+              Pagina curentă: {currentPageSelectedCount}/{currentPageWorkIds.length}
+            </div>
+            <div className="mt-3 flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 flex-1 px-2 text-xs"
+                onClick={clearSelection}
+                disabled={bulkDeleting || selectedCount === 0}
+              >
+                Deselectează
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="h-8 flex-1 px-2 text-xs"
+                onClick={() => setBulkDeleteOpen(true)}
+                disabled={bulkDeleting || selectedCount === 0}
+              >
+                Șterge
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmare ștergere multiplă</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ești sigur că vrei să ștergi {selectedCount} {selectedCount === 1 ? "tichet" : "tichete"}?
+              Această acțiune este ireversibilă.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkDeleting}>Anulează</AlertDialogCancel>
+            <AlertDialogAction disabled={bulkDeleting || selectedCount === 0} onClick={handleBulkDeleteSelected}>
+              {bulkDeleting ? "Se șterge..." : "Șterge"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog open={showCloseAlert} onOpenChange={setShowCloseAlert}>
         <AlertDialogContent>
           <AlertDialogHeader>

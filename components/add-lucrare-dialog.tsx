@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -10,7 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { LucrareForm, type LucrareFormRef } from "@/components/lucrare-form"
+import { LucrareForm, type ActiveWorkSummary, type LucrareFormRef } from "@/components/lucrare-form"
 import { Loader2, Plus } from "lucide-react"
 
 type LucrareFormProps = React.ComponentProps<typeof LucrareForm>
@@ -36,6 +37,7 @@ interface AddLucrareDialogProps {
   formRef?: React.Ref<LucrareFormRef>
   activeWorkCount?: number
   activeWorkEquipmentName?: string
+  activeWorkItems?: ActiveWorkSummary[]
   isSubmitting?: boolean
   missingFieldsMessage?: string
   onSave: () => void
@@ -62,10 +64,12 @@ export const AddLucrareDialog: React.FC<AddLucrareDialogProps> = ({
   formRef,
   activeWorkCount = 0,
   activeWorkEquipmentName = "",
+  activeWorkItems = [],
   isSubmitting = false,
   missingFieldsMessage,
   onSave,
 }) => {
+  const router = useRouter()
   const originalInfo = (formData as any)?.originalWorkOrderInfo
   const hasActiveWork = activeWorkCount > 0
 
@@ -124,13 +128,44 @@ export const AddLucrareDialog: React.FC<AddLucrareDialogProps> = ({
           setFieldErrors={setFieldErrors}
           isReintervention={isReintervention}
           onActiveWorkChange={onActiveWorkChange}
+          currentWorkOrderId={originalWorkOrderId || undefined}
         />
 
         <DialogFooter className="flex-col gap-2 sm:flex-row">
           {hasActiveWork && (
             <div className="w-full text-xs text-destructive sm:mr-auto">
-              Există deja un tichet activ pentru echipamentul{" "}
-              <strong>{activeWorkEquipmentName || formData.echipament || "selectat"}</strong>. Nu puteți salva o lucrare nouă.
+              <p>
+                Există deja un tichet activ pentru echipamentul{" "}
+                <strong>{activeWorkEquipmentName || formData.echipament || "selectat"}</strong>. Nu puteți salva o lucrare nouă.
+              </p>
+              {activeWorkItems.length > 0 ? (
+                <div className="mt-2 space-y-1">
+                  {activeWorkItems.map((work) => (
+                    <div key={work.id} className="flex items-center justify-between gap-2 rounded border border-red-200 bg-red-50 px-2 py-1">
+                      <div className="truncate">
+                        <span className="font-medium">{work.nrDisplay}</span>
+                        <span className="ml-1">({work.statusLucrare || "N/A"})</span>
+                        {originalWorkOrderId && work.id === originalWorkOrderId ? (
+                          <span className="ml-2 text-[10px] uppercase tracking-wide">acest tichet</span>
+                        ) : null}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => router.push(`/dashboard/lucrari/${work.id}`)}
+                      >
+                        Deschide
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-1">
+                  Nu s-au putut încărca detalii despre conflict, dar blocajul rămâne activ pentru protecția datelor.
+                </p>
+              )}
             </div>
           )}
           <Button variant="outline" onClick={onClose}>

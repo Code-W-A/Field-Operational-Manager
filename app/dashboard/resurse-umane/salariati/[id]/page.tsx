@@ -35,7 +35,7 @@ import {
 import type { TimesheetMonth } from "@/lib/hr/types"
 import { toast } from "@/hooks/use-toast"
 import { CreateHrRequestDialog } from "@/components/hr/create-hr-request-dialog"
-import { generateHrRequestPDF } from "@/lib/hr/request-pdf-generator"
+import { generateHrRequestDOCX } from "@/lib/hr/request-docx-generator"
 import { hrRequestDateLabel, hrRequestKindLabel, hrRequestStatusLabel } from "@/lib/hr/hr-requests"
 import { useAuth } from "@/contexts/AuthContext"
 import { EmployeeEditDialog } from "@/components/hr/employee-edit-dialog"
@@ -913,7 +913,7 @@ export default function HrEmployeeDetailsPage() {
                         size="icon"
                         className="ml-4 border-2 shadow-sm hover:shadow-md transition-all"
                         onClick={() => {
-                          generateHrRequestPDF(req)
+                          generateHrRequestDOCX(req)
                         }}
                         title="Descarcă document"
                       >

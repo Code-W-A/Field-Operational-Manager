@@ -19,7 +19,7 @@ import type { HrRequest, HrRequestKind, HrRequestPayload } from "@/lib/hr/types"
 import { decideHrRequest, subscribeDepartments, subscribeHrRequestsForManager, syncHrRequestToTimesheets, updateHrRequestByManager } from "@/lib/hr/storage"
 import { hrRequestDateLabel, hrRequestKindLabel, hrRequestStatusLabel } from "@/lib/hr/hr-requests"
 import { toast } from "@/hooks/use-toast"
-import { generateHrRequestPDF } from "@/lib/hr/request-pdf-generator"
+import { generateHrRequestDOCX } from "@/lib/hr/request-docx-generator"
 
 function canEditPayload(kind: HrRequestKind) {
   // for now allow editing payload fields for all kinds
@@ -382,7 +382,7 @@ export default function CereriAprobariPage() {
           <DialogFooter className="gap-2">
             {selected && (selected.status === "pending" || selected.status === "approved") ? (
               <>
-                <Button variant="outline" onClick={() => selected && generateHrRequestPDF(selected)} disabled={saving}>
+                <Button variant="outline" onClick={() => selected && generateHrRequestDOCX(selected)} disabled={saving}>
                   <Download className="h-4 w-4 mr-2" />
                   Document
                 </Button>
@@ -411,7 +411,7 @@ export default function CereriAprobariPage() {
             ) : (
               <>
                 {selected ? (
-                  <Button variant="outline" onClick={() => generateHrRequestPDF(selected)}>
+                  <Button variant="outline" onClick={() => generateHrRequestDOCX(selected)}>
                     <Download className="h-4 w-4 mr-2" />
                     Document
                   </Button>
