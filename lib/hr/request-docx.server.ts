@@ -114,6 +114,25 @@ function sanitizeFileNameChunk(raw: string): string {
     .replace(/^_+|_+$/g, "")
 }
 
+function removeDocxFooters(zip: PizZip) {
+  // Empty all footer XML parts so generated DOCX does not render template footers.
+  const emptyFooterXml =
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p/></w:ftr>'
+
+  const files = Object.keys((zip as any).files || {})
+  for (const name of files) {
+    if (/^word\/footer\d+\.xml$/i.test(name)) {
+      zip.file(name, emptyFooterXml)
+    }
+  }
+
+  const docXml = zip.file("word/document.xml")?.asText()
+  if (docXml) {
+    zip.file("word/document.xml", docXml.replace(/<w:footerReference\b[^>]*\/>/g, ""))
+  }
+}
+
 async function fetchEmployeeById(employeeId: string): Promise<EmployeeSnapshot | null> {
   if (!employeeId) return null
   try {
@@ -226,6 +245,7 @@ export async function generateHrRequestDocxBuffer(
   const templatePath = path.join(process.cwd(), "public", "docx", templateFile)
   const templateBuffer = await fs.readFile(templatePath)
   const zip = new PizZip(templateBuffer)
+  removeDocxFooters(zip)
   const doc = new Docxtemplater(zip, {
     delimiters: { start: "{{", end: "}}" },
     paragraphLoop: true,
