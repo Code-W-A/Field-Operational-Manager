@@ -6,6 +6,7 @@ import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-e
 import { logError, logInfo, logWarning } from "@/lib/utils/logging-service"
 import { formatRomanianDateDotsISO } from "@/lib/utils/date-utils"
 import { generateHrRequestPdfBuffer } from "@/lib/hr/request-pdf.server"
+import { canGenerateHrRequestDocx, generateHrRequestDocxBuffer } from "@/lib/hr/request-docx.server"
 
 type HrRequestEvent = "created" | "status_changed"
 
@@ -219,20 +220,85 @@ export async function POST(request: NextRequest) {
           status: String(data.status || ""),
           payload: data.payload || {},
           rejectionReason: data.rejectionReason || undefined,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
+          createdAt: Number(data.createdAt || Date.now()),
+          updatedAt: Number(data.updatedAt || Date.now()),
         }
-        const { buffer, filename } = generateHrRequestPdfBuffer(req as any, { departmentName: departmentLabel || undefined })
+        if (canGenerateHrRequestDocx(req.kind as any)) {
+          // CO/CFP/DEL: trimitem DOCX fidel template-ului clientului.
+          return "docx" as const
+        }
+        const { buffer, filename } = generateHrRequestPdfBuffer(req as any, {
+          departmentName: departmentLabel || undefined,
+        })
         return [{ filename, content: buffer, contentType: "application/pdf" }]
       } catch (err) {
         logWarning(
-          "HR request PDF generation failed",
+          "HR request attachment generation failed",
           { requestId, error: (err as any)?.message || String(err) },
           { category: "email", context: { requestId, logContextId } },
         )
         return undefined
       }
     })()
+
+    const resolveAttachments = async (): Promise<Array<{ filename: string; content: Buffer; contentType: string }> | undefined> => {
+      try {
+        if (attachment === "docx") {
+          const req = {
+            id: requestId,
+            employeeId: String(data.employeeId || ""),
+            employeeName: data.employeeName || data.employeeId || "—",
+            requesterUid: String(data.requesterUid || ""),
+            sectorId: String(data.sectorId || ""),
+            managerUid: String(data.managerUid || ""),
+            kind: String(data.kind || ""),
+            status: String(data.status || ""),
+            payload: data.payload || {},
+            rejectionReason: data.rejectionReason || undefined,
+            createdAt: Number(data.createdAt || Date.now()),
+            updatedAt: Number(data.updatedAt || Date.now()),
+          }
+          const { buffer, filename } = await generateHrRequestDocxBuffer(req as any)
+          return [
+            {
+              filename,
+              content: buffer,
+              contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            },
+          ]
+        }
+        return attachment
+      } catch (err) {
+        logWarning(
+          "HR request DOCX generation failed; fallback to PDF",
+          { requestId, error: (err as any)?.message || String(err) },
+          { category: "email", context: { requestId, logContextId } },
+        )
+        try {
+          const req = {
+            id: requestId,
+            employeeId: String(data.employeeId || ""),
+            employeeName: data.employeeName || data.employeeId || "—",
+            requesterUid: String(data.requesterUid || ""),
+            sectorId: String(data.sectorId || ""),
+            managerUid: String(data.managerUid || ""),
+            kind: String(data.kind || ""),
+            status: String(data.status || ""),
+            payload: data.payload || {},
+            rejectionReason: data.rejectionReason || undefined,
+            createdAt: Number(data.createdAt || Date.now()),
+            updatedAt: Number(data.updatedAt || Date.now()),
+          }
+          const { buffer, filename } = generateHrRequestPdfBuffer(req as any, {
+            departmentName: departmentLabel || undefined,
+          })
+          return [{ filename, content: buffer, contentType: "application/pdf" }]
+        } catch {
+          return undefined
+        }
+      }
+    }
+    const finalAttachments = await resolveAttachments()
 
     if (event === "created") {
       if (manager.email) {
@@ -248,7 +314,7 @@ export async function POST(request: NextRequest) {
               `Perioadă/zi: ${requestDateLabel(data)}\n` +
               `Departament: ${departmentLabel || "—"}\n\n` +
               `Deschide aplicația: ${approvalsUrl}\n`,
-            attachments: attachment,
+            attachments: finalAttachments,
           }),
         )
       }
@@ -265,7 +331,7 @@ export async function POST(request: NextRequest) {
               `Perioadă/zi: ${requestDateLabel(data)}\n` +
               `Departament: ${departmentLabel || "—"}\n` +
               `Status: ${statusLabel(String(data.status || ""))}\n`,
-            attachments: attachment,
+            attachments: finalAttachments,
           }),
         )
       }
@@ -282,7 +348,7 @@ export async function POST(request: NextRequest) {
               `Perioadă/zi: ${requestDateLabel(data)}\n` +
               `Departament: ${departmentLabel || "—"}\n` +
               `Status: ${statusLabel(String(data.status || ""))}\n`,
-            attachments: attachment,
+            attachments: finalAttachments,
           }),
         )
       }
@@ -307,7 +373,7 @@ export async function POST(request: NextRequest) {
             recipientType: to === manager.email ? "manager" : "employee",
             subject: `Status cerere actualizat: ${statusLabel(String(data.status || ""))} • ${title}`,
             text: baseText,
-            attachments: attachment,
+            attachments: finalAttachments,
           }),
         )
       }
