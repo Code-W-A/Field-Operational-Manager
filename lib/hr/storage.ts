@@ -7,6 +7,7 @@ import {
   deleteDoc,
   deleteField,
   doc,
+  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -455,6 +456,91 @@ export async function importLegacyLocalStorageHrDataToFirestore(): Promise<{ emp
 
 // ===== HR Requests (unified) =====
 
+const BLOCKED_OVERLAP_REQUEST_KINDS: HrRequestKind[] = ["CO", "CFP", "CM", "DEL", "IN"]
+
+function shouldEnforceRequestDayUniqueness(kind: HrRequestKind): boolean {
+  return BLOCKED_OVERLAP_REQUEST_KINDS.includes(kind)
+}
+
+function requestStatusLabelRo(status: HrRequestStatus): string {
+  if (status === "approved") return "aprobată"
+  if (status === "pending") return "în așteptare"
+  return "respinsă"
+}
+
+function requestKindLabelRo(kind: HrRequestKind): string {
+  switch (kind) {
+    case "CO":
+      return "Concediu de odihnă"
+    case "CFP":
+      return "Concediu fără plată"
+    case "CM":
+      return "Concediu medical"
+    case "IN":
+      return "Învoire"
+    case "DEL":
+      return "Delegație"
+    case "CORRECT_HOURS":
+      return "Corectare ore de lucru"
+    case "ADD_OVERTIME":
+      return "Adăugare ore suplimentare"
+    default:
+      return String(kind)
+  }
+}
+
+function isoToRoDate(iso: string): string {
+  const s = String(iso || "")
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s || "N/A"
+  return `${s.slice(8, 10)}.${s.slice(5, 7)}.${s.slice(0, 4)}`
+}
+
+function requestActiveDatesISO(kind: HrRequestKind, payload: any): string[] {
+  if (!shouldEnforceRequestDayUniqueness(kind) || !payload) return []
+  if (kind === "IN") {
+    const d = String(payload?.date || "")
+    return /^\d{4}-\d{2}-\d{2}$/.test(d) ? [d] : []
+  }
+  const start = String(payload?.startDate || "")
+  const end = String(payload?.endDate || "")
+  return enumerateDatesInclusiveISO(start, end).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
+}
+
+async function assertNoActiveRequestOverlap(params: {
+  employeeId: string
+  kind: HrRequestKind
+  payload: any
+  excludeRequestId?: string
+}) {
+  if (!params.employeeId) return
+  if (!shouldEnforceRequestDayUniqueness(params.kind)) return
+
+  const candidateDates = requestActiveDatesISO(params.kind, params.payload)
+  if (!candidateDates.length) return
+  const candidateSet = new Set(candidateDates)
+
+  const q = query(
+    collection(db, "hrRequests"),
+    where("employeeId", "==", params.employeeId),
+    where("status", "in", ["pending", "approved"]),
+  )
+  const snap = await getDocs(q)
+  for (const d of snap.docs) {
+    if (params.excludeRequestId && d.id === params.excludeRequestId) continue
+    const req = normalizeHrRequest(d.id, d.data())
+    if (!shouldEnforceRequestDayUniqueness(req.kind)) continue
+
+    const existingDates = requestActiveDatesISO(req.kind, req.payload as any)
+    const overlap = existingDates.find((dateIso) => candidateSet.has(dateIso))
+    if (!overlap) continue
+
+    throw new Error(
+      `Există deja o cerere ${requestKindLabelRo(req.kind)} (${requestStatusLabelRo(req.status)}) pe data ${isoToRoDate(overlap)}. ` +
+        "Nu poți avea două cereri active în aceeași zi (exceptând Corectare ore și Ore suplimentare).",
+    )
+  }
+}
+
 function normalizeHrRequest(id: string, data: any): HrRequest {
   return {
     id,
@@ -608,6 +694,11 @@ async function notifyHrRequestEmail(params: { requestId: string; event: "created
 
 export async function createHrRequest(request: Omit<HrRequest, "id" | "createdAt" | "updatedAt">): Promise<string> {
   const ref = doc(collection(db, "hrRequests"))
+  await assertNoActiveRequestOverlap({
+    employeeId: request.employeeId,
+    kind: request.kind,
+    payload: request.payload,
+  })
   const cleanRequest = removeUndefined(request as any)
   await setDoc(ref, {
     ...cleanRequest,
@@ -625,6 +716,20 @@ export async function updateHrRequestByManager(params: {
   managerUid: string
 }) {
   const ref = doc(db, "hrRequests", params.requestId)
+  const snap = await getDoc(ref)
+  if (!snap.exists()) {
+    throw new Error("Cererea nu mai există.")
+  }
+  const current = normalizeHrRequest(snap.id, snap.data())
+  const nextKind = (params.updates.kind ?? current.kind) as HrRequestKind
+  const nextPayload = params.updates.payload ?? current.payload
+  await assertNoActiveRequestOverlap({
+    employeeId: current.employeeId,
+    kind: nextKind,
+    payload: nextPayload,
+    excludeRequestId: params.requestId,
+  })
+
   const cleanUpdates = removeUndefined(params.updates as any)
   await updateDoc(ref, {
     ...cleanUpdates,
@@ -642,6 +747,17 @@ export async function decideHrRequest(params: {
   rejectionReason?: string
 }) {
   const ref = doc(db, "hrRequests", params.requestId)
+  if (params.status === "approved") {
+    const snap = await getDoc(ref)
+    if (!snap.exists()) throw new Error("Cererea nu mai există.")
+    const current = normalizeHrRequest(snap.id, snap.data())
+    await assertNoActiveRequestOverlap({
+      employeeId: current.employeeId,
+      kind: current.kind,
+      payload: current.payload,
+      excludeRequestId: params.requestId,
+    })
+  }
   await updateDoc(ref, {
     status: params.status,
     rejectionReason: params.status === "rejected" ? (params.rejectionReason?.trim() || "—") : null,

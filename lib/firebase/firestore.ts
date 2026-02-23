@@ -322,6 +322,10 @@ export interface Echipament {
   documentationSubfolderId?: string
   documentationFileIds?: string[]
   documentationLabel?: string
+  // Audit QR print
+  lastQrPrintedAt?: string
+  lastQrPrintedBy?: string
+  lastQrPrintedById?: string
 }
 
 export interface Contract {
@@ -785,6 +789,58 @@ export const updateClient = async (id: string, client: Partial<Client>) => {
     id,
     ...client,
   }
+}
+
+export const updateEquipmentLastQrPrinted = async (params: {
+  clientId: string
+  locationId: string
+  equipmentId: string
+  printedAt: string
+  printedBy?: string
+  printedById?: string
+}) => {
+  const clientDoc = doc(db, "clienti", params.clientId)
+  const snap = await getDoc(clientDoc)
+  if (!snap.exists()) {
+    throw new Error("Clientul nu a fost găsit")
+  }
+
+  const clientData = snap.data() as any
+  const locatii = Array.isArray(clientData?.locatii) ? [...clientData.locatii] : []
+  if (!locatii.length) {
+    throw new Error("Clientul nu are locații")
+  }
+
+  const locationIndex = locatii.findIndex((loc: any) => String(loc?.id || "") === String(params.locationId))
+  if (locationIndex === -1) {
+    throw new Error("Locația nu a fost găsită")
+  }
+
+  const location = { ...(locatii[locationIndex] || {}) }
+  const echipamente = Array.isArray(location.echipamente) ? [...location.echipamente] : []
+  if (!echipamente.length) {
+    throw new Error("Locația nu are echipamente")
+  }
+
+  const equipmentIndex = echipamente.findIndex((eq: any) => String(eq?.id || "") === String(params.equipmentId))
+  if (equipmentIndex === -1) {
+    throw new Error("Echipamentul nu a fost găsit")
+  }
+
+  echipamente[equipmentIndex] = {
+    ...(echipamente[equipmentIndex] || {}),
+    lastQrPrintedAt: params.printedAt,
+    lastQrPrintedBy: params.printedBy || "Utilizator",
+    lastQrPrintedById: params.printedById || undefined,
+  }
+
+  location.echipamente = echipamente
+  locatii[locationIndex] = location
+
+  await updateDoc(clientDoc, {
+    locatii,
+    updatedAt: serverTimestamp(),
+  } as DocumentData)
 }
 
 // Delete a client

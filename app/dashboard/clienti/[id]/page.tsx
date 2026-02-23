@@ -20,7 +20,7 @@ import { orderBy } from "firebase/firestore"
 import { ClientContractsManager } from "@/components/client-contracts-manager"
 // Adăugăm importul pentru componenta EquipmentQRCode
 import { EquipmentQRCode } from "@/components/equipment-qr-code"
-import { formatDate, formatUiDate, toDateSafe } from "@/lib/utils/time-format"
+import { formatDate, formatDateTimeSafe, formatUiDate, toDateSafe } from "@/lib/utils/time-format"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { ClientForm } from "@/components/client-form"
@@ -562,12 +562,45 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
                                               </div>
                                             )}
 
+                                            {/* Audit etichetă QR */}
+                                            <div className="p-3 bg-muted rounded-lg border text-xs">
+                                              <div className="flex items-center gap-2">
+                                                <span className="font-medium text-muted-foreground">Ultima etichetă printată:</span>
+                                                <span className="font-medium">
+                                                  {(echipament as any).lastQrPrintedAt
+                                                    ? `${formatDateTimeSafe((echipament as any).lastQrPrintedAt)} de ${String((echipament as any).lastQrPrintedBy || "-")}`
+                                                    : "—"}
+                                                </span>
+                                              </div>
+                                            </div>
+
                                             {/* Butoane QR Code și Editare echipament */}
                                             <div className="flex items-center justify-between gap-2 pt-3 mt-3 border-t">
                                               <EquipmentQRCode
                                                 equipment={echipament}
                                                 clientName={client?.nume || ""}
                                                 locationName={locatie.nume}
+                                                clientId={client?.id || id}
+                                                locationId={(locatie as any).id}
+                                                onPrintRecorded={({ printedAt, printedBy, printedById }) => {
+                                                  setClient((prev) => {
+                                                    if (!prev || !Array.isArray(prev.locatii)) return prev
+                                                    const nextLocatii = prev.locatii.map((loc) => {
+                                                      if (String((loc as any)?.id || "") !== String((locatie as any)?.id || "")) return loc
+                                                      const nextEchipamente = (Array.isArray(loc.echipamente) ? loc.echipamente : []).map((eq) => {
+                                                        if (String((eq as any)?.id || "") !== String((echipament as any)?.id || "")) return eq
+                                                        return {
+                                                          ...eq,
+                                                          lastQrPrintedAt: printedAt,
+                                                          lastQrPrintedBy: printedBy,
+                                                          lastQrPrintedById: printedById,
+                                                        }
+                                                      })
+                                                      return { ...loc, echipamente: nextEchipamente }
+                                                    })
+                                                    return { ...prev, locatii: nextLocatii }
+                                                  })
+                                                }}
                                                 useSimpleFormat={true} // Format simplu pentru scanare mai ușoară
                                               />
                                               <Button

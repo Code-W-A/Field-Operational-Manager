@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Spinner } from "@/components/ui/spinner"
-import { ClipboardList, Pencil, Download } from "lucide-react"
+import { ClipboardList, Pencil, Download, ExternalLink } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import type { HrRequest, HrRequestKind, HrRequestPayload } from "@/lib/hr/types"
 import { decideHrRequest, subscribeDepartments, subscribeHrRequestsForManager, syncHrRequestToTimesheets, updateHrRequestByManager } from "@/lib/hr/storage"
@@ -357,6 +357,28 @@ export default function CereriAprobariPage() {
                 <div className="rounded-lg border p-3">
                   <div className="text-xs text-muted-foreground">Motiv</div>
                   <div className="text-sm">{String((selected.payload as any).reason)}</div>
+                </div>
+              ) : null}
+
+              {selected.kind === "CM" ? (
+                <div className="rounded-lg border p-3">
+                  <div className="text-xs text-muted-foreground mb-2">Document medical</div>
+                  {String((selected.payload as any)?.medicalDocumentUrl || "").trim() ? (
+                    <Button asChild variant="outline" size="sm">
+                      <a
+                        href={String((selected.payload as any).medicalDocumentUrl)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Vezi document medical
+                      </a>
+                    </Button>
+                  ) : (
+                    <div className="text-sm text-destructive">
+                      Lipsește documentul medical atașat.
+                    </div>
+                  )}
                 </div>
               ) : null}
 

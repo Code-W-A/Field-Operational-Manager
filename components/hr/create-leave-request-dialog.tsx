@@ -8,14 +8,15 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
-import type { Department, Employee, HrRequestKind } from "@/lib/hr/types"
+import type { Department, Employee, HrRequest, HrRequestKind } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
-import { createHrRequest } from "@/lib/hr/storage"
+import { createHrRequest, subscribeHrRequestsForEmployee } from "@/lib/hr/storage"
 import { generateHrRequestDOCX } from "@/lib/hr/request-docx-generator"
 import { hrRequestKindLabel } from "@/lib/hr/hr-requests"
 import { CalendarDays, FileText } from "lucide-react"
 import { DateInput } from "@/components/ui/date-input"
 import { formatISODate } from "@/lib/utils/date-utils"
+import { uploadFile } from "@/lib/firebase/storage"
 
 function calculateWorkDays(startStr: string, endStr: string): number {
   if (!startStr || !endStr) return 0
@@ -35,9 +36,39 @@ function calculateWorkDays(startStr: string, endStr: string): number {
   return count
 }
 
-function isTimeRangeValid(start: string, end: string) {
-  if (!start || !end) return false
-  return start < end
+function toRoDate(iso: string): string {
+  const s = String(iso || "")
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s || "N/A"
+  return `${s.slice(8, 10)}.${s.slice(5, 7)}.${s.slice(0, 4)}`
+}
+
+function enumerateDatesInclusiveISO(startDate: string, endDate: string): string[] {
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return []
+  const dates: string[] = []
+  const d = new Date(start)
+  while (d <= end) {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, "0")
+    const day = String(d.getDate()).padStart(2, "0")
+    dates.push(`${y}-${m}-${day}`)
+    d.setDate(d.getDate() + 1)
+  }
+  return dates
+}
+
+function requestDatesISO(kind: HrRequestKind, payload: any): string[] {
+  if (kind === "IN") {
+    const d = String(payload?.date || "")
+    return /^\d{4}-\d{2}-\d{2}$/.test(d) ? [d] : []
+  }
+  if (kind === "CO" || kind === "CFP" || kind === "CM" || kind === "DEL") {
+    const start = String(payload?.startDate || "")
+    const end = String(payload?.endDate || "")
+    return enumerateDatesInclusiveISO(start, end).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
+  }
+  return []
 }
 
 export function CreateLeaveRequestDialog({
@@ -65,15 +96,14 @@ export function CreateLeaveRequestDialog({
   const [endDate, setEndDate] = useState("")
   const [type, setType] = useState<"CO" | "CFP" | "CM" | "DEL">("CO")
   const [reason, setReason] = useState("")
-  const [eventStartTime, setEventStartTime] = useState("08:00")
-  const [eventEndTime, setEventEndTime] = useState("16:30")
   const [clientName, setClientName] = useState("")
+  const [medicalDocumentFile, setMedicalDocumentFile] = useState<File | null>(null)
   const [sectorId, setSectorId] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [existingRequests, setExistingRequests] = useState<HrRequest[]>([])
 
   const todayIso = useMemo(() => formatISODate(new Date()), [])
-  const monthStartIso = useMemo(() => formatISODate(new Date(new Date().getFullYear(), new Date().getMonth(), 1)), [])
   
   // Zile disponibile (hardcoded pentru demo - în producție ar veni din baza de date)
   const availableDays = 21
@@ -98,13 +128,41 @@ export function CreateLeaveRequestDialog({
   }, [availableSectors, sectorId])
 
   useEffect(() => {
-    if (!selectedEmployee) return
-    setEventStartTime(selectedEmployee.programLucruStart || "08:00")
-    setEventEndTime(selectedEmployee.programLucruEnd || "16:30")
-  }, [selectedEmployee?.id])
-  
+    if (!employeeId) {
+      setExistingRequests([])
+      return
+    }
+    const unsub = subscribeHrRequestsForEmployee({
+      employeeId,
+      onChange: setExistingRequests,
+      onError: () => setExistingRequests([]),
+    })
+    return () => unsub()
+  }, [employeeId])
+
+  const overlapHint = useMemo(() => {
+    const candidateDates = requestDatesISO(type, { startDate, endDate })
+    if (!candidateDates.length) return null
+    const candidateSet = new Set(candidateDates)
+    const active = existingRequests.filter((r) => r.status === "pending" || r.status === "approved")
+    for (const req of active) {
+      if (!(req.kind === "CO" || req.kind === "CFP" || req.kind === "CM" || req.kind === "DEL" || req.kind === "IN")) continue
+      const dates = requestDatesISO(req.kind, req.payload as any)
+      const overlapDate = dates.find((d) => candidateSet.has(d))
+      if (!overlapDate) continue
+      const statusText = req.status === "approved" ? "aprobată" : "în așteptare"
+      return `Există deja o cerere ${hrRequestKindLabel(req.kind)} (${statusText}) pe data ${toRoDate(overlapDate)}.`
+    }
+    return null
+  }, [type, startDate, endDate, existingRequests])
+
   const handleSubmit = async () => {
     setError(null)
+
+    if (overlapHint) {
+      setError(`${overlapHint} Nu poți trimite o altă cerere activă în aceeași zi.`)
+      return
+    }
 
     if (!requesterUid) {
       setError("Nu există un utilizator autentificat pentru a trimite cererea.")
@@ -116,26 +174,17 @@ export function CreateLeaveRequestDialog({
     }
 
     if (type === "DEL") {
-      const monthKey = todayIso.slice(0, 7)
-      if (!startDate.startsWith(monthKey) || !endDate.startsWith(monthKey)) {
-        setError("Delegația poate fi introdusă doar în luna în curs.")
-        return
-      }
-      if (startDate > todayIso || endDate > todayIso) {
-        setError("Delegația poate fi introdusă doar pentru zile anterioare sau curente.")
-        return
-      }
       if (!clientName.trim()) {
         setError("Completează numele clientului pentru delegație.")
         return
       }
     }
 
-    if (type === "CO" && !isTimeRangeValid(eventStartTime, eventEndTime)) {
-      setError("Intervalul orar pentru eveniment trebuie să fie valid (ora de început < ora de sfârșit).")
+    if (type === "CM" && !medicalDocumentFile) {
+      setError("Pentru concediu medical trebuie să încarci documentul de la medic.")
       return
     }
-    
+
     if (workDays <= 0) {
       setError("Perioada selectată trebuie să conțină cel puțin o zi lucrătoare")
       return
@@ -157,14 +206,31 @@ export function CreateLeaveRequestDialog({
       }
 
       setSubmitting(true)
+      let medicalDocumentUrl: string | undefined
+      let medicalDocumentName: string | undefined
+      if (type === "CM") {
+        const file = medicalDocumentFile
+        if (!file) {
+          setError("Pentru concediu medical trebuie să încarci documentul de la medic.")
+          setSubmitting(false)
+          return
+        }
+        const safeName = file.name.replace(/\s+/g, "_")
+        const path = `hr/requests/cm/${employeeId}/${Date.now()}_${safeName}`
+        const uploaded = await uploadFile(file, path)
+        medicalDocumentUrl = uploaded.url
+        medicalDocumentName = uploaded.fileName
+      }
       const rangePayload = {
         kind: type,
         startDate,
         endDate,
         reason: reason.trim() || undefined,
-        eventStartTime: type === "CO" ? eventStartTime : undefined,
-        eventEndTime: type === "CO" ? eventEndTime : undefined,
+        eventStartTime: undefined,
+        eventEndTime: undefined,
         clientName: type === "DEL" ? clientName.trim() : undefined,
+        medicalDocumentUrl,
+        medicalDocumentName,
       }
 
       const requestId = await createHrRequest({
@@ -199,9 +265,8 @@ export function CreateLeaveRequestDialog({
       setEndDate("")
       setType("CO")
       setReason("")
-      setEventStartTime(selectedEmployee?.programLucruStart || "08:00")
-      setEventEndTime(selectedEmployee?.programLucruEnd || "16:30")
       setClientName("")
+      setMedicalDocumentFile(null)
       setError(null)
       
       onOpenChange(false)
@@ -293,8 +358,6 @@ export function CreateLeaveRequestDialog({
                 <DateInput
                   value={startDate}
                   onChange={setStartDate}
-                  min={type === "DEL" ? monthStartIso : undefined}
-                  max={type === "DEL" ? todayIso : undefined}
                 />
               </div>
               
@@ -303,34 +366,9 @@ export function CreateLeaveRequestDialog({
                 <DateInput
                   value={endDate}
                   onChange={setEndDate}
-                  min={type === "DEL" ? monthStartIso : undefined}
-                  max={type === "DEL" ? todayIso : undefined}
                 />
               </div>
             </div>
-
-            {type === "CO" && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="eventStartTime">Ora început eveniment *</Label>
-                  <Input
-                    id="eventStartTime"
-                    type="time"
-                    value={eventStartTime}
-                    onChange={(e) => setEventStartTime(e.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="eventEndTime">Ora sfârșit eveniment *</Label>
-                  <Input
-                    id="eventEndTime"
-                    type="time"
-                    value={eventEndTime}
-                    onChange={(e) => setEventEndTime(e.target.value)}
-                  />
-                </div>
-              </div>
-            )}
 
             {type === "DEL" && (
               <div className="grid gap-2">
@@ -341,6 +379,21 @@ export function CreateLeaveRequestDialog({
                   onChange={(e) => setClientName(e.target.value)}
                   placeholder="Ex: ACME Industrial SRL"
                 />
+              </div>
+            )}
+
+            {type === "CM" && (
+              <div className="grid gap-2">
+                <Label htmlFor="cm-document">Încarcă document medical *</Label>
+                <Input
+                  id="cm-document"
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={(e) => setMedicalDocumentFile(e.target.files?.[0] || null)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Atașează poză sau PDF cu documentul primit de la medic.
+                </p>
               </div>
             )}
             
@@ -403,7 +456,8 @@ export function CreateLeaveRequestDialog({
               !employeeId ||
               !startDate ||
               !endDate ||
-              (type === "CO" && (!eventStartTime || !eventEndTime)) ||
+              (type === "CM" && !medicalDocumentFile) ||
+              Boolean(overlapHint) ||
               (type === "DEL" && !clientName.trim())
             }
           >

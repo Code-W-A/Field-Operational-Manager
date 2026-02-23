@@ -9,22 +9,54 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
 import { Plus, FileText, Trash2 } from "lucide-react"
-import type { Department, Employee, HrRequestKind, HrRequestPayload } from "@/lib/hr/types"
+import type { Department, Employee, HrRequest, HrRequestKind, HrRequestPayload } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
 import { hrRequestKindLabel } from "@/lib/hr/hr-requests"
-import { createHrRequest, subscribeDepartments } from "@/lib/hr/storage"
+import { createHrRequest, subscribeDepartments, subscribeHrRequestsForEmployee } from "@/lib/hr/storage"
 import { toast } from "@/hooks/use-toast"
 import { DateInput } from "@/components/ui/date-input"
 import { formatISODate } from "@/lib/utils/date-utils"
+import { uploadFile } from "@/lib/firebase/storage"
+import { TimeSelector } from "@/components/time-selector"
 
 function asNumber(v: string) {
   const n = Number(v)
   return Number.isFinite(n) ? n : 0
 }
 
-function isTimeRangeValid(start: string, end: string) {
-  if (!start || !end) return false
-  return start < end
+const BLOCKED_OVERLAP_KINDS: HrRequestKind[] = ["CO", "CFP", "CM", "DEL", "IN"]
+
+function toRoDate(iso: string): string {
+  const s = String(iso || "")
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s || "N/A"
+  return `${s.slice(8, 10)}.${s.slice(5, 7)}.${s.slice(0, 4)}`
+}
+
+function enumerateDatesInclusiveISO(startDate: string, endDate: string): string[] {
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return []
+  const dates: string[] = []
+  const d = new Date(start)
+  while (d <= end) {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, "0")
+    const day = String(d.getDate()).padStart(2, "0")
+    dates.push(`${y}-${m}-${day}`)
+    d.setDate(d.getDate() + 1)
+  }
+  return dates
+}
+
+function requestDatesISO(kind: HrRequestKind, payload: any): string[] {
+  if (!BLOCKED_OVERLAP_KINDS.includes(kind) || !payload) return []
+  if (kind === "IN") {
+    const d = String(payload?.date || "")
+    return /^\d{4}-\d{2}-\d{2}$/.test(d) ? [d] : []
+  }
+  const start = String(payload?.startDate || "")
+  const end = String(payload?.endDate || "")
+  return enumerateDatesInclusiveISO(start, end).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
 }
 
 export function CreateHrRequestDialog({
@@ -49,9 +81,8 @@ export function CreateHrRequestDialog({
   // Range kinds
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
-  const [eventStartTime, setEventStartTime] = useState(employee.programLucruStart || "08:00")
-  const [eventEndTime, setEventEndTime] = useState(employee.programLucruEnd || "16:30")
   const [clientName, setClientName] = useState("")
+  const [medicalDocumentFile, setMedicalDocumentFile] = useState<File | null>(null)
 
   // Invoire / single date
   const [date, setDate] = useState("")
@@ -68,9 +99,9 @@ export function CreateHrRequestDialog({
   const [overtimeHours, setOvertimeHours] = useState("1")
 
   const [submitting, setSubmitting] = useState(false)
+  const [existingRequests, setExistingRequests] = useState<HrRequest[]>([])
 
   const todayIso = useMemo(() => formatISODate(new Date()), [])
-  const monthStartIso = useMemo(() => formatISODate(new Date(new Date().getFullYear(), new Date().getMonth(), 1)), [])
   useEffect(() => {
     const unsub = subscribeDepartments({
       onChange: setDepartments,
@@ -79,31 +110,100 @@ export function CreateHrRequestDialog({
     return () => unsub()
   }, [])
 
+  useEffect(() => {
+    if (!employee?.id) {
+      setExistingRequests([])
+      return
+    }
+    const unsub = subscribeHrRequestsForEmployee({
+      employeeId: employee.id,
+      onChange: setExistingRequests,
+      onError: () => setExistingRequests([]),
+    })
+    return () => unsub()
+  }, [employee?.id])
+
   const deptNameById = useMemo(() => {
     return Object.fromEntries(departments.map((d) => [d.id, d.name]))
   }, [departments])
 
   const managerUid = sectorId ? employee.managerUidBySector?.[sectorId] || employee.superiorUid : undefined
+  const shouldShowSectorSelect = sectors.length > 1
+
+  useEffect(() => {
+    // Când există un singur departament permis, îl setăm automat și ascundem selectorul.
+    if (sectors.length === 1) {
+      if (sectorId !== sectors[0]) setSectorId(sectors[0])
+      return
+    }
+    // Pentru 2+ departamente, dacă selecția curentă nu mai este validă, revenim la prima opțiune.
+    if (sectors.length > 1 && !sectors.includes(sectorId)) {
+      setSectorId(sectors[0])
+      return
+    }
+    if (sectors.length === 0 && sectorId) {
+      setSectorId("")
+    }
+  }, [sectors, sectorId])
 
   const canSubmit = useMemo(() => {
     if (!sectorId) return false
     if (!managerUid) return false
-    if (kind === "CO") return !!startDate && !!endDate && !!eventStartTime && !!eventEndTime
+    if (kind === "CO") return !!startDate && !!endDate
     if (kind === "DEL") return !!startDate && !!endDate && !!clientName.trim()
-    if (kind === "CFP" || kind === "CM") return !!startDate && !!endDate
+    if (kind === "CFP") return !!startDate && !!endDate
+    if (kind === "CM") return !!startDate && !!endDate && !!medicalDocumentFile
     if (kind === "IN") return !!date && !!startTime && !!endTime
     if (kind === "CORRECT_HOURS") return !!date && entries.some((e) => e.start && e.end)
     if (kind === "ADD_OVERTIME") return !!date && asNumber(overtimeHours) > 0
     return false
-  }, [sectorId, managerUid, kind, startDate, endDate, eventStartTime, eventEndTime, clientName, date, startTime, endTime, entries, overtimeHours])
+  }, [
+    sectorId,
+    managerUid,
+    kind,
+    startDate,
+    endDate,
+    clientName,
+    date,
+    startTime,
+    endTime,
+    entries,
+    overtimeHours,
+    medicalDocumentFile,
+  ])
+
+  const overlapHint = useMemo(() => {
+    if (!BLOCKED_OVERLAP_KINDS.includes(kind)) return null
+    const candidatePayload: any =
+      kind === "IN"
+        ? { date }
+        : {
+            startDate,
+            endDate,
+          }
+    const candidateDates = requestDatesISO(kind, candidatePayload)
+    if (!candidateDates.length) return null
+    const candidateSet = new Set(candidateDates)
+
+    const active = existingRequests.filter(
+      (r) => (r.status === "pending" || r.status === "approved") && BLOCKED_OVERLAP_KINDS.includes(r.kind),
+    )
+    for (const req of active) {
+      const dates = requestDatesISO(req.kind, req.payload as any)
+      const overlapDate = dates.find((d) => candidateSet.has(d))
+      if (!overlapDate) continue
+      const statusText = req.status === "approved" ? "aprobată" : "în așteptare"
+      return `Există deja o cerere ${hrRequestKindLabel(req.kind)} (${statusText}) pe data ${toRoDate(overlapDate)}.`
+    }
+    return null
+  }, [kind, startDate, endDate, date, existingRequests])
 
   const reset = () => {
     setReason("")
     setStartDate("")
     setEndDate("")
-    setEventStartTime(employee.programLucruStart || "08:00")
-    setEventEndTime(employee.programLucruEnd || "16:30")
     setClientName("")
+    setMedicalDocumentFile(null)
     setDate("")
     setStartTime("08:00")
     setEndTime("16:00")
@@ -114,6 +214,10 @@ export function CreateHrRequestDialog({
 
   const submit = async () => {
     try {
+      if (overlapHint) {
+        toast({ title: "Cerere blocată", description: overlapHint, variant: "destructive" })
+        return
+      }
       if (!sectorId) {
         toast({ title: "Eroare", description: "Selectează departamentul.", variant: "destructive" })
         return
@@ -131,28 +235,34 @@ export function CreateHrRequestDialog({
       if (kind === "CO" || kind === "CFP" || kind === "CM" || kind === "DEL") {
         if (!startDate || !endDate) throw new Error("Completează perioada (de la / până la).")
         if (kind === "DEL") {
-          const monthKey = todayIso.slice(0, 7)
-          if (!startDate.startsWith(monthKey) || !endDate.startsWith(monthKey)) {
-            throw new Error("Delegația poate fi introdusă doar în luna în curs.")
-          }
-          if (startDate > todayIso || endDate > todayIso) {
-            throw new Error("Delegația poate fi introdusă doar pentru zile anterioare sau curente.")
-          }
           if (!clientName.trim()) {
             throw new Error("Completează numele clientului pentru delegație.")
           }
         }
-        if (kind === "CO" && !isTimeRangeValid(eventStartTime, eventEndTime)) {
-          throw new Error("Intervalul orar pentru eveniment trebuie să fie valid (ora de început < ora de sfârșit).")
+
+        let medicalDocumentUrl: string | undefined
+        let medicalDocumentName: string | undefined
+        if (kind === "CM") {
+          if (!medicalDocumentFile) {
+            throw new Error("Pentru concediu medical trebuie să încarci documentul de la medic.")
+          }
+          const safeName = medicalDocumentFile.name.replace(/\s+/g, "_")
+          const path = `hr/requests/cm/${employee.id}/${Date.now()}_${safeName}`
+          const uploaded = await uploadFile(medicalDocumentFile, path)
+          medicalDocumentUrl = uploaded.url
+          medicalDocumentName = uploaded.fileName
         }
+
         payload = {
           kind,
           startDate,
           endDate,
           reason: reason.trim() || undefined,
-          eventStartTime: kind === "CO" ? eventStartTime : undefined,
-          eventEndTime: kind === "CO" ? eventEndTime : undefined,
+          eventStartTime: undefined,
+          eventEndTime: undefined,
           clientName: kind === "DEL" ? clientName.trim() : undefined,
+          medicalDocumentUrl,
+          medicalDocumentName,
         }
       } else if (kind === "IN") {
         if (!date || !startTime || !endTime) throw new Error("Completează data și intervalul.")
@@ -221,18 +331,22 @@ export function CreateHrRequestDialog({
           <div className="grid gap-4 md:grid-cols-2">
             <div className="grid gap-2">
               <Label>Departament *</Label>
-              <Select value={sectorId} onValueChange={setSectorId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selectează departament" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sectors.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {deptNameById[s] || s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {shouldShowSectorSelect ? (
+                <Select value={sectorId} onValueChange={setSectorId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selectează departament" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sectors.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {deptNameById[s] || s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input value={deptNameById[sectorId] || sectorId || "—"} readOnly disabled />
+              )}
               {sectorId && !managerUid ? (
                 <div className="text-xs text-destructive">
                   Nu există șef ierarhic setat pentru acest departament (sau global) în fișa de salariat.
@@ -275,8 +389,6 @@ export function CreateHrRequestDialog({
                   <DateInput
                     value={startDate}
                     onChange={setStartDate}
-                    min={kind === "DEL" ? monthStartIso : undefined}
-                    max={kind === "DEL" ? todayIso : undefined}
                   />
                 </div>
                 <div className="grid gap-2">
@@ -284,24 +396,9 @@ export function CreateHrRequestDialog({
                   <DateInput
                     value={endDate}
                     onChange={setEndDate}
-                    min={kind === "DEL" ? monthStartIso : undefined}
-                    max={kind === "DEL" ? todayIso : undefined}
                   />
                 </div>
               </div>
-
-              {kind === "CO" ? (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label>Ora început eveniment *</Label>
-                    <Input type="time" value={eventStartTime} onChange={(e) => setEventStartTime(e.target.value)} />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Ora sfârșit eveniment *</Label>
-                    <Input type="time" value={eventEndTime} onChange={(e) => setEventEndTime(e.target.value)} />
-                  </div>
-                </div>
-              ) : null}
 
               {kind === "DEL" ? (
                 <div className="grid gap-2">
@@ -311,6 +408,21 @@ export function CreateHrRequestDialog({
                     onChange={(e) => setClientName(e.target.value)}
                     placeholder="Ex: ACME Industrial SRL"
                   />
+                </div>
+              ) : null}
+
+              {kind === "CM" ? (
+                <div className="grid gap-2">
+                  <Label htmlFor="cm-document">Încarcă document medical *</Label>
+                  <Input
+                    id="cm-document"
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(e) => setMedicalDocumentFile(e.target.files?.[0] || null)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Atașează poză sau PDF cu documentul primit de la medic.
+                  </p>
                 </div>
               ) : null}
             </div>
@@ -324,11 +436,11 @@ export function CreateHrRequestDialog({
               </div>
               <div className="grid gap-2">
                 <Label>Ora start *</Label>
-                <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                <TimeSelector id="in-start-time" label="Ora start" value={startTime} onChange={setStartTime} />
               </div>
               <div className="grid gap-2">
                 <Label>Ora end *</Label>
-                <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+                <TimeSelector id="in-end-time" label="Ora end" value={endTime} onChange={setEndTime} />
               </div>
             </div>
           )}
@@ -366,21 +478,23 @@ export function CreateHrRequestDialog({
                     <div key={idx} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
                       <div className="grid gap-1">
                         <Label className="text-xs text-muted-foreground">Start</Label>
-                        <Input
-                          type="time"
+                        <TimeSelector
+                          id={`correct-hours-entry-start-${idx}`}
+                          label={`Interval ${idx + 1} start`}
                           value={e.start}
-                          onChange={(ev) =>
-                            setEntries((prev) => prev.map((x, i) => (i === idx ? { ...x, start: ev.target.value } : x)))
+                          onChange={(value) =>
+                            setEntries((prev) => prev.map((x, i) => (i === idx ? { ...x, start: value } : x)))
                           }
                         />
                       </div>
                       <div className="grid gap-1">
                         <Label className="text-xs text-muted-foreground">End</Label>
-                        <Input
-                          type="time"
+                        <TimeSelector
+                          id={`correct-hours-entry-end-${idx}`}
+                          label={`Interval ${idx + 1} end`}
                           value={e.end}
-                          onChange={(ev) =>
-                            setEntries((prev) => prev.map((x, i) => (i === idx ? { ...x, end: ev.target.value } : x)))
+                          onChange={(value) =>
+                            setEntries((prev) => prev.map((x, i) => (i === idx ? { ...x, end: value } : x)))
                           }
                         />
                       </div>
@@ -409,21 +523,23 @@ export function CreateHrRequestDialog({
                     <div key={idx} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
                       <div className="grid gap-1">
                         <Label className="text-xs text-muted-foreground">Start</Label>
-                        <Input
-                          type="time"
+                        <TimeSelector
+                          id={`correct-hours-break-start-${idx}`}
+                          label={`Pauză ${idx + 1} start`}
                           value={b.start}
-                          onChange={(ev) =>
-                            setBreaks((prev) => prev.map((x, i) => (i === idx ? { ...x, start: ev.target.value } : x)))
+                          onChange={(value) =>
+                            setBreaks((prev) => prev.map((x, i) => (i === idx ? { ...x, start: value } : x)))
                           }
                         />
                       </div>
                       <div className="grid gap-1">
                         <Label className="text-xs text-muted-foreground">End</Label>
-                        <Input
-                          type="time"
+                        <TimeSelector
+                          id={`correct-hours-break-end-${idx}`}
+                          label={`Pauză ${idx + 1} end`}
                           value={b.end}
-                          onChange={(ev) =>
-                            setBreaks((prev) => prev.map((x, i) => (i === idx ? { ...x, end: ev.target.value } : x)))
+                          onChange={(value) =>
+                            setBreaks((prev) => prev.map((x, i) => (i === idx ? { ...x, end: value } : x)))
                           }
                         />
                       </div>
@@ -451,13 +567,19 @@ export function CreateHrRequestDialog({
             <Label>Motiv (opțional)</Label>
             <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} placeholder="Ex: motiv scurt..." />
           </div>
+
+          {overlapHint ? (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+              {overlapHint} Nu poți trimite o altă cerere activă în aceeași zi.
+            </div>
+          ) : null}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
             Anulează
           </Button>
-          <Button onClick={submit} disabled={submitting || !canSubmit}>
+          <Button onClick={submit} disabled={submitting || !canSubmit || Boolean(overlapHint)}>
             {submitting ? "Se trimite..." : "Trimite cererea"}
           </Button>
         </DialogFooter>

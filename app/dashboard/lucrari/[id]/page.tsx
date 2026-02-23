@@ -2394,6 +2394,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                       equipment={eq}
                                       clientName={lucrare.client}
                                       locationName={lucrare.locatie}
+                                      clientId={String((lucrare as any)?.clientId || "").trim() || undefined}
+                                      locationId={String((lucrare as any)?.locationId || "").trim() || undefined}
                                       useSimpleFormat={true}
                                     />
                                   </div>
@@ -2954,6 +2956,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                             }}
                             clientName={clientData?.nume || clientData?.name || lucrare.client}
                             locationName={resolvedLocation?.nume || lucrare.locatie}
+                            clientId={String((lucrare as any)?.clientId || clientData?.id || "").trim() || undefined}
+                            locationId={String((resolvedLocation as any)?.id || (lucrare as any)?.locationId || "").trim() || undefined}
                             showLabel={false}
                             useSimpleFormat={true}
                             className="h-7 w-7 p-0"

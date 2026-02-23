@@ -373,19 +373,40 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
           typeof lucrareData.client === "string"
             ? lucrareData.client
             : lucrareData?.client?.nume || lucrareData?.client?.name || ""
+        const normalizedClientName = String(clientName || "").trim()
 
-        if (!clientId && !clientName) {
+        if (!clientId && !normalizedClientName) {
           setAllowFinalizeLater(false)
           return
         }
 
         const lucrariRef = collection(db, "lucrari")
-        const q = clientId
-          ? query(lucrariRef, where("clientId", "==", clientId))
-          : query(lucrariRef, where("client", "==", clientName))
-        const snap = await getDocs(q)
-        const activeCount = snap.docs.reduce((acc, d) => {
-          const data: any = d.data()
+        const snaps = await Promise.all([
+          clientId ? getDocs(query(lucrariRef, where("clientId", "==", clientId))) : Promise.resolve(null),
+          normalizedClientName ? getDocs(query(lucrariRef, where("client", "==", normalizedClientName))) : Promise.resolve(null),
+        ])
+        const byId = new Map<string, any>()
+        snaps.forEach((snap) => {
+          if (!snap) return
+          snap.docs.forEach((d) => byId.set(d.id, d.data()))
+        })
+        const allSameClientWorks = Array.from(byId.values())
+
+        const toDayKey = (value: any): string | null => {
+          const dt = toDateSafe(value)
+          if (!dt) return null
+          const y = dt.getFullYear()
+          const m = String(dt.getMonth() + 1).padStart(2, "0")
+          const d = String(dt.getDate()).padStart(2, "0")
+          return `${y}-${m}-${d}`
+        }
+
+        const currentDayKey =
+          toDayKey(lucrareData.dataInterventie) ||
+          toDayKey(lucrareData.dataEmiterii) ||
+          toDayKey(lucrareData.timpSosire)
+
+        const activeCount = allSameClientWorks.reduce((acc, data) => {
           const status = String(data.statusLucrare || "").toLowerCase()
           const isActive =
             status &&
@@ -394,7 +415,14 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
           return acc + (isActive ? 1 : 0)
         }, 0)
 
-        setAllowFinalizeLater(activeCount >= 2)
+        const sameDayCount = currentDayKey
+          ? allSameClientWorks.reduce((acc, data) => {
+              const workDayKey = toDayKey(data.dataInterventie) || toDayKey(data.dataEmiterii) || toDayKey(data.timpSosire)
+              return acc + (workDayKey === currentDayKey ? 1 : 0)
+            }, 0)
+          : 0
+
+        setAllowFinalizeLater(activeCount >= 2 || sameDayCount >= 2)
       } catch (error) {
         console.warn("Nu s-a putut determina numărul de lucrări active pentru client:", error)
         if (mounted) setAllowFinalizeLater(false)

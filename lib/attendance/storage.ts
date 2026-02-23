@@ -16,6 +16,7 @@ import {
   Timestamp,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
+import { addUserLogEntry } from "@/lib/firebase/firestore"
 import type {
   AttendanceSession,
   CheckInRequest,
@@ -90,19 +91,72 @@ function computeLateStart(params: { now: number; scheduledStart: string }) {
 }
 
 async function getEmployeeScheduleForUser(
-  userId: string
+  userId: string,
+  userName?: string
 ): Promise<(Pick<Employee, "programLucruStart" | "programLucruEnd"> & { employeeId: string }) | null> {
+  const defaults = await getHrDefaults()
+
+  const toSchedule = (docSnap: any) => {
+    const data = docSnap.data() as any
+    return {
+      employeeId: docSnap.id,
+      programLucruStart: data.programLucruStart ? String(data.programLucruStart) : defaults?.programLucruStart,
+      programLucruEnd: data.programLucruEnd ? String(data.programLucruEnd) : defaults?.programLucruEnd,
+    }
+  }
+
   const q = query(collection(db, "hrEmployees"), where("userUid", "==", userId), limit(1))
   const snap = await getDocs(q)
-  if (snap.empty) return null
-  const docSnap = snap.docs[0]
-  const data = docSnap.data() as any
-  const defaults = await getHrDefaults()
-  return {
-    employeeId: docSnap.id,
-    programLucruStart: data.programLucruStart ? String(data.programLucruStart) : defaults?.programLucruStart,
-    programLucruEnd: data.programLucruEnd ? String(data.programLucruEnd) : defaults?.programLucruEnd,
+  if (!snap.empty) return toSchedule(snap.docs[0])
+
+  // Fallback de compatibilitate: dacă userUid nu e legat corect, încercăm mapare după fullName.
+  // Ajută cazurile cu utilizatori noi unde link-ul HR nu este încă propagat.
+  const trimmedName = String(userName || "").trim()
+  if (trimmedName) {
+    const byFullName = await getDocs(query(collection(db, "hrEmployees"), where("fullName", "==", trimmedName), limit(1)))
+    if (!byFullName.empty) {
+      const docSnap = byFullName.docs[0]
+      const current = docSnap.data() as any
+      const hasMissingOrMismatchedUid = !current?.userUid || String(current.userUid) !== String(userId)
+
+      // Audit tehnic: fallback-ul pe nume a fost folosit (semnal pentru legături HR incomplete).
+      void addUserLogEntry({
+        actiune: "Fallback mapare salariat după nume",
+        detalii: `Pontaj check-in: userId=${userId}; userName=${trimmedName}; employeeId=${docSnap.id}; needsLinkFix=${hasMissingOrMismatchedUid ? "da" : "nu"}`,
+        tip: "Avertisment",
+        categorie: "Pontaj",
+        entityType: "Employee",
+        entityId: docSnap.id,
+        metadata: {
+          source: "attendance.getEmployeeScheduleForUser",
+          fallbackUsed: true,
+          userId,
+          userName: trimmedName,
+          employeeId: docSnap.id,
+          employeeUserUid: current?.userUid || null,
+          needsLinkFix: hasMissingOrMismatchedUid,
+        },
+      })
+
+      if (!current?.userUid || String(current.userUid) !== String(userId)) {
+        try {
+          await setDoc(
+            doc(db, "hrEmployees", docSnap.id),
+            {
+              userUid: userId,
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true },
+          )
+        } catch {
+          // Non-blocking: păstrăm fallback-ul chiar dacă backfill-ul eșuează.
+        }
+      }
+      return toSchedule(docSnap)
+    }
   }
+
+  return null
 }
 
 async function checkTimesheetStartOverlap(employeeId: string, startMs: number): Promise<string | null> {
@@ -233,7 +287,7 @@ export async function createCheckIn(request: CheckInRequest): Promise<string> {
   const sessionId = `att_${request.userId}_${Date.now()}`
   const now = Date.now()
 
-  const schedule = await getEmployeeScheduleForUser(request.userId)
+  const schedule = await getEmployeeScheduleForUser(request.userId, request.userName)
   if (schedule?.employeeId) {
     const blocked = await checkApprovedLeaveBlock(schedule.employeeId, now)
     if (blocked) {

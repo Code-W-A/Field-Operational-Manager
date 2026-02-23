@@ -114,6 +114,15 @@ function fromMonthInputValue(v: string): TimesheetMonthKey {
   return v as TimesheetMonthKey
 }
 
+function normalizeNameForMatch(value: string | undefined | null): string {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
 function parseHM(value: string): number | null {
   const m = /^(\d{1,2}):(\d{2})$/.exec(value.trim())
   if (!m) return null
@@ -373,6 +382,11 @@ export default function CondicaPrezentaPage() {
         if (!employeeId && data.userId) {
           const byUser = employees.find((e) => String((e as any).userUid || "") === String(data.userId))
           if (byUser?.id) employeeId = byUser.id
+        }
+        if (!employeeId && data.userName) {
+          const sessionName = normalizeNameForMatch(String(data.userName || ""))
+          const byName = employees.find((e) => normalizeNameForMatch(getEmployeeFullName(e)) === sessionName)
+          if (byName?.id) employeeId = byName.id
         }
         if (!employeeId) return
         const sessionStart = typeof data.sessionStart === "number"

@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Printer, QrCode, Share2 } from "lucide-react"
 import type { Echipament } from "@/lib/firebase/firestore"
+import { addUserLogEntry, updateEquipmentLastQrPrinted } from "@/lib/firebase/firestore"
+import { auth } from "@/lib/firebase/config"
 import { useToast } from "@/hooks/use-toast"
 
 /**
@@ -18,6 +20,9 @@ export interface EquipmentQRCodeProps {
   equipment: Echipament
   clientName: string
   locationName: string
+  clientId?: string
+  locationId?: string
+  onPrintRecorded?: (meta: { printedAt: string; printedBy: string; printedById?: string }) => void
   /** Dacă true, afişează şi textul „Generează QR". */
   showLabel?: boolean
   /** Clase Tailwind suplimentare pentru butonul declanşator. */
@@ -30,6 +35,9 @@ export function EquipmentQRCode({
   equipment,
   clientName,
   locationName,
+  clientId,
+  locationId,
+  onPrintRecorded,
   showLabel = false,
   className,
   useSimpleFormat = false, // Default la false pentru compatibilitate
@@ -211,6 +219,51 @@ export function EquipmentQRCode({
   }
 
   const handlePrint = () => {
+    const nowIso = new Date().toISOString()
+    const currentUser = auth.currentUser
+    const printedBy = currentUser?.displayName || currentUser?.email || "Utilizator"
+    const printedById = currentUser?.uid || undefined
+    onPrintRecorded?.({ printedAt: nowIso, printedBy, printedById })
+    toast({
+      title: "Trimitere la print marcată",
+      description: "Ultima etichetă printată a fost actualizată pentru acest echipament.",
+    })
+
+    // Audit non-blocking: cine/când/ce etichetă QR a fost trimisă la print.
+    void addUserLogEntry({
+      actiune: "Print etichetă QR",
+      detalii: `Echipament: ${equipment.nume} (${equipment.cod}); client: ${clientName}; locație: ${locationName}`,
+      tip: "Informație",
+      categorie: "Echipamente",
+      entityType: "Echipament",
+      entityId: equipment.id,
+      client: clientName,
+      locatie: locationName,
+      metadata: {
+        equipmentId: equipment.id,
+        equipmentCode: equipment.cod,
+        equipmentName: equipment.nume,
+        printedAt: nowIso,
+        printedBy,
+        printedById,
+        qrFormat: useSimpleFormat ? "simple" : "json",
+        source: "equipment-qr-code.handlePrint",
+      },
+    })
+
+    if (clientId && locationId && equipment.id) {
+      void updateEquipmentLastQrPrinted({
+        clientId,
+        locationId,
+        equipmentId: equipment.id,
+        printedAt: nowIso,
+        printedBy,
+        printedById,
+      }).catch((error) => {
+        console.warn("Nu s-a putut salva metadata pentru ultima printare QR:", error)
+      })
+    }
+
     const printWindow = window.open("", "_blank")
     if (!printWindow) {
       alert("Popup‑urile sunt blocate. Vă rugăm să permiteți popup‑urile pentru această pagină.")

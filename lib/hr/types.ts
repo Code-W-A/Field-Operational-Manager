@@ -130,6 +130,10 @@ export type HrRequestPayload =
       eventEndTime?: string // HH:mm
       /** Optional client name (used for delegatie template export). */
       clientName?: string
+      /** Optional medical proof document URL (required by UI for CM). */
+      medicalDocumentUrl?: string
+      /** Optional original uploaded file name for CM proof. */
+      medicalDocumentName?: string
     }
   | {
       kind: "IN"

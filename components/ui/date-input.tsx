@@ -25,6 +25,7 @@ export function DateInput({ value, onChange, placeholder = "dd MMM yyyy", disabl
   const displayValue = value ? formatRomanianDateISO(value) : ""
   const [draft, setDraft] = useState(displayValue)
   const [open, setOpen] = useState(false)
+  const [useNativeMobileDate, setUseNativeMobileDate] = useState(false)
 
   const yearRange = (() => {
     const nowY = new Date().getFullYear()
@@ -40,6 +41,19 @@ export function DateInput({ value, onChange, placeholder = "dd MMM yyyy", disabl
     if (open) return
     setDraft(displayValue)
   }, [displayValue, open])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const mq = window.matchMedia("(max-width: 768px), (pointer: coarse)")
+    const update = () => setUseNativeMobileDate(mq.matches)
+    update()
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", update)
+      return () => mq.removeEventListener("change", update)
+    }
+    mq.addListener(update)
+    return () => mq.removeListener(update)
+  }, [])
 
   const commitDraft = () => {
     const next = draft.trim()
@@ -59,6 +73,20 @@ export function DateInput({ value, onChange, placeholder = "dd MMM yyyy", disabl
       return
     }
     onChange(iso)
+  }
+
+  if (useNativeMobileDate) {
+    return (
+      <Input
+        type="date"
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value || "")}
+        disabled={disabled}
+        min={min}
+        max={max}
+        className={className}
+      />
+    )
   }
 
   return (
