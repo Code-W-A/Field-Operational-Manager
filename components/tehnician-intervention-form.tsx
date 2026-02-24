@@ -90,6 +90,7 @@ export function TehnicianInterventionForm({
   // State pentru imaginile selectate local
   const [selectedImages, setSelectedImages] = useState<File[]>([])
   const [imagePreviews, setImagePreviews] = useState<string[]>([])
+  const [uploadedDefectImages, setUploadedDefectImages] = useState<Array<any>>(initialData.imaginiDefecte || [])
   
   // State pentru imaginile marcate pentru ștergere (pending delete)
   const [imagesToDelete, setImagesToDelete] = useState<number[]>([])
@@ -107,6 +108,11 @@ export function TehnicianInterventionForm({
   useEffect(() => {
     setImagesToDelete([])
   }, [lucrareId])
+
+  // Sincronizăm imaginile uploadate local cu datele venite din părinte (refresh/reload).
+  useEffect(() => {
+    setUploadedDefectImages(initialData.imaginiDefecte || [])
+  }, [initialData.imaginiDefecte, lucrareId])
 
   // State pentru funcționalitatea de garanție
   const [warrantyInfo, setWarrantyInfo] = useState<any>(null)
@@ -185,6 +191,7 @@ export function TehnicianInterventionForm({
       }
 
       await updateLucrare(lucrareId, updateData)
+      setUploadedDefectImages(allImages)
 
       // Log upload imaginilor dacă au fost uplodate
       if (newUploadedImages.length > 0) {
@@ -269,6 +276,7 @@ export function TehnicianInterventionForm({
       }
 
       await updateLucrare(lucrareId, updateData)
+      setUploadedDefectImages(allImages)
 
       // Log upload imaginilor dacă au fost uplodate
       if (newUploadedImages.length > 0) {
@@ -401,11 +409,11 @@ export function TehnicianInterventionForm({
   // Funcție pentru aplicarea efectivă a ștergerilor în Firebase
   const applyImageDeletions = async (): Promise<any[]> => {
     if (imagesToDelete.length === 0) {
-      return initialData.imaginiDefecte || []
+      return uploadedDefectImages
     }
 
     try {
-      const currentImages = initialData.imaginiDefecte || []
+      const currentImages = uploadedDefectImages
       
       // Ștergem din Firebase Storage imaginile marcate pentru ștergere
       for (const imageIndex of imagesToDelete) {
@@ -430,6 +438,7 @@ export function TehnicianInterventionForm({
       
       // Resetăm lista de imagini pentru ștergere
       setImagesToDelete([])
+      setUploadedDefectImages(remainingImages)
       
       return remainingImages
     } catch (error) {
@@ -627,7 +636,7 @@ export function TehnicianInterventionForm({
             {/* Secțiunea pentru încărcarea imaginilor defectelor - disponibilă oricând */}
             <ImageDefectUpload
               lucrareId={lucrareId}
-              lucrare={{ imaginiDefecte: initialData.imaginiDefecte || [] }}
+              lucrare={{ imaginiDefecte: uploadedDefectImages }}
               selectedImages={selectedImages}
               imagePreviews={imagePreviews}
               imagesToDelete={imagesToDelete}

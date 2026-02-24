@@ -279,8 +279,8 @@ export function ImageDefectUpload({ lucrareId, lucrare, selectedImages, imagePre
           </div>
         )}
 
-        {/* Afișarea imaginilor selectate local */}
-        {selectedImages.length > 0 && (
+        {/* Afișarea imaginilor selectate local (ascunsă în timpul salvării/generării pentru UX mai clar) */}
+        {!isUploading && selectedImages.length > 0 && (
           <div className="space-y-3">
             <h4 className="text-sm font-medium">Imagini selectate ({selectedImages.length})</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
