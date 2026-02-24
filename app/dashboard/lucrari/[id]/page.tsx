@@ -3054,14 +3054,44 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   )}
 
                   {/* Notă internă – fallback dacă nu există raport (vizibilă pentru non-clienți) */}
-                  {role !== "client" && !(lucrare.raportGenerat && lucrare.numarRaport) && (lucrare.descriere || lucrare.notaInternaTehnician) && (
+                  {role !== "client" && !(lucrare.raportGenerat && lucrare.numarRaport) && (lucrare.descriere || lucrare.notaInternaTehnician || isAdminOrDispatcher) && (
                     <div className="mt-4">
                       <p className="text-base font-semibold mb-2">Notă internă:</p>
                       <div className="space-y-1">
-                        {lucrare.descriere && (
+                        {(lucrare.descriere || isAdminOrDispatcher) && (
                           <div>
                             <span className="font-semibold text-base mr-2">Dispecer:</span>
-                            <span className="text-base text-gray-600">{lucrare.descriere}</span>
+                            {isAdminOrDispatcher ? (
+                              <Textarea
+                                value={lucrare.descriere || ""}
+                                onChange={(e) => {
+                                  const value = e.target.value
+                                  setLucrare((prev) => (prev ? { ...prev, descriere: value } : prev))
+                                }}
+                                onBlur={async () => {
+                                  if (!lucrare?.id) return
+                                  try {
+                                    setIsUpdating(true)
+                                    await updateLucrare(lucrare.id, { descriere: lucrare.descriere || "" })
+                                    toast({ title: "Actualizat", description: "Nota internă a dispecerului a fost salvată." })
+                                  } catch (error) {
+                                    console.error("Eroare la salvarea notei interne a dispecerului:", error)
+                                    toast({
+                                      title: "Eroare",
+                                      description: "Nu s-a putut salva nota internă a dispecerului.",
+                                      variant: "destructive",
+                                    })
+                                  } finally {
+                                    setIsUpdating(false)
+                                  }
+                                }}
+                                className="min-h-[72px] text-sm mt-2"
+                                disabled={isUpdating}
+                                placeholder="Adăugați notă internă pentru acest tichet..."
+                              />
+                            ) : (
+                              <span className="text-base text-gray-600">{lucrare.descriere}</span>
+                            )}
                           </div>
                         )}
                         {lucrare.notaInternaTehnician && (
@@ -3084,14 +3114,44 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   <div className="mt-2">
               
                     {/* Afișare Notă internă: Dispecer/Tehnician */}
-                    {role !== "client" && (lucrare.descriere || lucrare.notaInternaTehnician) && (
+                    {role !== "client" && (lucrare.descriere || lucrare.notaInternaTehnician || isAdminOrDispatcher) && (
                       <div className="mt-4">
                         <p className="text-base font-semibold mb-2">Notă internă:</p>
                         <div className="space-y-1">
-                          {lucrare.descriere && (
+                          {(lucrare.descriere || isAdminOrDispatcher) && (
                             <div>
                               <span className="font-semibold text-base mr-2">Dispecer:</span>
-                              <span className="text-base text-gray-600">{lucrare.descriere}</span>
+                              {isAdminOrDispatcher ? (
+                                <Textarea
+                                  value={lucrare.descriere || ""}
+                                  onChange={(e) => {
+                                    const value = e.target.value
+                                    setLucrare((prev) => (prev ? { ...prev, descriere: value } : prev))
+                                  }}
+                                  onBlur={async () => {
+                                    if (!lucrare?.id) return
+                                    try {
+                                      setIsUpdating(true)
+                                      await updateLucrare(lucrare.id, { descriere: lucrare.descriere || "" })
+                                      toast({ title: "Actualizat", description: "Nota internă a dispecerului a fost salvată." })
+                                    } catch (error) {
+                                      console.error("Eroare la salvarea notei interne a dispecerului:", error)
+                                      toast({
+                                        title: "Eroare",
+                                        description: "Nu s-a putut salva nota internă a dispecerului.",
+                                        variant: "destructive",
+                                      })
+                                    } finally {
+                                      setIsUpdating(false)
+                                    }
+                                  }}
+                                  className="min-h-[72px] text-sm mt-2"
+                                  disabled={isUpdating}
+                                  placeholder="Adăugați notă internă pentru acest tichet..."
+                                />
+                              ) : (
+                                <span className="text-base text-gray-600">{lucrare.descriere}</span>
+                              )}
                             </div>
                           )}
                           {lucrare.notaInternaTehnician && (

@@ -166,8 +166,8 @@ export function TehnicianInterventionForm({
       // Upload imaginile selectate (dacă există)
       const newUploadedImages = await uploadSelectedImages()
       
-      // Combinăm imaginile rămase cu cele nou uplodate
-      const allImages = [...remainingImages, ...newUploadedImages]
+      // Combinăm imaginile rămase cu cele nou uplodate + deduplicare de siguranță.
+      const allImages = dedupeDefectImages([...remainingImages, ...newUploadedImages])
 
       const updateData: any = {
         constatareLaLocatie,
@@ -210,6 +210,11 @@ export function TehnicianInterventionForm({
         description: description,
       })
 
+      // Evităm re-upload-ul acelorași fișiere dacă userul apasă apoi "Generează raport".
+      imagePreviews.forEach((url) => URL.revokeObjectURL(url))
+      setSelectedImages([])
+      setImagePreviews([])
+
       onUpdate()
     } catch (error) {
       console.error("Eroare la salvarea datelor:", error)
@@ -244,8 +249,8 @@ export function TehnicianInterventionForm({
       // Upload imaginile selectate (dacă există)
       const newUploadedImages = await uploadSelectedImages()
       
-      // Combinăm imaginile rămase cu cele nou uplodate
-      const allImages = [...remainingImages, ...newUploadedImages]
+      // Combinăm imaginile rămase cu cele nou uplodate + deduplicare de siguranță.
+      const allImages = dedupeDefectImages([...remainingImages, ...newUploadedImages])
 
       // Salvăm datele formularului inclusiv statusul finalizării
       const updateData: any = {
@@ -294,6 +299,11 @@ export function TehnicianInterventionForm({
         title: "Date salvate",
         description: description,
       })
+
+      // Curățăm selecția locală pentru a preveni upload-uri duplicate la acțiuni consecutive.
+      imagePreviews.forEach((url) => URL.revokeObjectURL(url))
+      setSelectedImages([])
+      setImagePreviews([])
 
       // Navigate to the report page
       router.push(`/raport/${lucrareId}`)
@@ -346,6 +356,23 @@ export function TehnicianInterventionForm({
     })
 
     return await Promise.all(uploadPromises)
+  }
+
+  // Guard defensiv pentru cazuri edge: evită dubluri în payload indiferent de fluxul UI.
+  const dedupeDefectImages = (images: Array<any>): Array<any> => {
+    const seen = new Set<string>()
+    return images.filter((image, index) => {
+      const url = typeof image?.url === "string" ? image.url.trim() : ""
+      const fileName = typeof image?.fileName === "string" ? image.fileName.trim() : ""
+      const uploadedAt = typeof image?.uploadedAt === "string" ? image.uploadedAt.trim() : ""
+      const key = url || fileName || uploadedAt
+        ? (url ? `url:${url}` : `meta:${fileName}|${uploadedAt}`)
+        : `index:${index}`
+
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
   }
 
   const handleStatusEchipamentChange = (value: string) => {
