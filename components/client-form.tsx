@@ -1259,6 +1259,25 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
                                   equipment={echipament}
                                   clientName={formData.nume}
                                   locationName={locatie.nume}
+                                  clientId={mode === "edit" ? (client?.id || undefined) : undefined}
+                                  locationId={String((locatie as any)?.id || "").trim() || undefined}
+                                  onPrintRecorded={({ printedAt, printedBy, printedById }) => {
+                                    setLocatii((prev) =>
+                                      prev.map((loc, li) => {
+                                        if (li !== locatieIndex) return loc
+                                        const nextEchipamente = (Array.isArray(loc.echipamente) ? loc.echipamente : []).map((eq, ei) => {
+                                          if (ei !== echipamentIndex) return eq
+                                          return {
+                                            ...eq,
+                                            lastQrPrintedAt: printedAt,
+                                            lastQrPrintedBy: printedBy,
+                                            lastQrPrintedById: printedById,
+                                          }
+                                        })
+                                        return { ...loc, echipamente: nextEchipamente }
+                                      }),
+                                    )
+                                  }}
                                   useSimpleFormat={true} // Format simplu pentru echipamente noi - mai ușor de scanat
                                 />
                                 <Button

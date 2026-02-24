@@ -108,6 +108,18 @@ function eqInsensitive(a?: string, ...candidates: string[]): boolean {
   return candidates.some((y) => x === String(y || "").toLowerCase())
 }
 
+function buildEquipmentKey(work: any): string | null {
+  const clientKey = String(work?.clientId || work?.client || "").trim().toLowerCase()
+  const locationKey = String(work?.locationId || work?.locatie || "").trim().toLowerCase()
+  const equipmentKey = String(work?.echipamentId || work?.echipamentCod || work?.echipament || "").trim().toLowerCase()
+  if (!equipmentKey) return null
+  return `${clientKey}|${locationKey}|${equipmentKey}`
+}
+
+function isOpenWorkStatus(status: string | undefined): boolean {
+  return !eqInsensitive(status, WORK_STATUS.COMPLETED, WORK_STATUS.ARCHIVED, WORK_STATUS.CANCELED)
+}
+
 function buildBubble(l: any, offerStatus?: "accept" | "reject", sortDate?: Date, equipmentStatus?: string): DashboardBubbleItem {
   const fallbackLabel = l.echipament || l.echipamentModel || l.echipamentCod || "-"
   const isRevizie = String(l?.tipLucrare || "") === "Revizie"
@@ -364,6 +376,15 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
 
     const todayAt18 = getTodayAt(18, 0)
     const endOfToday = getTodayAt(23, 59)
+    const openEquipmentKeys = new Set<string>()
+
+    // Pentru regula din dashboard: dacă există deja tichet deschis pe echipament,
+    // nu mai afișăm acel echipament în bucket-ul "Stare echipament" când e "Nefuncțional".
+    for (const work of activeLucrari) {
+      if (!isOpenWorkStatus((work as any)?.statusLucrare)) continue
+      const key = buildEquipmentKey(work)
+      if (key) openEquipmentKeys.add(key)
+    }
 
     // Build map pentru data amânării (ultima modificare cu newValue = "Amânată")
     const postponedDateByWork: Record<string, Date> = {}
@@ -498,8 +519,11 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
         const shouldInclude =
           (isNonFunctional && cfg.equipmentStatusIncludeNonFunctional) ||
           (isPartial && cfg.equipmentStatusIncludePartiallyFunctional)
+        const equipmentKey = buildEquipmentKey(l)
+        const hasOpenTicketForEquipment = Boolean(equipmentKey && openEquipmentKeys.has(equipmentKey))
+        const shouldHideNonFunctional = isNonFunctional && hasOpenTicketForEquipment
 
-        if (shouldInclude) {
+        if (shouldInclude && !shouldHideNonFunctional) {
         res.equipmentStatus.push(buildBubble(l, undefined, toDate(l.createdAt) || undefined, statusEchipament))
         }
       }

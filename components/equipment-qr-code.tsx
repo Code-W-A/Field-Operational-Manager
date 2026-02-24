@@ -11,6 +11,7 @@ import type { Echipament } from "@/lib/firebase/firestore"
 import { addUserLogEntry, updateEquipmentLastQrPrinted } from "@/lib/firebase/firestore"
 import { auth } from "@/lib/firebase/config"
 import { useToast } from "@/hooks/use-toast"
+import { formatDateTimeSafe } from "@/lib/utils/time-format"
 
 /**
  * Componentă mai compactă pentru generarea şi tipărirea QR‐code‑ului unui echipament.
@@ -44,6 +45,13 @@ export function EquipmentQRCode({
 }: EquipmentQRCodeProps) {
   const [open, setOpen] = useState(false)
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [lastPrintedMeta, setLastPrintedMeta] = useState<{
+    printedAt?: string
+    printedBy?: string
+  }>({
+    printedAt: equipment.lastQrPrintedAt,
+    printedBy: equipment.lastQrPrintedBy,
+  })
   const { toast } = useToast()
 
   // Obținem URL-ul complet al noului logo
@@ -63,6 +71,14 @@ export function EquipmentQRCode({
     }
     img.src = fullLogoUrl
   }, [])
+
+  // Sincronizăm starea locală când părintele primește date noi din Firestore.
+  useEffect(() => {
+    setLastPrintedMeta({
+      printedAt: equipment.lastQrPrintedAt,
+      printedBy: equipment.lastQrPrintedBy,
+    })
+  }, [equipment.lastQrPrintedAt, equipment.lastQrPrintedBy])
 
   // Generează datele pentru QR code în funcție de format
   const qrData = useSimpleFormat 
@@ -223,6 +239,7 @@ export function EquipmentQRCode({
     const currentUser = auth.currentUser
     const printedBy = currentUser?.displayName || currentUser?.email || "Utilizator"
     const printedById = currentUser?.uid || undefined
+    setLastPrintedMeta({ printedAt: nowIso, printedBy })
     onPrintRecorded?.({ printedAt: nowIso, printedBy, printedById })
     toast({
       title: "Trimitere la print marcată",
@@ -424,7 +441,12 @@ export function EquipmentQRCode({
             <div className="mt-4 text-center">
               <p className="font-medium">{equipment.nume}</p>
               <p className="text-sm text-gray-500">Cod: {equipment.cod}</p>
-            
+              <p className="mt-2 text-xs text-muted-foreground">
+                Ultima etichetă printată:{" "}
+                {lastPrintedMeta.printedAt
+                  ? `${formatDateTimeSafe(lastPrintedMeta.printedAt)} de ${String(lastPrintedMeta.printedBy || "-")}`
+                  : "—"}
+              </p>
             </div>
           </div>
 

@@ -2953,6 +2953,18 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                   "Echipament necunoscut",
                               ),
                               model: String(resolvedEquipment?.model || (lucrare as any)?.echipamentModel || ""),
+                              lastQrPrintedAt:
+                                resolvedEquipment?.lastQrPrintedAt ||
+                                (equipmentData as any)?.lastQrPrintedAt ||
+                                undefined,
+                              lastQrPrintedBy:
+                                resolvedEquipment?.lastQrPrintedBy ||
+                                (equipmentData as any)?.lastQrPrintedBy ||
+                                undefined,
+                              lastQrPrintedById:
+                                resolvedEquipment?.lastQrPrintedById ||
+                                (equipmentData as any)?.lastQrPrintedById ||
+                                undefined,
                             }}
                             clientName={clientData?.nume || clientData?.name || lucrare.client}
                             locationName={resolvedLocation?.nume || lucrare.locatie}
