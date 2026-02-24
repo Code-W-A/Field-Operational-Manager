@@ -14,7 +14,7 @@ export default function Home() {
             <Button className="w-full bg-blue-600 hover:bg-blue-700">Autentificare</Button>
           </Link>
           <div className="text-center text-sm text-gray-500">
-            <p>Sistem de management pentru operațiuni de service</p>
+            <p>Sistem de management pentru operațiuni de service pe platforma Field Operational Manager</p>
           </div>
         </div>
       </div>
