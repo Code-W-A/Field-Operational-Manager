@@ -114,6 +114,20 @@ export function TehnicianInterventionForm({
     setUploadedDefectImages(initialData.imaginiDefecte || [])
   }, [initialData.imaginiDefecte, lucrareId])
 
+  const clearSelectedImages = () => {
+    imagePreviews.forEach((url) => URL.revokeObjectURL(url))
+    setSelectedImages([])
+    setImagePreviews([])
+  }
+
+  // Guard UX: dacă avem imagini uploadate și selecție locală rămasă după persistare,
+  // curățăm forțat selecția pentru a evita afișarea dublă.
+  useEffect(() => {
+    if ((isSaving || isGeneratingReport) || selectedImages.length === 0) return
+    if (uploadedDefectImages.length === 0) return
+    clearSelectedImages()
+  }, [uploadedDefectImages, isSaving, isGeneratingReport, selectedImages.length])
+
   // State pentru funcționalitatea de garanție
   const [warrantyInfo, setWarrantyInfo] = useState<any>(null)
   
@@ -218,9 +232,7 @@ export function TehnicianInterventionForm({
       })
 
       // Evităm re-upload-ul acelorași fișiere dacă userul apasă apoi "Generează raport".
-      imagePreviews.forEach((url) => URL.revokeObjectURL(url))
-      setSelectedImages([])
-      setImagePreviews([])
+      clearSelectedImages()
 
       onUpdate()
     } catch (error) {
@@ -309,9 +321,7 @@ export function TehnicianInterventionForm({
       })
 
       // Curățăm selecția locală pentru a preveni upload-uri duplicate la acțiuni consecutive.
-      imagePreviews.forEach((url) => URL.revokeObjectURL(url))
-      setSelectedImages([])
-      setImagePreviews([])
+      clearSelectedImages()
 
       // Navigate to the report page
       router.push(`/raport/${lucrareId}`)
