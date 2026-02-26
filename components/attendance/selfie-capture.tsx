@@ -6,12 +6,14 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 export type SelfieCaptureStatus = "idle" | "streaming" | "capturing" | "success" | "error"
+const CAMERA_PERMISSION_CACHE_KEY = "attendance.cameraPermissionGranted"
 
 export interface SelfieCaptureResult {
   ok: boolean
   blob?: Blob
   mimeType?: string
   error?: string
+  code?: "permission_denied" | "unavailable" | "capture_failed"
 }
 
 export function SelfieCapture({
@@ -19,12 +21,16 @@ export function SelfieCapture({
   onSkip,
   allowSkip = true,
   autoStart = true,
+  autoCaptureDelayMs,
+  showManualControls = true,
   className,
 }: {
   onCaptured: (result: SelfieCaptureResult) => void
   onSkip?: () => void
   allowSkip?: boolean
   autoStart?: boolean
+  autoCaptureDelayMs?: number
+  showManualControls?: boolean
   className?: string
 }) {
   const [status, setStatus] = useState<SelfieCaptureStatus>("idle")
@@ -34,9 +40,20 @@ export function SelfieCapture({
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const autoCaptureTimerRef = useRef<number | null>(null)
+  const hadGrantedPermissionRef = useRef(false)
 
   const canUseCamera = useMemo(() => {
     return typeof window !== "undefined" && Boolean(navigator?.mediaDevices?.getUserMedia)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    try {
+      hadGrantedPermissionRef.current = localStorage.getItem(CAMERA_PERMISSION_CACHE_KEY) === "1"
+    } catch {
+      hadGrantedPermissionRef.current = false
+    }
   }, [])
 
   useEffect(() => {
@@ -47,11 +64,31 @@ export function SelfieCapture({
 
   useEffect(() => {
     return () => {
+      if (autoCaptureTimerRef.current) window.clearTimeout(autoCaptureTimerRef.current)
       stop()
       if (previewUrl) URL.revokeObjectURL(previewUrl)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (autoCaptureTimerRef.current) {
+      window.clearTimeout(autoCaptureTimerRef.current)
+      autoCaptureTimerRef.current = null
+    }
+    if (status !== "streaming") return
+    if (!Number.isFinite(Number(autoCaptureDelayMs)) || Number(autoCaptureDelayMs) <= 0) return
+    autoCaptureTimerRef.current = window.setTimeout(() => {
+      void capture()
+    }, Number(autoCaptureDelayMs))
+    return () => {
+      if (autoCaptureTimerRef.current) {
+        window.clearTimeout(autoCaptureTimerRef.current)
+        autoCaptureTimerRef.current = null
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, autoCaptureDelayMs])
 
   const stop = () => {
     try {
@@ -65,7 +102,9 @@ export function SelfieCapture({
     setError(null)
     if (!canUseCamera) {
       setStatus("error")
-      setError("Camera nu este disponibilă pe acest dispozitiv/browser.")
+      const msg = "Camera nu este disponibilă pe acest dispozitiv/browser."
+      setError(msg)
+      onCaptured({ ok: false, error: msg, code: "unavailable" })
       return
     }
     try {
@@ -85,9 +124,25 @@ export function SelfieCapture({
         })
         await video.play()
       }
+      try {
+        localStorage.setItem(CAMERA_PERMISSION_CACHE_KEY, "1")
+      } catch {
+        // ignore
+      }
+      hadGrantedPermissionRef.current = true
     } catch (e) {
       setStatus("error")
-      setError(e instanceof Error ? e.message : "Nu am putut accesa camera.")
+      const rawMsg = e instanceof Error ? e.message : "Nu am putut accesa camera."
+      const isDenied =
+        String((e as any)?.name || "").toLowerCase() === "notallowederror" ||
+        rawMsg.toLowerCase().includes("permission") ||
+        rawMsg.toLowerCase().includes("denied") ||
+        rawMsg.toLowerCase().includes("not allowed")
+      const msg = isDenied
+        ? "Permisiunea camerei a fost refuzată. Poți continua fără selfie."
+        : rawMsg
+      setError(msg)
+      onCaptured({ ok: false, error: msg, code: isDenied ? "permission_denied" : "unavailable" })
     }
   }
 
@@ -116,7 +171,9 @@ export function SelfieCapture({
       const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85))
       if (!blob) {
         setStatus("error")
-        setError("Nu am putut genera imaginea (blob).")
+        const msg = "Nu am putut genera imaginea (blob)."
+        setError(msg)
+        onCaptured({ ok: false, error: msg, code: "capture_failed" })
         return
       }
       // preview
@@ -132,7 +189,7 @@ export function SelfieCapture({
       setStatus("error")
       const msg = e instanceof Error ? e.message : "Eroare la captură."
       setError(msg)
-      onCaptured({ ok: false, error: msg })
+      onCaptured({ ok: false, error: msg, code: "capture_failed" })
     }
   }
 
@@ -173,32 +230,38 @@ export function SelfieCapture({
           )}
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-2 w-full justify-center">
-          <Button
-            type="button"
-            onClick={() => void capture()}
-            disabled={status === "capturing" || status === "error" || status === "success"}
-            className="min-w-[160px]"
-          >
-            {status === "capturing" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Camera className="mr-2 h-4 w-4" />}
-            Fă selfie
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void start()}
-            disabled={status === "capturing"}
-            className="min-w-[160px]"
-          >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Repornește camera
-          </Button>
-          {allowSkip && onSkip && (
-            <Button type="button" variant="secondary" onClick={onSkip} className="min-w-[160px]">
-              Continuă fără selfie
-            </Button>
-          )}
-        </div>
+        {(showManualControls || status === "error" || (allowSkip && onSkip)) ? (
+          <div className="flex flex-col sm:flex-row gap-2 w-full justify-center">
+            {showManualControls ? (
+              <Button
+                type="button"
+                onClick={() => void capture()}
+                disabled={status === "capturing" || status === "error" || status === "success"}
+                className="min-w-[160px]"
+              >
+                {status === "capturing" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Camera className="mr-2 h-4 w-4" />}
+                Fă selfie
+              </Button>
+            ) : null}
+            {(showManualControls || status === "error") ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void start()}
+                disabled={status === "capturing"}
+                className="min-w-[160px]"
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Repornește camera
+              </Button>
+            ) : null}
+            {allowSkip && onSkip && (showManualControls || status === "error") ? (
+              <Button type="button" variant="secondary" onClick={onSkip} className="min-w-[160px]">
+                Continuă fără selfie
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
 
         {error && status !== "error" && <div className="text-sm text-red-600">{error}</div>}
       </div>

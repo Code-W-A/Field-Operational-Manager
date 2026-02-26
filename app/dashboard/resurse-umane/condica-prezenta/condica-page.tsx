@@ -54,7 +54,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Spinner } from "@/components/ui/spinner"
-import { calcEffectiveMinutes, type HMRange, isValidHMRange } from "@/lib/hr/time-calc"
+import { calcEffectiveMinutes, minutesToHM, type HMRange, isValidHMRange } from "@/lib/hr/time-calc"
 
 function InfoTooltipButton({
   tooltip,
@@ -1044,7 +1044,10 @@ export default function CondicaPrezentaPage() {
           />
         ),
         widthPx: 110,
-        render: (e) => getSummary(e.id).orePrezenta,
+        render: (e) => {
+          const orePrezenta = getSummary(e.id).orePrezenta
+          return minutesToHM(Math.round(Number(orePrezenta || 0) * 60))
+        },
       },
       {
         id: "ore_lucrate_efectiv",
