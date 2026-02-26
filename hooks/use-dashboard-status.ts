@@ -133,12 +133,12 @@ function buildBubble(l: any, offerStatus?: "accept" | "reject", sortDate?: Date,
       .filter(Boolean)
       .map((v: any) => String(v).trim())
       .filter((v: string) => v.length > 0)
-    if (revLabels.length === 1) {
-      equipmentLabel = revLabels[0]
+    if (revLabels.length > 0) {
+      equipmentLabel = revLabels.join(", ")
       equipmentList = revLabels
-    } else if (revLabels.length > 1) {
-      equipmentLabel = "Echipamente"
-      equipmentList = revLabels
+    } else {
+      // Legacy fallback for old strings like "Eq1 - Eq2 - Eq3"
+      equipmentLabel = String(fallbackLabel || "").replace(/\s+-\s+/g, ", ").trim() || "-"
     }
   }
 

@@ -31,6 +31,7 @@ import { EquipmentHistoryCheckDialog } from "@/components/equipment-history-chec
 type HistoryRow = {
   id: string
   nrLucrare: string
+  tipLucrare: string
   // For export + UI, we keep the raw date-like value (Firestore Timestamp/string/Date)
   // Data execuției = timpSosire (scanare QR / sosire la intervenție)
   dataInterventie: any
@@ -70,6 +71,36 @@ const computeDurationFallback = (w: any) => {
   } catch {
     return ""
   }
+}
+
+function getRevisionEquipmentLabels(work: any): string[] {
+  const list = Array.isArray(work?.revision?.equipment) ? work.revision.equipment : []
+  if (!Array.isArray(list) || list.length === 0) return []
+
+  const labels = list
+    .map((item: any) =>
+      item?.equipmentName || item?.equipmentCode || item?.equipmentId || item?.id || item?.code || item?.nume || item?.denumire
+    )
+    .filter(Boolean)
+    .map((v: any) => String(v).trim())
+    .filter(Boolean)
+
+  return Array.from(new Set(labels))
+}
+
+function getHistoryEquipmentLabel(work: any): string {
+  const tipLucrare = String(work?.tipLucrare || "").trim().toLowerCase()
+  if (tipLucrare !== "revizie") return String(work?.echipament || "").trim()
+
+  const revisionLabels = getRevisionEquipmentLabels(work)
+  if (revisionLabels.length > 0) return revisionLabels.join(", ")
+
+  const fallbackFromIds = Array.isArray(work?.equipmentIds)
+    ? work.equipmentIds.map((x: any) => String(x || "").trim()).filter(Boolean)
+    : []
+  if (fallbackFromIds.length > 0) return Array.from(new Set(fallbackFromIds)).join(", ")
+
+  return String(work?.echipament || "").trim()
 }
 
 function escapeCsvCell(v: unknown) {
@@ -204,15 +235,17 @@ export default function IstoricInterventiiPage() {
     const mapped = (works || []).map((w: any) => {
       const nrLucrare = String(w.nrLucrare || w.numarRaport || "").trim()
       const locatie = String(w.locationName || w.locatie || "").trim()
+      const tipLucrare = String(w.tipLucrare || "").trim()
 
       const echipamentCod = String(w.echipamentCod || "").trim()
-      const echipamentNume = String(w.echipament || "").trim()
+      const echipamentNume = getHistoryEquipmentLabel(w)
 
       const durata = String(w.durataInterventie || computeDurationFallback(w) || "").trim()
 
       return {
         id: String(w.id),
         nrLucrare,
+        tipLucrare,
         // Data execuției = data sosirii / scanării QR
         dataInterventie: w?.timpSosire ?? null,
         locatie,
@@ -984,6 +1017,9 @@ export default function IstoricInterventiiPage() {
                       </div>
                       <div className="text-sm text-gray-900 mt-1">
                         <span className="font-medium">Locație:</span> {r.locatie || "-"}
+                      </div>
+                      <div className="text-sm text-gray-900">
+                        <span className="font-medium">Tip:</span> {r.tipLucrare || "-"}
                       </div>
                       <div className="text-sm text-gray-900">
                         <span className="font-medium">Echipament:</span>{" "}
