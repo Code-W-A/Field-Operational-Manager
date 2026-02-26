@@ -1065,7 +1065,10 @@ export default function CondicaPrezentaPage() {
           />
         ),
         widthPx: 140,
-        render: (e) => getSummary(e.id).oreLucrateEfectiv,
+        render: (e) => {
+          const oreLucrateEfectiv = getSummary(e.id).oreLucrateEfectiv
+          return minutesToHM(Math.round(Number(oreLucrateEfectiv || 0) * 60))
+        },
       },
       { 
         id: "banca_ore", 

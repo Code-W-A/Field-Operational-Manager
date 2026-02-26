@@ -325,7 +325,7 @@ export function TimesheetGrid({
                 )
               })}
               {cols.map((c) => (
-                <div key={c.id} className={cn("w-full border-l-2 border-b border-gray-200 flex items-center justify-center font-semibold text-gray-900 bg-gray-50/30", 
+                <div key={c.id} className={cn("w-full border-l-2 border-b border-gray-200 flex items-center justify-center font-semibold text-gray-900 bg-gray-50/30 whitespace-nowrap overflow-hidden text-ellipsis", 
                   cellHeight,
                   compact ? "px-1 text-[10px]" : "px-2 text-xs"
                 )}>
