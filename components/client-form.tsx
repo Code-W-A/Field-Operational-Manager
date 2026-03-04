@@ -63,6 +63,7 @@ interface ClientFormProps {
   mode?: "add" | "edit"
   client?: Client
   onSuccess?: (clientName?: string) => void
+  onCreatedClient?: (client: { clientId: string; clientName: string }) => void
   onCancel?: () => void
   initialEquipmentSelection?: {
     locationIndex?: number
@@ -89,7 +90,7 @@ const checkCuiExists = async (cui: string): Promise<boolean> => {
 }
 
 // Modify the component definition to use forwardRef
-const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, initialEquipmentSelection }: ClientFormProps, ref) => {
+const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClient, onCancel, initialEquipmentSelection }: ClientFormProps, ref) => {
   const { userData } = useAuth()
   const isAdmin = userData?.role === "admin"
   
@@ -867,6 +868,12 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCancel, init
       // 2) Documentațiile sunt gestionate separat (folder-based); nu încărcăm aici fișiere.
 
         setFormModified(false)
+      if (clientId) {
+        onCreatedClient?.({
+          clientId: String(clientId),
+          clientName: formData.nume,
+        })
+      }
       if (onSuccess) onSuccess(formData.nume)
       } else {
         // MODE: EDIT - Update existing client

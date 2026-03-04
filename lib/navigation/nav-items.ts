@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react"
 import {
   Archive,
   BarChart3,
+  BriefcaseBusiness,
   Building2,
   ClipboardList,
   FileCodeIcon,
@@ -122,6 +123,15 @@ export function buildNav(ctx: NavCtx): NavNode[] {
       href: "/dashboard",
       icon: LayoutDashboard,
       activeMatch: "exact",
+    },
+    {
+      type: "link",
+      id: "crm",
+      label: "CRM",
+      href: "/crm",
+      icon: BriefcaseBusiness,
+      activeMatch: "prefix",
+      visible: () => isAdminOrDispatcher,
     },
     {
       type: "link",
@@ -338,5 +348,4 @@ export function buildNav(ctx: NavCtx): NavNode[] {
 
   return filterNav(nodes, ctx)
 }
-
 

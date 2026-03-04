@@ -1,0 +1,6 @@
+export * from "@/components/crm/page-shell"
+export * from "@/components/crm/panel"
+export * from "@/components/crm/subtle-badge"
+export * from "@/components/crm/section-header"
+export * from "@/components/crm/tabs-header"
+export * from "@/components/crm/segmented-control"

@@ -12,7 +12,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
@@ -21,6 +20,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/contexts/AuthContext"
 import { useClientLucrari } from "@/hooks/use-client-lucrari"
 import { ClientForm } from "@/components/client-form"
+import { ClientAddDialog } from "@/components/client-add-dialog"
 import { useSearchParams, useRouter } from "next/navigation"
 import { type Client, deleteClient } from "@/lib/firebase/firestore"
 import { DataTable } from "@/components/data-table/data-table"
@@ -60,8 +60,7 @@ export default function Clienti() {
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
   const [activeFilters, setActiveFilters] = useState<FilterOption[]>([])
   const [showCloseAlert, setShowCloseAlert] = useState(false)
-  const [activeDialog, setActiveDialog] = useState<"add" | "edit" | null>(null)
-  const addFormRef = useRef<any>(null)
+  const [activeDialog, setActiveDialog] = useState<"edit" | null>(null)
   const editFormRef = useRef<any>(null)
 
   // Persistența tabelului
@@ -578,13 +577,6 @@ export default function Clienti() {
     refreshData() // Add call to refreshData
   }
 
-  // Function to check if we should show the close confirmation dialog for add
-  const handleCloseAddDialog = () => {
-    // Întotdeauna solicităm confirmare înainte de a închide dialogul de adăugare
-    setActiveDialog("add")
-    setShowCloseAlert(true)
-  }
-
   // Function to check if we should show the close confirmation dialog for edit
   const handleCloseEditDialog = () => {
     // Întotdeauna solicităm confirmare înainte de a închide dialogul de editare
@@ -596,10 +588,7 @@ export default function Clienti() {
   const confirmCloseDialog = () => {
     setShowCloseAlert(false)
 
-    // Determine which dialog to close based on activeDialog
-    if (activeDialog === "add") {
-      setIsAddDialogOpen(false)
-    } else if (activeDialog === "edit") {
+    if (activeDialog === "edit") {
       handleEditDialogClose()
     }
 
@@ -756,38 +745,18 @@ export default function Clienti() {
     <TooltipProvider>
       <DashboardShell>
       <DashboardHeader heading="Clienți" text="Gestionați baza de date a clienților">
-        <Dialog
+        <ClientAddDialog
           open={isAddDialogOpen}
-          onOpenChange={(open) => {
-            if (!open) {
-              // Când se încearcă închiderea dialogului prin click în afara lui
-              handleCloseAddDialog()
-            } else {
-              setIsAddDialogOpen(open)
-            }
+          onOpenChange={setIsAddDialogOpen}
+          onClientCreated={() => {
+            refreshData()
           }}
-        >
-          <DialogTrigger asChild>
+          trigger={
             <Button className="bg-blue-600 hover:bg-blue-700">
               <Plus className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Adaugă</span> Client
             </Button>
-          </DialogTrigger>
-          <DialogContent className="w-[calc(100%-2rem)] max-w-5xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Adaugă Client Nou</DialogTitle>
-              <DialogDescription>Completați detaliile pentru a adăuga un client nou</DialogDescription>
-            </DialogHeader>
-            <ClientForm
-              mode="add"
-              ref={addFormRef}
-              onSuccess={(clientName) => {
-                setIsAddDialogOpen(false)
-                refreshData() // Refresh data after addition
-              }}
-              onCancel={handleCloseAddDialog}
-            />
-          </DialogContent>
-        </Dialog>
+          }
+        />
       </DashboardHeader>
 
       {/* Dialog for editing the client */}

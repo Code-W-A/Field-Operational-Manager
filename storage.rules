@@ -22,10 +22,14 @@ service firebase.storage {
       allow read: if isAdminOrDispatcher();
     }
 
+    // CRM files: strict access for admin/dispecer.
+    match /crm/opportunities/{opportunityId}/{fileName} {
+      allow read, write: if isAdminOrDispatcher();
+    }
+
     // Fallback: keep authenticated access for existing uploads (docs, profile photos, etc.)
     match /{allPaths=**} {
-      allow read, write: if isSignedIn();
+      allow read, write: if isSignedIn() && !allPaths.matches('^crm/.*$');
     }
   }
 }
-

@@ -78,6 +78,28 @@
   }
 }
 
+@layer components {
+  .crm-text-sm {
+    @apply text-sm text-neutral-700;
+  }
+
+  .crm-text-xs {
+    @apply text-xs text-neutral-500;
+  }
+
+  .crm-card {
+    @apply rounded-xl border border-neutral-200 bg-white p-4 shadow-sm;
+  }
+
+  .crm-panel {
+    @apply rounded-xl border border-neutral-200 bg-white;
+  }
+
+  .crm-tabs {
+    @apply border-b border-neutral-200 text-xs;
+  }
+}
+
 /* Adăugăm stilul pentru backdrop blur */
 [data-state="open"] > .backdrop-blur-sm {
   backdrop-filter: blur(4px);

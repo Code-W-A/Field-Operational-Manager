@@ -22,6 +22,23 @@ service cloud.firestore {
          request.path.segments[0] == 'hrRequests');
     }
 
+    function isCrmCollection() {
+      return request.path.segments.size() > 0 &&
+        (request.path.segments[0] == 'crm_clients' ||
+         request.path.segments[0] == 'crm_client_contacts' ||
+         request.path.segments[0] == 'crm_opportunities' ||
+         request.path.segments[0] == 'crm_opportunity_contacts' ||
+         request.path.segments[0] == 'crm_opportunity_access' ||
+         request.path.segments[0] == 'crm_tasks' ||
+         request.path.segments[0] == 'crm_notes' ||
+         request.path.segments[0] == 'crm_files' ||
+         request.path.segments[0] == 'crm_emails' ||
+         request.path.segments[0] == 'crm_calendar_events' ||
+         request.path.segments[0] == 'crm_activity_logs' ||
+         request.path.segments[0] == 'crm_visible_to' ||
+         request.path.segments[0] == 'crm_counters');
+    }
+
     // HR: restrict to admin + dispecer
     match /hrEmployees/{employeeId} {
       // Admin/dispatcher: full access.
@@ -48,13 +65,65 @@ service cloud.firestore {
         || (isSignedIn() && resource.data.managerUid == request.auth.uid);
     }
 
+    // CRM collections: access only for admin/dispecer.
+    match /crm_clients/{docId} {
+      allow read, write: if isAdminOrDispatcher();
+    }
+
+    match /crm_client_contacts/{docId} {
+      allow read, write: if isAdminOrDispatcher();
+    }
+
+    match /crm_opportunities/{docId} {
+      allow read, write: if isAdminOrDispatcher();
+    }
+
+    match /crm_opportunity_contacts/{docId} {
+      allow read, write: if isAdminOrDispatcher();
+    }
+
+    match /crm_opportunity_access/{docId} {
+      allow read, write: if isAdminOrDispatcher();
+    }
+
+    match /crm_tasks/{docId} {
+      allow read, write: if isAdminOrDispatcher();
+    }
+
+    match /crm_notes/{docId} {
+      allow read, write: if isAdminOrDispatcher();
+    }
+
+    match /crm_files/{docId} {
+      allow read, write: if isAdminOrDispatcher();
+    }
+
+    match /crm_emails/{docId} {
+      allow read, write: if isAdminOrDispatcher();
+    }
+
+    match /crm_calendar_events/{docId} {
+      allow read, write: if isAdminOrDispatcher();
+    }
+
+    match /crm_activity_logs/{docId} {
+      allow read, write: if isAdminOrDispatcher();
+    }
+
+    match /crm_visible_to/{docId} {
+      allow read, write: if isAdminOrDispatcher();
+    }
+
+    match /crm_counters/{docId} {
+      allow read, write: if isAdminOrDispatcher();
+    }
+
     // Fallback (existing app behavior): allow authenticated access.
     // NOTE: this is intentionally broad to avoid breaking existing collections in this repo.
     match /{document=**} {
       // Keep broad access for legacy collections, but exclude HR collections which have explicit rules above.
-      allow read, write: if isSignedIn() && !isHrCollection();
+      allow read, write: if isSignedIn() && !isHrCollection() && !isCrmCollection();
     }
   }
 }
-
 

@@ -21,6 +21,7 @@ interface MultiSelectProps {
   placeholder?: string
   className?: string
   emptyText?: string
+  disabled?: boolean
 }
 
 export function MultiSelect({
@@ -30,10 +31,17 @@ export function MultiSelect({
   placeholder = "Selectați opțiuni...",
   className,
   emptyText = "Nu există opțiuni disponibile",
+  disabled = false,
 }: MultiSelectProps) {
   const [open, setOpen] = React.useState(false)
   // Adăugăm un state pentru a controla valoarea input-ului de căutare
   const [inputValue, setInputValue] = React.useState("")
+
+  React.useEffect(() => {
+    if (disabled && open) {
+      setOpen(false)
+    }
+  }, [disabled, open])
 
   // Funcție pentru a elimina o valoare selectată
   const handleUnselect = (value: string) => {
@@ -62,12 +70,13 @@ export function MultiSelect({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={disabled ? false : open} onOpenChange={(nextOpen) => !disabled && setOpen(nextOpen)}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
           role="combobox"
-          aria-expanded={open}
+          aria-expanded={disabled ? false : open}
+          disabled={disabled}
           className={cn("min-h-10 w-full justify-between", className)}
         >
           <div className="flex flex-wrap gap-1 overflow-hidden">
@@ -108,26 +117,28 @@ export function MultiSelect({
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
             <CommandGroup>
-              <div className="border-b px-2 py-1.5">
-                <div className="flex items-center">
-                  <Checkbox
-                    id="select-all"
-                    checked={selected.length === options.length && options.length > 0}
-                    onCheckedChange={handleSelectAll}
-                    className="mr-2 h-4 w-4"
-                  />
-                  <label
-                    htmlFor="select-all"
-                    className="text-sm font-medium cursor-pointer"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      handleSelectAll()
-                    }}
-                  >
-                    {selected.length === options.length ? "Deselectează tot" : "Selectează tot"}
-                  </label>
+              {options.length > 0 ? (
+                <div className="border-b px-2 py-1.5">
+                  <div className="flex items-center">
+                    <Checkbox
+                      id="select-all"
+                      checked={selected.length === options.length && options.length > 0}
+                      onCheckedChange={handleSelectAll}
+                      className="mr-2 h-4 w-4"
+                    />
+                    <label
+                      htmlFor="select-all"
+                      className="text-sm font-medium cursor-pointer"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        handleSelectAll()
+                      }}
+                    >
+                      {selected.length === options.length && options.length > 0 ? "Deselectează tot" : "Selectează tot"}
+                    </label>
+                  </div>
                 </div>
-              </div>
+              ) : null}
               {options.map((option) => {
                 // Verificăm dacă opțiunea este selectată
                 const isSelected = selected.includes(option.value)

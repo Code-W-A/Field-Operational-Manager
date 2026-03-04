@@ -1,0 +1,174 @@
+"use client"
+
+import { useEffect, useMemo, useState } from "react"
+import { useParams } from "next/navigation"
+import { useAuth } from "@/contexts/AuthContext"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { MultiSelect } from "@/components/ui/multi-select"
+import { Panel, SubtleBadge } from "@/components/crm"
+import { useCrmOpportunity } from "@/hooks/use-crm-opportunity"
+import { createCrmEmail, listCrmEmails } from "@/lib/crm/tasks"
+import { listCrmUsers } from "@/lib/crm/opportunities"
+import { CRM_DIRECTIONS, CRM_VISIBILITIES, CRM_VISIBILITY_LABELS } from "@/lib/crm/constants"
+import { formatDateTime } from "@/lib/crm/presenters"
+
+export default function OpportunityEmailsPage() {
+  const params = useParams()
+  const { user } = useAuth()
+  const opportunityId = String(params?.id || "")
+  const { opportunity } = useCrmOpportunity(opportunityId, user?.uid)
+
+  const [users, setUsers] = useState<Array<{ uid: string; displayName: string }>>([])
+  const [emails, setEmails] = useState<Array<{ id: string; direction: string; subject: string; from: string; to: string[]; bodySnippet: string; createdById: string; createdAt?: unknown; visibility: string }>>([])
+  const [loading, setLoading] = useState(true)
+
+  const [direction, setDirection] = useState<(typeof CRM_DIRECTIONS)[number]>("OUT")
+  const [subject, setSubject] = useState("")
+  const [from, setFrom] = useState("")
+  const [to, setTo] = useState("")
+  const [snippet, setSnippet] = useState("")
+  const [sentAt, setSentAt] = useState("")
+  const [visibility, setVisibility] = useState<(typeof CRM_VISIBILITIES)[number]>("GENERAL")
+  const [visibleToUserIds, setVisibleToUserIds] = useState<string[]>([])
+
+  const userOptions = useMemo(() => users.map((row) => ({ value: row.uid, label: row.displayName })), [users])
+
+  const load = async () => {
+    if (!opportunity || !user?.uid) return
+
+    setLoading(true)
+    try {
+      const [emailRows, userRows] = await Promise.all([
+        listCrmEmails({
+          opportunityId,
+          userId: user.uid,
+          opportunityOwnerId: opportunity.ownerId,
+        }),
+        listCrmUsers(),
+      ])
+
+      setEmails(emailRows)
+      setUsers(userRows.map((row) => ({ uid: row.uid, displayName: row.displayName || row.email || row.uid })))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opportunity?.id, user?.uid])
+
+  if (!opportunity) {
+    return <Panel title="Email"><p className="text-xs text-neutral-500">Fără acces la oportunitate.</p></Panel>
+  }
+
+  return (
+    <Panel title="Email" subtitle="MVP email log (IN/OUT) tratat ca activity record">
+      <div className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+        <div className="grid gap-2 md:grid-cols-2">
+          <div className="grid gap-2">
+            <Label>Direcție</Label>
+            <Select value={direction} onValueChange={(value) => setDirection(value as typeof direction)}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="IN / OUT" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="IN">IN</SelectItem>
+                <SelectItem value="OUT">OUT</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="sentAt">Data</Label>
+            <Input id="sentAt" type="datetime-local" value={sentAt} onChange={(event) => setSentAt(event.target.value)} className="h-8 text-xs" />
+          </div>
+        </div>
+
+        <div className="mt-2 grid gap-2">
+          <Input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Subject" className="h-8 text-xs" />
+          <Input value={from} onChange={(event) => setFrom(event.target.value)} placeholder="From" className="h-8 text-xs" />
+          <Input value={to} onChange={(event) => setTo(event.target.value)} placeholder="To (separate cu virgulă)" className="h-8 text-xs" />
+          <Textarea value={snippet} onChange={(event) => setSnippet(event.target.value)} placeholder="Body snippet" className="min-h-[80px] text-xs" />
+        </div>
+
+        <div className="mt-2 grid gap-2 md:grid-cols-2">
+          <Select value={visibility} onValueChange={(value) => setVisibility(value as typeof visibility)}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Visibility" />
+            </SelectTrigger>
+            <SelectContent>
+              {CRM_VISIBILITIES.map((item) => (
+                <SelectItem key={item} value={item}>
+                  {CRM_VISIBILITY_LABELS[item]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {visibility === "CUSTOM" ? (
+            <MultiSelect options={userOptions} selected={visibleToUserIds} onChange={setVisibleToUserIds} placeholder="Alege useri" />
+          ) : null}
+        </div>
+
+        <div className="mt-2 flex justify-end">
+          <Button
+            size="sm"
+            className="h-8 text-xs"
+            onClick={async () => {
+              if (!subject.trim() || !from.trim() || !to.trim() || !user?.uid) return
+
+              await createCrmEmail({
+                opportunityId,
+                direction,
+                subject,
+                from,
+                to: to.split(",").map((item) => item.trim()).filter(Boolean),
+                bodySnippet: snippet,
+                sentAt: sentAt ? new Date(sentAt) : undefined,
+                createdById: user.uid,
+                visibility,
+                visibleToUserIds,
+              })
+
+              setDirection("OUT")
+              setSubject("")
+              setFrom("")
+              setTo("")
+              setSnippet("")
+              setSentAt("")
+              setVisibility("GENERAL")
+              setVisibleToUserIds([])
+              await load()
+            }}
+          >
+            Adaugă email
+          </Button>
+        </div>
+      </div>
+
+      {loading ? (
+        <p className="text-xs text-neutral-500">Se încarcă emailurile...</p>
+      ) : emails.length === 0 ? (
+        <p className="text-xs text-neutral-500">Nu există emailuri vizibile.</p>
+      ) : (
+        <div className="space-y-2">
+          {emails.map((email) => (
+            <div key={email.id} className="rounded-lg border border-neutral-200 bg-white p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-medium text-neutral-900">[{email.direction}] {email.subject}</p>
+                <SubtleBadge tone="neutral">{CRM_VISIBILITY_LABELS[email.visibility as keyof typeof CRM_VISIBILITY_LABELS]}</SubtleBadge>
+              </div>
+              <p className="mt-1 text-xs text-neutral-500">{email.from} → {email.to.join(", ")}</p>
+              <p className="mt-1 text-xs text-neutral-700">{email.bodySnippet || "-"}</p>
+              <p className="mt-2 text-[11px] text-neutral-400">{formatDateTime(email.createdAt)} • {email.createdById}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </Panel>
+  )
+}
