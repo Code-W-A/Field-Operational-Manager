@@ -34,14 +34,17 @@ interface OpportunitiesKanbanProps {
     lostReason?: string
     createRecontactTask?: boolean
   }) => Promise<void>
+  readOnly?: boolean
 }
 
 function StageColumn({
   stage,
   children,
+  readOnly = false,
 }: {
   stage: (typeof CRM_PIPELINE_STAGES)[number]
   children: ReactNode
+  readOnly?: boolean
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage })
 
@@ -50,7 +53,7 @@ function StageColumn({
       ref={setNodeRef}
       id={stage}
       className={`rounded-xl border bg-neutral-50/70 p-2.5 transition ${
-        isOver ? "border-blue-300 ring-2 ring-blue-500/10" : "border-neutral-200"
+        !readOnly && isOver ? "border-blue-300 ring-2 ring-blue-500/10" : "border-neutral-200"
       }`}
     >
       {children}
@@ -58,8 +61,11 @@ function StageColumn({
   )
 }
 
-function CardItem({ opportunity }: { opportunity: CrmOpportunity }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: opportunity.id })
+function CardItem({ opportunity, readOnly = false }: { opportunity: CrmOpportunity; readOnly?: boolean }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: opportunity.id,
+    disabled: readOnly,
+  })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -71,9 +77,9 @@ function CardItem({ opportunity }: { opportunity: CrmOpportunity }) {
     <div
       ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
-      className={`${crmUi.interactiveRow} p-3 text-sm`}
+      {...(readOnly ? {} : attributes)}
+      {...(readOnly ? {} : listeners)}
+      className={`${crmUi.interactiveRow} p-3 text-sm ${readOnly ? "cursor-default" : "cursor-grab active:cursor-grabbing"}`}
     >
       <p className="truncate text-sm font-medium text-neutral-800" title={opportunity.displayTitle}>
         {opportunity.displayTitle}
@@ -88,7 +94,8 @@ function CardItem({ opportunity }: { opportunity: CrmOpportunity }) {
   )
 }
 
-export function OpportunitiesKanban({ opportunities, onMove }: OpportunitiesKanbanProps) {
+export function OpportunitiesKanban({ opportunities, onMove, readOnly = false }: OpportunitiesKanbanProps) {
+  const isReadOnly = Boolean(readOnly)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   const [pendingLost, setPendingLost] = useState<{ opportunityId: string; toStage: CrmOpportunity["pipelineStage"] } | null>(null)
@@ -110,6 +117,8 @@ export function OpportunitiesKanban({ opportunities, onMove }: OpportunitiesKanb
   }, [opportunities])
 
   const handleDragEnd = async (event: DragEndEvent) => {
+    if (isReadOnly) return
+
     const activeId = String(event.active.id || "")
     if (!activeId) return
 
@@ -140,7 +149,7 @@ export function OpportunitiesKanban({ opportunities, onMove }: OpportunitiesKanb
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
           {CRM_PIPELINE_STAGES.map((stage) => (
-            <StageColumn key={stage} stage={stage}>
+            <StageColumn key={stage} stage={stage} readOnly={isReadOnly}>
               <div className="mb-1.5 flex items-center justify-between">
                 <h4 className="text-[11px] font-medium uppercase tracking-wide text-neutral-600">{CRM_PIPELINE_STAGE_LABELS[stage]}</h4>
                 <span className="rounded-full border border-neutral-200 bg-white px-2 py-0.5 text-[11px] text-neutral-600">{stageMap[stage]?.length || 0}</span>
@@ -148,7 +157,7 @@ export function OpportunitiesKanban({ opportunities, onMove }: OpportunitiesKanb
               <SortableContext items={(stageMap[stage] || []).map((opportunity) => opportunity.id)} strategy={rectSortingStrategy}>
                 <div className="space-y-2">
                   {(stageMap[stage] || []).map((opportunity) => (
-                    <CardItem key={opportunity.id} opportunity={opportunity} />
+                    <CardItem key={opportunity.id} opportunity={opportunity} readOnly={isReadOnly} />
                   ))}
                 </div>
               </SortableContext>
@@ -186,7 +195,7 @@ export function OpportunitiesKanban({ opportunities, onMove }: OpportunitiesKanb
 
             <div className="flex items-center gap-2">
               <Checkbox id="recontact" checked={createRecontactTask} onCheckedChange={(value) => setCreateRecontactTask(Boolean(value))} />
-              <Label htmlFor="recontact">Creează task de recontactare</Label>
+              <Label htmlFor="recontact">Creează sarcină de recontactare</Label>
             </div>
 
             <div className="flex justify-end gap-2">

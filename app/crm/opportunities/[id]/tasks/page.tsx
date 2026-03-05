@@ -36,9 +36,10 @@ function toDateTimeLocal(value: unknown) {
 
 export default function OpportunityTasksPage() {
   const params = useParams()
-  const { user } = useAuth()
+  const { user, userData } = useAuth()
   const opportunityId = String(params?.id || "")
   const { opportunity } = useCrmOpportunity(opportunityId, user?.uid)
+  const isTechnician = userData?.role === "tehnician"
 
   const [users, setUsers] = useState<Array<{ uid: string; displayName: string }>>([])
   const [tasks, setTasks] = useState<CrmTask[]>([])
@@ -50,8 +51,21 @@ export default function OpportunityTasksPage() {
   const [reminderAt, setReminderAt] = useState("")
   const [visibility, setVisibility] = useState<(typeof CRM_VISIBILITIES)[number]>("GENERAL")
   const [visibleToUserIds, setVisibleToUserIds] = useState<string[]>([])
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
+  const [editStatus, setEditStatus] = useState<CrmTask["status"]>("TODO")
+  const [editAssigneeId, setEditAssigneeId] = useState<string>("UNASSIGNED")
+  const [editDueAt, setEditDueAt] = useState("")
+  const [editReminderAt, setEditReminderAt] = useState("")
 
   const userOptions = useMemo(() => users.map((row) => ({ value: row.uid, label: row.displayName })), [users])
+  const userNameMap = useMemo(
+    () =>
+      users.reduce<Record<string, string>>((acc, row) => {
+        acc[row.uid] = row.displayName
+        return acc
+      }, {}),
+    [users]
+  )
 
   const load = async () => {
     if (!opportunity || !user?.uid) return
@@ -79,79 +93,88 @@ export default function OpportunityTasksPage() {
   }, [opportunity?.id, user?.uid])
 
   if (!opportunity) {
-    return <Panel title="Taskuri"><p className="text-xs text-neutral-500">Fără acces la oportunitate.</p></Panel>
+    return <Panel title="Sarcini"><p className="text-xs text-neutral-500">Fără acces la oportunitate.</p></Panel>
   }
 
   return (
-    <Panel title="Taskuri" subtitle="CRUD + quick actions: complete, reassign, reschedule, reminder">
-      <div className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
-        <p className="mb-2 text-xs font-medium text-neutral-700">Task nou</p>
-        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-          <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Titlu task" className="h-8 text-xs" />
-          <Select value={assigneeId} onValueChange={setAssigneeId}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="Assignee" />
-            </SelectTrigger>
-            <SelectContent>
-              {users.map((item) => (
-                <SelectItem key={item.uid} value={item.uid}>
-                  {item.displayName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Input type="datetime-local" value={dueAt} onChange={(event) => setDueAt(event.target.value)} className="h-8 text-xs" />
-          <Input type="datetime-local" value={reminderAt} onChange={(event) => setReminderAt(event.target.value)} className="h-8 text-xs" />
-          <Select value={visibility} onValueChange={(value) => setVisibility(value as typeof visibility)}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="Visibility" />
-            </SelectTrigger>
-            <SelectContent>
-              {CRM_VISIBILITIES.map((item) => (
-                <SelectItem key={item} value={item}>
-                  {CRM_VISIBILITY_LABELS[item]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {visibility === "CUSTOM" ? (
-            <MultiSelect options={userOptions} selected={visibleToUserIds} onChange={setVisibleToUserIds} placeholder="Visible pentru" />
-          ) : null}
+    <Panel
+      title="Sarcini"
+      subtitle={
+        isTechnician
+          ? "Vizualizare read-only: sarcinile tale vizibile în oportunitate."
+          : "CRUD + acțiuni rapide: completare, reasignare, reprogramare, reminder"
+      }
+    >
+      {!isTechnician ? (
+        <div className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+          <p className="mb-2 text-xs font-medium text-neutral-700">Sarcină nouă</p>
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Titlu sarcină" className="h-8 text-xs" />
+            <Select value={assigneeId} onValueChange={setAssigneeId}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Assignee" />
+              </SelectTrigger>
+              <SelectContent>
+                {users.map((item) => (
+                  <SelectItem key={item.uid} value={item.uid}>
+                    {item.displayName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input type="datetime-local" value={dueAt} onChange={(event) => setDueAt(event.target.value)} className="h-8 text-xs" />
+            <Input type="datetime-local" value={reminderAt} onChange={(event) => setReminderAt(event.target.value)} className="h-8 text-xs" />
+            <Select value={visibility} onValueChange={(value) => setVisibility(value as typeof visibility)}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Visibility" />
+              </SelectTrigger>
+              <SelectContent>
+                {CRM_VISIBILITIES.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {CRM_VISIBILITY_LABELS[item]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {visibility === "CUSTOM" ? (
+              <MultiSelect options={userOptions} selected={visibleToUserIds} onChange={setVisibleToUserIds} placeholder="Visible pentru" />
+            ) : null}
+          </div>
+          <div className="mt-2 flex justify-end">
+            <Button
+              size="sm"
+              className="h-8 text-xs"
+              onClick={async () => {
+                if (!title.trim() || !user?.uid) return
+                await createCrmTask({
+                  opportunityId,
+                  title,
+                  createdById: user.uid,
+                  assigneeId,
+                  dueAt: dueAt ? new Date(dueAt) : undefined,
+                  reminderAt: reminderAt ? new Date(reminderAt) : undefined,
+                  visibility,
+                  visibleToUserIds,
+                })
+                setTitle("")
+                setAssigneeId("")
+                setDueAt("")
+                setReminderAt("")
+                setVisibility("GENERAL")
+                setVisibleToUserIds([])
+                await load()
+              }}
+            >
+              Adaugă sarcină
+            </Button>
+          </div>
         </div>
-        <div className="mt-2 flex justify-end">
-          <Button
-            size="sm"
-            className="h-8 text-xs"
-            onClick={async () => {
-              if (!title.trim() || !user?.uid) return
-              await createCrmTask({
-                opportunityId,
-                title,
-                createdById: user.uid,
-                assigneeId,
-                dueAt: dueAt ? new Date(dueAt) : undefined,
-                reminderAt: reminderAt ? new Date(reminderAt) : undefined,
-                visibility,
-                visibleToUserIds,
-              })
-              setTitle("")
-              setAssigneeId("")
-              setDueAt("")
-              setReminderAt("")
-              setVisibility("GENERAL")
-              setVisibleToUserIds([])
-              await load()
-            }}
-          >
-            Adaugă task
-          </Button>
-        </div>
-      </div>
+      ) : null}
 
       {loading ? (
-        <p className="text-xs text-neutral-500">Se încarcă taskurile...</p>
+        <p className="text-xs text-neutral-500">Se încarcă sarcinile...</p>
       ) : tasks.length === 0 ? (
-        <p className="text-xs text-neutral-500">Nu există taskuri vizibile.</p>
+        <p className="text-xs text-neutral-500">Nu există sarcini vizibile.</p>
       ) : (
         <div className="space-y-2">
           {tasks.map((task) => (
@@ -171,108 +194,144 @@ export default function OpportunityTasksPage() {
                 </div>
               </div>
 
-              <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-                <Select
-                  value={task.status}
-                  onValueChange={async (status) => {
-                    await updateCrmTask({ taskId: task.id, actorId: user?.uid || "", status: status as CrmTask["status"] })
-                    await load()
-                  }}
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CRM_TASK_STATUSES.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {CRM_TASK_STATUS_LABELS[status]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  value={task.assigneeId || "UNASSIGNED"}
-                  onValueChange={async (nextAssignee) => {
-                    await updateCrmTask({
-                      taskId: task.id,
-                      actorId: user?.uid || "",
-                      assigneeId: nextAssignee === "UNASSIGNED" ? "" : nextAssignee,
-                    })
-                    await load()
-                  }}
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Reassign" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="UNASSIGNED">Neasignat</SelectItem>
-                    {users.map((item) => (
-                      <SelectItem key={item.uid} value={item.uid}>
-                        {item.displayName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Input
-                  type="datetime-local"
-                  className="h-8 text-xs"
-                  defaultValue={toDateTimeLocal(task.dueAt)}
-                  onBlur={async (event) => {
-                    if (!event.target.value) return
-                    await updateCrmTask({
-                      taskId: task.id,
-                      actorId: user?.uid || "",
-                      dueAt: new Date(event.target.value),
-                    })
-                    await load()
-                  }}
-                />
-
-                <Input
-                  type="datetime-local"
-                  className="h-8 text-xs"
-                  defaultValue={toDateTimeLocal(task.reminderAt)}
-                  onBlur={async (event) => {
-                    if (!event.target.value) return
-                    await updateCrmTask({
-                      taskId: task.id,
-                      actorId: user?.uid || "",
-                      reminderAt: new Date(event.target.value),
-                    })
-                    await load()
-                  }}
-                />
-              </div>
-
-              <div className="mt-2 flex justify-end">
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={async () => {
-                      await completeCrmTask(task.id, user?.uid || "")
-                      await load()
-                    }}
-                    disabled={task.status === "DONE"}
-                  >
-                    Marchează completat
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs text-rose-600"
-                    onClick={async () => {
-                      await deleteCrmTask(task.id, user?.uid || "")
-                      await load()
-                    }}
-                  >
-                    Șterge
-                  </Button>
+              {isTechnician ? (
+                <div className="mt-3 grid gap-1 text-xs text-neutral-600 md:grid-cols-2">
+                  <p>Responsabil: {task.assigneeId ? users.find((row) => row.uid === task.assigneeId)?.displayName || task.assigneeId : "Neasignat"}</p>
+                  <p>Termen: {formatDateTime(task.dueAt)}</p>
+                  <p>Reminder: {formatDateTime(task.reminderAt)}</p>
+                  <p>Vizibilitate: {CRM_VISIBILITY_LABELS[task.visibility]}</p>
                 </div>
-              </div>
+              ) : (
+                <>
+                  {editingTaskId === task.id ? (
+                    <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+                      <Select value={editStatus} onValueChange={(status) => setEditStatus(status as CrmTask["status"])}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CRM_TASK_STATUSES.map((status) => (
+                            <SelectItem key={status} value={status}>
+                              {CRM_TASK_STATUS_LABELS[status]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <Select value={editAssigneeId} onValueChange={setEditAssigneeId}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Reassign" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="UNASSIGNED">Neasignat</SelectItem>
+                          {users.map((item) => (
+                            <SelectItem key={item.uid} value={item.uid}>
+                              {item.displayName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <Input
+                        type="datetime-local"
+                        className="h-8 text-xs"
+                        value={editDueAt}
+                        onChange={(event) => setEditDueAt(event.target.value)}
+                      />
+
+                      <Input
+                        type="datetime-local"
+                        className="h-8 text-xs"
+                        value={editReminderAt}
+                        onChange={(event) => setEditReminderAt(event.target.value)}
+                      />
+                    </div>
+                  ) : (
+                    <div className="mt-3 grid gap-1 text-xs text-neutral-600 md:grid-cols-2">
+                      <p>Status: {taskStatusLabel(task.status)}</p>
+                      <p>Responsabil: {task.assigneeId ? userNameMap[task.assigneeId] || task.assigneeId : "Neasignat"}</p>
+                      <p>Termen: {formatDateTime(task.dueAt)}</p>
+                      <p>Reminder: {formatDateTime(task.reminderAt)}</p>
+                    </div>
+                  )}
+
+                  <div className="mt-2 flex justify-end">
+                    <div className="flex items-center gap-2">
+                      {editingTaskId === task.id ? (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={async () => {
+                              await updateCrmTask({
+                                taskId: task.id,
+                                actorId: user?.uid || "",
+                                status: editStatus,
+                                assigneeId: editAssigneeId === "UNASSIGNED" ? "" : editAssigneeId,
+                                dueAt: editDueAt ? new Date(editDueAt) : null,
+                                reminderAt: editReminderAt ? new Date(editReminderAt) : null,
+                              })
+                              setEditingTaskId(null)
+                              await load()
+                            }}
+                          >
+                            Salvează
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => {
+                              setEditingTaskId(null)
+                            }}
+                          >
+                            Anulează
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => {
+                            setEditingTaskId(task.id)
+                            setEditStatus(task.status)
+                            setEditAssigneeId(task.assigneeId || "UNASSIGNED")
+                            setEditDueAt(toDateTimeLocal(task.dueAt))
+                            setEditReminderAt(toDateTimeLocal(task.reminderAt))
+                          }}
+                        >
+                          Edit
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={async () => {
+                          await completeCrmTask(task.id, user?.uid || "")
+                          await load()
+                        }}
+                        disabled={task.status === "DONE"}
+                      >
+                        Marchează completat
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs text-rose-600"
+                        onClick={async () => {
+                          await deleteCrmTask(task.id, user?.uid || "")
+                          await load()
+                        }}
+                      >
+                        Șterge
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           ))}
         </div>

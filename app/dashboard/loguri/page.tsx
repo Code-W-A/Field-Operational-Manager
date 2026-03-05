@@ -50,10 +50,29 @@ interface OfferErrorReport {
   [key: string]: any
 }
 
+interface CrmActivityDashboard {
+  id: string
+  opportunityId?: string
+  actorId?: string
+  type?: string
+  payload?: Record<string, unknown>
+  createdAt?: any
+  visibility?: string
+  [key: string]: any
+}
+
 export default function Loguri() {
   const [activeTab, setActiveTab] = useState("tabel")
   const [activeMainTab, setActiveMainTab] = useState("sistem")
   const [logs, setLogs] = useState<any[]>([])
+  const [crmLogs, setCrmLogs] = useState<CrmActivityDashboard[]>([])
+  const [crmFiltered, setCrmFiltered] = useState<CrmActivityDashboard[]>([])
+  const [crmSearchText, setCrmSearchText] = useState("")
+  const [crmLoading, setCrmLoading] = useState(false)
+  const [crmLoadError, setCrmLoadError] = useState<string | null>(null)
+  const [crmUserMap, setCrmUserMap] = useState<Record<string, string>>({})
+  const [selectedCrmLog, setSelectedCrmLog] = useState<CrmActivityDashboard | null>(null)
+  const [isCrmDetailsOpen, setIsCrmDetailsOpen] = useState(false)
   const [emailEvents, setEmailEvents] = useState<EmailEvent[]>([])
   const [emailFiltered, setEmailFiltered] = useState<EmailEvent[]>([])
   const [emailFilters, setEmailFilters] = useState<FilterOption[]>([])
@@ -160,6 +179,39 @@ export default function Loguri() {
       }
     }
     fetchEmailEvents()
+  }, [])
+
+  // Încărcăm logurile CRM activity
+  useEffect(() => {
+    const fetchCrmActivity = async () => {
+      try {
+        setCrmLoading(true)
+        const [crmSnapshot, usersSnapshot] = await Promise.all([
+          getDocs(query(collection(db, "crm_activity_logs"), orderBy("createdAt", "desc"))),
+          getDocs(query(collection(db, "users"), orderBy("displayName", "asc"))),
+        ])
+
+        const activityRows: CrmActivityDashboard[] = []
+        crmSnapshot.forEach((doc) => activityRows.push({ id: doc.id, ...(doc.data() as any) }))
+
+        const userMap: Record<string, string> = {}
+        usersSnapshot.forEach((doc) => {
+          const data = doc.data() as any
+          userMap[doc.id] = data.displayName || data.email || doc.id
+        })
+
+        setCrmLogs(activityRows)
+        setCrmFiltered(activityRows)
+        setCrmUserMap(userMap)
+        setCrmLoadError(null)
+      } catch (e) {
+        console.error("Eroare la încărcarea crm_activity_logs:", e)
+        setCrmLoadError("A apărut o eroare la încărcarea logurilor CRM.")
+      } finally {
+        setCrmLoading(false)
+      }
+    }
+    fetchCrmActivity()
   }, [])
 
   // Încărcăm raportările de erori trimise din portal ofertă
@@ -277,6 +329,22 @@ export default function Loguri() {
     }
     setOfferErrorReportsFiltered(result)
   }, [offerErrorReports, offerErrorSearchText])
+
+  useEffect(() => {
+    let result = [...crmLogs]
+    const q = crmSearchText.trim().toLowerCase()
+
+    if (q) {
+      result = result.filter((item) => {
+        const actorLabel = crmUserMap[item.actorId || ""] || item.actorId || ""
+        const payloadText = item.payload ? JSON.stringify(item.payload) : ""
+        const fields = [item.type, item.actorId, actorLabel, item.opportunityId, item.visibility, payloadText]
+        return fields.some((f) => (f ? String(f).toLowerCase().includes(q) : false))
+      })
+    }
+
+    setCrmFiltered(result)
+  }, [crmLogs, crmSearchText, crmUserMap])
 
   // Încărcăm setările salvate la inițializare
   useEffect(() => {
@@ -890,6 +958,7 @@ export default function Loguri() {
         <Tabs value={activeMainTab} onValueChange={setActiveMainTab}>
           <TabsList>
             <TabsTrigger value="sistem">Loguri sistem</TabsTrigger>
+            <TabsTrigger value="crm">CRM</TabsTrigger>
             <TabsTrigger value="emailuri">Emailuri</TabsTrigger>
             <TabsTrigger value="erori-trimise">Erori trimise</TabsTrigger>
           </TabsList>
@@ -1233,6 +1302,112 @@ export default function Loguri() {
           </div>
         )}
 
+          </TabsContent>
+
+          <TabsContent value="crm">
+            <div className="space-y-3">
+              <UniversalSearch onSearch={setCrmSearchText} initialValue={crmSearchText} className="flex-1" />
+
+              {crmLoading ? (
+                <div className="flex items-center gap-2 py-8">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span>Se încarcă logurile CRM...</span>
+                </div>
+              ) : crmLoadError ? (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{crmLoadError}</AlertDescription>
+                </Alert>
+              ) : crmFiltered.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nu există loguri CRM.</p>
+              ) : (
+                <div className="grid gap-3 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3">
+                  {crmFiltered.map((item) => (
+                    <Card
+                      key={item.id}
+                      className="cursor-pointer hover:bg-muted/40"
+                      onClick={() => {
+                        setSelectedCrmLog(item)
+                        setIsCrmDetailsOpen(true)
+                      }}
+                    >
+                      <CardContent className="p-4 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <Badge variant="outline">{item.type || "-"}</Badge>
+                          <span className="text-xs text-muted-foreground">{formatDate(item.createdAt)}</span>
+                        </div>
+                        <div className="grid grid-cols-1 gap-1 text-sm">
+                          <div>
+                            Actor: <span className="font-medium">{crmUserMap[item.actorId || ""] || item.actorId || "-"}</span>
+                          </div>
+                          <div>
+                            Oportunitate: <span className="font-mono text-xs">{item.opportunityId || "-"}</span>
+                          </div>
+                          <div>
+                            Vizibilitate: <span>{item.visibility || "-"}</span>
+                          </div>
+                          <div className="text-muted-foreground line-clamp-2">
+                            {item.payload ? JSON.stringify(item.payload) : "Fără payload"}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <Dialog
+              open={isCrmDetailsOpen}
+              onOpenChange={(open) => {
+                setIsCrmDetailsOpen(open)
+                if (!open) setSelectedCrmLog(null)
+              }}
+            >
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Detalii log CRM</DialogTitle>
+                </DialogHeader>
+                {selectedCrmLog ? (
+                  <div className="space-y-3 text-sm">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="outline">{selectedCrmLog.type || "-"}</Badge>
+                      <Badge variant="outline">{selectedCrmLog.visibility || "-"}</Badge>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-muted-foreground">Actor:</span>{" "}
+                        <span>{crmUserMap[selectedCrmLog.actorId || ""] || selectedCrmLog.actorId || "-"}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Data:</span> {formatDate(selectedCrmLog.createdAt)}
+                      </div>
+                      <div className="sm:col-span-2">
+                        <span className="text-muted-foreground">Oportunitate:</span>{" "}
+                        <span className="font-mono text-xs">{selectedCrmLog.opportunityId || "-"}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground mb-1">Payload</div>
+                      <pre className="max-h-[300px] overflow-auto rounded bg-muted p-3 text-xs">
+{JSON.stringify(selectedCrmLog.payload || {}, null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+                ) : null}
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsCrmDetailsOpen(false)
+                      setSelectedCrmLog(null)
+                    }}
+                  >
+                    Închide
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           <TabsContent value="emailuri">

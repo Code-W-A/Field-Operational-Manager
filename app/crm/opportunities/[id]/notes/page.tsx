@@ -17,9 +17,10 @@ import { formatDateTime } from "@/lib/crm/presenters"
 
 export default function OpportunityNotesPage() {
   const params = useParams()
-  const { user } = useAuth()
+  const { user, userData } = useAuth()
   const opportunityId = String(params?.id || "")
   const { opportunity } = useCrmOpportunity(opportunityId, user?.uid)
+  const isTechnician = userData?.role === "tehnician"
 
   const [content, setContent] = useState("")
   const [visibility, setVisibility] = useState<(typeof CRM_VISIBILITIES)[number]>("GENERAL")
@@ -29,6 +30,14 @@ export default function OpportunityNotesPage() {
   const [loading, setLoading] = useState(true)
 
   const userOptions = useMemo(() => users.map((row) => ({ value: row.uid, label: row.displayName })), [users])
+  const userNameMap = useMemo(
+    () =>
+      users.reduce<Record<string, string>>((acc, row) => {
+        acc[row.uid] = row.displayName
+        return acc
+      }, {}),
+    [users]
+  )
 
   const load = async () => {
     if (!opportunity || !user?.uid) return
@@ -61,61 +70,70 @@ export default function OpportunityNotesPage() {
   }
 
   return (
-    <Panel title="Note" subtitle="CRUD note cu visibility picker (General / Particular / Personalizat)">
-      <div className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
-        <div className="grid gap-2">
-          <Label htmlFor="note-content">Notă nouă</Label>
-          <Textarea
-            id="note-content"
-            value={content}
-            onChange={(event) => setContent(event.target.value)}
-            className="min-h-[90px] text-xs"
-            placeholder="Scrie nota..."
-          />
+    <Panel
+      title="Note"
+      subtitle={
+        isTechnician
+          ? "Vizualizare read-only: notele vizibile în oportunitate."
+          : "CRUD note cu visibility picker (General / Particular / Personalizat)"
+      }
+    >
+      {!isTechnician ? (
+        <div className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+          <div className="grid gap-2">
+            <Label htmlFor="note-content">Notă nouă</Label>
+            <Textarea
+              id="note-content"
+              value={content}
+              onChange={(event) => setContent(event.target.value)}
+              className="min-h-[90px] text-xs"
+              placeholder="Scrie nota..."
+            />
 
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Select value={visibility} onValueChange={(value) => setVisibility(value as typeof visibility)}>
-              <SelectTrigger className="h-8 text-xs">
-                <SelectValue placeholder="Visibility" />
-              </SelectTrigger>
-              <SelectContent>
-                {CRM_VISIBILITIES.map((item) => (
-                  <SelectItem key={item} value={item}>
-                    {CRM_VISIBILITY_LABELS[item]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Select value={visibility} onValueChange={(value) => setVisibility(value as typeof visibility)}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Visibility" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CRM_VISIBILITIES.map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {CRM_VISIBILITY_LABELS[item]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            {visibility === "CUSTOM" ? (
-              <MultiSelect options={userOptions} selected={visibleToUserIds} onChange={setVisibleToUserIds} placeholder="Alege useri" />
-            ) : null}
+              {visibility === "CUSTOM" ? (
+                <MultiSelect options={userOptions} selected={visibleToUserIds} onChange={setVisibleToUserIds} placeholder="Alege useri" />
+              ) : null}
+            </div>
+          </div>
+
+          <div className="mt-2 flex justify-end">
+            <Button
+              size="sm"
+              className="h-8 text-xs"
+              onClick={async () => {
+                if (!content.trim() || !user?.uid) return
+                await createCrmNote({
+                  opportunityId,
+                  content,
+                  createdById: user.uid,
+                  visibility,
+                  visibleToUserIds,
+                })
+                setContent("")
+                setVisibility("GENERAL")
+                setVisibleToUserIds([])
+                await load()
+              }}
+            >
+              Adaugă notă
+            </Button>
           </div>
         </div>
-
-        <div className="mt-2 flex justify-end">
-          <Button
-            size="sm"
-            className="h-8 text-xs"
-            onClick={async () => {
-              if (!content.trim() || !user?.uid) return
-              await createCrmNote({
-                opportunityId,
-                content,
-                createdById: user.uid,
-                visibility,
-                visibleToUserIds,
-              })
-              setContent("")
-              setVisibility("GENERAL")
-              setVisibleToUserIds([])
-              await load()
-            }}
-          >
-            Adaugă notă
-          </Button>
-        </div>
-      </div>
+      ) : null}
 
       {loading ? (
         <p className="text-xs text-neutral-500">Se încarcă notele...</p>
@@ -131,18 +149,20 @@ export default function OpportunityNotesPage() {
               </div>
               <p className="text-xs text-neutral-700 whitespace-pre-wrap">{note.content}</p>
               <div className="mt-2 flex items-center justify-between gap-2">
-                <p className="text-[11px] text-neutral-400">de {note.createdById}</p>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs text-rose-600"
-                  onClick={async () => {
-                    await deleteCrmNote(note.id, user?.uid || "")
-                    await load()
-                  }}
-                >
-                  Șterge
-                </Button>
+                <p className="text-[11px] text-neutral-400">de {userNameMap[note.createdById] || note.createdById}</p>
+                {!isTechnician ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-rose-600"
+                    onClick={async () => {
+                      await deleteCrmNote(note.id, user?.uid || "")
+                      await load()
+                    }}
+                  >
+                    Șterge
+                  </Button>
+                ) : null}
               </div>
             </div>
           ))}

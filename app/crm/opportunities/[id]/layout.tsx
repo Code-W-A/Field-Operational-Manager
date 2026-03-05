@@ -26,9 +26,10 @@ interface OpportunityLayoutProps {
 
 export default function OpportunityLayout({ children }: OpportunityLayoutProps) {
   const params = useParams()
-  const { user } = useAuth()
+  const { user, userData } = useAuth()
   const { toast } = useToast()
   const opportunityId = String(params?.id || "")
+  const isTechnician = userData?.role === "tehnician"
 
   const [opportunity, setOpportunity] = useState<CrmOpportunity | null>(null)
   const [client, setClient] = useState<CrmClient | null>(null)
@@ -87,7 +88,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
   const tabs = useMemo(
     () => [
       { href: `/crm/opportunities/${opportunityId}/timeline`, label: "Istoric", icon: Timer },
-      { href: `/crm/opportunities/${opportunityId}/tasks`, label: "Taskuri", icon: ClipboardCheck },
+      { href: `/crm/opportunities/${opportunityId}/tasks`, label: "Sarcini", icon: ClipboardCheck },
       { href: `/crm/opportunities/${opportunityId}/notes`, label: "Note", icon: MessageSquare },
       { href: `/crm/opportunities/${opportunityId}/files`, label: "Fișiere", icon: FileText },
       { href: `/crm/opportunities/${opportunityId}/emails`, label: "Email", icon: Mail },
@@ -97,6 +98,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
   )
 
   const handleTitleSave = async () => {
+    if (isTechnician) return
     if (!opportunity || !user?.uid) return
     const nextTitle = titleDraft.trim()
 
@@ -151,11 +153,50 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
   const ownerLabel = userMap[opportunity.ownerId] || opportunity.ownerId || "-"
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[260px_1fr_300px]">
-      <div>
-        <details className="xl:hidden rounded-xl border border-neutral-200 bg-white">
-          <summary className="cursor-pointer px-4 py-3 text-xs font-medium text-neutral-700">Fields</summary>
-          <div className="border-t border-neutral-100 px-4 py-3">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="grid flex-1 min-h-0 gap-3 xl:grid-cols-[260px_1fr_300px]">
+        <div className="xl:h-full">
+          <details className="xl:hidden rounded-xl border border-neutral-200 bg-white">
+            <summary className="cursor-pointer px-4 py-3 text-xs font-medium text-neutral-700">Fields</summary>
+            <div className="border-t border-neutral-100 px-4 py-3">
+              <div className="grid grid-cols-[110px_1fr] gap-2 text-xs">
+                <span className="text-neutral-500">Code</span>
+                <span className="text-neutral-800">{opportunity.code}</span>
+
+                <span className="text-neutral-500">Titlu</span>
+                <span className="text-neutral-800">{opportunity.title}</span>
+
+                <span className="text-neutral-500">Amount</span>
+                <span className="text-neutral-800">{typeof opportunity.amount === "number" ? `${opportunity.amount.toLocaleString("ro-RO")} RON` : "-"}</span>
+
+                <span className="text-neutral-500">Close date</span>
+                <span className="text-neutral-800">{formatDateTime(opportunity.closeDate)}</span>
+
+                <span className="text-neutral-500">Created by</span>
+                <span className="text-neutral-800">{createdByLabel}</span>
+
+                <span className="text-neutral-500">Owner</span>
+                <span className="text-neutral-800">{ownerLabel}</span>
+
+                <span className="text-neutral-500">Stage</span>
+                <span className="text-neutral-800">{stageLabel(opportunity.pipelineStage)}</span>
+
+                <span className="text-neutral-500">Prioritate</span>
+                <span className="text-neutral-800">{priorityLabel(opportunity.priority)}</span>
+
+                <span className="text-neutral-500">Status</span>
+                <span className="text-neutral-800">{workStatusLabel(opportunity.workStatus)}</span>
+
+                <span className="text-neutral-500">Last update</span>
+                <span className="text-neutral-800">{formatDateTime(opportunity.updatedAt)}</span>
+              </div>
+            </div>
+          </details>
+          <Panel
+            title="Fields"
+            className="hidden bg-white shadow-none xl:block xl:h-full xl:rounded-none xl:border-y-0 xl:border-l-0 xl:border-r xl:border-neutral-300"
+            contentClassName="space-y-2"
+          >
             <div className="grid grid-cols-[110px_1fr] gap-2 text-xs">
               <span className="text-neutral-500">Code</span>
               <span className="text-neutral-800">{opportunity.code}</span>
@@ -187,126 +228,122 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
               <span className="text-neutral-500">Last update</span>
               <span className="text-neutral-800">{formatDateTime(opportunity.updatedAt)}</span>
             </div>
-          </div>
-        </details>
-        <Panel title="Fields" className="hidden bg-neutral-50 xl:block" contentClassName="space-y-2">
-          <div className="grid grid-cols-[110px_1fr] gap-2 text-xs">
-            <span className="text-neutral-500">Code</span>
-            <span className="text-neutral-800">{opportunity.code}</span>
-
-            <span className="text-neutral-500">Titlu</span>
-            <span className="text-neutral-800">{opportunity.title}</span>
-
-            <span className="text-neutral-500">Amount</span>
-            <span className="text-neutral-800">{typeof opportunity.amount === "number" ? `${opportunity.amount.toLocaleString("ro-RO")} RON` : "-"}</span>
-
-            <span className="text-neutral-500">Close date</span>
-            <span className="text-neutral-800">{formatDateTime(opportunity.closeDate)}</span>
-
-            <span className="text-neutral-500">Created by</span>
-            <span className="text-neutral-800">{createdByLabel}</span>
-
-            <span className="text-neutral-500">Owner</span>
-            <span className="text-neutral-800">{ownerLabel}</span>
-
-            <span className="text-neutral-500">Stage</span>
-            <span className="text-neutral-800">{stageLabel(opportunity.pipelineStage)}</span>
-
-            <span className="text-neutral-500">Prioritate</span>
-            <span className="text-neutral-800">{priorityLabel(opportunity.priority)}</span>
-
-            <span className="text-neutral-500">Status</span>
-            <span className="text-neutral-800">{workStatusLabel(opportunity.workStatus)}</span>
-
-            <span className="text-neutral-500">Last update</span>
-            <span className="text-neutral-800">{formatDateTime(opportunity.updatedAt)}</span>
-          </div>
-        </Panel>
-      </div>
-
-      <section className="space-y-3">
-        <div className="rounded-xl border border-neutral-200 bg-white px-4 py-3">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div className="min-w-[280px] flex-1">
-              {isEditingTitle ? (
-                <Input
-                  value={titleDraft}
-                  onChange={(event) => setTitleDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault()
-                      void handleTitleSave()
-                    }
-                    if (event.key === "Escape") {
-                      event.preventDefault()
-                      setTitleDraft(opportunity.title)
-                      setIsEditingTitle(false)
-                    }
-                  }}
-                  placeholder="Titlu oportunitate"
-                  disabled={isSavingTitle}
-                  className="h-9 text-sm"
-                />
-              ) : (
-                <p className="text-sm font-medium text-neutral-900">{opportunity.displayTitle}</p>
-              )}
-            </div>
-            <div className="flex items-center gap-1">
-              {isEditingTitle ? (
-                <>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-8 px-2 text-xs"
-                    onClick={() => {
-                      setTitleDraft(opportunity.title)
-                      setIsEditingTitle(false)
-                    }}
-                    disabled={isSavingTitle}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="h-8 px-2 text-xs"
-                    onClick={() => void handleTitleSave()}
-                    disabled={isSavingTitle}
-                  >
-                    {isSavingTitle ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="h-8 text-xs"
-                  onClick={() => setIsEditingTitle(true)}
-                >
-                  <Pencil className="mr-1 h-3.5 w-3.5" />
-                  Editează titlu
-                </Button>
-              )}
-            </div>
-          </div>
-          <p className="mt-1 text-xs text-neutral-500">
-            {stageLabel(opportunity.pipelineStage)} • {priorityLabel(opportunity.priority)} • {workStatusLabel(opportunity.workStatus)}
-          </p>
+          </Panel>
         </div>
-        <TabsHeader items={tabs} />
-        <div>{children}</div>
-      </section>
 
-      <div>
-        <details className="xl:hidden rounded-xl border border-neutral-200 bg-white">
-          <summary className="cursor-pointer px-4 py-3 text-xs font-medium text-neutral-700">Client & contacte</summary>
-          <div className="space-y-4 border-t border-neutral-100 px-4 py-3">
+        <section className="min-h-0 space-y-3">
+          <div className="rounded-xl border border-neutral-200 bg-white px-4 py-3">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-[280px] flex-1">
+                {!isTechnician && isEditingTitle ? (
+                  <Input
+                    value={titleDraft}
+                    onChange={(event) => setTitleDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault()
+                        void handleTitleSave()
+                      }
+                      if (event.key === "Escape") {
+                        event.preventDefault()
+                        setTitleDraft(opportunity.title)
+                        setIsEditingTitle(false)
+                      }
+                    }}
+                    placeholder="Titlu oportunitate"
+                    disabled={isSavingTitle}
+                    className="h-9 text-sm"
+                  />
+                ) : (
+                  <p className="text-sm font-medium text-neutral-900">{opportunity.displayTitle}</p>
+                )}
+              </div>
+              {!isTechnician ? (
+                <div className="flex items-center gap-1">
+                  {isEditingTitle ? (
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-2 text-xs"
+                        onClick={() => {
+                          setTitleDraft(opportunity.title)
+                          setIsEditingTitle(false)
+                        }}
+                        disabled={isSavingTitle}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-8 px-2 text-xs"
+                        onClick={() => void handleTitleSave()}
+                        disabled={isSavingTitle}
+                      >
+                        {isSavingTitle ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs"
+                      onClick={() => setIsEditingTitle(true)}
+                    >
+                      <Pencil className="mr-1 h-3.5 w-3.5" />
+                      Editează titlu
+                    </Button>
+                  )}
+                </div>
+              ) : null}
+            </div>
+            <p className="mt-1 text-xs text-neutral-500">
+              {stageLabel(opportunity.pipelineStage)} • {priorityLabel(opportunity.priority)} • {workStatusLabel(opportunity.workStatus)}
+            </p>
+          </div>
+          <TabsHeader items={tabs} />
+          <div>{children}</div>
+        </section>
+
+        <div className="xl:h-full">
+          <details className="xl:hidden rounded-xl border border-neutral-200 bg-white">
+            <summary className="cursor-pointer px-4 py-3 text-xs font-medium text-neutral-700">Client & contacte</summary>
+            <div className="space-y-4 border-t border-neutral-100 px-4 py-3">
+              <div className="rounded-lg border border-neutral-200 bg-white p-3">
+                <p className="text-sm font-medium text-neutral-900">{client?.name || "-"}</p>
+                <p className="mt-1 text-xs text-neutral-500">{client?.address || "Adresă indisponibilă"}</p>
+              </div>
+              <div>
+                <p className="mb-2 text-xs font-medium text-neutral-700">Contacte</p>
+                {selectedContacts.length === 0 ? (
+                  <p className="text-xs text-neutral-500">Nu există contacte selectate.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {selectedContacts.map((contact) => (
+                      <div key={contact.id} className="rounded-lg border border-neutral-200 bg-white p-2">
+                        <p className="text-xs font-medium text-neutral-800">{contact.name}</p>
+                        <p className="text-xs text-neutral-500">{contact.phone}</p>
+                        <p className="text-xs text-neutral-500">{contact.email || "-"}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </details>
+          <Panel
+            title="Client"
+            className="hidden bg-[#f3f4f6] shadow-none xl:block xl:h-full xl:rounded-none xl:border-y-0 xl:border-r-0 xl:border-l xl:border-neutral-300"
+            contentClassName="space-y-4"
+          >
             <div className="rounded-lg border border-neutral-200 bg-white p-3">
               <p className="text-sm font-medium text-neutral-900">{client?.name || "-"}</p>
               <p className="mt-1 text-xs text-neutral-500">{client?.address || "Adresă indisponibilă"}</p>
             </div>
+
             <div>
               <p className="mb-2 text-xs font-medium text-neutral-700">Contacte</p>
               {selectedContacts.length === 0 ? (
@@ -323,49 +360,26 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                 </div>
               )}
             </div>
-          </div>
-        </details>
-        <Panel title="Client" className="hidden bg-neutral-50 xl:block" contentClassName="space-y-4">
-          <div className="rounded-lg border border-neutral-200 bg-white p-3">
-            <p className="text-sm font-medium text-neutral-900">{client?.name || "-"}</p>
-            <p className="mt-1 text-xs text-neutral-500">{client?.address || "Adresă indisponibilă"}</p>
-          </div>
 
-          <div>
-            <p className="mb-2 text-xs font-medium text-neutral-700">Contacte</p>
-            {selectedContacts.length === 0 ? (
-              <p className="text-xs text-neutral-500">Nu există contacte selectate.</p>
-            ) : (
+            <div>
+              <p className="mb-2 text-xs font-medium text-neutral-700">Pipeline</p>
               <div className="space-y-2">
-                {selectedContacts.map((contact) => (
-                  <div key={contact.id} className="rounded-lg border border-neutral-200 bg-white p-2">
-                    <p className="text-xs font-medium text-neutral-800">{contact.name}</p>
-                    <p className="text-xs text-neutral-500">{contact.phone}</p>
-                    <p className="text-xs text-neutral-500">{contact.email || "-"}</p>
+                {CRM_PIPELINE_STAGES.map((stage) => (
+                  <div key={stage} className="flex items-center gap-2 text-xs">
+                    <span
+                      className={`h-2 w-2 rounded-full ${
+                        opportunity.pipelineStage === stage ? "bg-blue-500" : "bg-neutral-300"
+                      }`}
+                    />
+                    <span className={opportunity.pipelineStage === stage ? "text-neutral-900" : "text-neutral-500"}>
+                      {CRM_PIPELINE_STAGE_LABELS[stage]}
+                    </span>
                   </div>
                 ))}
               </div>
-            )}
-          </div>
-
-          <div>
-            <p className="mb-2 text-xs font-medium text-neutral-700">Pipeline</p>
-            <div className="space-y-2">
-              {CRM_PIPELINE_STAGES.map((stage) => (
-                <div key={stage} className="flex items-center gap-2 text-xs">
-                  <span
-                    className={`h-2 w-2 rounded-full ${
-                      opportunity.pipelineStage === stage ? "bg-blue-500" : "bg-neutral-300"
-                    }`}
-                  />
-                  <span className={opportunity.pipelineStage === stage ? "text-neutral-900" : "text-neutral-500"}>
-                    {CRM_PIPELINE_STAGE_LABELS[stage]}
-                  </span>
-                </div>
-              ))}
             </div>
-          </div>
-        </Panel>
+          </Panel>
+        </div>
       </div>
     </div>
   )

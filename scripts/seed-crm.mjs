@@ -147,8 +147,8 @@ async function main() {
   })
 
   const opportunityB = await createOpportunity({
-    title: "Upgrade videointerfon",
-    type: "PROIECTE",
+    title: "Livrare echipamente control acces",
+    type: "LIVRARI",
     stage: "OFERTA_TRIMISA",
     ownerId,
     clientId: clientRef.id,

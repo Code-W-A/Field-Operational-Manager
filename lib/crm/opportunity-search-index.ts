@@ -1,0 +1,124 @@
+import {
+  collection,
+  doc,
+  documentId,
+  getDoc,
+  getDocs,
+  limit,
+  query,
+  serverTimestamp,
+  updateDoc,
+  where,
+} from "firebase/firestore"
+import { db } from "@/lib/firebase/config"
+import { CRM_COLLECTIONS } from "@/lib/crm/constants"
+
+const IN_QUERY_BATCH_SIZE = 10
+
+function normalizePart(value: unknown) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+}
+
+function pushText(parts: string[], value: unknown) {
+  const normalized = normalizePart(value)
+  if (normalized) parts.push(normalized)
+}
+
+function chunk<T>(items: T[], size = IN_QUERY_BATCH_SIZE) {
+  const result: T[][] = []
+  for (let i = 0; i < items.length; i += size) {
+    result.push(items.slice(i, i + size))
+  }
+  return result
+}
+
+export async function rebuildOpportunitySearchIndex(opportunityId: string) {
+  const opportunityRef = doc(db, CRM_COLLECTIONS.opportunities, opportunityId)
+  const opportunitySnap = await getDoc(opportunityRef)
+  if (!opportunitySnap.exists()) return
+
+  const opportunityData = opportunitySnap.data() as Record<string, unknown>
+  const parts: string[] = []
+
+  pushText(parts, opportunityData.code)
+  pushText(parts, opportunityData.title)
+  pushText(parts, opportunityData.displayTitle)
+
+  const clientId = String(opportunityData.clientId || "")
+  if (clientId) {
+    const crmClientSnap = await getDoc(doc(db, CRM_COLLECTIONS.clients, clientId))
+    if (crmClientSnap.exists()) {
+      const clientData = crmClientSnap.data() as Record<string, unknown>
+      pushText(parts, clientData.name)
+    } else {
+      const legacyClientSnap = await getDoc(doc(db, "clienti", clientId))
+      if (legacyClientSnap.exists()) {
+        const legacyData = legacyClientSnap.data() as Record<string, unknown>
+        pushText(parts, legacyData.nume)
+      }
+    }
+  }
+
+  const opportunityContactsRows = await getDocs(
+    query(collection(db, CRM_COLLECTIONS.opportunityContacts), where("opportunityId", "==", opportunityId), limit(200))
+  )
+  const contactIds = Array.from(
+    new Set(
+      opportunityContactsRows.docs
+        .map((row) => String((row.data() as Record<string, unknown>).contactId || ""))
+        .filter(Boolean)
+    )
+  )
+
+  for (const ids of chunk(contactIds)) {
+    const contactRows = await getDocs(query(collection(db, CRM_COLLECTIONS.clientContacts), where(documentId(), "in", ids)))
+    contactRows.docs.forEach((row) => {
+      const data = row.data() as Record<string, unknown>
+      pushText(parts, data.name)
+      pushText(parts, data.phone)
+      pushText(parts, data.email)
+    })
+  }
+
+  const [taskRows, noteRows, emailRows, calendarRows, fileRows] = await Promise.all([
+    getDocs(query(collection(db, CRM_COLLECTIONS.tasks), where("opportunityId", "==", opportunityId), limit(300))),
+    getDocs(query(collection(db, CRM_COLLECTIONS.notes), where("opportunityId", "==", opportunityId), limit(300))),
+    getDocs(query(collection(db, CRM_COLLECTIONS.emails), where("opportunityId", "==", opportunityId), limit(300))),
+    getDocs(query(collection(db, CRM_COLLECTIONS.calendarEvents), where("opportunityId", "==", opportunityId), limit(300))),
+    getDocs(query(collection(db, CRM_COLLECTIONS.files), where("opportunityId", "==", opportunityId), limit(300))),
+  ])
+
+  taskRows.docs.forEach((row) => {
+    const data = row.data() as Record<string, unknown>
+    pushText(parts, data.title)
+  })
+  noteRows.docs.forEach((row) => {
+    const data = row.data() as Record<string, unknown>
+    pushText(parts, data.content)
+  })
+  emailRows.docs.forEach((row) => {
+    const data = row.data() as Record<string, unknown>
+    pushText(parts, data.subject)
+    pushText(parts, data.bodySnippet)
+    pushText(parts, data.from)
+    const to = Array.isArray(data.to) ? (data.to as unknown[]) : []
+    to.forEach((entry) => pushText(parts, entry))
+  })
+  calendarRows.docs.forEach((row) => {
+    const data = row.data() as Record<string, unknown>
+    pushText(parts, data.title)
+    pushText(parts, data.location)
+  })
+  fileRows.docs.forEach((row) => {
+    const data = row.data() as Record<string, unknown>
+    pushText(parts, data.filename)
+  })
+
+  const searchIndex = Array.from(new Set(parts)).join(" ")
+  await updateDoc(opportunityRef, {
+    searchIndex,
+    searchIndexUpdatedAt: serverTimestamp(),
+  })
+}

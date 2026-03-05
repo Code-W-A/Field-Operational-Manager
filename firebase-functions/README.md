@@ -26,6 +26,22 @@ Funcție scheduled care rulează automat la orele:
 - Creează automat lucrări neatribuite cu "X zile înainte" de data reviziei
 - Marchează contractele cu `lastAutoWorkGenerated` pentru a evita duplicatele
 
+### `onCrmTaskCreatedEmail`
+Trigger Firestore pe `crm_tasks/{taskId}`.
+
+**Funcționalitate:**
+- Rulează când se creează o sarcină CRM (inclusiv sarcini automate).
+- Trimite direct email către `Responsabil + Owner oportunitate` prin SMTP.
+- Loghează statusul în colecția `emailEvents` cu tip `CRM_TASK`.
+
+### `sendCrmTaskReminders15m`
+Funcție scheduled care rulează la fiecare minut.
+
+**Funcționalitate:**
+- Selectează sarcini CRM cu `dueAt` în fereastra `T-15m` (toleranță 14–16 minute).
+- Filtrează local doar statusurile deschise (`TODO`, `IN_PROGRESS`).
+- Trimite direct email reminder prin SMTP.
+
 ## Setup
 
 ### 1. Instalare dependențe
@@ -40,6 +56,17 @@ npm install
 ```bash
 npm run build
 ```
+
+### Config necesar pentru notificările CRM task
+
+Setări SMTP pentru Firebase Functions (env/config):
+
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_SECURE`
+- `SMTP_USER`
+- `SMTP_PASS`
+- opțional `SMTP_FROM`
 
 ### 3. Test local cu Firebase Emulator
 
@@ -153,4 +180,3 @@ Funcția folosește `lastAutoWorkGenerated` pentru a preveni duplicatele. Dacă 
 - Funcție scheduled: ~3 invocări/zi = ~90 invocări/lună
 - Sub limita gratuită Firebase (125K invocări/lună)
 - Citiri Firestore: depinde de numărul de contracte și echipamente
-

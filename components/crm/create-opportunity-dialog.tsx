@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MultiSelect } from "@/components/ui/multi-select"
 import {
-  CRM_OPPORTUNITY_TYPES,
+  CRM_OPPORTUNITY_SELECTABLE_TYPES,
   CRM_OPPORTUNITY_TYPE_LABELS,
   CRM_PIPELINE_STAGES,
   CRM_PIPELINE_STAGE_LABELS,
@@ -30,9 +30,12 @@ import { crmUi } from "@/components/crm/ui"
 interface CreateOpportunityDialogProps {
   actorId: string
   onCreated: (opportunityId: string) => void
+  iconOnly?: boolean
 }
 
-export function CreateOpportunityDialog({ actorId, onCreated }: CreateOpportunityDialogProps) {
+type SelectableOpportunityType = (typeof CRM_OPPORTUNITY_SELECTABLE_TYPES)[number]
+
+export function CreateOpportunityDialog({ actorId, onCreated, iconOnly = false }: CreateOpportunityDialogProps) {
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -46,7 +49,7 @@ export function CreateOpportunityDialog({ actorId, onCreated }: CreateOpportunit
   const [ownerId, setOwnerId] = useState("")
   const [pipelineStage, setPipelineStage] = useState<(typeof CRM_PIPELINE_STAGES)[number]>("NOU")
   const [priority, setPriority] = useState<(typeof CRM_PRIORITIES)[number]>("MEDIUM")
-  const [opportunityType, setOpportunityType] = useState<(typeof CRM_OPPORTUNITY_TYPES)[number]>("ACASA")
+  const [opportunityType, setOpportunityType] = useState<SelectableOpportunityType>("VANZARI")
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([])
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false)
   const [clientSearchTerm, setClientSearchTerm] = useState("")
@@ -112,7 +115,7 @@ export function CreateOpportunityDialog({ actorId, onCreated }: CreateOpportunit
     setOwnerId("")
     setPipelineStage("NOU")
     setPriority("MEDIUM")
-    setOpportunityType("ACASA")
+    setOpportunityType("VANZARI")
     setSelectedContactIds([])
     setClientSearchTerm("")
     setClientActiveIndex(-1)
@@ -161,7 +164,7 @@ export function CreateOpportunityDialog({ actorId, onCreated }: CreateOpportunit
 
       toast({
         title: "Oportunitate creată",
-        description: `${result.code} a fost creată cu task-ul automat „Contactare lead”.`,
+        description: `${result.code} a fost creată cu sarcina automată „Contactare lead”.`,
       })
 
       setOpen(false)
@@ -183,15 +186,23 @@ export function CreateOpportunityDialog({ actorId, onCreated }: CreateOpportunit
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" className="h-9 rounded-lg bg-blue-600 px-3.5 text-sm font-semibold shadow-sm shadow-blue-600/10 hover:bg-blue-700">
-          <PlusCircle className="mr-1.5 h-4 w-4" />
-          Creează oportunitate
+        <Button
+          size="sm"
+          aria-label={iconOnly ? "Creeaza oportunitate" : undefined}
+          className={
+            iconOnly
+              ? "h-8 w-8 rounded-md border border-emerald-600 bg-emerald-600 px-0 text-white shadow-none hover:bg-emerald-700"
+              : "h-9 rounded-md border border-emerald-600 bg-emerald-600 px-3.5 text-sm font-semibold text-white shadow-none hover:bg-emerald-700"
+          }
+        >
+          <PlusCircle className={iconOnly ? "h-4 w-4" : "mr-1.5 h-4 w-4"} />
+          {iconOnly ? null : "Creează oportunitate"}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Creează oportunitate</DialogTitle>
-          <DialogDescription>Clientul este obligatoriu. Se va crea automat task-ul „Contactare lead”.</DialogDescription>
+          <DialogDescription>Clientul este obligatoriu. Se va crea automat sarcina „Contactare lead”.</DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4">
@@ -325,7 +336,7 @@ export function CreateOpportunityDialog({ actorId, onCreated }: CreateOpportunit
                   <SelectValue placeholder="Tip" />
                 </SelectTrigger>
                 <SelectContent>
-                  {CRM_OPPORTUNITY_TYPES.map((type) => (
+                  {CRM_OPPORTUNITY_SELECTABLE_TYPES.map((type) => (
                     <SelectItem key={type} value={type}>
                       {CRM_OPPORTUNITY_TYPE_LABELS[type]}
                     </SelectItem>

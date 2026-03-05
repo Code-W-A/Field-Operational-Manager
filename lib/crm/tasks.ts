@@ -21,6 +21,7 @@ import {
   logCrmActivity,
   syncVisibleTo,
 } from "@/lib/crm/activity"
+import { rebuildOpportunitySearchIndex } from "@/lib/crm/opportunity-search-index"
 import type {
   CrmCalendarEvent,
   CrmEmailLog,
@@ -96,6 +97,8 @@ export async function createCrmTask(input: CreateTaskInput) {
     visibility,
     visibleToUserIds,
   })
+
+  await rebuildOpportunitySearchIndex(input.opportunityId)
 
   return ref.id
 }
@@ -221,6 +224,8 @@ export async function updateCrmTask(params: {
       changes: payload,
     },
   })
+
+  await rebuildOpportunitySearchIndex(task.opportunityId)
 }
 
 export async function completeCrmTask(taskId: string, actorId: string) {
@@ -262,6 +267,8 @@ export async function deleteCrmTask(taskId: string, actorId: string) {
       title: task.title,
     },
   })
+
+  await rebuildOpportunitySearchIndex(task.opportunityId)
 }
 
 function mapNote(docId: string, data: Record<string, unknown>): CrmNote {
@@ -280,10 +287,12 @@ function mapNote(docId: string, data: Record<string, unknown>): CrmNote {
 export async function createCrmNote(input: CreateNoteInput) {
   const visibility = input.visibility || "GENERAL"
   const visibleToUserIds = normalizeVisibilityUsers(visibility, input.visibleToUserIds)
+  const content = input.content.trim()
+  const preview = content.length > 160 ? `${content.slice(0, 157)}...` : content
 
   const ref = await addDoc(collection(db, CRM_COLLECTIONS.notes), {
     opportunityId: input.opportunityId,
-    content: input.content.trim(),
+    content,
     createdById: input.createdById,
     visibility,
     visibleToUserIds,
@@ -304,10 +313,13 @@ export async function createCrmNote(input: CreateNoteInput) {
     type: "NOTE_CREATED",
     payload: {
       noteId: ref.id,
+      preview,
     },
     visibility,
     visibleToUserIds,
   })
+
+  await rebuildOpportunitySearchIndex(input.opportunityId)
 
   return ref.id
 }
@@ -353,6 +365,8 @@ export async function deleteCrmNote(noteId: string, actorId: string) {
       noteId,
     },
   })
+
+  await rebuildOpportunitySearchIndex(note.opportunityId)
 }
 
 function mapEmail(docId: string, data: Record<string, unknown>): CrmEmailLog {
@@ -409,6 +423,8 @@ export async function createCrmEmail(input: CreateEmailInput) {
     visibility,
     visibleToUserIds,
   })
+
+  await rebuildOpportunitySearchIndex(input.opportunityId)
 
   return ref.id
 }
@@ -494,6 +510,8 @@ export async function createCrmCalendarEvent(input: CreateCalendarEventInput) {
     visibleToUserIds,
   })
 
+  await rebuildOpportunitySearchIndex(input.opportunityId)
+
   return ref.id
 }
 
@@ -544,6 +562,8 @@ export async function deleteCrmCalendarEvent(eventId: string, actorId: string) {
       title: event.title,
     },
   })
+
+  await rebuildOpportunitySearchIndex(event.opportunityId)
 }
 
 function mapFile(docId: string, data: Record<string, unknown>): CrmFileAttachment {
@@ -610,6 +630,8 @@ export async function uploadCrmFile(params: {
     visibleToUserIds,
   })
 
+  await rebuildOpportunitySearchIndex(params.opportunityId)
+
   return ref.id
 }
 
@@ -660,4 +682,6 @@ export async function deleteCrmFile(params: { fileId: string; actorId: string })
       filename: fileRow.filename,
     },
   })
+
+  await rebuildOpportunitySearchIndex(fileRow.opportunityId)
 }

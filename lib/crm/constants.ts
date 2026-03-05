@@ -21,6 +21,18 @@ export const CRM_COUNTER_DOCS = {
 export const CRM_OPPORTUNITY_TYPES = [
   "ACASA",
   "VANZARI",
+  "LIVRARI",
+  "PROIECTE",
+  "FACTURARE",
+  "CONTRACTARE",
+  "EVENIMENTE",
+  "ACHIZITII",
+  "OFERTE",
+] as const
+
+export const CRM_OPPORTUNITY_SELECTABLE_TYPES = [
+  "VANZARI",
+  "LIVRARI",
   "PROIECTE",
   "FACTURARE",
   "CONTRACTARE",
@@ -32,6 +44,7 @@ export const CRM_OPPORTUNITY_TYPES = [
 export const CRM_OPPORTUNITY_TYPE_LABELS: Record<(typeof CRM_OPPORTUNITY_TYPES)[number], string> = {
   ACASA: "Acasă",
   VANZARI: "Vânzări",
+  LIVRARI: "Livrări",
   PROIECTE: "Proiecte",
   FACTURARE: "Facturare",
   CONTRACTARE: "Contractare",

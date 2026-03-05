@@ -128,10 +128,10 @@ export function buildNav(ctx: NavCtx): NavNode[] {
       type: "link",
       id: "crm",
       label: "CRM",
-      href: "/crm",
+      href: "/crm/opportunities",
       icon: BriefcaseBusiness,
       activeMatch: "prefix",
-      visible: () => isAdminOrDispatcher,
+      visible: () => isAdminOrDispatcher || isTechnician,
     },
     {
       type: "link",
@@ -348,4 +348,3 @@ export function buildNav(ctx: NavCtx): NavNode[] {
 
   return filterNav(nodes, ctx)
 }
-

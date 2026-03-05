@@ -57,6 +57,7 @@ export interface CrmOpportunity {
   wonAt?: FirestoreDateValue
   lostAt?: FirestoreDateValue
   lostReason?: string
+  searchIndex?: string
   createdAt?: FirestoreDateValue
   updatedAt?: FirestoreDateValue
   createdById: string

@@ -25,6 +25,7 @@ import {
 } from "@/lib/crm/constants"
 import { hasOpportunityViewAccess } from "@/lib/crm/access"
 import { logCrmActivity, getDateValue } from "@/lib/crm/activity"
+import { rebuildOpportunitySearchIndex } from "@/lib/crm/opportunity-search-index"
 import { createCrmTask, createCrmTaskIfMissing } from "@/lib/crm/tasks"
 import type {
   CrmClient,
@@ -59,6 +60,7 @@ function mapOpportunity(docId: string, data: Record<string, unknown>): CrmOpport
     wonAt: (data.wonAt as CrmOpportunity["wonAt"]) || undefined,
     lostAt: (data.lostAt as CrmOpportunity["lostAt"]) || undefined,
     lostReason: typeof data.lostReason === "string" ? data.lostReason : undefined,
+    searchIndex: typeof data.searchIndex === "string" ? data.searchIndex : undefined,
     createdAt: (data.createdAt as CrmOpportunity["createdAt"]) || undefined,
     updatedAt: (data.updatedAt as CrmOpportunity["updatedAt"]) || undefined,
     createdById: String(data.createdById || ""),
@@ -428,6 +430,8 @@ export async function listCrmOpportunitiesForUser(userId: string, filters?: CrmF
   const searchText = (filters?.search || "").trim().toLowerCase()
   if (searchText) {
     filtered = filtered.filter((opportunity) => {
+      const indexed = (opportunity.searchIndex || "").toLowerCase()
+      if (indexed.includes(searchText)) return true
       const client = clientsMap.get(opportunity.clientId)
       const contactText = contactsSearch.get(opportunity.id) || ""
       const haystack = `${opportunity.code} ${opportunity.title} ${opportunity.displayTitle} ${client?.name || ""} ${contactText}`.toLowerCase()
@@ -557,6 +561,8 @@ export async function createCrmOpportunity(input: CreateOpportunityInput) {
     },
   })
 
+  await rebuildOpportunitySearchIndex(transactionResult.opportunityId)
+
   return transactionResult
 }
 
@@ -584,6 +590,8 @@ export async function updateCrmOpportunity(opportunityId: string, actorId: strin
     type: "UPDATED",
     payload,
   })
+
+  await rebuildOpportunitySearchIndex(opportunityId)
 }
 
 export async function changeCrmOpportunityStage(input: {
@@ -708,6 +716,7 @@ export async function setCrmOpportunityContacts(opportunityId: string, contactId
     )
 
   await Promise.all([...deletions, ...additions])
+  await rebuildOpportunitySearchIndex(opportunityId)
 }
 
 export async function listCrmDashboardStats(userId: string) {

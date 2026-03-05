@@ -1,7 +1,7 @@
 import { FieldValue } from "firebase-admin/firestore"
 import { adminDb } from "@/lib/firebase/admin"
 
-export type EmailEventType = "REPORT" | "OFFER" | "GENERIC" | "TECH_NOTIFY" | "INVITE" | "TEST" | "HR_REQUEST"
+export type EmailEventType = "REPORT" | "OFFER" | "GENERIC" | "TECH_NOTIFY" | "INVITE" | "TEST" | "HR_REQUEST" | "CRM_TASK"
 export type EmailEventStatus = "queued" | "sent" | "failed" | "bounced" | "delivered" | "skipped"
 
 export interface EmailEventServer {
@@ -73,5 +73,4 @@ export async function updateEmailEventServer(emailEventId: string, patch: Partia
   })
   await adminDb.collection("emailEvents").doc(String(emailEventId)).set(clean, { merge: true })
 }
-
 

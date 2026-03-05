@@ -12,6 +12,8 @@ const REGION = "europe-west1"
 const TIMEZONE = "Europe/Bucharest"
 const MAX_WORKS_PER_RUN = 200
 
+type CrmTaskNotifyEventType = "created" | "reminder_15m"
+
 // =========================
 // HR Requests → Timesheets
 // =========================
@@ -165,6 +167,248 @@ async function getUserEmail(uid: string): Promise<{ email: string | null; displa
   } catch (e) {
     console.error("getUserEmail failed", uid, e)
     return { email: null, displayName: null }
+  }
+}
+
+type CrmTaskRecord = {
+  opportunityId?: string
+  title?: string
+  status?: string
+  dueAt?: any
+  assigneeId?: string | null
+}
+
+type CrmOpportunityRecord = {
+  ownerId?: string
+  code?: string
+  title?: string
+}
+
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+function crmDateToMs(value: any): number | null {
+  if (!value) return null
+  if (value instanceof Date) return Number.isFinite(value.getTime()) ? value.getTime() : null
+  if (value instanceof Timestamp) return value.toMillis()
+  if (typeof value?.toMillis === "function") {
+    const ms = Number(value.toMillis())
+    return Number.isFinite(ms) ? ms : null
+  }
+  if (typeof value?.toDate === "function") {
+    const d = value.toDate()
+    const ms = d instanceof Date ? d.getTime() : Number.NaN
+    return Number.isFinite(ms) ? ms : null
+  }
+  if (typeof value === "number") return Number.isFinite(value) ? value : null
+  if (typeof value === "string") {
+    const ms = new Date(value).getTime()
+    return Number.isFinite(ms) ? ms : null
+  }
+  return null
+}
+
+function crmTaskEventKey(params: { eventType: CrmTaskNotifyEventType; taskId: string; dueAtMs: number | null }) {
+  if (params.eventType === "created") return `crm_task_created:${params.taskId}`
+  return `crm_task_reminder_15m:${params.taskId}:${params.dueAtMs || "no_due"}`
+}
+
+function formatRoDateTime(ms: number | null) {
+  if (!ms) return "N/A"
+  return new Date(ms).toLocaleString("ro-RO", {
+    timeZone: TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
+async function hasQueuedOrSentCrmTaskEvent(eventKey: string) {
+  const rows = await db.collection("emailEvents").where("meta.crmTaskEventKey", "==", eventKey).limit(20).get()
+  return rows.docs.some((snap) => {
+    const status = String(snap.data()?.status || "")
+    return status === "queued" || status === "sent"
+  })
+}
+
+async function logCrmTaskEmailEvent(params: {
+  to: string[]
+  subject: string
+  status: "queued" | "sent" | "failed" | "skipped"
+  error?: string
+  meta: Record<string, unknown>
+}) {
+  const ref = await db.collection("emailEvents").add({
+    type: "CRM_TASK",
+    to: params.to,
+    subject: params.subject,
+    status: params.status,
+    provider: "smtp",
+    ...(params.error ? { error: params.error } : {}),
+    meta: params.meta,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  })
+  return ref.id
+}
+
+async function updateCrmTaskEmailEvent(
+  eventId: string,
+  patch: { status?: "sent" | "failed"; error?: string; meta?: Record<string, unknown> }
+) {
+  await db.collection("emailEvents").doc(eventId).set(
+    {
+      ...(patch.status ? { status: patch.status } : {}),
+      ...(patch.error ? { error: patch.error } : {}),
+      ...(patch.meta ? { meta: patch.meta } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  )
+}
+
+async function dispatchCrmTaskNotification(params: { taskId: string; eventType: CrmTaskNotifyEventType }) {
+  const taskId = String(params.taskId || "").trim()
+  if (!taskId) return { ok: false, skipped: true as const, reason: "missing_task_id" }
+
+  const taskSnap = await db.collection("crm_tasks").doc(taskId).get()
+  if (!taskSnap.exists) return { ok: false, skipped: true as const, reason: "task_not_found" }
+
+  const task = taskSnap.data() as CrmTaskRecord
+  const opportunityId = String(task.opportunityId || "")
+  if (!opportunityId) return { ok: false, skipped: true as const, reason: "missing_opportunity_id" }
+
+  const dueAtMs = crmDateToMs(task.dueAt)
+  const eventKey = crmTaskEventKey({ eventType: params.eventType, taskId, dueAtMs })
+  if (await hasQueuedOrSentCrmTaskEvent(eventKey)) {
+    return { ok: true, skipped: true as const, reason: "already_sent_or_queued" }
+  }
+
+  const status = String(task.status || "")
+  if (params.eventType === "reminder_15m" && status !== "TODO" && status !== "IN_PROGRESS") {
+    await logCrmTaskEmailEvent({
+      to: [],
+      subject: `CRM Task reminder skipped (${taskId})`,
+      status: "skipped",
+      meta: {
+        eventType: params.eventType,
+        taskId,
+        opportunityId,
+        status,
+        reason: "status_not_open",
+        crmTaskEventKey: eventKey,
+      },
+    })
+    return { ok: true, skipped: true as const, reason: "status_not_open" }
+  }
+
+  if (params.eventType === "reminder_15m" && !dueAtMs) {
+    await logCrmTaskEmailEvent({
+      to: [],
+      subject: `CRM Task reminder skipped (${taskId})`,
+      status: "skipped",
+      meta: {
+        eventType: params.eventType,
+        taskId,
+        opportunityId,
+        reason: "missing_due_at",
+        crmTaskEventKey: eventKey,
+      },
+    })
+    return { ok: true, skipped: true as const, reason: "missing_due_at" }
+  }
+
+  const opportunitySnap = await db.collection("crm_opportunities").doc(opportunityId).get()
+  if (!opportunitySnap.exists) return { ok: false, skipped: true as const, reason: "opportunity_not_found" }
+  const opportunity = opportunitySnap.data() as CrmOpportunityRecord
+
+  const candidateUserIds = Array.from(
+    new Set([String(task.assigneeId || ""), String(opportunity.ownerId || "")].filter(Boolean))
+  )
+
+  const recipientsByEmail = new Map<string, { uid: string; displayName: string }>()
+  for (const uid of candidateUserIds) {
+    const user = await getUserEmail(uid)
+    const email = String(user.email || "").trim().toLowerCase()
+    if (!isValidEmail(email)) continue
+    if (!recipientsByEmail.has(email)) {
+      recipientsByEmail.set(email, {
+        uid,
+        displayName: user.displayName || email,
+      })
+    }
+  }
+
+  const recipientEmails = Array.from(recipientsByEmail.keys())
+  if (recipientEmails.length === 0) {
+    await logCrmTaskEmailEvent({
+      to: [],
+      subject: `CRM Task notification skipped (${taskId})`,
+      status: "skipped",
+      meta: {
+        eventType: params.eventType,
+        taskId,
+        opportunityId,
+        reason: "no_valid_recipients",
+        crmTaskEventKey: eventKey,
+      },
+    })
+    return { ok: true, skipped: true as const, reason: "no_valid_recipients" }
+  }
+
+  const taskTitle = String(task.title || "Sarcină CRM")
+  const opportunityCode = String(opportunity.code || "")
+  const opportunityTitle = String(opportunity.title || "")
+  const opportunityLabel = [opportunityCode, opportunityTitle].filter(Boolean).join(" - ") || opportunityId
+  const dueAtLabel = formatRoDateTime(dueAtMs)
+
+  const subject =
+    params.eventType === "created"
+      ? `Sarcină nouă CRM: ${taskTitle}`
+      : `Reminder (15 min): ${taskTitle}`
+
+  const text =
+    `${params.eventType === "created" ? "Ai o sarcină nouă în CRM." : "Reminder: sarcina are termen în aproximativ 15 minute."}\n\n` +
+    `Sarcină: ${taskTitle}\n` +
+    `Status: ${status || "TODO"}\n` +
+    `Termen: ${dueAtLabel}\n` +
+    `Oportunitate: ${opportunityLabel}\n` +
+    `Link: /crm/opportunities/${opportunityId}/tasks\n`
+
+  const emailEventId = await logCrmTaskEmailEvent({
+    to: recipientEmails,
+    subject,
+    status: "queued",
+    meta: {
+      eventType: params.eventType,
+      taskId,
+      opportunityId,
+      dueAtMs,
+      crmTaskEventKey: eventKey,
+      recipientUserIds: Array.from(recipientsByEmail.values()).map((row) => row.uid),
+    },
+  })
+
+  try {
+    for (const to of recipientEmails) {
+      await smtpSendMail({
+        to,
+        subject,
+        text,
+      })
+    }
+
+    await updateCrmTaskEmailEvent(emailEventId, { status: "sent" })
+    return { ok: true, skipped: false as const, sentCount: recipientEmails.length }
+  } catch (error: any) {
+    await updateCrmTaskEmailEvent(emailEventId, {
+      status: "failed",
+      error: String(error?.message || error || "unknown"),
+    })
+    return { ok: false, skipped: false as const, reason: "send_failed" }
   }
 }
 
@@ -874,6 +1118,77 @@ export const runGenerateScheduledWorks = functions
     return res
   })
 
+export const onCrmTaskCreatedEmail = functions
+  .region(REGION)
+  .firestore.document("crm_tasks/{taskId}")
+  .onCreate(async (_snap, context) => {
+    const taskId = String(context.params.taskId || "").trim()
+    if (!taskId) return null
+
+    await dispatchCrmTaskNotification({
+      taskId,
+      eventType: "created",
+    })
+
+    return null
+  })
+
+export const sendCrmTaskReminders15m = functions
+  .region(REGION)
+  .pubsub.schedule("* * * * *")
+  .timeZone(TIMEZONE)
+  .onRun(async () => {
+    const nowMs = Date.now()
+    const lowerDueAtMs = nowMs + 14 * 60 * 1000
+    const upperDueAtMs = nowMs + 16 * 60 * 1000
+
+    let checked = 0
+    let skippedStatus = 0
+    let dispatched = 0
+
+    try {
+      const rows = await db
+        .collection("crm_tasks")
+        .where("dueAt", ">=", Timestamp.fromMillis(lowerDueAtMs))
+        .where("dueAt", "<=", Timestamp.fromMillis(upperDueAtMs))
+        .limit(500)
+        .get()
+
+      for (const taskRow of rows.docs) {
+        checked += 1
+        const taskData = taskRow.data() as { status?: string }
+        const status = String(taskData?.status || "")
+        if (status !== "TODO" && status !== "IN_PROGRESS") {
+          skippedStatus += 1
+          continue
+        }
+
+        const result = await dispatchCrmTaskNotification({
+          taskId: taskRow.id,
+          eventType: "reminder_15m",
+        })
+
+        if (result.ok) {
+          dispatched += 1
+        }
+      }
+
+      console.log("sendCrmTaskReminders15m completed", {
+        checked,
+        skippedStatus,
+        dispatched,
+        window: {
+          lowerDueAtMs,
+          upperDueAtMs,
+        },
+      })
+    } catch (error) {
+      console.error("sendCrmTaskReminders15m failed", error)
+    }
+
+    return null
+  })
+
 export const onHrRequestApproved = functions
   .region(REGION)
   .firestore.document("hrRequests/{requestId}")
@@ -1016,4 +1331,3 @@ export const onHrRequestStatusChangedEmail = functions
 
     return null
   })
-
