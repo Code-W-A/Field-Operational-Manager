@@ -50,6 +50,7 @@ export function CreateOpportunityDialog({ actorId, onCreated, iconOnly = false }
   const [pipelineStage, setPipelineStage] = useState<(typeof CRM_PIPELINE_STAGES)[number]>("NOU")
   const [priority, setPriority] = useState<(typeof CRM_PRIORITIES)[number]>("MEDIUM")
   const [opportunityType, setOpportunityType] = useState<SelectableOpportunityType>("VANZARI")
+  const [assignedReadUserIds, setAssignedReadUserIds] = useState<string[]>([])
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([])
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false)
   const [clientSearchTerm, setClientSearchTerm] = useState("")
@@ -89,6 +90,10 @@ export function CreateOpportunityDialog({ actorId, onCreated, iconOnly = false }
     () => contacts.map((contact) => ({ value: contact.id, label: `${contact.name} • ${contact.phone}` })),
     [contacts]
   )
+  const userOptions = useMemo(
+    () => users.map((user) => ({ value: user.uid, label: user.displayName || user.email || user.uid })),
+    [users]
+  )
   const filteredClients = useMemo(() => {
     const term = clientSearchTerm.trim().toLowerCase()
     if (!term) return clients
@@ -116,6 +121,7 @@ export function CreateOpportunityDialog({ actorId, onCreated, iconOnly = false }
     setPipelineStage("NOU")
     setPriority("MEDIUM")
     setOpportunityType("VANZARI")
+    setAssignedReadUserIds([])
     setSelectedContactIds([])
     setClientSearchTerm("")
     setClientActiveIndex(-1)
@@ -155,6 +161,7 @@ export function CreateOpportunityDialog({ actorId, onCreated, iconOnly = false }
         title,
         clientId,
         ownerId,
+        assignedReadUserIds,
         createdById: actorId,
         pipelineStage,
         priority,
@@ -377,6 +384,17 @@ export function CreateOpportunityDialog({ actorId, onCreated, iconOnly = false }
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="grid gap-2">
+            <Label>Utilizatori asignați (vizualizare)</Label>
+            <MultiSelect
+              options={userOptions}
+              selected={assignedReadUserIds}
+              onChange={setAssignedReadUserIds}
+              placeholder="Selectează unul sau mai mulți utilizatori"
+              emptyText="Nu există utilizatori disponibili"
+            />
           </div>
 
           <div className="grid gap-2">

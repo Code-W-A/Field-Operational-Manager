@@ -25,6 +25,14 @@
       ]
     },
     {
+      "collectionGroup": "crm_internal_handoffs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "opportunityId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "crm_files",
       "queryScope": "COLLECTION",
       "fields": [

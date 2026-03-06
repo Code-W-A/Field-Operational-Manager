@@ -481,6 +481,8 @@ export async function createCrmOpportunity(input: CreateOpportunityInput) {
   const opportunityRef = doc(collection(db, CRM_COLLECTIONS.opportunities))
 
   const ownerUsers = Array.from(new Set([input.ownerId, input.createdById].filter(Boolean)))
+  const assignedReadUsers = Array.from(new Set((input.assignedReadUserIds || []).filter(Boolean)))
+  const readUsers = Array.from(new Set([...ownerUsers, ...assignedReadUsers]))
 
   const transactionResult = await runTransaction(db, async (transaction) => {
     const counterSnap = await transaction.get(counterRef)
@@ -507,7 +509,7 @@ export async function createCrmOpportunity(input: CreateOpportunityInput) {
       lostReason: null,
       createdById: input.createdById,
       updatedById: input.createdById,
-      readUserIds: ownerUsers,
+      readUserIds: readUsers,
       editUserIds: ownerUsers,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -543,10 +545,18 @@ export async function createCrmOpportunity(input: CreateOpportunityInput) {
     actorId: input.createdById,
     type: "CREATED",
     payload: {
-      title: input.title.trim(),
       code: transactionResult.code,
-      ownerId: input.ownerId,
-      stage: input.pipelineStage,
+      opportunity: {
+        id: transactionResult.opportunityId,
+        title: input.title.trim(),
+        ownerId: input.ownerId,
+        assignedReadUserIds: assignedReadUsers,
+        stage: input.pipelineStage,
+        priority: input.priority,
+        workStatus: input.workStatus || "OPEN",
+        opportunityType: input.opportunityType,
+        clientId: input.clientId,
+      },
     },
   })
 
@@ -555,9 +565,13 @@ export async function createCrmOpportunity(input: CreateOpportunityInput) {
     actorId: input.createdById,
     type: "TASK_AUTO_CREATED",
     payload: {
-      title: "Contactare lead",
-      dueAt: dueAt.toISOString(),
-      reminderAt: reminderAt.toISOString(),
+      task: {
+        title: "Contactare lead",
+        dueAt: dueAt.toISOString(),
+        reminderAt: reminderAt.toISOString(),
+        status: "TODO",
+        assigneeId: input.ownerId,
+      },
     },
   })
 
@@ -588,7 +602,19 @@ export async function updateCrmOpportunity(opportunityId: string, actorId: strin
     opportunityId,
     actorId,
     type: "UPDATED",
-    payload,
+    payload: {
+      changes: {
+        title: typeof changes.title === "string" ? changes.title : undefined,
+        displayTitle: typeof changes.displayTitle === "string" ? changes.displayTitle : undefined,
+        ownerId: typeof changes.ownerId === "string" ? changes.ownerId : undefined,
+        priority: changes.priority || undefined,
+        workStatus: changes.workStatus || undefined,
+        pipelineStage: changes.pipelineStage || undefined,
+        opportunityType: changes.opportunityType || undefined,
+        amount: typeof changes.amount === "number" ? changes.amount : undefined,
+        closeDate: changes.closeDate instanceof Date ? changes.closeDate.toISOString() : undefined,
+      },
+    },
   })
 
   await rebuildOpportunitySearchIndex(opportunityId)

@@ -35,6 +35,11 @@ const LEFT_FILTER_ITEMS = CRM_OPPORTUNITY_SELECTABLE_TYPES
 type OpportunityTypeFilter = (typeof LEFT_FILTER_ITEMS)[number] | "ALL"
 
 type TaskQuickFilterKey = "ACTIVE" | "IN_PROGRESS" | "DONE" | "OVERDUE"
+type LeftTypeItem = {
+  key: (typeof LEFT_FILTER_ITEMS)[number]
+  label: string
+  count: number
+}
 
 const TASK_QUICK_FILTER_LABELS: Record<TaskQuickFilterKey, string> = {
   ACTIVE: "Active",
@@ -310,6 +315,16 @@ export default function CrmOpportunitiesPage() {
     return counts
   }, [opportunitiesForTypeCounts])
 
+  const leftTypeItems = useMemo<LeftTypeItem[]>(() => {
+    return [
+      ...LEFT_FILTER_ITEMS.map((item) => ({
+        key: item,
+        label: CRM_OPPORTUNITY_TYPE_LABELS[item],
+        count: activeOpportunityCounts[item] || 0,
+      })),
+    ]
+  }, [activeOpportunityCounts])
+
   const counterItems = [
     {
       key: "ACTIVE" as const,
@@ -340,57 +355,54 @@ export default function CrmOpportunitiesPage() {
   const isMainLoading = loading || tasksLoading
 
   return (
-    <PageShell className="flex h-full min-h-0 flex-col space-y-0">
-      <div className="grid flex-1 min-h-0 gap-3 xl:grid-cols-[216px_1fr_300px]">
+    <PageShell className="flex h-full min-h-0 flex-col space-y-0 overflow-hidden bg-[#f6f8fc]">
+      <div className="grid h-full flex-1 min-h-0 gap-3 overflow-hidden xl:grid-cols-[216px_1fr_300px]">
         <Panel
-          className="rounded-md border-neutral-300 bg-white shadow-none xl:h-full xl:rounded-none xl:border-y-0 xl:border-l-0 xl:border-r xl:border-neutral-300"
-          contentClassName="pt-3"
+          className="rounded-md border-[#d4e0f0] bg-[#eef3fa] shadow-none xl:h-full xl:rounded-none xl:border-y-0 xl:border-l-0 xl:border-r xl:border-[#ccd9ea]"
+          contentClassName="flex h-full min-h-0 flex-col pt-3"
         >
-          <div className="space-y-1">
-            <button
-              type="button"
-              onClick={resetToHome}
-              className={`flex h-8 w-full items-center justify-between gap-2 rounded-md border-l-2 px-2.5 text-left text-sm transition ${
-                activeType === "ALL"
-                  ? "border-l-[#2f6db3] bg-[#eaf1fb] font-medium text-[#244e7c]"
-                  : "border-l-transparent text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900"
-              }`}
-              title="Acasa"
-            >
-              <span className="truncate">Acasa</span>
-              <span className="shrink-0 text-xs">{activeOpportunityCounts.ALL || 0}</span>
-            </button>
+          <button
+            type="button"
+            onClick={resetToHome}
+            className={`mb-2 flex h-8 w-full items-center rounded-md border-l-2 px-2.5 text-left text-sm transition ${
+              activeType === "ALL"
+                ? "border-l-[#3f7fc3] bg-[#dce9f8] font-medium text-[#1f4f84]"
+                : "border-l-transparent bg-white/70 text-[#4f6075] hover:bg-white hover:text-[#1f3553]"
+            }`}
+            title="Acasa"
+          >
+            <span className="truncate">Acasa</span>
+          </button>
+          <div className="mb-2 mt-1 border-b border-[#d4e0f0] pb-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#486284]">Tip oportunitate</p>
           </div>
-          <div className="mb-2 mt-2 border-b border-neutral-100 pb-2">
-            <p className={crmUi.labelXs}>Tip oportunitate</p>
-          </div>
-          <div className="space-y-1">
-            {LEFT_FILTER_ITEMS.map((item) => (
+          <div className="flex min-h-0 flex-1 flex-col gap-1">
+            {leftTypeItems.map((item) => (
               <button
-                key={item}
+                key={item.key}
                 type="button"
                 onClick={() => {
-                  setActiveType(item)
+                  setActiveType(item.key)
                   const next = new URLSearchParams(searchParams.toString())
-                  next.set("type", item)
+                  next.set("type", item.key)
                   router.replace(`/crm/opportunities?${next.toString()}`)
                 }}
-                className={`flex h-8 w-full items-center justify-between gap-2 rounded-md border-l-2 px-2.5 text-left text-sm transition ${
-                  activeType === item
-                    ? "border-l-[#2f6db3] bg-[#eaf1fb] font-medium text-[#244e7c]"
-                    : "border-l-transparent text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900"
+                className={`flex min-h-8 flex-1 items-center justify-between gap-2 rounded-md border-l-2 px-2.5 text-left text-sm transition ${
+                  activeType === item.key
+                    ? "border-l-[#3f7fc3] bg-[#dce9f8] font-medium text-[#1f4f84]"
+                    : "border-l-transparent bg-white/70 text-[#4f6075] hover:bg-white hover:text-[#1f3553]"
                 }`}
-                title={CRM_OPPORTUNITY_TYPE_LABELS[item]}
+                title={item.label}
               >
-                <span className="truncate">{CRM_OPPORTUNITY_TYPE_LABELS[item]}</span>
-                <span className="shrink-0 text-xs">{activeOpportunityCounts[item] || 0}</span>
+                <span className="truncate">{item.label}</span>
+                <span className="shrink-0 text-xs">{item.count}</span>
               </button>
             ))}
           </div>
         </Panel>
 
-        <div className="space-y-4">
-          <Panel className="rounded-md border-neutral-300 bg-white shadow-none" contentClassName="space-y-4">
+        <div className="flex min-h-0 flex-col gap-3 overflow-hidden">
+          <Panel className="rounded-md border-neutral-300 bg-white shadow-none shrink-0" contentClassName="space-y-4">
             <div className="flex flex-wrap items-center gap-2.5">
               <div className="relative min-w-[220px] flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
@@ -510,7 +522,7 @@ export default function CrmOpportunitiesPage() {
 
           <Panel
             title={viewMode === "LIST" ? "Lista oportunitati" : "Kanban pipeline"}
-            className="rounded-md border-neutral-300 bg-white shadow-none"
+            className="rounded-md border-neutral-300 bg-white shadow-none flex min-h-0 flex-1 flex-col overflow-hidden"
             contentClassName="p-0"
           >
             {isMainLoading ? (

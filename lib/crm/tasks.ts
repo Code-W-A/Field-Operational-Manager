@@ -25,12 +25,14 @@ import { rebuildOpportunitySearchIndex } from "@/lib/crm/opportunity-search-inde
 import type {
   CrmCalendarEvent,
   CrmEmailLog,
+  CrmInternalHandoff,
   CrmFileAttachment,
   CrmNote,
   CrmTask,
   CrmVisibility,
   CreateCalendarEventInput,
   CreateEmailInput,
+  CreateInternalHandoffInput,
   CreateNoteInput,
   CreateTaskInput,
 } from "@/lib/crm/types"
@@ -90,9 +92,16 @@ export async function createCrmTask(input: CreateTaskInput) {
     type: "TASK_CREATED",
     payload: {
       taskId: ref.id,
-      title: input.title,
-      assigneeId: input.assigneeId || null,
-      dueAt: input.dueAt?.toISOString() || null,
+      task: {
+        id: ref.id,
+        title: input.title.trim(),
+        status: input.status || "TODO",
+        assigneeId: input.assigneeId || null,
+        dueAt: input.dueAt?.toISOString() || null,
+        reminderAt: input.reminderAt?.toISOString() || null,
+        visibility,
+        visibleToUserIds,
+      },
     },
     visibility,
     visibleToUserIds,
@@ -189,6 +198,16 @@ export async function updateCrmTask(params: {
   if (!taskSnap.exists()) throw new Error("Task-ul nu există")
 
   const task = mapTask(taskSnap.id, taskSnap.data() as Record<string, unknown>)
+  const beforeTask = {
+    id: task.id,
+    title: task.title,
+    status: task.status,
+    assigneeId: task.assigneeId || null,
+    dueAt: task.dueAt || null,
+    reminderAt: task.reminderAt || null,
+    visibility: task.visibility,
+    visibleToUserIds: task.visibleToUserIds,
+  }
   const visibility = params.visibility || task.visibility
   const visibleToUserIds = normalizeVisibilityUsers(visibility, params.visibleToUserIds || task.visibleToUserIds)
 
@@ -221,7 +240,26 @@ export async function updateCrmTask(params: {
     type: "TASK_UPDATED",
     payload: {
       taskId: params.taskId,
-      changes: payload,
+      before: beforeTask,
+      changes: {
+        title: typeof params.title === "string" ? params.title.trim() : undefined,
+        status: params.status,
+        assigneeId: typeof params.assigneeId === "string" ? params.assigneeId || null : undefined,
+        dueAt:
+          params.dueAt instanceof Date
+            ? params.dueAt.toISOString()
+            : params.dueAt === null
+              ? null
+              : undefined,
+        reminderAt:
+          params.reminderAt instanceof Date
+            ? params.reminderAt.toISOString()
+            : params.reminderAt === null
+              ? null
+              : undefined,
+        visibility,
+        visibleToUserIds,
+      },
     },
   })
 
@@ -244,7 +282,14 @@ export async function completeCrmTask(taskId: string, actorId: string) {
       type: "TASK_COMPLETED",
       payload: {
         taskId,
-        title: task.title,
+        task: {
+          id: task.id,
+          title: task.title,
+          status: task.status,
+          assigneeId: task.assigneeId || null,
+          dueAt: task.dueAt || null,
+        },
+        completedAt: new Date().toISOString(),
       },
     })
   }
@@ -264,7 +309,17 @@ export async function deleteCrmTask(taskId: string, actorId: string) {
     type: "TASK_DELETED",
     payload: {
       taskId,
-      title: task.title,
+      task: {
+        id: task.id,
+        title: task.title,
+        status: task.status,
+        assigneeId: task.assigneeId || null,
+        dueAt: task.dueAt || null,
+        reminderAt: task.reminderAt || null,
+        visibility: task.visibility,
+        visibleToUserIds: task.visibleToUserIds,
+        createdById: task.createdById,
+      },
     },
   })
 
@@ -313,7 +368,10 @@ export async function createCrmNote(input: CreateNoteInput) {
     type: "NOTE_CREATED",
     payload: {
       noteId: ref.id,
+      content,
       preview,
+      visibility,
+      visibleToUserIds,
     },
     visibility,
     visibleToUserIds,
@@ -363,10 +421,132 @@ export async function deleteCrmNote(noteId: string, actorId: string) {
     type: "NOTE_DELETED",
     payload: {
       noteId,
+      note: {
+        id: note.id,
+        content: note.content,
+        visibility: note.visibility,
+        visibleToUserIds: note.visibleToUserIds,
+        createdById: note.createdById,
+        createdAt: note.createdAt || null,
+      },
     },
   })
 
   await rebuildOpportunitySearchIndex(note.opportunityId)
+}
+
+function mapInternalHandoff(docId: string, data: Record<string, unknown>): CrmInternalHandoff {
+  return {
+    id: docId,
+    opportunityId: String(data.opportunityId || ""),
+    fromUserId: String(data.fromUserId || ""),
+    toUserId: String(data.toUserId || ""),
+    amount: Number(data.amount || 0),
+    currency: String(data.currency || "RON"),
+    handedOverAt: data.handedOverAt as CrmInternalHandoff["handedOverAt"],
+    note: String(data.note || ""),
+    status: (data.status as CrmInternalHandoff["status"]) || "IN_ASTEPTARE",
+    confirmedAt: (data.confirmedAt as CrmInternalHandoff["confirmedAt"]) || undefined,
+    confirmedById: typeof data.confirmedById === "string" ? data.confirmedById : undefined,
+    createdById: String(data.createdById || ""),
+    createdAt: (data.createdAt as CrmInternalHandoff["createdAt"]) || undefined,
+    updatedAt: (data.updatedAt as CrmInternalHandoff["updatedAt"]) || undefined,
+  }
+}
+
+export async function createCrmInternalHandoff(input: CreateInternalHandoffInput) {
+  const handoffAt = Timestamp.fromDate(input.handedOverAt)
+
+  const ref = await addDoc(collection(db, CRM_COLLECTIONS.internalHandoffs), {
+    opportunityId: input.opportunityId,
+    fromUserId: input.fromUserId,
+    toUserId: input.toUserId,
+    amount: input.amount,
+    currency: input.currency.trim().toUpperCase() || "RON",
+    handedOverAt: handoffAt,
+    note: input.note.trim(),
+    status: "IN_ASTEPTARE",
+    confirmedAt: null,
+    confirmedById: null,
+    createdById: input.createdById,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+
+  await logCrmActivity({
+    opportunityId: input.opportunityId,
+    actorId: input.createdById,
+    type: "INTERNAL_HANDOFF_CREATED",
+    payload: {
+      handoffId: ref.id,
+      fromUserId: input.fromUserId,
+      toUserId: input.toUserId,
+      amount: input.amount,
+      currency: input.currency.trim().toUpperCase() || "RON",
+      handedOverAt: input.handedOverAt.toISOString(),
+      note: input.note.trim(),
+      status: "IN_ASTEPTARE",
+    },
+  })
+
+  await rebuildOpportunitySearchIndex(input.opportunityId)
+
+  return ref.id
+}
+
+export async function listCrmInternalHandoffs(params: { opportunityId: string }) {
+  const rows = await getDocs(
+    query(
+      collection(db, CRM_COLLECTIONS.internalHandoffs),
+      where("opportunityId", "==", params.opportunityId),
+      orderBy("createdAt", "desc"),
+      limit(300)
+    )
+  )
+
+  return rows.docs.map((snap) => mapInternalHandoff(snap.id, snap.data() as Record<string, unknown>))
+}
+
+export async function confirmCrmInternalHandoff(params: {
+  handoffId: string
+  actorId: string
+  canOverrideRecipient?: boolean
+}) {
+  const handoffRef = doc(db, CRM_COLLECTIONS.internalHandoffs, params.handoffId)
+  const handoffSnap = await getDoc(handoffRef)
+  if (!handoffSnap.exists()) throw new Error("Înregistrarea nu există")
+
+  const handoff = mapInternalHandoff(handoffSnap.id, handoffSnap.data() as Record<string, unknown>)
+  if (handoff.status === "CONFIRMAT") return
+
+  const canConfirm = handoff.toUserId === params.actorId || params.canOverrideRecipient === true
+  if (!canConfirm) {
+    throw new Error("Doar destinatarul poate confirma primirea")
+  }
+
+  await updateDoc(handoffRef, {
+    status: "CONFIRMAT",
+    confirmedAt: serverTimestamp(),
+    confirmedById: params.actorId,
+    updatedAt: serverTimestamp(),
+  })
+
+  await logCrmActivity({
+    opportunityId: handoff.opportunityId,
+    actorId: params.actorId,
+    type: "INTERNAL_HANDOFF_CONFIRMED",
+    payload: {
+      handoffId: handoff.id,
+      fromUserId: handoff.fromUserId,
+      toUserId: handoff.toUserId,
+      amount: handoff.amount,
+      currency: handoff.currency,
+      note: handoff.note,
+      confirmedAt: new Date().toISOString(),
+    },
+  })
+
+  await rebuildOpportunitySearchIndex(handoff.opportunityId)
 }
 
 function mapEmail(docId: string, data: Record<string, unknown>): CrmEmailLog {
@@ -419,6 +599,10 @@ export async function createCrmEmail(input: CreateEmailInput) {
       emailId: ref.id,
       direction: input.direction,
       subject: input.subject,
+      from: input.from,
+      to: input.to,
+      bodySnippet: input.bodySnippet,
+      sentAt: input.sentAt?.toISOString() || null,
     },
     visibility,
     visibleToUserIds,
@@ -505,6 +689,8 @@ export async function createCrmCalendarEvent(input: CreateCalendarEventInput) {
       title: input.title,
       startAt: input.startAt.toISOString(),
       endAt: input.endAt.toISOString(),
+      location: input.location || "",
+      reminderAt: input.reminderAt?.toISOString() || null,
     },
     visibility,
     visibleToUserIds,
@@ -559,7 +745,16 @@ export async function deleteCrmCalendarEvent(eventId: string, actorId: string) {
     type: "CALENDAR_EVENT_DELETED",
     payload: {
       eventId,
-      title: event.title,
+      event: {
+        id: event.id,
+        title: event.title,
+        startAt: event.startAt,
+        endAt: event.endAt,
+        location: event.location || "",
+        reminderAt: event.reminderAt || null,
+        visibility: event.visibility,
+        visibleToUserIds: event.visibleToUserIds,
+      },
     },
   })
 
@@ -625,6 +820,19 @@ export async function uploadCrmFile(params: {
       fileId: ref.id,
       filename: uploadResult.filename,
       size: uploadResult.size,
+      mime: uploadResult.mime,
+      url: uploadResult.url,
+      storagePath: uploadResult.path,
+      files: [
+        {
+          id: ref.id,
+          filename: uploadResult.filename,
+          size: uploadResult.size,
+          mime: uploadResult.mime,
+          url: uploadResult.url,
+          storagePath: uploadResult.path,
+        },
+      ],
     },
     visibility,
     visibleToUserIds,
@@ -679,7 +887,17 @@ export async function deleteCrmFile(params: { fileId: string; actorId: string })
     type: "FILE_DELETED",
     payload: {
       fileId: params.fileId,
-      filename: fileRow.filename,
+      file: {
+        id: fileRow.id,
+        filename: fileRow.filename,
+        mime: fileRow.mime,
+        size: fileRow.size,
+        url: fileRow.url,
+        storagePath: fileRow.storagePath || "",
+        uploadedById: fileRow.uploadedById,
+        visibility: fileRow.visibility,
+        visibleToUserIds: fileRow.visibleToUserIds,
+      },
     },
   })
 

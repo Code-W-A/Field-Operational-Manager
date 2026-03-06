@@ -9,6 +9,7 @@ export const CRM_COLLECTIONS = {
   files: "crm_files",
   emails: "crm_emails",
   calendarEvents: "crm_calendar_events",
+  internalHandoffs: "crm_internal_handoffs",
   activityLogs: "crm_activity_logs",
   visibleTo: "crm_visible_to",
   counters: "crm_counters",
@@ -22,6 +23,7 @@ export const CRM_OPPORTUNITY_TYPES = [
   "ACASA",
   "VANZARI",
   "LIVRARI",
+  "INTERNE",
   "PROIECTE",
   "FACTURARE",
   "CONTRACTARE",
@@ -33,6 +35,7 @@ export const CRM_OPPORTUNITY_TYPES = [
 export const CRM_OPPORTUNITY_SELECTABLE_TYPES = [
   "VANZARI",
   "LIVRARI",
+  "INTERNE",
   "PROIECTE",
   "FACTURARE",
   "CONTRACTARE",
@@ -45,12 +48,20 @@ export const CRM_OPPORTUNITY_TYPE_LABELS: Record<(typeof CRM_OPPORTUNITY_TYPES)[
   ACASA: "Acasă",
   VANZARI: "Vânzări",
   LIVRARI: "Livrări",
+  INTERNE: "Interne",
   PROIECTE: "Proiecte",
   FACTURARE: "Facturare",
   CONTRACTARE: "Contractare",
   EVENIMENTE: "Evenimente",
   ACHIZITII: "Achiziții",
   OFERTE: "Oferte",
+}
+
+export const CRM_INTERNAL_HANDOFF_STATUSES = ["IN_ASTEPTARE", "CONFIRMAT"] as const
+
+export const CRM_INTERNAL_HANDOFF_STATUS_LABELS: Record<(typeof CRM_INTERNAL_HANDOFF_STATUSES)[number], string> = {
+  IN_ASTEPTARE: "În așteptare",
+  CONFIRMAT: "Confirmat",
 }
 
 export const CRM_PIPELINE_STAGES = [

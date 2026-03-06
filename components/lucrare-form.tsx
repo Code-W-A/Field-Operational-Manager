@@ -84,6 +84,31 @@ interface Lucrare {
   echipamentCod?: string
 }
 
+let hasLoggedFormSerializationError = false
+
+function safeSerializeFormData(value: unknown) {
+  try {
+    const seen = new WeakSet<object>()
+    return JSON.stringify(value, (_key, currentValue) => {
+      if (typeof currentValue === "object" && currentValue !== null) {
+        if (seen.has(currentValue)) return "[Circular]"
+        seen.add(currentValue)
+      }
+      if (typeof currentValue === "function") return "[Function]"
+      return currentValue
+    })
+  } catch (error) {
+    if (!hasLoggedFormSerializationError) {
+      hasLoggedFormSerializationError = true
+      console.error("[LucrareForm] Failed to serialize form state safely.", {
+        error,
+        topLevelKeys: value && typeof value === "object" ? Object.keys(value as Record<string, unknown>) : [],
+      })
+    }
+    return "[UnserializableFormData]"
+  }
+}
+
 export type ActiveWorkSummary = {
   id: string
   nrDisplay: string
@@ -215,7 +240,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     const [initialFormState, setInitialFormState] = useState({
       dataEmiterii,
       dataInterventie,
-      formData: JSON.stringify(formData),
+      formData: safeSerializeFormData(formData),
     })
 
     // Dacă suntem în editare și nu avem date setate în state, le preluăm din initialData
@@ -357,7 +382,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       const currentState = {
         dataEmiterii,
         dataInterventie,
-        formData: JSON.stringify(formData),
+        formData: safeSerializeFormData(formData),
       }
 
       const hasChanged =
@@ -375,7 +400,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         setInitialFormState({
           dataEmiterii,
           dataInterventie,
-          formData: JSON.stringify(formData),
+          formData: safeSerializeFormData(formData),
         })
         setFormModified(false)
       }

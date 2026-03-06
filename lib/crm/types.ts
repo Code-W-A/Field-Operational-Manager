@@ -1,6 +1,7 @@
 import type { Timestamp } from "firebase/firestore"
 import {
   CRM_DIRECTIONS,
+  CRM_INTERNAL_HANDOFF_STATUSES,
   CRM_PERMISSIONS,
   CRM_PIPELINE_STAGES,
   CRM_PRIORITIES,
@@ -18,6 +19,7 @@ export type CrmPipelineStage = (typeof CRM_PIPELINE_STAGES)[number]
 export type CrmTaskStatus = (typeof CRM_TASK_STATUSES)[number]
 export type CrmEmailDirection = (typeof CRM_DIRECTIONS)[number]
 export type CrmOpportunityType = (typeof CRM_OPPORTUNITY_TYPES)[number]
+export type CrmInternalHandoffStatus = (typeof CRM_INTERNAL_HANDOFF_STATUSES)[number]
 
 export type FirestoreDateValue = Timestamp | Date | number | string | null | undefined
 
@@ -164,6 +166,23 @@ export interface CrmActivityLog {
   createdAt?: FirestoreDateValue
 }
 
+export interface CrmInternalHandoff {
+  id: string
+  opportunityId: string
+  fromUserId: string
+  toUserId: string
+  amount: number
+  currency: string
+  handedOverAt: FirestoreDateValue
+  note: string
+  status: CrmInternalHandoffStatus
+  confirmedAt?: FirestoreDateValue
+  confirmedById?: string
+  createdById: string
+  createdAt?: FirestoreDateValue
+  updatedAt?: FirestoreDateValue
+}
+
 export interface CrmVisibleTo {
   id: string
   entityType: "TASK" | "NOTE" | "FILE" | "EMAIL" | "CALENDAR_EVENT" | "ACTIVITY"
@@ -186,6 +205,7 @@ export interface CreateOpportunityInput {
   title: string
   clientId: string
   ownerId: string
+  assignedReadUserIds?: string[]
   createdById: string
   pipelineStage: CrmPipelineStage
   priority: CrmPriority
@@ -240,6 +260,17 @@ export interface CreateCalendarEventInput {
   createdById: string
   visibility?: CrmVisibility
   visibleToUserIds?: string[]
+}
+
+export interface CreateInternalHandoffInput {
+  opportunityId: string
+  fromUserId: string
+  toUserId: string
+  amount: number
+  currency: string
+  handedOverAt: Date
+  note: string
+  createdById: string
 }
 
 export interface CrmUserOption {

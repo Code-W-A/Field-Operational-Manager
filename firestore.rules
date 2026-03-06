@@ -31,6 +31,7 @@ service cloud.firestore {
          request.path.segments[0] == 'crm_opportunity_access' ||
          request.path.segments[0] == 'crm_tasks' ||
          request.path.segments[0] == 'crm_notes' ||
+         request.path.segments[0] == 'crm_internal_handoffs' ||
          request.path.segments[0] == 'crm_files' ||
          request.path.segments[0] == 'crm_emails' ||
          request.path.segments[0] == 'crm_calendar_events' ||
@@ -91,6 +92,10 @@ service cloud.firestore {
     }
 
     match /crm_notes/{docId} {
+      allow read, write: if isAdminOrDispatcher();
+    }
+
+    match /crm_internal_handoffs/{docId} {
       allow read, write: if isAdminOrDispatcher();
     }
 
