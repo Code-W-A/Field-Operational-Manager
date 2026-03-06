@@ -429,7 +429,7 @@ export default function CrmOpportunitiesPage() {
               />
             </div>
 
-            <div className="rounded-md border-y border-neutral-200 bg-neutral-50/30 px-2 py-4 sm:px-3">
+            <div className="py-1">
               <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                 {counterItems.map((item) => (
                   <TaskCounterRing

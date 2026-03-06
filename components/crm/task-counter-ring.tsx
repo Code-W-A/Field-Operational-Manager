@@ -48,7 +48,7 @@ interface TaskCounterRingProps {
 export function TaskCounterRing({ label, value, tone, active = false, loading = false, onClick }: TaskCounterRingProps) {
   if (loading) {
     return (
-      <div className="rounded-md bg-white px-2 py-3">
+      <div className="px-2 py-2">
         <div className="mx-auto mb-2 h-3 w-24 animate-pulse rounded bg-neutral-100" />
         <div className="mx-auto h-24 w-24 animate-pulse rounded-full border-[5px] border-neutral-200 bg-neutral-100" />
       </div>
@@ -60,11 +60,7 @@ export function TaskCounterRing({ label, value, tone, active = false, loading = 
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={cn(
-        "w-full rounded-md bg-white px-2 py-3 text-center transition",
-        toneClass[tone].surface,
-        active && toneClass[tone].active
-      )}
+      className="w-full bg-transparent px-2 py-2 text-center transition"
     >
       <p className="mb-2 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-500">
         <span className={cn("h-2 w-2 rounded-full", toneClass[tone].dot)} />
