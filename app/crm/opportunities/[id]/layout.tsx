@@ -130,6 +130,15 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
     ],
     [opportunityId]
   )
+  const leftTypeItems = useMemo(
+    () =>
+      LEFT_FILTER_ITEMS.map((item) => ({
+        key: item,
+        label: CRM_OPPORTUNITY_TYPE_LABELS[item],
+        count: activeOpportunityCounts[item] || 0,
+      })),
+    [activeOpportunityCounts]
+  )
 
   const handleTitleSave = async () => {
     if (isTechnician) return
@@ -197,15 +206,6 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
       ? assignedViewerIds.map((userId) => userMap[userId] || "Utilizator necunoscut").join(", ")
       : "-"
   const activeType = opportunity.opportunityType
-  const leftTypeItems = useMemo(
-    () =>
-      LEFT_FILTER_ITEMS.map((item) => ({
-        key: item,
-        label: CRM_OPPORTUNITY_TYPE_LABELS[item],
-        count: activeOpportunityCounts[item] || 0,
-      })),
-    [activeOpportunityCounts]
-  )
 
   return (
     <div className="flex h-full min-h-0 flex-col">
