@@ -8,7 +8,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { PageShell, Panel, SegmentedControl, TaskCounterRing } from "@/components/crm"
+import { OpportunityTypeSidebar, PageShell, Panel, SegmentedControl, TaskCounterRing } from "@/components/crm"
 import {
   CRM_OPPORTUNITY_SELECTABLE_TYPES,
   CRM_OPPORTUNITY_TYPE_LABELS,
@@ -324,6 +324,24 @@ export default function CrmOpportunitiesPage() {
       })),
     ]
   }, [activeOpportunityCounts])
+  const sidebarHomeItem = {
+    key: "ALL",
+    label: "Acasa",
+    active: activeType === "ALL",
+    onClick: resetToHome,
+    title: "Acasa",
+  }
+  const sidebarItems = leftTypeItems.map((item) => ({
+    ...item,
+    active: activeType === item.key,
+    onClick: () => {
+      setActiveType(item.key)
+      const next = new URLSearchParams(searchParams.toString())
+      next.set("type", item.key)
+      router.replace(`/crm/opportunities?${next.toString()}`)
+    },
+    title: item.label,
+  }))
 
   const counterItems = [
     {
@@ -357,49 +375,7 @@ export default function CrmOpportunitiesPage() {
   return (
     <PageShell className="flex h-full min-h-0 flex-col space-y-0 overflow-hidden bg-[#f6f8fc]">
       <div className="grid h-full flex-1 min-h-0 gap-3 overflow-hidden xl:grid-cols-[216px_1fr_300px]">
-        <Panel
-          className="rounded-md border-[#004b87] bg-[#005599] shadow-none xl:h-full xl:rounded-none xl:border-y-0 xl:border-l-0 xl:border-r xl:border-[#004b87]"
-          contentClassName="flex h-full min-h-0 flex-col pt-3"
-        >
-          <button
-            type="button"
-            onClick={resetToHome}
-            className={`mb-2 flex h-8 w-full items-center rounded-md border-l-2 px-2.5 text-left text-sm transition ${
-              activeType === "ALL"
-                ? "border-l-white bg-[#004b87]/45 font-semibold text-white"
-                : "border-l-transparent bg-transparent text-white/90 hover:bg-[#004b87]/35 hover:text-white"
-            }`}
-            title="Acasa"
-          >
-            <span className="truncate">Acasa</span>
-          </button>
-          <div className="mb-2 mt-1 border-b border-white/35 pb-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-white/85">Tip oportunitate</p>
-          </div>
-          <div className="flex min-h-0 flex-1 flex-col gap-1">
-            {leftTypeItems.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => {
-                  setActiveType(item.key)
-                  const next = new URLSearchParams(searchParams.toString())
-                  next.set("type", item.key)
-                  router.replace(`/crm/opportunities?${next.toString()}`)
-                }}
-                className={`flex h-8 items-center justify-between gap-2 rounded-md border-l-2 px-2.5 text-left text-sm transition ${
-                  activeType === item.key
-                    ? "border-l-white bg-[#004b87]/45 font-semibold text-white"
-                    : "border-l-transparent bg-transparent text-white/90 hover:bg-[#004b87]/35 hover:text-white"
-                }`}
-                title={item.label}
-              >
-                <span className="truncate">{item.label}</span>
-                <span className="shrink-0 text-xs">{item.count}</span>
-              </button>
-            ))}
-          </div>
-        </Panel>
+        <OpportunityTypeSidebar homeItem={sidebarHomeItem} items={sidebarItems} />
 
         <div className="flex min-h-0 flex-col gap-3 overflow-hidden">
           <Panel className="rounded-md border-neutral-300 bg-white shadow-none shrink-0" contentClassName="space-y-4">

@@ -1,11 +1,10 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import Link from "next/link"
 import { useParams } from "next/navigation"
 import { CalendarDays, Check, ClipboardCheck, FileText, Loader2, Mail, MessageSquare, Pencil, Timer, X } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
-import { Panel, TabsHeader } from "@/components/crm"
+import { OpportunityTypeSidebar, Panel, TabsHeader } from "@/components/crm"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -206,77 +205,25 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
       ? assignedViewerIds.map((userId) => userMap[userId] || "Utilizator necunoscut").join(", ")
       : "-"
   const activeType = opportunity.opportunityType
+  const sidebarHomeItem = {
+    key: "ALL",
+    label: "Acasa",
+    active: false,
+    href: "/crm/opportunities",
+    title: "Acasa",
+  }
+  const sidebarItems = leftTypeItems.map((item) => ({
+    ...item,
+    active: activeType === item.key,
+    href: `/crm/opportunities?type=${item.key}`,
+    title: item.label,
+  }))
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="grid flex-1 min-h-0 gap-3 xl:grid-cols-[260px_1fr_300px]">
         <div className="xl:h-full">
-          <details className="xl:hidden rounded-xl border border-neutral-200 bg-white">
-            <summary className="cursor-pointer px-4 py-3 text-xs font-medium text-neutral-700">Filtre CRM</summary>
-            <div className="space-y-2 border-t border-neutral-100 px-4 py-3">
-              <Link
-                href="/crm/opportunities"
-                className={`flex h-8 w-full items-center rounded-md border-l-2 px-2.5 text-left text-sm transition ${
-                  activeType === "ALL"
-                    ? "border-l-[#3f7fc3] bg-[#dce9f8] font-medium text-[#1f4f84]"
-                    : "border-l-transparent bg-white/70 text-[#4f6075] hover:bg-white hover:text-[#1f3553]"
-                }`}
-              >
-                Acasa
-              </Link>
-              <p className="border-b border-[#d4e0f0] pb-1 text-[11px] font-semibold uppercase tracking-wide text-[#486284]">Tip oportunitate</p>
-              <div className="space-y-1">
-                {leftTypeItems.map((item) => (
-                  <Link
-                    key={item.key}
-                    href={`/crm/opportunities?type=${item.key}`}
-                    className={`flex h-8 items-center justify-between rounded-md border-l-2 px-2.5 text-sm transition ${
-                      activeType === item.key
-                        ? "border-l-[#3f7fc3] bg-[#dce9f8] font-medium text-[#1f4f84]"
-                        : "border-l-transparent bg-white/70 text-[#4f6075] hover:bg-white hover:text-[#1f3553]"
-                    }`}
-                  >
-                    <span className="truncate">{item.label}</span>
-                    <span className="text-xs">{item.count}</span>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </details>
-          <Panel
-            className="hidden rounded-md border-[#d4e0f0] bg-[#eef3fa] shadow-none xl:block xl:h-full xl:rounded-none xl:border-y-0 xl:border-l-0 xl:border-r xl:border-[#ccd9ea]"
-            contentClassName="flex h-full min-h-0 flex-col pt-3"
-          >
-            <Link
-              href="/crm/opportunities"
-              className={`mb-2 flex h-8 w-full items-center rounded-md border-l-2 px-2.5 text-left text-sm transition ${
-                activeType === "ALL"
-                  ? "border-l-[#3f7fc3] bg-[#dce9f8] font-medium text-[#1f4f84]"
-                  : "border-l-transparent bg-white/70 text-[#4f6075] hover:bg-white hover:text-[#1f3553]"
-              }`}
-            >
-              Acasa
-            </Link>
-            <div className="mb-2 mt-1 border-b border-[#d4e0f0] pb-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#486284]">Tip oportunitate</p>
-            </div>
-            <div className="flex min-h-0 flex-1 flex-col gap-1">
-              {leftTypeItems.map((item) => (
-                <Link
-                  key={item.key}
-                  href={`/crm/opportunities?type=${item.key}`}
-                  className={`flex min-h-8 flex-1 items-center justify-between gap-2 rounded-md border-l-2 px-2.5 text-left text-sm transition ${
-                    activeType === item.key
-                      ? "border-l-[#3f7fc3] bg-[#dce9f8] font-medium text-[#1f4f84]"
-                      : "border-l-transparent bg-white/70 text-[#4f6075] hover:bg-white hover:text-[#1f3553]"
-                  }`}
-                >
-                  <span className="truncate">{item.label}</span>
-                  <span className="shrink-0 text-xs">{item.count}</span>
-                </Link>
-              ))}
-            </div>
-          </Panel>
+          <OpportunityTypeSidebar homeItem={sidebarHomeItem} items={sidebarItems} collapsibleOnMobile />
         </div>
 
         <section className="min-h-0 space-y-3">
