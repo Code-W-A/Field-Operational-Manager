@@ -9,29 +9,29 @@ const toneClass: Record<
   active: {
     ring: "border-sky-500",
     text: "text-sky-700",
-    surface: "hover:border-sky-200",
-    active: "border-sky-200 bg-sky-50/40",
+    surface: "hover:bg-sky-50/30",
+    active: "bg-sky-50/60",
     dot: "bg-sky-500",
   },
   inProgress: {
     ring: "border-slate-400",
     text: "text-slate-700",
-    surface: "hover:border-slate-300",
-    active: "border-slate-300 bg-slate-50/70",
+    surface: "hover:bg-slate-50/40",
+    active: "bg-slate-50/80",
     dot: "bg-slate-400",
   },
   done: {
     ring: "border-lime-500",
     text: "text-lime-700",
-    surface: "hover:border-lime-200",
-    active: "border-lime-200 bg-lime-50/40",
+    surface: "hover:bg-lime-50/30",
+    active: "bg-lime-50/60",
     dot: "bg-lime-500",
   },
   overdue: {
     ring: "border-red-500",
     text: "text-red-700",
-    surface: "hover:border-red-200",
-    active: "border-red-200 bg-red-50/40",
+    surface: "hover:bg-red-50/30",
+    active: "bg-red-50/60",
     dot: "bg-red-500",
   },
 }
@@ -48,7 +48,7 @@ interface TaskCounterRingProps {
 export function TaskCounterRing({ label, value, tone, active = false, loading = false, onClick }: TaskCounterRingProps) {
   if (loading) {
     return (
-      <div className="rounded-md border border-neutral-200 bg-white px-2 py-3">
+      <div className="rounded-md bg-white px-2 py-3">
         <div className="mx-auto mb-2 h-3 w-24 animate-pulse rounded bg-neutral-100" />
         <div className="mx-auto h-24 w-24 animate-pulse rounded-full border-[5px] border-neutral-200 bg-neutral-100" />
       </div>
@@ -61,7 +61,7 @@ export function TaskCounterRing({ label, value, tone, active = false, loading = 
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "w-full rounded-md border border-neutral-200 bg-white px-2 py-3 text-center transition",
+        "w-full rounded-md bg-white px-2 py-3 text-center transition",
         toneClass[tone].surface,
         active && toneClass[tone].active
       )}

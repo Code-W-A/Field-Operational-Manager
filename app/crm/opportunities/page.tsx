@@ -358,7 +358,7 @@ export default function CrmOpportunitiesPage() {
     <PageShell className="flex h-full min-h-0 flex-col space-y-0 overflow-hidden bg-[#f6f8fc]">
       <div className="grid h-full flex-1 min-h-0 gap-3 overflow-hidden xl:grid-cols-[216px_1fr_300px]">
         <Panel
-          className="rounded-md border-[#d4e0f0] bg-[#eef3fa] shadow-none xl:h-full xl:rounded-none xl:border-y-0 xl:border-l-0 xl:border-r xl:border-[#ccd9ea]"
+          className="rounded-md border-[#004b87] bg-[#005599] shadow-none xl:h-full xl:rounded-none xl:border-y-0 xl:border-l-0 xl:border-r xl:border-[#004b87]"
           contentClassName="flex h-full min-h-0 flex-col pt-3"
         >
           <button
@@ -366,15 +366,15 @@ export default function CrmOpportunitiesPage() {
             onClick={resetToHome}
             className={`mb-2 flex h-8 w-full items-center rounded-md border-l-2 px-2.5 text-left text-sm transition ${
               activeType === "ALL"
-                ? "border-l-[#3f7fc3] bg-[#dce9f8] font-medium text-[#1f4f84]"
-                : "border-l-transparent bg-white/70 text-[#4f6075] hover:bg-white hover:text-[#1f3553]"
+                ? "border-l-white bg-[#004b87]/45 font-semibold text-white"
+                : "border-l-transparent bg-transparent text-white/90 hover:bg-[#004b87]/35 hover:text-white"
             }`}
             title="Acasa"
           >
             <span className="truncate">Acasa</span>
           </button>
-          <div className="mb-2 mt-1 border-b border-[#d4e0f0] pb-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#486284]">Tip oportunitate</p>
+          <div className="mb-2 mt-1 border-b border-white/35 pb-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-white/85">Tip oportunitate</p>
           </div>
           <div className="flex min-h-0 flex-1 flex-col gap-1">
             {leftTypeItems.map((item) => (
@@ -387,10 +387,10 @@ export default function CrmOpportunitiesPage() {
                   next.set("type", item.key)
                   router.replace(`/crm/opportunities?${next.toString()}`)
                 }}
-                className={`flex min-h-8 flex-1 items-center justify-between gap-2 rounded-md border-l-2 px-2.5 text-left text-sm transition ${
+                className={`flex h-8 items-center justify-between gap-2 rounded-md border-l-2 px-2.5 text-left text-sm transition ${
                   activeType === item.key
-                    ? "border-l-[#3f7fc3] bg-[#dce9f8] font-medium text-[#1f4f84]"
-                    : "border-l-transparent bg-white/70 text-[#4f6075] hover:bg-white hover:text-[#1f3553]"
+                    ? "border-l-white bg-[#004b87]/45 font-semibold text-white"
+                    : "border-l-transparent bg-transparent text-white/90 hover:bg-[#004b87]/35 hover:text-white"
                 }`}
                 title={item.label}
               >
@@ -422,13 +422,11 @@ export default function CrmOpportunitiesPage() {
                   { id: "KANBAN", label: "Kanban", icon: LayoutGrid },
                 ]}
               />
-              {!isTechnician ? (
-                <CreateOpportunityDialog
-                  actorId={user?.uid || ""}
-                  iconOnly
-                  onCreated={(opportunityId) => router.push(`/crm/opportunities/${opportunityId}/timeline`)}
-                />
-              ) : null}
+              <CreateOpportunityDialog
+                actorId={user?.uid || ""}
+                iconOnly
+                onCreated={(opportunityId) => router.push(`/crm/opportunities/${opportunityId}/timeline`)}
+              />
             </div>
 
             <div className="rounded-md border-y border-neutral-200 bg-neutral-50/30 px-2 py-4 sm:px-3">
@@ -521,9 +519,9 @@ export default function CrmOpportunitiesPage() {
           </Panel>
 
           <Panel
-            title={viewMode === "LIST" ? "Lista oportunitati" : "Kanban pipeline"}
+            title={viewMode === "LIST" ? undefined : "Kanban pipeline"}
             className="rounded-md border-neutral-300 bg-white shadow-none flex min-h-0 flex-1 flex-col overflow-hidden"
-            contentClassName="p-0"
+            contentClassName="min-h-0 overflow-y-auto p-0"
           >
             {isMainLoading ? (
               <div className="space-y-2 p-4">
@@ -555,7 +553,7 @@ export default function CrmOpportunitiesPage() {
               </div>
             ) : viewMode === "LIST" ? (
               <div>
-                <div className="hidden border-y border-neutral-300 bg-neutral-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-500 md:grid md:grid-cols-[minmax(0,1.6fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.9fr)] md:gap-3">
+                <div className="sticky top-0 z-10 hidden border-y border-neutral-300 bg-neutral-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-500 md:grid md:grid-cols-[minmax(0,1.6fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.9fr)] md:gap-3">
                   <span>Oportunitate</span>
                   <span>Status sarcina</span>
                   <span>Responsabil sarcina</span>

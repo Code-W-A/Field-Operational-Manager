@@ -99,14 +99,9 @@ export default function OpportunityTasksPage() {
   return (
     <Panel
       title="Sarcini"
-      subtitle={
-        isTechnician
-          ? "Vizualizare read-only: sarcinile tale vizibile în oportunitate."
-          : "CRUD + acțiuni rapide: completare, reasignare, reprogramare, reminder"
-      }
+      subtitle="CRUD + acțiuni rapide: completare, reasignare, reprogramare, reminder"
     >
-      {!isTechnician ? (
-        <div className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+      <div className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
           <p className="mb-2 text-xs font-medium text-neutral-700">Sarcină nouă</p>
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
             <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Titlu sarcină" className="h-8 text-xs" />
@@ -169,7 +164,6 @@ export default function OpportunityTasksPage() {
             </Button>
           </div>
         </div>
-      ) : null}
 
       {loading ? (
         <p className="text-xs text-neutral-500">Se încarcă sarcinile...</p>
@@ -194,15 +188,7 @@ export default function OpportunityTasksPage() {
                 </div>
               </div>
 
-              {isTechnician ? (
-                <div className="mt-3 grid gap-1 text-xs text-neutral-600 md:grid-cols-2">
-                  <p>Responsabil: {task.assigneeId ? users.find((row) => row.uid === task.assigneeId)?.displayName || task.assigneeId : "Neasignat"}</p>
-                  <p>Termen: {formatDateTime(task.dueAt)}</p>
-                  <p>Reminder: {formatDateTime(task.reminderAt)}</p>
-                  <p>Vizibilitate: {CRM_VISIBILITY_LABELS[task.visibility]}</p>
-                </div>
-              ) : (
-                <>
+              <>
                   {editingTaskId === task.id ? (
                     <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
                       <Select value={editStatus} onValueChange={(status) => setEditStatus(status as CrmTask["status"])}>
@@ -331,7 +317,6 @@ export default function OpportunityTasksPage() {
                     </div>
                   </div>
                 </>
-              )}
             </div>
           ))}
         </div>

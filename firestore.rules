@@ -14,6 +14,10 @@ service cloud.firestore {
       return isSignedIn() && (userRole() == 'admin' || userRole() == 'dispecer');
     }
 
+    function isStaffInternal() {
+      return isSignedIn() && (userRole() == 'admin' || userRole() == 'dispecer' || userRole() == 'tehnician');
+    }
+
     function isHrCollection() {
       // First segment after /documents/
       return request.path.segments.size() > 0 &&
@@ -66,61 +70,61 @@ service cloud.firestore {
         || (isSignedIn() && resource.data.managerUid == request.auth.uid);
     }
 
-    // CRM collections: access only for admin/dispecer.
+    // CRM collections: access for internal staff (admin/dispecer/tehnician).
     match /crm_clients/{docId} {
-      allow read, write: if isAdminOrDispatcher();
+      allow read, write: if isStaffInternal();
     }
 
     match /crm_client_contacts/{docId} {
-      allow read, write: if isAdminOrDispatcher();
+      allow read, write: if isStaffInternal();
     }
 
     match /crm_opportunities/{docId} {
-      allow read, write: if isAdminOrDispatcher();
+      allow read, write: if isStaffInternal();
     }
 
     match /crm_opportunity_contacts/{docId} {
-      allow read, write: if isAdminOrDispatcher();
+      allow read, write: if isStaffInternal();
     }
 
     match /crm_opportunity_access/{docId} {
-      allow read, write: if isAdminOrDispatcher();
+      allow read, write: if isStaffInternal();
     }
 
     match /crm_tasks/{docId} {
-      allow read, write: if isAdminOrDispatcher();
+      allow read, write: if isStaffInternal();
     }
 
     match /crm_notes/{docId} {
-      allow read, write: if isAdminOrDispatcher();
+      allow read, write: if isStaffInternal();
     }
 
     match /crm_internal_handoffs/{docId} {
-      allow read, write: if isAdminOrDispatcher();
+      allow read, write: if isStaffInternal();
     }
 
     match /crm_files/{docId} {
-      allow read, write: if isAdminOrDispatcher();
+      allow read, write: if isStaffInternal();
     }
 
     match /crm_emails/{docId} {
-      allow read, write: if isAdminOrDispatcher();
+      allow read, write: if isStaffInternal();
     }
 
     match /crm_calendar_events/{docId} {
-      allow read, write: if isAdminOrDispatcher();
+      allow read, write: if isStaffInternal();
     }
 
     match /crm_activity_logs/{docId} {
-      allow read, write: if isAdminOrDispatcher();
+      allow read, write: if isStaffInternal();
     }
 
     match /crm_visible_to/{docId} {
-      allow read, write: if isAdminOrDispatcher();
+      allow read, write: if isStaffInternal();
     }
 
     match /crm_counters/{docId} {
-      allow read, write: if isAdminOrDispatcher();
+      allow read, write: if isStaffInternal();
     }
 
     // Fallback (existing app behavior): allow authenticated access.
