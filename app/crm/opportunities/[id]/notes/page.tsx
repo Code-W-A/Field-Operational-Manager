@@ -5,6 +5,7 @@ import { useParams } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MultiSelect } from "@/components/ui/multi-select"
@@ -28,15 +29,15 @@ export default function OpportunityNotesPage() {
   const [content, setContent] = useState("")
   const [visibility, setVisibility] = useState<(typeof CRM_VISIBILITIES)[number]>("PRIVATE")
   const [visibleToUserIds, setVisibleToUserIds] = useState<string[]>([])
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isEditOpen, setIsEditOpen] = useState(false)
   const [users, setUsers] = useState<Array<{ uid: string; displayName: string }>>([])
   const [notes, setNotes] = useState<CrmNote[]>([])
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
+  const [editContent, setEditContent] = useState("")
   const [editVisibility, setEditVisibility] = useState<(typeof CRM_VISIBILITIES)[number]>("PRIVATE")
   const [editVisibleToUserIds, setEditVisibleToUserIds] = useState<string[]>([])
   const [savingNoteId, setSavingNoteId] = useState<string | null>(null)
-  const [editingContentNoteId, setEditingContentNoteId] = useState<string | null>(null)
-  const [editContent, setEditContent] = useState("")
-  const [savingContentNoteId, setSavingContentNoteId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   const userOptions = useMemo(() => users.map((row) => ({ value: row.uid, label: row.displayName })), [users])
@@ -92,61 +93,180 @@ export default function OpportunityNotesPage() {
       contentClassName="flex min-h-0 flex-1 flex-col"
     >
       {!isTechnician ? (
-        <div className="mb-4 shrink-0 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
-          <div className="grid gap-2">
-            <Label htmlFor="note-content">Notă nouă</Label>
-            <Textarea
-              id="note-content"
-              value={content}
-              onChange={(event) => setContent(event.target.value)}
-              className="min-h-[104px] text-sm"
-              placeholder="Scrie nota..."
-            />
-
-            <div className="grid gap-2 sm:grid-cols-2">
-              <Select value={visibility} onValueChange={(value) => setVisibility(value as typeof visibility)}>
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="Visibility" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CRM_VISIBILITIES.map((item) => (
-                    <SelectItem key={item} value={item}>
-                      {CRM_VISIBILITY_LABELS[item]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {visibility === "CUSTOM" ? (
-                <MultiSelect options={userOptions} selected={visibleToUserIds} onChange={setVisibleToUserIds} placeholder="Alege useri" />
-              ) : null}
-            </div>
-          </div>
-
-          <div className="mt-2 flex justify-end">
-            <Button
-              size="sm"
-              className="h-9 text-sm"
-              onClick={async () => {
-                if (!content.trim() || !user?.uid) return
-                await createCrmNote({
-                  opportunityId,
-                  content,
-                  createdById: user.uid,
-                  visibility,
-                  visibleToUserIds,
-                })
-                setContent("")
-                setVisibility("PRIVATE")
-                setVisibleToUserIds([])
-                await load()
-              }}
-            >
-              Adaugă notă
-            </Button>
-          </div>
+        <div className="mb-4 shrink-0 flex justify-end">
+          <Button size="sm" className="h-9 text-sm" onClick={() => setIsCreateOpen(true)}>
+            Adaugă notă
+          </Button>
         </div>
       ) : null}
+
+      <Sheet open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <SheetContent side="right" className="w-full p-0 sm:max-w-xl">
+          <div className="flex h-full min-h-0 flex-col">
+            <SheetHeader className="border-b px-5 py-4">
+              <SheetTitle>Notă nouă</SheetTitle>
+              <SheetDescription>Adaugă o notă pe oportunitate.</SheetDescription>
+            </SheetHeader>
+            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+              <div className="grid gap-2">
+                <Label htmlFor="note-content">Conținut</Label>
+                <Textarea
+                  id="note-content"
+                  value={content}
+                  onChange={(event) => setContent(event.target.value)}
+                  className="min-h-[160px] text-sm"
+                  placeholder="Scrie nota..."
+                />
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Select value={visibility} onValueChange={(value) => setVisibility(value as typeof visibility)}>
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue placeholder="Visibility" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CRM_VISIBILITIES.map((item) => (
+                        <SelectItem key={item} value={item}>
+                          {CRM_VISIBILITY_LABELS[item]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {visibility === "CUSTOM" ? (
+                    <MultiSelect options={userOptions} selected={visibleToUserIds} onChange={setVisibleToUserIds} placeholder="Alege useri" />
+                  ) : null}
+                </div>
+              </div>
+            </div>
+            <div className="border-t px-5 py-4">
+              <div className="flex justify-end gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-9 text-sm"
+                  onClick={() => setIsCreateOpen(false)}
+                >
+                  Anulează
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-9 text-sm"
+                  onClick={async () => {
+                    if (!content.trim() || !user?.uid) return
+                    await createCrmNote({
+                      opportunityId,
+                      content,
+                      createdById: user.uid,
+                      visibility,
+                      visibleToUserIds,
+                    })
+                    setContent("")
+                    setVisibility("PRIVATE")
+                    setVisibleToUserIds([])
+                    setIsCreateOpen(false)
+                    await load()
+                  }}
+                >
+                  Salvează
+                </Button>
+              </div>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <SheetContent side="right" className="w-full p-0 sm:max-w-xl">
+          <div className="flex h-full min-h-0 flex-col">
+            <SheetHeader className="border-b px-5 py-4">
+              <SheetTitle>Editează nota</SheetTitle>
+              <SheetDescription>Modifică textul și vizibilitatea notei.</SheetDescription>
+            </SheetHeader>
+            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+              <div className="grid gap-2">
+                <Label>Conținut</Label>
+                <Textarea
+                  value={editContent}
+                  onChange={(event) => setEditContent(event.target.value)}
+                  className="min-h-[160px] text-sm"
+                  placeholder="Editează nota..."
+                />
+              </div>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <Select value={editVisibility} onValueChange={(value) => setEditVisibility(value as typeof editVisibility)}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Visibility" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CRM_VISIBILITIES.map((item) => (
+                      <SelectItem key={item} value={item}>
+                        {CRM_VISIBILITY_LABELS[item]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {editVisibility === "CUSTOM" ? (
+                  <MultiSelect options={userOptions} selected={editVisibleToUserIds} onChange={setEditVisibleToUserIds} placeholder="Alege useri" />
+                ) : null}
+              </div>
+            </div>
+            <div className="border-t px-5 py-4">
+              <div className="flex justify-end gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-9 text-sm"
+                  onClick={() => {
+                    setIsEditOpen(false)
+                    setEditingNoteId(null)
+                  }}
+                >
+                  Anulează
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-9 text-sm"
+                  disabled={savingNoteId === editingNoteId || !user?.uid}
+                  onClick={async () => {
+                    if (!user?.uid || !editingNoteId) return
+                    setSavingNoteId(editingNoteId)
+                    try {
+                      await updateCrmNoteContent({
+                        noteId: editingNoteId,
+                        actorId: user.uid,
+                        content: editContent,
+                      })
+                      await updateCrmNoteVisibility({
+                        noteId: editingNoteId,
+                        actorId: user.uid,
+                        visibility: editVisibility,
+                        visibleToUserIds: editVisibleToUserIds,
+                      })
+                      setIsEditOpen(false)
+                      setEditingNoteId(null)
+                      await load()
+                      toast({
+                        title: "Notă actualizată",
+                        description: "Conținutul și vizibilitatea notei au fost actualizate.",
+                      })
+                    } catch (error) {
+                      toast({
+                        title: "Actualizare eșuată",
+                        description: error instanceof Error ? error.message : "Nu s-a putut actualiza nota.",
+                        variant: "destructive",
+                      })
+                    } finally {
+                      setSavingNoteId(null)
+                    }
+                  }}
+                >
+                  {savingNoteId === editingNoteId ? "Se salvează..." : "Salvează"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {loading ? (
@@ -161,65 +281,7 @@ export default function OpportunityNotesPage() {
                   <p className="text-sm text-neutral-500">{formatDateTime(note.createdAt)}</p>
                   <SubtleBadge tone="neutral">{CRM_VISIBILITY_LABELS[note.visibility as keyof typeof CRM_VISIBILITY_LABELS]}</SubtleBadge>
                 </div>
-                {editingContentNoteId === note.id ? (
-                  <div className="mt-1 space-y-2">
-                    <Textarea
-                      value={editContent}
-                      onChange={(event) => setEditContent(event.target.value)}
-                      className="min-h-[104px] text-sm"
-                      placeholder="Editează nota..."
-                    />
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        size="sm"
-                        className="h-8 text-sm"
-                        disabled={savingContentNoteId === note.id || !user?.uid}
-                        onClick={async () => {
-                          if (!user?.uid) return
-                          setSavingContentNoteId(note.id)
-                          try {
-                            await updateCrmNoteContent({
-                              noteId: note.id,
-                              actorId: user.uid,
-                              content: editContent,
-                            })
-                            setEditingContentNoteId(null)
-                            setEditContent("")
-                            await load()
-                            toast({
-                              title: "Notă actualizată",
-                              description: "Conținutul notei a fost salvat.",
-                            })
-                          } catch (error) {
-                            toast({
-                              title: "Actualizare eșuată",
-                              description: error instanceof Error ? error.message : "Nu s-a putut actualiza nota.",
-                              variant: "destructive",
-                            })
-                          } finally {
-                            setSavingContentNoteId(null)
-                          }
-                        }}
-                      >
-                        {savingContentNoteId === note.id ? "Se salvează..." : "Salvează"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 text-sm"
-                        disabled={savingContentNoteId === note.id}
-                        onClick={() => {
-                          setEditingContentNoteId(null)
-                          setEditContent("")
-                        }}
-                      >
-                        Anulează
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="whitespace-pre-wrap text-sm text-neutral-700">{note.content}</p>
-                )}
+                <p className="whitespace-pre-wrap text-sm text-neutral-700">{note.content}</p>
                 <div className="mt-2 flex items-center justify-between gap-2">
                   <p className="text-sm text-neutral-400">de {userNameMap[note.createdById] || note.createdById}</p>
                   {!isTechnician ? (
@@ -229,26 +291,14 @@ export default function OpportunityNotesPage() {
                         size="sm"
                         className="h-8 text-sm"
                         onClick={() => {
-                          setEditingContentNoteId(note.id)
-                          setEditContent(note.content)
-                          setEditingNoteId(null)
-                        }}
-                      >
-                        Editează notă
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 text-sm"
-                        onClick={() => {
                           setEditingNoteId(note.id)
+                          setEditContent(note.content)
                           setEditVisibility(note.visibility)
                           setEditVisibleToUserIds(note.visibleToUserIds || [])
-                          setEditingContentNoteId(null)
-                          setEditContent("")
+                          setIsEditOpen(true)
                         }}
                       >
-                        Edit visibility
+                        Editează
                       </Button>
                       <Button
                         variant="ghost"
@@ -265,76 +315,6 @@ export default function OpportunityNotesPage() {
                   ) : null}
                 </div>
 
-                {!isTechnician && editingNoteId === note.id ? (
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    <Select value={editVisibility} onValueChange={(value) => setEditVisibility(value as typeof editVisibility)}>
-                      <SelectTrigger className="h-9 text-sm">
-                        <SelectValue placeholder="Visibility" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CRM_VISIBILITIES.map((item) => (
-                          <SelectItem key={item} value={item}>
-                            {CRM_VISIBILITY_LABELS[item]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    {editVisibility === "CUSTOM" ? (
-                      <MultiSelect options={userOptions} selected={editVisibleToUserIds} onChange={setEditVisibleToUserIds} placeholder="Alege useri" />
-                    ) : (
-                      <div />
-                    )}
-
-                    <div className="sm:col-span-2 flex justify-end gap-2">
-                      <Button
-                        size="sm"
-                        className="h-9 text-sm"
-                        disabled={savingNoteId === note.id || !user?.uid}
-                        onClick={async () => {
-                          if (!user?.uid) return
-                          setSavingNoteId(note.id)
-                          try {
-                            await updateCrmNoteVisibility({
-                              noteId: note.id,
-                              actorId: user.uid,
-                              visibility: editVisibility,
-                              visibleToUserIds: editVisibleToUserIds,
-                            })
-                            setEditingNoteId(null)
-                            await load()
-                            toast({
-                              title: "Vizibilitate actualizată",
-                              description: "Vizibilitatea notei a fost actualizată.",
-                            })
-                          } catch (error) {
-                            toast({
-                              title: "Actualizare eșuată",
-                              description: error instanceof Error ? error.message : "Nu s-a putut actualiza vizibilitatea notei.",
-                              variant: "destructive",
-                            })
-                          } finally {
-                            setSavingNoteId(null)
-                          }
-                        }}
-                      >
-                        {savingNoteId === note.id ? "Se salvează..." : "Salvează"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-9 text-sm"
-                        disabled={savingNoteId === note.id}
-                        onClick={() => {
-                          setEditingNoteId(null)
-                          setEditVisibleToUserIds([])
-                        }}
-                      >
-                        Anulează
-                      </Button>
-                    </div>
-                  </div>
-                ) : null}
               </div>
             ))}
           </div>

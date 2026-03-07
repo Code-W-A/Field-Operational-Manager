@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Panel, SubtleBadge } from "@/components/crm"
@@ -28,6 +29,7 @@ export default function OpportunityInternePage() {
 
   const [toUserId, setToUserId] = useState("")
   const [message, setMessage] = useState("")
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [confirmingNoteId, setConfirmingNoteId] = useState<string | null>(null)
@@ -87,79 +89,104 @@ export default function OpportunityInternePage() {
       className="flex min-h-0 flex-1 flex-col overflow-hidden"
       contentClassName="flex min-h-0 flex-1 flex-col"
     >
-      <div className="mb-4 shrink-0 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-        <div className="grid gap-3">
-          <div className="grid gap-2 md:grid-cols-[240px_1fr]">
-            <div className="grid gap-1">
-              <Label>Destinatar</Label>
-              <Select value={toUserId} onValueChange={setToUserId}>
-                <SelectTrigger className="h-10 text-sm">
-                  <SelectValue placeholder="Selectează colegul" />
-                </SelectTrigger>
-                <SelectContent>
-                  {recipientOptions.map((row) => (
-                    <SelectItem key={row.uid} value={row.uid}>
-                      {row.displayName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid gap-1">
-              <Label>Mesaj intern</Label>
-              <Textarea
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
-                className="min-h-[112px] text-sm"
-                placeholder="Scrie nota internă sau întrebarea pentru colegul vizat."
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              className="h-10 gap-2 text-sm"
-              disabled={saving}
-              onClick={async () => {
-                if (!user?.uid || !toUserId || !message.trim()) {
-                  toast({
-                    title: "Date incomplete",
-                    description: "Selectează destinatarul și completează mesajul intern.",
-                    variant: "destructive",
-                  })
-                  return
-                }
-
-                setSaving(true)
-                try {
-                  await createCrmInternalNote({
-                    opportunityId,
-                    fromUserId: user.uid,
-                    toUserId,
-                    message,
-                    createdById: user.uid,
-                  })
-
-                  setMessage("")
-                  setToUserId("")
-                  await load()
-                  toast({
-                    title: "Notă internă trimisă",
-                    description: "Mesajul a fost trimis și așteaptă confirmarea destinatarului.",
-                  })
-                } finally {
-                  setSaving(false)
-                }
-              }}
-            >
-              <Send className="h-4 w-4" />
-              {saving ? "Se trimite..." : "Trimite nota internă"}
-            </Button>
-          </div>
-        </div>
+      <div className="mb-4 shrink-0 flex justify-end">
+        <Button size="sm" className="h-9 text-sm" onClick={() => setIsCreateOpen(true)}>
+          <Send className="mr-1.5 h-4 w-4" />
+          Notă internă nouă
+        </Button>
       </div>
+
+      <Sheet open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <SheetContent side="right" className="w-full p-0 sm:max-w-xl">
+          <div className="flex h-full min-h-0 flex-col">
+            <SheetHeader className="border-b px-5 py-4">
+              <SheetTitle>Notă internă nouă</SheetTitle>
+              <SheetDescription>Trimite un mesaj intern către un coleg sau admin.</SheetDescription>
+            </SheetHeader>
+            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+              <div className="grid gap-3">
+                <div className="grid gap-2">
+                  <Label>Destinatar</Label>
+                  <Select value={toUserId} onValueChange={setToUserId}>
+                    <SelectTrigger className="h-10 text-sm">
+                      <SelectValue placeholder="Selectează colegul" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {recipientOptions.map((row) => (
+                        <SelectItem key={row.uid} value={row.uid}>
+                          {row.displayName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid gap-1">
+                  <Label>Mesaj intern</Label>
+                  <Textarea
+                    value={message}
+                    onChange={(event) => setMessage(event.target.value)}
+                    className="min-h-[160px] text-sm"
+                    placeholder="Scrie nota internă sau întrebarea pentru colegul vizat."
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="border-t px-5 py-4">
+              <div className="flex justify-end gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-10 text-sm"
+                  disabled={saving}
+                  onClick={() => setIsCreateOpen(false)}
+                >
+                  Anulează
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-10 gap-2 text-sm"
+                  disabled={saving}
+                  onClick={async () => {
+                    if (!user?.uid || !toUserId || !message.trim()) {
+                      toast({
+                        title: "Date incomplete",
+                        description: "Selectează destinatarul și completează mesajul intern.",
+                        variant: "destructive",
+                      })
+                      return
+                    }
+
+                    setSaving(true)
+                    try {
+                      await createCrmInternalNote({
+                        opportunityId,
+                        fromUserId: user.uid,
+                        toUserId,
+                        message,
+                        createdById: user.uid,
+                      })
+
+                      setMessage("")
+                      setToUserId("")
+                      setIsCreateOpen(false)
+                      await load()
+                      toast({
+                        title: "Notă internă trimisă",
+                        description: "Mesajul a fost trimis și așteaptă confirmarea destinatarului.",
+                      })
+                    } finally {
+                      setSaving(false)
+                    }
+                  }}
+                >
+                  Salvează
+                </Button>
+              </div>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {loading ? (

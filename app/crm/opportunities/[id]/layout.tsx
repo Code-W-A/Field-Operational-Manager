@@ -230,7 +230,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
           <OpportunityTypeSidebar homeItem={sidebarHomeItem} items={sidebarItems} collapsibleOnMobile />
         </div>
 
-        <section className="flex min-h-0 flex-col gap-3 overflow-hidden">
+        <section className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
           <div className="rounded-xl border border-neutral-200 bg-white px-5 py-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-[280px] flex-1">
@@ -304,7 +304,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
             </p>
           </div>
           <TabsHeader items={tabs} />
-          <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
         </section>
 
         <div className="min-h-0 xl:h-full xl:overflow-hidden">

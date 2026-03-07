@@ -6,6 +6,7 @@ import { Download, Trash2, Upload } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MultiSelect } from "@/components/ui/multi-select"
 import { Panel, SubtleBadge } from "@/components/crm"
@@ -32,6 +33,8 @@ export default function OpportunityFilesPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [visibility, setVisibility] = useState<(typeof CRM_VISIBILITIES)[number]>("PRIVATE")
   const [visibleToUserIds, setVisibleToUserIds] = useState<string[]>([])
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isEditOpen, setIsEditOpen] = useState(false)
   const [editingFileId, setEditingFileId] = useState<string | null>(null)
   const [editVisibility, setEditVisibility] = useState<(typeof CRM_VISIBILITIES)[number]>("PRIVATE")
   const [editVisibleToUserIds, setEditVisibleToUserIds] = useState<string[]>([])
@@ -84,71 +87,168 @@ export default function OpportunityFilesPage() {
       contentClassName="flex min-h-0 flex-1 flex-col"
     >
       {!isTechnician ? (
-        <div className="mb-4 shrink-0 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
-          <div className="grid gap-2 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="crm-file">Fișier</Label>
-              <input
-                id="crm-file"
-                type="file"
-                className="block w-full text-sm"
-                onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label>Visibility</Label>
-              <Select value={visibility} onValueChange={(value) => setVisibility(value as typeof visibility)}>
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="Visibility" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CRM_VISIBILITIES.map((item) => (
-                    <SelectItem key={item} value={item}>
-                      {CRM_VISIBILITY_LABELS[item]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {visibility === "CUSTOM" ? (
-            <div className="mt-2">
-              <MultiSelect options={userOptions} selected={visibleToUserIds} onChange={setVisibleToUserIds} placeholder="Alege userii" />
-            </div>
-          ) : null}
-
-          <div className="mt-3 flex justify-end">
-            <Button
-              size="sm"
-              className="h-9 text-sm"
-              disabled={!selectedFile || !user?.uid}
-              onClick={async () => {
-                if (!selectedFile || !user?.uid) return
-                await uploadCrmFile({
-                  opportunityId,
-                  file: selectedFile,
-                  uploadedById: user.uid,
-                  visibility,
-                  visibleToUserIds,
-                })
-                toast({
-                  title: "Fișier încărcat",
-                  description: `${selectedFile.name} a fost adăugat în oportunitate.`,
-                })
-                setSelectedFile(null)
-                setVisibility("PRIVATE")
-                setVisibleToUserIds([])
-                await load()
-              }}
-            >
-              <Upload className="mr-1.5 h-4 w-4" />
-              Upload
-            </Button>
-          </div>
+        <div className="mb-4 shrink-0 flex justify-end">
+          <Button size="sm" className="h-9 text-sm" onClick={() => setIsCreateOpen(true)}>
+            <Upload className="mr-1.5 h-4 w-4" />
+            Upload fișier
+          </Button>
         </div>
       ) : null}
+
+      <Sheet open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <SheetContent side="right" className="w-full p-0 sm:max-w-xl">
+          <div className="flex h-full min-h-0 flex-col">
+            <SheetHeader className="border-b px-5 py-4">
+              <SheetTitle>Încarcă fișier</SheetTitle>
+              <SheetDescription>Alege un fișier și setează vizibilitatea.</SheetDescription>
+            </SheetHeader>
+            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label htmlFor="crm-file">Fișier</Label>
+                  <input
+                    id="crm-file"
+                    type="file"
+                    className="block w-full text-sm"
+                    onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label>Visibility</Label>
+                  <Select value={visibility} onValueChange={(value) => setVisibility(value as typeof visibility)}>
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue placeholder="Visibility" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CRM_VISIBILITIES.map((item) => (
+                        <SelectItem key={item} value={item}>
+                          {CRM_VISIBILITY_LABELS[item]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {visibility === "CUSTOM" ? (
+                <div className="mt-2">
+                  <MultiSelect options={userOptions} selected={visibleToUserIds} onChange={setVisibleToUserIds} placeholder="Alege userii" />
+                </div>
+              ) : null}
+            </div>
+            <div className="border-t px-5 py-4">
+              <div className="flex justify-end gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-9 text-sm"
+                  onClick={() => setIsCreateOpen(false)}
+                >
+                  Anulează
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-9 text-sm"
+                  disabled={!selectedFile || !user?.uid}
+                  onClick={async () => {
+                    if (!selectedFile || !user?.uid) return
+                    await uploadCrmFile({
+                      opportunityId,
+                      file: selectedFile,
+                      uploadedById: user.uid,
+                      visibility,
+                      visibleToUserIds,
+                    })
+                    toast({
+                      title: "Fișier încărcat",
+                      description: `${selectedFile.name} a fost adăugat în oportunitate.`,
+                    })
+                    setSelectedFile(null)
+                    setVisibility("PRIVATE")
+                    setVisibleToUserIds([])
+                    setIsCreateOpen(false)
+                    await load()
+                  }}
+                >
+                  Salvează
+                </Button>
+              </div>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <SheetContent side="right" className="w-full p-0 sm:max-w-xl">
+          <div className="flex h-full min-h-0 flex-col">
+            <SheetHeader className="border-b px-5 py-4">
+              <SheetTitle>Editează vizibilitatea fișierului</SheetTitle>
+              <SheetDescription>Alege cine poate vedea fișierul.</SheetDescription>
+            </SheetHeader>
+            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Select value={editVisibility} onValueChange={(value) => setEditVisibility(value as typeof editVisibility)}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Visibility" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CRM_VISIBILITIES.map((item) => (
+                      <SelectItem key={item} value={item}>
+                        {CRM_VISIBILITY_LABELS[item]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {editVisibility === "CUSTOM" ? (
+                  <MultiSelect options={userOptions} selected={editVisibleToUserIds} onChange={setEditVisibleToUserIds} placeholder="Alege userii" />
+                ) : null}
+              </div>
+            </div>
+            <div className="border-t px-5 py-4">
+              <div className="flex justify-end gap-2">
+                <Button size="sm" variant="outline" className="h-9 text-sm" onClick={() => setIsEditOpen(false)}>
+                  Anulează
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-9 text-sm"
+                  disabled={!editingFileId || savingFileId === editingFileId || !user?.uid}
+                  onClick={async () => {
+                    if (!user?.uid || !editingFileId) return
+                    setSavingFileId(editingFileId)
+                    try {
+                      await updateCrmFileVisibility({
+                        fileId: editingFileId,
+                        actorId: user.uid,
+                        visibility: editVisibility,
+                        visibleToUserIds: editVisibleToUserIds,
+                      })
+                      setEditingFileId(null)
+                      setIsEditOpen(false)
+                      await load()
+                      toast({
+                        title: "Vizibilitate actualizată",
+                        description: "Vizibilitatea fișierului a fost actualizată.",
+                      })
+                    } catch (error) {
+                      toast({
+                        title: "Actualizare eșuată",
+                        description: error instanceof Error ? error.message : "Nu s-a putut actualiza vizibilitatea fișierului.",
+                        variant: "destructive",
+                      })
+                    } finally {
+                      setSavingFileId(null)
+                    }
+                  }}
+                >
+                  {savingFileId === editingFileId ? "Se salvează..." : "Salvează"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {loading ? (
@@ -177,6 +277,7 @@ export default function OpportunityFilesPage() {
                           setEditingFileId(file.id)
                           setEditVisibility(file.visibility)
                           setEditVisibleToUserIds(file.visibleToUserIds || [])
+                          setIsEditOpen(true)
                         }}
                       >
                         Edit visibility
@@ -203,76 +304,6 @@ export default function OpportunityFilesPage() {
                   </div>
                 </div>
 
-                {!isTechnician && editingFileId === file.id ? (
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    <Select value={editVisibility} onValueChange={(value) => setEditVisibility(value as typeof editVisibility)}>
-                      <SelectTrigger className="h-9 text-sm">
-                        <SelectValue placeholder="Visibility" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CRM_VISIBILITIES.map((item) => (
-                          <SelectItem key={item} value={item}>
-                            {CRM_VISIBILITY_LABELS[item]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    {editVisibility === "CUSTOM" ? (
-                      <MultiSelect options={userOptions} selected={editVisibleToUserIds} onChange={setEditVisibleToUserIds} placeholder="Alege userii" />
-                    ) : (
-                      <div />
-                    )}
-
-                    <div className="sm:col-span-2 flex justify-end gap-2">
-                      <Button
-                        size="sm"
-                        className="h-9 text-sm"
-                        disabled={savingFileId === file.id || !user?.uid}
-                        onClick={async () => {
-                          if (!user?.uid) return
-                          setSavingFileId(file.id)
-                          try {
-                            await updateCrmFileVisibility({
-                              fileId: file.id,
-                              actorId: user.uid,
-                              visibility: editVisibility,
-                              visibleToUserIds: editVisibleToUserIds,
-                            })
-                            setEditingFileId(null)
-                            await load()
-                            toast({
-                              title: "Vizibilitate actualizată",
-                              description: `Vizibilitatea pentru ${file.filename} a fost actualizată.`,
-                            })
-                          } catch (error) {
-                            toast({
-                              title: "Actualizare eșuată",
-                              description: error instanceof Error ? error.message : "Nu s-a putut actualiza vizibilitatea fișierului.",
-                              variant: "destructive",
-                            })
-                          } finally {
-                            setSavingFileId(null)
-                          }
-                        }}
-                      >
-                        {savingFileId === file.id ? "Se salvează..." : "Salvează"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-9 text-sm"
-                        disabled={savingFileId === file.id}
-                        onClick={() => {
-                          setEditingFileId(null)
-                          setEditVisibleToUserIds([])
-                        }}
-                      >
-                        Anulează
-                      </Button>
-                    </div>
-                  </div>
-                ) : null}
               </div>
             ))}
           </div>
