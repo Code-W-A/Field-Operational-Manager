@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
-import { Download, Trash2, Upload } from "lucide-react"
+import { Download, FileText, Trash2, Upload } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -260,11 +260,23 @@ export default function OpportunityFilesPage() {
             {files.map((file) => (
               <div key={file.id} className="rounded-lg border border-neutral-200 bg-white p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-base font-semibold text-neutral-900">{file.filename}</p>
-                    <p className="mt-1 text-sm text-neutral-500">
-                      {(file.size / 1024).toFixed(1)} KB • {formatDateTime(file.createdAt)} • by {userNameMap[file.uploadedById] || file.uploadedById}
-                    </p>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md border border-neutral-200 bg-neutral-50">
+                      {file.mime.startsWith("image/") ? (
+                        <img src={file.url} alt={file.filename} className="h-full w-full object-cover" />
+                      ) : (
+                        <FileText className="h-7 w-7 text-neutral-500" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {file.internalCode ? <SubtleBadge tone="neutral">{file.internalCode}</SubtleBadge> : null}
+                        <p className="truncate text-base font-semibold text-neutral-900">{file.filename}</p>
+                      </div>
+                      <p className="mt-1 text-sm text-neutral-500">
+                        {(file.size / 1024).toFixed(1)} KB • {formatDateTime(file.createdAt)} • by {userNameMap[file.uploadedById] || file.uploadedById}
+                      </p>
+                    </div>
                   </div>
                   <div className="flex items-center gap-1">
                     <SubtleBadge tone="neutral">{CRM_VISIBILITY_LABELS[file.visibility]}</SubtleBadge>

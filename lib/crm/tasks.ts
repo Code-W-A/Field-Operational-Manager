@@ -35,6 +35,7 @@ import type {
   CreateEmailInput,
   CreateInternalHandoffInput,
   CreateInternalNoteInput,
+  CreateStandaloneInternalNoteInput,
   CreateNoteInput,
   CreateTaskInput,
 } from "@/lib/crm/types"
@@ -531,10 +532,12 @@ export async function deleteCrmNote(noteId: string, actorId: string) {
 function mapInternalNote(docId: string, data: Record<string, unknown>): CrmInternalNote {
   return {
     id: docId,
-    opportunityId: String(data.opportunityId || ""),
+    opportunityId: typeof data.opportunityId === "string" ? data.opportunityId : undefined,
     fromUserId: String(data.fromUserId || ""),
     toUserId: String(data.toUserId || ""),
     message: String(data.message || ""),
+    context: typeof data.context === "string" ? data.context : undefined,
+    dueAt: (data.dueAt as CrmInternalNote["dueAt"]) || undefined,
     status: (data.status as CrmInternalNote["status"]) || "PENDING",
     confirmationMessage: typeof data.confirmationMessage === "string" ? data.confirmationMessage : undefined,
     confirmedAt: (data.confirmedAt as CrmInternalNote["confirmedAt"]) || undefined,
@@ -547,12 +550,15 @@ function mapInternalNote(docId: string, data: Record<string, unknown>): CrmInter
 
 export async function createCrmInternalNote(input: CreateInternalNoteInput) {
   const message = input.message.trim()
+  const context = input.context?.trim() || null
 
   const ref = await addDoc(collection(db, CRM_COLLECTIONS.internalNotes), {
     opportunityId: input.opportunityId,
     fromUserId: input.fromUserId,
     toUserId: input.toUserId,
     message,
+    context,
+    dueAt: toTimestamp(input.dueAt) || null,
     status: "PENDING",
     confirmationMessage: null,
     confirmedAt: null,
@@ -571,6 +577,8 @@ export async function createCrmInternalNote(input: CreateInternalNoteInput) {
       fromUserId: input.fromUserId,
       toUserId: input.toUserId,
       message,
+      context,
+      dueAt: input.dueAt ? input.dueAt.toISOString() : null,
       status: "PENDING",
     },
   })
@@ -578,6 +586,47 @@ export async function createCrmInternalNote(input: CreateInternalNoteInput) {
   await rebuildOpportunitySearchIndex(input.opportunityId)
 
   return ref.id
+}
+
+export async function createCrmInternalNoteStandalone(input: CreateStandaloneInternalNoteInput) {
+  const message = input.message.trim()
+  const context = input.context?.trim() || null
+
+  const ref = await addDoc(collection(db, CRM_COLLECTIONS.internalNotes), {
+    opportunityId: null,
+    fromUserId: input.fromUserId,
+    toUserId: input.toUserId,
+    message,
+    context,
+    dueAt: toTimestamp(input.dueAt) || null,
+    status: "PENDING",
+    confirmationMessage: null,
+    confirmedAt: null,
+    confirmedById: null,
+    createdById: input.createdById,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+
+  return ref.id
+}
+
+function getInternalNoteCreatedAtMs(note: CrmInternalNote) {
+  const createdAt =
+    note.createdAt instanceof Timestamp
+      ? note.createdAt.toDate()
+      : note.createdAt instanceof Date
+        ? note.createdAt
+        : note.createdAt
+          ? new Date(note.createdAt as string | number)
+          : null
+  return createdAt?.getTime() || 0
+}
+
+function sortInternalNotesDesc(rows: CrmInternalNote[]) {
+  return [...rows].sort((left, right) => {
+    return getInternalNoteCreatedAtMs(right) - getInternalNoteCreatedAtMs(left)
+  })
 }
 
 export async function listCrmInternalNotes(params: {
@@ -597,27 +646,42 @@ export async function listCrmInternalNotes(params: {
 
   return rows.docs
     .map((snap) => mapInternalNote(snap.id, snap.data() as Record<string, unknown>))
-    .sort((left, right) => {
-      const leftDate =
-        left.createdAt instanceof Timestamp
-          ? left.createdAt.toDate()
-          : left.createdAt instanceof Date
-            ? left.createdAt
-            : left.createdAt
-              ? new Date(left.createdAt as string | number)
-              : null
-      const rightDate =
-        right.createdAt instanceof Timestamp
-          ? right.createdAt.toDate()
-          : right.createdAt instanceof Date
-            ? right.createdAt
-            : right.createdAt
-              ? new Date(right.createdAt as string | number)
-              : null
-      const leftMs = leftDate?.getTime() || 0
-      const rightMs = rightDate?.getTime() || 0
-      return leftMs - rightMs
-    })
+    .sort((left, right) => getInternalNoteCreatedAtMs(left) - getInternalNoteCreatedAtMs(right))
+}
+
+export async function listCrmInternalNotesStandalone(params: {
+  userId: string
+  mailbox: "INBOX" | "SENT" | "ALL"
+  status?: "PENDING" | "CONFIRMED" | "ALL"
+}) {
+  const statusFilter = params.status && params.status !== "ALL" ? params.status : null
+  const runQuery = async (field: "toUserId" | "fromUserId") => {
+    const clauses = [
+      where(field, "==", params.userId),
+      where("opportunityId", "==", null),
+    ]
+    if (statusFilter) clauses.push(where("status", "==", statusFilter))
+
+    const rows = await getDocs(
+      query(collection(db, CRM_COLLECTIONS.internalNotes), ...clauses, limit(300))
+    )
+    return sortInternalNotesDesc(rows.docs.map((snap) => mapInternalNote(snap.id, snap.data() as Record<string, unknown>)))
+  }
+
+  if (params.mailbox === "INBOX") {
+    return runQuery("toUserId")
+  }
+
+  if (params.mailbox === "SENT") {
+    return runQuery("fromUserId")
+  }
+
+  const [inboxRows, sentRows] = await Promise.all([runQuery("toUserId"), runQuery("fromUserId")])
+  const deduped = new Map<string, CrmInternalNote>()
+  ;[...inboxRows, ...sentRows].forEach((row) => {
+    deduped.set(row.id, row)
+  })
+  return sortInternalNotesDesc(Array.from(deduped.values()))
 }
 
 export async function confirmCrmInternalNote(params: {
@@ -648,23 +712,25 @@ export async function confirmCrmInternalNote(params: {
     updatedAt: serverTimestamp(),
   })
 
-  await logCrmActivity({
-    opportunityId: note.opportunityId,
-    actorId: params.actorId,
-    type: "INTERNAL_NOTE_CONFIRMED",
-    payload: {
-      internalNoteId: note.id,
-      fromUserId: note.fromUserId,
-      toUserId: note.toUserId,
-      message: note.message,
-      confirmationMessage,
-      confirmedById: params.actorId,
-      status: "CONFIRMED",
-      confirmedAt: new Date().toISOString(),
-    },
-  })
+  if (note.opportunityId) {
+    await logCrmActivity({
+      opportunityId: note.opportunityId,
+      actorId: params.actorId,
+      type: "INTERNAL_NOTE_CONFIRMED",
+      payload: {
+        internalNoteId: note.id,
+        fromUserId: note.fromUserId,
+        toUserId: note.toUserId,
+        message: note.message,
+        confirmationMessage,
+        confirmedById: params.actorId,
+        status: "CONFIRMED",
+        confirmedAt: new Date().toISOString(),
+      },
+    })
 
-  await rebuildOpportunitySearchIndex(note.opportunityId)
+    await rebuildOpportunitySearchIndex(note.opportunityId)
+  }
 }
 
 function mapInternalHandoff(docId: string, data: Record<string, unknown>): CrmInternalHandoff {
@@ -997,6 +1063,7 @@ function mapFile(docId: string, data: Record<string, unknown>): CrmFileAttachmen
   return {
     id: docId,
     opportunityId: String(data.opportunityId || ""),
+    internalCode: typeof data.internalCode === "string" ? data.internalCode : undefined,
     url: String(data.url || ""),
     storagePath: typeof data.storagePath === "string" ? data.storagePath : undefined,
     filename: String(data.filename || ""),
@@ -1023,9 +1090,16 @@ export async function uploadCrmFile(params: {
 
   const visibility = params.visibility || "PRIVATE"
   const visibleToUserIds = normalizeVisibilityUsers(visibility, params.visibleToUserIds)
+  const [opportunitySnap, existingFilesSnap] = await Promise.all([
+    getDoc(doc(db, CRM_COLLECTIONS.opportunities, params.opportunityId)),
+    getDocs(query(collection(db, CRM_COLLECTIONS.files), where("opportunityId", "==", params.opportunityId), limit(1000))),
+  ])
+  const opportunityCode = opportunitySnap.exists() ? String(opportunitySnap.data().code || "OP") : "OP"
+  const internalCode = `${opportunityCode}.A${existingFilesSnap.size + 1}`
 
   const ref = await addDoc(collection(db, CRM_COLLECTIONS.files), {
     opportunityId: params.opportunityId,
+    internalCode,
     url: uploadResult.url,
     storagePath: uploadResult.path,
     filename: uploadResult.filename,
@@ -1050,6 +1124,7 @@ export async function uploadCrmFile(params: {
     type: "FILE_UPLOADED",
     payload: {
       fileId: ref.id,
+      internalCode,
       filename: uploadResult.filename,
       size: uploadResult.size,
       mime: uploadResult.mime,
@@ -1058,6 +1133,7 @@ export async function uploadCrmFile(params: {
       files: [
         {
           id: ref.id,
+          internalCode,
           filename: uploadResult.filename,
           size: uploadResult.size,
           mime: uploadResult.mime,
@@ -1134,6 +1210,7 @@ export async function updateCrmFileVisibility(params: {
       fileId: fileRow.id,
       file: {
         id: fileRow.id,
+        internalCode: fileRow.internalCode || null,
         filename: fileRow.filename,
         uploadedById: fileRow.uploadedById,
       },

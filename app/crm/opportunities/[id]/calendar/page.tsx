@@ -99,31 +99,31 @@ export default function OpportunityCalendarPage() {
               <SheetDescription>Programează un eveniment în calendarul oportunității.</SheetDescription>
             </SheetHeader>
             <div className="min-h-0 flex-1 overflow-y-auto p-5">
-              <div className="grid gap-2 md:grid-cols-2">
-                <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Titlu eveniment" className="h-9 text-sm" />
-                <Input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Locație" className="h-9 text-sm" />
-                <Input type="datetime-local" value={startAt} onChange={(event) => setStartAt(event.target.value)} className="h-9 text-sm" />
-                <Input type="datetime-local" value={endAt} onChange={(event) => setEndAt(event.target.value)} className="h-9 text-sm" />
-                <Input type="datetime-local" value={reminderAt} onChange={(event) => setReminderAt(event.target.value)} className="h-9 text-sm" />
-                <Select value={visibility} onValueChange={(value) => setVisibility(value as typeof visibility)}>
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder="Visibility" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CRM_VISIBILITIES.map((item) => (
-                      <SelectItem key={item} value={item}>
-                        {CRM_VISIBILITY_LABELS[item]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+          <div className="grid gap-2 md:grid-cols-2">
+            <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Titlu eveniment" className="h-9 text-sm" />
+            <Input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Locație" className="h-9 text-sm" />
+            <Input type="datetime-local" value={startAt} onChange={(event) => setStartAt(event.target.value)} className="h-9 text-sm" />
+            <Input type="datetime-local" value={endAt} onChange={(event) => setEndAt(event.target.value)} className="h-9 text-sm" />
+            <Input type="datetime-local" value={reminderAt} onChange={(event) => setReminderAt(event.target.value)} className="h-9 text-sm" />
+            <Select value={visibility} onValueChange={(value) => setVisibility(value as typeof visibility)}>
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue placeholder="Visibility" />
+              </SelectTrigger>
+              <SelectContent>
+                {CRM_VISIBILITIES.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {CRM_VISIBILITY_LABELS[item]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-              {visibility === "CUSTOM" ? (
-                <div className="mt-2">
-                  <MultiSelect options={userOptions} selected={visibleToUserIds} onChange={setVisibleToUserIds} placeholder="Alege useri" />
-                </div>
-              ) : null}
+          {visibility === "CUSTOM" ? (
+            <div className="mt-2">
+              <MultiSelect options={userOptions} selected={visibleToUserIds} onChange={setVisibleToUserIds} placeholder="Alege useri" />
+            </div>
+          ) : null}
             </div>
             <div className="border-t px-5 py-4">
               <div className="flex justify-end gap-2">
@@ -135,37 +135,37 @@ export default function OpportunityCalendarPage() {
                 >
                   Anulează
                 </Button>
-                <Button
-                  size="sm"
-                  className="h-9 text-sm"
-                  onClick={async () => {
-                    if (!title.trim() || !startAt || !endAt || !user?.uid) return
-                    await createCrmCalendarEvent({
-                      opportunityId,
-                      title,
-                      startAt: new Date(startAt),
-                      endAt: new Date(endAt),
-                      location,
-                      reminderAt: reminderAt ? new Date(reminderAt) : undefined,
-                      createdById: user.uid,
-                      visibility,
-                      visibleToUserIds,
-                    })
-                    setTitle("")
-                    setStartAt("")
-                    setEndAt("")
-                    setLocation("")
-                    setReminderAt("")
+            <Button
+              size="sm"
+              className="h-9 text-sm"
+              onClick={async () => {
+                if (!title.trim() || !startAt || !endAt || !user?.uid) return
+                await createCrmCalendarEvent({
+                  opportunityId,
+                  title,
+                  startAt: new Date(startAt),
+                  endAt: new Date(endAt),
+                  location,
+                  reminderAt: reminderAt ? new Date(reminderAt) : undefined,
+                  createdById: user.uid,
+                  visibility,
+                  visibleToUserIds,
+                })
+                setTitle("")
+                setStartAt("")
+                setEndAt("")
+                setLocation("")
+                setReminderAt("")
                     setVisibility("PRIVATE")
-                    setVisibleToUserIds([])
+                setVisibleToUserIds([])
                     setIsCreateOpen(false)
-                    await load()
-                  }}
-                >
+                await load()
+              }}
+            >
                   Salvează
-                </Button>
-              </div>
-            </div>
+            </Button>
+          </div>
+        </div>
           </div>
         </SheetContent>
       </Sheet>

@@ -47,7 +47,6 @@ function getActivityLabel(activityType: string) {
     CREATED: "Oportunitate creată",
     UPDATED: "Date oportunitate modificate",
     STAGE_CHANGED: "Schimbare status",
-    TASK_AUTO_CREATED: "Task automat",
     TASK_CREATED: "Task creat",
     TASK_UPDATED: "Task modificat",
     TASK_COMPLETED: "Task completat",
@@ -74,7 +73,6 @@ function getActivityVisual(activityType: string) {
     CREATED: { icon: PlusCircle, dotClass: "border-emerald-200 bg-emerald-50 text-emerald-700", lineClass: "bg-emerald-200" },
     UPDATED: { icon: PencilLine, dotClass: "border-sky-200 bg-sky-50 text-sky-700", lineClass: "bg-sky-200" },
     STAGE_CHANGED: { icon: Milestone, dotClass: "border-violet-200 bg-violet-50 text-violet-700", lineClass: "bg-violet-200" },
-    TASK_AUTO_CREATED: { icon: ClipboardList, dotClass: "border-blue-200 bg-blue-50 text-blue-700", lineClass: "bg-blue-200" },
     TASK_CREATED: { icon: ClipboardList, dotClass: "border-blue-200 bg-blue-50 text-blue-700", lineClass: "bg-blue-200" },
     TASK_UPDATED: { icon: PencilLine, dotClass: "border-blue-200 bg-blue-50 text-blue-700", lineClass: "bg-blue-200" },
     TASK_COMPLETED: { icon: CheckCheck, dotClass: "border-lime-200 bg-lime-50 text-lime-700", lineClass: "bg-lime-200" },
@@ -189,21 +187,22 @@ function renderActivityContent(activity: CrmActivityLog, userNameMap: Record<str
     const fallbackFile = payload.file
       ? [payload.file]
       : payload.filename
-        ? [{ filename: payload.filename, size: payload.size, mime: payload.mime, url: payload.url }]
+        ? [{ internalCode: payload.internalCode, filename: payload.filename, size: payload.size, mime: payload.mime, url: payload.url }]
         : []
-    const files = [...filesRaw, ...fallbackFile] as Array<Record<string, unknown>>
+    const files = (filesRaw.length > 0 ? filesRaw : fallbackFile) as Array<Record<string, unknown>>
     if (files.length === 0) return <p className="text-sm text-neutral-500">Fără detalii fișier.</p>
     return (
       <div className="space-y-2">
         {files.map((file, idx) => (
           <div key={`${String(file.filename || "file")}-${idx}`} className="rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-2">
+            {renderKeyValueRow("Cod intern", String(file.internalCode || "-"))}
             {renderKeyValueRow("Nume", String(file.filename || "-"))}
             {renderKeyValueRow("Tip", String(file.mime || "-"))}
             {renderKeyValueRow("Dimensiune", file.size ? `${Number(file.size).toLocaleString("ro-RO")} B` : "-")}
             {file.url ? (
-              <p className="text-sm text-blue-700 break-all">
+              <p className="text-sm text-blue-700">
                 <a href={String(file.url)} target="_blank" rel="noreferrer" className="hover:underline">
-                  {String(file.url)}
+                  Deschide fișier
                 </a>
               </p>
             ) : null}
@@ -259,16 +258,6 @@ function renderActivityContent(activity: CrmActivityLog, userNameMap: Record<str
         {renderKeyValueRow("Către", mapUser(String(payload.toUserId || "")))}
         {renderKeyValueRow("Sumă", `${String(payload.amount || 0)} ${String(payload.currency || "RON")}`)}
         {payload.note ? <p className="whitespace-pre-wrap text-sm text-neutral-700">{String(payload.note)}</p> : null}
-      </div>
-    )
-  }
-
-  if (activity.type === "TASK_AUTO_CREATED") {
-    const task = (payload.task || {}) as Record<string, unknown>
-    return (
-      <div className="space-y-1.5">
-        {renderKeyValueRow("Titlu", String(task.title || "-"))}
-        {renderKeyValueRow("Termen", formatDateTime(task.dueAt))}
       </div>
     )
   }
@@ -330,7 +319,7 @@ export default function OpportunityTimelinePage() {
           listCrmUsers(),
         ])
 
-        setActivities(activityRows)
+        setActivities(activityRows.filter((row) => row.type !== "TASK_AUTO_CREATED"))
         setActorNameMap(
           userRows.reduce<Record<string, string>>((acc, crmUser) => {
             acc[crmUser.uid] = crmUser.displayName || crmUser.email || crmUser.uid

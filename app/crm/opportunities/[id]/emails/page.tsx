@@ -102,49 +102,49 @@ export default function OpportunityEmailsPage() {
               <SheetDescription>Adaugă un email IN/OUT ca activitate pe oportunitate.</SheetDescription>
             </SheetHeader>
             <div className="min-h-0 flex-1 overflow-y-auto p-5">
-              <div className="grid gap-2 md:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label>Direcție</Label>
-                  <Select value={direction} onValueChange={(value) => setDirection(value as typeof direction)}>
-                    <SelectTrigger className="h-9 text-sm">
-                      <SelectValue placeholder="IN / OUT" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="IN">IN</SelectItem>
-                      <SelectItem value="OUT">OUT</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="sentAt">Data</Label>
-                  <Input id="sentAt" type="datetime-local" value={sentAt} onChange={(event) => setSentAt(event.target.value)} className="h-9 text-sm" />
-                </div>
-              </div>
+          <div className="grid gap-2 md:grid-cols-2">
+            <div className="grid gap-2">
+              <Label>Direcție</Label>
+              <Select value={direction} onValueChange={(value) => setDirection(value as typeof direction)}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="IN / OUT" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="IN">IN</SelectItem>
+                  <SelectItem value="OUT">OUT</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="sentAt">Data</Label>
+              <Input id="sentAt" type="datetime-local" value={sentAt} onChange={(event) => setSentAt(event.target.value)} className="h-9 text-sm" />
+            </div>
+          </div>
 
-              <div className="mt-2 grid gap-2">
-                <Input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Subject" className="h-9 text-sm" />
-                <Input value={from} onChange={(event) => setFrom(event.target.value)} placeholder="From" className="h-9 text-sm" />
-                <Input value={to} onChange={(event) => setTo(event.target.value)} placeholder="To (separate cu virgulă)" className="h-9 text-sm" />
+          <div className="mt-2 grid gap-2">
+            <Input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Subject" className="h-9 text-sm" />
+            <Input value={from} onChange={(event) => setFrom(event.target.value)} placeholder="From" className="h-9 text-sm" />
+            <Input value={to} onChange={(event) => setTo(event.target.value)} placeholder="To (separate cu virgulă)" className="h-9 text-sm" />
                 <Textarea value={snippet} onChange={(event) => setSnippet(event.target.value)} placeholder="Body snippet" className="min-h-[120px] text-sm" />
-              </div>
+          </div>
 
-              <div className="mt-2 grid gap-2 md:grid-cols-2">
-                <Select value={visibility} onValueChange={(value) => setVisibility(value as typeof visibility)}>
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder="Visibility" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CRM_VISIBILITIES.map((item) => (
-                      <SelectItem key={item} value={item}>
-                        {CRM_VISIBILITY_LABELS[item]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {visibility === "CUSTOM" ? (
-                  <MultiSelect options={userOptions} selected={visibleToUserIds} onChange={setVisibleToUserIds} placeholder="Alege useri" />
-                ) : null}
-              </div>
+          <div className="mt-2 grid gap-2 md:grid-cols-2">
+            <Select value={visibility} onValueChange={(value) => setVisibility(value as typeof visibility)}>
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue placeholder="Visibility" />
+              </SelectTrigger>
+              <SelectContent>
+                {CRM_VISIBILITIES.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {CRM_VISIBILITY_LABELS[item]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {visibility === "CUSTOM" ? (
+              <MultiSelect options={userOptions} selected={visibleToUserIds} onChange={setVisibleToUserIds} placeholder="Alege useri" />
+            ) : null}
+          </div>
             </div>
             <div className="border-t px-5 py-4">
               <div className="flex justify-end gap-2">
@@ -156,41 +156,41 @@ export default function OpportunityEmailsPage() {
                 >
                   Anulează
                 </Button>
-                <Button
-                  size="sm"
-                  className="h-9 text-sm"
-                  onClick={async () => {
-                    if (!subject.trim() || !from.trim() || !to.trim() || !user?.uid) return
+            <Button
+              size="sm"
+              className="h-9 text-sm"
+              onClick={async () => {
+                if (!subject.trim() || !from.trim() || !to.trim() || !user?.uid) return
 
-                    await createCrmEmail({
-                      opportunityId,
-                      direction,
-                      subject,
-                      from,
-                      to: to.split(",").map((item) => item.trim()).filter(Boolean),
-                      bodySnippet: snippet,
-                      sentAt: sentAt ? new Date(sentAt) : undefined,
-                      createdById: user.uid,
-                      visibility,
-                      visibleToUserIds,
-                    })
+                await createCrmEmail({
+                  opportunityId,
+                  direction,
+                  subject,
+                  from,
+                  to: to.split(",").map((item) => item.trim()).filter(Boolean),
+                  bodySnippet: snippet,
+                  sentAt: sentAt ? new Date(sentAt) : undefined,
+                  createdById: user.uid,
+                  visibility,
+                  visibleToUserIds,
+                })
 
-                    setDirection("OUT")
-                    setSubject("")
-                    setFrom("")
-                    setTo("")
-                    setSnippet("")
-                    setSentAt("")
+                setDirection("OUT")
+                setSubject("")
+                setFrom("")
+                setTo("")
+                setSnippet("")
+                setSentAt("")
                     setVisibility("PRIVATE")
-                    setVisibleToUserIds([])
+                setVisibleToUserIds([])
                     setIsCreateOpen(false)
-                    await load()
-                  }}
-                >
+                await load()
+              }}
+            >
                   Salvează
-                </Button>
-              </div>
-            </div>
+            </Button>
+          </div>
+        </div>
           </div>
         </SheetContent>
       </Sheet>

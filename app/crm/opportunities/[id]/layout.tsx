@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { useParams } from "next/navigation"
-import { CalendarDays, Check, ClipboardCheck, FileText, Loader2, Mail, MessageSquare, Pencil, Timer, X } from "lucide-react"
+import { useParams, useRouter } from "next/navigation"
+import { CalendarDays, Check, ClipboardCheck, FileText, Loader2, Mail, MessageSquare, Pencil, Timer, Trash2, X } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { OpportunityTypeSidebar, Panel, TabsHeader } from "@/components/crm"
 import { Badge } from "@/components/ui/badge"
@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input"
 import {
   getCrmClientById,
+  deleteCrmOpportunity,
   getCrmOpportunityById,
   listCrmClientContacts,
   listCrmOpportunitiesForUser,
@@ -40,10 +41,12 @@ function isOpportunityActive(opportunity: CrmOpportunity) {
 
 export default function OpportunityLayout({ children }: OpportunityLayoutProps) {
   const params = useParams()
+  const router = useRouter()
   const { user, userData } = useAuth()
   const { toast } = useToast()
   const opportunityId = String(params?.id || "")
   const isTechnician = userData?.role === "tehnician"
+  const isAdmin = userData?.role === "admin"
 
   const [opportunity, setOpportunity] = useState<CrmOpportunity | null>(null)
   const [client, setClient] = useState<CrmClient | null>(null)
@@ -62,6 +65,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
   const [titleDraft, setTitleDraft] = useState("")
   const [isSavingTitle, setIsSavingTitle] = useState(false)
   const [selectedContactForDialog, setSelectedContactForDialog] = useState<CrmClientContact | null>(null)
+  const [isDeletingOpportunity, setIsDeletingOpportunity] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -125,7 +129,6 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
       { href: `/crm/opportunities/${opportunityId}/timeline`, label: "Istoric", icon: Timer },
       { href: `/crm/opportunities/${opportunityId}/tasks`, label: "Sarcini", icon: ClipboardCheck },
       { href: `/crm/opportunities/${opportunityId}/notes`, label: "Note", icon: MessageSquare },
-      { href: `/crm/opportunities/${opportunityId}/interne`, label: "Interne", icon: MessageSquare },
       { href: `/crm/opportunities/${opportunityId}/files`, label: "Fișiere", icon: FileText },
       { href: `/crm/opportunities/${opportunityId}/emails`, label: "Email", icon: Mail },
       { href: `/crm/opportunities/${opportunityId}/calendar`, label: "Calendar", icon: CalendarDays },
@@ -182,6 +185,38 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
       })
     } finally {
       setIsSavingTitle(false)
+    }
+  }
+
+  const handleOpportunityDelete = async () => {
+    if (!isAdmin) return
+    if (!opportunity || !user?.uid) return
+
+    const confirmed = window.confirm(
+      `Sigur vrei să ștergi definitiv oportunitatea ${opportunity.code}? Acțiunea nu poate fi anulată.`
+    )
+    if (!confirmed) return
+
+    setIsDeletingOpportunity(true)
+    try {
+      await deleteCrmOpportunity({
+        opportunityId: opportunity.id,
+        actorId: user.uid,
+      })
+      toast({
+        title: "Oportunitate ștearsă",
+        description: "Oportunitatea a fost eliminată definitiv.",
+      })
+      router.push("/crm/opportunities")
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Nu am putut șterge oportunitatea."
+      toast({
+        title: "Eroare la ștergere",
+        description: message,
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeletingOpportunity(false)
     }
   }
 
@@ -259,6 +294,19 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
               </div>
               {!isTechnician ? (
                 <div className="flex items-center gap-2">
+                  {isAdmin ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      className="h-9 text-sm"
+                      onClick={() => void handleOpportunityDelete()}
+                      disabled={isDeletingOpportunity}
+                    >
+                      {isDeletingOpportunity ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Trash2 className="mr-1.5 h-4 w-4" />}
+                      Șterge oportunitate
+                    </Button>
+                  ) : null}
                   {isEditingTitle ? (
                     <>
                       <Button

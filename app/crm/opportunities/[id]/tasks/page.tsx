@@ -125,42 +125,42 @@ export default function OpportunityTasksPage() {
             <div className="min-h-0 flex-1 overflow-y-auto p-5">
               <div className="grid gap-2">
                 <Label>Titlu</Label>
-                <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Titlu sarcină" className="h-9 text-sm" />
+          <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Titlu sarcină" className="h-9 text-sm" />
               </div>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                <Select value={assigneeId} onValueChange={setAssigneeId}>
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder="Assignee" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {users.map((item) => (
-                      <SelectItem key={item.uid} value={item.uid}>
-                        {item.displayName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={visibility} onValueChange={(value) => setVisibility(value as typeof visibility)}>
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder="Visibility" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CRM_VISIBILITIES.map((item) => (
-                      <SelectItem key={item} value={item}>
-                        {CRM_VISIBILITY_LABELS[item]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          <Select value={assigneeId} onValueChange={setAssigneeId}>
+            <SelectTrigger className="h-9 text-sm">
+              <SelectValue placeholder="Assignee" />
+            </SelectTrigger>
+            <SelectContent>
+              {users.map((item) => (
+                <SelectItem key={item.uid} value={item.uid}>
+                  {item.displayName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={visibility} onValueChange={(value) => setVisibility(value as typeof visibility)}>
+            <SelectTrigger className="h-9 text-sm">
+              <SelectValue placeholder="Visibility" />
+            </SelectTrigger>
+            <SelectContent>
+              {CRM_VISIBILITIES.map((item) => (
+                <SelectItem key={item} value={item}>
+                  {CRM_VISIBILITY_LABELS[item]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
                 <Input type="datetime-local" value={dueAt} onChange={(event) => setDueAt(event.target.value)} className="h-9 text-sm" />
                 <Input type="datetime-local" value={reminderAt} onChange={(event) => setReminderAt(event.target.value)} className="h-9 text-sm" />
               </div>
-              {visibility === "CUSTOM" ? (
+          {visibility === "CUSTOM" ? (
                 <div className="mt-2">
-                  <MultiSelect options={userOptions} selected={visibleToUserIds} onChange={setVisibleToUserIds} placeholder="Visible pentru" />
+            <MultiSelect options={userOptions} selected={visibleToUserIds} onChange={setVisibleToUserIds} placeholder="Visible pentru" />
                 </div>
-              ) : null}
-            </div>
+          ) : null}
+        </div>
             <div className="border-t px-5 py-4">
               <div className="flex justify-end gap-2">
                 <Button
@@ -171,36 +171,36 @@ export default function OpportunityTasksPage() {
                 >
                   Anulează
                 </Button>
-                <Button
-                  size="sm"
-                  className="h-9 text-sm"
-                  onClick={async () => {
-                    if (!title.trim() || !user?.uid) return
-                    await createCrmTask({
-                      opportunityId,
-                      title,
-                      createdById: user.uid,
-                      assigneeId,
-                      dueAt: dueAt ? new Date(dueAt) : undefined,
-                      reminderAt: reminderAt ? new Date(reminderAt) : undefined,
-                      visibility,
-                      visibleToUserIds,
-                    })
-                    setTitle("")
-                    setAssigneeId("")
-                    setDueAt("")
-                    setReminderAt("")
+          <Button
+            size="sm"
+            className="h-9 text-sm"
+            onClick={async () => {
+              if (!title.trim() || !user?.uid) return
+              await createCrmTask({
+                opportunityId,
+                title,
+                createdById: user.uid,
+                assigneeId,
+                dueAt: dueAt ? new Date(dueAt) : undefined,
+                reminderAt: reminderAt ? new Date(reminderAt) : undefined,
+                visibility,
+                visibleToUserIds,
+              })
+              setTitle("")
+              setAssigneeId("")
+              setDueAt("")
+              setReminderAt("")
                     setVisibility("PRIVATE")
-                    setVisibleToUserIds([])
+              setVisibleToUserIds([])
                     setIsCreateOpen(false)
-                    await load()
-                  }}
-                >
+              await load()
+            }}
+          >
                   Salvează
-                </Button>
-              </div>
-            </div>
-          </div>
+          </Button>
+        </div>
+      </div>
+                  </div>
         </SheetContent>
       </Sheet>
 
@@ -213,52 +213,52 @@ export default function OpportunityTasksPage() {
             </SheetHeader>
             <div className="min-h-0 flex-1 overflow-y-auto p-5">
               <div className="grid gap-2 sm:grid-cols-2">
-                <Select value={editStatus} onValueChange={(status) => setEditStatus(status as CrmTask["status"])}>
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CRM_TASK_STATUSES.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {CRM_TASK_STATUS_LABELS[status]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    <Select value={editStatus} onValueChange={(status) => setEditStatus(status as CrmTask["status"])}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CRM_TASK_STATUSES.map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {CRM_TASK_STATUS_LABELS[status]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
 
-                <Select value={editAssigneeId} onValueChange={setEditAssigneeId}>
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder="Reassign" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="UNASSIGNED">Neasignat</SelectItem>
-                    {users.map((item) => (
-                      <SelectItem key={item.uid} value={item.uid}>
-                        {item.displayName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    <Select value={editAssigneeId} onValueChange={setEditAssigneeId}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="Reassign" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="UNASSIGNED">Neasignat</SelectItem>
+                        {users.map((item) => (
+                          <SelectItem key={item.uid} value={item.uid}>
+                            {item.displayName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
 
-                <Input
-                  type="datetime-local"
-                  className="h-9 text-sm"
-                  value={editDueAt}
-                  onChange={(event) => setEditDueAt(event.target.value)}
-                />
-                <Input
-                  type="datetime-local"
-                  className="h-9 text-sm"
-                  value={editReminderAt}
-                  onChange={(event) => setEditReminderAt(event.target.value)}
-                />
-              </div>
-            </div>
+                    <Input
+                      type="datetime-local"
+                      className="h-9 text-sm"
+                      value={editDueAt}
+                      onChange={(event) => setEditDueAt(event.target.value)}
+                    />
+                    <Input
+                      type="datetime-local"
+                      className="h-9 text-sm"
+                      value={editReminderAt}
+                      onChange={(event) => setEditReminderAt(event.target.value)}
+                    />
+                  </div>
+                  </div>
             <div className="border-t px-5 py-4">
               <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
+                        <Button
+                          variant="outline"
+                          size="sm"
                   className="h-9 text-sm"
                   onClick={() => {
                     setIsEditOpen(false)
@@ -270,23 +270,23 @@ export default function OpportunityTasksPage() {
                 <Button
                   size="sm"
                   className="h-9 text-sm"
-                  onClick={async () => {
+                          onClick={async () => {
                     if (!editingTaskId) return
-                    await updateCrmTask({
+                            await updateCrmTask({
                       taskId: editingTaskId,
-                      actorId: user?.uid || "",
-                      status: editStatus,
-                      assigneeId: editAssigneeId === "UNASSIGNED" ? "" : editAssigneeId,
-                      dueAt: editDueAt ? new Date(editDueAt) : null,
-                      reminderAt: editReminderAt ? new Date(editReminderAt) : null,
-                    })
-                    setEditingTaskId(null)
+                              actorId: user?.uid || "",
+                              status: editStatus,
+                              assigneeId: editAssigneeId === "UNASSIGNED" ? "" : editAssigneeId,
+                              dueAt: editDueAt ? new Date(editDueAt) : null,
+                              reminderAt: editReminderAt ? new Date(editReminderAt) : null,
+                            })
+                            setEditingTaskId(null)
                     setIsEditOpen(false)
-                    await load()
-                  }}
-                >
-                  Salvează
-                </Button>
+                            await load()
+                          }}
+                        >
+                          Salvează
+                        </Button>
               </div>
             </div>
           </div>
@@ -326,21 +326,21 @@ export default function OpportunityTasksPage() {
 
                 <div className="mt-2 flex justify-end">
                   <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 text-sm"
-                      onClick={() => {
-                        setEditingTaskId(task.id)
-                        setEditStatus(task.status)
-                        setEditAssigneeId(task.assigneeId || "UNASSIGNED")
-                        setEditDueAt(toDateTimeLocal(task.dueAt))
-                        setEditReminderAt(toDateTimeLocal(task.reminderAt))
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-sm"
+                        onClick={() => {
+                          setEditingTaskId(task.id)
+                          setEditStatus(task.status)
+                          setEditAssigneeId(task.assigneeId || "UNASSIGNED")
+                          setEditDueAt(toDateTimeLocal(task.dueAt))
+                          setEditReminderAt(toDateTimeLocal(task.reminderAt))
                         setIsEditOpen(true)
-                      }}
-                    >
-                      Edit
-                    </Button>
+                        }}
+                      >
+                        Edit
+                      </Button>
                     <Button
                       variant="outline"
                       size="sm"

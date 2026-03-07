@@ -234,7 +234,7 @@ export function CreateOpportunityDialog({ actorId, onCreated, iconOnly = false }
 
       toast({
         title: "Oportunitate creată",
-        description: `${result.code} a fost creată cu sarcina automată „Contactare lead”.`,
+        description: `${result.code} a fost creată cu succes.`,
       })
 
       setOpen(false)
@@ -272,7 +272,7 @@ export function CreateOpportunityDialog({ actorId, onCreated, iconOnly = false }
       <DialogContent className="flex max-h-[92vh] max-w-[calc(100vw-1rem)] flex-col overflow-y-auto sm:max-w-[96vw] lg:overflow-hidden">
         <DialogHeader>
           <DialogTitle>Creează oportunitate</DialogTitle>
-          <DialogDescription>Clientul este obligatoriu. Se va crea automat sarcina „Contactare lead”.</DialogDescription>
+          <DialogDescription>Clientul este obligatoriu pentru crearea oportunității.</DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(280px,0.8fr)_minmax(420px,1.2fr)] xl:grid-cols-[minmax(320px,0.75fr)_minmax(560px,1.25fr)]">

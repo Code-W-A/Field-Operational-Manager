@@ -118,6 +118,7 @@ export interface CrmNote {
 export interface CrmFileAttachment {
   id: string
   opportunityId: string
+  internalCode?: string
   url: string
   storagePath?: string
   filename: string
@@ -189,10 +190,12 @@ export interface CrmInternalHandoff {
 
 export interface CrmInternalNote {
   id: string
-  opportunityId: string
+  opportunityId?: string
   fromUserId: string
   toUserId: string
   message: string
+  context?: string
+  dueAt?: FirestoreDateValue
   status: CrmInternalNoteStatus
   confirmationMessage?: string
   confirmedAt?: FirestoreDateValue
@@ -299,6 +302,17 @@ export interface CreateInternalNoteInput {
   toUserId: string
   message: string
   createdById: string
+  context?: string
+  dueAt?: Date
+}
+
+export interface CreateStandaloneInternalNoteInput {
+  fromUserId: string
+  toUserId: string
+  message: string
+  createdById: string
+  context?: string
+  dueAt?: Date
 }
 
 export interface CrmUserOption {

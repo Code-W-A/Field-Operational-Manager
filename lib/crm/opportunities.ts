@@ -27,7 +27,8 @@ import { hasOpportunityViewAccess } from "@/lib/crm/access"
 import { logCrmActivity, getDateValue } from "@/lib/crm/activity"
 import { listResolvedCrmClientContacts } from "@/lib/crm/client-contacts"
 import { rebuildOpportunitySearchIndex } from "@/lib/crm/opportunity-search-index"
-import { createCrmTask, createCrmTaskIfMissing } from "@/lib/crm/tasks"
+import { createCrmTaskIfMissing } from "@/lib/crm/tasks"
+import { crmStorageProvider } from "@/lib/crm/storage/provider"
 import type {
   CrmClient,
   CrmClientContact,
@@ -498,21 +499,6 @@ export async function createCrmOpportunity(input: CreateOpportunityInput) {
     await setCrmOpportunityContacts(transactionResult.opportunityId, input.contactIds)
   }
 
-  const dueAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
-  const reminderAt = new Date(dueAt.getTime() - 2 * 60 * 60 * 1000)
-
-  await createCrmTask({
-    opportunityId: transactionResult.opportunityId,
-    title: "Contactare lead",
-    createdById: input.createdById,
-    assigneeId: input.ownerId,
-    dueAt,
-    reminderAt,
-    visibility: "PRIVATE",
-    status: "TODO",
-    automationKey: "opportunity_initial_contact",
-  })
-
   await logCrmActivity({
     opportunityId: transactionResult.opportunityId,
     actorId: input.createdById,
@@ -534,24 +520,60 @@ export async function createCrmOpportunity(input: CreateOpportunityInput) {
     },
   })
 
-  await logCrmActivity({
-    opportunityId: transactionResult.opportunityId,
-    actorId: input.createdById,
-    type: "TASK_AUTO_CREATED",
-    payload: {
-      task: {
-        title: "Contactare lead",
-        dueAt: dueAt.toISOString(),
-        reminderAt: reminderAt.toISOString(),
-        status: "TODO",
-        assigneeId: input.ownerId,
-      },
-    },
-  })
-
   await rebuildOpportunitySearchIndex(transactionResult.opportunityId)
 
   return transactionResult
+}
+
+async function assertActorIsAdmin(actorId: string) {
+  const actorSnap = await getDoc(doc(db, "users", actorId))
+  const role = actorSnap.exists() ? String(actorSnap.data()?.role || "") : ""
+  if (role !== "admin") {
+    throw new Error("Doar admin poate șterge oportunități.")
+  }
+}
+
+async function deleteByOpportunityId(collectionName: string, opportunityId: string) {
+  const rows = await getDocs(query(collection(db, collectionName), where("opportunityId", "==", opportunityId), limit(1000)))
+  if (rows.empty) return
+  await Promise.all(rows.docs.map((row) => deleteDoc(row.ref)))
+}
+
+export async function deleteCrmOpportunity(params: { opportunityId: string; actorId: string }) {
+  await assertActorIsAdmin(params.actorId)
+
+  const opportunityRef = doc(db, CRM_COLLECTIONS.opportunities, params.opportunityId)
+  const opportunitySnap = await getDoc(opportunityRef)
+  if (!opportunitySnap.exists()) {
+    return
+  }
+
+  const fileRows = await getDocs(query(collection(db, CRM_COLLECTIONS.files), where("opportunityId", "==", params.opportunityId), limit(1000)))
+  await Promise.all(
+    fileRows.docs.map(async (row) => {
+      const data = row.data() as Record<string, unknown>
+      const storagePath = typeof data.storagePath === "string" ? data.storagePath : ""
+      if (storagePath) {
+        await crmStorageProvider.deleteOpportunityFile(storagePath)
+      }
+      await deleteDoc(row.ref)
+    })
+  )
+
+  await Promise.all([
+    deleteByOpportunityId(CRM_COLLECTIONS.tasks, params.opportunityId),
+    deleteByOpportunityId(CRM_COLLECTIONS.notes, params.opportunityId),
+    deleteByOpportunityId(CRM_COLLECTIONS.internalNotes, params.opportunityId),
+    deleteByOpportunityId(CRM_COLLECTIONS.internalHandoffs, params.opportunityId),
+    deleteByOpportunityId(CRM_COLLECTIONS.emails, params.opportunityId),
+    deleteByOpportunityId(CRM_COLLECTIONS.calendarEvents, params.opportunityId),
+    deleteByOpportunityId(CRM_COLLECTIONS.activityLogs, params.opportunityId),
+    deleteByOpportunityId(CRM_COLLECTIONS.visibleTo, params.opportunityId),
+    deleteByOpportunityId(CRM_COLLECTIONS.opportunityContacts, params.opportunityId),
+    deleteByOpportunityId(CRM_COLLECTIONS.opportunityAccess, params.opportunityId),
+  ])
+
+  await deleteDoc(opportunityRef)
 }
 
 export async function updateCrmOpportunity(opportunityId: string, actorId: string, changes: Partial<CrmOpportunity>) {

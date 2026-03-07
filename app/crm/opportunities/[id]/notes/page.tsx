@@ -108,35 +108,35 @@ export default function OpportunityNotesPage() {
               <SheetDescription>Adaugă o notă pe oportunitate.</SheetDescription>
             </SheetHeader>
             <div className="min-h-0 flex-1 overflow-y-auto p-5">
-              <div className="grid gap-2">
+          <div className="grid gap-2">
                 <Label htmlFor="note-content">Conținut</Label>
-                <Textarea
-                  id="note-content"
-                  value={content}
-                  onChange={(event) => setContent(event.target.value)}
+            <Textarea
+              id="note-content"
+              value={content}
+              onChange={(event) => setContent(event.target.value)}
                   className="min-h-[160px] text-sm"
-                  placeholder="Scrie nota..."
-                />
+              placeholder="Scrie nota..."
+            />
 
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Select value={visibility} onValueChange={(value) => setVisibility(value as typeof visibility)}>
-                    <SelectTrigger className="h-9 text-sm">
-                      <SelectValue placeholder="Visibility" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CRM_VISIBILITIES.map((item) => (
-                        <SelectItem key={item} value={item}>
-                          {CRM_VISIBILITY_LABELS[item]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Select value={visibility} onValueChange={(value) => setVisibility(value as typeof visibility)}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Visibility" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CRM_VISIBILITIES.map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {CRM_VISIBILITY_LABELS[item]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-                  {visibility === "CUSTOM" ? (
-                    <MultiSelect options={userOptions} selected={visibleToUserIds} onChange={setVisibleToUserIds} placeholder="Alege useri" />
-                  ) : null}
-                </div>
-              </div>
+              {visibility === "CUSTOM" ? (
+                <MultiSelect options={userOptions} selected={visibleToUserIds} onChange={setVisibleToUserIds} placeholder="Alege useri" />
+              ) : null}
+            </div>
+          </div>
             </div>
             <div className="border-t px-5 py-4">
               <div className="flex justify-end gap-2">
@@ -148,29 +148,29 @@ export default function OpportunityNotesPage() {
                 >
                   Anulează
                 </Button>
-                <Button
-                  size="sm"
-                  className="h-9 text-sm"
-                  onClick={async () => {
-                    if (!content.trim() || !user?.uid) return
-                    await createCrmNote({
-                      opportunityId,
-                      content,
-                      createdById: user.uid,
-                      visibility,
-                      visibleToUserIds,
-                    })
-                    setContent("")
+            <Button
+              size="sm"
+              className="h-9 text-sm"
+              onClick={async () => {
+                if (!content.trim() || !user?.uid) return
+                await createCrmNote({
+                  opportunityId,
+                  content,
+                  createdById: user.uid,
+                  visibility,
+                  visibleToUserIds,
+                })
+                setContent("")
                     setVisibility("PRIVATE")
-                    setVisibleToUserIds([])
+                setVisibleToUserIds([])
                     setIsCreateOpen(false)
-                    await load()
-                  }}
-                >
+                await load()
+              }}
+            >
                   Salvează
-                </Button>
-              </div>
-            </div>
+            </Button>
+          </div>
+        </div>
           </div>
         </SheetContent>
       </Sheet>
@@ -207,7 +207,7 @@ export default function OpportunityNotesPage() {
                 </Select>
                 {editVisibility === "CUSTOM" ? (
                   <MultiSelect options={userOptions} selected={editVisibleToUserIds} onChange={setEditVisibleToUserIds} placeholder="Alege useri" />
-                ) : null}
+      ) : null}
               </div>
             </div>
             <div className="border-t px-5 py-4">
@@ -300,17 +300,17 @@ export default function OpportunityNotesPage() {
                       >
                         Editează
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 text-sm text-rose-600"
-                        onClick={async () => {
-                          await deleteCrmNote(note.id, user?.uid || "")
-                          await load()
-                        }}
-                      >
-                        Șterge
-                      </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 text-sm text-rose-600"
+                      onClick={async () => {
+                        await deleteCrmNote(note.id, user?.uid || "")
+                        await load()
+                      }}
+                    >
+                      Șterge
+                    </Button>
                     </div>
                   ) : null}
                 </div>
