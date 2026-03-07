@@ -20,6 +20,7 @@ import { db } from "./firebase"
 import { trackLucrareUpdate } from "@/lib/utils/work-modifications-tracker"
 import { getLucrareTitle } from "@/lib/utils/work-modifications-tracker"
 import type { WorkRevisionMeta } from "@/types/revision"
+import { ensureClientContactIds } from "@/lib/client-contacts"
 
 export interface PersoanaContact {
   id?: string
@@ -646,16 +647,17 @@ export const addClient = async (client: Client) => {
     })
   }
 
+  const { doc, setDoc } = await import("firebase/firestore")
+  const docRef = doc(clientsCollection)
   // Pre-normalizăm structuri nested: nu rupe clienții vechi; doar completează id-uri lipsă.
   ;(client as any).locatii = ensureLocatiiIds((client as any).locatii)
+  ;(client as any).persoaneContact = ensureClientContactIds(docRef.id, (client as any).persoaneContact)
 
   client.createdAt = serverTimestamp() as Timestamp
   client.updatedAt = serverTimestamp() as Timestamp
 
   // Stocăm și `id` în document (egal cu doc id) pentru interconectări mai ușoare.
   // Folosim setDoc pe doc precreat ca să evităm o scriere suplimentară.
-  const { doc, setDoc } = await import("firebase/firestore")
-  const docRef = doc(clientsCollection)
   ;(client as any).id = docRef.id
   await setDoc(docRef, client as any)
   // Log non‑blocking
@@ -713,6 +715,9 @@ export const updateClient = async (id: string, client: Partial<Client>) => {
   if ("locatii" in (client as any)) {
     ;(client as any).locatii = ensureLocatiiIds((client as any).locatii)
   }
+  if ("persoaneContact" in (client as any)) {
+    ;(client as any).persoaneContact = ensureClientContactIds(id, (client as any).persoaneContact)
+  }
   // Dacă NU se trimit locațiile în payload, dar în DB există locații fără id-uri,
   // facem backfill automat la orice editare (chiar și când se schimbă doar nume/email).
   if (!("locatii" in (client as any)) && Array.isArray(oldData?.locatii)) {
@@ -745,6 +750,7 @@ export const updateClient = async (id: string, client: Partial<Client>) => {
         "telefon" as any,
         "reprezentantFirma" as any,
         "functieReprezentant" as any,
+        "persoaneContact" as any,
         "cui" as any,
         "regCom" as any,
         "contBancar" as any,
@@ -758,6 +764,9 @@ export const updateClient = async (id: string, client: Partial<Client>) => {
           if (key === "locatii") {
             const locChanges = diffLocatii(oldVal || [], newVal || [])
             if (locChanges.length) changedFields.push(...locChanges)
+          } else if (key === "persoaneContact") {
+            const contactChanges = diffContacts(oldVal || [], newVal || [])
+            if (contactChanges.length) changedFields.push(...contactChanges)
           } else {
             const oldStr = valueToComparableString(oldVal)
             const newStr = valueToComparableString(newVal)

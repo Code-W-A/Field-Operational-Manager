@@ -6,6 +6,7 @@ export const CRM_COLLECTIONS = {
   opportunityAccess: "crm_opportunity_access",
   tasks: "crm_tasks",
   notes: "crm_notes",
+  internalNotes: "crm_internal_notes",
   files: "crm_files",
   emails: "crm_emails",
   calendarEvents: "crm_calendar_events",
@@ -35,7 +36,6 @@ export const CRM_OPPORTUNITY_TYPES = [
 export const CRM_OPPORTUNITY_SELECTABLE_TYPES = [
   "VANZARI",
   "LIVRARI",
-  "INTERNE",
   "PROIECTE",
   "FACTURARE",
   "CONTRACTARE",
@@ -62,6 +62,13 @@ export const CRM_INTERNAL_HANDOFF_STATUSES = ["IN_ASTEPTARE", "CONFIRMAT"] as co
 export const CRM_INTERNAL_HANDOFF_STATUS_LABELS: Record<(typeof CRM_INTERNAL_HANDOFF_STATUSES)[number], string> = {
   IN_ASTEPTARE: "În așteptare",
   CONFIRMAT: "Confirmat",
+}
+
+export const CRM_INTERNAL_NOTE_STATUSES = ["PENDING", "CONFIRMED"] as const
+
+export const CRM_INTERNAL_NOTE_STATUS_LABELS: Record<(typeof CRM_INTERNAL_NOTE_STATUSES)[number], string> = {
+  PENDING: "În așteptare",
+  CONFIRMED: "Confirmat",
 }
 
 export const CRM_PIPELINE_STAGES = [
@@ -166,5 +173,5 @@ export const CRM_STAGE_AUTOMATION: Record<(typeof CRM_PIPELINE_STAGES)[number], 
 }
 
 export function formatOpportunityCode(nextNumber: number) {
-  return `OP${String(nextNumber).padStart(6, "0")}`
+  return `OP.${String(nextNumber)}`
 }

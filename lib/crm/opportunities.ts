@@ -25,6 +25,7 @@ import {
 } from "@/lib/crm/constants"
 import { hasOpportunityViewAccess } from "@/lib/crm/access"
 import { logCrmActivity, getDateValue } from "@/lib/crm/activity"
+import { listResolvedCrmClientContacts } from "@/lib/crm/client-contacts"
 import { rebuildOpportunitySearchIndex } from "@/lib/crm/opportunity-search-index"
 import { createCrmTask, createCrmTaskIfMissing } from "@/lib/crm/tasks"
 import type {
@@ -50,6 +51,7 @@ function mapOpportunity(docId: string, data: Record<string, unknown>): CrmOpport
     title: String(data.title || ""),
     displayTitle: String(data.displayTitle || ""),
     clientId: String(data.clientId || ""),
+    primaryContactId: typeof data.primaryContactId === "string" ? data.primaryContactId : undefined,
     ownerId: String(data.ownerId || ""),
     priority: (data.priority as CrmOpportunity["priority"]) || "MEDIUM",
     workStatus: (data.workStatus as CrmOpportunity["workStatus"]) || "OPEN",
@@ -173,46 +175,7 @@ export async function createCrmClient(input: { name: string; type: string; addre
 }
 
 export async function listCrmClientContacts(clientId: string): Promise<CrmClientContact[]> {
-  const rows = await getDocs(
-    query(collection(db, CRM_COLLECTIONS.clientContacts), where("clientId", "==", clientId), orderBy("name", "asc"), limit(300))
-  )
-
-  const crmContacts = rows.docs.map((snap) => {
-    const data = snap.data() as Record<string, unknown>
-    return {
-      id: snap.id,
-      clientId,
-      name: String(data.name || ""),
-      phone: String(data.phone || ""),
-      email: typeof data.email === "string" ? data.email : undefined,
-      createdAt: data.createdAt as CrmClientContact["createdAt"],
-      updatedAt: data.updatedAt as CrmClientContact["updatedAt"],
-    }
-  })
-  if (crmContacts.length > 0) return crmContacts
-
-  // Fallback for legacy clients from `clienti` that store contacts inline in `persoaneContact`.
-  const legacySnap = await getDoc(doc(db, "clienti", clientId))
-  if (!legacySnap.exists()) return []
-  const legacy = legacySnap.data() as Record<string, unknown>
-  const inlineContacts = Array.isArray((legacy as any)?.persoaneContact) ? ((legacy as any).persoaneContact as any[]) : []
-  return inlineContacts
-    .map((contact, index) => {
-      const name = String(contact?.nume || "").trim()
-      const phone = String(contact?.telefon || "").trim()
-      const email = String(contact?.email || "").trim()
-      if (!name && !phone && !email) return null
-      return {
-        id: String(contact?.id || `legacy-${index}`),
-        clientId,
-        name: name || "Contact",
-        phone: phone || "-",
-        email: email || undefined,
-        createdAt: undefined,
-        updatedAt: undefined,
-      } as CrmClientContact
-    })
-    .filter(Boolean) as CrmClientContact[]
+  return listResolvedCrmClientContacts(clientId)
 }
 
 export async function createCrmClientContact(input: {
@@ -341,7 +304,8 @@ async function getClientsMap(clientIds: string[]) {
   return map
 }
 
-async function getOpportunitySearchContactMap(opportunityIds: string[]) {
+async function getOpportunitySearchContactMap(opportunities: CrmOpportunity[]) {
+  const opportunityIds = opportunities.map((opportunity) => opportunity.id)
   const joinRows = await Promise.all(
     chunk(opportunityIds).map((ids) =>
       getDocs(query(collection(db, CRM_COLLECTIONS.opportunityContacts), where("opportunityId", "in", ids)))
@@ -366,30 +330,35 @@ async function getOpportunitySearchContactMap(opportunityIds: string[]) {
     })
   })
 
-  const contactsById = new Map<string, CrmClientContact>()
-  for (const ids of chunk(Array.from(contactIds))) {
-    const rows = await getDocs(query(collection(db, CRM_COLLECTIONS.clientContacts), where(documentId(), "in", ids)))
-    rows.docs.forEach((snap) => {
-      const data = snap.data() as Record<string, unknown>
-      contactsById.set(snap.id, {
-        id: snap.id,
-        clientId: String(data.clientId || ""),
-        name: String(data.name || ""),
-        phone: String(data.phone || ""),
-        email: typeof data.email === "string" ? data.email : undefined,
-        createdAt: data.createdAt as CrmClientContact["createdAt"],
-        updatedAt: data.updatedAt as CrmClientContact["updatedAt"],
-      })
-    })
+  if (contactIds.size === 0) {
+    return new Map<string, string>()
   }
+
+  const contactMapByClientId = new Map<string, Map<string, CrmClientContact>>()
+  const clientIds = Array.from(new Set(opportunities.map((opportunity) => opportunity.clientId).filter(Boolean)))
+  const contactsByClient = await Promise.all(
+    clientIds.map(async (clientId) => ({
+      clientId,
+      contacts: await listCrmClientContacts(clientId),
+    }))
+  )
+  contactsByClient.forEach(({ clientId, contacts }) => {
+    contactMapByClientId.set(
+      clientId,
+      new Map(contacts.map((contact) => [contact.id, contact]))
+    )
+  })
+  const opportunityClientMap = new Map(opportunities.map((opportunity) => [opportunity.id, opportunity.clientId]))
 
   const searchMap = new Map<string, string>()
 
   opportunityToContactIds.forEach((ids, opportunityId) => {
+    const clientId = opportunityClientMap.get(opportunityId) || ""
+    const contactMap = contactMapByClientId.get(clientId)
     const searchText = Array.from(ids)
-      .map((contactId) => contactsById.get(contactId))
+      .map((contactId) => contactMap?.get(contactId))
       .filter(Boolean)
-      .map((contact) => `${contact?.name || ""} ${contact?.phone || ""} ${contact?.email || ""}`)
+      .map((contact) => `${contact?.name || ""} ${contact?.phone || ""} ${contact?.email || ""} ${contact?.locationName || ""}`)
       .join(" ")
     searchMap.set(opportunityId, searchText)
   })
@@ -403,7 +372,7 @@ export async function listCrmOpportunitiesForUser(userId: string, filters?: CrmF
 
   const opportunities = await getOpportunitiesByIds(accessibleIds)
   const clientsMap = await getClientsMap(opportunities.map((opportunity) => opportunity.clientId))
-  const contactsSearch = await getOpportunitySearchContactMap(opportunities.map((opportunity) => opportunity.id))
+  const contactsSearch = await getOpportunitySearchContactMap(opportunities)
 
   let filtered = opportunities
 
@@ -488,6 +457,9 @@ export async function createCrmOpportunity(input: CreateOpportunityInput) {
     const counterSnap = await transaction.get(counterRef)
     const currentNumber = Number(counterSnap.data()?.nextNumber || 0)
     const nextNumber = currentNumber + 1
+    if (nextNumber > 999999) {
+      throw new Error("S-a atins limita maximă de oportunități (999999).")
+    }
     const code = formatOpportunityCode(nextNumber)
 
     transaction.set(counterRef, { nextNumber }, { merge: true })
@@ -497,6 +469,7 @@ export async function createCrmOpportunity(input: CreateOpportunityInput) {
       title: input.title.trim(),
       displayTitle: `${code} - ${input.title.trim()}`,
       clientId: input.clientId,
+      primaryContactId: input.primaryContactId || null,
       ownerId: input.ownerId,
       priority: input.priority,
       workStatus: input.workStatus || "OPEN",
@@ -535,7 +508,7 @@ export async function createCrmOpportunity(input: CreateOpportunityInput) {
     assigneeId: input.ownerId,
     dueAt,
     reminderAt,
-    visibility: "GENERAL",
+    visibility: "PRIVATE",
     status: "TODO",
     automationKey: "opportunity_initial_contact",
   })
@@ -556,6 +529,7 @@ export async function createCrmOpportunity(input: CreateOpportunityInput) {
         workStatus: input.workStatus || "OPEN",
         opportunityType: input.opportunityType,
         clientId: input.clientId,
+        primaryContactId: input.primaryContactId || null,
       },
     },
   })
@@ -589,6 +563,7 @@ export async function updateCrmOpportunity(opportunityId: string, actorId: strin
   if (typeof changes.title === "string") payload.title = changes.title
   if (typeof changes.displayTitle === "string") payload.displayTitle = changes.displayTitle
   if (typeof changes.ownerId === "string") payload.ownerId = changes.ownerId
+  if ("primaryContactId" in changes) payload.primaryContactId = changes.primaryContactId || null
   if (changes.priority) payload.priority = changes.priority
   if (changes.workStatus) payload.workStatus = changes.workStatus
   if (changes.pipelineStage) payload.pipelineStage = changes.pipelineStage
@@ -607,6 +582,7 @@ export async function updateCrmOpportunity(opportunityId: string, actorId: strin
         title: typeof changes.title === "string" ? changes.title : undefined,
         displayTitle: typeof changes.displayTitle === "string" ? changes.displayTitle : undefined,
         ownerId: typeof changes.ownerId === "string" ? changes.ownerId : undefined,
+        primaryContactId: "primaryContactId" in changes ? changes.primaryContactId || null : undefined,
         priority: changes.priority || undefined,
         workStatus: changes.workStatus || undefined,
         pipelineStage: changes.pipelineStage || undefined,
@@ -683,7 +659,7 @@ export async function changeCrmOpportunityStage(input: {
       assigneeId: opportunity.ownerId,
       dueAt,
       reminderAt,
-      visibility: "GENERAL",
+      visibility: "PRIVATE",
       status: "TODO",
       automationKey: automation.key,
     })
@@ -700,7 +676,7 @@ export async function changeCrmOpportunityStage(input: {
       assigneeId: opportunity.ownerId,
       dueAt,
       reminderAt,
-      visibility: "GENERAL",
+      visibility: "PRIVATE",
       status: "TODO",
       automationKey: "stage_pierdut_recontactare",
     })

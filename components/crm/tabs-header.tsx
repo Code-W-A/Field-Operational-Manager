@@ -20,7 +20,7 @@ export function TabsHeader({ items, className }: TabsHeaderProps) {
   const pathname = usePathname()
 
   return (
-    <div className={cn("flex items-center gap-4 border-b border-neutral-200", className)}>
+    <div className={cn("flex flex-wrap items-center gap-x-6 gap-y-1 border-b border-neutral-200", className)}>
       {items.map((item) => {
         const Icon = item.icon
         const active = pathname === item.href
@@ -30,13 +30,13 @@ export function TabsHeader({ items, className }: TabsHeaderProps) {
             key={item.href}
             href={item.href}
             className={cn(
-              "inline-flex items-center gap-1.5 border-b-2 px-1 py-2 text-xs text-neutral-500 transition",
+              "inline-flex items-center gap-2.5 whitespace-nowrap border-b-[3px] px-1.5 py-3 text-sm font-medium leading-none text-neutral-500 transition",
               active
                 ? "border-blue-500 text-neutral-900"
                 : "border-transparent hover:border-neutral-300 hover:text-neutral-700"
             )}
           >
-            <Icon className="h-3.5 w-3.5" />
+            <Icon className="h-5 w-5" />
             <span>{item.label}</span>
           </Link>
         )

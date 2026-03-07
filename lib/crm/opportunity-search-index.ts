@@ -1,7 +1,6 @@
 import {
   collection,
   doc,
-  documentId,
   getDoc,
   getDocs,
   limit,
@@ -11,9 +10,8 @@ import {
   where,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
+import { listResolvedCrmClientContacts } from "@/lib/crm/client-contacts"
 import { CRM_COLLECTIONS } from "@/lib/crm/constants"
-
-const IN_QUERY_BATCH_SIZE = 10
 
 function normalizePart(value: unknown) {
   return String(value || "")
@@ -24,14 +22,6 @@ function normalizePart(value: unknown) {
 function pushText(parts: string[], value: unknown) {
   const normalized = normalizePart(value)
   if (normalized) parts.push(normalized)
-}
-
-function chunk<T>(items: T[], size = IN_QUERY_BATCH_SIZE) {
-  const result: T[][] = []
-  for (let i = 0; i < items.length; i += size) {
-    result.push(items.slice(i, i + size))
-  }
-  return result
 }
 
 export async function rebuildOpportunitySearchIndex(opportunityId: string) {
@@ -72,19 +62,24 @@ export async function rebuildOpportunitySearchIndex(opportunityId: string) {
     )
   )
 
-  for (const ids of chunk(contactIds)) {
-    const contactRows = await getDocs(query(collection(db, CRM_COLLECTIONS.clientContacts), where(documentId(), "in", ids)))
-    contactRows.docs.forEach((row) => {
-      const data = row.data() as Record<string, unknown>
-      pushText(parts, data.name)
-      pushText(parts, data.phone)
-      pushText(parts, data.email)
-    })
+  if (contactIds.length > 0 && clientId) {
+    const clientContacts = await listResolvedCrmClientContacts(clientId)
+    const contactsById = new Map(clientContacts.map((contact) => [contact.id, contact]))
+
+    for (const id of contactIds) {
+      const contact = contactsById.get(id)
+      if (!contact) continue
+      pushText(parts, contact.name)
+      pushText(parts, contact.phone)
+      pushText(parts, contact.email)
+      pushText(parts, contact.locationName)
+    }
   }
 
-  const [taskRows, noteRows, emailRows, calendarRows, fileRows] = await Promise.all([
+  const [taskRows, noteRows, internalNoteRows, emailRows, calendarRows, fileRows] = await Promise.all([
     getDocs(query(collection(db, CRM_COLLECTIONS.tasks), where("opportunityId", "==", opportunityId), limit(300))),
     getDocs(query(collection(db, CRM_COLLECTIONS.notes), where("opportunityId", "==", opportunityId), limit(300))),
+    getDocs(query(collection(db, CRM_COLLECTIONS.internalNotes), where("opportunityId", "==", opportunityId), limit(300))),
     getDocs(query(collection(db, CRM_COLLECTIONS.emails), where("opportunityId", "==", opportunityId), limit(300))),
     getDocs(query(collection(db, CRM_COLLECTIONS.calendarEvents), where("opportunityId", "==", opportunityId), limit(300))),
     getDocs(query(collection(db, CRM_COLLECTIONS.files), where("opportunityId", "==", opportunityId), limit(300))),
@@ -97,6 +92,11 @@ export async function rebuildOpportunitySearchIndex(opportunityId: string) {
   noteRows.docs.forEach((row) => {
     const data = row.data() as Record<string, unknown>
     pushText(parts, data.content)
+  })
+  internalNoteRows.docs.forEach((row) => {
+    const data = row.data() as Record<string, unknown>
+    pushText(parts, data.message)
+    pushText(parts, data.confirmationMessage)
   })
   emailRows.docs.forEach((row) => {
     const data = row.data() as Record<string, unknown>

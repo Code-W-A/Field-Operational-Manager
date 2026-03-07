@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MultiSelect } from "@/components/ui/multi-select"
 import { Panel, SubtleBadge } from "@/components/crm"
 import { useCrmOpportunity } from "@/hooks/use-crm-opportunity"
-import { deleteCrmFile, listCrmFiles, uploadCrmFile } from "@/lib/crm/tasks"
+import { deleteCrmFile, listCrmFiles, updateCrmFileVisibility, uploadCrmFile } from "@/lib/crm/tasks"
 import { listCrmUsers } from "@/lib/crm/opportunities"
 import { CRM_VISIBILITIES, CRM_VISIBILITY_LABELS } from "@/lib/crm/constants"
 import { formatDateTime } from "@/lib/crm/presenters"
@@ -30,8 +30,12 @@ export default function OpportunityFilesPage() {
   const [loading, setLoading] = useState(true)
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [visibility, setVisibility] = useState<(typeof CRM_VISIBILITIES)[number]>("GENERAL")
+  const [visibility, setVisibility] = useState<(typeof CRM_VISIBILITIES)[number]>("PRIVATE")
   const [visibleToUserIds, setVisibleToUserIds] = useState<string[]>([])
+  const [editingFileId, setEditingFileId] = useState<string | null>(null)
+  const [editVisibility, setEditVisibility] = useState<(typeof CRM_VISIBILITIES)[number]>("PRIVATE")
+  const [editVisibleToUserIds, setEditVisibleToUserIds] = useState<string[]>([])
+  const [savingFileId, setSavingFileId] = useState<string | null>(null)
 
   const userOptions = useMemo(() => users.map((row) => ({ value: row.uid, label: row.displayName })), [users])
   const userNameMap = useMemo(
@@ -68,23 +72,26 @@ export default function OpportunityFilesPage() {
   }, [opportunity?.id, user?.uid])
 
   if (!opportunity) {
-    return <Panel title="Fișiere"><p className="text-xs text-neutral-500">Fără acces la oportunitate.</p></Panel>
+    return <Panel title="Fișiere" size="comfortable"><p className="text-sm text-neutral-500">Fără acces la oportunitate.</p></Panel>
   }
 
   return (
     <Panel
       title="Fișiere"
       subtitle={isTechnician ? "Vizualizare read-only: fișierele vizibile în oportunitate." : "Upload MVP + listă + delete cu permisiuni"}
+      size="comfortable"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      contentClassName="flex min-h-0 flex-1 flex-col"
     >
       {!isTechnician ? (
-        <div className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+        <div className="mb-4 shrink-0 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
           <div className="grid gap-2 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="crm-file">Fișier</Label>
               <input
                 id="crm-file"
                 type="file"
-                className="block w-full text-xs"
+                className="block w-full text-sm"
                 onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
               />
             </div>
@@ -92,7 +99,7 @@ export default function OpportunityFilesPage() {
             <div className="grid gap-2">
               <Label>Visibility</Label>
               <Select value={visibility} onValueChange={(value) => setVisibility(value as typeof visibility)}>
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger className="h-9 text-sm">
                   <SelectValue placeholder="Visibility" />
                 </SelectTrigger>
                 <SelectContent>
@@ -115,7 +122,7 @@ export default function OpportunityFilesPage() {
           <div className="mt-3 flex justify-end">
             <Button
               size="sm"
-              className="h-8 text-xs"
+              className="h-9 text-sm"
               disabled={!selectedFile || !user?.uid}
               onClick={async () => {
                 if (!selectedFile || !user?.uid) return
@@ -131,59 +138,146 @@ export default function OpportunityFilesPage() {
                   description: `${selectedFile.name} a fost adăugat în oportunitate.`,
                 })
                 setSelectedFile(null)
-                setVisibility("GENERAL")
+                setVisibility("PRIVATE")
                 setVisibleToUserIds([])
                 await load()
               }}
             >
-              <Upload className="mr-1 h-3.5 w-3.5" />
+              <Upload className="mr-1.5 h-4 w-4" />
               Upload
             </Button>
           </div>
         </div>
       ) : null}
 
-      {loading ? (
-        <p className="text-xs text-neutral-500">Se încarcă fișierele...</p>
-      ) : files.length === 0 ? (
-        <p className="text-xs text-neutral-500">Nu există fișiere vizibile.</p>
-      ) : (
-        <div className="space-y-2">
-          {files.map((file) => (
-            <div key={file.id} className="rounded-lg border border-neutral-200 bg-white p-3">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-medium text-neutral-900">{file.filename}</p>
-                  <p className="mt-1 text-xs text-neutral-500">
-                    {(file.size / 1024).toFixed(1)} KB • {formatDateTime(file.createdAt)} • by {userNameMap[file.uploadedById] || file.uploadedById}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <SubtleBadge tone="neutral">{CRM_VISIBILITY_LABELS[file.visibility]}</SubtleBadge>
-                  <Button asChild size="icon" variant="ghost" className="h-7 w-7">
-                    <a href={file.url} target="_blank" rel="noreferrer">
-                      <Download className="h-3.5 w-3.5" />
-                    </a>
-                  </Button>
-                  {!isTechnician ? (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7 text-rose-600"
-                      onClick={async () => {
-                        await deleteCrmFile({ fileId: file.id, actorId: user?.uid || "" })
-                        await load()
-                      }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {loading ? (
+          <p className="text-sm text-neutral-500">Se încarcă fișierele...</p>
+        ) : files.length === 0 ? (
+          <p className="text-sm text-neutral-500">Nu există fișiere vizibile.</p>
+        ) : (
+          <div className="space-y-2 pb-1">
+            {files.map((file) => (
+              <div key={file.id} className="rounded-lg border border-neutral-200 bg-white p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-base font-semibold text-neutral-900">{file.filename}</p>
+                    <p className="mt-1 text-sm text-neutral-500">
+                      {(file.size / 1024).toFixed(1)} KB • {formatDateTime(file.createdAt)} • by {userNameMap[file.uploadedById] || file.uploadedById}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <SubtleBadge tone="neutral">{CRM_VISIBILITY_LABELS[file.visibility]}</SubtleBadge>
+                    {!isTechnician ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-sm"
+                        onClick={() => {
+                          setEditingFileId(file.id)
+                          setEditVisibility(file.visibility)
+                          setEditVisibleToUserIds(file.visibleToUserIds || [])
+                        }}
+                      >
+                        Edit visibility
+                      </Button>
+                    ) : null}
+                    <Button asChild size="icon" variant="ghost" className="h-8 w-8">
+                      <a href={file.url} target="_blank" rel="noreferrer">
+                        <Download className="h-4 w-4" />
+                      </a>
                     </Button>
-                  ) : null}
+                    {!isTechnician ? (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-rose-600"
+                        onClick={async () => {
+                          await deleteCrmFile({ fileId: file.id, actorId: user?.uid || "" })
+                          await load()
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
+
+                {!isTechnician && editingFileId === file.id ? (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <Select value={editVisibility} onValueChange={(value) => setEditVisibility(value as typeof editVisibility)}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="Visibility" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CRM_VISIBILITIES.map((item) => (
+                          <SelectItem key={item} value={item}>
+                            {CRM_VISIBILITY_LABELS[item]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    {editVisibility === "CUSTOM" ? (
+                      <MultiSelect options={userOptions} selected={editVisibleToUserIds} onChange={setEditVisibleToUserIds} placeholder="Alege userii" />
+                    ) : (
+                      <div />
+                    )}
+
+                    <div className="sm:col-span-2 flex justify-end gap-2">
+                      <Button
+                        size="sm"
+                        className="h-9 text-sm"
+                        disabled={savingFileId === file.id || !user?.uid}
+                        onClick={async () => {
+                          if (!user?.uid) return
+                          setSavingFileId(file.id)
+                          try {
+                            await updateCrmFileVisibility({
+                              fileId: file.id,
+                              actorId: user.uid,
+                              visibility: editVisibility,
+                              visibleToUserIds: editVisibleToUserIds,
+                            })
+                            setEditingFileId(null)
+                            await load()
+                            toast({
+                              title: "Vizibilitate actualizată",
+                              description: `Vizibilitatea pentru ${file.filename} a fost actualizată.`,
+                            })
+                          } catch (error) {
+                            toast({
+                              title: "Actualizare eșuată",
+                              description: error instanceof Error ? error.message : "Nu s-a putut actualiza vizibilitatea fișierului.",
+                              variant: "destructive",
+                            })
+                          } finally {
+                            setSavingFileId(null)
+                          }
+                        }}
+                      >
+                        {savingFileId === file.id ? "Se salvează..." : "Salvează"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-9 text-sm"
+                        disabled={savingFileId === file.id}
+                        onClick={() => {
+                          setEditingFileId(null)
+                          setEditVisibleToUserIds([])
+                        }}
+                      >
+                        Anulează
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </Panel>
   )
 }

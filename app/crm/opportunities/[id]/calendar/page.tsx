@@ -32,7 +32,7 @@ export default function OpportunityCalendarPage() {
   const [endAt, setEndAt] = useState("")
   const [location, setLocation] = useState("")
   const [reminderAt, setReminderAt] = useState("")
-  const [visibility, setVisibility] = useState<(typeof CRM_VISIBILITIES)[number]>("GENERAL")
+  const [visibility, setVisibility] = useState<(typeof CRM_VISIBILITIES)[number]>("PRIVATE")
   const [visibleToUserIds, setVisibleToUserIds] = useState<string[]>([])
 
   const userOptions = useMemo(() => users.map((row) => ({ value: row.uid, label: row.displayName })), [users])
@@ -70,24 +70,27 @@ export default function OpportunityCalendarPage() {
   }, [opportunity?.id, user?.uid])
 
   if (!opportunity) {
-    return <Panel title="Calendar"><p className="text-xs text-neutral-500">Fără acces la oportunitate.</p></Panel>
+    return <Panel title="Calendar" size="comfortable"><p className="text-sm text-neutral-500">Fără acces la oportunitate.</p></Panel>
   }
 
   return (
     <Panel
       title="Calendar"
       subtitle={isTechnician ? "Vizualizare read-only: evenimentele vizibile în oportunitate." : "MVP evenimente + upcoming (events + due sarcini)"}
+      size="comfortable"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      contentClassName="flex min-h-0 flex-1 flex-col"
     >
       {!isTechnician ? (
-        <div className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+        <div className="mb-4 shrink-0 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
           <div className="grid gap-2 md:grid-cols-2">
-            <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Titlu eveniment" className="h-8 text-xs" />
-            <Input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Locație" className="h-8 text-xs" />
-            <Input type="datetime-local" value={startAt} onChange={(event) => setStartAt(event.target.value)} className="h-8 text-xs" />
-            <Input type="datetime-local" value={endAt} onChange={(event) => setEndAt(event.target.value)} className="h-8 text-xs" />
-            <Input type="datetime-local" value={reminderAt} onChange={(event) => setReminderAt(event.target.value)} className="h-8 text-xs" />
+            <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Titlu eveniment" className="h-9 text-sm" />
+            <Input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Locație" className="h-9 text-sm" />
+            <Input type="datetime-local" value={startAt} onChange={(event) => setStartAt(event.target.value)} className="h-9 text-sm" />
+            <Input type="datetime-local" value={endAt} onChange={(event) => setEndAt(event.target.value)} className="h-9 text-sm" />
+            <Input type="datetime-local" value={reminderAt} onChange={(event) => setReminderAt(event.target.value)} className="h-9 text-sm" />
             <Select value={visibility} onValueChange={(value) => setVisibility(value as typeof visibility)}>
-              <SelectTrigger className="h-8 text-xs">
+              <SelectTrigger className="h-9 text-sm">
                 <SelectValue placeholder="Visibility" />
               </SelectTrigger>
               <SelectContent>
@@ -109,7 +112,7 @@ export default function OpportunityCalendarPage() {
           <div className="mt-2 flex justify-end">
             <Button
               size="sm"
-              className="h-8 text-xs"
+              className="h-9 text-sm"
               onClick={async () => {
                 if (!title.trim() || !startAt || !endAt || !user?.uid) return
                 await createCrmCalendarEvent({
@@ -128,7 +131,7 @@ export default function OpportunityCalendarPage() {
                 setEndAt("")
                 setLocation("")
                 setReminderAt("")
-                setVisibility("GENERAL")
+                setVisibility("PRIVATE")
                 setVisibleToUserIds([])
                 await load()
               }}
@@ -139,47 +142,49 @@ export default function OpportunityCalendarPage() {
         </div>
       ) : null}
 
-      <div className="space-y-4">
-        <div>
-          <p className="mb-2 text-xs font-medium text-neutral-700">Ce este în calendar</p>
-          {loading ? (
-            <p className="text-xs text-neutral-500">Se încarcă...</p>
-          ) : events.length === 0 ? (
-            <p className="text-xs text-neutral-500">Nu există evenimente.</p>
-          ) : (
-            <div className="space-y-2">
-              {events.map((event) => (
-                <div key={event.id} className="rounded-lg border border-neutral-200 bg-white p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium text-neutral-900">{event.title}</p>
-                    <div className="flex items-center gap-1">
-                      <SubtleBadge tone="neutral">{CRM_VISIBILITY_LABELS[event.visibility as keyof typeof CRM_VISIBILITY_LABELS]}</SubtleBadge>
-                      {!isTechnician ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-xs text-rose-600"
-                          onClick={async () => {
-                            await deleteCrmCalendarEvent(event.id, user?.uid || "")
-                            await load()
-                          }}
-                        >
-                          Șterge
-                        </Button>
-                      ) : null}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="space-y-4 pb-1">
+          <div>
+            <p className="mb-2 text-sm font-medium text-neutral-700">Ce este în calendar</p>
+            {loading ? (
+              <p className="text-sm text-neutral-500">Se încarcă...</p>
+            ) : events.length === 0 ? (
+              <p className="text-sm text-neutral-500">Nu există evenimente.</p>
+            ) : (
+              <div className="space-y-2">
+                {events.map((event) => (
+                  <div key={event.id} className="rounded-lg border border-neutral-200 bg-white p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-base font-semibold text-neutral-900">{event.title}</p>
+                      <div className="flex items-center gap-1">
+                        <SubtleBadge tone="neutral">{CRM_VISIBILITY_LABELS[event.visibility as keyof typeof CRM_VISIBILITY_LABELS]}</SubtleBadge>
+                        {!isTechnician ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 text-sm text-rose-600"
+                            onClick={async () => {
+                              await deleteCrmCalendarEvent(event.id, user?.uid || "")
+                              await load()
+                            }}
+                          >
+                            Șterge
+                          </Button>
+                        ) : null}
+                      </div>
                     </div>
+                    <p className="mt-1 text-sm text-neutral-500">{formatDateTime(event.startAt)} → {formatDateTime(event.endAt)}</p>
+                    <p className="mt-1 text-sm text-neutral-500">{event.location || "fără locație"}</p>
                   </div>
-                  <p className="mt-1 text-xs text-neutral-500">{formatDateTime(event.startAt)} → {formatDateTime(event.endAt)}</p>
-                  <p className="mt-1 text-xs text-neutral-500">{event.location || "fără locație"}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+                ))}
+              </div>
+            )}
+          </div>
 
-        <div>
-          <p className="mb-2 text-xs font-medium text-neutral-700">Ce avem programat acum</p>
-          <OpportunityScheduleOverview events={events} tasks={openTasks} loading={loading} />
+          <div>
+            <p className="mb-2 text-sm font-medium text-neutral-700">Ce avem programat acum</p>
+            <OpportunityScheduleOverview events={events} tasks={openTasks} loading={loading} />
+          </div>
         </div>
       </div>
     </Panel>

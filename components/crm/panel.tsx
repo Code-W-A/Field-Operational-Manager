@@ -8,18 +8,28 @@ interface PanelProps {
   children: ReactNode
   className?: string
   contentClassName?: string
+  size?: "default" | "comfortable"
 }
 
-export function Panel({ title, subtitle, children, className, contentClassName }: PanelProps) {
+export function Panel({
+  title,
+  subtitle,
+  children,
+  className,
+  contentClassName,
+  size = "default",
+}: PanelProps) {
+  const comfortable = size === "comfortable"
+
   return (
     <section className={cn(crmUi.panel, className)}>
       {(title || subtitle) && (
-        <header className={crmUi.panelHeader}>
-          {title ? <h3 className={crmUi.panelTitle}>{title}</h3> : null}
-          {subtitle ? <p className={crmUi.panelSubtitle}>{subtitle}</p> : null}
+        <header className={comfortable ? crmUi.panelHeaderComfortable : crmUi.panelHeader}>
+          {title ? <h3 className={comfortable ? crmUi.panelTitleComfortable : crmUi.panelTitle}>{title}</h3> : null}
+          {subtitle ? <p className={comfortable ? crmUi.panelSubtitleComfortable : crmUi.panelSubtitle}>{subtitle}</p> : null}
         </header>
       )}
-      <div className={cn(crmUi.panelBody, contentClassName)}>{children}</div>
+      <div className={cn(comfortable ? crmUi.panelBodyComfortable : crmUi.panelBody, contentClassName)}>{children}</div>
     </section>
   )
 }

@@ -33,7 +33,7 @@ export default function OpportunityEmailsPage() {
   const [to, setTo] = useState("")
   const [snippet, setSnippet] = useState("")
   const [sentAt, setSentAt] = useState("")
-  const [visibility, setVisibility] = useState<(typeof CRM_VISIBILITIES)[number]>("GENERAL")
+  const [visibility, setVisibility] = useState<(typeof CRM_VISIBILITIES)[number]>("PRIVATE")
   const [visibleToUserIds, setVisibleToUserIds] = useState<string[]>([])
 
   const userOptions = useMemo(() => users.map((row) => ({ value: row.uid, label: row.displayName })), [users])
@@ -73,21 +73,24 @@ export default function OpportunityEmailsPage() {
   }, [opportunity?.id, user?.uid])
 
   if (!opportunity) {
-    return <Panel title="Email"><p className="text-xs text-neutral-500">Fără acces la oportunitate.</p></Panel>
+    return <Panel title="Email" size="comfortable"><p className="text-sm text-neutral-500">Fără acces la oportunitate.</p></Panel>
   }
 
   return (
     <Panel
       title="Email"
       subtitle={isTechnician ? "Vizualizare read-only: emailurile vizibile în oportunitate." : "MVP email log (IN/OUT) tratat ca activity record"}
+      size="comfortable"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      contentClassName="flex min-h-0 flex-1 flex-col"
     >
       {!isTechnician ? (
-        <div className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+        <div className="mb-4 shrink-0 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
           <div className="grid gap-2 md:grid-cols-2">
             <div className="grid gap-2">
               <Label>Direcție</Label>
               <Select value={direction} onValueChange={(value) => setDirection(value as typeof direction)}>
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger className="h-9 text-sm">
                   <SelectValue placeholder="IN / OUT" />
                 </SelectTrigger>
                 <SelectContent>
@@ -98,20 +101,20 @@ export default function OpportunityEmailsPage() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="sentAt">Data</Label>
-              <Input id="sentAt" type="datetime-local" value={sentAt} onChange={(event) => setSentAt(event.target.value)} className="h-8 text-xs" />
+              <Input id="sentAt" type="datetime-local" value={sentAt} onChange={(event) => setSentAt(event.target.value)} className="h-9 text-sm" />
             </div>
           </div>
 
           <div className="mt-2 grid gap-2">
-            <Input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Subject" className="h-8 text-xs" />
-            <Input value={from} onChange={(event) => setFrom(event.target.value)} placeholder="From" className="h-8 text-xs" />
-            <Input value={to} onChange={(event) => setTo(event.target.value)} placeholder="To (separate cu virgulă)" className="h-8 text-xs" />
-            <Textarea value={snippet} onChange={(event) => setSnippet(event.target.value)} placeholder="Body snippet" className="min-h-[80px] text-xs" />
+            <Input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Subject" className="h-9 text-sm" />
+            <Input value={from} onChange={(event) => setFrom(event.target.value)} placeholder="From" className="h-9 text-sm" />
+            <Input value={to} onChange={(event) => setTo(event.target.value)} placeholder="To (separate cu virgulă)" className="h-9 text-sm" />
+            <Textarea value={snippet} onChange={(event) => setSnippet(event.target.value)} placeholder="Body snippet" className="min-h-[96px] text-sm" />
           </div>
 
           <div className="mt-2 grid gap-2 md:grid-cols-2">
             <Select value={visibility} onValueChange={(value) => setVisibility(value as typeof visibility)}>
-              <SelectTrigger className="h-8 text-xs">
+              <SelectTrigger className="h-9 text-sm">
                 <SelectValue placeholder="Visibility" />
               </SelectTrigger>
               <SelectContent>
@@ -130,7 +133,7 @@ export default function OpportunityEmailsPage() {
           <div className="mt-2 flex justify-end">
             <Button
               size="sm"
-              className="h-8 text-xs"
+              className="h-9 text-sm"
               onClick={async () => {
                 if (!subject.trim() || !from.trim() || !to.trim() || !user?.uid) return
 
@@ -153,7 +156,7 @@ export default function OpportunityEmailsPage() {
                 setTo("")
                 setSnippet("")
                 setSentAt("")
-                setVisibility("GENERAL")
+                setVisibility("PRIVATE")
                 setVisibleToUserIds([])
                 await load()
               }}
@@ -164,25 +167,27 @@ export default function OpportunityEmailsPage() {
         </div>
       ) : null}
 
-      {loading ? (
-        <p className="text-xs text-neutral-500">Se încarcă emailurile...</p>
-      ) : emails.length === 0 ? (
-        <p className="text-xs text-neutral-500">Nu există emailuri vizibile.</p>
-      ) : (
-        <div className="space-y-2">
-          {emails.map((email) => (
-            <div key={email.id} className="rounded-lg border border-neutral-200 bg-white p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-medium text-neutral-900">[{email.direction}] {email.subject}</p>
-                <SubtleBadge tone="neutral">{CRM_VISIBILITY_LABELS[email.visibility as keyof typeof CRM_VISIBILITY_LABELS]}</SubtleBadge>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {loading ? (
+          <p className="text-sm text-neutral-500">Se încarcă emailurile...</p>
+        ) : emails.length === 0 ? (
+          <p className="text-sm text-neutral-500">Nu există emailuri vizibile.</p>
+        ) : (
+          <div className="space-y-2 pb-1">
+            {emails.map((email) => (
+              <div key={email.id} className="rounded-lg border border-neutral-200 bg-white p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-base font-semibold text-neutral-900">[{email.direction}] {email.subject}</p>
+                  <SubtleBadge tone="neutral">{CRM_VISIBILITY_LABELS[email.visibility as keyof typeof CRM_VISIBILITY_LABELS]}</SubtleBadge>
+                </div>
+                <p className="mt-1 text-sm text-neutral-500">{email.from} → {email.to.join(", ")}</p>
+                <p className="mt-1 text-sm text-neutral-700">{email.bodySnippet || "-"}</p>
+                <p className="mt-2 text-sm text-neutral-400">{formatDateTime(email.createdAt)} • {userNameMap[email.createdById] || email.createdById}</p>
               </div>
-              <p className="mt-1 text-xs text-neutral-500">{email.from} → {email.to.join(", ")}</p>
-              <p className="mt-1 text-xs text-neutral-700">{email.bodySnippet || "-"}</p>
-              <p className="mt-2 text-[11px] text-neutral-400">{formatDateTime(email.createdAt)} • {userNameMap[email.createdById] || email.createdById}</p>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </Panel>
   )
 }

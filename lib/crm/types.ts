@@ -2,6 +2,7 @@ import type { Timestamp } from "firebase/firestore"
 import {
   CRM_DIRECTIONS,
   CRM_INTERNAL_HANDOFF_STATUSES,
+  CRM_INTERNAL_NOTE_STATUSES,
   CRM_PERMISSIONS,
   CRM_PIPELINE_STAGES,
   CRM_PRIORITIES,
@@ -20,6 +21,7 @@ export type CrmTaskStatus = (typeof CRM_TASK_STATUSES)[number]
 export type CrmEmailDirection = (typeof CRM_DIRECTIONS)[number]
 export type CrmOpportunityType = (typeof CRM_OPPORTUNITY_TYPES)[number]
 export type CrmInternalHandoffStatus = (typeof CRM_INTERNAL_HANDOFF_STATUSES)[number]
+export type CrmInternalNoteStatus = (typeof CRM_INTERNAL_NOTE_STATUSES)[number]
 
 export type FirestoreDateValue = Timestamp | Date | number | string | null | undefined
 
@@ -38,6 +40,7 @@ export interface CrmClientContact {
   name: string
   phone: string
   email?: string
+  locationName?: string
   createdAt?: FirestoreDateValue
   updatedAt?: FirestoreDateValue
 }
@@ -49,6 +52,7 @@ export interface CrmOpportunity {
   title: string
   displayTitle: string
   clientId: string
+  primaryContactId?: string
   ownerId: string
   priority: CrmPriority
   workStatus: CrmWorkStatus
@@ -183,6 +187,21 @@ export interface CrmInternalHandoff {
   updatedAt?: FirestoreDateValue
 }
 
+export interface CrmInternalNote {
+  id: string
+  opportunityId: string
+  fromUserId: string
+  toUserId: string
+  message: string
+  status: CrmInternalNoteStatus
+  confirmationMessage?: string
+  confirmedAt?: FirestoreDateValue
+  confirmedById?: string
+  createdById: string
+  createdAt?: FirestoreDateValue
+  updatedAt?: FirestoreDateValue
+}
+
 export interface CrmVisibleTo {
   id: string
   entityType: "TASK" | "NOTE" | "FILE" | "EMAIL" | "CALENDAR_EVENT" | "ACTIVITY"
@@ -204,6 +223,7 @@ export interface CrmFilters {
 export interface CreateOpportunityInput {
   title: string
   clientId: string
+  primaryContactId?: string
   ownerId: string
   assignedReadUserIds?: string[]
   createdById: string
@@ -270,6 +290,14 @@ export interface CreateInternalHandoffInput {
   currency: string
   handedOverAt: Date
   note: string
+  createdById: string
+}
+
+export interface CreateInternalNoteInput {
+  opportunityId: string
+  fromUserId: string
+  toUserId: string
+  message: string
   createdById: string
 }
 

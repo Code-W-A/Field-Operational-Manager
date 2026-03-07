@@ -40,18 +40,18 @@ function isOpenTask(task: CrmTask) {
 
 function renderScheduleItem(item: ScheduleItem) {
   return (
-    <div key={item.id} className="rounded-lg border border-neutral-200 bg-white p-2.5">
-      <div className="mb-1 flex items-center gap-2">
+    <div key={item.id} className="rounded-lg border border-neutral-200 bg-white p-3">
+      <div className="mb-1.5 flex items-center gap-2">
         <SubtleBadge tone={item.type === "EVENT" ? "neutral" : "warning"}>[{item.type}]</SubtleBadge>
-        <p className="min-w-0 truncate text-xs font-medium text-neutral-900" title={item.title}>
+        <p className="min-w-0 truncate text-sm font-medium text-neutral-900" title={item.title}>
           {item.title}
         </p>
       </div>
-      <p className="text-[11px] text-neutral-600">
+      <p className="text-sm text-neutral-600">
         {formatDateTime(item.when)}
         {item.until ? ` → ${formatDateTime(item.until)}` : ""}
       </p>
-      {item.location ? <p className="mt-1 truncate text-[11px] text-neutral-500">Locație: {item.location}</p> : null}
+      {item.location ? <p className="mt-1 truncate text-sm text-neutral-500">Locație: {item.location}</p> : null}
     </div>
   )
 }
@@ -134,33 +134,33 @@ export function OpportunityScheduleOverview({
   }, [events, maxItemsPerSection, tasks])
 
   if (loading) {
-    return <p className="text-xs text-neutral-500">Se încarcă programările...</p>
+    return <p className="text-sm text-neutral-500">Se încarcă programările...</p>
   }
 
   return (
     <div className="grid gap-3 xl:grid-cols-3">
       <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
-        <p className="mb-2 text-xs font-medium text-neutral-700">În desfășurare acum ({buckets.inProgressNow.length})</p>
+        <p className="mb-2 text-sm font-medium text-neutral-700">În desfășurare acum ({buckets.inProgressNow.length})</p>
         {buckets.inProgressNow.length === 0 ? (
-          <p className="text-xs text-neutral-500">Nu există evenimente active acum.</p>
+          <p className="text-sm text-neutral-500">Nu există evenimente active acum.</p>
         ) : (
           <div className="space-y-2">{buckets.inProgressNow.map(renderScheduleItem)}</div>
         )}
       </div>
 
       <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
-        <p className="mb-2 text-xs font-medium text-neutral-700">Programate azi ({buckets.scheduledToday.length})</p>
+        <p className="mb-2 text-sm font-medium text-neutral-700">Programate azi ({buckets.scheduledToday.length})</p>
         {buckets.scheduledToday.length === 0 ? (
-          <p className="text-xs text-neutral-500">Nu există programări pentru restul zilei.</p>
+          <p className="text-sm text-neutral-500">Nu există programări pentru restul zilei.</p>
         ) : (
           <div className="space-y-2">{buckets.scheduledToday.map(renderScheduleItem)}</div>
         )}
       </div>
 
       <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
-        <p className="mb-2 text-xs font-medium text-neutral-700">Următoarele programări ({buckets.upcoming.length})</p>
+        <p className="mb-2 text-sm font-medium text-neutral-700">Următoarele programări ({buckets.upcoming.length})</p>
         {buckets.upcoming.length === 0 ? (
-          <p className="text-xs text-neutral-500">Nu există programări viitoare.</p>
+          <p className="text-sm text-neutral-500">Nu există programări viitoare.</p>
         ) : (
           <div className="space-y-2">{buckets.upcoming.map(renderScheduleItem)}</div>
         )}

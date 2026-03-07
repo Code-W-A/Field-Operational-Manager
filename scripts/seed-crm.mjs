@@ -39,7 +39,7 @@ if (!getApps().length) {
 const db = getFirestore()
 
 async function createOpportunity({ title, type, stage, ownerId, clientId, number }) {
-  const code = `OP${String(number).padStart(6, "0")}`
+  const code = `OP.${String(number)}`
   const opportunityRef = db.collection("crm_opportunities").doc()
 
   await opportunityRef.set({

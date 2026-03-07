@@ -58,6 +58,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { v4 as uuidv4 } from "uuid"
 import { cn } from "@/lib/utils"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { getClientLevelContactsFromRecord } from "@/lib/client-contacts"
 
 interface ClientFormProps {
   mode?: "add" | "edit"
@@ -89,6 +90,46 @@ const checkCuiExists = async (cui: string): Promise<boolean> => {
   }
 }
 
+const createEmptyContact = (): PersoanaContact => ({ nume: "", telefon: "", email: "", functie: "" })
+
+const createEmptyLocation = (): Locatie => ({
+  nume: "",
+  adresa: "",
+  persoaneContact: [createEmptyContact()],
+  echipamente: [],
+})
+
+const hasAnyContactContent = (contact: Partial<PersoanaContact> | null | undefined) =>
+  Boolean(contact?.nume || contact?.telefon || contact?.email || contact?.functie)
+
+const getInitialClientContacts = (mode: "add" | "edit", client?: Client) => {
+  if (mode === "edit" && client) {
+    const resolved = getClientLevelContactsFromRecord(String(client.id || ""), client as Record<string, unknown>)
+    if (resolved.length > 0) {
+      return resolved.map((contact) => ({
+        id: contact.id,
+        nume: contact.nume || "",
+        telefon: contact.telefon || "",
+        email: contact.email || "",
+        functie: contact.functie || "",
+      }))
+    }
+  }
+
+  return [createEmptyContact()]
+}
+
+const getInitialLocatii = (mode: "add" | "edit", client?: Client) => {
+  if (mode === "edit" && client && client.locatii && client.locatii.length > 0) {
+    return client.locatii.map((loc) => ({
+      ...loc,
+      echipamente: loc.echipamente || [],
+    }))
+  }
+
+  return [createEmptyLocation()]
+}
+
 // Modify the component definition to use forwardRef
 const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClient, onCancel, initialEquipmentSelection }: ClientFormProps, ref) => {
   const { userData } = useAuth()
@@ -108,11 +149,8 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
     reprezentantFirma: mode === "edit" && client ? (client.reprezentantFirma || "") : "",
     functieReprezentant: mode === "edit" && client ? ((client as any).functieReprezentant || "") : "",
   })
-  
-  const [initialFormState, setInitialFormState] = useState({
-    formData: {...formData},
-    locatii: JSON.stringify([]),
-  })
+
+  const [clientContacts, setClientContacts] = useState<PersoanaContact[]>(() => getInitialClientContacts(mode, client))
 
   // Add state for close alert dialog - IMPORTANT: default to true for testing
   const [showCloseAlert, setShowCloseAlert] = useState(false)
@@ -126,16 +164,11 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
 
 
   // Adăugăm state pentru locații
-  const [locatii, setLocatii] = useState<Locatie[]>(() => {
-    if (mode === "edit" && client && client.locatii && client.locatii.length > 0) {
-      return client.locatii.map((loc) => ({
-        ...loc,
-        echipamente: loc.echipamente || [],
-      }))
-    }
-    return [
-    { nume: "", adresa: "", persoaneContact: [{ nume: "", telefon: "", email: "", functie: "" }], echipamente: [] },
-    ]
+  const [locatii, setLocatii] = useState<Locatie[]>(() => getInitialLocatii(mode, client))
+  const [initialFormState, setInitialFormState] = useState({
+    formData: { ...formData },
+    clientContacts: JSON.stringify(getInitialClientContacts(mode, client)),
+    locatii: JSON.stringify(getInitialLocatii(mode, client)),
   })
 
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -347,6 +380,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
   useEffect(() => {
     const currentState = {
       formData,
+      clientContacts: JSON.stringify(clientContacts),
       locatii: JSON.stringify(locatii),
     }
 
@@ -354,6 +388,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
     // and if there's actual content (not just empty fields)
     const hasChanged =
       JSON.stringify(currentState.formData) !== JSON.stringify(initialFormState.formData) ||
+      currentState.clientContacts !== initialFormState.clientContacts ||
       currentState.locatii !== initialFormState.locatii
 
     const hasContent =
@@ -364,6 +399,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
       formData.email ||
       formData.telefon ||
       formData.reprezentantFirma ||
+      clientContacts.some((contact) => hasAnyContactContent(contact)) ||
       locatii.some(
         (loc) =>
           loc.nume ||
@@ -374,7 +410,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
 
     setFormModified(Boolean(hasChanged && hasContent))
     console.log("Form modified:", hasChanged && hasContent)
-  }, [formData, locatii, initialFormState])
+  }, [formData, clientContacts, locatii, initialFormState])
 
   // Check if equipment form has been modified
   useEffect(() => {
@@ -464,11 +500,38 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
     setFormData((prev) => ({ ...prev, [id]: value }))
   }
 
+  const handleAddClientContact = () => {
+    setClientContacts((prev) => [...prev, createEmptyContact()])
+  }
+
+  const handleRemoveClientContact = (contactIndex: number) => {
+    setClientContacts((prev) => {
+      if (prev.length <= 1) {
+        return [createEmptyContact()]
+      }
+
+      return prev.filter((_, index) => index !== contactIndex)
+    })
+  }
+
+  const handleClientContactChange = (contactIndex: number, field: keyof PersoanaContact, value: string) => {
+    setClientContacts((prev) =>
+      prev.map((contact, index) =>
+        index === contactIndex
+          ? {
+              ...contact,
+              [field]: value,
+            }
+          : contact
+      )
+    )
+  }
+
   // Adăugăm funcție pentru adăugarea unei noi locații
   const handleAddLocatie = () => {
     setLocatii([
       ...locatii,
-      { nume: "", adresa: "", persoaneContact: [{ nume: "", telefon: "", email: "", functie: "" }], echipamente: [] },
+      createEmptyLocation(),
     ])
   }
 
@@ -491,7 +554,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
   // Adăugăm funcție pentru adăugarea unei persoane de contact la o locație
   const handleAddContactToLocatie = (locatieIndex: number) => {
     const updatedLocatii = [...locatii]
-    updatedLocatii[locatieIndex].persoaneContact.push({ nume: "", telefon: "", email: "", functie: "" })
+    updatedLocatii[locatieIndex].persoaneContact.push(createEmptyContact())
     setLocatii(updatedLocatii)
   }
 
@@ -808,6 +871,12 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
       if (!formData.telefon) errors.push("telefon")
       if (!formData.reprezentantFirma) errors.push("reprezentantFirma")
 
+      clientContacts.forEach((contact, index) => {
+        if (hasAnyContactContent(contact) && (!contact.nume || !contact.telefon)) {
+          errors.push(`clientContacts[${index}]`)
+        }
+      })
+
       // Verificăm dacă toate locațiile au nume și adresă
       locatii.forEach((locatie, index) => {
         if (!locatie.nume) errors.push(`locatii[${index}].nume`)
@@ -826,6 +895,14 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
         return
       }
 
+      const filteredClientContacts = clientContacts
+        .filter((contact) => contact.nume && contact.telefon)
+        .map((contact) => ({
+          ...contact,
+          email: contact.email || "",
+          functie: contact.functie || "",
+        }))
+
       // Filtrăm locațiile și persoanele de contact goale din locații
       const filteredLocatii = locatii
         .filter((locatie) => locatie.nume && locatie.adresa)
@@ -841,11 +918,9 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
             })),
         }))
 
-      // Folosim prima persoană de contact din prima locație ca persoană de contact principală pentru compatibilitate
-      const primaryContact =
-        filteredLocatii.length > 0 && filteredLocatii[0].persoaneContact.length > 0
-          ? filteredLocatii[0].persoaneContact[0]
-          : null
+      const primaryClientContact = filteredClientContacts.length > 0 ? filteredClientContacts[0] : null
+      const legacyPrimaryContactName =
+        primaryClientContact?.nume || formData.reprezentantFirma || (client as any)?.persoanaContact || ""
 
       if (mode === "add") {
         // MODE: ADD - Create new client
@@ -855,7 +930,8 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
         regCom: formData.regCom || "",
         contBancar: "",
         banca: "",
-        persoanaContact: primaryContact ? primaryContact.nume : "",
+        persoaneContact: filteredClientContacts,
+        persoanaContact: legacyPrimaryContactName,
         numarLucrari: 0,
         locatii: filteredLocatii,
       }
@@ -885,12 +961,15 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
           ...formData,
           cui: formData.cif,
           regCom: formData.regCom || (client as any).regCom || "",
+          persoaneContact: filteredClientContacts,
+          persoanaContact: legacyPrimaryContactName,
           locatii: filteredLocatii,
         })
 
         // Update the initial state to match current state after successful save
         setInitialFormState({
           formData,
+          clientContacts: JSON.stringify(filteredClientContacts.length > 0 ? filteredClientContacts : [createEmptyContact()]),
           locatii: JSON.stringify(locatii),
         })
         setFormModified(false)
@@ -1083,7 +1162,80 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
         </div>
       </div>
 
-   
+      <div className="space-y-4 mt-6 border-t pt-4">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="text-md font-medium">Persoane de contact client</h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              Aceste contacte sunt folosite în dialogul „Creează oportunitate”.
+            </p>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={handleAddClientContact} className="flex items-center">
+            <Plus className="h-4 w-4 mr-1" /> Adaugă
+          </Button>
+        </div>
+
+        <div className="space-y-3">
+          {clientContacts.map((contact, contactIndex) => (
+            <div key={contact.id || `client-contact-${contactIndex}`} className="p-4 border rounded-md space-y-4">
+              <div className="flex justify-between items-center">
+                <h4 className="text-sm font-medium">Contact client #{contactIndex + 1}</h4>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleRemoveClientContact(contactIndex)}
+                  className="h-8 w-8 p-0 text-red-500"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Nume</label>
+                  <Input
+                    placeholder="Nume persoană contact"
+                    value={contact.nume}
+                    onChange={(e) => handleClientContactChange(contactIndex, "nume", e.target.value)}
+                    className={hasError(`clientContacts[${contactIndex}]`) && !contact.nume ? errorStyle : ""}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Telefon</label>
+                  <Input
+                    placeholder="Număr de telefon"
+                    value={contact.telefon}
+                    onChange={(e) => handleClientContactChange(contactIndex, "telefon", e.target.value)}
+                    className={hasError(`clientContacts[${contactIndex}]`) && !contact.telefon ? errorStyle : ""}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Email</label>
+                  <Input
+                    type="email"
+                    placeholder="Adresă de email"
+                    value={contact.email || ""}
+                    onChange={(e) => handleClientContactChange(contactIndex, "email", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Funcție</label>
+                  <Input
+                    placeholder="Funcție"
+                    value={contact.functie || ""}
+                    onChange={(e) => handleClientContactChange(contactIndex, "functie", e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Secțiunea pentru locații */}
       <div className="space-y-4 mt-6 border-t pt-4">
         <div className="flex justify-between items-center">

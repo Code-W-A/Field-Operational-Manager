@@ -26,6 +26,7 @@ import type {
   CrmCalendarEvent,
   CrmEmailLog,
   CrmInternalHandoff,
+  CrmInternalNote,
   CrmFileAttachment,
   CrmNote,
   CrmTask,
@@ -33,6 +34,7 @@ import type {
   CreateCalendarEventInput,
   CreateEmailInput,
   CreateInternalHandoffInput,
+  CreateInternalNoteInput,
   CreateNoteInput,
   CreateTaskInput,
 } from "@/lib/crm/types"
@@ -61,7 +63,7 @@ function mapTask(docId: string, data: Record<string, unknown>): CrmTask {
 }
 
 export async function createCrmTask(input: CreateTaskInput) {
-  const visibility = input.visibility || "GENERAL"
+  const visibility = input.visibility || "PRIVATE"
   const visibleToUserIds = normalizeVisibilityUsers(visibility, input.visibleToUserIds)
 
   const ref = await addDoc(collection(db, CRM_COLLECTIONS.tasks), {
@@ -340,7 +342,7 @@ function mapNote(docId: string, data: Record<string, unknown>): CrmNote {
 }
 
 export async function createCrmNote(input: CreateNoteInput) {
-  const visibility = input.visibility || "GENERAL"
+  const visibility = input.visibility || "PRIVATE"
   const visibleToUserIds = normalizeVisibilityUsers(visibility, input.visibleToUserIds)
   const content = input.content.trim()
   const preview = content.length > 160 ? `${content.slice(0, 157)}...` : content
@@ -407,6 +409,97 @@ export async function listCrmNotes(params: {
     )
 }
 
+export async function updateCrmNoteVisibility(params: {
+  noteId: string
+  actorId: string
+  visibility: CrmVisibility
+  visibleToUserIds?: string[]
+}) {
+  const noteRef = doc(db, CRM_COLLECTIONS.notes, params.noteId)
+  const noteSnap = await getDoc(noteRef)
+  if (!noteSnap.exists()) throw new Error("Nota nu există")
+
+  const note = mapNote(noteSnap.id, noteSnap.data() as Record<string, unknown>)
+  const visibility = params.visibility
+  const visibleToUserIds = normalizeVisibilityUsers(visibility, params.visibleToUserIds || note.visibleToUserIds)
+
+  await updateDoc(noteRef, {
+    visibility,
+    visibleToUserIds,
+    updatedAt: serverTimestamp(),
+  })
+
+  await syncVisibleTo({
+    entityType: "NOTE",
+    entityId: note.id,
+    opportunityId: note.opportunityId,
+    userIds: visibleToUserIds,
+  })
+
+  await logCrmActivity({
+    opportunityId: note.opportunityId,
+    actorId: params.actorId,
+    type: "NOTE_VISIBILITY_UPDATED",
+    payload: {
+      noteId: note.id,
+      note: {
+        id: note.id,
+        content: note.content,
+        createdById: note.createdById,
+      },
+      before: {
+        visibility: note.visibility,
+        visibleToUserIds: note.visibleToUserIds,
+      },
+      after: {
+        visibility,
+        visibleToUserIds,
+      },
+    },
+    visibility,
+    visibleToUserIds,
+  })
+}
+
+export async function updateCrmNoteContent(params: {
+  noteId: string
+  actorId: string
+  content: string
+}) {
+  const noteRef = doc(db, CRM_COLLECTIONS.notes, params.noteId)
+  const noteSnap = await getDoc(noteRef)
+  if (!noteSnap.exists()) throw new Error("Nota nu există")
+
+  const note = mapNote(noteSnap.id, noteSnap.data() as Record<string, unknown>)
+  const nextContent = params.content.trim()
+  if (!nextContent) throw new Error("Conținutul notei nu poate fi gol")
+  if (nextContent === note.content) return
+
+  await updateDoc(noteRef, {
+    content: nextContent,
+    updatedAt: serverTimestamp(),
+  })
+
+  await logCrmActivity({
+    opportunityId: note.opportunityId,
+    actorId: params.actorId,
+    type: "NOTE_UPDATED",
+    payload: {
+      noteId: note.id,
+      before: {
+        content: note.content,
+      },
+      after: {
+        content: nextContent,
+      },
+    },
+    visibility: note.visibility,
+    visibleToUserIds: note.visibleToUserIds,
+  })
+
+  await rebuildOpportunitySearchIndex(note.opportunityId)
+}
+
 export async function deleteCrmNote(noteId: string, actorId: string) {
   const noteRef = doc(db, CRM_COLLECTIONS.notes, noteId)
   const noteSnap = await getDoc(noteRef)
@@ -429,6 +522,145 @@ export async function deleteCrmNote(noteId: string, actorId: string) {
         createdById: note.createdById,
         createdAt: note.createdAt || null,
       },
+    },
+  })
+
+  await rebuildOpportunitySearchIndex(note.opportunityId)
+}
+
+function mapInternalNote(docId: string, data: Record<string, unknown>): CrmInternalNote {
+  return {
+    id: docId,
+    opportunityId: String(data.opportunityId || ""),
+    fromUserId: String(data.fromUserId || ""),
+    toUserId: String(data.toUserId || ""),
+    message: String(data.message || ""),
+    status: (data.status as CrmInternalNote["status"]) || "PENDING",
+    confirmationMessage: typeof data.confirmationMessage === "string" ? data.confirmationMessage : undefined,
+    confirmedAt: (data.confirmedAt as CrmInternalNote["confirmedAt"]) || undefined,
+    confirmedById: typeof data.confirmedById === "string" ? data.confirmedById : undefined,
+    createdById: String(data.createdById || ""),
+    createdAt: (data.createdAt as CrmInternalNote["createdAt"]) || undefined,
+    updatedAt: (data.updatedAt as CrmInternalNote["updatedAt"]) || undefined,
+  }
+}
+
+export async function createCrmInternalNote(input: CreateInternalNoteInput) {
+  const message = input.message.trim()
+
+  const ref = await addDoc(collection(db, CRM_COLLECTIONS.internalNotes), {
+    opportunityId: input.opportunityId,
+    fromUserId: input.fromUserId,
+    toUserId: input.toUserId,
+    message,
+    status: "PENDING",
+    confirmationMessage: null,
+    confirmedAt: null,
+    confirmedById: null,
+    createdById: input.createdById,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+
+  await logCrmActivity({
+    opportunityId: input.opportunityId,
+    actorId: input.createdById,
+    type: "INTERNAL_NOTE_CREATED",
+    payload: {
+      internalNoteId: ref.id,
+      fromUserId: input.fromUserId,
+      toUserId: input.toUserId,
+      message,
+      status: "PENDING",
+    },
+  })
+
+  await rebuildOpportunitySearchIndex(input.opportunityId)
+
+  return ref.id
+}
+
+export async function listCrmInternalNotes(params: {
+  opportunityId: string
+  userId: string
+  opportunityOwnerId: string
+}) {
+  if (!params.userId || !params.opportunityOwnerId) return []
+
+  const rows = await getDocs(
+    query(
+      collection(db, CRM_COLLECTIONS.internalNotes),
+      where("opportunityId", "==", params.opportunityId),
+      limit(300)
+    )
+  )
+
+  return rows.docs
+    .map((snap) => mapInternalNote(snap.id, snap.data() as Record<string, unknown>))
+    .sort((left, right) => {
+      const leftDate =
+        left.createdAt instanceof Timestamp
+          ? left.createdAt.toDate()
+          : left.createdAt instanceof Date
+            ? left.createdAt
+            : left.createdAt
+              ? new Date(left.createdAt as string | number)
+              : null
+      const rightDate =
+        right.createdAt instanceof Timestamp
+          ? right.createdAt.toDate()
+          : right.createdAt instanceof Date
+            ? right.createdAt
+            : right.createdAt
+              ? new Date(right.createdAt as string | number)
+              : null
+      const leftMs = leftDate?.getTime() || 0
+      const rightMs = rightDate?.getTime() || 0
+      return leftMs - rightMs
+    })
+}
+
+export async function confirmCrmInternalNote(params: {
+  noteId: string
+  actorId: string
+  confirmationMessage?: string
+  canOverrideRecipient?: boolean
+}) {
+  const noteRef = doc(db, CRM_COLLECTIONS.internalNotes, params.noteId)
+  const noteSnap = await getDoc(noteRef)
+  if (!noteSnap.exists()) throw new Error("Nota internă nu există")
+
+  const note = mapInternalNote(noteSnap.id, noteSnap.data() as Record<string, unknown>)
+  if (note.status === "CONFIRMED") return
+
+  const canConfirm = note.toUserId === params.actorId || params.canOverrideRecipient === true
+  if (!canConfirm) {
+    throw new Error("Doar destinatarul poate confirma nota internă")
+  }
+
+  const confirmationMessage = params.confirmationMessage?.trim() || null
+
+  await updateDoc(noteRef, {
+    status: "CONFIRMED",
+    confirmationMessage,
+    confirmedAt: serverTimestamp(),
+    confirmedById: params.actorId,
+    updatedAt: serverTimestamp(),
+  })
+
+  await logCrmActivity({
+    opportunityId: note.opportunityId,
+    actorId: params.actorId,
+    type: "INTERNAL_NOTE_CONFIRMED",
+    payload: {
+      internalNoteId: note.id,
+      fromUserId: note.fromUserId,
+      toUserId: note.toUserId,
+      message: note.message,
+      confirmationMessage,
+      confirmedById: params.actorId,
+      status: "CONFIRMED",
+      confirmedAt: new Date().toISOString(),
     },
   })
 
@@ -567,7 +799,7 @@ function mapEmail(docId: string, data: Record<string, unknown>): CrmEmailLog {
 }
 
 export async function createCrmEmail(input: CreateEmailInput) {
-  const visibility = input.visibility || "GENERAL"
+  const visibility = input.visibility || "PRIVATE"
   const visibleToUserIds = normalizeVisibilityUsers(visibility, input.visibleToUserIds)
 
   const ref = await addDoc(collection(db, CRM_COLLECTIONS.emails), {
@@ -656,7 +888,7 @@ function mapCalendarEvent(docId: string, data: Record<string, unknown>): CrmCale
 }
 
 export async function createCrmCalendarEvent(input: CreateCalendarEventInput) {
-  const visibility = input.visibility || "GENERAL"
+  const visibility = input.visibility || "PRIVATE"
   const visibleToUserIds = normalizeVisibilityUsers(visibility, input.visibleToUserIds)
 
   const ref = await addDoc(collection(db, CRM_COLLECTIONS.calendarEvents), {
@@ -789,7 +1021,7 @@ export async function uploadCrmFile(params: {
     file: params.file,
   })
 
-  const visibility = params.visibility || "GENERAL"
+  const visibility = params.visibility || "PRIVATE"
   const visibleToUserIds = normalizeVisibilityUsers(visibility, params.visibleToUserIds)
 
   const ref = await addDoc(collection(db, CRM_COLLECTIONS.files), {
@@ -866,6 +1098,57 @@ export async function listCrmFiles(params: {
         customVisibleRows: visibleRows.filter((row) => row.entityId === file.id),
       })
     )
+}
+
+export async function updateCrmFileVisibility(params: {
+  fileId: string
+  actorId: string
+  visibility: CrmVisibility
+  visibleToUserIds?: string[]
+}) {
+  const fileRef = doc(db, CRM_COLLECTIONS.files, params.fileId)
+  const fileSnap = await getDoc(fileRef)
+  if (!fileSnap.exists()) throw new Error("Fișierul nu există")
+
+  const fileRow = mapFile(fileSnap.id, fileSnap.data() as Record<string, unknown>)
+  const visibility = params.visibility
+  const visibleToUserIds = normalizeVisibilityUsers(visibility, params.visibleToUserIds || fileRow.visibleToUserIds)
+
+  await updateDoc(fileRef, {
+    visibility,
+    visibleToUserIds,
+  })
+
+  await syncVisibleTo({
+    entityType: "FILE",
+    entityId: fileRow.id,
+    opportunityId: fileRow.opportunityId,
+    userIds: visibleToUserIds,
+  })
+
+  await logCrmActivity({
+    opportunityId: fileRow.opportunityId,
+    actorId: params.actorId,
+    type: "FILE_VISIBILITY_UPDATED",
+    payload: {
+      fileId: fileRow.id,
+      file: {
+        id: fileRow.id,
+        filename: fileRow.filename,
+        uploadedById: fileRow.uploadedById,
+      },
+      before: {
+        visibility: fileRow.visibility,
+        visibleToUserIds: fileRow.visibleToUserIds,
+      },
+      after: {
+        visibility,
+        visibleToUserIds,
+      },
+    },
+    visibility,
+    visibleToUserIds,
+  })
 }
 
 export async function deleteCrmFile(params: { fileId: string; actorId: string }) {

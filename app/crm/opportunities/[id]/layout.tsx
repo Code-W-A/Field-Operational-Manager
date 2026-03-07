@@ -5,7 +5,9 @@ import { useParams } from "next/navigation"
 import { CalendarDays, Check, ClipboardCheck, FileText, Loader2, Mail, MessageSquare, Pencil, Timer, X } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { OpportunityTypeSidebar, Panel, TabsHeader } from "@/components/crm"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import {
   getCrmClientById,
@@ -22,7 +24,7 @@ import {
   CRM_PIPELINE_STAGES,
   CRM_PIPELINE_STAGE_LABELS,
 } from "@/lib/crm/constants"
-import type { CrmClient, CrmOpportunity } from "@/lib/crm/types"
+import type { CrmClient, CrmClientContact, CrmOpportunity } from "@/lib/crm/types"
 import { updateCrmOpportunity } from "@/lib/crm/opportunities"
 import { useToast } from "@/hooks/use-toast"
 
@@ -45,7 +47,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
 
   const [opportunity, setOpportunity] = useState<CrmOpportunity | null>(null)
   const [client, setClient] = useState<CrmClient | null>(null)
-  const [clientContacts, setClientContacts] = useState<Array<{ id: string; name: string; phone: string; email?: string }>>([])
+  const [clientContacts, setClientContacts] = useState<CrmClientContact[]>([])
   const [opportunityContactIds, setOpportunityContactIds] = useState<string[]>([])
   const [userMap, setUserMap] = useState<Record<string, string>>({})
   const [activeOpportunityCounts, setActiveOpportunityCounts] = useState<Record<string, number>>(() => {
@@ -59,6 +61,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState("")
   const [isSavingTitle, setIsSavingTitle] = useState(false)
+  const [selectedContactForDialog, setSelectedContactForDialog] = useState<CrmClientContact | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -183,14 +186,15 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
   }
 
   if (loading) {
-    return <div className="rounded-xl border border-neutral-200 bg-white p-4 text-xs text-neutral-500">Se încarcă oportunitatea...</div>
+    return <div className="rounded-xl border border-neutral-200 bg-white p-5 text-sm text-neutral-500">Se încarcă oportunitatea...</div>
   }
 
   if (!opportunity) {
-    return <div className="rounded-xl border border-neutral-200 bg-white p-4 text-xs text-neutral-500">Nu ai acces la această oportunitate sau nu există.</div>
+    return <div className="rounded-xl border border-neutral-200 bg-white p-5 text-sm text-neutral-500">Nu ai acces la această oportunitate sau nu există.</div>
   }
 
   const selectedContacts = clientContacts.filter((contact) => opportunityContactIds.includes(contact.id))
+  const effectivePrimaryContactId = opportunity.primaryContactId || selectedContacts[0]?.id || ""
   const createdByLabel = userMap[opportunity.createdById] || opportunity.createdById || "-"
   const ownerLabel = userMap[opportunity.ownerId] || opportunity.ownerId || "-"
   const assignedViewerIds = Array.from(
@@ -220,15 +224,15 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
   }))
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="grid flex-1 min-h-0 gap-3 xl:grid-cols-[260px_1fr_300px]">
-        <div className="xl:h-full">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="grid flex-1 min-h-0 gap-3 overflow-hidden xl:grid-cols-[260px_1fr_300px]">
+        <div className="min-h-0 xl:h-full">
           <OpportunityTypeSidebar homeItem={sidebarHomeItem} items={sidebarItems} collapsibleOnMobile />
         </div>
 
-        <section className="min-h-0 space-y-3">
-          <div className="rounded-xl border border-neutral-200 bg-white px-4 py-3">
-            <div className="flex flex-wrap items-start justify-between gap-2">
+        <section className="flex min-h-0 flex-col gap-3 overflow-hidden">
+          <div className="rounded-xl border border-neutral-200 bg-white px-5 py-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-[280px] flex-1">
                 {!isTechnician && isEditingTitle ? (
                   <Input
@@ -247,37 +251,37 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                     }}
                     placeholder="Titlu oportunitate"
                     disabled={isSavingTitle}
-                    className="h-9 text-sm"
+                    className="h-11 text-base font-semibold"
                   />
                 ) : (
-                  <p className="text-sm font-medium text-neutral-900">{opportunity.displayTitle}</p>
+                  <p className="text-lg font-semibold text-neutral-900">{opportunity.displayTitle}</p>
                 )}
               </div>
               {!isTechnician ? (
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-2">
                   {isEditingTitle ? (
                     <>
                       <Button
                         type="button"
                         size="sm"
                         variant="outline"
-                        className="h-8 px-2 text-xs"
+                        className="h-9 px-3 text-sm"
                         onClick={() => {
                           setTitleDraft(opportunity.title)
                           setIsEditingTitle(false)
                         }}
                         disabled={isSavingTitle}
                       >
-                        <X className="h-3.5 w-3.5" />
+                        <X className="h-4 w-4" />
                       </Button>
                       <Button
                         type="button"
                         size="sm"
-                        className="h-8 px-2 text-xs"
+                        className="h-9 px-3 text-sm"
                         onClick={() => void handleTitleSave()}
                         disabled={isSavingTitle}
                       >
-                        {isSavingTitle ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                        {isSavingTitle ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                       </Button>
                     </>
                   ) : (
@@ -285,53 +289,61 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                       type="button"
                       size="sm"
                       variant="outline"
-                      className="h-8 text-xs"
+                      className="h-9 text-sm"
                       onClick={() => setIsEditingTitle(true)}
                     >
-                      <Pencil className="mr-1 h-3.5 w-3.5" />
+                      <Pencil className="mr-1.5 h-4 w-4" />
                       Editează titlu
                     </Button>
                   )}
                 </div>
               ) : null}
             </div>
-            <p className="mt-1 text-xs text-neutral-500">
+            <p className="mt-1.5 text-sm text-neutral-500">
               {stageLabel(opportunity.pipelineStage)} • {priorityLabel(opportunity.priority)} • {workStatusLabel(opportunity.workStatus)}
             </p>
           </div>
           <TabsHeader items={tabs} />
-          <div>{children}</div>
+          <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
         </section>
 
-        <div className="xl:h-full">
+        <div className="min-h-0 xl:h-full xl:overflow-hidden">
           <details className="xl:hidden rounded-xl border border-neutral-200 bg-white">
-            <summary className="cursor-pointer px-4 py-3 text-xs font-medium text-neutral-700">Client & contacte</summary>
-            <div className="space-y-4 border-t border-neutral-100 px-4 py-3">
+            <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-neutral-700">Client & contacte</summary>
+            <div className="space-y-5 border-t border-neutral-100 px-5 py-4">
               <div className="rounded-lg border border-neutral-200 bg-white p-3">
-                <p className="text-sm font-medium text-neutral-900">{client?.name || "-"}</p>
-                <p className="mt-1 text-xs text-neutral-500">{client?.address || "Adresă indisponibilă"}</p>
+                <p className="text-base font-semibold text-neutral-900">{client?.name || "-"}</p>
+                <p className="mt-1 text-sm text-neutral-500">{client?.address || "Adresă indisponibilă"}</p>
               </div>
               <div>
-                <p className="mb-2 text-xs font-medium text-neutral-700">Contacte</p>
+                <p className="mb-2 text-sm font-medium text-neutral-700">Contacte</p>
                 {selectedContacts.length === 0 ? (
-                  <p className="text-xs text-neutral-500">Nu există contacte selectate.</p>
+                  <p className="text-sm text-neutral-500">Nu există contacte selectate.</p>
                 ) : (
                   <div className="space-y-2">
                     {selectedContacts.map((contact) => (
-                      <div key={contact.id} className="rounded-lg border border-neutral-200 bg-white p-2">
-                        <p className="text-xs font-medium text-neutral-800">{contact.name}</p>
-                        <p className="text-xs text-neutral-500">{contact.phone}</p>
-                        <p className="text-xs text-neutral-500">{contact.email || "-"}</p>
-                      </div>
+                      <button
+                        key={contact.id}
+                        type="button"
+                        className="w-full rounded-lg border border-neutral-200 bg-white p-3 text-left transition hover:bg-neutral-50"
+                        onClick={() => setSelectedContactForDialog(contact)}
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-medium text-neutral-800">{contact.name}</p>
+                          {effectivePrimaryContactId === contact.id ? (
+                            <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Principal</Badge>
+                          ) : null}
+                        </div>
+                      </button>
                     ))}
                   </div>
                 )}
               </div>
               <div>
-                <p className="mb-2 text-xs font-medium text-neutral-700">Pipeline</p>
+                <p className="mb-2 text-sm font-medium text-neutral-700">Pipeline</p>
                 <div className="space-y-2">
                   {CRM_PIPELINE_STAGES.map((stage) => (
-                    <div key={stage} className="flex items-center gap-2 text-xs">
+                    <div key={stage} className="flex items-center gap-2 text-sm">
                       <span
                         className={`h-2 w-2 rounded-full ${
                           opportunity.pipelineStage === stage ? "bg-blue-500" : "bg-neutral-300"
@@ -345,8 +357,8 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                 </div>
               </div>
               <div>
-                <p className="mb-2 text-xs font-medium text-neutral-700">Fields</p>
-                <div className="grid grid-cols-[110px_1fr] gap-2 text-xs">
+                <p className="mb-2 text-sm font-medium text-neutral-700">Fields</p>
+                <div className="grid grid-cols-[120px_1fr] gap-2 text-sm">
                   <span className="text-neutral-500">Code</span>
                   <span className="text-neutral-800">{opportunity.code}</span>
 
@@ -385,36 +397,45 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
           </details>
           <Panel
             title="Client"
-            className="hidden bg-[#f3f4f6] shadow-none xl:block xl:h-full xl:rounded-none xl:border-y-0 xl:border-r-0 xl:border-l xl:border-neutral-300"
-            contentClassName="space-y-4"
+            size="comfortable"
+            className="hidden overflow-hidden bg-[#f3f4f6] shadow-none xl:flex xl:h-full xl:flex-col xl:rounded-none xl:border-y-0 xl:border-r-0 xl:border-l xl:border-neutral-300"
+            contentClassName="min-h-0 flex-1 space-y-5 overflow-y-auto"
           >
             <div className="rounded-lg border border-neutral-200 bg-white p-3">
-              <p className="text-sm font-medium text-neutral-900">{client?.name || "-"}</p>
-              <p className="mt-1 text-xs text-neutral-500">{client?.address || "Adresă indisponibilă"}</p>
+              <p className="text-base font-semibold text-neutral-900">{client?.name || "-"}</p>
+              <p className="mt-1 text-sm text-neutral-500">{client?.address || "Adresă indisponibilă"}</p>
             </div>
 
             <div>
-              <p className="mb-2 text-xs font-medium text-neutral-700">Contacte</p>
+              <p className="mb-2 text-sm font-medium text-neutral-700">Contacte</p>
               {selectedContacts.length === 0 ? (
-                <p className="text-xs text-neutral-500">Nu există contacte selectate.</p>
+                <p className="text-sm text-neutral-500">Nu există contacte selectate.</p>
               ) : (
                 <div className="space-y-2">
                   {selectedContacts.map((contact) => (
-                    <div key={contact.id} className="rounded-lg border border-neutral-200 bg-white p-2">
-                      <p className="text-xs font-medium text-neutral-800">{contact.name}</p>
-                      <p className="text-xs text-neutral-500">{contact.phone}</p>
-                      <p className="text-xs text-neutral-500">{contact.email || "-"}</p>
-                    </div>
+                    <button
+                      key={contact.id}
+                      type="button"
+                      className="w-full rounded-lg border border-neutral-200 bg-white p-3 text-left transition hover:bg-neutral-50"
+                      onClick={() => setSelectedContactForDialog(contact)}
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-medium text-neutral-800">{contact.name}</p>
+                        {effectivePrimaryContactId === contact.id ? (
+                          <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Principal</Badge>
+                        ) : null}
+                      </div>
+                    </button>
                   ))}
                 </div>
               )}
             </div>
 
             <div>
-              <p className="mb-2 text-xs font-medium text-neutral-700">Pipeline</p>
+              <p className="mb-2 text-sm font-medium text-neutral-700">Pipeline</p>
               <div className="space-y-2">
                 {CRM_PIPELINE_STAGES.map((stage) => (
-                  <div key={stage} className="flex items-center gap-2 text-xs">
+                  <div key={stage} className="flex items-center gap-2 text-sm">
                     <span
                       className={`h-2 w-2 rounded-full ${
                         opportunity.pipelineStage === stage ? "bg-blue-500" : "bg-neutral-300"
@@ -428,9 +449,9 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
               </div>
             </div>
 
-            <div className="border-t border-neutral-300 pt-3">
-              <p className="mb-2 text-xs font-medium text-neutral-700">Fields</p>
-              <div className="grid grid-cols-[110px_1fr] gap-2 text-xs">
+            <div className="border-t border-neutral-300 pt-4">
+              <p className="mb-2 text-sm font-medium text-neutral-700">Fields</p>
+              <div className="grid grid-cols-[120px_1fr] gap-2 text-sm">
                 <span className="text-neutral-500">Code</span>
                 <span className="text-neutral-800">{opportunity.code}</span>
 
@@ -468,6 +489,31 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
           </Panel>
         </div>
       </div>
+      <Dialog open={!!selectedContactForDialog} onOpenChange={(open) => !open && setSelectedContactForDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Detalii contact</DialogTitle>
+          </DialogHeader>
+          {selectedContactForDialog ? (
+            <div className="space-y-3 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-base font-semibold text-neutral-900">{selectedContactForDialog.name || "-"}</p>
+                {effectivePrimaryContactId === selectedContactForDialog.id ? (
+                  <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Principal</Badge>
+                ) : null}
+              </div>
+              <div className="grid grid-cols-[110px_1fr] gap-2">
+                <span className="text-neutral-500">Locație</span>
+                <span className="text-neutral-800">{selectedContactForDialog.locationName || "-"}</span>
+                <span className="text-neutral-500">Telefon</span>
+                <span className="text-neutral-800">{selectedContactForDialog.phone || "-"}</span>
+                <span className="text-neutral-500">Email</span>
+                <span className="break-all text-neutral-800">{selectedContactForDialog.email || "-"}</span>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
