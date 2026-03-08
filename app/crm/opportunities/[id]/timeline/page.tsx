@@ -47,10 +47,10 @@ function getActivityLabel(activityType: string) {
     CREATED: "Oportunitate creată",
     UPDATED: "Date oportunitate modificate",
     STAGE_CHANGED: "Schimbare status",
-    TASK_CREATED: "Task creat",
-    TASK_UPDATED: "Task modificat",
-    TASK_COMPLETED: "Task completat",
-    TASK_DELETED: "Task șters",
+    TASK_CREATED: "Sarcină creată",
+    TASK_UPDATED: "Sarcină modificată",
+    TASK_COMPLETED: "Sarcină completată",
+    TASK_DELETED: "Sarcină ștearsă",
     NOTE_CREATED: "Notă adăugată",
     NOTE_UPDATED: "Notă actualizată",
     NOTE_VISIBILITY_UPDATED: "Vizibilitate notă actualizată",
@@ -176,7 +176,7 @@ function renderActivityContent(activity: CrmActivityLog, userNameMap: Record<str
       <div className="space-y-1.5">
         {renderKeyValueRow("Titlu", String(task.title || changes.title || "-"))}
         {renderKeyValueRow("Status", String(changes.status || task.status || "-"))}
-        {renderKeyValueRow("Asignee", mapUser(String(changes.assigneeId || task.assigneeId || "")))}
+        {renderKeyValueRow("Responsabil", mapUser(String(changes.assigneeId || task.assigneeId || "")))}
         {(changes.dueAt || task.dueAt) ? renderKeyValueRow("Termen", formatDateTime(changes.dueAt || task.dueAt)) : null}
       </div>
     )

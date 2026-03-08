@@ -49,7 +49,6 @@ export default function OpportunityTasksPage() {
   const [title, setTitle] = useState("")
   const [assigneeId, setAssigneeId] = useState<string>("")
   const [dueAt, setDueAt] = useState("")
-  const [reminderAt, setReminderAt] = useState("")
   const [visibility, setVisibility] = useState<(typeof CRM_VISIBILITIES)[number]>("PRIVATE")
   const [visibleToUserIds, setVisibleToUserIds] = useState<string[]>([])
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -58,7 +57,6 @@ export default function OpportunityTasksPage() {
   const [editStatus, setEditStatus] = useState<CrmTask["status"]>("TODO")
   const [editAssigneeId, setEditAssigneeId] = useState<string>("UNASSIGNED")
   const [editDueAt, setEditDueAt] = useState("")
-  const [editReminderAt, setEditReminderAt] = useState("")
 
   const userOptions = useMemo(() => users.map((row) => ({ value: row.uid, label: row.displayName })), [users])
   const userNameMap = useMemo(
@@ -99,6 +97,14 @@ export default function OpportunityTasksPage() {
     return <Panel title="Sarcini" size="comfortable"><p className="text-sm text-neutral-500">Fără acces la oportunitate.</p></Panel>
   }
 
+  const resetCreateForm = () => {
+    setTitle("")
+    setAssigneeId(opportunity.ownerId || "")
+    setDueAt("")
+    setVisibility("PRIVATE")
+    setVisibleToUserIds([])
+  }
+
   return (
     <Panel
       title="Sarcini"
@@ -109,13 +115,26 @@ export default function OpportunityTasksPage() {
     >
       {!isTechnician ? (
         <div className="mb-4 shrink-0 flex justify-end">
-          <Button size="sm" className="h-9 text-sm" onClick={() => setIsCreateOpen(true)}>
+          <Button
+            size="sm"
+            className="h-9 text-sm"
+            onClick={() => {
+              resetCreateForm()
+              setIsCreateOpen(true)
+            }}
+          >
             Adaugă sarcină
           </Button>
         </div>
       ) : null}
 
-      <Sheet open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+      <Sheet
+        open={isCreateOpen}
+        onOpenChange={(open) => {
+          setIsCreateOpen(open)
+          if (!open) resetCreateForm()
+        }}
+      >
         <SheetContent side="right" className="w-full p-0 sm:max-w-xl">
           <div className="flex h-full min-h-0 flex-col">
             <SheetHeader className="border-b px-5 py-4">
@@ -130,7 +149,7 @@ export default function OpportunityTasksPage() {
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
           <Select value={assigneeId} onValueChange={setAssigneeId}>
             <SelectTrigger className="h-9 text-sm">
-              <SelectValue placeholder="Assignee" />
+              <SelectValue placeholder="Responsabil" />
             </SelectTrigger>
             <SelectContent>
               {users.map((item) => (
@@ -142,7 +161,7 @@ export default function OpportunityTasksPage() {
           </Select>
           <Select value={visibility} onValueChange={(value) => setVisibility(value as typeof visibility)}>
             <SelectTrigger className="h-9 text-sm">
-              <SelectValue placeholder="Visibility" />
+              <SelectValue placeholder="Vizibilitate" />
             </SelectTrigger>
             <SelectContent>
               {CRM_VISIBILITIES.map((item) => (
@@ -153,7 +172,6 @@ export default function OpportunityTasksPage() {
             </SelectContent>
           </Select>
                 <Input type="datetime-local" value={dueAt} onChange={(event) => setDueAt(event.target.value)} className="h-9 text-sm" />
-                <Input type="datetime-local" value={reminderAt} onChange={(event) => setReminderAt(event.target.value)} className="h-9 text-sm" />
               </div>
           {visibility === "CUSTOM" ? (
                 <div className="mt-2">
@@ -182,16 +200,10 @@ export default function OpportunityTasksPage() {
                 createdById: user.uid,
                 assigneeId,
                 dueAt: dueAt ? new Date(dueAt) : undefined,
-                reminderAt: reminderAt ? new Date(reminderAt) : undefined,
                 visibility,
                 visibleToUserIds,
               })
-              setTitle("")
-              setAssigneeId("")
-              setDueAt("")
-              setReminderAt("")
-                    setVisibility("PRIVATE")
-              setVisibleToUserIds([])
+              resetCreateForm()
                     setIsCreateOpen(false)
               await load()
             }}
@@ -215,7 +227,7 @@ export default function OpportunityTasksPage() {
               <div className="grid gap-2 sm:grid-cols-2">
                     <Select value={editStatus} onValueChange={(status) => setEditStatus(status as CrmTask["status"])}>
                       <SelectTrigger className="h-9 text-sm">
-                        <SelectValue placeholder="Status" />
+                        <SelectValue placeholder="Stare" />
                       </SelectTrigger>
                       <SelectContent>
                         {CRM_TASK_STATUSES.map((status) => (
@@ -228,7 +240,7 @@ export default function OpportunityTasksPage() {
 
                     <Select value={editAssigneeId} onValueChange={setEditAssigneeId}>
                       <SelectTrigger className="h-9 text-sm">
-                        <SelectValue placeholder="Reassign" />
+                        <SelectValue placeholder="Reatribuire" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="UNASSIGNED">Neasignat</SelectItem>
@@ -245,12 +257,6 @@ export default function OpportunityTasksPage() {
                       className="h-9 text-sm"
                       value={editDueAt}
                       onChange={(event) => setEditDueAt(event.target.value)}
-                    />
-                    <Input
-                      type="datetime-local"
-                      className="h-9 text-sm"
-                      value={editReminderAt}
-                      onChange={(event) => setEditReminderAt(event.target.value)}
                     />
                   </div>
                   </div>
@@ -278,7 +284,6 @@ export default function OpportunityTasksPage() {
                               status: editStatus,
                               assigneeId: editAssigneeId === "UNASSIGNED" ? "" : editAssigneeId,
                               dueAt: editDueAt ? new Date(editDueAt) : null,
-                              reminderAt: editReminderAt ? new Date(editReminderAt) : null,
                             })
                             setEditingTaskId(null)
                     setIsEditOpen(false)
@@ -306,7 +311,7 @@ export default function OpportunityTasksPage() {
                   <div>
                     <p className="text-base font-semibold text-neutral-900">{task.title}</p>
                     <p className="mt-1 text-sm text-neutral-500">
-                      {formatDateTime(task.dueAt)} • Reminder: {formatDateTime(task.reminderAt)}
+                      {formatDateTime(task.dueAt)}
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
@@ -321,7 +326,6 @@ export default function OpportunityTasksPage() {
                   <p>Status: {taskStatusLabel(task.status)}</p>
                   <p>Responsabil: {task.assigneeId ? userNameMap[task.assigneeId] || task.assigneeId : "Neasignat"}</p>
                   <p>Termen: {formatDateTime(task.dueAt)}</p>
-                  <p>Reminder: {formatDateTime(task.reminderAt)}</p>
                 </div>
 
                 <div className="mt-2 flex justify-end">
@@ -335,7 +339,6 @@ export default function OpportunityTasksPage() {
                           setEditStatus(task.status)
                           setEditAssigneeId(task.assigneeId || "UNASSIGNED")
                           setEditDueAt(toDateTimeLocal(task.dueAt))
-                          setEditReminderAt(toDateTimeLocal(task.reminderAt))
                         setIsEditOpen(true)
                         }}
                       >

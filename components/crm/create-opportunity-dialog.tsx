@@ -14,8 +14,10 @@ import { Checkbox } from "@/components/ui/checkbox"
 import {
   CRM_OPPORTUNITY_SELECTABLE_TYPES,
   CRM_OPPORTUNITY_TYPE_LABELS,
-  CRM_PIPELINE_STAGES,
   CRM_PIPELINE_STAGE_LABELS,
+  getDefaultPipelineStageForOpportunityType,
+  getPipelineStagesForOpportunityType,
+  normalizePipelineStageForOpportunityType,
   CRM_PRIORITIES,
   CRM_PRIORITY_LABELS,
 } from "@/lib/crm/constants"
@@ -28,7 +30,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { ClientAddDialog } from "@/components/client-add-dialog"
 import { crmUi } from "@/components/crm/ui"
-import type { CrmClientContact } from "@/lib/crm/types"
+import type { CrmClientContact, CrmPipelineStage } from "@/lib/crm/types"
 
 interface CreateOpportunityDialogProps {
   actorId: string
@@ -58,7 +60,7 @@ export function CreateOpportunityDialog({ actorId, onCreated, iconOnly = false }
   const [title, setTitle] = useState("")
   const [clientId, setClientId] = useState("")
   const [ownerId, setOwnerId] = useState("")
-  const [pipelineStage, setPipelineStage] = useState<(typeof CRM_PIPELINE_STAGES)[number]>("NOU")
+  const [pipelineStage, setPipelineStage] = useState<CrmPipelineStage>(getDefaultPipelineStageForOpportunityType("VANZARI"))
   const [priority, setPriority] = useState<(typeof CRM_PRIORITIES)[number]>("MEDIUM")
   const [opportunityType, setOpportunityType] = useState<SelectableOpportunityType>("VANZARI")
   const [assignedReadUserIds, setAssignedReadUserIds] = useState<string[]>([])
@@ -168,7 +170,7 @@ export function CreateOpportunityDialog({ actorId, onCreated, iconOnly = false }
     setTitle("")
     setClientId("")
     setOwnerId("")
-    setPipelineStage("NOU")
+    setPipelineStage(getDefaultPipelineStageForOpportunityType("VANZARI"))
     setPriority("MEDIUM")
     setOpportunityType("VANZARI")
     setAssignedReadUserIds([])
@@ -225,7 +227,7 @@ export function CreateOpportunityDialog({ actorId, onCreated, iconOnly = false }
         ownerId,
         assignedReadUserIds,
         createdById: actorId,
-        pipelineStage,
+        pipelineStage: normalizePipelineStageForOpportunityType(opportunityType, pipelineStage),
         priority,
         opportunityType,
         contactIds: selectedContactIds,
@@ -252,6 +254,15 @@ export function CreateOpportunityDialog({ actorId, onCreated, iconOnly = false }
     setClientSearchTerm("")
     setClientActiveIndex(-1)
   }
+
+  const pipelineStagesForType = useMemo(
+    () => getPipelineStagesForOpportunityType(opportunityType),
+    [opportunityType]
+  )
+
+  useEffect(() => {
+    setPipelineStage((current) => normalizePipelineStageForOpportunityType(opportunityType, current))
+  }, [opportunityType])
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -420,14 +431,14 @@ export function CreateOpportunityDialog({ actorId, onCreated, iconOnly = false }
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label>Pipeline stage</Label>
-                <Select value={pipelineStage} onValueChange={(value) => setPipelineStage(value as typeof pipelineStage)}>
+                <Select value={pipelineStage} onValueChange={(value) => setPipelineStage(value as CrmPipelineStage)}>
                   <SelectTrigger className={crmUi.selectTrigger}>
                     <SelectValue placeholder="Stage" />
                   </SelectTrigger>
                   <SelectContent>
-                    {CRM_PIPELINE_STAGES.map((stage) => (
+                    {pipelineStagesForType.map((stage) => (
                       <SelectItem key={stage} value={stage}>
-                        {CRM_PIPELINE_STAGE_LABELS[stage]}
+                        {CRM_PIPELINE_STAGE_LABELS[stage] || stage}
                       </SelectItem>
                     ))}
                   </SelectContent>

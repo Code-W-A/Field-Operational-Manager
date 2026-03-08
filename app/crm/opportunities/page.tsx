@@ -12,8 +12,12 @@ import { OpportunityTypeSidebar, PageShell, Panel, SegmentedControl, TaskCounter
 import {
   CRM_OPPORTUNITY_SELECTABLE_TYPES,
   CRM_OPPORTUNITY_TYPE_LABELS,
-  CRM_PIPELINE_STAGES,
   CRM_PIPELINE_STAGE_LABELS,
+  CRM_OPPORTUNITY_TYPES,
+  getPipelineStagesForOpportunityType,
+  isLostPipelineStage,
+  isTerminalPipelineStageForOpportunityType,
+  isWonPipelineStageForOpportunityType,
   CRM_PRIORITIES,
   CRM_PRIORITY_LABELS,
   CRM_WORK_STATUSES,
@@ -48,14 +52,7 @@ const TASK_QUICK_FILTER_LABELS: Record<TaskQuickFilterKey, string> = {
   OVERDUE: "Intarziate",
 }
 
-const STAGE_DOT_CLASS: Record<(typeof CRM_PIPELINE_STAGES)[number], string> = {
-  NOU: "bg-slate-300",
-  CONTACTAT: "bg-sky-400",
-  OFERTA_TRIMISA: "bg-blue-500",
-  NEGOCIERE: "bg-violet-500",
-  CASTIGAT: "bg-lime-500",
-  PIERDUT: "bg-rose-500",
-}
+const STAGE_DOT_CLASS = ["bg-slate-300", "bg-sky-400", "bg-blue-500", "bg-violet-500", "bg-lime-500", "bg-rose-500", "bg-cyan-500", "bg-indigo-500", "bg-amber-500", "bg-teal-500"]
 
 function isTaskOverdue(task: CrmTask, referenceDate = new Date()) {
   if (task.status !== "TODO" && task.status !== "IN_PROGRESS") return false
@@ -111,7 +108,7 @@ function getTaskStatusChipClass(task?: CrmTask | null) {
 }
 
 function isOpportunityActive(opportunity: CrmOpportunity) {
-  return opportunity.pipelineStage !== "CASTIGAT" && opportunity.pipelineStage !== "PIERDUT" && opportunity.workStatus !== "DONE"
+  return !isTerminalPipelineStageForOpportunityType(opportunity.opportunityType, opportunity.pipelineStage) && opportunity.workStatus !== "DONE"
 }
 
 export default function CrmOpportunitiesPage() {
@@ -164,7 +161,7 @@ export default function CrmOpportunitiesPage() {
       search,
       ownerId: ownerFilter === "ALL" ? "ALL" : ownerFilter,
       priority: priorityFilter === "ALL" ? "ALL" : (priorityFilter as CrmFilters["priority"]),
-      pipelineStage: stageFilter === "ALL" ? "ALL" : (stageFilter as CrmFilters["pipelineStage"]),
+      pipelineStage: stageFilter === "ALL" ? "ALL" : stageFilter,
       workStatus: statusFilter === "ALL" ? "ALL" : (statusFilter as CrmFilters["workStatus"]),
     }),
     [activeType, search, ownerFilter, priorityFilter, stageFilter, statusFilter]
@@ -177,6 +174,18 @@ export default function CrmOpportunitiesPage() {
     }
     setActiveType((current) => (current === typeFromUrl ? current : typeFromUrl))
   }, [router, typeFromUrl, typeFromUrlRaw])
+
+  const availableStages = useMemo(() => {
+    if (activeType !== "ALL") return getPipelineStagesForOpportunityType(activeType)
+    return Array.from(new Set(CRM_OPPORTUNITY_TYPES.flatMap((type) => getPipelineStagesForOpportunityType(type))))
+  }, [activeType])
+
+  useEffect(() => {
+    if (stageFilter === "ALL") return
+    if (!availableStages.includes(stageFilter)) {
+      setStageFilter("ALL")
+    }
+  }, [availableStages, stageFilter])
 
   const loadData = async () => {
     if (!user?.uid) {
@@ -287,7 +296,7 @@ export default function CrmOpportunitiesPage() {
 
   const displayedStageStats = useMemo(() => {
     const map: Record<string, number> = {}
-    CRM_PIPELINE_STAGES.forEach((stage) => {
+    availableStages.forEach((stage) => {
       map[stage] = 0
     })
 
@@ -296,7 +305,7 @@ export default function CrmOpportunitiesPage() {
     })
 
     return map
-  }, [displayedOpportunities])
+  }, [availableStages, displayedOpportunities])
 
   const activeOpportunityCounts = useMemo(() => {
     const counts: Record<string, number> = { ALL: 0 }
@@ -378,7 +387,7 @@ export default function CrmOpportunitiesPage() {
         <OpportunityTypeSidebar homeItem={sidebarHomeItem} items={sidebarItems} />
 
         <div className="flex min-h-0 flex-col gap-3 overflow-hidden">
-          <Panel className="rounded-md border-neutral-300 bg-white shadow-none shrink-0" contentClassName="space-y-4">
+          <Panel className="mt-2 rounded-md border-neutral-300 bg-white shadow-none shrink-0" contentClassName="space-y-4">
             <div className="flex flex-wrap items-center gap-2.5">
               <div className="relative min-w-[220px] flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
@@ -470,9 +479,9 @@ export default function CrmOpportunitiesPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL">Toate stage-urile</SelectItem>
-                  {CRM_PIPELINE_STAGES.map((stage) => (
+                  {availableStages.map((stage) => (
                     <SelectItem key={stage} value={stage}>
-                      {CRM_PIPELINE_STAGE_LABELS[stage]}
+                      {CRM_PIPELINE_STAGE_LABELS[stage] || stage}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -622,7 +631,7 @@ export default function CrmOpportunitiesPage() {
                     })
                     toast({
                       title: "Stage actualizat",
-                      description: `Oportunitatea a fost mutata in ${CRM_PIPELINE_STAGE_LABELS[toStage]}.`,
+                      description: `Oportunitatea a fost mutata in ${CRM_PIPELINE_STAGE_LABELS[toStage] || toStage}.`,
                     })
                     await loadData()
                   }}
@@ -650,13 +659,13 @@ export default function CrmOpportunitiesPage() {
               <div className="flex items-center justify-between text-sm">
                 <span className="text-neutral-500">Castigate</span>
                 <span className="font-semibold text-neutral-900">
-                  {displayedOpportunities.filter((opportunity) => opportunity.pipelineStage === "CASTIGAT").length}
+                  {displayedOpportunities.filter((opportunity) => isWonPipelineStageForOpportunityType(opportunity.opportunityType, opportunity.pipelineStage)).length}
                 </span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-neutral-500">Pierdute</span>
                 <span className="font-semibold text-neutral-900">
-                  {displayedOpportunities.filter((opportunity) => opportunity.pipelineStage === "PIERDUT").length}
+                  {displayedOpportunities.filter((opportunity) => isLostPipelineStage(opportunity.pipelineStage)).length}
                 </span>
               </div>
             </div>
@@ -686,11 +695,11 @@ export default function CrmOpportunitiesPage() {
             <div className="border-t border-neutral-300 pt-3">
               <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-neutral-500">By stage</p>
               <div className="space-y-1.5">
-                {CRM_PIPELINE_STAGES.map((stage) => (
+                {availableStages.map((stage, index) => (
                   <p key={stage} className="flex items-center justify-between text-sm text-neutral-600">
                     <span className="inline-flex items-center gap-2">
-                      <span className={cn("h-2.5 w-2.5 rounded-sm", STAGE_DOT_CLASS[stage])} />
-                      <span>{CRM_PIPELINE_STAGE_LABELS[stage]}</span>
+                      <span className={cn("h-2.5 w-2.5 rounded-sm", STAGE_DOT_CLASS[index % STAGE_DOT_CLASS.length])} />
+                      <span>{CRM_PIPELINE_STAGE_LABELS[stage] || stage}</span>
                     </span>
                     <span className="font-medium text-neutral-900">{displayedStageStats[stage] || 0}</span>
                   </p>

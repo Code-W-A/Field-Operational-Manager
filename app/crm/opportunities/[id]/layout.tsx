@@ -22,12 +22,14 @@ import { formatDateTime, priorityLabel, stageLabel, workStatusLabel } from "@/li
 import {
   CRM_OPPORTUNITY_SELECTABLE_TYPES,
   CRM_OPPORTUNITY_TYPE_LABELS,
-  CRM_PIPELINE_STAGES,
   CRM_PIPELINE_STAGE_LABELS,
+  getPipelineStagesForOpportunityType,
+  isTerminalPipelineStageForOpportunityType,
 } from "@/lib/crm/constants"
 import type { CrmClient, CrmClientContact, CrmOpportunity } from "@/lib/crm/types"
 import { updateCrmOpportunity } from "@/lib/crm/opportunities"
 import { useToast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
 
 interface OpportunityLayoutProps {
   children: import("react").ReactNode
@@ -36,7 +38,21 @@ interface OpportunityLayoutProps {
 const LEFT_FILTER_ITEMS = CRM_OPPORTUNITY_SELECTABLE_TYPES
 
 function isOpportunityActive(opportunity: CrmOpportunity) {
-  return opportunity.pipelineStage !== "CASTIGAT" && opportunity.pipelineStage !== "PIERDUT" && opportunity.workStatus !== "DONE"
+  return !isTerminalPipelineStageForOpportunityType(opportunity.opportunityType, opportunity.pipelineStage) && opportunity.workStatus !== "DONE"
+}
+
+const PRIORITY_HEADER_STYLES: Record<CrmOpportunity["priority"], string> = {
+  LOW: "bg-white border-neutral-200",
+  MEDIUM: "bg-sky-50/70 border-sky-200/80",
+  HIGH: "bg-amber-50/70 border-amber-200/80",
+  URGENT: "bg-rose-50/70 border-rose-200/80",
+}
+
+const PRIORITY_SUBTEXT_STYLES: Record<CrmOpportunity["priority"], string> = {
+  LOW: "text-neutral-500",
+  MEDIUM: "text-sky-700/80",
+  HIGH: "text-amber-700/80",
+  URGENT: "text-rose-700/80",
 }
 
 export default function OpportunityLayout({ children }: OpportunityLayoutProps) {
@@ -229,6 +245,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
   }
 
   const selectedContacts = clientContacts.filter((contact) => opportunityContactIds.includes(contact.id))
+  const opportunityStages = getPipelineStagesForOpportunityType(opportunity.opportunityType)
   const effectivePrimaryContactId = opportunity.primaryContactId || selectedContacts[0]?.id || ""
   const createdByLabel = userMap[opportunity.createdById] || opportunity.createdById || "-"
   const ownerLabel = userMap[opportunity.ownerId] || opportunity.ownerId || "-"
@@ -266,7 +283,12 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
         </div>
 
         <section className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
-          <div className="rounded-xl border border-neutral-200 bg-white px-5 py-4">
+          <div
+            className={cn(
+              "mt-1 rounded-xl border px-5 py-4",
+              PRIORITY_HEADER_STYLES[opportunity.priority]
+            )}
+          >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-[280px] flex-1">
                 {!isTechnician && isEditingTitle ? (
@@ -347,7 +369,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                 </div>
               ) : null}
             </div>
-            <p className="mt-1.5 text-sm text-neutral-500">
+            <p className={cn("mt-1.5 text-sm", PRIORITY_SUBTEXT_STYLES[opportunity.priority])}>
               {stageLabel(opportunity.pipelineStage)} • {priorityLabel(opportunity.priority)} • {workStatusLabel(opportunity.workStatus)}
             </p>
           </div>
@@ -390,7 +412,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
               <div>
                 <p className="mb-2 text-sm font-medium text-neutral-700">Pipeline</p>
                 <div className="space-y-2">
-                  {CRM_PIPELINE_STAGES.map((stage) => (
+                  {opportunityStages.map((stage) => (
                     <div key={stage} className="flex items-center gap-2 text-sm">
                       <span
                         className={`h-2 w-2 rounded-full ${
@@ -398,7 +420,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                         }`}
                       />
                       <span className={opportunity.pipelineStage === stage ? "text-neutral-900" : "text-neutral-500"}>
-                        {CRM_PIPELINE_STAGE_LABELS[stage]}
+                        {CRM_PIPELINE_STAGE_LABELS[stage] || stage}
                       </span>
                     </div>
                   ))}
@@ -482,7 +504,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
             <div>
               <p className="mb-2 text-sm font-medium text-neutral-700">Pipeline</p>
               <div className="space-y-2">
-                {CRM_PIPELINE_STAGES.map((stage) => (
+                {opportunityStages.map((stage) => (
                   <div key={stage} className="flex items-center gap-2 text-sm">
                     <span
                       className={`h-2 w-2 rounded-full ${
@@ -490,7 +512,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                       }`}
                     />
                     <span className={opportunity.pipelineStage === stage ? "text-neutral-900" : "text-neutral-500"}>
-                      {CRM_PIPELINE_STAGE_LABELS[stage]}
+                      {CRM_PIPELINE_STAGE_LABELS[stage] || stage}
                     </span>
                   </div>
                 ))}

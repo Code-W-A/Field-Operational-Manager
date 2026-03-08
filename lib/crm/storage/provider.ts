@@ -24,7 +24,10 @@ class FirebaseStorageProvider implements StorageProvider {
     const safeName = input.file.name.replace(/[^a-zA-Z0-9._-]/g, "_")
     const path = `crm/opportunities/${input.opportunityId}/${Date.now()}_${safeName}`
     const storageRef = ref(storage, path)
-    const uploadResult = await uploadBytes(storageRef, input.file)
+    const uploadResult = await uploadBytes(storageRef, input.file, {
+      contentType: input.file.type || "application/octet-stream",
+      contentDisposition: "inline",
+    })
     const url = await getDownloadURL(uploadResult.ref)
 
     return {

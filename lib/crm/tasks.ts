@@ -52,7 +52,6 @@ function mapTask(docId: string, data: Record<string, unknown>): CrmTask {
     title: String(data.title || ""),
     status: (data.status as CrmTask["status"]) || "TODO",
     dueAt: (data.dueAt as CrmTask["dueAt"]) || undefined,
-    reminderAt: (data.reminderAt as CrmTask["reminderAt"]) || undefined,
     assigneeId: typeof data.assigneeId === "string" ? data.assigneeId : undefined,
     createdById: String(data.createdById || ""),
     visibility: (data.visibility as CrmTask["visibility"]) || "GENERAL",
@@ -72,7 +71,6 @@ export async function createCrmTask(input: CreateTaskInput) {
     title: input.title.trim(),
     status: input.status || "TODO",
     dueAt: toTimestamp(input.dueAt) || null,
-    reminderAt: toTimestamp(input.reminderAt) || null,
     assigneeId: input.assigneeId || null,
     createdById: input.createdById,
     visibility,
@@ -101,7 +99,6 @@ export async function createCrmTask(input: CreateTaskInput) {
         status: input.status || "TODO",
         assigneeId: input.assigneeId || null,
         dueAt: input.dueAt?.toISOString() || null,
-        reminderAt: input.reminderAt?.toISOString() || null,
         visibility,
         visibleToUserIds,
       },
@@ -192,7 +189,6 @@ export async function updateCrmTask(params: {
   status?: CrmTask["status"]
   assigneeId?: string
   dueAt?: Date | null
-  reminderAt?: Date | null
   visibility?: CrmVisibility
   visibleToUserIds?: string[]
 }) {
@@ -207,7 +203,6 @@ export async function updateCrmTask(params: {
     status: task.status,
     assigneeId: task.assigneeId || null,
     dueAt: task.dueAt || null,
-    reminderAt: task.reminderAt || null,
     visibility: task.visibility,
     visibleToUserIds: task.visibleToUserIds,
   }
@@ -225,8 +220,6 @@ export async function updateCrmTask(params: {
   if (typeof params.assigneeId === "string") payload.assigneeId = params.assigneeId || null
   if (params.dueAt instanceof Date) payload.dueAt = Timestamp.fromDate(params.dueAt)
   if (params.dueAt === null) payload.dueAt = null
-  if (params.reminderAt instanceof Date) payload.reminderAt = Timestamp.fromDate(params.reminderAt)
-  if (params.reminderAt === null) payload.reminderAt = null
 
   await updateDoc(taskRef, payload)
 
@@ -252,12 +245,6 @@ export async function updateCrmTask(params: {
           params.dueAt instanceof Date
             ? params.dueAt.toISOString()
             : params.dueAt === null
-              ? null
-              : undefined,
-        reminderAt:
-          params.reminderAt instanceof Date
-            ? params.reminderAt.toISOString()
-            : params.reminderAt === null
               ? null
               : undefined,
         visibility,
@@ -318,7 +305,6 @@ export async function deleteCrmTask(taskId: string, actorId: string) {
         status: task.status,
         assigneeId: task.assigneeId || null,
         dueAt: task.dueAt || null,
-        reminderAt: task.reminderAt || null,
         visibility: task.visibility,
         visibleToUserIds: task.visibleToUserIds,
         createdById: task.createdById,

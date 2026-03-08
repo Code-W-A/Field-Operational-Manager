@@ -22,6 +22,10 @@ import {
   CRM_PIPELINE_STAGE_LABELS,
   CRM_STAGE_AUTOMATION,
   formatOpportunityCode,
+  isPipelineStageAllowedForOpportunityType,
+  isLostPipelineStage,
+  isWonPipelineStageForOpportunityType,
+  normalizePipelineStageForOpportunityType,
 } from "@/lib/crm/constants"
 import { hasOpportunityViewAccess } from "@/lib/crm/access"
 import { logCrmActivity, getDateValue } from "@/lib/crm/activity"
@@ -45,6 +49,12 @@ import type {
 const OPPORTUNITY_BATCH_SIZE = 10
 
 function mapOpportunity(docId: string, data: Record<string, unknown>): CrmOpportunity {
+  const opportunityType = (data.opportunityType as CrmOpportunity["opportunityType"]) || "ACASA"
+  const pipelineStage = normalizePipelineStageForOpportunityType(
+    opportunityType,
+    typeof data.pipelineStage === "string" ? data.pipelineStage : undefined
+  )
+
   return {
     id: docId,
     number: Number(data.number || 0),
@@ -56,8 +66,8 @@ function mapOpportunity(docId: string, data: Record<string, unknown>): CrmOpport
     ownerId: String(data.ownerId || ""),
     priority: (data.priority as CrmOpportunity["priority"]) || "MEDIUM",
     workStatus: (data.workStatus as CrmOpportunity["workStatus"]) || "OPEN",
-    pipelineStage: (data.pipelineStage as CrmPipelineStage) || "NOU",
-    opportunityType: (data.opportunityType as CrmOpportunity["opportunityType"]) || "ACASA",
+    pipelineStage,
+    opportunityType,
     amount: typeof data.amount === "number" ? data.amount : undefined,
     closeDate: (data.closeDate as CrmOpportunity["closeDate"]) || undefined,
     wonAt: (data.wonAt as CrmOpportunity["wonAt"]) || undefined,
@@ -454,6 +464,11 @@ export async function createCrmOpportunity(input: CreateOpportunityInput) {
   const assignedReadUsers = Array.from(new Set((input.assignedReadUserIds || []).filter(Boolean)))
   const readUsers = Array.from(new Set([...ownerUsers, ...assignedReadUsers]))
 
+  const normalizedPipelineStage = normalizePipelineStageForOpportunityType(input.opportunityType, input.pipelineStage)
+  if (!isPipelineStageAllowedForOpportunityType(input.opportunityType, normalizedPipelineStage)) {
+    throw new Error("Stage invalid pentru tipul oportunității")
+  }
+
   const transactionResult = await runTransaction(db, async (transaction) => {
     const counterSnap = await transaction.get(counterRef)
     const currentNumber = Number(counterSnap.data()?.nextNumber || 0)
@@ -474,7 +489,7 @@ export async function createCrmOpportunity(input: CreateOpportunityInput) {
       ownerId: input.ownerId,
       priority: input.priority,
       workStatus: input.workStatus || "OPEN",
-      pipelineStage: input.pipelineStage,
+      pipelineStage: normalizedPipelineStage,
       opportunityType: input.opportunityType,
       amount: input.amount ?? null,
       closeDate: input.closeDate ? Timestamp.fromDate(input.closeDate) : null,
@@ -510,7 +525,7 @@ export async function createCrmOpportunity(input: CreateOpportunityInput) {
         title: input.title.trim(),
         ownerId: input.ownerId,
         assignedReadUserIds: assignedReadUsers,
-        stage: input.pipelineStage,
+        stage: normalizedPipelineStage,
         priority: input.priority,
         workStatus: input.workStatus || "OPEN",
         opportunityType: input.opportunityType,
@@ -577,6 +592,11 @@ export async function deleteCrmOpportunity(params: { opportunityId: string; acto
 }
 
 export async function updateCrmOpportunity(opportunityId: string, actorId: string, changes: Partial<CrmOpportunity>) {
+  const opportunitySnap = await getDoc(doc(db, CRM_COLLECTIONS.opportunities, opportunityId))
+  if (!opportunitySnap.exists()) throw new Error("Oportunitatea nu există")
+  const currentOpportunity = mapOpportunity(opportunitySnap.id, opportunitySnap.data() as Record<string, unknown>)
+  const nextType = changes.opportunityType || currentOpportunity.opportunityType
+
   const payload: Record<string, unknown> = {
     updatedAt: serverTimestamp(),
     updatedById: actorId,
@@ -588,7 +608,17 @@ export async function updateCrmOpportunity(opportunityId: string, actorId: strin
   if ("primaryContactId" in changes) payload.primaryContactId = changes.primaryContactId || null
   if (changes.priority) payload.priority = changes.priority
   if (changes.workStatus) payload.workStatus = changes.workStatus
-  if (changes.pipelineStage) payload.pipelineStage = changes.pipelineStage
+  if (changes.pipelineStage) {
+    if (!isPipelineStageAllowedForOpportunityType(nextType, changes.pipelineStage)) {
+      throw new Error("Stage invalid pentru tipul oportunității")
+    }
+    payload.pipelineStage = changes.pipelineStage
+  } else if (changes.opportunityType) {
+    payload.pipelineStage = normalizePipelineStageForOpportunityType(
+      changes.opportunityType,
+      currentOpportunity.pipelineStage
+    )
+  }
   if (changes.opportunityType) payload.opportunityType = changes.opportunityType
   if (typeof changes.amount === "number") payload.amount = changes.amount
   if (changes.closeDate instanceof Date) payload.closeDate = Timestamp.fromDate(changes.closeDate)
@@ -607,7 +637,10 @@ export async function updateCrmOpportunity(opportunityId: string, actorId: strin
         primaryContactId: "primaryContactId" in changes ? changes.primaryContactId || null : undefined,
         priority: changes.priority || undefined,
         workStatus: changes.workStatus || undefined,
-        pipelineStage: changes.pipelineStage || undefined,
+        pipelineStage:
+          changes.pipelineStage || changes.opportunityType
+            ? String(payload.pipelineStage || "")
+            : undefined,
         opportunityType: changes.opportunityType || undefined,
         amount: typeof changes.amount === "number" ? changes.amount : undefined,
         closeDate: changes.closeDate instanceof Date ? changes.closeDate.toISOString() : undefined,
@@ -632,23 +665,27 @@ export async function changeCrmOpportunityStage(input: {
 
   const opportunity = mapOpportunity(snap.id, snap.data() as Record<string, unknown>)
 
-  if (input.toStage === "PIERDUT" && !input.lostReason?.trim()) {
+  if (!isPipelineStageAllowedForOpportunityType(opportunity.opportunityType, input.toStage)) {
+    throw new Error("Stage invalid pentru tipul oportunității")
+  }
+  const toStage = input.toStage
+  if (isLostPipelineStage(toStage) && !input.lostReason?.trim()) {
     throw new Error("Motivul pierderii este obligatoriu")
   }
 
   const updatePayload: Record<string, unknown> = {
-    pipelineStage: input.toStage,
+    pipelineStage: toStage,
     updatedAt: serverTimestamp(),
     updatedById: input.actorId,
   }
 
-  if (input.toStage === "CASTIGAT") {
+  if (isWonPipelineStageForOpportunityType(opportunity.opportunityType, toStage)) {
     updatePayload.wonAt = serverTimestamp()
     updatePayload.lostAt = null
     updatePayload.lostReason = null
   }
 
-  if (input.toStage === "PIERDUT") {
+  if (isLostPipelineStage(toStage)) {
     updatePayload.lostAt = serverTimestamp()
     updatePayload.lostReason = input.lostReason?.trim()
     updatePayload.wonAt = null
@@ -662,17 +699,16 @@ export async function changeCrmOpportunityStage(input: {
     type: "STAGE_CHANGED",
     payload: {
       from: opportunity.pipelineStage,
-      to: input.toStage,
-      fromLabel: CRM_PIPELINE_STAGE_LABELS[opportunity.pipelineStage],
-      toLabel: CRM_PIPELINE_STAGE_LABELS[input.toStage],
+      to: toStage,
+      fromLabel: CRM_PIPELINE_STAGE_LABELS[opportunity.pipelineStage] || opportunity.pipelineStage,
+      toLabel: CRM_PIPELINE_STAGE_LABELS[toStage] || toStage,
       lostReason: input.lostReason || null,
     },
   })
 
-  const automationForStage = CRM_STAGE_AUTOMATION[input.toStage] || []
+  const automationForStage = CRM_STAGE_AUTOMATION[toStage] || []
   for (const automation of automationForStage) {
     const dueAt = new Date(Date.now() + automation.dueDaysOffset * 24 * 60 * 60 * 1000)
-    const reminderAt = new Date(dueAt.getTime() - automation.reminderHoursBefore * 60 * 60 * 1000)
 
     await createCrmTaskIfMissing({
       opportunityId: input.opportunityId,
@@ -680,16 +716,14 @@ export async function changeCrmOpportunityStage(input: {
       createdById: input.actorId,
       assigneeId: opportunity.ownerId,
       dueAt,
-      reminderAt,
       visibility: "PRIVATE",
       status: "TODO",
       automationKey: automation.key,
     })
   }
 
-  if (input.toStage === "PIERDUT" && input.createRecontactTask) {
+  if (isLostPipelineStage(toStage) && input.createRecontactTask) {
     const dueAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
-    const reminderAt = new Date(dueAt.getTime() - 4 * 60 * 60 * 1000)
 
     await createCrmTaskIfMissing({
       opportunityId: input.opportunityId,
@@ -697,7 +731,6 @@ export async function changeCrmOpportunityStage(input: {
       createdById: input.actorId,
       assigneeId: opportunity.ownerId,
       dueAt,
-      reminderAt,
       visibility: "PRIVATE",
       status: "TODO",
       automationKey: "stage_pierdut_recontactare",
@@ -745,17 +778,16 @@ export async function setCrmOpportunityContacts(opportunityId: string, contactId
 
 export async function listCrmDashboardStats(userId: string) {
   const opportunities = await listCrmOpportunitiesForUser(userId)
-  const stageCounts = CRM_STAGE_AUTOMATION
   const stageStats: Record<string, number> = {}
 
-  Object.keys(stageCounts).forEach((stage) => {
-    stageStats[stage] = opportunities.filter((opportunity) => opportunity.pipelineStage === stage).length
+  opportunities.forEach((opportunity) => {
+    stageStats[opportunity.pipelineStage] = (stageStats[opportunity.pipelineStage] || 0) + 1
   })
 
   return {
     total: opportunities.length,
-    won: opportunities.filter((opportunity) => opportunity.pipelineStage === "CASTIGAT").length,
-    lost: opportunities.filter((opportunity) => opportunity.pipelineStage === "PIERDUT").length,
+    won: opportunities.filter((opportunity) => isWonPipelineStageForOpportunityType(opportunity.opportunityType, opportunity.pipelineStage)).length,
+    lost: opportunities.filter((opportunity) => isLostPipelineStage(opportunity.pipelineStage)).length,
     stageStats,
   }
 }

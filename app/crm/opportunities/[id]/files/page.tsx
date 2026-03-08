@@ -18,6 +18,17 @@ import { formatDateTime } from "@/lib/crm/presenters"
 import { useToast } from "@/hooks/use-toast"
 import type { CrmFileAttachment } from "@/lib/crm/types"
 
+function canPreviewInBrowser(mime: string) {
+  if (!mime) return false
+  return (
+    mime.startsWith("image/") ||
+    mime === "application/pdf" ||
+    mime.startsWith("text/") ||
+    mime === "application/json" ||
+    mime === "application/xml"
+  )
+}
+
 export default function OpportunityFilesPage() {
   const params = useParams()
   const { user, userData } = useAuth()
@@ -30,7 +41,7 @@ export default function OpportunityFilesPage() {
   const [files, setFiles] = useState<CrmFileAttachment[]>([])
   const [loading, setLoading] = useState(true)
 
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [visibility, setVisibility] = useState<(typeof CRM_VISIBILITIES)[number]>("PRIVATE")
   const [visibleToUserIds, setVisibleToUserIds] = useState<string[]>([])
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -90,7 +101,7 @@ export default function OpportunityFilesPage() {
         <div className="mb-4 shrink-0 flex justify-end">
           <Button size="sm" className="h-9 text-sm" onClick={() => setIsCreateOpen(true)}>
             <Upload className="mr-1.5 h-4 w-4" />
-            Upload fișier
+            Încarcă fișier
           </Button>
         </div>
       ) : null}
@@ -109,9 +120,13 @@ export default function OpportunityFilesPage() {
                   <input
                     id="crm-file"
                     type="file"
+                    multiple
                     className="block w-full text-sm"
-                    onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
+                    onChange={(event) => setSelectedFiles(Array.from(event.target.files || []))}
                   />
+                  {selectedFiles.length > 0 ? (
+                    <p className="text-xs text-neutral-500">{selectedFiles.length} fișiere selectate</p>
+                  ) : null}
                 </div>
 
                 <div className="grid gap-2">
@@ -150,21 +165,46 @@ export default function OpportunityFilesPage() {
                 <Button
                   size="sm"
                   className="h-9 text-sm"
-                  disabled={!selectedFile || !user?.uid}
+                  disabled={selectedFiles.length === 0 || !user?.uid}
                   onClick={async () => {
-                    if (!selectedFile || !user?.uid) return
-                    await uploadCrmFile({
-                      opportunityId,
-                      file: selectedFile,
-                      uploadedById: user.uid,
-                      visibility,
-                      visibleToUserIds,
-                    })
-                    toast({
-                      title: "Fișier încărcat",
-                      description: `${selectedFile.name} a fost adăugat în oportunitate.`,
-                    })
-                    setSelectedFile(null)
+                    if (selectedFiles.length === 0 || !user?.uid) return
+                    let successCount = 0
+                    const failed: string[] = []
+
+                    for (const file of selectedFiles) {
+                      try {
+                        await uploadCrmFile({
+                          opportunityId,
+                          file,
+                          uploadedById: user.uid,
+                          visibility,
+                          visibleToUserIds,
+                        })
+                        successCount += 1
+                      } catch {
+                        failed.push(file.name)
+                      }
+                    }
+
+                    if (successCount > 0) {
+                      toast({
+                        title: "Fișiere încărcate",
+                        description:
+                          successCount === selectedFiles.length
+                            ? `Au fost adăugate ${successCount} fișiere în oportunitate.`
+                            : `Au fost adăugate ${successCount} din ${selectedFiles.length} fișiere.`,
+                      })
+                    }
+
+                    if (failed.length > 0) {
+                      toast({
+                        title: "Unele fișiere nu au fost încărcate",
+                        description: failed.length <= 2 ? failed.join(", ") : `${failed.slice(0, 2).join(", ")} +${failed.length - 2} altele`,
+                        variant: "destructive",
+                      })
+                    }
+
+                    setSelectedFiles([])
                     setVisibility("PRIVATE")
                     setVisibleToUserIds([])
                     setIsCreateOpen(false)
@@ -292,11 +332,11 @@ export default function OpportunityFilesPage() {
                           setIsEditOpen(true)
                         }}
                       >
-                        Edit visibility
+                        Editează vizibilitate
                       </Button>
                     ) : null}
                     <Button asChild size="icon" variant="ghost" className="h-8 w-8">
-                      <a href={file.url} target="_blank" rel="noreferrer">
+                      <a href={file.url} target="_blank" rel="noreferrer" download={canPreviewInBrowser(file.mime) ? undefined : file.filename}>
                         <Download className="h-4 w-4" />
                       </a>
                     </Button>

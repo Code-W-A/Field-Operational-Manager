@@ -21,7 +21,12 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { CRM_PIPELINE_STAGES, CRM_PIPELINE_STAGE_LABELS } from "@/lib/crm/constants"
+import {
+  CRM_PIPELINE_STAGE_LABELS,
+  CRM_OPPORTUNITY_TYPES,
+  getPipelineStagesForOpportunityType,
+  isLostPipelineStage,
+} from "@/lib/crm/constants"
 import type { CrmOpportunity } from "@/lib/crm/types"
 import { priorityLabel } from "@/lib/crm/presenters"
 import { crmUi } from "@/components/crm/ui"
@@ -42,7 +47,7 @@ function StageColumn({
   children,
   readOnly = false,
 }: {
-  stage: (typeof CRM_PIPELINE_STAGES)[number]
+  stage: string
   children: ReactNode
   readOnly?: boolean
 }) {
@@ -102,9 +107,22 @@ export function OpportunitiesKanban({ opportunities, onMove, readOnly = false }:
   const [lostReason, setLostReason] = useState("")
   const [createRecontactTask, setCreateRecontactTask] = useState(false)
 
+  const activeStages = useMemo(() => {
+    const visibleTypes = Array.from(new Set(opportunities.map((opportunity) => opportunity.opportunityType)))
+    if (!visibleTypes.length) return getPipelineStagesForOpportunityType("VANZARI")
+    if (visibleTypes.length === 1) return getPipelineStagesForOpportunityType(visibleTypes[0])
+    return Array.from(
+      new Set(
+        CRM_OPPORTUNITY_TYPES.flatMap((type) =>
+          visibleTypes.includes(type as CrmOpportunity["opportunityType"]) ? getPipelineStagesForOpportunityType(type) : []
+        )
+      )
+    )
+  }, [opportunities])
+
   const stageMap = useMemo(() => {
     const map: Record<string, CrmOpportunity[]> = {}
-    CRM_PIPELINE_STAGES.forEach((stage) => {
+    activeStages.forEach((stage) => {
       map[stage] = []
     })
 
@@ -114,7 +132,7 @@ export function OpportunitiesKanban({ opportunities, onMove, readOnly = false }:
     })
 
     return map
-  }, [opportunities])
+  }, [activeStages, opportunities])
 
   const handleDragEnd = async (event: DragEndEvent) => {
     if (isReadOnly) return
@@ -129,11 +147,13 @@ export function OpportunitiesKanban({ opportunities, onMove, readOnly = false }:
     if (!overId) return
 
     const overOpportunity = opportunities.find((opportunity) => opportunity.id === overId)
-    const nextStage = overOpportunity?.pipelineStage || (CRM_PIPELINE_STAGES.find((stage) => stage === overId) as CrmOpportunity["pipelineStage"])
+    const nextStage =
+      overOpportunity?.pipelineStage ||
+      (activeStages.find((stage) => stage === overId) as CrmOpportunity["pipelineStage"] | undefined)
 
     if (!nextStage || nextStage === activeOpportunity.pipelineStage) return
 
-    if (nextStage === "PIERDUT") {
+    if (isLostPipelineStage(nextStage)) {
       setPendingLost({ opportunityId: activeOpportunity.id, toStage: nextStage })
       return
     }
@@ -148,10 +168,10 @@ export function OpportunitiesKanban({ opportunities, onMove, readOnly = false }:
     <>
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-          {CRM_PIPELINE_STAGES.map((stage) => (
+          {activeStages.map((stage) => (
             <StageColumn key={stage} stage={stage} readOnly={isReadOnly}>
               <div className="mb-1.5 flex items-center justify-between">
-                <h4 className="text-[11px] font-medium uppercase tracking-wide text-neutral-600">{CRM_PIPELINE_STAGE_LABELS[stage]}</h4>
+                <h4 className="text-[11px] font-medium uppercase tracking-wide text-neutral-600">{CRM_PIPELINE_STAGE_LABELS[stage] || stage}</h4>
                 <span className="rounded-full border border-neutral-200 bg-white px-2 py-0.5 text-[11px] text-neutral-600">{stageMap[stage]?.length || 0}</span>
               </div>
               <SortableContext items={(stageMap[stage] || []).map((opportunity) => opportunity.id)} strategy={rectSortingStrategy}>
@@ -178,7 +198,7 @@ export function OpportunitiesKanban({ opportunities, onMove, readOnly = false }:
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Mutare în stage Pierdut</DialogTitle>
+            <DialogTitle>Confirmă mutarea în etapă finală</DialogTitle>
             <DialogDescription>Motivul pierderii este obligatoriu.</DialogDescription>
           </DialogHeader>
 
