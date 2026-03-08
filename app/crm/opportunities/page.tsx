@@ -380,6 +380,7 @@ export default function CrmOpportunitiesPage() {
   ]
 
   const isMainLoading = loading || tasksLoading
+  const displayedStageTotal = displayedOpportunities.length
 
   return (
     <PageShell className="flex h-full min-h-0 flex-col space-y-0 overflow-hidden bg-[#f6f8fc]">
@@ -642,22 +643,28 @@ export default function CrmOpportunitiesPage() {
         </div>
 
         <Panel
-          title="Sumar filtre curente"
+          title="Status oportunități"
           className="rounded-md border-neutral-300 bg-[#f3f4f6] shadow-none xl:h-full xl:rounded-none xl:border-y-0 xl:border-r-0 xl:border-l xl:border-neutral-300"
         >
           <div className="space-y-4">
             <div className="space-y-2">
-              <p className={crmUi.labelXs}>Oportunitati</p>
+              <p className={crmUi.labelXs}>KPI rapide</p>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-neutral-500">Filtrate curent</span>
+                <span className="text-neutral-500">Afișate acum</span>
                 <span className="font-semibold text-neutral-900">{opportunities.length}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-neutral-500">Afisate in lista/kanban</span>
+                <span className="text-neutral-500">În listă / kanban</span>
                 <span className="font-semibold text-neutral-900">{displayedOpportunities.length}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-neutral-500">Castigate</span>
+                <span className="text-neutral-500">Active</span>
+                <span className="font-semibold text-neutral-900">
+                  {displayedOpportunities.filter((opportunity) => isOpportunityActive(opportunity)).length}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-neutral-500">Câștigate</span>
                 <span className="font-semibold text-neutral-900">
                   {displayedOpportunities.filter((opportunity) => isWonPipelineStageForOpportunityType(opportunity.opportunityType, opportunity.pipelineStage)).length}
                 </span>
@@ -693,16 +700,32 @@ export default function CrmOpportunitiesPage() {
             </div>
 
             <div className="border-t border-neutral-300 pt-3">
-              <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-neutral-500">By stage</p>
+              <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-neutral-500">Pipeline modul curent</p>
               <div className="space-y-1.5">
                 {availableStages.map((stage, index) => (
-                  <p key={stage} className="flex items-center justify-between text-sm text-neutral-600">
+                  (() => {
+                    const stageCount = displayedStageStats[stage] || 0
+                    const stagePercent = displayedStageTotal > 0 ? Math.round((stageCount / displayedStageTotal) * 100) : 0
+
+                    return (
+                  <div
+                    key={stage}
+                    className={cn(
+                      "flex items-center justify-between rounded-md px-2 py-1 text-sm",
+                      stageFilter === stage ? "bg-white border border-neutral-200" : "text-neutral-600",
+                      stageCount === 0 ? "opacity-70" : ""
+                    )}
+                  >
                     <span className="inline-flex items-center gap-2">
                       <span className={cn("h-2.5 w-2.5 rounded-sm", STAGE_DOT_CLASS[index % STAGE_DOT_CLASS.length])} />
                       <span>{CRM_PIPELINE_STAGE_LABELS[stage] || stage}</span>
                     </span>
-                    <span className="font-medium text-neutral-900">{displayedStageStats[stage] || 0}</span>
-                  </p>
+                    <span className={cn("font-medium", stageFilter === stage ? "text-neutral-900" : "text-neutral-700")}>
+                      {stageCount} ({stagePercent}%)
+                    </span>
+                  </div>
+                    )
+                  })()
                 ))}
               </div>
             </div>
