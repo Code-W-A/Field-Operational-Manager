@@ -6,6 +6,7 @@ import {
   CRM_PERMISSIONS,
   CRM_PRIORITIES,
   CRM_TASK_STATUSES,
+  CRM_TASK_TYPES,
   CRM_VISIBILITIES,
   CRM_WORK_STATUSES,
   CRM_OPPORTUNITY_TYPES,
@@ -17,6 +18,7 @@ export type CrmPriority = (typeof CRM_PRIORITIES)[number]
 export type CrmWorkStatus = (typeof CRM_WORK_STATUSES)[number]
 export type CrmPipelineStage = string
 export type CrmTaskStatus = (typeof CRM_TASK_STATUSES)[number]
+export type CrmTaskType = (typeof CRM_TASK_TYPES)[number]
 export type CrmEmailDirection = (typeof CRM_DIRECTIONS)[number]
 export type CrmOpportunityType = (typeof CRM_OPPORTUNITY_TYPES)[number]
 export type CrmInternalHandoffStatus = (typeof CRM_INTERNAL_HANDOFF_STATUSES)[number]
@@ -92,6 +94,7 @@ export interface CrmTask {
   opportunityId: string
   title: string
   status: CrmTaskStatus
+  taskType?: CrmTaskType
   dueAt?: FirestoreDateValue
   assigneeId?: string
   createdById: string
@@ -243,6 +246,7 @@ export interface CreateTaskInput {
   createdById: string
   assigneeId?: string
   status?: CrmTaskStatus
+  taskType?: CrmTaskType
   dueAt?: Date
   visibility?: CrmVisibility
   visibleToUserIds?: string[]

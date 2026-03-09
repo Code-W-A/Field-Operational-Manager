@@ -10,7 +10,6 @@ import { MultiSelect } from "@/components/ui/multi-select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   CRM_OPPORTUNITY_SELECTABLE_TYPES,
   CRM_OPPORTUNITY_TYPE_LABELS,
@@ -42,11 +41,8 @@ interface CreateOpportunityDialogProps {
 
 type SelectableOpportunityType = (typeof CRM_OPPORTUNITY_SELECTABLE_TYPES)[number]
 
-function getFirstSelectedContactId(selectedContactIds: string[], contacts: CrmClientContact[]) {
-  if (selectedContactIds.length === 0) return ""
-
-  const selectedIdSet = new Set(selectedContactIds)
-  return contacts.find((contact) => selectedIdSet.has(contact.id))?.id || selectedContactIds[0] || ""
+function getFirstContactId(contacts: CrmClientContact[]) {
+  return contacts[0]?.id || ""
 }
 
 export function CreateOpportunityDialog({
@@ -73,7 +69,6 @@ export function CreateOpportunityDialog({
   const [priority, setPriority] = useState<(typeof CRM_PRIORITIES)[number]>("MEDIUM")
   const [opportunityType, setOpportunityType] = useState<SelectableOpportunityType>("VANZARI")
   const [assignedReadUserIds, setAssignedReadUserIds] = useState<string[]>([])
-  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([])
   const [primaryContactId, setPrimaryContactId] = useState("")
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false)
   const [clientSearchTerm, setClientSearchTerm] = useState("")
@@ -108,13 +103,11 @@ export function CreateOpportunityDialog({
       if (!clientId) {
         setContacts([])
         setContactsLoading(false)
-        setSelectedContactIds([])
         setPrimaryContactId("")
         return
       }
 
       setContacts([])
-      setSelectedContactIds([])
       setPrimaryContactId("")
       setContactsLoading(true)
       try {
@@ -153,12 +146,10 @@ export function CreateOpportunityDialog({
   const selectedClientName = useMemo(() => {
     return clients.find((client) => client.id === clientId)?.name || ""
   }, [clients, clientId])
+  const allContactIds = useMemo(() => contacts.map((contact) => contact.id).filter(Boolean), [contacts])
   const effectivePrimaryContactId = useMemo(
-    () =>
-      selectedContactIds.includes(primaryContactId)
-        ? primaryContactId
-        : getFirstSelectedContactId(selectedContactIds, contacts),
-    [contacts, primaryContactId, selectedContactIds]
+    () => (allContactIds.includes(primaryContactId) ? primaryContactId : getFirstContactId(contacts)),
+    [allContactIds, contacts, primaryContactId]
   )
 
   useEffect(() => {
@@ -173,20 +164,20 @@ export function CreateOpportunityDialog({
   }, [isClientDropdownOpen, filteredClients, clientActiveIndex])
 
   useEffect(() => {
-    if (selectedContactIds.length === 0) {
+    if (contacts.length === 0) {
       if (primaryContactId) {
         setPrimaryContactId("")
       }
       return
     }
 
-    const nextPrimaryContactId = getFirstSelectedContactId(selectedContactIds, contacts)
-    if (!primaryContactId || !selectedContactIds.includes(primaryContactId)) {
+    const nextPrimaryContactId = getFirstContactId(contacts)
+    if (!primaryContactId || !allContactIds.includes(primaryContactId)) {
       if (nextPrimaryContactId !== primaryContactId) {
         setPrimaryContactId(nextPrimaryContactId)
       }
     }
-  }, [contacts, primaryContactId, selectedContactIds])
+  }, [allContactIds, contacts, primaryContactId])
 
   const resetForm = () => {
     setTitle("")
@@ -196,21 +187,10 @@ export function CreateOpportunityDialog({
     setPriority("MEDIUM")
     setOpportunityType("VANZARI")
     setAssignedReadUserIds([])
-    setSelectedContactIds([])
     setContacts([])
     setPrimaryContactId("")
     setClientSearchTerm("")
     setClientActiveIndex(-1)
-  }
-
-  const handleContactSelectionChange = (contactId: string, checked: boolean) => {
-    setSelectedContactIds((previous) => {
-      if (checked) {
-        return previous.includes(contactId) ? previous : [...previous, contactId]
-      }
-
-      return previous.filter((id) => id !== contactId)
-    })
   }
 
   const handleSubmit = async () => {
@@ -234,8 +214,8 @@ export function CreateOpportunityDialog({
 
     if (!ownerId) {
       toast({
-        title: "Owner obligatoriu",
-        description: "Selectează owner-ul oportunității.",
+        title: "Proprietar obligatoriu",
+        description: "Selectează proprietarul oportunității.",
         variant: "destructive",
       })
       return
@@ -252,7 +232,7 @@ export function CreateOpportunityDialog({
         pipelineStage: normalizePipelineStageForOpportunityType(opportunityType, pipelineStage),
         priority,
         opportunityType,
-        contactIds: selectedContactIds,
+        contactIds: allContactIds,
         primaryContactId: effectivePrimaryContactId || undefined,
       })
 
@@ -419,10 +399,10 @@ export function CreateOpportunityDialog({
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="grid gap-2">
-                <Label>Owner</Label>
+                <Label>Proprietar</Label>
                 <Select value={ownerId} onValueChange={setOwnerId}>
                   <SelectTrigger className={crmUi.selectTrigger}>
-                    <SelectValue placeholder="Selectează owner" />
+                    <SelectValue placeholder="Selectează proprietar" />
                   </SelectTrigger>
                   <SelectContent>
                     {users.map((user) => (
@@ -434,7 +414,7 @@ export function CreateOpportunityDialog({
                 </Select>
               </div>
               <div className="grid gap-2">
-                <Label>Tip oportunitate</Label>
+                <Label>Modul</Label>
                 <Select value={opportunityType} onValueChange={(value) => setOpportunityType(value as typeof opportunityType)}>
                   <SelectTrigger className={crmUi.selectTrigger}>
                     <SelectValue placeholder="Tip" />
@@ -452,7 +432,7 @@ export function CreateOpportunityDialog({
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="grid gap-2">
-                <Label>Pipeline stage</Label>
+                <Label>Status oportunitate</Label>
                 <Select value={pipelineStage} onValueChange={(value) => setPipelineStage(value as CrmPipelineStage)}>
                   <SelectTrigger className={crmUi.selectTrigger}>
                     <SelectValue placeholder="Stage" />
@@ -509,12 +489,12 @@ export function CreateOpportunityDialog({
               <div>
                 <Label>Contacte client</Label>
                 <p className="mt-1 text-xs text-neutral-500">
-                  Selectează una sau mai multe persoane de contact din locațiile clientului și marchează una ca principală.
+                  Toate persoanele de contact ale clientului sunt preluate automat. Alege doar contactul principal.
                 </p>
               </div>
               {clientId && contacts.length > 0 ? (
                 <Badge variant="secondary">
-                  {selectedContactIds.length}/{contacts.length}
+                  {contacts.length} preluate automat
                 </Badge>
               ) : null}
             </div>
@@ -536,47 +516,38 @@ export function CreateOpportunityDialog({
               <div className="mt-4 max-h-72 overflow-y-auto rounded-xl border border-neutral-200 bg-white p-2 lg:min-h-0 lg:max-h-none lg:flex-1">
                 <div className="grid gap-2">
                   {contacts.map((contact) => {
-                    const checkboxId = `opportunity-contact-select-${contact.id}`
-                    const isSelected = selectedContactIds.includes(contact.id)
                     const isPrimary = effectivePrimaryContactId === contact.id
 
                     return (
                       <div
                         key={contact.id}
                         className={`rounded-lg border bg-white p-3 transition-colors ${
-                          isSelected ? "border-emerald-500 ring-1 ring-emerald-100" : "border-neutral-200"
+                          isPrimary ? "border-emerald-500 ring-1 ring-emerald-100" : "border-neutral-200"
                         }`}
                       >
                         <div className="flex items-start gap-3">
-                          <Checkbox
-                            id={checkboxId}
-                            checked={isSelected}
-                            onCheckedChange={(checked) => handleContactSelectionChange(contact.id, checked === true)}
-                            className="mt-1 border-neutral-300 data-[state=checked]:border-emerald-600 data-[state=checked]:bg-emerald-600"
-                          />
-
                           <div className="min-w-0 flex-1">
-                            <label htmlFor={checkboxId} className="block cursor-pointer">
+                            <div className="block">
                               <div className="flex flex-wrap items-center gap-2">
                                 <p className="text-sm font-medium text-neutral-900">{contact.name}</p>
                                 {contact.locationName ? <Badge variant="outline">{contact.locationName}</Badge> : null}
+                                <Badge variant="secondary" className="rounded-md">
+                                  Auto
+                                </Badge>
                                 {isPrimary ? <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Principal</Badge> : null}
                               </div>
                               <p className="mt-1 text-sm text-neutral-600">{contact.phone || "-"}</p>
                               <p className="mt-1 break-all text-sm text-neutral-500">{contact.email || "Fără email"}</p>
-                            </label>
+                            </div>
                           </div>
 
                           <button
                             type="button"
                             onClick={() => setPrimaryContactId(contact.id)}
-                            disabled={!isSelected}
                             className={`inline-flex min-w-[96px] items-center justify-center rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
                               isPrimary
                                 ? "border-emerald-600 bg-emerald-600 text-white"
-                                : isSelected
-                                  ? "border-neutral-300 bg-white text-neutral-700 hover:border-emerald-500 hover:text-emerald-700"
-                                  : "cursor-not-allowed border-neutral-200 bg-neutral-100 text-neutral-400"
+                                : "border-neutral-300 bg-white text-neutral-700 hover:border-emerald-500 hover:text-emerald-700"
                             }`}
                           >
                             {isPrimary ? "Principal" : "Setează principal"}

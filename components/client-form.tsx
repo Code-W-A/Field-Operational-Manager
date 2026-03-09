@@ -102,6 +102,14 @@ const createEmptyLocation = (): Locatie => ({
 const hasAnyContactContent = (contact: Partial<PersoanaContact> | null | undefined) =>
   Boolean(contact?.nume || contact?.telefon || contact?.email || contact?.functie)
 
+const hasAnyLocationContent = (locatie: Partial<Locatie> | null | undefined) =>
+  Boolean(
+    locatie?.nume ||
+      locatie?.adresa ||
+      (Array.isArray(locatie?.echipamente) && locatie.echipamente.length > 0) ||
+      (Array.isArray(locatie?.persoaneContact) && locatie.persoaneContact.some((contact) => hasAnyContactContent(contact))),
+  )
+
 const getInitialClientContacts = (mode: "add" | "edit", client?: Client) => {
   if (mode === "edit" && client) {
     const resolved = getClientLevelContactsFromRecord(String(client.id || ""), client as Record<string, unknown>)
@@ -127,7 +135,7 @@ const getInitialLocatii = (mode: "add" | "edit", client?: Client) => {
     }))
   }
 
-  return [createEmptyLocation()]
+  return mode === "add" ? [] : [createEmptyLocation()]
 }
 
 // Modify the component definition to use forwardRef
@@ -877,16 +885,6 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
         }
       })
 
-      // Verificăm dacă toate locațiile au nume și adresă
-      locatii.forEach((locatie, index) => {
-        if (!locatie.nume) errors.push(`locatii[${index}].nume`)
-        if (!locatie.adresa) errors.push(`locatii[${index}].adresa`)
-
-        // Verificăm dacă fiecare locație are cel puțin o persoană de contact validă
-        const hasValidLocatieContact = locatie.persoaneContact.some((contact) => contact.nume && contact.telefon)
-        if (!hasValidLocatieContact) errors.push(`locatii[${index}].persoaneContact`)
-      })
-
       setFieldErrors(errors)
 
       if (errors.length > 0) {
@@ -905,10 +903,10 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
 
       // Filtrăm locațiile și persoanele de contact goale din locații
       const filteredLocatii = locatii
-        .filter((locatie) => locatie.nume && locatie.adresa)
+        .filter((locatie) => hasAnyLocationContent(locatie))
         .map((locatie) => ({
           ...locatie,
-          persoaneContact: locatie.persoaneContact.filter((contact) => contact.nume && contact.telefon),
+          persoaneContact: (locatie.persoaneContact || []).filter((contact) => hasAnyContactContent(contact)),
           // Backfill: ne asigurăm că fiecare echipament are un ID stabil (fără a modifica ID-urile existente).
           echipamente: (locatie.echipamente || [])
             .filter((e) => e.nume && e.cod)
@@ -1239,7 +1237,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
       {/* Secțiunea pentru locații */}
       <div className="space-y-4 mt-6 border-t pt-4">
         <div className="flex justify-between items-center">
-          <h3 className="text-md font-medium">Locații *</h3>
+          <h3 className="text-md font-medium">Locații</h3>
           <Button type="button" variant="outline" size="sm" onClick={handleAddLocatie} className="flex items-center">
             <Plus className="h-4 w-4 mr-1" /> Adaugă Locație
           </Button>
@@ -1274,7 +1272,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Nume Locație *</label>
+                      <label className="text-sm font-medium">Nume Locație</label>
                       <Input
                         placeholder="Ex: Sediu Central, Punct de Lucru, etc."
                         value={locatie.nume}
@@ -1283,7 +1281,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Adresă Locație *</label>
+                      <label className="text-sm font-medium">Adresă Locație</label>
                       <Input
                         placeholder="Adresa locației"
                         value={locatie.adresa}
@@ -1298,7 +1296,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
                   {/* Persoane de contact pentru locație */}
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
-                      <h4 className="text-sm font-medium">Persoane de Contact pentru Locație *</h4>
+                      <h4 className="text-sm font-medium">Persoane de Contact pentru Locație</h4>
                       <Button
                         type="button"
                         variant="outline"
@@ -1329,7 +1327,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
 
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                           <div className="space-y-2">
-                            <label className="text-sm font-medium">Nume *</label>
+                            <label className="text-sm font-medium">Nume</label>
                             <Input
                               placeholder="Nume persoană contact"
                               value={contact.nume}
@@ -1342,7 +1340,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
                             />
                           </div>
                           <div className="space-y-2">
-                            <label className="text-sm font-medium">Telefon *</label>
+                            <label className="text-sm font-medium">Telefon</label>
                             <Input
                               placeholder="Număr de telefon"
                               value={contact.telefon}

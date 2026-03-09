@@ -35,15 +35,16 @@ export const CRM_OPPORTUNITY_TYPES = [
 ] as const
 
 export const CRM_OPPORTUNITY_SELECTABLE_TYPES = [
+  "PROIECTE",
+  "OFERTE",
+  "CONTRACTARE",
+  "ACHIZITII",
   "VANZARI",
   "LIVRARI",
-  "PROIECTE",
-  "FACTURARE",
   "INSTALARI",
-  "CONTRACTARE",
+  "FACTURARE",
   "EVENIMENTE",
-  "ACHIZITII",
-  "OFERTE",
+  "INTERNE",
 ] as const
 
 export const CRM_OPPORTUNITY_TYPE_LABELS: Record<(typeof CRM_OPPORTUNITY_TYPES)[number], string> = {
@@ -241,13 +242,37 @@ export const CRM_WORK_STATUS_LABELS: Record<(typeof CRM_WORK_STATUSES)[number], 
   DONE: "Finalizat",
 }
 
-export const CRM_TASK_STATUSES = ["TODO", "IN_PROGRESS", "DONE", "CANCELED"] as const
+export const CRM_TASK_TYPES = [
+  "PROSPECTARE",
+  "EVALUARE_NEVOI",
+  "OFERTARE",
+  "FOLLOW_UP_OFERTA",
+  "CONTRACTARE",
+  "FACTURARE",
+  "INCASARE",
+  "LIVRARE",
+  "INSTALARE",
+] as const
+
+export const CRM_TASK_TYPE_LABELS: Record<(typeof CRM_TASK_TYPES)[number], string> = {
+  PROSPECTARE: "Prospectare",
+  EVALUARE_NEVOI: "Evaluare nevoi",
+  OFERTARE: "Ofertare",
+  FOLLOW_UP_OFERTA: "Follow-up ofertă",
+  CONTRACTARE: "Contractare",
+  FACTURARE: "Facturare",
+  INCASARE: "Încasare",
+  LIVRARE: "Livrare",
+  INSTALARE: "Instalare",
+}
+
+export const CRM_TASK_STATUSES = ["TODO", "IN_PROGRESS", "CU_SUCCES", "FARA_SUCCES"] as const
 
 export const CRM_TASK_STATUS_LABELS: Record<(typeof CRM_TASK_STATUSES)[number], string> = {
   TODO: "To Do",
   IN_PROGRESS: "În lucru",
-  DONE: "Completat",
-  CANCELED: "Anulat",
+  CU_SUCCES: "Cu succes",
+  FARA_SUCCES: "Fără succes",
 }
 
 export const CRM_VISIBILITIES = ["GENERAL", "PRIVATE", "CUSTOM"] as const

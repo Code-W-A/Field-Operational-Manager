@@ -38,6 +38,8 @@ export default function OpportunityNotesPage() {
   const [editVisibility, setEditVisibility] = useState<(typeof CRM_VISIBILITIES)[number]>("PRIVATE")
   const [editVisibleToUserIds, setEditVisibleToUserIds] = useState<string[]>([])
   const [savingNoteId, setSavingNoteId] = useState<string | null>(null)
+  const [isCreatingNote, setIsCreatingNote] = useState(false)
+  const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   const userOptions = useMemo(() => users.map((row) => ({ value: row.uid, label: row.displayName })), [users])
@@ -83,11 +85,7 @@ export default function OpportunityNotesPage() {
   return (
     <Panel
       title="Note"
-      subtitle={
-        isTechnician
-          ? "Vizualizare read-only: notele vizibile în oportunitate."
-          : "CRUD note cu visibility picker (General / Particular / Personalizat)"
-      }
+      subtitle={""}
       size="comfortable"
       className="flex min-h-0 flex-1 flex-col overflow-hidden"
       contentClassName="flex min-h-0 flex-1 flex-col"
@@ -144,6 +142,7 @@ export default function OpportunityNotesPage() {
                   size="sm"
                   variant="outline"
                   className="h-9 text-sm"
+                  disabled={isCreatingNote}
                   onClick={() => setIsCreateOpen(false)}
                 >
                   Anulează
@@ -151,23 +150,29 @@ export default function OpportunityNotesPage() {
             <Button
               size="sm"
               className="h-9 text-sm"
+              disabled={isCreatingNote}
               onClick={async () => {
-                if (!content.trim() || !user?.uid) return
-                await createCrmNote({
-                  opportunityId,
-                  content,
-                  createdById: user.uid,
-                  visibility,
-                  visibleToUserIds,
-                })
-                setContent("")
-                    setVisibility("PRIVATE")
-                setVisibleToUserIds([])
-                    setIsCreateOpen(false)
-                await load()
+                if (!content.trim() || !user?.uid || isCreatingNote) return
+                setIsCreatingNote(true)
+                try {
+                  await createCrmNote({
+                    opportunityId,
+                    content,
+                    createdById: user.uid,
+                    visibility,
+                    visibleToUserIds,
+                  })
+                  setContent("")
+                  setVisibility("PRIVATE")
+                  setVisibleToUserIds([])
+                  setIsCreateOpen(false)
+                  await load()
+                } finally {
+                  setIsCreatingNote(false)
+                }
               }}
             >
-                  Salvează
+                  {isCreatingNote ? "Se salvează..." : "Salvează"}
             </Button>
           </div>
         </div>
@@ -277,9 +282,13 @@ export default function OpportunityNotesPage() {
           <div className="space-y-2 pb-1">
             {notes.map((note) => (
               <div key={note.id} className="rounded-lg border border-neutral-200 bg-white p-3">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <p className="text-sm text-neutral-500">{formatDateTime(note.createdAt)}</p>
-                  <SubtleBadge tone="neutral">{CRM_VISIBILITY_LABELS[note.visibility as keyof typeof CRM_VISIBILITY_LABELS]}</SubtleBadge>
+                <div className="mb-2 flex items-start justify-end gap-2">
+                  <div className="text-right">
+                    <p className="text-xs text-neutral-500">Creată la: {formatDateTime(note.createdAt)}</p>
+                    <div className="mt-1">
+                      <SubtleBadge tone="neutral">{CRM_VISIBILITY_LABELS[note.visibility as keyof typeof CRM_VISIBILITY_LABELS]}</SubtleBadge>
+                    </div>
+                  </div>
                 </div>
                 <p className="whitespace-pre-wrap text-sm text-neutral-700">{note.content}</p>
                 <div className="mt-2 flex items-center justify-between gap-2">
@@ -304,12 +313,19 @@ export default function OpportunityNotesPage() {
                       variant="ghost"
                       size="sm"
                       className="h-8 text-sm text-rose-600"
+                      disabled={deletingNoteId === note.id}
                       onClick={async () => {
+                        if (deletingNoteId === note.id) return
+                        setDeletingNoteId(note.id)
+                        try {
                         await deleteCrmNote(note.id, user?.uid || "")
                         await load()
+                        } finally {
+                          setDeletingNoteId(null)
+                        }
                       }}
                     >
-                      Șterge
+                      {deletingNoteId === note.id ? "Se șterge..." : "Șterge"}
                     </Button>
                     </div>
                   ) : null}

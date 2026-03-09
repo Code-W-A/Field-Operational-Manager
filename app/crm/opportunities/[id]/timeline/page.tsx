@@ -33,15 +33,6 @@ function formatDayLabel(value: unknown) {
   })
 }
 
-function formatHour(value: unknown) {
-  const parsed = getDateValue(value)
-  if (!parsed) return "--:--"
-  return parsed.toLocaleTimeString("ro-RO", {
-    hour: "2-digit",
-    minute: "2-digit",
-  })
-}
-
 function getActivityLabel(activityType: string) {
   const labelMap: Record<string, string> = {
     CREATED: "Oportunitate creată",
@@ -115,7 +106,7 @@ function renderActivityContent(activity: CrmActivityLog, userNameMap: Record<str
       <div className="space-y-1.5">
         {renderKeyValueRow("Cod", String(payload.code || "-"))}
         {renderKeyValueRow("Titlu", String(opportunity.title || "-"))}
-        {renderKeyValueRow("Owner", mapUser(String(opportunity.ownerId || "")))}
+        {renderKeyValueRow("Proprietar", mapUser(String(opportunity.ownerId || "")))}
       </div>
     )
   }
@@ -346,7 +337,7 @@ export default function OpportunityTimelinePage() {
     <div className="flex h-full min-h-0 flex-col gap-3">
       <Panel
         title="Istoric"
-        subtitle="Inima oportunității: activitate cronologică, cu visibility aplicat"
+        subtitle=""
         size="comfortable"
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
         contentClassName="flex-1 min-h-0 overflow-y-auto"
@@ -381,8 +372,7 @@ export default function OpportunityTimelinePage() {
                             </p>
                           </div>
                           <div className="text-right">
-                            <p className="text-sm font-medium tabular-nums text-neutral-600">{formatHour(activity.createdAt)}</p>
-                            <p className="mt-1 text-xs leading-4 text-neutral-400">{formatDateTime(activity.createdAt)}</p>
+                            <p className="text-xs leading-4 text-neutral-400">{formatDateTime(activity.createdAt)}</p>
                           </div>
                         </div>
                       </div>

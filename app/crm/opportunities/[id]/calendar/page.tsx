@@ -36,6 +36,8 @@ export default function OpportunityCalendarPage() {
   const [visibility, setVisibility] = useState<(typeof CRM_VISIBILITIES)[number]>("PRIVATE")
   const [visibleToUserIds, setVisibleToUserIds] = useState<string[]>([])
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isCreatingEvent, setIsCreatingEvent] = useState(false)
+  const [deletingEventId, setDeletingEventId] = useState<string | null>(null)
 
   const userOptions = useMemo(() => users.map((row) => ({ value: row.uid, label: row.displayName })), [users])
 
@@ -54,12 +56,13 @@ export default function OpportunityCalendarPage() {
           opportunityId,
           userId: user.uid,
           opportunityOwnerId: opportunity.ownerId,
+          assigneeOnlyUserId: userData?.role === "admin" ? undefined : user.uid,
         }),
         listCrmUsers(),
       ])
 
       setEvents(eventRows)
-      setOpenTasks(taskRows.filter((task) => task.status !== "DONE" && task.status !== "CANCELED"))
+      setOpenTasks(taskRows.filter((task) => task.status === "TODO" || task.status === "IN_PROGRESS"))
       setUsers(userRows.map((row) => ({ uid: row.uid, displayName: row.displayName || row.email || row.uid })))
     } finally {
       setLoading(false)
@@ -78,7 +81,7 @@ export default function OpportunityCalendarPage() {
   return (
     <Panel
       title="Calendar"
-      subtitle={isTechnician ? "Vizualizare read-only: evenimentele vizibile în oportunitate." : "MVP evenimente + upcoming (events + due sarcini)"}
+      subtitle={""}
       size="comfortable"
       className="flex min-h-0 flex-1 flex-col overflow-hidden"
       contentClassName="flex min-h-0 flex-1 flex-col"
@@ -131,6 +134,7 @@ export default function OpportunityCalendarPage() {
                   size="sm"
                   variant="outline"
                   className="h-9 text-sm"
+                  disabled={isCreatingEvent}
                   onClick={() => setIsCreateOpen(false)}
                 >
                   Anulează
@@ -138,31 +142,37 @@ export default function OpportunityCalendarPage() {
             <Button
               size="sm"
               className="h-9 text-sm"
+              disabled={isCreatingEvent}
               onClick={async () => {
-                if (!title.trim() || !startAt || !endAt || !user?.uid) return
-                await createCrmCalendarEvent({
-                  opportunityId,
-                  title,
-                  startAt: new Date(startAt),
-                  endAt: new Date(endAt),
-                  location,
-                  reminderAt: reminderAt ? new Date(reminderAt) : undefined,
-                  createdById: user.uid,
-                  visibility,
-                  visibleToUserIds,
-                })
-                setTitle("")
-                setStartAt("")
-                setEndAt("")
-                setLocation("")
-                setReminderAt("")
-                    setVisibility("PRIVATE")
-                setVisibleToUserIds([])
-                    setIsCreateOpen(false)
-                await load()
+                if (!title.trim() || !startAt || !endAt || !user?.uid || isCreatingEvent) return
+                setIsCreatingEvent(true)
+                try {
+                  await createCrmCalendarEvent({
+                    opportunityId,
+                    title,
+                    startAt: new Date(startAt),
+                    endAt: new Date(endAt),
+                    location,
+                    reminderAt: reminderAt ? new Date(reminderAt) : undefined,
+                    createdById: user.uid,
+                    visibility,
+                    visibleToUserIds,
+                  })
+                  setTitle("")
+                  setStartAt("")
+                  setEndAt("")
+                  setLocation("")
+                  setReminderAt("")
+                  setVisibility("PRIVATE")
+                  setVisibleToUserIds([])
+                  setIsCreateOpen(false)
+                  await load()
+                } finally {
+                  setIsCreatingEvent(false)
+                }
               }}
             >
-                  Salvează
+                  {isCreatingEvent ? "Se salvează..." : "Salvează"}
             </Button>
           </div>
         </div>
@@ -191,12 +201,19 @@ export default function OpportunityCalendarPage() {
                             variant="ghost"
                             size="sm"
                             className="h-8 text-sm text-rose-600"
+                            disabled={deletingEventId === event.id}
                             onClick={async () => {
+                              if (deletingEventId === event.id) return
+                              setDeletingEventId(event.id)
+                              try {
                               await deleteCrmCalendarEvent(event.id, user?.uid || "")
                               await load()
+                              } finally {
+                                setDeletingEventId(null)
+                              }
                             }}
                           >
-                            Șterge
+                            {deletingEventId === event.id ? "Se șterge..." : "Șterge"}
                           </Button>
                         ) : null}
                       </div>

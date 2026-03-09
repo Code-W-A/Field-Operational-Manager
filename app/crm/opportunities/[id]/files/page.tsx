@@ -50,6 +50,8 @@ export default function OpportunityFilesPage() {
   const [editVisibility, setEditVisibility] = useState<(typeof CRM_VISIBILITIES)[number]>("PRIVATE")
   const [editVisibleToUserIds, setEditVisibleToUserIds] = useState<string[]>([])
   const [savingFileId, setSavingFileId] = useState<string | null>(null)
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false)
+  const [deletingFileId, setDeletingFileId] = useState<string | null>(null)
 
   const userOptions = useMemo(() => users.map((row) => ({ value: row.uid, label: row.displayName })), [users])
   const userNameMap = useMemo(
@@ -92,7 +94,7 @@ export default function OpportunityFilesPage() {
   return (
     <Panel
       title="Fișiere"
-      subtitle={isTechnician ? "Vizualizare read-only: fișierele vizibile în oportunitate." : "Upload MVP + listă + delete cu permisiuni"}
+      subtitle={""}
       size="comfortable"
       className="flex min-h-0 flex-1 flex-col overflow-hidden"
       contentClassName="flex min-h-0 flex-1 flex-col"
@@ -158,6 +160,7 @@ export default function OpportunityFilesPage() {
                   size="sm"
                   variant="outline"
                   className="h-9 text-sm"
+                  disabled={isUploadingFiles}
                   onClick={() => setIsCreateOpen(false)}
                 >
                   Anulează
@@ -165,53 +168,58 @@ export default function OpportunityFilesPage() {
                 <Button
                   size="sm"
                   className="h-9 text-sm"
-                  disabled={selectedFiles.length === 0 || !user?.uid}
+                  disabled={selectedFiles.length === 0 || !user?.uid || isUploadingFiles}
                   onClick={async () => {
-                    if (selectedFiles.length === 0 || !user?.uid) return
-                    let successCount = 0
-                    const failed: string[] = []
+                    if (selectedFiles.length === 0 || !user?.uid || isUploadingFiles) return
+                    setIsUploadingFiles(true)
+                    try {
+                      let successCount = 0
+                      const failed: string[] = []
 
-                    for (const file of selectedFiles) {
-                      try {
-                        await uploadCrmFile({
-                          opportunityId,
-                          file,
-                          uploadedById: user.uid,
-                          visibility,
-                          visibleToUserIds,
-                        })
-                        successCount += 1
-                      } catch {
-                        failed.push(file.name)
+                      for (const file of selectedFiles) {
+                        try {
+                          await uploadCrmFile({
+                            opportunityId,
+                            file,
+                            uploadedById: user.uid,
+                            visibility,
+                            visibleToUserIds,
+                          })
+                          successCount += 1
+                        } catch {
+                          failed.push(file.name)
+                        }
                       }
-                    }
 
-                    if (successCount > 0) {
-                      toast({
-                        title: "Fișiere încărcate",
-                        description:
-                          successCount === selectedFiles.length
-                            ? `Au fost adăugate ${successCount} fișiere în oportunitate.`
-                            : `Au fost adăugate ${successCount} din ${selectedFiles.length} fișiere.`,
-                      })
-                    }
+                      if (successCount > 0) {
+                        toast({
+                          title: "Fișiere încărcate",
+                          description:
+                            successCount === selectedFiles.length
+                              ? `Au fost adăugate ${successCount} fișiere în oportunitate.`
+                              : `Au fost adăugate ${successCount} din ${selectedFiles.length} fișiere.`,
+                        })
+                      }
 
-                    if (failed.length > 0) {
-                      toast({
-                        title: "Unele fișiere nu au fost încărcate",
-                        description: failed.length <= 2 ? failed.join(", ") : `${failed.slice(0, 2).join(", ")} +${failed.length - 2} altele`,
-                        variant: "destructive",
-                      })
-                    }
+                      if (failed.length > 0) {
+                        toast({
+                          title: "Unele fișiere nu au fost încărcate",
+                          description: failed.length <= 2 ? failed.join(", ") : `${failed.slice(0, 2).join(", ")} +${failed.length - 2} altele`,
+                          variant: "destructive",
+                        })
+                      }
 
-                    setSelectedFiles([])
-                    setVisibility("PRIVATE")
-                    setVisibleToUserIds([])
-                    setIsCreateOpen(false)
-                    await load()
+                      setSelectedFiles([])
+                      setVisibility("PRIVATE")
+                      setVisibleToUserIds([])
+                      setIsCreateOpen(false)
+                      await load()
+                    } finally {
+                      setIsUploadingFiles(false)
+                    }
                   }}
                 >
-                  Salvează
+                  {isUploadingFiles ? "Se încarcă..." : "Salvează"}
                 </Button>
               </div>
             </div>
@@ -345,9 +353,16 @@ export default function OpportunityFilesPage() {
                         size="icon"
                         variant="ghost"
                         className="h-8 w-8 text-rose-600"
+                        disabled={deletingFileId === file.id}
                         onClick={async () => {
+                          if (deletingFileId === file.id) return
+                          setDeletingFileId(file.id)
+                          try {
                           await deleteCrmFile({ fileId: file.id, actorId: user?.uid || "" })
                           await load()
+                          } finally {
+                            setDeletingFileId(null)
+                          }
                         }}
                       >
                         <Trash2 className="h-4 w-4" />

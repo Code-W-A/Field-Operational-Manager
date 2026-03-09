@@ -37,6 +37,7 @@ export default function OpportunityEmailsPage() {
   const [visibility, setVisibility] = useState<(typeof CRM_VISIBILITIES)[number]>("PRIVATE")
   const [visibleToUserIds, setVisibleToUserIds] = useState<string[]>([])
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isCreatingEmail, setIsCreatingEmail] = useState(false)
 
   const userOptions = useMemo(() => users.map((row) => ({ value: row.uid, label: row.displayName })), [users])
   const userNameMap = useMemo(
@@ -81,7 +82,7 @@ export default function OpportunityEmailsPage() {
   return (
     <Panel
       title="Email"
-      subtitle={isTechnician ? "Vizualizare read-only: emailurile vizibile în oportunitate." : "MVP email log (IN/OUT) tratat ca activity record"}
+      subtitle={""}
       size="comfortable"
       className="flex min-h-0 flex-1 flex-col overflow-hidden"
       contentClassName="flex min-h-0 flex-1 flex-col"
@@ -152,6 +153,7 @@ export default function OpportunityEmailsPage() {
                   size="sm"
                   variant="outline"
                   className="h-9 text-sm"
+                  disabled={isCreatingEmail}
                   onClick={() => setIsCreateOpen(false)}
                 >
                   Anulează
@@ -159,35 +161,40 @@ export default function OpportunityEmailsPage() {
             <Button
               size="sm"
               className="h-9 text-sm"
+              disabled={isCreatingEmail}
               onClick={async () => {
-                if (!subject.trim() || !from.trim() || !to.trim() || !user?.uid) return
+                if (!subject.trim() || !from.trim() || !to.trim() || !user?.uid || isCreatingEmail) return
+                setIsCreatingEmail(true)
+                try {
+                  await createCrmEmail({
+                    opportunityId,
+                    direction,
+                    subject,
+                    from,
+                    to: to.split(",").map((item) => item.trim()).filter(Boolean),
+                    bodySnippet: snippet,
+                    sentAt: sentAt ? new Date(sentAt) : undefined,
+                    createdById: user.uid,
+                    visibility,
+                    visibleToUserIds,
+                  })
 
-                await createCrmEmail({
-                  opportunityId,
-                  direction,
-                  subject,
-                  from,
-                  to: to.split(",").map((item) => item.trim()).filter(Boolean),
-                  bodySnippet: snippet,
-                  sentAt: sentAt ? new Date(sentAt) : undefined,
-                  createdById: user.uid,
-                  visibility,
-                  visibleToUserIds,
-                })
-
-                setDirection("OUT")
-                setSubject("")
-                setFrom("")
-                setTo("")
-                setSnippet("")
-                setSentAt("")
-                    setVisibility("PRIVATE")
-                setVisibleToUserIds([])
-                    setIsCreateOpen(false)
-                await load()
+                  setDirection("OUT")
+                  setSubject("")
+                  setFrom("")
+                  setTo("")
+                  setSnippet("")
+                  setSentAt("")
+                  setVisibility("PRIVATE")
+                  setVisibleToUserIds([])
+                  setIsCreateOpen(false)
+                  await load()
+                } finally {
+                  setIsCreatingEmail(false)
+                }
               }}
             >
-                  Salvează
+                  {isCreatingEmail ? "Se salvează..." : "Salvează"}
             </Button>
           </div>
         </div>

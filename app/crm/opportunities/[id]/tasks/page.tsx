@@ -19,7 +19,14 @@ import {
   deleteCrmTask,
 } from "@/lib/crm/tasks"
 import { listCrmUsers } from "@/lib/crm/opportunities"
-import { CRM_TASK_STATUSES, CRM_TASK_STATUS_LABELS, CRM_VISIBILITY_LABELS, CRM_VISIBILITIES } from "@/lib/crm/constants"
+import {
+  CRM_TASK_STATUSES,
+  CRM_TASK_STATUS_LABELS,
+  CRM_TASK_TYPES,
+  CRM_TASK_TYPE_LABELS,
+  CRM_VISIBILITY_LABELS,
+  CRM_VISIBILITIES,
+} from "@/lib/crm/constants"
 import { formatDateTime, taskStatusLabel } from "@/lib/crm/presenters"
 import { getDateValue } from "@/lib/crm/activity"
 import type { CrmTask } from "@/lib/crm/types"
@@ -47,14 +54,20 @@ export default function OpportunityTasksPage() {
   const [loading, setLoading] = useState(true)
 
   const [title, setTitle] = useState("")
+  const [taskType, setTaskType] = useState<(typeof CRM_TASK_TYPES)[number]>("PROSPECTARE")
+  const [taskTypeFilter, setTaskTypeFilter] = useState<"ALL" | (typeof CRM_TASK_TYPES)[number]>("ALL")
   const [assigneeId, setAssigneeId] = useState<string>("")
   const [dueAt, setDueAt] = useState("")
   const [visibility, setVisibility] = useState<(typeof CRM_VISIBILITIES)[number]>("PRIVATE")
   const [visibleToUserIds, setVisibleToUserIds] = useState<string[]>([])
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isCreatingTask, setIsCreatingTask] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
+  const [isSavingTaskEdit, setIsSavingTaskEdit] = useState(false)
+  const [actingTaskId, setActingTaskId] = useState<string | null>(null)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [editStatus, setEditStatus] = useState<CrmTask["status"]>("TODO")
+  const [editTaskType, setEditTaskType] = useState<(typeof CRM_TASK_TYPES)[number]>("PROSPECTARE")
   const [editAssigneeId, setEditAssigneeId] = useState<string>("UNASSIGNED")
   const [editDueAt, setEditDueAt] = useState("")
 
@@ -78,6 +91,7 @@ export default function OpportunityTasksPage() {
           opportunityId,
           userId: user.uid,
           opportunityOwnerId: opportunity.ownerId,
+          assigneeOnlyUserId: userData?.role === "admin" ? undefined : user.uid,
         }),
         listCrmUsers(),
       ])
@@ -93,12 +107,18 @@ export default function OpportunityTasksPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opportunity?.id, user?.uid])
 
+  const filteredTasks = useMemo(
+    () => (taskTypeFilter === "ALL" ? tasks : tasks.filter((task) => task.taskType === taskTypeFilter)),
+    [taskTypeFilter, tasks]
+  )
+
   if (!opportunity) {
     return <Panel title="Sarcini" size="comfortable"><p className="text-sm text-neutral-500">Fără acces la oportunitate.</p></Panel>
   }
 
   const resetCreateForm = () => {
     setTitle("")
+    setTaskType("PROSPECTARE")
     setAssigneeId(opportunity.ownerId || "")
     setDueAt("")
     setVisibility("PRIVATE")
@@ -108,13 +128,28 @@ export default function OpportunityTasksPage() {
   return (
     <Panel
       title="Sarcini"
-      subtitle="CRUD + acțiuni rapide: completare, reasignare, reprogramare, reminder"
+      subtitle=""
       size="comfortable"
       className="flex min-h-0 flex-1 flex-col overflow-hidden"
       contentClassName="flex min-h-0 flex-1 flex-col"
     >
-      {!isTechnician ? (
-        <div className="mb-4 shrink-0 flex justify-end">
+      <div className="mb-4 shrink-0 flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-[220px]">
+          <Select value={taskTypeFilter} onValueChange={(value) => setTaskTypeFilter(value as "ALL" | (typeof CRM_TASK_TYPES)[number])}>
+            <SelectTrigger className="h-9 text-sm">
+              <SelectValue placeholder="Filtru tip sarcină" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">Toate tipurile</SelectItem>
+              {CRM_TASK_TYPES.map((item) => (
+                <SelectItem key={item} value={item}>
+                  {CRM_TASK_TYPE_LABELS[item]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {!isTechnician ? (
           <Button
             size="sm"
             className="h-9 text-sm"
@@ -125,8 +160,8 @@ export default function OpportunityTasksPage() {
           >
             Adaugă sarcină
           </Button>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
       <Sheet
         open={isCreateOpen}
@@ -147,6 +182,18 @@ export default function OpportunityTasksPage() {
           <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Titlu sarcină" className="h-9 text-sm" />
               </div>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <Select value={taskType} onValueChange={(value) => setTaskType(value as (typeof CRM_TASK_TYPES)[number])}>
+            <SelectTrigger className="h-9 text-sm">
+              <SelectValue placeholder="Tip sarcină" />
+            </SelectTrigger>
+            <SelectContent>
+              {CRM_TASK_TYPES.map((item) => (
+                <SelectItem key={item} value={item}>
+                  {CRM_TASK_TYPE_LABELS[item]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={assigneeId} onValueChange={setAssigneeId}>
             <SelectTrigger className="h-9 text-sm">
               <SelectValue placeholder="Responsabil" />
@@ -192,23 +239,30 @@ export default function OpportunityTasksPage() {
           <Button
             size="sm"
             className="h-9 text-sm"
+            disabled={isCreatingTask}
             onClick={async () => {
-              if (!title.trim() || !user?.uid) return
-              await createCrmTask({
-                opportunityId,
-                title,
-                createdById: user.uid,
-                assigneeId,
-                dueAt: dueAt ? new Date(dueAt) : undefined,
-                visibility,
-                visibleToUserIds,
-              })
-              resetCreateForm()
-                    setIsCreateOpen(false)
-              await load()
+              if (!title.trim() || !user?.uid || isCreatingTask) return
+              setIsCreatingTask(true)
+              try {
+                await createCrmTask({
+                  opportunityId,
+                  title,
+                  taskType,
+                  createdById: user.uid,
+                  assigneeId,
+                  dueAt: dueAt ? new Date(dueAt) : undefined,
+                  visibility,
+                  visibleToUserIds,
+                })
+                resetCreateForm()
+                setIsCreateOpen(false)
+                await load()
+              } finally {
+                setIsCreatingTask(false)
+              }
             }}
           >
-                  Salvează
+                  {isCreatingTask ? "Se salvează..." : "Salvează"}
           </Button>
         </div>
       </div>
@@ -233,6 +287,19 @@ export default function OpportunityTasksPage() {
                         {CRM_TASK_STATUSES.map((status) => (
                           <SelectItem key={status} value={status}>
                             {CRM_TASK_STATUS_LABELS[status]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Select value={editTaskType} onValueChange={(value) => setEditTaskType(value as (typeof CRM_TASK_TYPES)[number])}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="Tip sarcină" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CRM_TASK_TYPES.map((item) => (
+                          <SelectItem key={item} value={item}>
+                            {CRM_TASK_TYPE_LABELS[item]}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -266,6 +333,7 @@ export default function OpportunityTasksPage() {
                           variant="outline"
                           size="sm"
                   className="h-9 text-sm"
+                  disabled={isSavingTaskEdit}
                   onClick={() => {
                     setIsEditOpen(false)
                     setEditingTaskId(null)
@@ -276,21 +344,28 @@ export default function OpportunityTasksPage() {
                 <Button
                   size="sm"
                   className="h-9 text-sm"
+                  disabled={isSavingTaskEdit || !editingTaskId}
                           onClick={async () => {
-                    if (!editingTaskId) return
+                    if (!editingTaskId || isSavingTaskEdit) return
+                            setIsSavingTaskEdit(true)
+                            try {
                             await updateCrmTask({
                       taskId: editingTaskId,
                               actorId: user?.uid || "",
                               status: editStatus,
+                              taskType: editTaskType,
                               assigneeId: editAssigneeId === "UNASSIGNED" ? "" : editAssigneeId,
                               dueAt: editDueAt ? new Date(editDueAt) : null,
                             })
                             setEditingTaskId(null)
                     setIsEditOpen(false)
                             await load()
+                            } finally {
+                              setIsSavingTaskEdit(false)
+                            }
                           }}
                         >
-                          Salvează
+                          {isSavingTaskEdit ? "Se salvează..." : "Salvează"}
                         </Button>
               </div>
             </div>
@@ -303,27 +378,30 @@ export default function OpportunityTasksPage() {
           <p className="text-sm text-neutral-500">Se încarcă sarcinile...</p>
         ) : tasks.length === 0 ? (
           <p className="text-sm text-neutral-500">Nu există sarcini vizibile.</p>
+        ) : filteredTasks.length === 0 ? (
+          <p className="text-sm text-neutral-500">Nu există sarcini pentru tipul selectat.</p>
         ) : (
           <div className="space-y-2 pb-1">
-            {tasks.map((task) => (
+            {filteredTasks.map((task) => (
               <div key={task.id} className="rounded-lg border border-neutral-200 bg-white p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <p className="text-base font-semibold text-neutral-900">{task.title}</p>
-                    <p className="mt-1 text-sm text-neutral-500">
-                      {formatDateTime(task.dueAt)}
-                    </p>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <SubtleBadge tone={task.status === "DONE" ? "success" : task.status === "CANCELED" ? "danger" : "neutral"}>
-                      {taskStatusLabel(task.status)}
-                    </SubtleBadge>
-                    <SubtleBadge tone="neutral">{CRM_VISIBILITY_LABELS[task.visibility]}</SubtleBadge>
+                  <div className="text-right">
+                    <p className="text-xs text-neutral-500">Creată la: {formatDateTime(task.createdAt)}</p>
+                    <div className="mt-1 flex items-center justify-end gap-1">
+                      <SubtleBadge tone={task.status === "CU_SUCCES" ? "success" : task.status === "FARA_SUCCES" ? "danger" : "neutral"}>
+                        {taskStatusLabel(task.status)}
+                      </SubtleBadge>
+                      <SubtleBadge tone="neutral">{CRM_VISIBILITY_LABELS[task.visibility]}</SubtleBadge>
+                    </div>
                   </div>
                 </div>
 
                 <div className="mt-3 grid gap-1 text-sm text-neutral-600 md:grid-cols-2">
                   <p>Status: {taskStatusLabel(task.status)}</p>
+                  <p>Tip sarcină: {task.taskType ? CRM_TASK_TYPE_LABELS[task.taskType] || task.taskType : "-"}</p>
                   <p>Responsabil: {task.assigneeId ? userNameMap[task.assigneeId] || task.assigneeId : "Neasignat"}</p>
                   <p>Termen: {formatDateTime(task.dueAt)}</p>
                 </div>
@@ -334,9 +412,11 @@ export default function OpportunityTasksPage() {
                         variant="outline"
                         size="sm"
                         className="h-8 text-sm"
+                        disabled={actingTaskId === task.id}
                         onClick={() => {
                           setEditingTaskId(task.id)
                           setEditStatus(task.status)
+                          setEditTaskType((task.taskType as (typeof CRM_TASK_TYPES)[number]) || "PROSPECTARE")
                           setEditAssigneeId(task.assigneeId || "UNASSIGNED")
                           setEditDueAt(toDateTimeLocal(task.dueAt))
                         setIsEditOpen(true)
@@ -349,23 +429,65 @@ export default function OpportunityTasksPage() {
                       size="sm"
                       className="h-8 text-sm"
                       onClick={async () => {
+                        if (actingTaskId === task.id) return
+                        setActingTaskId(task.id)
+                        try {
                         await completeCrmTask(task.id, user?.uid || "")
+                        setTasks((prev) =>
+                          prev.map((row) => (row.id === task.id ? { ...row, status: "CU_SUCCES" } : row))
+                        )
                         await load()
+                        } finally {
+                          setActingTaskId(null)
+                        }
                       }}
-                      disabled={task.status === "DONE"}
+                      disabled={task.status === "CU_SUCCES" || task.status === "FARA_SUCCES" || actingTaskId === task.id}
                     >
-                      Marchează completat
+                      {actingTaskId === task.id ? "Se salvează..." : "Închide cu succes"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-sm"
+                      onClick={async () => {
+                        if (actingTaskId === task.id) return
+                        setActingTaskId(task.id)
+                        try {
+                        await updateCrmTask({
+                          taskId: task.id,
+                          actorId: user?.uid || "",
+                          status: "FARA_SUCCES",
+                        })
+                        setTasks((prev) =>
+                          prev.map((row) => (row.id === task.id ? { ...row, status: "FARA_SUCCES" } : row))
+                        )
+                        await load()
+                        } finally {
+                          setActingTaskId(null)
+                        }
+                      }}
+                      disabled={task.status === "CU_SUCCES" || task.status === "FARA_SUCCES" || actingTaskId === task.id}
+                    >
+                      {actingTaskId === task.id ? "Se salvează..." : "Închide fără succes"}
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
                       className="h-8 text-sm text-rose-600"
                       onClick={async () => {
+                        if (actingTaskId === task.id) return
+                        setActingTaskId(task.id)
+                        try {
                         await deleteCrmTask(task.id, user?.uid || "")
+                        setTasks((prev) => prev.filter((row) => row.id !== task.id))
                         await load()
+                        } finally {
+                          setActingTaskId(null)
+                        }
                       }}
+                      disabled={actingTaskId === task.id}
                     >
-                      Șterge
+                      {actingTaskId === task.id ? "Se șterge..." : "Șterge"}
                     </Button>
                   </div>
                 </div>

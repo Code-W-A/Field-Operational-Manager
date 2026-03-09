@@ -484,10 +484,17 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
               <div>
                 <p className="mb-2 text-sm font-medium text-neutral-700">Contact principal</p>
                 {primaryContact ? (
-                  <button
-                    type="button"
+                  <div
+                    role="button"
+                    tabIndex={0}
                     className="w-full rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-left"
                     onClick={() => setSelectedContactForDialog(primaryContact)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault()
+                        setSelectedContactForDialog(primaryContact)
+                      }
+                    }}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-semibold text-neutral-900">{primaryContact.name}</p>
@@ -516,7 +523,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                         Copiază email
                       </Button>
                     </div>
-                  </button>
+                  </div>
                 ) : (
                   <p className="text-sm text-neutral-500">Nu există contact principal disponibil.</p>
                 )}
@@ -529,11 +536,18 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                 ) : (
                   <div className="space-y-2">
                     {secondaryContacts.map((contact) => (
-                      <button
+                      <div
                         key={contact.id}
-                        type="button"
+                        role="button"
+                        tabIndex={0}
                         className="w-full rounded-lg border border-neutral-200 bg-white p-3 text-left transition hover:bg-neutral-50"
                         onClick={() => setSelectedContactForDialog(contact)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault()
+                            setSelectedContactForDialog(contact)
+                          }
+                        }}
                       >
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="text-sm font-medium text-neutral-800">{contact.name}</p>
@@ -547,7 +561,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                             Copiază email
                           </Button>
                         </div>
-                      </button>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -618,10 +632,17 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
             <div>
               <p className="mb-2 text-sm font-medium text-neutral-700">Contact principal</p>
               {primaryContact ? (
-                <button
-                  type="button"
+                <div
+                  role="button"
+                  tabIndex={0}
                   className="w-full rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-left"
                   onClick={() => setSelectedContactForDialog(primaryContact)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault()
+                      setSelectedContactForDialog(primaryContact)
+                    }
+                  }}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-semibold text-neutral-900">{primaryContact.name}</p>
@@ -650,7 +671,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                       Copiază email
                     </Button>
                   </div>
-                </button>
+                </div>
               ) : (
                 <p className="text-sm text-neutral-500">Nu există contact principal disponibil.</p>
               )}
@@ -663,11 +684,18 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
               ) : (
                 <div className="space-y-2">
                   {secondaryContacts.map((contact) => (
-                    <button
+                    <div
                       key={contact.id}
-                      type="button"
+                      role="button"
+                      tabIndex={0}
                       className="w-full rounded-lg border border-neutral-200 bg-white p-3 text-left transition hover:bg-neutral-50"
                       onClick={() => setSelectedContactForDialog(contact)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault()
+                          setSelectedContactForDialog(contact)
+                        }
+                      }}
                     >
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-sm font-medium text-neutral-800">{contact.name}</p>
@@ -681,7 +709,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                           Copiază email
                         </Button>
                       </div>
-                    </button>
+                    </div>
                   ))}
                 </div>
               )}

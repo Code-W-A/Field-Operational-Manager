@@ -45,12 +45,22 @@ function toTimestamp(value?: Date) {
   return value ? Timestamp.fromDate(value) : null
 }
 
+function normalizeTaskStatus(status: unknown): CrmTask["status"] {
+  if (status === "DONE") return "CU_SUCCES"
+  if (status === "CANCELED") return "FARA_SUCCES"
+  if (status === "TODO" || status === "IN_PROGRESS" || status === "CU_SUCCES" || status === "FARA_SUCCES") {
+    return status
+  }
+  return "TODO"
+}
+
 function mapTask(docId: string, data: Record<string, unknown>): CrmTask {
   return {
     id: docId,
     opportunityId: String(data.opportunityId || ""),
     title: String(data.title || ""),
-    status: (data.status as CrmTask["status"]) || "TODO",
+    status: normalizeTaskStatus(data.status),
+    taskType: typeof data.taskType === "string" ? data.taskType : undefined,
     dueAt: (data.dueAt as CrmTask["dueAt"]) || undefined,
     assigneeId: typeof data.assigneeId === "string" ? data.assigneeId : undefined,
     createdById: String(data.createdById || ""),
@@ -65,11 +75,13 @@ function mapTask(docId: string, data: Record<string, unknown>): CrmTask {
 export async function createCrmTask(input: CreateTaskInput) {
   const visibility = input.visibility || "PRIVATE"
   const visibleToUserIds = normalizeVisibilityUsers(visibility, input.visibleToUserIds)
+  const normalizedStatus = normalizeTaskStatus(input.status)
 
   const ref = await addDoc(collection(db, CRM_COLLECTIONS.tasks), {
     opportunityId: input.opportunityId,
     title: input.title.trim(),
-    status: input.status || "TODO",
+    status: normalizedStatus,
+    taskType: input.taskType || null,
     dueAt: toTimestamp(input.dueAt) || null,
     assigneeId: input.assigneeId || null,
     createdById: input.createdById,
@@ -96,7 +108,8 @@ export async function createCrmTask(input: CreateTaskInput) {
       task: {
         id: ref.id,
         title: input.title.trim(),
-        status: input.status || "TODO",
+        status: normalizedStatus,
+        taskType: input.taskType || null,
         assigneeId: input.assigneeId || null,
         dueAt: input.dueAt?.toISOString() || null,
         visibility,
@@ -137,6 +150,7 @@ export async function listCrmTasksForOpportunity(params: {
   opportunityId: string
   userId: string
   opportunityOwnerId: string
+  assigneeOnlyUserId?: string
 }) {
   const rows = await getDocs(
     query(
@@ -149,7 +163,7 @@ export async function listCrmTasksForOpportunity(params: {
 
   const visibleRows = await getVisibleToRows("TASK", params.opportunityId)
 
-  return rows.docs
+  const filtered = rows.docs
     .map((snap) => mapTask(snap.id, snap.data() as Record<string, unknown>))
     .filter((task) =>
       canViewByVisibility({
@@ -161,12 +175,19 @@ export async function listCrmTasksForOpportunity(params: {
         customVisibleRows: visibleRows.filter((row) => row.entityId === task.id),
       })
     )
+
+  if (!params.assigneeOnlyUserId) {
+    return filtered
+  }
+
+  return filtered.filter((task) => task.assigneeId === params.assigneeOnlyUserId)
 }
 
 export async function listCrmTasksForOpportunityIds(params: {
   opportunityIds: string[]
   userId: string
   ownerByOpportunityId: Record<string, string>
+  assigneeOnlyUserId?: string
 }) {
   const items: CrmTask[] = []
 
@@ -175,6 +196,7 @@ export async function listCrmTasksForOpportunityIds(params: {
       opportunityId,
       userId: params.userId,
       opportunityOwnerId: params.ownerByOpportunityId[opportunityId] || params.userId,
+      assigneeOnlyUserId: params.assigneeOnlyUserId,
     })
     items.push(...list)
   }
@@ -187,6 +209,7 @@ export async function updateCrmTask(params: {
   actorId: string
   title?: string
   status?: CrmTask["status"]
+  taskType?: CrmTask["taskType"]
   assigneeId?: string
   dueAt?: Date | null
   visibility?: CrmVisibility
@@ -201,6 +224,7 @@ export async function updateCrmTask(params: {
     id: task.id,
     title: task.title,
     status: task.status,
+    taskType: task.taskType || null,
     assigneeId: task.assigneeId || null,
     dueAt: task.dueAt || null,
     visibility: task.visibility,
@@ -217,7 +241,8 @@ export async function updateCrmTask(params: {
   }
 
   if (typeof params.title === "string") payload.title = params.title.trim()
-  if (params.status) payload.status = params.status
+  if (params.status) payload.status = normalizeTaskStatus(params.status)
+  if ("taskType" in params) payload.taskType = params.taskType || null
   if (typeof params.assigneeId === "string") payload.assigneeId = params.assigneeId || null
   if (params.dueAt instanceof Date) payload.dueAt = Timestamp.fromDate(params.dueAt)
   if (params.dueAt === null) payload.dueAt = null
@@ -240,7 +265,8 @@ export async function updateCrmTask(params: {
       before: beforeTask,
       changes: {
         title: typeof params.title === "string" ? params.title.trim() : undefined,
-        status: params.status,
+        status: params.status ? normalizeTaskStatus(params.status) : undefined,
+        taskType: "taskType" in params ? params.taskType || null : undefined,
         assigneeId: typeof params.assigneeId === "string" ? params.assigneeId || null : undefined,
         dueAt:
           params.dueAt instanceof Date
@@ -261,7 +287,7 @@ export async function completeCrmTask(taskId: string, actorId: string) {
   await updateCrmTask({
     taskId,
     actorId,
-    status: "DONE",
+    status: "CU_SUCCES",
   })
 
   const taskSnap = await getDoc(doc(db, CRM_COLLECTIONS.tasks, taskId))
@@ -277,6 +303,7 @@ export async function completeCrmTask(taskId: string, actorId: string) {
           id: task.id,
           title: task.title,
           status: task.status,
+          taskType: task.taskType || null,
           assigneeId: task.assigneeId || null,
           dueAt: task.dueAt || null,
         },
@@ -304,6 +331,7 @@ export async function deleteCrmTask(taskId: string, actorId: string) {
         id: task.id,
         title: task.title,
         status: task.status,
+        taskType: task.taskType || null,
         assigneeId: task.assigneeId || null,
         dueAt: task.dueAt || null,
         visibility: task.visibility,

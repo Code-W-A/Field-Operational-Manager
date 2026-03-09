@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { OpportunityTypeSidebar, PageShell, Panel, SegmentedControl, TaskCounterRing } from "@/components/crm"
 import {
-  CRM_OPPORTUNITY_SELECTABLE_TYPES,
   CRM_OPPORTUNITY_TYPE_LABELS,
   CRM_PIPELINE_STAGE_LABELS,
   CRM_OPPORTUNITY_TYPES,
@@ -35,7 +34,18 @@ import { useToast } from "@/hooks/use-toast"
 import { crmUi } from "@/components/crm/ui"
 import { cn } from "@/lib/utils"
 
-const LEFT_FILTER_ITEMS = CRM_OPPORTUNITY_SELECTABLE_TYPES
+const LEFT_FILTER_ITEMS = [
+  "PROIECTE",
+  "OFERTE",
+  "CONTRACTARE",
+  "ACHIZITII",
+  "VANZARI",
+  "LIVRARI",
+  "INSTALARI",
+  "FACTURARE",
+  "EVENIMENTE",
+  "INTERNE",
+] as const
 type OpportunityTypeFilter = (typeof LEFT_FILTER_ITEMS)[number] | "ALL"
 
 type TaskQuickFilterKey = "ACTIVE" | "IN_PROGRESS" | "DONE" | "OVERDUE"
@@ -64,7 +74,7 @@ function isTaskOverdue(task: CrmTask, referenceDate = new Date()) {
 function matchesTaskQuickFilter(task: CrmTask, filter: TaskQuickFilterKey) {
   if (filter === "ACTIVE") return task.status === "TODO"
   if (filter === "IN_PROGRESS") return task.status === "IN_PROGRESS"
-  if (filter === "DONE") return task.status === "DONE"
+  if (filter === "DONE") return task.status === "CU_SUCCES"
   return isTaskOverdue(task)
 }
 
@@ -76,14 +86,14 @@ function getPrimaryTask(tasks: CrmTask[]) {
       isTaskOverdue(a) ? 0 :
       a.status === "IN_PROGRESS" ? 1 :
       a.status === "TODO" ? 2 :
-      a.status === "DONE" ? 3 :
+      a.status === "CU_SUCCES" || a.status === "FARA_SUCCES" ? 3 :
       4
 
     const rankB =
       isTaskOverdue(b) ? 0 :
       b.status === "IN_PROGRESS" ? 1 :
       b.status === "TODO" ? 2 :
-      b.status === "DONE" ? 3 :
+      b.status === "CU_SUCCES" || b.status === "FARA_SUCCES" ? 3 :
       4
 
     if (rankA !== rankB) return rankA - rankB
@@ -102,7 +112,8 @@ function getTaskStatusChipClass(task?: CrmTask | null) {
   if (!task) return "border border-neutral-200 bg-neutral-100 text-neutral-600"
   if (isTaskOverdue(task)) return "border border-red-200 bg-red-100 text-red-700"
   if (task.status === "IN_PROGRESS") return "border border-slate-200 bg-slate-100 text-slate-700"
-  if (task.status === "DONE") return "border border-lime-200 bg-lime-100 text-lime-700"
+  if (task.status === "CU_SUCCES") return "border border-lime-200 bg-lime-100 text-lime-700"
+  if (task.status === "FARA_SUCCES") return "border border-rose-200 bg-rose-100 text-rose-700"
   if (task.status === "TODO") return "border border-sky-200 bg-sky-100 text-sky-700"
   return "border border-neutral-200 bg-neutral-100 text-neutral-600"
 }
@@ -234,6 +245,7 @@ export default function CrmOpportunitiesPage() {
             opportunityIds: rows.map((opportunity) => opportunity.id),
             userId: user.uid,
             ownerByOpportunityId,
+            assigneeOnlyUserId: userData?.role === "admin" ? undefined : user.uid,
           })
         : []
 
@@ -279,7 +291,7 @@ export default function CrmOpportunitiesPage() {
       (acc, task) => {
         if (task.status === "TODO") acc.active += 1
         if (task.status === "IN_PROGRESS") acc.inProgress += 1
-        if (task.status === "DONE") acc.done += 1
+        if (task.status === "CU_SUCCES") acc.done += 1
         if (isTaskOverdue(task, now)) acc.overdue += 1
         return acc
       },
@@ -308,6 +320,10 @@ export default function CrmOpportunitiesPage() {
 
     return map
   }, [availableStages, displayedOpportunities])
+  const visiblePipelineStages = useMemo(
+    () => availableStages.filter((stage) => (displayedStageStats[stage] || 0) > 0),
+    [availableStages, displayedStageStats]
+  )
 
   const activeOpportunityCounts = useMemo(() => {
     const counts: Record<string, number> = { ALL: 0 }
@@ -452,10 +468,10 @@ export default function CrmOpportunitiesPage() {
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
               <Select value={ownerFilter} onValueChange={setOwnerFilter}>
                 <SelectTrigger className={crmUi.selectTrigger}>
-                  <SelectValue placeholder="Owner" />
+                  <SelectValue placeholder="Proprietar" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL">Toti ownerii</SelectItem>
+                  <SelectItem value="ALL">Toti proprietarii</SelectItem>
                   {ownerOptions.map(([id, label]) => (
                     <SelectItem key={id} value={id}>
                       {label}
@@ -707,31 +723,32 @@ export default function CrmOpportunitiesPage() {
             <div className="border-t border-neutral-300 pt-3">
               <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-neutral-500">Pipeline modul curent</p>
               <div className="space-y-1.5">
-                {availableStages.map((stage, index) => (
-                  (() => {
+                {visiblePipelineStages.length > 0 ? (
+                  visiblePipelineStages.map((stage, index) => {
                     const stageCount = displayedStageStats[stage] || 0
                     const stagePercent = displayedStageTotal > 0 ? Math.round((stageCount / displayedStageTotal) * 100) : 0
 
                     return (
-                  <div
-                    key={stage}
-                    className={cn(
-                      "flex items-center justify-between rounded-md px-2 py-1 text-sm",
-                      stageFilter === stage ? "bg-white border border-neutral-200" : "text-neutral-600",
-                      stageCount === 0 ? "opacity-70" : ""
-                    )}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <span className={cn("h-2.5 w-2.5 rounded-sm", STAGE_DOT_CLASS[index % STAGE_DOT_CLASS.length])} />
-                      <span>{CRM_PIPELINE_STAGE_LABELS[stage] || stage}</span>
-                    </span>
-                    <span className={cn("font-medium", stageFilter === stage ? "text-neutral-900" : "text-neutral-700")}>
-                      {stageCount} ({stagePercent}%)
-                    </span>
-                  </div>
+                      <div
+                        key={stage}
+                        className={cn(
+                          "flex items-center justify-between rounded-md px-2 py-1 text-sm",
+                          stageFilter === stage ? "bg-white border border-neutral-200" : "text-neutral-600"
+                        )}
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          <span className={cn("h-2.5 w-2.5 rounded-sm", STAGE_DOT_CLASS[index % STAGE_DOT_CLASS.length])} />
+                          <span>{CRM_PIPELINE_STAGE_LABELS[stage] || stage}</span>
+                        </span>
+                        <span className={cn("font-medium", stageFilter === stage ? "text-neutral-900" : "text-neutral-700")}>
+                          {stageCount} ({stagePercent}%)
+                        </span>
+                      </div>
                     )
-                  })()
-                ))}
+                  })
+                ) : (
+                  <p className="text-xs text-neutral-500">Nu există statusuri cu valori pentru filtrele curente.</p>
+                )}
               </div>
             </div>
           </div>

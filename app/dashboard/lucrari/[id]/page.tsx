@@ -1790,6 +1790,11 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       reason: String(row?.reason || "").trim(),
       verifiedEmail: String(row?.verifiedEmail || "").trim(),
       versionSavedAt: row?.versionSavedAt ? String(row.versionSavedAt) : "",
+      offerSendCountAtResponse:
+        typeof row?.offerSendCountAtResponse === "number"
+          ? row.offerSendCountAtResponse
+          : Number(row?.offerSendCountAtResponse || 0) || undefined,
+      tokenUsed: String(row?.tokenUsed || "").trim(),
       at: row?.at,
     }))
     .filter((row) => row.status)
@@ -1806,15 +1811,60 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
             reason: offerResponseReason,
             verifiedEmail: offerResponseVerifiedEmail,
             versionSavedAt: offerResponseVersionAt || "",
+            offerSendCountAtResponse: Number((lucrare as any)?.offerSendCount || 0) || undefined,
+            tokenUsed: "",
             at: (lucrare as any)?.offerResponse?.at,
           },
         ]
       : []
   const allOfferResponses = offerResponsesHistory.length > 0 ? offerResponsesHistory : fallbackCurrentOfferResponse
   const mappedVersionKeys = new Set(offerVersionsHistory.map((version) => String(version?.savedAt || "")))
-  const unmappedOfferResponses = allOfferResponses.filter(
-    (row) => !row.versionSavedAt || !mappedVersionKeys.has(String(row.versionSavedAt || ""))
-  )
+  const versionsAsc = [...offerVersionsHistory].sort((a, b) => {
+    const aMs = toDateSafe(a?.savedAt as any)?.getTime() || 0
+    const bMs = toDateSafe(b?.savedAt as any)?.getTime() || 0
+    return aMs - bMs
+  })
+  const versionKeyBySendCount = new Map<number, string>()
+  versionsAsc.forEach((version, index) => {
+    const versionKey = String(version?.savedAt || "")
+    if (versionKey) {
+      versionKeyBySendCount.set(index + 1, versionKey)
+    }
+  })
+  const versionsAscWithMs = versionsAsc
+    .map((version) => ({
+      versionKey: String(version?.savedAt || ""),
+      savedAtMs: toDateSafe(version?.savedAt as any)?.getTime() || 0,
+    }))
+    .filter((row) => row.versionKey)
+
+  const resolvedOfferResponses = allOfferResponses.map((row) => {
+    const directVersionKey = String(row.versionSavedAt || "")
+    if (directVersionKey && mappedVersionKeys.has(directVersionKey)) {
+      return { ...row, resolvedVersionSavedAt: directVersionKey }
+    }
+
+    if (row.offerSendCountAtResponse && versionKeyBySendCount.has(row.offerSendCountAtResponse)) {
+      return {
+        ...row,
+        resolvedVersionSavedAt: String(versionKeyBySendCount.get(row.offerSendCountAtResponse) || ""),
+      }
+    }
+
+    const responseAtMs = toDateSafe(row.at as any)?.getTime() || 0
+    if (responseAtMs > 0 && versionsAscWithMs.length > 0) {
+      const candidate =
+        [...versionsAscWithMs].reverse().find((version) => version.savedAtMs > 0 && version.savedAtMs <= responseAtMs) ||
+        versionsAscWithMs[0]
+      if (candidate?.versionKey) {
+        return { ...row, resolvedVersionSavedAt: candidate.versionKey }
+      }
+    }
+
+    return { ...row, resolvedVersionSavedAt: "" }
+  })
+
+  const unmappedOfferResponses = resolvedOfferResponses.filter((row) => !row.resolvedVersionSavedAt)
   const latestOfferResponse = allOfferResponses.length > 0 ? allOfferResponses[0] : null
   const hasOfferHistory =
     offerVersionsHistory.length > 0 ||
@@ -1824,7 +1874,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
   const formatOfferHistoryDate = (value: any) => {
     const date = toDateSafe(value)
-    return date ? formatUiDate(date) : "-"
+    return date ? `${formatUiDate(date)} ${formatTime(date)}` : "-"
   }
   
   // Condiții pentru reintervenție: lucrare preluată + (raport generat sau context de amânare) + neanulată
@@ -3979,7 +4029,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       <div className="rounded border divide-y">
                         {offerVersionsHistory.map((version, index) => {
                           const savedAtStr = String(version?.savedAt || "")
-                          const versionResponses = allOfferResponses.filter((row) => String(row.versionSavedAt || "") === savedAtStr)
+                          const versionResponses = resolvedOfferResponses.filter(
+                            (row) => String(row.resolvedVersionSavedAt || "") === savedAtStr
+                          )
                           const versionProducts = Array.isArray(version?.products) ? (version.products as Array<any>) : []
                           return (
                             <div key={`${savedAtStr || "no-date"}-${index}`} className="p-2 text-sm">

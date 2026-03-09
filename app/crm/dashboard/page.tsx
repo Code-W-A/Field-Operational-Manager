@@ -29,7 +29,7 @@ function getTaskPriorityBucket(task?: CrmTask | null) {
 }
 
 function getMostUrgentOpenTask(tasks: CrmTask[]) {
-  const openTasks = tasks.filter((task) => task.status !== "DONE" && task.status !== "CANCELED")
+  const openTasks = tasks.filter((task) => task.status === "TODO" || task.status === "IN_PROGRESS")
   if (!openTasks.length) return null
 
   return [...openTasks].sort((a, b) => {
@@ -44,7 +44,7 @@ function getMostUrgentOpenTask(tasks: CrmTask[]) {
 }
 
 export default function CrmDashboardPage() {
-  const { user } = useAuth()
+  const { user, userData } = useAuth()
   const router = useRouter()
   const [opportunities, setOpportunities] = useState<CrmOpportunity[]>([])
   const [tasks, setTasks] = useState<CrmTask[]>([])
@@ -71,6 +71,7 @@ export default function CrmDashboardPage() {
           opportunityIds: opportunityRows.map((row) => row.id),
           userId: user.uid,
           ownerByOpportunityId,
+          assigneeOnlyUserId: userData?.role === "admin" ? undefined : user.uid,
         })
 
         setOpportunities(opportunityRows)
@@ -82,7 +83,7 @@ export default function CrmDashboardPage() {
     }
 
     load()
-  }, [user?.uid])
+  }, [user?.uid, userData?.role])
 
   const opportunitiesWithUrgency = useMemo(() => {
     const groupedTasks = tasks.reduce<Record<string, CrmTask[]>>((acc, task) => {
@@ -114,17 +115,17 @@ export default function CrmDashboardPage() {
 
     const overdue = tasks.filter((task) => {
       const due = getDateValue(task.dueAt)
-      return task.status !== "DONE" && task.status !== "CANCELED" && due && due < startOfToday
+      return (task.status === "TODO" || task.status === "IN_PROGRESS") && due && due < startOfToday
     })
 
     const today = tasks.filter((task) => {
       const due = getDateValue(task.dueAt)
-      return task.status !== "DONE" && task.status !== "CANCELED" && due && due >= startOfToday && due <= endOfToday
+      return (task.status === "TODO" || task.status === "IN_PROGRESS") && due && due >= startOfToday && due <= endOfToday
     })
 
     const upcoming = tasks.filter((task) => {
       const due = getDateValue(task.dueAt)
-      return task.status !== "DONE" && task.status !== "CANCELED" && due && due > endOfToday
+      return (task.status === "TODO" || task.status === "IN_PROGRESS") && due && due > endOfToday
     })
 
     return { overdue, today, upcoming }
@@ -169,7 +170,7 @@ export default function CrmDashboardPage() {
         <Card className="crm-card">
           <CardContent className="p-4">
             <p className="text-xs text-neutral-500">Sarcini deschise</p>
-            <p className="mt-1 text-lg font-medium text-neutral-900">{tasks.filter((task) => task.status !== "DONE" && task.status !== "CANCELED").length}</p>
+            <p className="mt-1 text-lg font-medium text-neutral-900">{tasks.filter((task) => task.status === "TODO" || task.status === "IN_PROGRESS").length}</p>
           </CardContent>
         </Card>
       </div>
@@ -270,7 +271,7 @@ export default function CrmDashboardPage() {
       {loading ? null : (
         <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-xs text-neutral-500">
           <AlertCircle className="mr-1 inline h-3.5 w-3.5" />
-          Sarcinile și oportunitățile afișate respectă filtrele de acces owner/share/custom.
+          Sarcinile și oportunitățile afișate respectă filtrele de acces proprietar/share/custom.
           <span className="ml-1 font-medium text-neutral-700">Status most recent: {tasks[0] ? taskStatusLabel(tasks[0].status) : "-"}</span>
         </div>
       )}

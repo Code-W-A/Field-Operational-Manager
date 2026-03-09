@@ -118,14 +118,6 @@ export function buildNav(ctx: NavCtx): NavNode[] {
 
   const nodes: NavNode[] = [
     {
-      type: "link",
-      id: "dashboard",
-      label: "Dashboard",
-      href: "/dashboard",
-      icon: LayoutDashboard,
-      activeMatch: "exact",
-    },
-    {
       type: "group",
       id: "crm",
       label: "CRM",
@@ -149,6 +141,14 @@ export function buildNav(ctx: NavCtx): NavNode[] {
           activeMatch: "prefix",
         },
       ],
+    },
+    {
+      type: "link",
+      id: "dashboard",
+      label: "Dashboard",
+      href: "/dashboard",
+      icon: LayoutDashboard,
+      activeMatch: "exact",
     },
     {
       type: "link",
