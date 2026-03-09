@@ -101,6 +101,14 @@ type ActiveWorkSummary = {
   tehnicieni?: string[]
 }
 
+type OfferHistoryDialogVersion = {
+  savedAt: string
+  savedBy: string
+  total: number
+  products: Array<any>
+  responses: Array<{ status: "accept" | "reject"; at: any; reason?: string; verifiedEmail?: string }>
+}
+
 type EditFormData = {
   tipLucrare: string
   tehnicieni: string[]
@@ -300,6 +308,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const [locationAddress, setLocationAddress] = useState<string | null>(null)
   const [isUpdating, setIsUpdating] = useState(false)
   const [isOfferEditorOpen, setIsOfferEditorOpen] = useState(false)
+  const [offerHistoryDialogVersion, setOfferHistoryDialogVersion] = useState<OfferHistoryDialogVersion | null>(null)
   const [reinterventii, setReinterventii] = useState<Lucrare[]>([])
   const [loadingReinterventii, setLoadingReinterventii] = useState(false)
   const [clientData, setClientData] = useState<any>(null)
@@ -3971,13 +3980,38 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         {offerVersionsHistory.map((version, index) => {
                           const savedAtStr = String(version?.savedAt || "")
                           const versionResponses = allOfferResponses.filter((row) => String(row.versionSavedAt || "") === savedAtStr)
+                          const versionProducts = Array.isArray(version?.products) ? (version.products as Array<any>) : []
                           return (
                             <div key={`${savedAtStr || "no-date"}-${index}`} className="p-2 text-sm">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-medium">{formatOfferHistoryDate(version?.savedAt)}</span>
-                                <span className="text-xs text-muted-foreground">
-                                  {version?.savedBy || "Necunoscut"} • Total: {Number(version?.total || 0).toFixed(2)} lei
-                                </span>
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-medium">{formatOfferHistoryDate(version?.savedAt)}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {version?.savedBy || "Necunoscut"} • Total: {Number(version?.total || 0).toFixed(2)} lei
+                                  </span>
+                                </div>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2 text-xs"
+                                  onClick={() =>
+                                    setOfferHistoryDialogVersion({
+                                      savedAt: savedAtStr,
+                                      savedBy: String(version?.savedBy || "Necunoscut"),
+                                      total: Number(version?.total || 0),
+                                      products: versionProducts,
+                                      responses: versionResponses.map((response) => ({
+                                        status: response.status,
+                                        at: response.at,
+                                        reason: response.reason || undefined,
+                                        verifiedEmail: response.verifiedEmail || undefined,
+                                      })),
+                                    })
+                                  }
+                                >
+                                  Detalii
+                                </Button>
                               </div>
                               {versionResponses.length > 0 ? (
                                 <div className="mt-1 space-y-1">
@@ -4007,6 +4041,41 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                               ) : (
                                 <p className="mt-1 text-xs text-muted-foreground">Fără răspuns client pentru această versiune.</p>
                               )}
+                              <details className="mt-2 rounded border border-neutral-200 bg-neutral-50/60 p-2">
+                                <summary className="cursor-pointer text-xs font-medium text-neutral-700">
+                                  Linii ofertate: {versionProducts.length}
+                                </summary>
+                                {versionProducts.length > 0 ? (
+                                  <div className="mt-2 overflow-x-auto rounded border bg-white">
+                                    <table className="w-full min-w-[420px] text-xs">
+                                      <thead className="bg-neutral-100 text-neutral-600">
+                                        <tr>
+                                          <th className="px-2 py-1 text-left font-medium">#</th>
+                                          <th className="px-2 py-1 text-left font-medium">Denumire</th>
+                                          <th className="px-2 py-1 text-center font-medium">UM</th>
+                                          <th className="px-2 py-1 text-right font-medium">Cant.</th>
+                                          <th className="px-2 py-1 text-right font-medium">PU</th>
+                                          <th className="px-2 py-1 text-right font-medium">Total</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {versionProducts.map((product, productIndex) => (
+                                          <tr key={`${savedAtStr}-product-${productIndex}`} className="border-t border-neutral-100">
+                                            <td className="px-2 py-1.5 text-neutral-500">{productIndex + 1}</td>
+                                            <td className="px-2 py-1.5 text-neutral-800">{String(product?.name || "-")}</td>
+                                            <td className="px-2 py-1.5 text-center text-neutral-600">{String(product?.um || "-")}</td>
+                                            <td className="px-2 py-1.5 text-right text-neutral-700">{Number(product?.quantity || 0).toLocaleString("ro-RO")}</td>
+                                            <td className="px-2 py-1.5 text-right text-neutral-700">{Number(product?.price || 0).toFixed(2)}</td>
+                                            <td className="px-2 py-1.5 text-right font-medium text-neutral-900">{Number(product?.total || 0).toFixed(2)}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                ) : (
+                                  <p className="mt-2 text-xs text-neutral-500">Nu există linii salvate pentru această versiune.</p>
+                                )}
+                              </details>
                             </div>
                           )
                         })}
@@ -4032,6 +4101,96 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                     )}
                   </div>
                 )}
+                <Dialog open={!!offerHistoryDialogVersion} onOpenChange={(open) => !open && setOfferHistoryDialogVersion(null)}>
+                  <DialogContent className="sm:max-w-3xl">
+                    <DialogHeader>
+                      <DialogTitle>Detalii versiune ofertă (read-only)</DialogTitle>
+                    </DialogHeader>
+                    {offerHistoryDialogVersion ? (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Salvată la</p>
+                            <p className="font-medium">{formatOfferHistoryDate(offerHistoryDialogVersion.savedAt)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Salvată de</p>
+                            <p className="font-medium">{offerHistoryDialogVersion.savedBy}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Total ofertă</p>
+                            <p className="font-medium">{offerHistoryDialogVersion.total.toFixed(2)} lei</p>
+                          </div>
+                        </div>
+
+                        <div className="rounded border p-3">
+                          <p className="mb-2 text-sm font-medium">Răspuns client</p>
+                          {offerHistoryDialogVersion.responses.length > 0 ? (
+                            <div className="space-y-2">
+                              {offerHistoryDialogVersion.responses.map((response, responseIndex) => (
+                                <div key={`dialog-offer-response-${responseIndex}`} className="text-sm">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Badge className={response.status === "accept" ? "bg-green-100 text-green-800 border-green-200 rounded-md" : "bg-red-100 text-red-800 border-red-200 rounded-md"}>
+                                      {response.status === "accept" ? "Acceptată" : "Respinsă"}
+                                    </Badge>
+                                    <span className="text-muted-foreground">{formatOfferHistoryDate(response.at)}</span>
+                                    {response.verifiedEmail ? <span className="text-muted-foreground">• {response.verifiedEmail}</span> : null}
+                                  </div>
+                                  {response.status === "reject" && response.reason ? (
+                                    <p className="mt-1 text-red-800">Mesaj client: {response.reason}</p>
+                                  ) : null}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">Fără răspuns client pentru această versiune.</p>
+                          )}
+                        </div>
+
+                        <div className="rounded border p-3">
+                          <p className="mb-2 text-sm font-medium">
+                            Linii ofertate ({offerHistoryDialogVersion.products.length})
+                          </p>
+                          {offerHistoryDialogVersion.products.length > 0 ? (
+                            <div className="overflow-x-auto rounded border">
+                              <table className="w-full min-w-[560px] text-sm">
+                                <thead className="bg-muted">
+                                  <tr>
+                                    <th className="px-3 py-2 text-left">#</th>
+                                    <th className="px-3 py-2 text-left">Denumire</th>
+                                    <th className="px-3 py-2 text-center">UM</th>
+                                    <th className="px-3 py-2 text-right">Cantitate</th>
+                                    <th className="px-3 py-2 text-right">PU (lei)</th>
+                                    <th className="px-3 py-2 text-right">Total (lei)</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {offerHistoryDialogVersion.products.map((product, productIndex) => (
+                                    <tr key={`dialog-offer-product-${productIndex}`} className="border-t">
+                                      <td className="px-3 py-2 text-muted-foreground">{productIndex + 1}</td>
+                                      <td className="px-3 py-2">{String(product?.name || "-")}</td>
+                                      <td className="px-3 py-2 text-center">{String(product?.um || "-")}</td>
+                                      <td className="px-3 py-2 text-right">{Number(product?.quantity || 0).toLocaleString("ro-RO")}</td>
+                                      <td className="px-3 py-2 text-right">{Number(product?.price || 0).toFixed(2)}</td>
+                                      <td className="px-3 py-2 text-right font-medium">{Number(product?.total || 0).toFixed(2)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">Nu există linii salvate pentru această versiune.</p>
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
+                    <DialogFooter>
+                      <Button type="button" variant="outline" onClick={() => setOfferHistoryDialogVersion(null)}>
+                        Închide
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
 
                 {/* Snapshot produse la generarea raportului – vizibil doar pentru admin/dispecer */}
                 {isAdminOrDispatcher && (lucrare as any)?.raportSnapshot?.products?.length > 0 && (
