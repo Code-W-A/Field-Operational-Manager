@@ -120,6 +120,8 @@ export default function CrmOpportunitiesPage() {
   const isTechnician = userData?.role === "tehnician"
 
   const typeFromUrlRaw = (searchParams.get("type") || "").toUpperCase()
+  const prefilledClientId = (searchParams.get("clientId") || "").trim()
+  const shouldAutoOpenCreate = searchParams.get("create") === "1"
   const typeFromUrl = LEFT_FILTER_ITEMS.includes(typeFromUrlRaw as (typeof LEFT_FILTER_ITEMS)[number])
     ? (typeFromUrlRaw as (typeof LEFT_FILTER_ITEMS)[number])
     : "ALL"
@@ -411,6 +413,8 @@ export default function CrmOpportunitiesPage() {
               <CreateOpportunityDialog
                 actorId={user?.uid || ""}
                 iconOnly
+                prefilledClientId={prefilledClientId}
+                autoOpen={shouldAutoOpenCreate}
                 onCreated={(opportunityId) => router.push(`/crm/opportunities/${opportunityId}/timeline`)}
               />
             </div>
@@ -644,7 +648,8 @@ export default function CrmOpportunitiesPage() {
 
         <Panel
           title="Status oportunități"
-          className="rounded-md border-neutral-300 bg-[#f3f4f6] shadow-none xl:h-full xl:rounded-none xl:border-y-0 xl:border-r-0 xl:border-l xl:border-neutral-300"
+          className="flex min-h-0 flex-col overflow-hidden rounded-md border-neutral-300 bg-[#f3f4f6] shadow-none xl:h-full xl:rounded-none xl:border-y-0 xl:border-r-0 xl:border-l xl:border-neutral-300"
+          contentClassName="min-h-0 flex-1 overflow-y-auto"
         >
           <div className="space-y-4">
             <div className="space-y-2">

@@ -138,6 +138,24 @@ export async function POST(req: NextRequest) {
 
       const verifiedEmail = typeof verification?.email === "string" ? verification.email : ""
       const now = new Date()
+      const versionSavedAt =
+        typeof data?.offerActionSnapshot?.savedAt === "string"
+          ? data.offerActionSnapshot.savedAt
+          : typeof data?.offerActionVersionSavedAt === "string"
+            ? data.offerActionVersionSavedAt
+            : null
+      const existingHistory = Array.isArray(data?.offerResponsesHistory) ? data.offerResponsesHistory : []
+      const hasExistingResponseForProof = existingHistory.some((row: any) => String(row?.responseProofHash || "") === proofHash)
+      const historyEntry = {
+        status: safeFinalAction,
+        at: now,
+        ...(verifiedEmail ? { verifiedEmail } : {}),
+        ...(safeFinalAction === "reject" && reason ? { reason } : {}),
+        ...(versionSavedAt ? { versionSavedAt } : {}),
+        offerSendCountAtResponse: Number(data?.offerSendCount || 0),
+        tokenUsed: String(data?.offerActionToken || ""),
+        responseProofHash: proofHash,
+      }
       const update: Record<string, any> = {
         offerResponse: {
           status: safeFinalAction,
@@ -145,6 +163,7 @@ export async function POST(req: NextRequest) {
           ...(verifiedEmail ? { verifiedEmail } : {}),
           ...(safeFinalAction === "reject" && reason ? { reason } : {}),
         },
+        offerResponsesHistory: hasExistingResponseForProof ? existingHistory : [...existingHistory, historyEntry],
         offerActionUsedAt: now,
         "offerActionVerification.responseProofUsedAt": now,
       }

@@ -1757,6 +1757,66 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const hasPostponeContext = Boolean(lucrare?.motivAmanare || lucrare?.dataAmanare || lucrare?.amanataDe)
   const isCompletedWithReport = isFinalizatByReport && lucrare.raportGenerat === true
   const isCanceled = lucrare.statusLucrare === WORK_STATUS.CANCELED
+  const offerResponseStatus = (lucrare as any)?.offerResponse?.status as "accept" | "reject" | undefined
+  const offerResponseReason = String((lucrare as any)?.offerResponse?.reason || "").trim()
+  const offerResponseVerifiedEmail = String((lucrare as any)?.offerResponse?.verifiedEmail || "").trim()
+  const offerResponseVersionAtRaw =
+    (lucrare as any)?.offerActionVersionSavedAt ||
+    (lucrare as any)?.offerActionSnapshot?.savedAt ||
+    (lucrare as any)?.acceptedOfferSnapshot?.savedAt ||
+    null
+  const offerResponseVersionAt = offerResponseVersionAtRaw ? String(offerResponseVersionAtRaw) : null
+  const offerVersionsRaw = Array.isArray((lucrare as any)?.offerVersions) ? ((lucrare as any).offerVersions as Array<any>) : []
+  const offerVersionsHistory = [...offerVersionsRaw].sort((a, b) => {
+    const aMs = toDateSafe(a?.savedAt as any)?.getTime() || 0
+    const bMs = toDateSafe(b?.savedAt as any)?.getTime() || 0
+    return bMs - aMs
+  })
+  const offerResponsesHistoryRaw = Array.isArray((lucrare as any)?.offerResponsesHistory)
+    ? ((lucrare as any).offerResponsesHistory as Array<any>)
+    : []
+  const offerResponsesHistory = offerResponsesHistoryRaw
+    .map((row) => ({
+      status: row?.status === "accept" || row?.status === "reject" ? row.status : undefined,
+      reason: String(row?.reason || "").trim(),
+      verifiedEmail: String(row?.verifiedEmail || "").trim(),
+      versionSavedAt: row?.versionSavedAt ? String(row.versionSavedAt) : "",
+      at: row?.at,
+    }))
+    .filter((row) => row.status)
+    .sort((a, b) => {
+      const aMs = toDateSafe(a.at as any)?.getTime() || 0
+      const bMs = toDateSafe(b.at as any)?.getTime() || 0
+      return bMs - aMs
+    })
+  const fallbackCurrentOfferResponse =
+    offerResponseStatus
+      ? [
+          {
+            status: offerResponseStatus,
+            reason: offerResponseReason,
+            verifiedEmail: offerResponseVerifiedEmail,
+            versionSavedAt: offerResponseVersionAt || "",
+            at: (lucrare as any)?.offerResponse?.at,
+          },
+        ]
+      : []
+  const allOfferResponses = offerResponsesHistory.length > 0 ? offerResponsesHistory : fallbackCurrentOfferResponse
+  const mappedVersionKeys = new Set(offerVersionsHistory.map((version) => String(version?.savedAt || "")))
+  const unmappedOfferResponses = allOfferResponses.filter(
+    (row) => !row.versionSavedAt || !mappedVersionKeys.has(String(row.versionSavedAt || ""))
+  )
+  const latestOfferResponse = allOfferResponses.length > 0 ? allOfferResponses[0] : null
+  const hasOfferHistory =
+    offerVersionsHistory.length > 0 ||
+    Number((lucrare as any)?.offerSendCount || 0) > 0 ||
+    Boolean((lucrare as any)?.lastOfferEmail) ||
+    allOfferResponses.length > 0
+
+  const formatOfferHistoryDate = (value: any) => {
+    const date = toDateSafe(value)
+    return date ? formatUiDate(date) : "-"
+  }
   
   // Condiții pentru reintervenție: lucrare preluată + (raport generat sau context de amânare) + neanulată
   const needsReintervention = (lucrare: any) => {
@@ -3878,6 +3938,98 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         </div>
                       )}
                     </div>
+                  </div>
+                )}
+                {role !== "client" && hasOfferHistory && (
+                  <div className="p-3 border rounded-md bg-white mb-4">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="text-sm font-semibold">Istoric ofertare</p>
+                      <Badge variant="outline" className="rounded-md">
+                        Read-only
+                      </Badge>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 mb-3 text-xs">
+                      <Badge variant="secondary" className="rounded-md">
+                        Trimiteri: {Number((lucrare as any)?.offerSendCount || 0)}
+                      </Badge>
+                      {latestOfferResponse?.status && (
+                        <Badge
+                          className={
+                            latestOfferResponse.status === "accept"
+                              ? "bg-green-100 text-green-800 border-green-200 rounded-md"
+                              : "bg-red-100 text-red-800 border-red-200 rounded-md"
+                          }
+                        >
+                          {latestOfferResponse.status === "accept" ? "Ultimul răspuns: Acceptată" : "Ultimul răspuns: Respinsă"}
+                        </Badge>
+                      )}
+                    </div>
+
+                    {offerVersionsHistory.length > 0 ? (
+                      <div className="rounded border divide-y">
+                        {offerVersionsHistory.map((version, index) => {
+                          const savedAtStr = String(version?.savedAt || "")
+                          const versionResponses = allOfferResponses.filter((row) => String(row.versionSavedAt || "") === savedAtStr)
+                          return (
+                            <div key={`${savedAtStr || "no-date"}-${index}`} className="p-2 text-sm">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-medium">{formatOfferHistoryDate(version?.savedAt)}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {version?.savedBy || "Necunoscut"} • Total: {Number(version?.total || 0).toFixed(2)} lei
+                                </span>
+                              </div>
+                              {versionResponses.length > 0 ? (
+                                <div className="mt-1 space-y-1">
+                                  {versionResponses.map((response, responseIndex) => (
+                                    <div key={`${savedAtStr}-resp-${responseIndex}`} className="text-xs">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <Badge
+                                          className={
+                                            response.status === "accept"
+                                              ? "bg-green-100 text-green-800 border-green-200 rounded-md"
+                                              : "bg-red-100 text-red-800 border-red-200 rounded-md"
+                                          }
+                                        >
+                                          {response.status === "accept" ? "Acceptată" : "Respinsă"}
+                                        </Badge>
+                                        <span className="text-muted-foreground">{formatOfferHistoryDate(response.at)}</span>
+                                        {response.verifiedEmail ? (
+                                          <span className="text-muted-foreground">• {response.verifiedEmail}</span>
+                                        ) : null}
+                                      </div>
+                                      {response.status === "reject" && response.reason ? (
+                                        <p className="mt-0.5 text-red-800">Mesaj client: {response.reason}</p>
+                                      ) : null}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="mt-1 text-xs text-muted-foreground">Fără răspuns client pentru această versiune.</p>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Nu există versiuni salvate în istoric.</p>
+                    )}
+
+                    {unmappedOfferResponses.length > 0 && (
+                      <div className="mt-2 rounded border border-amber-200 bg-amber-50 p-2">
+                        <p className="text-xs font-medium text-amber-900">Răspunsuri fără versiune mapată</p>
+                        <div className="mt-1 space-y-1">
+                          {unmappedOfferResponses.map((response, responseIndex) => (
+                            <div key={`unmapped-response-${responseIndex}`} className="text-xs text-amber-900">
+                              <span className="font-medium">{response.status === "accept" ? "Acceptată" : "Respinsă"}</span>
+                              <span> • {formatOfferHistoryDate(response.at)}</span>
+                              {response.reason ? <span> • Mesaj: {response.reason}</span> : null}
+                              {response.verifiedEmail ? <span> • {response.verifiedEmail}</span> : null}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 

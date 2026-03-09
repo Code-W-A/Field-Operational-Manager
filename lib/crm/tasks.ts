@@ -211,6 +211,7 @@ export async function updateCrmTask(params: {
 
   const payload: Record<string, unknown> = {
     updatedAt: serverTimestamp(),
+    updatedById: params.actorId,
     visibility,
     visibleToUserIds,
   }

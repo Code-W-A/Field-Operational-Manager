@@ -103,6 +103,18 @@ export interface Lucrare {
     at: any
     by?: string
   }
+  // Istoric complet răspunsuri client la ofertă (append-only, backward compatible)
+  offerResponsesHistory?: Array<{
+    status: "accept" | "reject"
+    reason?: string
+    at: any
+    by?: string
+    verifiedEmail?: string
+    versionSavedAt?: string | null
+    offerSendCountAtResponse?: number
+    tokenUsed?: string
+    responseProofHash?: string
+  }>
   // Token de acțiune pentru ofertă (link din email)
   offerActionToken?: string
   offerActionExpiresAt?: any

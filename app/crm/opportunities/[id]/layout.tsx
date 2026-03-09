@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   getCrmClientById,
   deleteCrmOpportunity,
@@ -22,8 +23,6 @@ import { formatDateTime, priorityLabel, stageLabel, workStatusLabel } from "@/li
 import {
   CRM_OPPORTUNITY_SELECTABLE_TYPES,
   CRM_OPPORTUNITY_TYPE_LABELS,
-  CRM_PIPELINE_STAGE_LABELS,
-  getPipelineStagesForOpportunityType,
   isTerminalPipelineStageForOpportunityType,
 } from "@/lib/crm/constants"
 import type { CrmClient, CrmClientContact, CrmOpportunity } from "@/lib/crm/types"
@@ -69,6 +68,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
   const [clientContacts, setClientContacts] = useState<CrmClientContact[]>([])
   const [opportunityContactIds, setOpportunityContactIds] = useState<string[]>([])
   const [userMap, setUserMap] = useState<Record<string, string>>({})
+  const [accessibleOpportunities, setAccessibleOpportunities] = useState<CrmOpportunity[]>([])
   const [activeOpportunityCounts, setActiveOpportunityCounts] = useState<Record<string, number>>(() => {
     const counts: Record<string, number> = { ALL: 0 }
     LEFT_FILTER_ITEMS.forEach((type) => {
@@ -116,6 +116,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
             return acc
           }, {})
         )
+        setAccessibleOpportunities(opportunitiesForCounts)
         const counts: Record<string, number> = { ALL: 0 }
         LEFT_FILTER_ITEMS.forEach((type) => {
           counts[type] = 0
@@ -236,8 +237,91 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
     }
   }
 
+  const copyTextToClipboard = async (value: string, successLabel: string) => {
+    const text = value.trim()
+    if (!text) {
+      toast({
+        title: "Nu există date",
+        description: `Nu există ${successLabel.toLowerCase()} disponibil.`,
+        variant: "destructive",
+      })
+      return
+    }
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+      } else {
+        throw new Error("Clipboard API indisponibil")
+      }
+      toast({
+        title: "Copiat",
+        description: `${successLabel} a fost copiat.`,
+      })
+    } catch {
+      toast({
+        title: "Copiere eșuată",
+        description: "Nu am putut copia în clipboard.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const openRelatedOpportunityCreate = () => {
+    const nextSearch = new URLSearchParams({
+      type: opportunity.opportunityType,
+      clientId: opportunity.clientId,
+      create: "1",
+    })
+    router.push(`/crm/opportunities?${nextSearch.toString()}`)
+    toast({
+      title: "Oportunitate nouă",
+      description: "Dialogul de creare a fost deschis cu clientul preselectat.",
+    })
+  }
+
   if (loading) {
-    return <div className="rounded-xl border border-neutral-200 bg-white p-5 text-sm text-neutral-500">Se încarcă oportunitatea...</div>
+    return (
+      <div className="flex h-full min-h-0 flex-col overflow-hidden">
+        <div className="grid flex-1 min-h-0 gap-3 overflow-hidden xl:grid-cols-[260px_1fr_300px]">
+          <div className="min-h-0 xl:h-full rounded-xl border border-neutral-200 bg-white p-4 space-y-3">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-8 w-full rounded-lg" />
+            <Skeleton className="h-8 w-5/6 rounded-lg" />
+            <Skeleton className="h-8 w-4/6 rounded-lg" />
+          </div>
+
+          <section className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
+            <div className="mt-1 rounded-xl border border-neutral-200 bg-white px-5 py-4">
+              <Skeleton className="h-7 w-3/5" />
+              <Skeleton className="mt-2 h-4 w-2/5" />
+            </div>
+            <div className="rounded-xl border border-neutral-200 bg-white p-3">
+              <div className="flex flex-wrap gap-2">
+                <Skeleton className="h-8 w-24 rounded-md" />
+                <Skeleton className="h-8 w-24 rounded-md" />
+                <Skeleton className="h-8 w-24 rounded-md" />
+                <Skeleton className="h-8 w-24 rounded-md" />
+                <Skeleton className="h-8 w-24 rounded-md" />
+              </div>
+            </div>
+            <div className="min-h-0 flex-1 rounded-xl border border-neutral-200 bg-white p-5 space-y-3">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-20 w-full rounded-lg" />
+              <Skeleton className="h-20 w-full rounded-lg" />
+              <Skeleton className="h-20 w-full rounded-lg" />
+            </div>
+          </section>
+
+          <div className="min-h-0 xl:h-full rounded-xl border border-neutral-200 bg-[#f3f4f6] p-4 space-y-3">
+            <Skeleton className="h-5 w-28" />
+            <Skeleton className="h-20 w-full rounded-lg" />
+            <Skeleton className="h-16 w-full rounded-lg" />
+            <Skeleton className="h-16 w-full rounded-lg" />
+            <Skeleton className="h-16 w-full rounded-lg" />
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (!opportunity) {
@@ -245,21 +329,16 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
   }
 
   const selectedContacts = clientContacts.filter((contact) => opportunityContactIds.includes(contact.id))
-  const opportunityStages = getPipelineStagesForOpportunityType(opportunity.opportunityType)
+  const contextContacts = selectedContacts.length > 0 ? selectedContacts : clientContacts
   const effectivePrimaryContactId = opportunity.primaryContactId || selectedContacts[0]?.id || ""
-  const createdByLabel = userMap[opportunity.createdById] || opportunity.createdById || "-"
-  const ownerLabel = userMap[opportunity.ownerId] || opportunity.ownerId || "-"
-  const assignedViewerIds = Array.from(
-    new Set(
-      opportunity.readUserIds.filter(
-        (userId) => userId && userId !== opportunity.ownerId && userId !== opportunity.createdById
-      )
-    )
-  )
-  const assignedViewerLabel =
-    assignedViewerIds.length > 0
-      ? assignedViewerIds.map((userId) => userMap[userId] || "Utilizator necunoscut").join(", ")
-      : "-"
+  const primaryContact =
+    contextContacts.find((contact) => contact.id === effectivePrimaryContactId) ||
+    contextContacts[0] ||
+    null
+  const secondaryContacts = contextContacts.filter((contact) => contact.id !== primaryContact?.id)
+  const relatedOpportunities = accessibleOpportunities
+    .filter((row) => row.clientId === opportunity.clientId && row.id !== opportunity.id)
+    .slice(0, 8)
   const activeType = opportunity.opportunityType
   const sidebarHomeItem = {
     key: "ALL",
@@ -379,19 +458,77 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
 
         <div className="min-h-0 xl:h-full xl:overflow-hidden">
           <details className="xl:hidden rounded-xl border border-neutral-200 bg-white">
-            <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-neutral-700">Client & contacte</summary>
+            <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-neutral-700">Context CRM</summary>
             <div className="space-y-5 border-t border-neutral-100 px-5 py-4">
               <div className="rounded-lg border border-neutral-200 bg-white p-3">
                 <p className="text-base font-semibold text-neutral-900">{client?.name || "-"}</p>
                 <p className="mt-1 text-sm text-neutral-500">{client?.address || "Adresă indisponibilă"}</p>
+                <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                  <Badge variant="outline">{client?.type || "Client"}</Badge>
+                  <Badge variant="outline">{contextContacts.length} contacte</Badge>
+                  <Badge variant="outline">{relatedOpportunities.length} oportunități conexe</Badge>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => router.push(`/dashboard/clienti/${client?.id || ""}`)} disabled={!client?.id}>
+                    Deschide client
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => void copyTextToClipboard(client?.name || "", "Numele clientului")}>
+                    Copiază nume
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => void copyTextToClipboard(client?.address || "", "Adresa clientului")}>
+                    Copiază adresă
+                  </Button>
+                </div>
               </div>
+
               <div>
-                <p className="mb-2 text-sm font-medium text-neutral-700">Contacte</p>
-                {selectedContacts.length === 0 ? (
-                  <p className="text-sm text-neutral-500">Nu există contacte selectate.</p>
+                <p className="mb-2 text-sm font-medium text-neutral-700">Contact principal</p>
+                {primaryContact ? (
+                  <button
+                    type="button"
+                    className="w-full rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-left"
+                    onClick={() => setSelectedContactForDialog(primaryContact)}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-neutral-900">{primaryContact.name}</p>
+                      <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Principal</Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-neutral-600">{primaryContact.locationName || "Fără locație"}</p>
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-neutral-700">
+                      {primaryContact.phone ? (
+                        <a href={`tel:${primaryContact.phone}`} onClick={(event) => event.stopPropagation()} className="hover:underline">
+                          {primaryContact.phone}
+                        </a>
+                      ) : (
+                        <span>-</span>
+                      )}
+                      {primaryContact.email ? (
+                        <a href={`mailto:${primaryContact.email}`} onClick={(event) => event.stopPropagation()} className="hover:underline">
+                          {primaryContact.email}
+                        </a>
+                      ) : null}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(event) => { event.stopPropagation(); void copyTextToClipboard(primaryContact.phone || "", "Telefonul contactului") }}>
+                        Copiază telefon
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(event) => { event.stopPropagation(); void copyTextToClipboard(primaryContact.email || "", "Emailul contactului") }}>
+                        Copiază email
+                      </Button>
+                    </div>
+                  </button>
+                ) : (
+                  <p className="text-sm text-neutral-500">Nu există contact principal disponibil.</p>
+                )}
+              </div>
+
+              <div>
+                <p className="mb-2 text-sm font-medium text-neutral-700">Contacte secundare</p>
+                {secondaryContacts.length === 0 ? (
+                  <p className="text-sm text-neutral-500">Nu există contacte secundare.</p>
                 ) : (
                   <div className="space-y-2">
-                    {selectedContacts.map((contact) => (
+                    {secondaryContacts.map((contact) => (
                       <button
                         key={contact.id}
                         type="button"
@@ -400,73 +537,59 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                       >
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="text-sm font-medium text-neutral-800">{contact.name}</p>
-                          {effectivePrimaryContactId === contact.id ? (
-                            <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Principal</Badge>
-                          ) : null}
+                        </div>
+                        <p className="mt-1 text-xs text-neutral-600">{contact.locationName || "Fără locație"}</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(event) => { event.stopPropagation(); void copyTextToClipboard(contact.phone || "", "Telefonul contactului") }}>
+                            Copiază telefon
+                          </Button>
+                          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(event) => { event.stopPropagation(); void copyTextToClipboard(contact.email || "", "Emailul contactului") }}>
+                            Copiază email
+                          </Button>
                         </div>
                       </button>
                     ))}
                   </div>
                 )}
               </div>
+
               <div>
-                <p className="mb-2 text-sm font-medium text-neutral-700">Pipeline</p>
-                <div className="space-y-2">
-                  {opportunityStages.map((stage) => (
-                    <div key={stage} className="flex items-center gap-2 text-sm">
-                      <span
-                        className={`h-2 w-2 rounded-full ${
-                          opportunity.pipelineStage === stage ? "bg-blue-500" : "bg-neutral-300"
-                        }`}
-                      />
-                      <span className={opportunity.pipelineStage === stage ? "text-neutral-900" : "text-neutral-500"}>
-                        {CRM_PIPELINE_STAGE_LABELS[stage] || stage}
-                      </span>
-                    </div>
-                  ))}
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-neutral-700">Oportunități conexe</p>
+                  <div className="flex items-center gap-1">
+                    <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => router.push("/crm/opportunities")}>
+                      Vezi toate
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={openRelatedOpportunityCreate}>
+                      Oportunitate nouă
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <p className="mb-2 text-sm font-medium text-neutral-700">Fields</p>
-                <div className="grid grid-cols-[120px_1fr] gap-2 text-sm">
-                  <span className="text-neutral-500">Code</span>
-                  <span className="text-neutral-800">{opportunity.code}</span>
-
-                  <span className="text-neutral-500">Titlu</span>
-                  <span className="text-neutral-800">{opportunity.title}</span>
-
-                  <span className="text-neutral-500">Amount</span>
-                  <span className="text-neutral-800">{typeof opportunity.amount === "number" ? `${opportunity.amount.toLocaleString("ro-RO")} RON` : "-"}</span>
-
-                  <span className="text-neutral-500">Close date</span>
-                  <span className="text-neutral-800">{formatDateTime(opportunity.closeDate)}</span>
-
-                  <span className="text-neutral-500">Created by</span>
-                  <span className="text-neutral-800">{createdByLabel}</span>
-
-                  <span className="text-neutral-500">Owner</span>
-                  <span className="text-neutral-800">{ownerLabel}</span>
-
-                  <span className="text-neutral-500">Asignați (view)</span>
-                  <span className="text-neutral-800">{assignedViewerLabel}</span>
-
-                  <span className="text-neutral-500">Stage</span>
-                  <span className="text-neutral-800">{stageLabel(opportunity.pipelineStage)}</span>
-
-                  <span className="text-neutral-500">Prioritate</span>
-                  <span className="text-neutral-800">{priorityLabel(opportunity.priority)}</span>
-
-                  <span className="text-neutral-500">Status</span>
-                  <span className="text-neutral-800">{workStatusLabel(opportunity.workStatus)}</span>
-
-                  <span className="text-neutral-500">Last update</span>
-                  <span className="text-neutral-800">{formatDateTime(opportunity.updatedAt)}</span>
-                </div>
+                {relatedOpportunities.length === 0 ? (
+                  <p className="text-sm text-neutral-500">Nu există alte oportunități pentru acest client.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {relatedOpportunities.map((related) => (
+                      <button
+                        key={related.id}
+                        type="button"
+                        onClick={() => router.push(`/crm/opportunities/${related.id}/timeline`)}
+                        className="w-full rounded-lg border border-neutral-200 bg-white p-3 text-left transition hover:bg-neutral-50"
+                      >
+                        <p className="text-sm font-medium text-neutral-800">{related.displayTitle || `${related.code} - ${related.title}`}</p>
+                        <p className="mt-1 text-xs text-neutral-500">
+                          {stageLabel(related.pipelineStage)} • {priorityLabel(related.priority)} • {workStatusLabel(related.workStatus)}
+                        </p>
+                        <p className="mt-1 text-xs text-neutral-500">Actualizat: {formatDateTime(related.updatedAt)}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </details>
           <Panel
-            title="Client"
+            title="Context CRM"
             size="comfortable"
             className="hidden overflow-hidden bg-[#f3f4f6] shadow-none xl:flex xl:h-full xl:flex-col xl:rounded-none xl:border-y-0 xl:border-r-0 xl:border-l xl:border-neutral-300"
             contentClassName="min-h-0 flex-1 space-y-5 overflow-y-auto"
@@ -474,15 +597,72 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
             <div className="rounded-lg border border-neutral-200 bg-white p-3">
               <p className="text-base font-semibold text-neutral-900">{client?.name || "-"}</p>
               <p className="mt-1 text-sm text-neutral-500">{client?.address || "Adresă indisponibilă"}</p>
+              <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                <Badge variant="outline">{client?.type || "Client"}</Badge>
+                <Badge variant="outline">{contextContacts.length} contacte</Badge>
+                <Badge variant="outline">{relatedOpportunities.length} oportunități conexe</Badge>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => router.push(`/dashboard/clienti/${client?.id || ""}`)} disabled={!client?.id}>
+                  Deschide client
+                </Button>
+                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => void copyTextToClipboard(client?.name || "", "Numele clientului")}>
+                  Copiază nume
+                </Button>
+                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => void copyTextToClipboard(client?.address || "", "Adresa clientului")}>
+                  Copiază adresă
+                </Button>
+              </div>
             </div>
 
             <div>
-              <p className="mb-2 text-sm font-medium text-neutral-700">Contacte</p>
-              {selectedContacts.length === 0 ? (
-                <p className="text-sm text-neutral-500">Nu există contacte selectate.</p>
+              <p className="mb-2 text-sm font-medium text-neutral-700">Contact principal</p>
+              {primaryContact ? (
+                <button
+                  type="button"
+                  className="w-full rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-left"
+                  onClick={() => setSelectedContactForDialog(primaryContact)}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-neutral-900">{primaryContact.name}</p>
+                    <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Principal</Badge>
+                  </div>
+                  <p className="mt-1 text-xs text-neutral-600">{primaryContact.locationName || "Fără locație"}</p>
+                  <div className="mt-2 flex flex-wrap gap-3 text-xs text-neutral-700">
+                    {primaryContact.phone ? (
+                      <a href={`tel:${primaryContact.phone}`} onClick={(event) => event.stopPropagation()} className="hover:underline">
+                        {primaryContact.phone}
+                      </a>
+                    ) : (
+                      <span>-</span>
+                    )}
+                    {primaryContact.email ? (
+                      <a href={`mailto:${primaryContact.email}`} onClick={(event) => event.stopPropagation()} className="hover:underline">
+                        {primaryContact.email}
+                      </a>
+                    ) : null}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(event) => { event.stopPropagation(); void copyTextToClipboard(primaryContact.phone || "", "Telefonul contactului") }}>
+                      Copiază telefon
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(event) => { event.stopPropagation(); void copyTextToClipboard(primaryContact.email || "", "Emailul contactului") }}>
+                      Copiază email
+                    </Button>
+                  </div>
+                </button>
+              ) : (
+                <p className="text-sm text-neutral-500">Nu există contact principal disponibil.</p>
+              )}
+            </div>
+
+            <div>
+              <p className="mb-2 text-sm font-medium text-neutral-700">Contacte secundare</p>
+              {secondaryContacts.length === 0 ? (
+                <p className="text-sm text-neutral-500">Nu există contacte secundare.</p>
               ) : (
                 <div className="space-y-2">
-                  {selectedContacts.map((contact) => (
+                  {secondaryContacts.map((contact) => (
                     <button
                       key={contact.id}
                       type="button"
@@ -491,9 +671,15 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                     >
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-sm font-medium text-neutral-800">{contact.name}</p>
-                        {effectivePrimaryContactId === contact.id ? (
-                          <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Principal</Badge>
-                        ) : null}
+                      </div>
+                      <p className="mt-1 text-xs text-neutral-600">{contact.locationName || "Fără locație"}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(event) => { event.stopPropagation(); void copyTextToClipboard(contact.phone || "", "Telefonul contactului") }}>
+                          Copiază telefon
+                        </Button>
+                        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(event) => { event.stopPropagation(); void copyTextToClipboard(contact.email || "", "Emailul contactului") }}>
+                          Copiază email
+                        </Button>
                       </div>
                     </button>
                   ))}
@@ -501,60 +687,38 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
               )}
             </div>
 
-            <div>
-              <p className="mb-2 text-sm font-medium text-neutral-700">Pipeline</p>
-              <div className="space-y-2">
-                {opportunityStages.map((stage) => (
-                  <div key={stage} className="flex items-center gap-2 text-sm">
-                    <span
-                      className={`h-2 w-2 rounded-full ${
-                        opportunity.pipelineStage === stage ? "bg-blue-500" : "bg-neutral-300"
-                      }`}
-                    />
-                    <span className={opportunity.pipelineStage === stage ? "text-neutral-900" : "text-neutral-500"}>
-                      {CRM_PIPELINE_STAGE_LABELS[stage] || stage}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
             <div className="border-t border-neutral-300 pt-4">
-              <p className="mb-2 text-sm font-medium text-neutral-700">Fields</p>
-              <div className="grid grid-cols-[120px_1fr] gap-2 text-sm">
-                <span className="text-neutral-500">Code</span>
-                <span className="text-neutral-800">{opportunity.code}</span>
-
-                <span className="text-neutral-500">Titlu</span>
-                <span className="text-neutral-800">{opportunity.title}</span>
-
-                <span className="text-neutral-500">Amount</span>
-                <span className="text-neutral-800">{typeof opportunity.amount === "number" ? `${opportunity.amount.toLocaleString("ro-RO")} RON` : "-"}</span>
-
-                <span className="text-neutral-500">Close date</span>
-                <span className="text-neutral-800">{formatDateTime(opportunity.closeDate)}</span>
-
-                <span className="text-neutral-500">Created by</span>
-                <span className="text-neutral-800">{createdByLabel}</span>
-
-                <span className="text-neutral-500">Owner</span>
-                <span className="text-neutral-800">{ownerLabel}</span>
-
-                <span className="text-neutral-500">Asignați (view)</span>
-                <span className="text-neutral-800">{assignedViewerLabel}</span>
-
-                <span className="text-neutral-500">Stage</span>
-                <span className="text-neutral-800">{stageLabel(opportunity.pipelineStage)}</span>
-
-                <span className="text-neutral-500">Prioritate</span>
-                <span className="text-neutral-800">{priorityLabel(opportunity.priority)}</span>
-
-                <span className="text-neutral-500">Status</span>
-                <span className="text-neutral-800">{workStatusLabel(opportunity.workStatus)}</span>
-
-                <span className="text-neutral-500">Last update</span>
-                <span className="text-neutral-800">{formatDateTime(opportunity.updatedAt)}</span>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-sm font-medium text-neutral-700">Oportunități conexe</p>
+                <div className="flex items-center gap-1">
+                  <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => router.push("/crm/opportunities")}>
+                    Vezi toate
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={openRelatedOpportunityCreate}>
+                    Oportunitate nouă
+                  </Button>
+                </div>
               </div>
+              {relatedOpportunities.length === 0 ? (
+                <p className="text-sm text-neutral-500">Nu există alte oportunități pentru acest client.</p>
+              ) : (
+                <div className="space-y-2">
+                  {relatedOpportunities.map((related) => (
+                    <button
+                      key={related.id}
+                      type="button"
+                      onClick={() => router.push(`/crm/opportunities/${related.id}/timeline`)}
+                      className="w-full rounded-lg border border-neutral-200 bg-white p-3 text-left transition hover:bg-neutral-50"
+                    >
+                      <p className="text-sm font-medium text-neutral-800">{related.displayTitle || `${related.code} - ${related.title}`}</p>
+                      <p className="mt-1 text-xs text-neutral-500">
+                        {stageLabel(related.pipelineStage)} • {priorityLabel(related.priority)} • {workStatusLabel(related.workStatus)}
+                      </p>
+                      <p className="mt-1 text-xs text-neutral-500">Actualizat: {formatDateTime(related.updatedAt)}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </Panel>
         </div>

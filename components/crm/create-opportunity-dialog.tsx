@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { ChevronsUpDown, Loader2, Plus, PlusCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -36,6 +36,8 @@ interface CreateOpportunityDialogProps {
   actorId: string
   onCreated: (opportunityId: string) => void
   iconOnly?: boolean
+  prefilledClientId?: string
+  autoOpen?: boolean
 }
 
 type SelectableOpportunityType = (typeof CRM_OPPORTUNITY_SELECTABLE_TYPES)[number]
@@ -47,10 +49,17 @@ function getFirstSelectedContactId(selectedContactIds: string[], contacts: CrmCl
   return contacts.find((contact) => selectedIdSet.has(contact.id))?.id || selectedContactIds[0] || ""
 }
 
-export function CreateOpportunityDialog({ actorId, onCreated, iconOnly = false }: CreateOpportunityDialogProps) {
+export function CreateOpportunityDialog({
+  actorId,
+  onCreated,
+  iconOnly = false,
+  prefilledClientId = "",
+  autoOpen = false,
+}: CreateOpportunityDialogProps) {
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const hasAutoOpenedRef = useRef(false)
 
   const [users, setUsers] = useState<Array<{ uid: string; displayName: string; email: string }>>([])
   const [clients, setClients] = useState<Array<{ id: string; name: string }>>([])
@@ -70,6 +79,12 @@ export function CreateOpportunityDialog({ actorId, onCreated, iconOnly = false }
   const [clientSearchTerm, setClientSearchTerm] = useState("")
   const [clientActiveIndex, setClientActiveIndex] = useState(-1)
   const [isAddClientDialogOpen, setIsAddClientDialogOpen] = useState(false)
+
+  useEffect(() => {
+    if (!autoOpen || hasAutoOpenedRef.current) return
+    setOpen(true)
+    hasAutoOpenedRef.current = true
+  }, [autoOpen])
 
   useEffect(() => {
     if (!open) return
@@ -118,6 +133,13 @@ export function CreateOpportunityDialog({ actorId, onCreated, iconOnly = false }
       isActive = false
     }
   }, [clientId])
+
+  useEffect(() => {
+    const normalizedPrefilledClientId = prefilledClientId.trim()
+    if (!open || !normalizedPrefilledClientId) return
+    if (clientId === normalizedPrefilledClientId) return
+    setClientId(normalizedPrefilledClientId)
+  }, [open, prefilledClientId, clientId])
 
   const userOptions = useMemo(
     () => users.map((user) => ({ value: user.uid, label: user.displayName || user.email || user.uid })),
@@ -168,7 +190,7 @@ export function CreateOpportunityDialog({ actorId, onCreated, iconOnly = false }
 
   const resetForm = () => {
     setTitle("")
-    setClientId("")
+    setClientId(prefilledClientId.trim())
     setOwnerId("")
     setPipelineStage(getDefaultPipelineStageForOpportunityType("VANZARI"))
     setPriority("MEDIUM")

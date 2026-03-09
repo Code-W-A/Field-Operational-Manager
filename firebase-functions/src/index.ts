@@ -12,7 +12,7 @@ const REGION = "europe-west1"
 const TIMEZONE = "Europe/Bucharest"
 const MAX_WORKS_PER_RUN = 200
 
-type CrmTaskNotifyEventType = "created" | "reminder_15m"
+type CrmTaskNotifyEventType = "assigned" | "reassigned" | "reminder_15m"
 
 // =========================
 // HR Requests → Timesheets
@@ -65,7 +65,7 @@ function b64(s: string) {
   return Buffer.from(String(s), "utf8").toString("base64")
 }
 
-async function smtpSendMail(params: { to: string; subject: string; text: string }) {
+async function smtpSendMail(params: { to: string; subject: string; text: string; html?: string }) {
   const cfg = getSmtpConfig()
   if (!cfg) {
     console.warn("SMTP not configured; skipping email to", params.to)
@@ -135,15 +135,36 @@ async function smtpSendMail(params: { to: string; subject: string; text: string 
     await cmd(`RCPT TO:<${params.to}>`, [250, 251])
     await cmd("DATA", [354])
 
+    const textBody = params.text.replace(/\r?\n/g, "\r\n")
+    const htmlBody = params.html ? params.html.replace(/\r?\n/g, "\r\n") : null
+    const boundary = `crm-task-boundary-${Date.now()}`
     const headers = [
       `From: ${cfg.from}`,
       `To: ${params.to}`,
       `Subject: ${params.subject}`,
       "MIME-Version: 1.0",
-      "Content-Type: text/plain; charset=utf-8",
+      htmlBody
+        ? `Content-Type: multipart/alternative; boundary="${boundary}"`
+        : "Content-Type: text/plain; charset=utf-8",
       "Content-Transfer-Encoding: 8bit",
     ].join("\r\n")
-    const body = params.text.replace(/\r?\n/g, "\r\n")
+    const body = htmlBody
+      ? [
+          `--${boundary}`,
+          "Content-Type: text/plain; charset=utf-8",
+          "Content-Transfer-Encoding: 8bit",
+          "",
+          textBody,
+          "",
+          `--${boundary}`,
+          "Content-Type: text/html; charset=utf-8",
+          "Content-Transfer-Encoding: 8bit",
+          "",
+          htmlBody,
+          "",
+          `--${boundary}--`,
+        ].join("\r\n")
+      : textBody
     socket.write(headers + "\r\n\r\n" + body + "\r\n.\r\n")
 
     const dataRes = await readResponse()
@@ -175,7 +196,10 @@ type CrmTaskRecord = {
   title?: string
   status?: string
   dueAt?: any
+  updatedAt?: any
   assigneeId?: string | null
+  createdById?: string | null
+  updatedById?: string | null
 }
 
 type CrmOpportunityRecord = {
@@ -210,8 +234,25 @@ function crmDateToMs(value: any): number | null {
 }
 
 function crmTaskEventKey(params: { eventType: CrmTaskNotifyEventType; taskId: string; dueAtMs: number | null }) {
-  if (params.eventType === "created") return `crm_task_created:${params.taskId}`
+  if (params.eventType === "assigned") return `crm_task_assigned:${params.taskId}`
+  if (params.eventType === "reassigned") return `crm_task_reassigned:${params.taskId}:${params.dueAtMs || "no_due"}`
   return `crm_task_reminder_15m:${params.taskId}:${params.dueAtMs || "no_due"}`
+}
+
+function escapeHtml(value: string) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+}
+
+function getCrmBaseUrl() {
+  const cfg: any = (functions as any).config?.() ?? {}
+  const fromEnv = process.env.CRM_APP_BASE_URL || process.env.APP_BASE_URL || cfg.app?.base_url || cfg.crm?.base_url
+  const base = String(fromEnv || "").trim().replace(/\/+$/, "")
+  return base
 }
 
 function formatRoDateTime(ms: number | null) {
@@ -270,7 +311,12 @@ async function updateCrmTaskEmailEvent(
   )
 }
 
-async function dispatchCrmTaskNotification(params: { taskId: string; eventType: CrmTaskNotifyEventType }) {
+async function dispatchCrmTaskNotification(params: {
+  taskId: string
+  eventType: CrmTaskNotifyEventType
+  recipientUserIds?: string[]
+  actorUserId?: string | null
+}) {
   const taskId = String(params.taskId || "").trim()
   if (!taskId) return { ok: false, skipped: true as const, reason: "missing_task_id" }
 
@@ -282,7 +328,14 @@ async function dispatchCrmTaskNotification(params: { taskId: string; eventType: 
   if (!opportunityId) return { ok: false, skipped: true as const, reason: "missing_opportunity_id" }
 
   const dueAtMs = crmDateToMs(task.dueAt)
+  const updatedAtMs = crmDateToMs(task.updatedAt)
   const eventKey = crmTaskEventKey({ eventType: params.eventType, taskId, dueAtMs })
+  if (params.eventType === "reassigned") {
+    const reassignKey = `crm_task_reassigned:${taskId}:${String(task.assigneeId || "none")}:${updatedAtMs || "no_updated"}`
+    if (await hasQueuedOrSentCrmTaskEvent(reassignKey)) {
+      return { ok: true, skipped: true as const, reason: "already_sent_or_queued" }
+    }
+  }
   if (await hasQueuedOrSentCrmTaskEvent(eventKey)) {
     return { ok: true, skipped: true as const, reason: "already_sent_or_queued" }
   }
@@ -325,9 +378,12 @@ async function dispatchCrmTaskNotification(params: { taskId: string; eventType: 
   if (!opportunitySnap.exists) return { ok: false, skipped: true as const, reason: "opportunity_not_found" }
   const opportunity = opportunitySnap.data() as CrmOpportunityRecord
 
-  const candidateUserIds = Array.from(
-    new Set([String(task.assigneeId || ""), String(opportunity.ownerId || "")].filter(Boolean))
-  )
+  const candidateUserIds =
+    params.eventType === "reminder_15m"
+      ? Array.from(new Set([String(task.assigneeId || ""), String(opportunity.ownerId || "")].filter(Boolean)))
+      : params.recipientUserIds?.length
+        ? Array.from(new Set(params.recipientUserIds.filter(Boolean)))
+        : Array.from(new Set([String(task.assigneeId || "")].filter(Boolean)))
 
   const recipientsByEmail = new Map<string, { uid: string; displayName: string }>()
   for (const uid of candidateUserIds) {
@@ -360,23 +416,105 @@ async function dispatchCrmTaskNotification(params: { taskId: string; eventType: 
   }
 
   const taskTitle = String(task.title || "Sarcină CRM")
+  const taskStatusLabel =
+    status === "IN_PROGRESS"
+      ? "În lucru"
+      : status === "DONE"
+        ? "Completată"
+        : status === "CANCELED"
+          ? "Anulată"
+          : "To Do"
   const opportunityCode = String(opportunity.code || "")
   const opportunityTitle = String(opportunity.title || "")
   const opportunityLabel = [opportunityCode, opportunityTitle].filter(Boolean).join(" - ") || opportunityId
   const dueAtLabel = formatRoDateTime(dueAtMs)
+  const actorUserId =
+    typeof params.actorUserId === "string" && params.actorUserId.trim()
+      ? params.actorUserId.trim()
+      : params.eventType === "assigned"
+        ? String(task.createdById || "").trim()
+        : String(task.updatedById || "").trim()
+  const actorUser = actorUserId ? await getUserEmail(actorUserId) : { displayName: null, email: null }
+  const assignedByLabel = actorUser.displayName || actorUser.email || actorUserId || "Sistem CRM"
+  const taskPath = `/crm/opportunities/${opportunityId}/tasks`
+  const baseUrl = getCrmBaseUrl()
+  const taskUrl = baseUrl ? `${baseUrl}${taskPath}` : taskPath
 
   const subject =
-    params.eventType === "created"
-      ? `Sarcină nouă CRM: ${taskTitle}`
-      : `Reminder (15 min): ${taskTitle}`
+    params.eventType === "assigned"
+      ? "Ai primit o sarcină nouă"
+      : params.eventType === "reassigned"
+        ? "Ți-a fost reasignată o sarcină"
+        : `Reminder (15 min): ${taskTitle}`
+  const eventTitle =
+    params.eventType === "assigned"
+      ? "Ai primit o sarcină nouă"
+      : params.eventType === "reassigned"
+        ? "Ți-a fost reasignată o sarcină"
+        : "Reminder sarcină"
+  const eventSubtitle =
+    params.eventType === "assigned"
+      ? "Sarcina a fost atribuită către tine."
+      : params.eventType === "reassigned"
+        ? "Responsabilul sarcinii a fost schimbat."
+        : "Sarcina are termen în aproximativ 15 minute."
+  const statusBadgeStyle =
+    status === "DONE"
+      ? "background:#dcfce7;color:#166534;"
+      : status === "IN_PROGRESS"
+        ? "background:#dbeafe;color:#1d4ed8;"
+        : status === "CANCELED"
+          ? "background:#fee2e2;color:#991b1b;"
+          : "background:#e2e8f0;color:#334155;"
 
   const text =
-    `${params.eventType === "created" ? "Ai o sarcină nouă în CRM." : "Reminder: sarcina are termen în aproximativ 15 minute."}\n\n` +
+    `${params.eventType === "assigned"
+      ? "Ai primit o sarcină nouă în CRM."
+      : params.eventType === "reassigned"
+        ? "Ți-a fost reasignată o sarcină în CRM."
+        : "Reminder: sarcina are termen în aproximativ 15 minute."}\n\n` +
     `Sarcină: ${taskTitle}\n` +
     `Status: ${status || "TODO"}\n` +
     `Termen: ${dueAtLabel}\n` +
     `Oportunitate: ${opportunityLabel}\n` +
-    `Link: /crm/opportunities/${opportunityId}/tasks\n`
+    `Atribuită de: ${assignedByLabel}\n` +
+    `Link: ${taskUrl}\n`
+
+  const html = `
+    <div style="background:#f1f5f9;padding:24px 12px;font-family:Arial,sans-serif;color:#0f172a;">
+      <div style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+        <div style="padding:18px 20px;background:#0f172a;color:#ffffff;">
+          <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.8;">Notificare CRM</div>
+          <h2 style="margin:6px 0 4px;font-size:20px;line-height:1.3;">${escapeHtml(eventTitle)}</h2>
+          <p style="margin:0;font-size:13px;opacity:.9;">${escapeHtml(eventSubtitle)}</p>
+        </div>
+
+        <div style="padding:20px;">
+          <div style="border:1px solid #e2e8f0;border-radius:10px;padding:14px 14px 10px;">
+            <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
+              <p style="margin:0;font-size:17px;font-weight:700;color:#0f172a;">${escapeHtml(taskTitle)}</p>
+              <span style="display:inline-block;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:700;${statusBadgeStyle}">
+                ${escapeHtml(taskStatusLabel)}
+              </span>
+            </div>
+            <p style="margin:10px 0 0;font-size:13px;color:#334155;"><strong>Oportunitate:</strong> ${escapeHtml(opportunityLabel)}</p>
+            <p style="margin:6px 0 0;font-size:13px;color:#334155;"><strong>Termen:</strong> ${escapeHtml(dueAtLabel)}</p>
+            <p style="margin:6px 0 0;font-size:13px;color:#334155;"><strong>Atribuită de:</strong> ${escapeHtml(assignedByLabel)}</p>
+          </div>
+
+          <div style="margin-top:16px;">
+            <a href="${escapeHtml(taskUrl)}" style="display:inline-block;padding:11px 16px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;">
+              Vezi sarcina
+            </a>
+          </div>
+
+          <p style="margin:14px 0 0;font-size:12px;color:#64748b;">
+            Dacă butonul nu funcționează, deschide manual: ${escapeHtml(taskUrl)}
+          </p>
+        </div>
+      </div>
+    </div>
+  `
 
   const emailEventId = await logCrmTaskEmailEvent({
     to: recipientEmails,
@@ -398,6 +536,7 @@ async function dispatchCrmTaskNotification(params: { taskId: string; eventType: 
         to,
         subject,
         text,
+        html,
       })
     }
 
@@ -1127,7 +1266,31 @@ export const onCrmTaskCreatedEmail = functions
 
     await dispatchCrmTaskNotification({
       taskId,
-      eventType: "created",
+      eventType: "assigned",
+    })
+
+    return null
+  })
+
+export const onCrmTaskReassignedEmail = functions
+  .region(REGION)
+  .firestore.document("crm_tasks/{taskId}")
+  .onUpdate(async (change, context) => {
+    const taskId = String(context.params.taskId || "").trim()
+    if (!taskId) return null
+
+    const before = change.before.data() as CrmTaskRecord
+    const after = change.after.data() as CrmTaskRecord
+    const beforeAssignee = String(before?.assigneeId || "").trim()
+    const afterAssignee = String(after?.assigneeId || "").trim()
+
+    if (!afterAssignee || beforeAssignee === afterAssignee) return null
+
+    await dispatchCrmTaskNotification({
+      taskId,
+      eventType: "reassigned",
+      recipientUserIds: [afterAssignee],
+      actorUserId: String(after.updatedById || "").trim() || null,
     })
 
     return null
