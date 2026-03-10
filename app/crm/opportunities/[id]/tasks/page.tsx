@@ -42,6 +42,12 @@ function toDateTimeLocal(value: unknown) {
   return `${yyyy}-${mm}-${dd}T${hh}:${min}`
 }
 
+function defaultDueAtPlusTwoHours() {
+  const date = new Date()
+  date.setHours(date.getHours() + 2)
+  return toDateTimeLocal(date)
+}
+
 export default function OpportunityTasksPage() {
   const params = useParams()
   const { user, userData } = useAuth()
@@ -120,7 +126,7 @@ export default function OpportunityTasksPage() {
     setTitle("")
     setTaskType("PROSPECTARE")
     setAssigneeId(opportunity.ownerId || "")
-    setDueAt("")
+    setDueAt(defaultDueAtPlusTwoHours())
     setVisibility("PRIVATE")
     setVisibleToUserIds([])
   }
@@ -250,7 +256,7 @@ export default function OpportunityTasksPage() {
                   taskType,
                   createdById: user.uid,
                   assigneeId,
-                  dueAt: dueAt ? new Date(dueAt) : undefined,
+                  dueAt: dueAt ? new Date(dueAt) : new Date(Date.now() + 2 * 60 * 60 * 1000),
                   visibility,
                   visibleToUserIds,
                 })

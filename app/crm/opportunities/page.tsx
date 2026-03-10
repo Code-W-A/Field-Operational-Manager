@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { AlertCircle, Inbox, LayoutGrid, List, Search, UserRound } from "lucide-react"
+import { AlertCircle, Inbox, LayoutGrid, List, Search, Trash2, UserRound } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,7 +23,7 @@ import {
   CRM_WORK_STATUS_LABELS,
 } from "@/lib/crm/constants"
 import { getDateValue } from "@/lib/crm/activity"
-import { listCrmOpportunitiesForUser, listCrmClients, listCrmUsers } from "@/lib/crm/opportunities"
+import { deleteCrmOpportunity, listCrmOpportunitiesForUser, listCrmClients, listCrmUsers } from "@/lib/crm/opportunities"
 import { listCrmTasksForOpportunityIds } from "@/lib/crm/tasks"
 import { formatDateTime, priorityLabel, stageLabel, taskStatusLabel, workStatusLabel } from "@/lib/crm/presenters"
 import type { CrmFilters, CrmOpportunity, CrmTask } from "@/lib/crm/types"
@@ -129,6 +129,7 @@ export default function CrmOpportunitiesPage() {
   const { toast } = useToast()
   const loadRequestVersionRef = useRef(0)
   const isTechnician = userData?.role === "tehnician"
+  const isAdmin = userData?.role === "admin"
 
   const typeFromUrlRaw = (searchParams.get("type") || "").toUpperCase()
   const prefilledClientId = (searchParams.get("clientId") || "").trim()
@@ -155,6 +156,9 @@ export default function CrmOpportunitiesPage() {
   const [ownerMap, setOwnerMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [tasksLoading, setTasksLoading] = useState(true)
+  const [selectedOpportunityIds, setSelectedOpportunityIds] = useState<string[]>([])
+  const [deletingOpportunityId, setDeletingOpportunityId] = useState<string | null>(null)
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false)
 
   const resetToHome = () => {
     setActiveType("ALL")
@@ -325,6 +329,11 @@ export default function CrmOpportunitiesPage() {
     [availableStages, displayedStageStats]
   )
 
+  useEffect(() => {
+    const visibleIds = new Set(displayedOpportunities.map((item) => item.id))
+    setSelectedOpportunityIds((prev) => prev.filter((id) => visibleIds.has(id)))
+  }, [displayedOpportunities])
+
   const activeOpportunityCounts = useMemo(() => {
     const counts: Record<string, number> = { ALL: 0 }
     LEFT_FILTER_ITEMS.forEach((type) => {
@@ -400,6 +409,59 @@ export default function CrmOpportunitiesPage() {
   const isMainLoading = loading || tasksLoading
   const displayedStageTotal = displayedOpportunities.length
 
+  const handleDeleteOpportunity = async (opportunity: CrmOpportunity) => {
+    if (!isAdmin || !user?.uid) return
+    const confirmed = window.confirm(`Ștergi oportunitatea "${opportunity.displayTitle}"? Acțiunea este ireversibilă.`)
+    if (!confirmed) return
+    setDeletingOpportunityId(opportunity.id)
+    try {
+      await deleteCrmOpportunity({ opportunityId: opportunity.id, actorId: user.uid })
+      setSelectedOpportunityIds((prev) => prev.filter((id) => id !== opportunity.id))
+      toast({
+        title: "Oportunitate ștearsă",
+        description: `${opportunity.displayTitle} a fost ștearsă.`,
+      })
+      await loadData()
+    } catch (error) {
+      toast({
+        title: "Ștergere eșuată",
+        description: error instanceof Error ? error.message : "Nu s-a putut șterge oportunitatea.",
+        variant: "destructive",
+      })
+    } finally {
+      setDeletingOpportunityId(null)
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    if (!isAdmin || !user?.uid || selectedOpportunityIds.length === 0 || isBulkDeleting) return
+    const confirmed = window.confirm(`Ștergi ${selectedOpportunityIds.length} oportunități selectate? Acțiunea este ireversibilă.`)
+    if (!confirmed) return
+
+    const idsToDelete = [...selectedOpportunityIds]
+    setIsBulkDeleting(true)
+    try {
+      const results = await Promise.allSettled(
+        idsToDelete.map((opportunityId) => deleteCrmOpportunity({ opportunityId, actorId: user.uid }))
+      )
+      const successCount = results.filter((row) => row.status === "fulfilled").length
+      const failedCount = results.length - successCount
+
+      setSelectedOpportunityIds([])
+      toast({
+        title: failedCount === 0 ? "Ștergere finalizată" : "Ștergere parțială",
+        description:
+          failedCount === 0
+            ? `Au fost șterse ${successCount} oportunități.`
+            : `Șterse: ${successCount}, eșuate: ${failedCount}.`,
+        variant: failedCount === 0 ? "default" : "destructive",
+      })
+      await loadData()
+    } finally {
+      setIsBulkDeleting(false)
+    }
+  }
+
   return (
     <PageShell className="flex h-full min-h-0 flex-col space-y-0 overflow-hidden bg-[#f6f8fc]">
       <div className="grid h-full flex-1 min-h-0 gap-3 overflow-hidden xl:grid-cols-[216px_1fr_300px]">
@@ -433,6 +495,17 @@ export default function CrmOpportunitiesPage() {
                 autoOpen={shouldAutoOpenCreate}
                 onCreated={(opportunityId) => router.push(`/crm/opportunities/${opportunityId}/timeline`)}
               />
+              {isAdmin && selectedOpportunityIds.length > 0 ? (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="h-9"
+                  onClick={handleBulkDelete}
+                  disabled={isBulkDeleting}
+                >
+                  {isBulkDeleting ? "Se șterg..." : `Șterge selectate (${selectedOpportunityIds.length})`}
+                </Button>
+              ) : null}
             </div>
 
             <div className="py-1">
@@ -574,12 +647,47 @@ export default function CrmOpportunitiesPage() {
                       ? (ownerMap[primaryTask.assigneeId] || primaryTask.assigneeId)
                       : "Neasignat"
 
+                    const isSelected = selectedOpportunityIds.includes(opportunity.id)
+                    const rowBusy = deletingOpportunityId === opportunity.id || isBulkDeleting
+
                     return (
-                      <Link
-                        key={opportunity.id}
-                        href={`/crm/opportunities/${opportunity.id}/timeline`}
-                        className="block px-4 py-2.5 transition hover:bg-[#f5f8fc]"
-                      >
+                      <div key={opportunity.id} className="relative">
+                        {isAdmin ? (
+                          <div className="absolute right-2 top-2 z-10 flex items-center gap-1.5">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 cursor-pointer rounded border-neutral-300"
+                              checked={isSelected}
+                              disabled={rowBusy}
+                              onChange={(event) => {
+                                const checked = event.target.checked
+                                setSelectedOpportunityIds((prev) =>
+                                  checked
+                                    ? Array.from(new Set([...prev, opportunity.id]))
+                                    : prev.filter((id) => id !== opportunity.id)
+                                )
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-rose-600"
+                              disabled={rowBusy}
+                              onClick={(event) => {
+                                event.preventDefault()
+                                event.stopPropagation()
+                                void handleDeleteOpportunity(opportunity)
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : null}
+                        <Link
+                          href={`/crm/opportunities/${opportunity.id}/timeline`}
+                          className="block px-4 py-2.5 pr-20 transition hover:bg-[#f5f8fc]"
+                        >
                         <div className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.9fr)] md:items-center">
                           <div className="min-w-0">
                             <p className="truncate text-sm font-semibold text-neutral-900" title={opportunity.displayTitle}>
@@ -632,7 +740,8 @@ export default function CrmOpportunitiesPage() {
                             {primaryTask?.dueAt ? formatDateTime(primaryTask.dueAt) : "Fara termen"}
                           </div>
                         </div>
-                      </Link>
+                        </Link>
+                      </div>
                     )
                   })}
                 </div>
