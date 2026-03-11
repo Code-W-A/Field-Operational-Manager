@@ -16,6 +16,10 @@ interface OpportunityTypeSidebarProps {
   homeItem: OpportunityTypeSidebarItem
   items: OpportunityTypeSidebarItem[]
   collapsibleOnMobile?: boolean
+  renderMode?: "panel" | "content"
+  onItemSelect?: () => void
+  className?: string
+  contentClassName?: string
 }
 
 function SidebarEntry({
@@ -75,28 +79,56 @@ export function OpportunityTypeSidebar({
   homeItem,
   items,
   collapsibleOnMobile = false,
+  renderMode = "panel",
+  onItemSelect,
+  className,
+  contentClassName,
 }: OpportunityTypeSidebarProps) {
+  const homeItemWithSelect: OpportunityTypeSidebarItem = {
+    ...homeItem,
+    onClick: () => {
+      homeItem.onClick?.()
+      onItemSelect?.()
+    },
+  }
+  const itemsWithSelect = items.map((item) => ({
+    ...item,
+    onClick: () => {
+      item.onClick?.()
+      onItemSelect?.()
+    },
+  }))
+
+  if (renderMode === "content") {
+    return (
+      <div className={cn("flex min-h-0 flex-1 flex-col", contentClassName)}>
+        <SidebarContent homeItem={homeItemWithSelect} items={itemsWithSelect} />
+      </div>
+    )
+  }
+
   return (
     <>
       {collapsibleOnMobile ? (
         <details className="rounded-md border border-[#004b87] bg-[#005599] shadow-none xl:hidden">
           <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-white">Filtre CRM</summary>
           <div className="border-t border-white/20 px-4 py-3">
-            <SidebarContent homeItem={homeItem} items={items} />
+            <SidebarContent homeItem={homeItemWithSelect} items={itemsWithSelect} />
           </div>
         </details>
       ) : null}
 
       <Panel
         className={cn(
-          "overflow-hidden rounded-md border-[#004b87] bg-[#005599] shadow-none",
+          "overflow-hidden rounded-md border-2 border-[#004b87] bg-[#005599] shadow-[0_16px_36px_rgba(0,32,72,0.36),0_3px_8px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.2)] ring-1 ring-[#003f73]/55",
           collapsibleOnMobile
-            ? "hidden xl:block xl:h-full xl:rounded-none xl:border-y-0 xl:border-l-0 xl:border-r xl:border-[#004b87]"
-            : "xl:h-full xl:rounded-none xl:border-y-0 xl:border-l-0 xl:border-r xl:border-[#004b87]"
+            ? "hidden xl:block xl:h-full xl:rounded-none xl:border-y-0 xl:border-l-0 xl:border-r-2 xl:border-[#004b87]"
+            : "xl:h-full xl:rounded-none xl:border-y-0 xl:border-l-0 xl:border-r-2 xl:border-[#004b87]",
+          className
         )}
         contentClassName="flex h-full min-h-0 flex-col overflow-y-auto pt-4"
       >
-        <SidebarContent homeItem={homeItem} items={items} />
+        <SidebarContent homeItem={homeItemWithSelect} items={itemsWithSelect} />
       </Panel>
     </>
   )

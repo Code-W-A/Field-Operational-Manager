@@ -25,18 +25,26 @@ import {
   listCrmClientContacts,
   listCrmClients,
   listCrmUsers,
+  setCrmOpportunityContacts,
+  updateCrmOpportunity,
 } from "@/lib/crm/opportunities"
 import { useToast } from "@/hooks/use-toast"
 import { ClientAddDialog } from "@/components/client-add-dialog"
 import { crmUi } from "@/components/crm/ui"
-import type { CrmClientContact, CrmPipelineStage } from "@/lib/crm/types"
+import type { CrmClientContact, CrmOpportunity, CrmPipelineStage } from "@/lib/crm/types"
 
 interface CreateOpportunityDialogProps {
   actorId: string
-  onCreated: (opportunityId: string) => void
+  mode?: "create" | "edit"
+  initialOpportunity?: CrmOpportunity | null
+  onCreated?: (opportunityId: string) => void
+  onSaved?: (opportunityId: string) => void
   iconOnly?: boolean
   prefilledClientId?: string
   autoOpen?: boolean
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  hideTrigger?: boolean
 }
 
 type SelectableOpportunityType = (typeof CRM_OPPORTUNITY_SELECTABLE_TYPES)[number]
@@ -47,15 +55,30 @@ function getFirstContactId(contacts: CrmClientContact[]) {
 
 export function CreateOpportunityDialog({
   actorId,
+  mode = "create",
+  initialOpportunity = null,
   onCreated,
+  onSaved,
   iconOnly = false,
   prefilledClientId = "",
   autoOpen = false,
+  open: controlledOpen,
+  onOpenChange,
+  hideTrigger = false,
 }: CreateOpportunityDialogProps) {
   const { toast } = useToast()
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const hasAutoOpenedRef = useRef(false)
+  const isEditMode = mode === "edit"
+  const isControlledOpen = typeof controlledOpen === "boolean"
+  const open = isControlledOpen ? controlledOpen : internalOpen
+  const setOpen = (next: boolean) => {
+    if (!isControlledOpen) {
+      setInternalOpen(next)
+    }
+    onOpenChange?.(next)
+  }
 
   const [users, setUsers] = useState<Array<{ uid: string; displayName: string; email: string }>>([])
   const [clients, setClients] = useState<Array<{ id: string; name: string }>>([])
@@ -76,10 +99,10 @@ export function CreateOpportunityDialog({
   const [isAddClientDialogOpen, setIsAddClientDialogOpen] = useState(false)
 
   useEffect(() => {
-    if (!autoOpen || hasAutoOpenedRef.current) return
+    if (isEditMode || !autoOpen || hasAutoOpenedRef.current) return
     setOpen(true)
     hasAutoOpenedRef.current = true
-  }, [autoOpen])
+  }, [autoOpen, isEditMode])
 
   useEffect(() => {
     if (!open) return
@@ -179,25 +202,49 @@ export function CreateOpportunityDialog({
     }
   }, [allContactIds, contacts, primaryContactId])
 
-  const resetForm = () => {
-    setTitle("")
-    setClientId(prefilledClientId.trim())
-    setOwnerId("")
-    setPipelineStage(getDefaultPipelineStageForOpportunityType("VANZARI"))
-    setPriority("MEDIUM")
-    setOpportunityType("VANZARI")
-    setAssignedReadUserIds([])
+  const resetForm = (modeToReset: "create" | "edit") => {
+    if (modeToReset === "edit" && initialOpportunity) {
+      const nextType = initialOpportunity.opportunityType as SelectableOpportunityType
+      setTitle(initialOpportunity.title || "")
+      setClientId(initialOpportunity.clientId || "")
+      setOwnerId(initialOpportunity.ownerId || "")
+      setPipelineStage(normalizePipelineStageForOpportunityType(nextType, initialOpportunity.pipelineStage))
+      setPriority(initialOpportunity.priority)
+      setOpportunityType(nextType)
+      setAssignedReadUserIds(
+        (initialOpportunity.readUserIds || []).filter(
+          (userId) => userId !== initialOpportunity.ownerId && userId !== initialOpportunity.createdById
+        )
+      )
+      setPrimaryContactId(initialOpportunity.primaryContactId || "")
+    } else {
+      setTitle("")
+      setClientId(prefilledClientId.trim())
+      setOwnerId("")
+      setPipelineStage(getDefaultPipelineStageForOpportunityType("VANZARI"))
+      setPriority("MEDIUM")
+      setOpportunityType("VANZARI")
+      setAssignedReadUserIds([])
+      setPrimaryContactId("")
+    }
     setContacts([])
-    setPrimaryContactId("")
     setClientSearchTerm("")
     setClientActiveIndex(-1)
   }
+
+  useEffect(() => {
+    if (!open) return
+    resetForm(mode)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, mode, initialOpportunity?.id, prefilledClientId])
 
   const handleSubmit = async () => {
     if (!clientId) {
       toast({
         title: "Client obligatoriu",
-        description: "Nu poți crea oportunitatea fără client definit.",
+        description: isEditMode
+          ? "Nu poți salva oportunitatea fără client definit."
+          : "Nu poți crea oportunitatea fără client definit.",
         variant: "destructive",
       })
       return
@@ -223,27 +270,57 @@ export function CreateOpportunityDialog({
 
     setSubmitting(true)
     try {
-      const result = await createCrmOpportunity({
-        title,
-        clientId,
-        ownerId,
-        assignedReadUserIds,
-        createdById: actorId,
-        pipelineStage: normalizePipelineStageForOpportunityType(opportunityType, pipelineStage),
-        priority,
-        opportunityType,
-        contactIds: allContactIds,
-        primaryContactId: effectivePrimaryContactId || undefined,
-      })
+      const normalizedTitle = title.trim()
+      const normalizedStage = normalizePipelineStageForOpportunityType(opportunityType, pipelineStage)
+      if (isEditMode && initialOpportunity) {
+        const displayTitle = `${initialOpportunity.code} - ${normalizedTitle}`
+        const nextReadUserIds = Array.from(new Set([ownerId, actorId, ...assignedReadUserIds].filter(Boolean)))
+        const nextEditUserIds = Array.from(new Set([ownerId, actorId].filter(Boolean)))
 
-      toast({
-        title: "Oportunitate creată",
-        description: `${result.code} a fost creată cu succes.`,
-      })
+        await updateCrmOpportunity(initialOpportunity.id, actorId, {
+          title: normalizedTitle,
+          displayTitle,
+          clientId,
+          ownerId,
+          priority,
+          pipelineStage: normalizedStage,
+          opportunityType,
+          primaryContactId: effectivePrimaryContactId || undefined,
+          readUserIds: nextReadUserIds,
+          editUserIds: nextEditUserIds,
+        })
+        await setCrmOpportunityContacts(initialOpportunity.id, allContactIds)
 
-      setOpen(false)
-      resetForm()
-      onCreated(result.opportunityId)
+        toast({
+          title: "Oportunitate actualizată",
+          description: `${initialOpportunity.code} a fost actualizată cu succes.`,
+        })
+        setOpen(false)
+        onSaved?.(initialOpportunity.id)
+      } else {
+        const result = await createCrmOpportunity({
+          title: normalizedTitle,
+          clientId,
+          ownerId,
+          assignedReadUserIds,
+          createdById: actorId,
+          pipelineStage: normalizedStage,
+          priority,
+          opportunityType,
+          contactIds: allContactIds,
+          primaryContactId: effectivePrimaryContactId || undefined,
+        })
+
+        toast({
+          title: "Oportunitate creată",
+          description: `${result.code} a fost creată cu succes.`,
+        })
+
+        setOpen(false)
+        resetForm("create")
+        onCreated?.(result.opportunityId)
+        onSaved?.(result.opportunityId)
+      }
     } finally {
       setSubmitting(false)
     }
@@ -268,24 +345,30 @@ export function CreateOpportunityDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button
-          size="sm"
-          aria-label={iconOnly ? "Creeaza oportunitate" : undefined}
-          className={
-            iconOnly
-              ? "h-8 w-8 rounded-md border border-emerald-600 bg-emerald-600 px-0 text-white shadow-none hover:bg-emerald-700"
-              : "h-9 rounded-md border border-emerald-600 bg-emerald-600 px-3.5 text-sm font-semibold text-white shadow-none hover:bg-emerald-700"
-          }
-        >
-          <PlusCircle className={iconOnly ? "h-4 w-4" : "mr-1.5 h-4 w-4"} />
-          {iconOnly ? null : "Creează oportunitate"}
-        </Button>
-      </DialogTrigger>
+      {hideTrigger ? null : (
+        <DialogTrigger asChild>
+          <Button
+            size="sm"
+            aria-label={iconOnly ? "Creeaza oportunitate" : undefined}
+            className={
+              iconOnly
+                ? "h-8 w-8 rounded-md border border-emerald-600 bg-emerald-600 px-0 text-white shadow-none hover:bg-emerald-700"
+                : "h-9 rounded-md border border-emerald-600 bg-emerald-600 px-3.5 text-sm font-semibold text-white shadow-none hover:bg-emerald-700"
+            }
+          >
+            <PlusCircle className={iconOnly ? "h-4 w-4" : "mr-1.5 h-4 w-4"} />
+            {iconOnly ? null : "Creează oportunitate"}
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="flex max-h-[92vh] max-w-[calc(100vw-1rem)] flex-col overflow-y-auto sm:max-w-[96vw] lg:overflow-hidden">
         <DialogHeader>
-          <DialogTitle>Creează oportunitate</DialogTitle>
-          <DialogDescription>Clientul este obligatoriu pentru crearea oportunității.</DialogDescription>
+          <DialogTitle>{isEditMode ? "Editează oportunitate" : "Creează oportunitate"}</DialogTitle>
+          <DialogDescription>
+            {isEditMode
+              ? "Actualizează câmpurile oportunității și salvează modificările."
+              : "Clientul este obligatoriu pentru crearea oportunității."}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(280px,0.8fr)_minmax(420px,1.2fr)] xl:grid-cols-[minmax(320px,0.75fr)_minmax(560px,1.25fr)]">
@@ -479,7 +562,7 @@ export function CreateOpportunityDialog({
                 Anulează
               </Button>
               <Button type="button" onClick={handleSubmit} disabled={submitting}>
-                {submitting ? "Se salvează..." : "Creează oportunitate"}
+                {submitting ? "Se salvează..." : isEditMode ? "Salvează modificările" : "Creează oportunitate"}
               </Button>
             </div>
           </div>

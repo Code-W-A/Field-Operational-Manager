@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import { useParams } from "next/navigation"
 import {
   CheckCheck,
@@ -19,8 +19,11 @@ import { Panel } from "@/components/crm"
 import { getDateValue, listCrmActivity } from "@/lib/crm/activity"
 import { listCrmUsers } from "@/lib/crm/opportunities"
 import { formatDateTime } from "@/lib/crm/presenters"
+import { CRM_PIPELINE_STAGE_LABELS, CRM_PRIORITY_LABELS, CRM_WORK_STATUS_LABELS } from "@/lib/crm/constants"
 import type { CrmActivityLog } from "@/lib/crm/types"
 import { useCrmOpportunity } from "@/hooks/use-crm-opportunity"
+
+const CRM_ACTIVITY_REFRESH_EVENT = "crm:activity-refresh"
 
 function formatDayLabel(value: unknown) {
   const parsed = getDateValue(value)
@@ -113,11 +116,48 @@ function renderActivityContent(activity: CrmActivityLog, userNameMap: Record<str
 
   if (activity.type === "UPDATED") {
     const changes = (payload.changes || {}) as Record<string, unknown>
-    const nonEmpty = Object.entries(changes).filter(([, value]) => value !== undefined)
+    const fieldLabels: Record<string, string> = {
+      title: "Titlu",
+      displayTitle: "Titlu afișat",
+      clientId: "Client",
+      ownerId: "Proprietar",
+      primaryContactId: "Contact principal",
+      readUserIds: "Utilizatori cu acces",
+      editUserIds: "Utilizatori cu editare",
+      priority: "Prioritate",
+      workStatus: "Status lucru",
+      pipelineStage: "Status oportunitate",
+      opportunityType: "Modul",
+      amount: "Valoare",
+      closeDate: "Data închiderii",
+    }
+    const nonEmpty = Object.entries(changes).filter(([, value]) => value !== undefined && value !== null)
+    const mapValue = (key: string, value: unknown) => {
+      if (key === "priority" && typeof value === "string") {
+        return CRM_PRIORITY_LABELS[value as keyof typeof CRM_PRIORITY_LABELS] || value
+      }
+      if (key === "workStatus" && typeof value === "string") {
+        return CRM_WORK_STATUS_LABELS[value as keyof typeof CRM_WORK_STATUS_LABELS] || value
+      }
+      if (key === "pipelineStage" && typeof value === "string") {
+        return CRM_PIPELINE_STAGE_LABELS[value] || value
+      }
+      if ((key === "readUserIds" || key === "editUserIds") && Array.isArray(value)) {
+        return value.length > 0 ? value.map((userId) => mapUser(String(userId))).join(", ") : "-"
+      }
+      if (key === "ownerId" && typeof value === "string") {
+        return mapUser(value)
+      }
+      if (key === "closeDate" && typeof value === "string") {
+        return formatDateTime(value)
+      }
+      return String(value)
+    }
+
     if (nonEmpty.length === 0) return <p className="text-sm text-neutral-500">Fără detalii suplimentare.</p>
     return (
       <div className="space-y-1.5">
-        {nonEmpty.map(([key, value]) => renderKeyValueRow(key, String(value)))}
+        {nonEmpty.map(([key, value]) => renderKeyValueRow(fieldLabels[key] || key, mapValue(key, value)))}
       </div>
     )
   }
@@ -269,6 +309,31 @@ export default function OpportunityTimelinePage() {
   const [activities, setActivities] = useState<CrmActivityLog[]>([])
   const [actorNameMap, setActorNameMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
+  const loadActivityData = useCallback(async () => {
+    if (!opportunity || !user?.uid) return
+
+    setLoading(true)
+    try {
+      const [activityRows, userRows] = await Promise.all([
+        listCrmActivity({
+          opportunityId,
+          userId: user.uid,
+          opportunityOwnerId: opportunity.ownerId,
+        }),
+        listCrmUsers(),
+      ])
+
+      setActivities(activityRows.filter((row) => row.type !== "TASK_AUTO_CREATED"))
+      setActorNameMap(
+        userRows.reduce<Record<string, string>>((acc, crmUser) => {
+          acc[crmUser.uid] = crmUser.displayName || crmUser.email || crmUser.uid
+          return acc
+        }, {})
+      )
+    } finally {
+      setLoading(false)
+    }
+  }, [opportunity, opportunityId, user?.uid])
   const groupedActivities = useMemo(() => {
     const sorted = [...activities].sort((a, b) => {
       const aMs = getDateValue(a.createdAt)?.getTime() || 0
@@ -296,34 +361,26 @@ export default function OpportunityTimelinePage() {
   }, [activities])
 
   useEffect(() => {
-    const load = async () => {
-      if (!opportunity || !user?.uid) return
+    void loadActivityData()
+  }, [loadActivityData])
 
-      setLoading(true)
-      try {
-        const [activityRows, userRows] = await Promise.all([
-          listCrmActivity({
-            opportunityId,
-            userId: user.uid,
-            opportunityOwnerId: opportunity.ownerId,
-          }),
-          listCrmUsers(),
-        ])
-
-        setActivities(activityRows.filter((row) => row.type !== "TASK_AUTO_CREATED"))
-        setActorNameMap(
-          userRows.reduce<Record<string, string>>((acc, crmUser) => {
-            acc[crmUser.uid] = crmUser.displayName || crmUser.email || crmUser.uid
-            return acc
-          }, {})
-        )
-      } finally {
-        setLoading(false)
-      }
+  useEffect(() => {
+    const handleRefresh = (event: Event) => {
+      const customEvent = event as CustomEvent<{ opportunityId?: string }>
+      const targetOpportunityId = customEvent.detail?.opportunityId
+      if (targetOpportunityId && targetOpportunityId !== opportunityId) return
+      void loadActivityData()
     }
 
-    load()
-  }, [opportunity, opportunityId, user?.uid])
+    if (typeof window !== "undefined") {
+      window.addEventListener(CRM_ACTIVITY_REFRESH_EVENT, handleRefresh as EventListener)
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener(CRM_ACTIVITY_REFRESH_EVENT, handleRefresh as EventListener)
+      }
+    }
+  }, [loadActivityData, opportunityId])
 
   if (opportunityLoading) {
     return <Panel title="Istoric" size="comfortable"><p className="text-sm text-neutral-500">Se încarcă...</p></Panel>

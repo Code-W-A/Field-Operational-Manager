@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { MessageSquare, Send } from "lucide-react"
+import { MessageSquare, PanelLeft, Send } from "lucide-react"
+import { MobileRailSheet } from "@/components/crm"
 import { useAuth } from "@/contexts/AuthContext"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
@@ -235,12 +236,56 @@ export default function CrmInternePage() {
     }
   }
 
+  const renderConversationRail = (onSelectConversation?: (id: string) => void) => (
+    <div className="flex min-h-0 flex-col overflow-hidden bg-white">
+      <div className="flex items-center justify-between border-b border-neutral-200 px-3.5 py-3">
+        <p className="text-sm font-semibold text-neutral-800">Conversații interne</p>
+        <Button
+          type="button"
+          onClick={() => setIsCreateOpen(true)}
+          className="h-8 rounded-lg bg-blue-600 px-3 text-xs text-white shadow-none hover:bg-blue-700"
+        >
+          <Send className="mr-1.5 h-3.5 w-3.5" />
+          Nouă
+        </Button>
+      </div>
+      <ConversationFilters
+        search={search}
+        mailbox={mailbox}
+        status={status}
+        onlyWithDeadline={onlyWithDeadline}
+        onSearchChange={setSearch}
+        onMailboxChange={setMailbox}
+        onStatusChange={setStatus}
+        onOnlyWithDeadlineChange={setOnlyWithDeadline}
+      />
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <ConversationList
+          rows={filteredRows}
+          loading={loading}
+          selectedConversationId={selectedConversationId}
+          userNameMap={userNameMap}
+          onSelect={(conversationId) => {
+            setSelectedConversationId(conversationId)
+            onSelectConversation?.(conversationId)
+          }}
+        />
+      </div>
+    </div>
+  )
+
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col">
       <section className="grid h-full min-h-0 w-full flex-1 overflow-hidden border-y border-neutral-200 bg-white xl:grid-cols-[340px_minmax(0,1fr)]">
-        <div className="flex min-h-0 flex-col overflow-hidden bg-white">
-          <div className="flex items-center justify-between border-b border-neutral-200 px-3.5 py-3">
-            <p className="text-sm font-semibold text-neutral-800">Conversații interne</p>
+        <div className="hidden min-h-0 xl:flex xl:flex-col xl:overflow-hidden">
+          {renderConversationRail()}
+        </div>
+
+        <div className="flex min-h-0 flex-col overflow-hidden border-t border-neutral-200 bg-white xl:border-l xl:border-t-0">
+          <div className="flex items-center justify-between gap-2 border-b border-neutral-200 px-3 py-2.5 xl:hidden">
+            <MobileRailSheet side="left" title="Conversații interne" triggerLabel="Conversații" triggerIcon={PanelLeft}>
+              {({ close }) => renderConversationRail(() => close())}
+            </MobileRailSheet>
             <Button
               type="button"
               onClick={() => setIsCreateOpen(true)}
@@ -250,28 +295,6 @@ export default function CrmInternePage() {
               Nouă
             </Button>
           </div>
-          <ConversationFilters
-            search={search}
-            mailbox={mailbox}
-            status={status}
-            onlyWithDeadline={onlyWithDeadline}
-            onSearchChange={setSearch}
-            onMailboxChange={setMailbox}
-            onStatusChange={setStatus}
-            onOnlyWithDeadlineChange={setOnlyWithDeadline}
-          />
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <ConversationList
-              rows={filteredRows}
-              loading={loading}
-              selectedConversationId={selectedConversationId}
-              userNameMap={userNameMap}
-              onSelect={setSelectedConversationId}
-            />
-          </div>
-        </div>
-
-        <div className="flex min-h-0 flex-col overflow-hidden border-t border-neutral-200 bg-white xl:border-l xl:border-t-0">
           {!selectedConversation ? (
             <div className="flex h-full min-h-[460px] flex-col items-center justify-center gap-3 p-10 text-center">
               <div className="rounded-full border border-neutral-200 bg-neutral-50 p-3">

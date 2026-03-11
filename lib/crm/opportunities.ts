@@ -33,6 +33,7 @@ import { listResolvedCrmClientContacts } from "@/lib/crm/client-contacts"
 import { rebuildOpportunitySearchIndex } from "@/lib/crm/opportunity-search-index"
 import { createCrmTaskIfMissing } from "@/lib/crm/tasks"
 import { crmStorageProvider } from "@/lib/crm/storage/provider"
+import { updateClientContactLabel as updateClientContactLabelInClientDoc } from "@/lib/firebase/firestore"
 import type {
   CrmClient,
   CrmClientContact,
@@ -205,6 +206,14 @@ export async function createCrmClientContact(input: {
   })
 
   return ref.id
+}
+
+export async function updateCrmClientContactLabel(input: {
+  clientId: string
+  contactId: string
+  label?: string
+}) {
+  return updateClientContactLabelInClientDoc(input)
 }
 
 export async function listCrmOpportunityAccess(opportunityId: string) {
@@ -604,8 +613,11 @@ export async function updateCrmOpportunity(opportunityId: string, actorId: strin
 
   if (typeof changes.title === "string") payload.title = changes.title
   if (typeof changes.displayTitle === "string") payload.displayTitle = changes.displayTitle
+  if (typeof changes.clientId === "string") payload.clientId = changes.clientId
   if (typeof changes.ownerId === "string") payload.ownerId = changes.ownerId
   if ("primaryContactId" in changes) payload.primaryContactId = changes.primaryContactId || null
+  if (Array.isArray(changes.readUserIds)) payload.readUserIds = Array.from(new Set(changes.readUserIds.filter(Boolean)))
+  if (Array.isArray(changes.editUserIds)) payload.editUserIds = Array.from(new Set(changes.editUserIds.filter(Boolean)))
   if (changes.priority) payload.priority = changes.priority
   if (changes.workStatus) payload.workStatus = changes.workStatus
   if (changes.pipelineStage) {
@@ -633,8 +645,11 @@ export async function updateCrmOpportunity(opportunityId: string, actorId: strin
       changes: {
         title: typeof changes.title === "string" ? changes.title : undefined,
         displayTitle: typeof changes.displayTitle === "string" ? changes.displayTitle : undefined,
+        clientId: typeof changes.clientId === "string" ? changes.clientId : undefined,
         ownerId: typeof changes.ownerId === "string" ? changes.ownerId : undefined,
         primaryContactId: "primaryContactId" in changes ? changes.primaryContactId || null : undefined,
+        readUserIds: Array.isArray(changes.readUserIds) ? changes.readUserIds : undefined,
+        editUserIds: Array.isArray(changes.editUserIds) ? changes.editUserIds : undefined,
         priority: changes.priority || undefined,
         workStatus: changes.workStatus || undefined,
         pipelineStage:

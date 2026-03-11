@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { AlertCircle, Inbox, LayoutGrid, List, Search, Trash2, UserRound } from "lucide-react"
+import { AlertCircle, Inbox, LayoutGrid, List, PanelLeft, PanelRight, Pencil, Search, Trash2, UserRound } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { OpportunityTypeSidebar, PageShell, Panel, SegmentedControl, TaskCounterRing } from "@/components/crm"
+import { MobileRailSheet, OpportunityTypeSidebar, PageShell, Panel, SegmentedControl, TaskCounterRing } from "@/components/crm"
 import {
   CRM_OPPORTUNITY_TYPE_LABELS,
   CRM_PIPELINE_STAGE_LABELS,
@@ -159,6 +159,8 @@ export default function CrmOpportunitiesPage() {
   const [selectedOpportunityIds, setSelectedOpportunityIds] = useState<string[]>([])
   const [deletingOpportunityId, setDeletingOpportunityId] = useState<string | null>(null)
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
+  const [editingOpportunity, setEditingOpportunity] = useState<CrmOpportunity | null>(null)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
 
   const resetToHome = () => {
     setActiveType("ALL")
@@ -408,6 +410,93 @@ export default function CrmOpportunitiesPage() {
 
   const isMainLoading = loading || tasksLoading
   const displayedStageTotal = displayedOpportunities.length
+  const rightRailContent = (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <p className={crmUi.labelXs}>KPI rapide</p>
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-neutral-500">Afișate acum</span>
+          <span className="font-semibold text-neutral-900">{opportunities.length}</span>
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-neutral-500">În listă / kanban</span>
+          <span className="font-semibold text-neutral-900">{displayedOpportunities.length}</span>
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-neutral-500">Active</span>
+          <span className="font-semibold text-neutral-900">
+            {displayedOpportunities.filter((opportunity) => isOpportunityActive(opportunity)).length}
+          </span>
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-neutral-500">Câștigate</span>
+          <span className="font-semibold text-neutral-900">
+            {displayedOpportunities.filter((opportunity) => isWonPipelineStageForOpportunityType(opportunity.opportunityType, opportunity.pipelineStage)).length}
+          </span>
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-neutral-500">Pierdute</span>
+          <span className="font-semibold text-neutral-900">
+            {displayedOpportunities.filter((opportunity) => isLostPipelineStage(opportunity.pipelineStage)).length}
+          </span>
+        </div>
+      </div>
+
+      <div className="border-t border-neutral-300 pt-3">
+        <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-neutral-500">Sarcini</p>
+        <div className="space-y-1.5">
+          <p className="flex items-center justify-between text-sm text-neutral-600">
+            <span>Active</span>
+            <span className="font-medium text-neutral-900">{taskCounters.active}</span>
+          </p>
+          <p className="flex items-center justify-between text-sm text-neutral-600">
+            <span>In lucru</span>
+            <span className="font-medium text-neutral-900">{taskCounters.inProgress}</span>
+          </p>
+          <p className="flex items-center justify-between text-sm text-neutral-600">
+            <span>Indeplinite</span>
+            <span className="font-medium text-neutral-900">{taskCounters.done}</span>
+          </p>
+          <p className="flex items-center justify-between text-sm text-neutral-600">
+            <span>Intarziate</span>
+            <span className="font-medium text-rose-700">{taskCounters.overdue}</span>
+          </p>
+        </div>
+      </div>
+
+      <div className="border-t border-neutral-300 pt-3">
+        <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-neutral-500">Pipeline modul curent</p>
+        <div className="space-y-1.5">
+          {visiblePipelineStages.length > 0 ? (
+            visiblePipelineStages.map((stage, index) => {
+              const stageCount = displayedStageStats[stage] || 0
+              const stagePercent = displayedStageTotal > 0 ? Math.round((stageCount / displayedStageTotal) * 100) : 0
+
+              return (
+                <div
+                  key={stage}
+                  className={cn(
+                    "flex items-center justify-between rounded-md px-2 py-1 text-sm",
+                    stageFilter === stage ? "bg-white border border-neutral-200" : "text-neutral-600"
+                  )}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <span className={cn("h-2.5 w-2.5 rounded-sm", STAGE_DOT_CLASS[index % STAGE_DOT_CLASS.length])} />
+                    <span>{CRM_PIPELINE_STAGE_LABELS[stage] || stage}</span>
+                  </span>
+                  <span className={cn("font-medium", stageFilter === stage ? "text-neutral-900" : "text-neutral-700")}>
+                    {stageCount} ({stagePercent}%)
+                  </span>
+                </div>
+              )
+            })
+          ) : (
+            <p className="text-xs text-neutral-500">Nu există statusuri cu valori pentru filtrele curente.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 
   const handleDeleteOpportunity = async (opportunity: CrmOpportunity) => {
     if (!isAdmin || !user?.uid) return
@@ -465,9 +554,27 @@ export default function CrmOpportunitiesPage() {
   return (
     <PageShell className="flex h-full min-h-0 flex-col space-y-0 overflow-hidden bg-[#f6f8fc]">
       <div className="grid h-full flex-1 min-h-0 gap-3 overflow-hidden xl:grid-cols-[216px_1fr_300px]">
-        <OpportunityTypeSidebar homeItem={sidebarHomeItem} items={sidebarItems} />
+        <div className="hidden min-h-0 xl:block">
+          <OpportunityTypeSidebar homeItem={sidebarHomeItem} items={sidebarItems} />
+        </div>
 
         <div className="flex min-h-0 flex-col gap-3 overflow-hidden">
+          <div className="mt-2 flex items-center gap-2 xl:hidden">
+            <MobileRailSheet side="left" title="Tip oportunitate" triggerLabel="Filtre" triggerIcon={PanelLeft} className="border-r-2 border-[#004b87] bg-[#005599]">
+              {({ close }) => (
+                <OpportunityTypeSidebar
+                  homeItem={sidebarHomeItem}
+                  items={sidebarItems}
+                  renderMode="content"
+                  onItemSelect={close}
+                  contentClassName="pt-1"
+                />
+              )}
+            </MobileRailSheet>
+            <MobileRailSheet side="right" title="Status oportunități" triggerLabel="Status" triggerIcon={PanelRight} className="bg-[#f3f4f6]">
+              {rightRailContent}
+            </MobileRailSheet>
+          </div>
           <Panel className="mt-2 rounded-md border-neutral-300 bg-white shadow-none shrink-0" contentClassName="space-y-4">
             <div className="flex flex-wrap items-center gap-2.5">
               <div className="relative min-w-[220px] flex-1">
@@ -494,6 +601,22 @@ export default function CrmOpportunitiesPage() {
                 prefilledClientId={prefilledClientId}
                 autoOpen={shouldAutoOpenCreate}
                 onCreated={(opportunityId) => router.push(`/crm/opportunities/${opportunityId}/timeline`)}
+              />
+              <CreateOpportunityDialog
+                actorId={user?.uid || ""}
+                mode="edit"
+                open={isEditDialogOpen}
+                onOpenChange={(nextOpen) => {
+                  setIsEditDialogOpen(nextOpen)
+                  if (!nextOpen) {
+                    setEditingOpportunity(null)
+                  }
+                }}
+                hideTrigger
+                initialOpportunity={editingOpportunity}
+                onSaved={async () => {
+                  await loadData()
+                }}
               />
               {isAdmin && selectedOpportunityIds.length > 0 ? (
                 <Button
@@ -672,6 +795,21 @@ export default function CrmOpportunitiesPage() {
                               type="button"
                               variant="ghost"
                               size="icon"
+                              className="h-7 w-7 text-slate-700"
+                              disabled={rowBusy}
+                              onClick={(event) => {
+                                event.preventDefault()
+                                event.stopPropagation()
+                                setEditingOpportunity(opportunity)
+                                setIsEditDialogOpen(true)
+                              }}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
                               className="h-7 w-7 text-rose-600"
                               disabled={rowBusy}
                               onClick={(event) => {
@@ -773,94 +911,10 @@ export default function CrmOpportunitiesPage() {
 
         <Panel
           title="Status oportunități"
-          className="flex min-h-0 flex-col overflow-hidden rounded-md border-neutral-300 bg-[#f3f4f6] shadow-none xl:h-full xl:rounded-none xl:border-y-0 xl:border-r-0 xl:border-l xl:border-neutral-300"
+          className="hidden min-h-0 flex-col overflow-hidden rounded-md border-neutral-300 bg-[#f3f4f6] shadow-none xl:flex xl:h-full xl:rounded-none xl:border-y-0 xl:border-r-0 xl:border-l xl:border-neutral-300"
           contentClassName="min-h-0 flex-1 overflow-y-auto"
         >
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <p className={crmUi.labelXs}>KPI rapide</p>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-neutral-500">Afișate acum</span>
-                <span className="font-semibold text-neutral-900">{opportunities.length}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-neutral-500">În listă / kanban</span>
-                <span className="font-semibold text-neutral-900">{displayedOpportunities.length}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-neutral-500">Active</span>
-                <span className="font-semibold text-neutral-900">
-                  {displayedOpportunities.filter((opportunity) => isOpportunityActive(opportunity)).length}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-neutral-500">Câștigate</span>
-                <span className="font-semibold text-neutral-900">
-                  {displayedOpportunities.filter((opportunity) => isWonPipelineStageForOpportunityType(opportunity.opportunityType, opportunity.pipelineStage)).length}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-neutral-500">Pierdute</span>
-                <span className="font-semibold text-neutral-900">
-                  {displayedOpportunities.filter((opportunity) => isLostPipelineStage(opportunity.pipelineStage)).length}
-                </span>
-              </div>
-            </div>
-
-            <div className="border-t border-neutral-300 pt-3">
-              <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-neutral-500">Sarcini</p>
-              <div className="space-y-1.5">
-                <p className="flex items-center justify-between text-sm text-neutral-600">
-                  <span>Active</span>
-                  <span className="font-medium text-neutral-900">{taskCounters.active}</span>
-                </p>
-                <p className="flex items-center justify-between text-sm text-neutral-600">
-                  <span>In lucru</span>
-                  <span className="font-medium text-neutral-900">{taskCounters.inProgress}</span>
-                </p>
-                <p className="flex items-center justify-between text-sm text-neutral-600">
-                  <span>Indeplinite</span>
-                  <span className="font-medium text-neutral-900">{taskCounters.done}</span>
-                </p>
-                <p className="flex items-center justify-between text-sm text-neutral-600">
-                  <span>Intarziate</span>
-                  <span className="font-medium text-rose-700">{taskCounters.overdue}</span>
-                </p>
-              </div>
-            </div>
-
-            <div className="border-t border-neutral-300 pt-3">
-              <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-neutral-500">Pipeline modul curent</p>
-              <div className="space-y-1.5">
-                {visiblePipelineStages.length > 0 ? (
-                  visiblePipelineStages.map((stage, index) => {
-                    const stageCount = displayedStageStats[stage] || 0
-                    const stagePercent = displayedStageTotal > 0 ? Math.round((stageCount / displayedStageTotal) * 100) : 0
-
-                    return (
-                      <div
-                        key={stage}
-                        className={cn(
-                          "flex items-center justify-between rounded-md px-2 py-1 text-sm",
-                          stageFilter === stage ? "bg-white border border-neutral-200" : "text-neutral-600"
-                        )}
-                      >
-                        <span className="inline-flex items-center gap-2">
-                          <span className={cn("h-2.5 w-2.5 rounded-sm", STAGE_DOT_CLASS[index % STAGE_DOT_CLASS.length])} />
-                          <span>{CRM_PIPELINE_STAGE_LABELS[stage] || stage}</span>
-                        </span>
-                        <span className={cn("font-medium", stageFilter === stage ? "text-neutral-900" : "text-neutral-700")}>
-                          {stageCount} ({stagePercent}%)
-                        </span>
-                      </div>
-                    )
-                  })
-                ) : (
-                  <p className="text-xs text-neutral-500">Nu există statusuri cu valori pentru filtrele curente.</p>
-                )}
-              </div>
-            </div>
-          </div>
+          {rightRailContent}
         </Panel>
       </div>
     </PageShell>

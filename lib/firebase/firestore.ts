@@ -629,6 +629,70 @@ export const getClientById = async (id: string) => {
   return null
 }
 
+export const updateClientContactLabel = async (params: {
+  clientId: string
+  contactId: string
+  label?: string
+}) => {
+  const clientDoc = doc(db, "clienti", params.clientId)
+  const snap = await getDoc(clientDoc)
+  if (!snap.exists()) {
+    throw new Error("Clientul nu a fost găsit")
+  }
+
+  const clientData = snap.data() as Record<string, unknown>
+  const normalizedLabel = (params.label || "").trim()
+  let contactUpdated = false
+
+  const nextLocatii = Array.isArray(clientData.locatii)
+    ? (clientData.locatii as Array<Record<string, unknown>>).map((locatie) => {
+        if (!Array.isArray(locatie.persoaneContact)) return locatie
+        const nextContacts = (locatie.persoaneContact as Array<Record<string, unknown>>).map((contact) => {
+          if (String(contact.id || "") !== params.contactId) return contact
+          contactUpdated = true
+          const next = { ...contact }
+          if (normalizedLabel) {
+            next.label = normalizedLabel
+            next.functie = normalizedLabel
+          } else {
+            delete next.label
+            delete next.functie
+          }
+          return next
+        })
+        return { ...locatie, persoaneContact: nextContacts }
+      })
+    : undefined
+
+  const nextClientContacts = Array.isArray(clientData.persoaneContact)
+    ? (clientData.persoaneContact as Array<Record<string, unknown>>).map((contact) => {
+        if (String(contact.id || "") !== params.contactId) return contact
+        contactUpdated = true
+        const next = { ...contact }
+        if (normalizedLabel) {
+          next.label = normalizedLabel
+          next.functie = normalizedLabel
+        } else {
+          delete next.label
+          delete next.functie
+        }
+        return next
+      })
+    : undefined
+
+  if (!contactUpdated) {
+    throw new Error("Contactul nu a fost găsit în documentul clientului.")
+  }
+
+  const payload: Record<string, unknown> = {
+    updatedAt: serverTimestamp(),
+  }
+  if (nextLocatii) payload.locatii = nextLocatii
+  if (nextClientContacts) payload.persoaneContact = nextClientContacts
+
+  await updateDoc(clientDoc, payload as DocumentData)
+}
+
 // Add a new client
 export const addClient = async (client: Client) => {
   const clientsCollection = collection(db, "clienti")
