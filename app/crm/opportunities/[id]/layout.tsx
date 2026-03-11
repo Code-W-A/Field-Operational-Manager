@@ -2,18 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { CalendarDays, ClipboardCheck, FileText, Loader2, Mail, MessageSquare, PanelLeft, PanelRight, Timer, Trash2 } from "lucide-react"
+import { CalendarDays, ClipboardCheck, FileText, Loader2, Mail, Menu, MessageSquare, PanelLeft, PanelRight, Pencil, Timer, Trash2 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { MobileRailSheet, OpportunityTypeSidebar, Panel, TabsHeader } from "@/components/crm"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   changeCrmOpportunityStage,
+  updateCrmClientContactDetails,
   updateCrmOpportunity,
-  updateCrmClientContactLabel,
   getCrmClientById,
   deleteCrmOpportunity,
   getCrmOpportunityById,
@@ -30,6 +31,7 @@ import {
   CRM_WORK_STATUSES,
   CRM_WORK_STATUS_LABELS,
   getPipelineStagesForOpportunityType,
+  normalizePipelineStageForOpportunityType,
   isLostPipelineStage,
   CRM_OPPORTUNITY_SELECTABLE_TYPES,
   CRM_OPPORTUNITY_TYPE_LABELS,
@@ -90,10 +92,17 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
   const [loading, setLoading] = useState(true)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [selectedContactForDialog, setSelectedContactForDialog] = useState<CrmClientContact | null>(null)
+  const [editingContact, setEditingContact] = useState<CrmClientContact | null>(null)
+  const [contactEditDraft, setContactEditDraft] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    functie: "",
+  })
   const [isDeletingOpportunity, setIsDeletingOpportunity] = useState(false)
   const [savingField, setSavingField] = useState<"pipelineStage" | "priority" | "workStatus" | null>(null)
   const [savingPrimaryContactId, setSavingPrimaryContactId] = useState<string | null>(null)
-  const [savingContactLabelId, setSavingContactLabelId] = useState<string | null>(null)
+  const [isSavingContactEdit, setIsSavingContactEdit] = useState(false)
 
   const loadOpportunityData = useCallback(async () => {
     if (!opportunityId || !user?.uid) return
@@ -359,34 +368,54 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
     }
   }
 
-  const handleContactLabelEdit = async (contact: CrmClientContact) => {
-    if (!client?.id) return
-    const nextLabelRaw = window.prompt("Etichetă contact (gol pentru ștergere):", contact.label || "")
-    if (nextLabelRaw === null) return
-    const nextLabel = nextLabelRaw.trim()
+  const openContactEditDialog = (contact: CrmClientContact) => {
+    setEditingContact(contact)
+    setContactEditDraft({
+      name: contact.name || "",
+      phone: contact.phone || "",
+      email: contact.email || "",
+      functie: contact.functie || "",
+    })
+  }
 
-    setSavingContactLabelId(contact.id)
+  const handleContactEditSave = async () => {
+    if (!client?.id || !editingContact) return
+
+    const normalizedName = contactEditDraft.name.trim()
+    const normalizedPhone = contactEditDraft.phone.trim()
+    if (!normalizedName || !normalizedPhone) {
+      toast({
+        title: "Câmpuri obligatorii",
+        description: "Completează numele și telefonul contactului.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSavingContactEdit(true)
     try {
-      await updateCrmClientContactLabel({
+      await updateCrmClientContactDetails({
         clientId: client.id,
-        contactId: contact.id,
-        label: nextLabel || undefined,
+        contactId: editingContact.id,
+        name: normalizedName,
+        phone: normalizedPhone,
+        email: contactEditDraft.email.trim() || undefined,
+        functie: contactEditDraft.functie.trim() || undefined,
       })
       await loadOpportunityData()
+      setEditingContact(null)
       toast({
-        title: "Etichetă actualizată",
-        description: nextLabel
-          ? `Eticheta contactului a fost setată la "${nextLabel}".`
-          : "Eticheta contactului a fost ștearsă.",
+        title: "Contact actualizat",
+        description: "Datele contactului au fost salvate în documentul clientului.",
       })
     } catch (error) {
       toast({
         title: "Eroare la salvare",
-        description: error instanceof Error ? error.message : "Nu am putut salva eticheta contactului.",
+        description: error instanceof Error ? error.message : "Nu am putut actualiza contactul.",
         variant: "destructive",
       })
     } finally {
-      setSavingContactLabelId(null)
+      setIsSavingContactEdit(false)
     }
   }
 
@@ -465,6 +494,10 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
     title: item.label,
   }))
   const pipelineStageOptions = getPipelineStagesForOpportunityType(opportunity.opportunityType)
+  const selectedPipelineStage = normalizePipelineStageForOpportunityType(
+    opportunity.opportunityType,
+    opportunity.pipelineStage
+  )
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -473,9 +506,9 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
           <OpportunityTypeSidebar homeItem={sidebarHomeItem} items={sidebarItems} />
         </div>
 
-        <section className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
-          <div className="mt-1 flex items-center gap-2 xl:hidden">
-            <MobileRailSheet side="left" title="Tip oportunitate" triggerLabel="Filtre" triggerIcon={PanelLeft} className="border-r-2 border-[#004b87] bg-[#005599]">
+        <section className="flex h-full min-h-0 flex-col gap-1.5 xl:gap-3 overflow-y-auto xl:overflow-hidden pb-3 xl:pb-0">
+          <div className="mt-1 flex items-center justify-between xl:hidden">
+            <MobileRailSheet side="left" title="Tip oportunitate" triggerLabel="Filtre" triggerIcon={Menu} iconOnly className="border-r-2 border-[#004b87] bg-[#005599]">
               {({ close }) => (
                 <OpportunityTypeSidebar
                   homeItem={sidebarHomeItem}
@@ -486,7 +519,35 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                 />
               )}
             </MobileRailSheet>
-            <MobileRailSheet side="right" title="Context CRM" triggerLabel="Context" triggerIcon={PanelRight} className="bg-[#f3f4f6]">
+            <div className="mx-2 flex min-w-0 flex-1 items-center gap-1.5">
+              <p className="min-w-0 flex-1 truncate text-center text-base font-semibold text-neutral-900">
+                {opportunity.displayTitle}
+              </p>
+              {isAdmin ? (
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    className="h-7 gap-1 px-2 text-xs"
+                    onClick={() => void handleOpportunityDelete()}
+                    disabled={isDeletingOpportunity}
+                  >
+                    {isDeletingOpportunity ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 gap-1 px-2 text-xs"
+                    onClick={() => setIsEditDialogOpen(true)}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+            <MobileRailSheet side="right" title="Context CRM" triggerLabel="Context" triggerIcon={Menu} iconOnly className="bg-[#f3f4f6]">
               <div className="space-y-5">
                 <div className="rounded-lg border border-neutral-200 bg-white p-3">
                   <p className="text-base font-semibold text-neutral-900">{client?.name || "-"}</p>
@@ -527,9 +588,6 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold text-neutral-900">{primaryContact.name}</p>
-                          {primaryContact.label ? (
-                            <Badge variant="secondary" className="mt-1 text-[10px]">{primaryContact.label}</Badge>
-                          ) : null}
                         </div>
                         <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Principal</Badge>
                       </div>
@@ -554,13 +612,12 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                           variant="outline"
                           size="sm"
                           className="h-7 px-2 text-xs"
-                          disabled={savingContactLabelId === primaryContact.id}
                           onClick={(event) => {
                             event.stopPropagation()
-                            void handleContactLabelEdit(primaryContact)
+                            openContactEditDialog(primaryContact)
                           }}
                         >
-                          {savingContactLabelId === primaryContact.id ? "Se salvează..." : "Editează etichetă"}
+                          Editează contact
                         </Button>
                         <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(event) => { event.stopPropagation(); void copyTextToClipboard(primaryContact.phone || "", "Telefonul contactului") }}>
                           Copiază telefon
@@ -597,7 +654,6 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                         >
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="text-sm font-medium text-neutral-800">{contact.name}</p>
-                            {contact.label ? <Badge variant="secondary" className="text-[10px]">{contact.label}</Badge> : null}
                           </div>
                           <p className="mt-1 text-xs text-neutral-600">{contact.locationName || "Fără locație"}</p>
                           <div className="mt-2 flex flex-wrap gap-2">
@@ -619,13 +675,12 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                               variant="outline"
                               size="sm"
                               className="h-7 px-2 text-xs"
-                              disabled={savingContactLabelId === contact.id}
                               onClick={(event) => {
                                 event.stopPropagation()
-                                void handleContactLabelEdit(contact)
+                                openContactEditDialog(contact)
                               }}
                             >
-                              {savingContactLabelId === contact.id ? "Se salvează..." : "Editează etichetă"}
+                              Editează contact
                             </Button>
                             <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(event) => { event.stopPropagation(); void copyTextToClipboard(contact.phone || "", "Telefonul contactului") }}>
                               Copiază telefon
@@ -678,26 +733,26 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
           </div>
           <div
             className={cn(
-              "mt-1 rounded-xl border px-5 py-4",
+              "mt-1 rounded-xl border px-3 py-2.5 xl:px-5 xl:py-4",
               PRIORITY_HEADER_STYLES[opportunity.priority]
             )}
           >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-[280px] flex-1">
-                <p className="text-lg font-semibold text-neutral-900">{opportunity.displayTitle}</p>
+            <div className="flex flex-wrap items-start justify-between gap-2 xl:gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="hidden text-lg font-semibold text-neutral-900 xl:block">{opportunity.displayTitle}</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="hidden items-center gap-2 xl:flex">
                 {isAdmin ? (
                   <Button
                     type="button"
                     size="sm"
                     variant="destructive"
-                    className="h-9 text-sm"
+                    className="h-7 gap-1 px-2 text-xs xl:h-9 xl:px-3 xl:text-sm"
                     onClick={() => void handleOpportunityDelete()}
                     disabled={isDeletingOpportunity}
                   >
-                    {isDeletingOpportunity ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Trash2 className="mr-1.5 h-4 w-4" />}
-                    Șterge oportunitate
+                    {isDeletingOpportunity ? <Loader2 className="h-3.5 w-3.5 animate-spin xl:h-4 xl:w-4" /> : <Trash2 className="h-3.5 w-3.5 xl:h-4 xl:w-4" />}
+                    <span className="hidden xl:inline">Șterge oportunitate</span>
                   </Button>
                 ) : null}
                 {isAdmin ? (
@@ -705,24 +760,25 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                     type="button"
                     size="sm"
                     variant="outline"
-                    className="h-9 text-sm"
+                    className="h-7 gap-1 px-2 text-xs xl:h-9 xl:px-3 xl:text-sm"
                     onClick={() => setIsEditDialogOpen(true)}
                   >
-                    Editează oportunitate
+                    <Pencil className="h-3.5 w-3.5 xl:h-4 xl:w-4" />
+                    <span className="hidden xl:inline">Editează oportunitate</span>
                   </Button>
                 ) : null}
               </div>
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-2.5">
+            <div className="mt-1.5 grid grid-cols-3 gap-1.5 xl:mt-2 xl:flex xl:flex-wrap xl:items-center xl:gap-2.5">
               <Select
-                value={opportunity.pipelineStage}
+                value={selectedPipelineStage}
                 onValueChange={(value) => {
                   void handlePipelineStageChange(value)
                 }}
                 disabled={savingField !== null}
               >
-                <SelectTrigger className={cn("h-8 min-w-[180px] bg-white/80", PRIORITY_SUBTEXT_STYLES[opportunity.priority])}>
-                  <SelectValue placeholder="Status oportunitate" />
+                <SelectTrigger className={cn("h-7 bg-white/80 px-2 text-[11px] xl:h-8 xl:px-3 xl:text-sm xl:min-w-[180px]", PRIORITY_SUBTEXT_STYLES[opportunity.priority])}>
+                  <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
                   {pipelineStageOptions.map((stage) => (
@@ -740,7 +796,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                 }}
                 disabled={savingField !== null}
               >
-                <SelectTrigger className={cn("h-8 min-w-[130px] bg-white/80", PRIORITY_SUBTEXT_STYLES[opportunity.priority])}>
+                <SelectTrigger className={cn("h-7 bg-white/80 px-2 text-[11px] xl:h-8 xl:px-3 xl:text-sm xl:min-w-[130px]", PRIORITY_SUBTEXT_STYLES[opportunity.priority])}>
                   <SelectValue placeholder="Prioritate" />
                 </SelectTrigger>
                 <SelectContent>
@@ -759,8 +815,8 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                 }}
                 disabled={savingField !== null}
               >
-                <SelectTrigger className={cn("h-8 min-w-[130px] bg-white/80", PRIORITY_SUBTEXT_STYLES[opportunity.priority])}>
-                  <SelectValue placeholder="Status lucru" />
+                <SelectTrigger className={cn("h-7 bg-white/80 px-2 text-[11px] xl:h-8 xl:px-3 xl:text-sm xl:min-w-[130px]", PRIORITY_SUBTEXT_STYLES[opportunity.priority])}>
+                  <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
                   {CRM_WORK_STATUSES.map((status) => (
@@ -771,7 +827,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                 </SelectContent>
               </Select>
               {savingField ? (
-                <span className="inline-flex items-center text-xs text-neutral-600">
+                <span className="col-span-3 inline-flex items-center text-xs text-neutral-600 xl:col-span-1">
                   <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
                   Se salvează...
                 </span>
@@ -828,9 +884,6 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-neutral-900">{primaryContact.name}</p>
-                      {primaryContact.label ? (
-                        <Badge variant="secondary" className="mt-1 text-[10px]">{primaryContact.label}</Badge>
-                      ) : null}
                     </div>
                     <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Principal</Badge>
                   </div>
@@ -855,13 +908,12 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                       variant="outline"
                       size="sm"
                       className="h-7 px-2 text-xs"
-                      disabled={savingContactLabelId === primaryContact.id}
                       onClick={(event) => {
                         event.stopPropagation()
-                        void handleContactLabelEdit(primaryContact)
+                        openContactEditDialog(primaryContact)
                       }}
                     >
-                      {savingContactLabelId === primaryContact.id ? "Se salvează..." : "Editează etichetă"}
+                      Editează contact
                     </Button>
                     <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(event) => { event.stopPropagation(); void copyTextToClipboard(primaryContact.phone || "", "Telefonul contactului") }}>
                       Copiază telefon
@@ -898,7 +950,6 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                     >
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-sm font-medium text-neutral-800">{contact.name}</p>
-                        {contact.label ? <Badge variant="secondary" className="text-[10px]">{contact.label}</Badge> : null}
                       </div>
                       <p className="mt-1 text-xs text-neutral-600">{contact.locationName || "Fără locație"}</p>
                       <div className="mt-2 flex flex-wrap gap-2">
@@ -920,13 +971,12 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                           variant="outline"
                           size="sm"
                           className="h-7 px-2 text-xs"
-                          disabled={savingContactLabelId === contact.id}
                           onClick={(event) => {
                             event.stopPropagation()
-                            void handleContactLabelEdit(contact)
+                            openContactEditDialog(contact)
                           }}
                         >
-                          {savingContactLabelId === contact.id ? "Se salvează..." : "Editează etichetă"}
+                          Editează contact
                         </Button>
                         <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(event) => { event.stopPropagation(); void copyTextToClipboard(contact.phone || "", "Telefonul contactului") }}>
                           Copiază telefon
@@ -991,17 +1041,66 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                 ) : null}
               </div>
               <div className="grid grid-cols-[110px_1fr] gap-2">
-                <span className="text-neutral-500">Etichetă</span>
-                <span className="text-neutral-800">{selectedContactForDialog.label || "-"}</span>
                 <span className="text-neutral-500">Locație</span>
                 <span className="text-neutral-800">{selectedContactForDialog.locationName || "-"}</span>
                 <span className="text-neutral-500">Telefon</span>
                 <span className="text-neutral-800">{selectedContactForDialog.phone || "-"}</span>
                 <span className="text-neutral-500">Email</span>
                 <span className="break-all text-neutral-800">{selectedContactForDialog.email || "-"}</span>
+                <span className="text-neutral-500">Funcție</span>
+                <span className="text-neutral-800">{selectedContactForDialog.functie || "-"}</span>
               </div>
             </div>
           ) : null}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!editingContact} onOpenChange={(open) => !open && setEditingContact(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editează contact</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-neutral-600">Nume</p>
+              <Input
+                value={contactEditDraft.name}
+                onChange={(event) => setContactEditDraft((prev) => ({ ...prev, name: event.target.value }))}
+                placeholder="Nume contact"
+              />
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-neutral-600">Telefon</p>
+              <Input
+                value={contactEditDraft.phone}
+                onChange={(event) => setContactEditDraft((prev) => ({ ...prev, phone: event.target.value }))}
+                placeholder="Telefon"
+              />
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-neutral-600">Email</p>
+              <Input
+                value={contactEditDraft.email}
+                onChange={(event) => setContactEditDraft((prev) => ({ ...prev, email: event.target.value }))}
+                placeholder="Email"
+              />
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-neutral-600">Funcție (opțional)</p>
+              <Input
+                value={contactEditDraft.functie}
+                onChange={(event) => setContactEditDraft((prev) => ({ ...prev, functie: event.target.value }))}
+                placeholder="Funcție"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setEditingContact(null)} disabled={isSavingContactEdit}>
+                Anulează
+              </Button>
+              <Button type="button" onClick={() => void handleContactEditSave()} disabled={isSavingContactEdit}>
+                {isSavingContactEdit ? "Se salvează..." : "Salvează"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
       <CreateOpportunityDialog

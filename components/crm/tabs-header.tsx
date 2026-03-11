@@ -20,7 +20,12 @@ export function TabsHeader({ items, className }: TabsHeaderProps) {
   const pathname = usePathname()
 
   return (
-    <div className={cn("flex flex-wrap items-center gap-x-6 gap-y-1 border-b border-neutral-200", className)}>
+    <div
+      className={cn(
+        "flex items-center gap-6 overflow-x-auto border-b border-neutral-200 whitespace-nowrap [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        className
+      )}
+    >
       {items.map((item) => {
         const Icon = item.icon
         const active = pathname === item.href

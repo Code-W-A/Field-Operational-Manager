@@ -6,11 +6,12 @@ import { getClientLevelContactsFromRecord, getClientLocationContactsFromRecord }
 
 function mapResolvedContact(clientId: string, contact: Record<string, unknown>): CrmClientContact {
   const email = String(contact.email || "").trim()
+  const functie = typeof contact.functie === "string" && contact.functie.trim()
+    ? contact.functie.trim()
+    : ""
   const label = typeof contact.label === "string" && contact.label.trim()
     ? contact.label.trim()
-    : typeof contact.functie === "string" && contact.functie.trim()
-      ? contact.functie.trim()
-      : ""
+    : functie
 
   return {
     id: String(contact.id || ""),
@@ -18,6 +19,7 @@ function mapResolvedContact(clientId: string, contact: Record<string, unknown>):
     name: String(contact.nume || ""),
     phone: String(contact.telefon || ""),
     email: email || undefined,
+    functie: functie || undefined,
     label: label || undefined,
     locationName: typeof contact.locationName === "string" && contact.locationName.trim() ? contact.locationName.trim() : undefined,
   }
@@ -62,6 +64,7 @@ export async function listResolvedCrmClientContacts(clientId: string): Promise<C
       name: String(data.name || ""),
       phone: String(data.phone || ""),
       email: typeof data.email === "string" && data.email.trim() ? data.email.trim() : undefined,
+      functie: typeof data.functie === "string" && data.functie.trim() ? data.functie.trim() : undefined,
       label: typeof data.label === "string" && data.label.trim() ? data.label.trim() : undefined,
       locationName: typeof data.locationName === "string" && data.locationName.trim() ? data.locationName.trim() : undefined,
       createdAt: data.createdAt as CrmClientContact["createdAt"],

@@ -12,9 +12,10 @@ interface SegmentedControlProps {
   items: SegmentedItem[]
   onValueChange: (value: string) => void
   className?: string
+  iconOnlyOnMobile?: boolean
 }
 
-export function SegmentedControl({ value, items, onValueChange, className }: SegmentedControlProps) {
+export function SegmentedControl({ value, items, onValueChange, className, iconOnlyOnMobile = false }: SegmentedControlProps) {
   return (
     <div className={cn("inline-flex items-center gap-1", className)}>
       {items.map((item) => {
@@ -31,9 +32,10 @@ export function SegmentedControl({ value, items, onValueChange, className }: Seg
                 ? "border-neutral-300 bg-neutral-50 text-neutral-900"
                 : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:text-neutral-900"
             )}
+            aria-label={item.label}
           >
             {Icon ? <Icon className="h-3.5 w-3.5 text-neutral-500" /> : null}
-            {item.label}
+            <span className={iconOnlyOnMobile ? "hidden sm:inline" : ""}>{item.label}</span>
           </button>
         )
       })}

@@ -18,7 +18,7 @@ export default function CrmLayout({ children }: { children: ReactNode }) {
         <div
           className={cn(
             "-mx-3 flex flex-1 min-h-0 flex-col sm:-mx-6 lg:-mx-10",
-            isFullHeightRoute && "xl:-mt-4 xl:-mb-24 xl:min-h-[calc(100%+7rem)]"
+            isFullHeightRoute && "-mb-24 min-h-[calc(100%+6rem)] xl:-mt-4 xl:-mb-24 xl:min-h-[calc(100%+7rem)]"
           )}
         >
           {children}

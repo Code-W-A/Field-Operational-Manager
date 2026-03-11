@@ -11,6 +11,8 @@ interface MobileRailSheetProps {
   title: string
   triggerLabel: string
   triggerIcon?: LucideIcon
+  iconOnly?: boolean
+  triggerClassName?: string
   className?: string
   children: ReactNode | ((controls: { close: () => void }) => ReactNode)
 }
@@ -20,6 +22,8 @@ export function MobileRailSheet({
   title,
   triggerLabel,
   triggerIcon: TriggerIcon,
+  iconOnly = false,
+  triggerClassName,
   className,
   children,
 }: MobileRailSheetProps) {
@@ -29,9 +33,19 @@ export function MobileRailSheet({
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 px-3 text-xs">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className={cn(
+            "h-8 gap-1.5 px-3 text-xs",
+            iconOnly ? "h-9 w-9 rounded-full p-0" : "",
+            triggerClassName
+          )}
+          aria-label={triggerLabel}
+        >
           {TriggerIcon ? <TriggerIcon className="h-3.5 w-3.5" /> : null}
-          {triggerLabel}
+          {iconOnly ? null : triggerLabel}
         </Button>
       </SheetTrigger>
       <SheetContent side={side} className={cn("w-[92vw] max-w-sm overflow-y-auto p-0", className)}>

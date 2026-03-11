@@ -41,6 +41,7 @@ export interface CrmClientContact {
   name: string
   phone: string
   email?: string
+  functie?: string
   label?: string
   locationName?: string
   createdAt?: FirestoreDateValue

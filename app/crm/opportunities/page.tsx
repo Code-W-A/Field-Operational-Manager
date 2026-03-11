@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { AlertCircle, Inbox, LayoutGrid, List, PanelLeft, PanelRight, Pencil, Search, Trash2, UserRound } from "lucide-react"
+import { AlertCircle, Inbox, LayoutGrid, List, Menu, Pencil, Search, Trash2, UserRound } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -558,9 +558,16 @@ export default function CrmOpportunitiesPage() {
           <OpportunityTypeSidebar homeItem={sidebarHomeItem} items={sidebarItems} />
         </div>
 
-        <div className="flex min-h-0 flex-col gap-3 overflow-hidden">
-          <div className="mt-2 flex items-center gap-2 xl:hidden">
-            <MobileRailSheet side="left" title="Tip oportunitate" triggerLabel="Filtre" triggerIcon={PanelLeft} className="border-r-2 border-[#004b87] bg-[#005599]">
+        <div className="flex min-h-0 flex-col gap-2 xl:gap-3 overflow-y-auto xl:overflow-hidden">
+          <div className="mt-1 flex items-center justify-between xl:hidden">
+            <MobileRailSheet
+              side="left"
+              title="Tip oportunitate"
+              triggerLabel="Filtre"
+              triggerIcon={Menu}
+              iconOnly
+              className="border-r-2 border-[#004b87] bg-[#005599]"
+            >
               {({ close }) => (
                 <OpportunityTypeSidebar
                   homeItem={sidebarHomeItem}
@@ -571,13 +578,28 @@ export default function CrmOpportunitiesPage() {
                 />
               )}
             </MobileRailSheet>
-            <MobileRailSheet side="right" title="Status oportunități" triggerLabel="Status" triggerIcon={PanelRight} className="bg-[#f3f4f6]">
+            <div className="mx-2 min-w-0 flex-1">
+              <div className="grid grid-cols-2 gap-1 rounded-md border border-neutral-200 bg-white/80 px-2 py-1 text-[10px] leading-tight text-neutral-700">
+                <span className="truncate rounded bg-neutral-100 px-1.5 py-0.5">Active: {taskCounters.active}</span>
+                <span className="truncate rounded bg-neutral-100 px-1.5 py-0.5">In lucru: {taskCounters.inProgress}</span>
+                <span className="truncate rounded bg-neutral-100 px-1.5 py-0.5">Indeplinite: {taskCounters.done}</span>
+                <span className="truncate rounded bg-neutral-100 px-1.5 py-0.5 text-rose-700">Intarziate: {taskCounters.overdue}</span>
+              </div>
+            </div>
+            <MobileRailSheet
+              side="right"
+              title="Status oportunități"
+              triggerLabel="Status"
+              triggerIcon={Menu}
+              iconOnly
+              className="bg-[#f3f4f6]"
+            >
               {rightRailContent}
             </MobileRailSheet>
           </div>
-          <Panel className="mt-2 rounded-md border-neutral-300 bg-white shadow-none shrink-0" contentClassName="space-y-4">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <div className="relative min-w-[220px] flex-1">
+          <Panel className="mt-1 rounded-md border-neutral-300 bg-white shadow-none shrink-0" contentClassName="p-3 space-y-2 xl:p-4 xl:space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative min-w-0 flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
                 <Input
                   value={search}
@@ -590,6 +612,7 @@ export default function CrmOpportunitiesPage() {
               <SegmentedControl
                 value={viewMode}
                 onValueChange={(value) => setViewMode(value as "LIST" | "KANBAN")}
+                iconOnlyOnMobile
                 items={[
                   { id: "LIST", label: "Lista", icon: List },
                   { id: "KANBAN", label: "Kanban", icon: LayoutGrid },
@@ -631,98 +654,100 @@ export default function CrmOpportunitiesPage() {
               ) : null}
             </div>
 
-            <div className="py-1">
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                {counterItems.map((item) => (
-                  <TaskCounterRing
-                    key={item.key}
-                    label={item.label}
-                    value={item.value}
-                    tone={item.tone}
-                    loading={tasksLoading}
-                    active={taskQuickFilter === item.key}
-                    onClick={() => {
-                      setTaskQuickFilter((current) => (current === item.key ? null : item.key))
-                    }}
-                  />
-                ))}
+            <div className="hidden xl:block">
+              <div className="py-1">
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  {counterItems.map((item) => (
+                    <TaskCounterRing
+                      key={item.key}
+                      label={item.label}
+                      value={item.value}
+                      tone={item.tone}
+                      loading={tasksLoading}
+                      active={taskQuickFilter === item.key}
+                      onClick={() => {
+                        setTaskQuickFilter((current) => (current === item.key ? null : item.key))
+                      }}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 pb-1 text-xs text-neutral-500">
-              <p>
-                Counterele masoara sarcinile din oportunitatile filtrate curent.
-                {taskQuickFilter ? <span className="ml-1 text-neutral-700">Quick-filter activ: {TASK_QUICK_FILTER_LABELS[taskQuickFilter]}.</span> : null}
-              </p>
-              {taskQuickFilter ? (
-                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setTaskQuickFilter(null)}>
-                  Reseteaza quick-filter
-                </Button>
-              ) : null}
-            </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 pb-1 text-xs text-neutral-500">
+                <p>
+                  Counterele masoara sarcinile din oportunitatile filtrate curent.
+                  {taskQuickFilter ? <span className="ml-1 text-neutral-700">Quick-filter activ: {TASK_QUICK_FILTER_LABELS[taskQuickFilter]}.</span> : null}
+                </p>
+                {taskQuickFilter ? (
+                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setTaskQuickFilter(null)}>
+                    Reseteaza quick-filter
+                  </Button>
+                ) : null}
+              </div>
 
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              <Select value={ownerFilter} onValueChange={setOwnerFilter}>
-                <SelectTrigger className={crmUi.selectTrigger}>
-                  <SelectValue placeholder="Proprietar" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">Toti proprietarii</SelectItem>
-                  {ownerOptions.map(([id, label]) => (
-                    <SelectItem key={id} value={id}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+                  <SelectTrigger className={crmUi.selectTrigger}>
+                    <SelectValue placeholder="Proprietar" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Toti proprietarii</SelectItem>
+                    {ownerOptions.map(([id, label]) => (
+                      <SelectItem key={id} value={id}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                <SelectTrigger className={crmUi.selectTrigger}>
-                  <SelectValue placeholder="Prioritate" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">Toate prioritatile</SelectItem>
-                  {CRM_PRIORITIES.map((priority) => (
-                    <SelectItem key={priority} value={priority}>
-                      {CRM_PRIORITY_LABELS[priority]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                  <SelectTrigger className={crmUi.selectTrigger}>
+                    <SelectValue placeholder="Prioritate" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Toate prioritatile</SelectItem>
+                    {CRM_PRIORITIES.map((priority) => (
+                      <SelectItem key={priority} value={priority}>
+                        {CRM_PRIORITY_LABELS[priority]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-              <Select value={stageFilter} onValueChange={setStageFilter}>
-                <SelectTrigger className={crmUi.selectTrigger}>
-                  <SelectValue placeholder="Pipeline" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">Toate stage-urile</SelectItem>
-                  {availableStages.map((stage) => (
-                    <SelectItem key={stage} value={stage}>
-                      {CRM_PIPELINE_STAGE_LABELS[stage] || stage}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <Select value={stageFilter} onValueChange={setStageFilter}>
+                  <SelectTrigger className={crmUi.selectTrigger}>
+                    <SelectValue placeholder="Pipeline" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Toate stage-urile</SelectItem>
+                    {availableStages.map((stage) => (
+                      <SelectItem key={stage} value={stage}>
+                        {CRM_PIPELINE_STAGE_LABELS[stage] || stage}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className={crmUi.selectTrigger}>
-                  <SelectValue placeholder="Status lucru" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">Toate statusurile</SelectItem>
-                  {CRM_WORK_STATUSES.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {CRM_WORK_STATUS_LABELS[status]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className={crmUi.selectTrigger}>
+                    <SelectValue placeholder="Status lucru" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Toate statusurile</SelectItem>
+                    {CRM_WORK_STATUSES.map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {CRM_WORK_STATUS_LABELS[status]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </Panel>
 
           <Panel
             title={viewMode === "LIST" ? undefined : "Kanban pipeline"}
-            className="rounded-md border-neutral-300 bg-white shadow-none flex min-h-0 flex-1 flex-col overflow-hidden"
+            className="rounded-md border-neutral-300 bg-white shadow-none flex min-h-[calc(100svh-14rem)] flex-1 flex-col overflow-hidden xl:min-h-0"
             contentClassName="min-h-0 overflow-y-auto p-0"
           >
             {isMainLoading ? (
@@ -824,7 +849,7 @@ export default function CrmOpportunitiesPage() {
                         ) : null}
                         <Link
                           href={`/crm/opportunities/${opportunity.id}/timeline`}
-                          className="block px-4 py-2.5 pr-20 transition hover:bg-[#f5f8fc]"
+                          className="block px-3 py-2 pr-16 transition hover:bg-[#f5f8fc] xl:px-4 xl:py-2.5 xl:pr-20"
                         >
                         <div className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.9fr)] md:items-center">
                           <div className="min-w-0">
@@ -859,7 +884,7 @@ export default function CrmOpportunitiesPage() {
                             )}
                           </div>
 
-                          <div className="flex items-center gap-2">
+                          <div className="hidden items-center gap-2 md:flex">
                             {primaryTask ? (
                               <>
                                 <span className={cn("inline-flex rounded-sm px-2 py-1 text-[11px] font-semibold", getTaskStatusChipClass(primaryTask))}>
@@ -872,9 +897,9 @@ export default function CrmOpportunitiesPage() {
                             )}
                           </div>
 
-                          <div className="text-xs text-neutral-600">{primaryTask ? primaryTaskOwner : "-"}</div>
+                          <div className="hidden text-xs text-neutral-600 md:block">{primaryTask ? primaryTaskOwner : "-"}</div>
 
-                          <div className="text-xs text-neutral-600">
+                          <div className="hidden text-xs text-neutral-600 md:block">
                             {primaryTask?.dueAt ? formatDateTime(primaryTask.dueAt) : "Fara termen"}
                           </div>
                         </div>

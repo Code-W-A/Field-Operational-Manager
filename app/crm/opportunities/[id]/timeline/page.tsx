@@ -17,7 +17,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext"
 import { Panel } from "@/components/crm"
 import { getDateValue, listCrmActivity } from "@/lib/crm/activity"
-import { listCrmUsers } from "@/lib/crm/opportunities"
+import { listCrmClientContacts, listCrmUsers } from "@/lib/crm/opportunities"
 import { formatDateTime } from "@/lib/crm/presenters"
 import { CRM_PIPELINE_STAGE_LABELS, CRM_PRIORITY_LABELS, CRM_WORK_STATUS_LABELS } from "@/lib/crm/constants"
 import type { CrmActivityLog } from "@/lib/crm/types"
@@ -96,7 +96,11 @@ function renderKeyValueRow(label: string, value: ReactNode) {
   )
 }
 
-function renderActivityContent(activity: CrmActivityLog, userNameMap: Record<string, string>) {
+function renderActivityContent(
+  activity: CrmActivityLog,
+  userNameMap: Record<string, string>,
+  contactNameMap: Record<string, string>
+) {
   const payload = (activity.payload || {}) as Record<string, unknown>
   const mapUser = (userId?: string | null) => {
     if (!userId) return "Neasignat"
@@ -147,6 +151,11 @@ function renderActivityContent(activity: CrmActivityLog, userNameMap: Record<str
       }
       if (key === "ownerId" && typeof value === "string") {
         return mapUser(value)
+      }
+      if (key === "primaryContactId") {
+        if (!value) return "-"
+        const contactId = String(value)
+        return contactNameMap[contactId] || contactId
       }
       if (key === "closeDate" && typeof value === "string") {
         return formatDateTime(value)
@@ -308,25 +317,35 @@ export default function OpportunityTimelinePage() {
 
   const [activities, setActivities] = useState<CrmActivityLog[]>([])
   const [actorNameMap, setActorNameMap] = useState<Record<string, string>>({})
+  const [contactNameMap, setContactNameMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const loadActivityData = useCallback(async () => {
     if (!opportunity || !user?.uid) return
 
     setLoading(true)
     try {
-      const [activityRows, userRows] = await Promise.all([
+      const [activityRows, userRows, contactRows] = await Promise.all([
         listCrmActivity({
           opportunityId,
           userId: user.uid,
           opportunityOwnerId: opportunity.ownerId,
         }),
         listCrmUsers(),
+        listCrmClientContacts(opportunity.clientId),
       ])
 
       setActivities(activityRows.filter((row) => row.type !== "TASK_AUTO_CREATED"))
       setActorNameMap(
         userRows.reduce<Record<string, string>>((acc, crmUser) => {
           acc[crmUser.uid] = crmUser.displayName || crmUser.email || crmUser.uid
+          return acc
+        }, {})
+      )
+      setContactNameMap(
+        contactRows.reduce<Record<string, string>>((acc, contact) => {
+          if (contact.id) {
+            acc[contact.id] = contact.name || contact.id
+          }
           return acc
         }, {})
       )
@@ -383,52 +402,70 @@ export default function OpportunityTimelinePage() {
   }, [loadActivityData, opportunityId])
 
   if (opportunityLoading) {
-    return <Panel title="Istoric" size="comfortable"><p className="text-sm text-neutral-500">Se încarcă...</p></Panel>
+    return (
+      <Panel
+        title="Istoric"
+        size="comfortable"
+        className="[&>header]:hidden xl:[&>header]:block"
+      >
+        <p className="text-sm text-neutral-500">Se încarcă...</p>
+      </Panel>
+    )
   }
 
   if (!opportunity) {
-    return <Panel title="Istoric" size="comfortable"><p className="text-sm text-neutral-500">Fără acces la oportunitate.</p></Panel>
+    return (
+      <Panel
+        title="Istoric"
+        size="comfortable"
+        className="[&>header]:hidden xl:[&>header]:block"
+      >
+        <p className="text-sm text-neutral-500">Fără acces la oportunitate.</p>
+      </Panel>
+    )
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
+    <div className="flex h-full min-h-0 flex-col gap-2 xl:gap-3">
       <Panel
         title="Istoric"
         subtitle=""
         size="comfortable"
-        className="flex min-h-0 flex-1 flex-col overflow-hidden"
-        contentClassName="flex-1 min-h-0 overflow-y-auto"
+        className="flex min-h-0 flex-1 flex-col overflow-hidden [&>header]:hidden xl:[&>header]:block"
+        contentClassName="flex-1 min-h-0 overflow-y-auto p-3 xl:p-5"
       >
         {loading ? (
           <p className="text-sm text-neutral-500">Se încarcă activitatea...</p>
         ) : activities.length === 0 ? (
           <p className="text-sm text-neutral-500">Nu există activitate.</p>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3 xl:space-y-4">
             {groupedActivities.map((group) => (
-              <div key={group.key} className="space-y-2">
-                <p className="border-b border-neutral-200 pb-1 text-xs font-semibold uppercase tracking-[0.14em] text-neutral-700">{group.label}</p>
-                <div className="space-y-2.5">
+              <div key={group.key} className="space-y-1.5 xl:space-y-2">
+                <p className="border-b border-neutral-200 pb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-700 xl:text-xs xl:tracking-[0.14em]">
+                  {group.label}
+                </p>
+                <div className="space-y-2 xl:space-y-2.5">
                   {group.items.map((activity, index) => {
                     const visual = getActivityVisual(activity.type)
                     const Icon = visual.icon
                     return (
-                      <div key={activity.id} className="relative pl-10">
+                      <div key={activity.id} className="relative pl-9 xl:pl-10">
                         {index < group.items.length - 1 ? (
-                          <span className={`absolute left-4 top-9 bottom-[-12px] w-px ${visual.lineClass}`} />
+                          <span className={`absolute left-3.5 top-8 bottom-[-10px] w-px xl:left-4 xl:top-9 xl:bottom-[-12px] ${visual.lineClass}`} />
                         ) : null}
-                        <span className={`absolute left-0 top-1 inline-flex h-8 w-8 items-center justify-center rounded-full border ${visual.dotClass}`}>
-                          <Icon className="h-4 w-4" />
+                        <span className={`absolute left-0 top-1 inline-flex h-7 w-7 items-center justify-center rounded-full border xl:h-8 xl:w-8 ${visual.dotClass}`}>
+                          <Icon className="h-3.5 w-3.5 xl:h-4 xl:w-4" />
                         </span>
-                        <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3">
+                        <div className="grid grid-cols-1 gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2.5 md:grid-cols-[minmax(0,1fr)_96px] md:gap-3 md:px-4 md:py-3">
                           <div className="min-w-0">
-                            <p className="text-base font-semibold text-neutral-800">{getActivityLabel(activity.type)}</p>
-                            <div className="mt-1.5">{renderActivityContent(activity, actorNameMap)}</div>
-                            <p className="mt-1.5 text-sm text-neutral-500">
+                            <p className="text-sm font-semibold text-neutral-800 md:text-base">{getActivityLabel(activity.type)}</p>
+                            <div className="mt-1">{renderActivityContent(activity, actorNameMap, contactNameMap)}</div>
+                            <p className="mt-1 text-xs text-neutral-500 md:mt-1.5 md:text-sm">
                               Actor: {actorNameMap[activity.actorId] || "Utilizator necunoscut"}
                             </p>
                           </div>
-                          <div className="text-right">
+                          <div className="text-left md:text-right">
                             <p className="text-xs leading-4 text-neutral-400">{formatDateTime(activity.createdAt)}</p>
                           </div>
                         </div>

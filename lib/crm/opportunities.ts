@@ -34,6 +34,7 @@ import { rebuildOpportunitySearchIndex } from "@/lib/crm/opportunity-search-inde
 import { createCrmTaskIfMissing } from "@/lib/crm/tasks"
 import { crmStorageProvider } from "@/lib/crm/storage/provider"
 import { updateClientContactLabel as updateClientContactLabelInClientDoc } from "@/lib/firebase/firestore"
+import { updateClientContactDetails as updateClientContactDetailsInClientDoc } from "@/lib/firebase/firestore"
 import type {
   CrmClient,
   CrmClientContact,
@@ -214,6 +215,17 @@ export async function updateCrmClientContactLabel(input: {
   label?: string
 }) {
   return updateClientContactLabelInClientDoc(input)
+}
+
+export async function updateCrmClientContactDetails(input: {
+  clientId: string
+  contactId: string
+  name: string
+  phone: string
+  email?: string
+  functie?: string
+}) {
+  return updateClientContactDetailsInClientDoc(input)
 }
 
 export async function listCrmOpportunityAccess(opportunityId: string) {
@@ -637,29 +649,33 @@ export async function updateCrmOpportunity(opportunityId: string, actorId: strin
 
   await updateDoc(doc(db, CRM_COLLECTIONS.opportunities, opportunityId), payload)
 
+  const activityChanges = Object.fromEntries(
+    Object.entries({
+      title: typeof changes.title === "string" ? changes.title : undefined,
+      displayTitle: typeof changes.displayTitle === "string" ? changes.displayTitle : undefined,
+      clientId: typeof changes.clientId === "string" ? changes.clientId : undefined,
+      ownerId: typeof changes.ownerId === "string" ? changes.ownerId : undefined,
+      primaryContactId: "primaryContactId" in changes ? changes.primaryContactId || null : undefined,
+      readUserIds: Array.isArray(changes.readUserIds) ? changes.readUserIds : undefined,
+      editUserIds: Array.isArray(changes.editUserIds) ? changes.editUserIds : undefined,
+      priority: changes.priority || undefined,
+      workStatus: changes.workStatus || undefined,
+      pipelineStage:
+        changes.pipelineStage || changes.opportunityType
+          ? String(payload.pipelineStage || "")
+          : undefined,
+      opportunityType: changes.opportunityType || undefined,
+      amount: typeof changes.amount === "number" ? changes.amount : undefined,
+      closeDate: changes.closeDate instanceof Date ? changes.closeDate.toISOString() : undefined,
+    }).filter(([, value]) => value !== undefined)
+  )
+
   await logCrmActivity({
     opportunityId,
     actorId,
     type: "UPDATED",
     payload: {
-      changes: {
-        title: typeof changes.title === "string" ? changes.title : undefined,
-        displayTitle: typeof changes.displayTitle === "string" ? changes.displayTitle : undefined,
-        clientId: typeof changes.clientId === "string" ? changes.clientId : undefined,
-        ownerId: typeof changes.ownerId === "string" ? changes.ownerId : undefined,
-        primaryContactId: "primaryContactId" in changes ? changes.primaryContactId || null : undefined,
-        readUserIds: Array.isArray(changes.readUserIds) ? changes.readUserIds : undefined,
-        editUserIds: Array.isArray(changes.editUserIds) ? changes.editUserIds : undefined,
-        priority: changes.priority || undefined,
-        workStatus: changes.workStatus || undefined,
-        pipelineStage:
-          changes.pipelineStage || changes.opportunityType
-            ? String(payload.pipelineStage || "")
-            : undefined,
-        opportunityType: changes.opportunityType || undefined,
-        amount: typeof changes.amount === "number" ? changes.amount : undefined,
-        closeDate: changes.closeDate instanceof Date ? changes.closeDate.toISOString() : undefined,
-      },
+      changes: activityChanges,
     },
   })
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
-import { Download, FileText, Trash2, Upload } from "lucide-react"
+import { Download, FileText, Plus, Trash2 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -88,7 +88,15 @@ export default function OpportunityFilesPage() {
   }, [opportunity?.id, user?.uid])
 
   if (!opportunity) {
-    return <Panel title="Fișiere" size="comfortable"><p className="text-sm text-neutral-500">Fără acces la oportunitate.</p></Panel>
+    return (
+      <Panel
+        title="Fișiere"
+        size="comfortable"
+        className="[&>header]:hidden xl:[&>header]:block"
+      >
+        <p className="text-sm text-neutral-500">Fără acces la oportunitate.</p>
+      </Panel>
+    )
   }
 
   return (
@@ -96,14 +104,19 @@ export default function OpportunityFilesPage() {
       title="Fișiere"
       subtitle={""}
       size="comfortable"
-      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden [&>header]:hidden xl:[&>header]:block"
       contentClassName="flex min-h-0 flex-1 flex-col"
     >
       {!isTechnician ? (
         <div className="mb-4 shrink-0 flex justify-end">
-          <Button size="sm" className="h-9 text-sm" onClick={() => setIsCreateOpen(true)}>
-            <Upload className="mr-1.5 h-4 w-4" />
-            Încarcă fișier
+          <Button
+            size="sm"
+            className="h-8 w-8 p-0 text-sm sm:h-9 sm:w-auto sm:px-3"
+            onClick={() => setIsCreateOpen(true)}
+            aria-label="Încarcă fișier"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Încarcă fișier</span>
           </Button>
         </div>
       ) : null}

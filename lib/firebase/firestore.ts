@@ -693,6 +693,94 @@ export const updateClientContactLabel = async (params: {
   await updateDoc(clientDoc, payload as DocumentData)
 }
 
+export const updateClientContactDetails = async (params: {
+  clientId: string
+  contactId: string
+  name: string
+  phone: string
+  email?: string
+  functie?: string
+}) => {
+  const clientDoc = doc(db, "clienti", params.clientId)
+  const snap = await getDoc(clientDoc)
+  if (!snap.exists()) {
+    throw new Error("Clientul nu a fost găsit")
+  }
+
+  const clientData = snap.data() as Record<string, unknown>
+  const normalizedName = params.name.trim()
+  const normalizedPhone = params.phone.trim()
+  const normalizedEmail = (params.email || "").trim()
+  const normalizedFunctie = (params.functie || "").trim()
+
+  if (!normalizedName) {
+    throw new Error("Numele contactului este obligatoriu.")
+  }
+  if (!normalizedPhone) {
+    throw new Error("Telefonul contactului este obligatoriu.")
+  }
+
+  let contactUpdated = false
+
+  const nextLocatii = Array.isArray(clientData.locatii)
+    ? (clientData.locatii as Array<Record<string, unknown>>).map((locatie) => {
+        if (!Array.isArray(locatie.persoaneContact)) return locatie
+        const nextContacts = (locatie.persoaneContact as Array<Record<string, unknown>>).map((contact) => {
+          if (String(contact.id || "") !== params.contactId) return contact
+          contactUpdated = true
+          const next = { ...contact }
+          next.nume = normalizedName
+          next.telefon = normalizedPhone
+          if (normalizedEmail) {
+            next.email = normalizedEmail
+          } else {
+            delete next.email
+          }
+          if (normalizedFunctie) {
+            next.functie = normalizedFunctie
+          } else {
+            delete next.functie
+          }
+          return next
+        })
+        return { ...locatie, persoaneContact: nextContacts }
+      })
+    : undefined
+
+  const nextClientContacts = Array.isArray(clientData.persoaneContact)
+    ? (clientData.persoaneContact as Array<Record<string, unknown>>).map((contact) => {
+        if (String(contact.id || "") !== params.contactId) return contact
+        contactUpdated = true
+        const next = { ...contact }
+        next.nume = normalizedName
+        next.telefon = normalizedPhone
+        if (normalizedEmail) {
+          next.email = normalizedEmail
+        } else {
+          delete next.email
+        }
+        if (normalizedFunctie) {
+          next.functie = normalizedFunctie
+        } else {
+          delete next.functie
+        }
+        return next
+      })
+    : undefined
+
+  if (!contactUpdated) {
+    throw new Error("Contactul nu a fost găsit în documentul clientului.")
+  }
+
+  const payload: Record<string, unknown> = {
+    updatedAt: serverTimestamp(),
+  }
+  if (nextLocatii) payload.locatii = nextLocatii
+  if (nextClientContacts) payload.persoaneContact = nextClientContacts
+
+  await updateDoc(clientDoc, payload as DocumentData)
+}
+
 // Add a new client
 export const addClient = async (client: Client) => {
   const clientsCollection = collection(db, "clienti")

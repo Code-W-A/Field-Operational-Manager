@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
+import { Plus } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -119,7 +120,15 @@ export default function OpportunityTasksPage() {
   )
 
   if (!opportunity) {
-    return <Panel title="Sarcini" size="comfortable"><p className="text-sm text-neutral-500">Fără acces la oportunitate.</p></Panel>
+    return (
+      <Panel
+        title="Sarcini"
+        size="comfortable"
+        className="[&>header]:hidden xl:[&>header]:block"
+      >
+        <p className="text-sm text-neutral-500">Fără acces la oportunitate.</p>
+      </Panel>
+    )
   }
 
   const resetCreateForm = () => {
@@ -136,7 +145,7 @@ export default function OpportunityTasksPage() {
       title="Sarcini"
       subtitle=""
       size="comfortable"
-      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden [&>header]:hidden xl:[&>header]:block"
       contentClassName="flex min-h-0 flex-1 flex-col"
     >
       <div className="mb-4 shrink-0 flex flex-wrap items-center justify-between gap-2">
@@ -158,13 +167,15 @@ export default function OpportunityTasksPage() {
         {!isTechnician ? (
           <Button
             size="sm"
-            className="h-9 text-sm"
+            className="h-8 w-8 p-0 text-sm sm:h-9 sm:w-auto sm:px-3"
             onClick={() => {
               resetCreateForm()
               setIsCreateOpen(true)
             }}
+            aria-label="Adaugă sarcină"
           >
-            Adaugă sarcină
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Adaugă sarcină</span>
           </Button>
         ) : null}
       </div>
