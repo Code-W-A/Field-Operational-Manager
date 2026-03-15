@@ -266,7 +266,7 @@ export interface CreateNoteInput {
 
 export interface CreateEmailInput {
   opportunityId: string
-  direction: CrmEmailDirection
+  source: "manual" | "inbox"
   subject: string
   from: string
   to: string[]
@@ -286,6 +286,18 @@ export interface CreateCalendarEventInput {
   location?: string
   reminderAt?: Date
   createdById: string
+  visibility?: CrmVisibility
+  visibleToUserIds?: string[]
+}
+
+export interface UpdateCalendarEventInput {
+  eventId: string
+  actorId: string
+  title: string
+  startAt: Date
+  endAt: Date
+  location?: string
+  reminderAt?: Date
   visibility?: CrmVisibility
   visibleToUserIds?: string[]
 }

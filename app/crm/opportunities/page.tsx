@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { AlertCircle, Inbox, LayoutGrid, List, Menu, Pencil, Search, Trash2, UserRound } from "lucide-react"
+import { AlertCircle, ChevronLeft, ChevronRight, Inbox, LayoutGrid, List, Menu, Pencil, Search, Trash2, UserRound } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { MobileRailSheet, OpportunityTypeSidebar, PageShell, Panel, SegmentedControl, TaskCounterRing } from "@/components/crm"
+import { MobileRailSheet, OpportunityTypeSidebar, PageShell, Panel, RailDrawer, SegmentedControl, TaskCounterRing } from "@/components/crm"
 import {
   CRM_OPPORTUNITY_TYPE_LABELS,
   CRM_PIPELINE_STAGE_LABELS,
@@ -63,6 +63,36 @@ const TASK_QUICK_FILTER_LABELS: Record<TaskQuickFilterKey, string> = {
 }
 
 const STAGE_DOT_CLASS = ["bg-slate-300", "bg-sky-400", "bg-blue-500", "bg-violet-500", "bg-lime-500", "bg-rose-500", "bg-cyan-500", "bg-indigo-500", "bg-amber-500", "bg-teal-500"]
+const OPPORTUNITIES_LEFT_RAIL_STORAGE_KEY = "crm:opportunities-page-left-rail-open"
+const OPPORTUNITIES_RIGHT_RAIL_STORAGE_KEY = "crm:opportunities-page-right-rail-open"
+
+function getPerUserStorageKey(baseKey: string, userId: string | undefined) {
+  return `${baseKey}:${userId || "anonymous"}`
+}
+
+function readStoredBoolean(key: string, fallbackValue: boolean) {
+  if (typeof window === "undefined") return fallbackValue
+
+  try {
+    const storedValue = window.localStorage.getItem(key)
+    if (storedValue === "true") return true
+    if (storedValue === "false") return false
+  } catch (error) {
+    void error
+  }
+
+  return fallbackValue
+}
+
+function writeStoredBoolean(key: string, value: boolean) {
+  if (typeof window === "undefined") return
+
+  try {
+    window.localStorage.setItem(key, String(value))
+  } catch (error) {
+    void error
+  }
+}
 
 function isTaskOverdue(task: CrmTask, referenceDate = new Date()) {
   if (task.status !== "TODO" && task.status !== "IN_PROGRESS") return false
@@ -161,6 +191,28 @@ export default function CrmOpportunitiesPage() {
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
   const [editingOpportunity, setEditingOpportunity] = useState<CrmOpportunity | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [leftRailOpen, setLeftRailOpen] = useState(true)
+  const [rightRailOpen, setRightRailOpen] = useState(false)
+  const leftRailStorageKey = useMemo(() => getPerUserStorageKey(OPPORTUNITIES_LEFT_RAIL_STORAGE_KEY, user?.uid), [user?.uid])
+  const rightRailStorageKey = useMemo(() => getPerUserStorageKey(OPPORTUNITIES_RIGHT_RAIL_STORAGE_KEY, user?.uid), [user?.uid])
+
+  useEffect(() => {
+    setLeftRailOpen(readStoredBoolean(leftRailStorageKey, true))
+  }, [leftRailStorageKey])
+
+  useEffect(() => {
+    setRightRailOpen(readStoredBoolean(rightRailStorageKey, false))
+  }, [rightRailStorageKey])
+
+  const handleLeftRailOpenChange = (nextOpen: boolean) => {
+    setLeftRailOpen(nextOpen)
+    writeStoredBoolean(leftRailStorageKey, nextOpen)
+  }
+
+  const handleRightRailOpenChange = (nextOpen: boolean) => {
+    setRightRailOpen(nextOpen)
+    writeStoredBoolean(rightRailStorageKey, nextOpen)
+  }
 
   const resetToHome = () => {
     setActiveType("ALL")
@@ -409,6 +461,29 @@ export default function CrmOpportunitiesPage() {
   ]
 
   const isMainLoading = loading || tasksLoading
+  const renderCollapsedRailToggle = ({
+    title,
+    toggle,
+    icon: Icon,
+    className,
+  }: {
+    title: string
+    toggle: () => void
+    icon: typeof ChevronLeft
+    className?: string
+  }) => (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className={cn("mt-0.5 h-8 w-8 p-0", className)}
+      onClick={toggle}
+      aria-label={`Deschide ${title}`}
+    >
+      <Icon className="h-4 w-4" />
+    </Button>
+  )
+
   const rightRailContent = (
     <div className="space-y-4">
       <div className="space-y-2">
@@ -551,12 +626,41 @@ export default function CrmOpportunitiesPage() {
 
   return (
     <PageShell className="flex h-full min-h-0 flex-col space-y-0 overflow-hidden bg-[#f6f8fc]">
-      <div className="grid h-full flex-1 min-h-0 gap-3 overflow-hidden xl:grid-cols-[216px_1fr_300px]">
-        <div className="hidden min-h-0 xl:block">
-          <OpportunityTypeSidebar homeItem={sidebarHomeItem} items={sidebarItems} />
-        </div>
+      <div className="flex h-full flex-1 min-h-0 overflow-hidden">
+        <RailDrawer
+          side="left"
+          title="Tip oportunitate"
+          mode="inline"
+          hideTrigger
+          inlineBehavior="push"
+          inlineWidthClassName="w-[216px]"
+          collapsedWidthClassName="w-11"
+          open={leftRailOpen}
+          onOpenChange={handleLeftRailOpenChange}
+          className="w-full rounded-r-xl border-r-2 border-[#004b87] border-l-0 border-y-0 bg-[#005599] shadow-[0_16px_36px_rgba(0,32,72,0.36),0_3px_8px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.2)] ring-1 ring-[#003f73]/55"
+          collapsedRailClassName="rounded-r-xl border-r-2 border-[#004b87] border-l-0 border-y-0 bg-[#005599] shadow-[0_16px_36px_rgba(0,32,72,0.36),0_3px_8px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.2)] ring-1 ring-[#003f73]/55"
+          headerClassName="border-b border-white/20 bg-[#005599]"
+          titleClassName="text-white"
+          closeButtonClassName="text-white/80 hover:bg-white/10 hover:text-white"
+          bodyClassName="min-h-0 flex-1 overflow-y-auto pt-4"
+          renderCollapsedToggle={({ title, toggle }) =>
+            renderCollapsedRailToggle({
+              title,
+              toggle,
+              icon: ChevronRight,
+              className: "text-white/80 hover:bg-white/10 hover:text-white",
+            })
+          }
+        >
+          <OpportunityTypeSidebar
+            homeItem={sidebarHomeItem}
+            items={sidebarItems}
+            renderMode="content"
+            contentClassName="pt-1"
+          />
+        </RailDrawer>
 
-        <div className="flex min-h-0 flex-col gap-2 xl:gap-3 overflow-y-auto xl:overflow-hidden">
+        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto xl:gap-3 xl:overflow-hidden">
           <div className="mt-1 flex items-center justify-between xl:hidden">
             <MobileRailSheet
               side="left"
@@ -931,14 +1035,32 @@ export default function CrmOpportunitiesPage() {
             )}
           </Panel>
         </div>
-
-        <Panel
+        <RailDrawer
+          side="right"
           title="Status oportunități"
-          className="hidden min-h-0 flex-col overflow-hidden rounded-md border-neutral-300 bg-[#f3f4f6] shadow-none xl:flex xl:h-full xl:rounded-none xl:border-y-0 xl:border-r-0 xl:border-l xl:border-neutral-300"
-          contentClassName="min-h-0 flex-1 overflow-y-auto"
+          mode="inline"
+          hideTrigger
+          inlineBehavior="push"
+          inlineWidthClassName="w-[300px]"
+          collapsedWidthClassName="w-11"
+          open={rightRailOpen}
+          onOpenChange={handleRightRailOpenChange}
+          className="w-full rounded-l-xl border-l-2 border-r-0 border-y-0 border-neutral-400 bg-[#f3f4f6] shadow-[0_16px_36px_rgba(15,23,42,0.24),0_4px_10px_rgba(15,23,42,0.15),inset_0_1px_0_rgba(255,255,255,0.78)] ring-1 ring-neutral-400/80"
+          collapsedRailClassName="rounded-l-xl border-l-2 border-r-0 border-y-0 border-neutral-400 bg-[#f3f4f6] shadow-[0_16px_36px_rgba(15,23,42,0.24),0_4px_10px_rgba(15,23,42,0.15),inset_0_1px_0_rgba(255,255,255,0.78)] ring-1 ring-neutral-400/80"
+          headerClassName="bg-[#f3f4f6]"
+          closeButtonClassName="text-neutral-600 hover:bg-white/70 hover:text-neutral-900"
+          bodyClassName="min-h-0 flex-1 overflow-y-auto"
+          renderCollapsedToggle={({ title, toggle }) =>
+            renderCollapsedRailToggle({
+              title,
+              toggle,
+              icon: ChevronLeft,
+              className: "text-neutral-600 hover:bg-white/70 hover:text-neutral-900",
+            })
+          }
         >
           {rightRailContent}
-        </Panel>
+        </RailDrawer>
       </div>
     </PageShell>
   )

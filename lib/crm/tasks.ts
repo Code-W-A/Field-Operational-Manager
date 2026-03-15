@@ -38,6 +38,7 @@ import type {
   CreateStandaloneInternalNoteInput,
   CreateNoteInput,
   CreateTaskInput,
+  UpdateCalendarEventInput,
 } from "@/lib/crm/types"
 import { crmStorageProvider } from "@/lib/crm/storage/provider"
 
@@ -883,10 +884,11 @@ function mapEmail(docId: string, data: Record<string, unknown>): CrmEmailLog {
 export async function createCrmEmail(input: CreateEmailInput) {
   const visibility = input.visibility || "PRIVATE"
   const visibleToUserIds = normalizeVisibilityUsers(visibility, input.visibleToUserIds)
+  const direction: CrmEmailLog["direction"] = input.source === "inbox" ? "IN" : "OUT"
 
   const ref = await addDoc(collection(db, CRM_COLLECTIONS.emails), {
     opportunityId: input.opportunityId,
-    direction: input.direction,
+    direction,
     subject: input.subject.trim(),
     from: input.from.trim(),
     to: input.to,
@@ -912,7 +914,7 @@ export async function createCrmEmail(input: CreateEmailInput) {
     type: "EMAIL_LOGGED",
     payload: {
       emailId: ref.id,
-      direction: input.direction,
+      direction,
       subject: input.subject,
       from: input.from,
       to: input.to,
@@ -1015,6 +1017,69 @@ export async function createCrmCalendarEvent(input: CreateCalendarEventInput) {
   await rebuildOpportunitySearchIndex(input.opportunityId)
 
   return ref.id
+}
+
+export async function updateCrmCalendarEvent(input: UpdateCalendarEventInput) {
+  const eventRef = doc(db, CRM_COLLECTIONS.calendarEvents, input.eventId)
+  const eventSnap = await getDoc(eventRef)
+  if (!eventSnap.exists()) throw new Error("Evenimentul nu există")
+
+  const event = mapCalendarEvent(eventSnap.id, eventSnap.data() as Record<string, unknown>)
+  const visibility = input.visibility || event.visibility
+  const visibleToUserIds = normalizeVisibilityUsers(visibility, input.visibleToUserIds || event.visibleToUserIds)
+
+  const beforeEvent = {
+    id: event.id,
+    title: event.title,
+    startAt: event.startAt || null,
+    endAt: event.endAt || null,
+    location: event.location || "",
+    reminderAt: event.reminderAt || null,
+    visibility: event.visibility,
+    visibleToUserIds: event.visibleToUserIds,
+  }
+
+  await updateDoc(eventRef, {
+    title: input.title.trim(),
+    startAt: Timestamp.fromDate(input.startAt),
+    endAt: Timestamp.fromDate(input.endAt),
+    location: input.location?.trim() || "",
+    reminderAt: toTimestamp(input.reminderAt) || null,
+    visibility,
+    visibleToUserIds,
+    updatedAt: serverTimestamp(),
+    updatedById: input.actorId,
+  })
+
+  await syncVisibleTo({
+    entityType: "CALENDAR_EVENT",
+    entityId: input.eventId,
+    opportunityId: event.opportunityId,
+    userIds: visibleToUserIds,
+  })
+
+  await logCrmActivity({
+    opportunityId: event.opportunityId,
+    actorId: input.actorId,
+    type: "CALENDAR_EVENT_UPDATED",
+    payload: {
+      eventId: event.id,
+      before: beforeEvent,
+      changes: {
+        title: input.title.trim(),
+        startAt: input.startAt.toISOString(),
+        endAt: input.endAt.toISOString(),
+        location: input.location?.trim() || "",
+        reminderAt: input.reminderAt?.toISOString() || null,
+        visibility,
+        visibleToUserIds,
+      },
+    },
+    visibility,
+    visibleToUserIds,
+  })
+
+  await rebuildOpportunitySearchIndex(event.opportunityId)
 }
 
 export async function listCrmCalendarEvents(params: {

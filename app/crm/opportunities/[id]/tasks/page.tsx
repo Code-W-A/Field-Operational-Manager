@@ -144,6 +144,22 @@ export default function OpportunityTasksPage() {
     <Panel
       title="Sarcini"
       subtitle=""
+      headerAction={
+        !isTechnician ? (
+          <Button
+            size="sm"
+            className="hidden h-9 items-center gap-1.5 whitespace-nowrap px-3 text-sm xl:inline-flex"
+            onClick={() => {
+              resetCreateForm()
+              setIsCreateOpen(true)
+            }}
+            aria-label="Adaugă sarcină"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Adaugă sarcină</span>
+          </Button>
+        ) : undefined
+      }
       size="comfortable"
       className="flex min-h-0 flex-1 flex-col overflow-hidden [&>header]:hidden xl:[&>header]:block"
       contentClassName="flex min-h-0 flex-1 flex-col"
@@ -167,7 +183,7 @@ export default function OpportunityTasksPage() {
         {!isTechnician ? (
           <Button
             size="sm"
-            className="h-8 w-8 p-0 text-sm sm:h-9 sm:w-auto sm:px-3"
+            className="h-8 w-8 p-0 text-sm sm:h-9 sm:w-auto sm:px-3 xl:hidden"
             onClick={() => {
               resetCreateForm()
               setIsCreateOpen(true)

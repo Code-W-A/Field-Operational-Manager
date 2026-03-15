@@ -681,7 +681,7 @@ export async function linkCrmInboxMessageToOpportunity(input: CrmInboxLinkInput)
   if (!crmEmailId) {
     crmEmailId = await createCrmEmail({
       opportunityId: opportunity.id,
-      direction: "IN",
+      source: "inbox",
       subject: inboxMessage.subject,
       from: inboxMessage.from,
       to: inboxMessage.to,
