@@ -13,6 +13,7 @@ export const CRM_COLLECTIONS = {
   internalHandoffs: "crm_internal_handoffs",
   activityLogs: "crm_activity_logs",
   visibleTo: "crm_visible_to",
+  inboxMessages: "crm_inbox_messages",
   counters: "crm_counters",
 } as const
 

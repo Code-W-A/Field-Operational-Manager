@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { OfferEditorDialog } from "./offer-editor-dialog"
+import { DevizEditorDialog } from "./deviz-editor-dialog"
 import { LucrareForm } from "@/components/lucrare-form"
 import { DownloadHistory } from "@/components/download-history"
 import { Textarea } from "@/components/ui/textarea"
@@ -82,6 +83,7 @@ import { getArchiveValidationDetails } from "@/lib/utils/archive-validation"
 import { useArchiveRulesSettings } from "@/hooks/use-archive-rules-settings"
 import { deleteField } from "firebase/firestore"
 import { generateRevisionOperationsPDF, generateRevisionEquipmentPDF } from "@/lib/pdf/revision-operations"
+import { generateDevizPdf } from "@/lib/utils/offer-pdf"
 
 const debugClient = (...args: any[]) => {
   // eslint-disable-next-line no-console
@@ -308,6 +310,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const [locationAddress, setLocationAddress] = useState<string | null>(null)
   const [isUpdating, setIsUpdating] = useState(false)
   const [isOfferEditorOpen, setIsOfferEditorOpen] = useState(false)
+  const [isDevizEditorOpen, setIsDevizEditorOpen] = useState(false)
   const [offerHistoryDialogVersion, setOfferHistoryDialogVersion] = useState<OfferHistoryDialogVersion | null>(null)
   const [reinterventii, setReinterventii] = useState<Lucrare[]>([])
   const [loadingReinterventii, setLoadingReinterventii] = useState(false)
@@ -496,6 +499,17 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     }
   }, [isOfferEditorOpen, lucrare, role])
 
+  useEffect(() => {
+    if (isDevizEditorOpen && lucrare && role !== "tehnician" && !lucrare.preluatDispecer) {
+      toast({
+        title: "Editor indisponibil",
+        description: "Lucrarea trebuie preluată de dispecer/admin înainte de editarea devizului.",
+        variant: "destructive",
+      })
+      setIsDevizEditorOpen(false)
+    }
+  }, [isDevizEditorOpen, lucrare, role])
+
   // Funcție pentru încărcarea reintervențiilor derivate din lucrarea curentă
   const loadReinterventii = useCallback(async (lucrareId: string) => {
     if (!lucrareId) return
@@ -525,6 +539,73 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       loadReinterventii(lucrare.id)
     }
   }, [lucrare?.id, loadReinterventii])
+
+  const openDevizPdf = useCallback(async () => {
+    if (!lucrare?.id) return
+
+    const legacyUrl = String((lucrare as any)?.devizDocument?.url || "").trim()
+    const openLegacy = () => {
+      if (!legacyUrl) return false
+      window.open(
+        `/api/download?lucrareId=${encodeURIComponent(lucrare.id!)}&type=deviz&url=${encodeURIComponent(legacyUrl)}`,
+        "_blank",
+      )
+      return true
+    }
+
+    const sourceProducts = Array.isArray((lucrare as any)?.devizProducts) ? (lucrare as any).devizProducts : []
+    if (sourceProducts.length === 0) {
+      if (openLegacy()) return
+      toast({
+        title: "Deviz indisponibil",
+        description: "Nu există poziții salvate pentru regenerarea PDF-ului.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      const preparedAtRaw = (lucrare as any)?.devizPreparedAt
+      const preparedAt =
+        preparedAtRaw?.toDate?.() ||
+        (preparedAtRaw instanceof Date ? preparedAtRaw : typeof preparedAtRaw === "string" ? preparedAtRaw : new Date())
+
+      const blob = await generateDevizPdf({
+        id: String(lucrare.id),
+        numarRaport: String((lucrare as any)?.numarRaport || ""),
+        offerNumber: Number((lucrare as any)?.devizSendCount || 0),
+        client: String(lucrare.client || ""),
+        fromCompany: "NRG Access Systems SRL",
+        products: sourceProducts.map((product: any) => ({
+          name: String(product?.name || ""),
+          quantity: Number(product?.quantity || 0),
+          price: Number(product?.price || 0),
+        })),
+        offerVAT: Number((lucrare as any)?.devizVAT || 0),
+        adjustmentPercent: Number((lucrare as any)?.devizAdjustmentPercent || 0),
+        preparedBy: String((lucrare as any)?.devizPreparedBy || (lucrare as any)?.preluatDe || userData?.displayName || userData?.email || ""),
+        preparedAt,
+        beneficiar: {
+          name: String((lucrare as any)?.client || clientData?.nume || clientData?.name || ""),
+          cui: String((lucrare as any)?.clientInfo?.cui || clientData?.cui || clientData?.cif || ""),
+          reg: String((lucrare as any)?.clientInfo?.rc || clientData?.regCom || ""),
+          address: String((lucrare as any)?.clientInfo?.adresa || clientData?.adresa || ""),
+        },
+      } as any)
+
+      const blobUrl = URL.createObjectURL(blob)
+      window.open(blobUrl, "_blank")
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
+    } catch (error) {
+      console.error("Eroare la regenerarea devizului:", error)
+      if (openLegacy()) return
+      toast({
+        title: "Eroare",
+        description: "Nu s-a putut regenera PDF-ul de deviz.",
+        variant: "destructive",
+      })
+    }
+  }, [lucrare, clientData, userData])
 
   // Verifică lucrările active pe același echipament (inclusiv lucrarea curentă),
   // pentru a clarifica blocajul la creare reintervenție.
@@ -1770,6 +1851,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const offerResponseReason = String((lucrare as any)?.offerResponse?.reason || "").trim()
   const offerResponseVerifiedEmail = String((lucrare as any)?.offerResponse?.verifiedEmail || "").trim()
   const offerResponseVersionAtRaw =
+    (lucrare as any)?.offerResponse?.versionSavedAt ||
     (lucrare as any)?.offerActionVersionSavedAt ||
     (lucrare as any)?.offerActionSnapshot?.savedAt ||
     (lucrare as any)?.acceptedOfferSnapshot?.savedAt ||
@@ -3129,7 +3211,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 <Separator />
                 <div className="space-y-4">
                 {/* Email status card */}
-                {(lucrare?.lastReportEmail || lucrare?.lastOfferEmail) && (
+                {(lucrare?.lastReportEmail || lucrare?.lastOfferEmail || (lucrare as any)?.lastDevizEmail) && (
                   <div className="p-3 border rounded-md bg-white">
                     <p className="text-sm font-semibold mb-2">Email status</p>
                     {lucrare?.lastReportEmail && (
@@ -3149,6 +3231,16 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         {lucrare.lastOfferEmail.sentAt && <span>• {String(lucrare.lastOfferEmail.sentAt)}</span>}
                         {Array.isArray(lucrare.lastOfferEmail.to) && lucrare.lastOfferEmail.to.length > 0 && (
                           <span>• către {lucrare.lastOfferEmail.to.join(', ')}</span>
+                        )}
+                      </div>
+                    )}
+                    {(lucrare as any)?.lastDevizEmail && (
+                      <div className="text-sm flex flex-wrap gap-2 items-center mt-1">
+                        <Badge variant="outline">Deviz</Badge>
+                        <span>Status: {(lucrare as any).lastDevizEmail.status || '-'}</span>
+                        {(lucrare as any).lastDevizEmail.sentAt && <span>• {String((lucrare as any).lastDevizEmail.sentAt)}</span>}
+                        {Array.isArray((lucrare as any).lastDevizEmail.to) && (lucrare as any).lastDevizEmail.to.length > 0 && (
+                          <span>• către {(lucrare as any).lastDevizEmail.to.join(', ')}</span>
                         )}
                       </div>
                     )}
@@ -3764,7 +3856,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                     )}
 
                     <div className="space-y-4">
-                      {/* Flex cu 2 coloane: Necesită ofertă și Editor ofertă - aliniate la stânga */}
+                      {/* Flex cu coloane compacte: Necesită ofertă și editor ofertă */}
                       <div className="flex flex-wrap gap-8">
                         {/* Necesită ofertă - switch dedesubt */}
                         <div className="space-y-2">
@@ -3914,6 +4006,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                             </div>
                           )}
                         </div>
+
                       </div>
 
                       {/* Comentarii ofertă */}
@@ -3996,6 +4089,69 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                           )}
                         </div>
                       )}
+                    </div>
+                  </div>
+                )}
+                {(role === "admin" || role === "dispecer") && lucrare.statusLucrare !== "Arhivată" && !isCanceled && (
+                  <div className="p-4 border rounded-md bg-slate-50 border-slate-200 mb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded-full bg-slate-600 flex items-center justify-center">
+                          <span className="text-white text-sm font-bold">D</span>
+                        </div>
+                        <h4 className="text-base font-semibold text-slate-900">Deviz</h4>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className={`text-sm font-medium ${!lucrare.preluatDispecer || lucrare.statusLucrare === 'Arhivată' || isCanceled ? 'text-gray-500' : 'text-slate-800'}`}>Editor deviz</Label>
+                      <div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (lucrare.statusLucrare === "Arhivată" || isCanceled) {
+                              toast({
+                                title: "Editor indisponibil",
+                                description: isCanceled
+                                  ? "Editorul de deviz nu este disponibil pentru tichete anulate."
+                                  : "Editorul de deviz nu este disponibil pentru tichete arhivate.",
+                                variant: "destructive",
+                              })
+                              return
+                            }
+                            if (!lucrare.preluatDispecer) {
+                              toast({
+                                title: "Editor indisponibil",
+                                description: "Lucrarea trebuie preluată de dispecer/admin înainte de editarea devizului.",
+                                variant: "destructive",
+                              })
+                              return
+                            }
+                            setIsDevizEditorOpen(true)
+                          }}
+                          disabled={isUpdating || !lucrare.preluatDispecer || lucrare.statusLucrare === 'Arhivată' || isCanceled}
+                          className={!lucrare.preluatDispecer || lucrare.statusLucrare === 'Arhivată' || isCanceled ? 'bg-gray-100 text-gray-500 border-gray-300 hover:bg-gray-100 hover:text-gray-500 cursor-not-allowed' : ''}
+                        >
+                          Deschide deviz
+                        </Button>
+                      </div>
+
+                      {(Array.isArray((lucrare as any)?.devizProducts) && (lucrare as any)?.devizProducts.length > 0) ||
+                      (lucrare as any)?.devizDocument?.url ? (
+                        <div>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="bg-slate-700 text-white hover:bg-slate-800"
+                            onClick={() => {
+                              void openDevizPdf()
+                            }}
+                          >
+                            Vizualizează deviz (PDF)
+                          </Button>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 )}
@@ -4303,6 +4459,21 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                     open={isOfferEditorOpen}
                     onOpenChange={setIsOfferEditorOpen}
                     initialProducts={(lucrare as any).products || []}
+                    presetLocationLabel={`${lucrare.locatie || (lucrare as any)?.clientInfo?.locationName || ''}${(lucrare as any)?.clientInfo?.locationAddress ? ` — ${(lucrare as any).clientInfo.locationAddress}` : ''}`}
+                  />
+                )}
+
+                {lucrare && role !== "tehnician" && lucrare.preluatDispecer && lucrare.statusLucrare !== 'Arhivată' && !isCanceled && (
+                  <DevizEditorDialog
+                    lucrareId={lucrare.id!}
+                    open={isDevizEditorOpen}
+                    onOpenChange={(nextOpen) => {
+                      setIsDevizEditorOpen(nextOpen)
+                      if (!nextOpen) {
+                        void refreshLucrare({ showToast: false })
+                      }
+                    }}
+                    initialProducts={Array.isArray((lucrare as any).devizProducts) ? (lucrare as any).devizProducts : []}
                     presetLocationLabel={`${lucrare.locatie || (lucrare as any)?.clientInfo?.locationName || ''}${(lucrare as any)?.clientInfo?.locationAddress ? ` — ${(lucrare as any).clientInfo.locationAddress}` : ''}`}
                   />
                 )}

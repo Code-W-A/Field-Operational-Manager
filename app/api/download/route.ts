@@ -161,6 +161,7 @@ export async function GET(request: Request) {
       if (!t || t === 'raport') addIf(workData?.raportSnapshot?.url)
       if (!t || t === 'factura') addIf(workData?.facturaDocument?.url)
       if (!t || t === 'oferta') addIf(workData?.ofertaDocument?.url)
+      if (!t || t === 'deviz') addIf((workData as any)?.devizDocument?.url)
       if (!t || t === 'documentatie' || t === 'documentație' || t === 'documentation') {
         try {
           const clientId = workData?.clientId || workData?.clientInfo?.id
@@ -207,6 +208,7 @@ export async function GET(request: Request) {
       addIf(workData?.raportSnapshot?.url)
       addIf(workData?.facturaDocument?.url)
       addIf(workData?.ofertaDocument?.url)
+      addIf((workData as any)?.devizDocument?.url)
       const sampleCandidates = candidateUrls.slice(0, 5)
       console.log(`[DOWNLOAD] [${requestId}] URL candidates`, {
         count: candidateUrls.length,
@@ -473,5 +475,4 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Eroare internă" }, { status: 500 })
   }
 }
-
 

@@ -49,6 +49,7 @@ import { calculateWarranty, getWarrantyDisplayInfo } from "@/lib/utils/warranty-
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Skeleton } from "@/components/ui/skeleton"
+import { generateDevizPdf } from "@/lib/utils/offer-pdf"
 
 interface ArchivedWorkDetailPageProps {
   params: Promise<{ id: string }>
@@ -224,6 +225,75 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
       const echipament = client.echipamente.find(eq => eq.cod === lucrare.echipamentCod)
       return echipament ? getWarrantyDisplayInfo(echipament) : null
     })() : null
+
+  const hasDevizRegenerationData = Array.isArray((lucrare as any)?.devizProducts) && (lucrare as any).devizProducts.length > 0
+
+  const handleOpenDevizPdf = async () => {
+    if (!lucrare?.id) return
+
+    const legacyUrl = String((lucrare as any)?.devizDocument?.url || "").trim()
+    const openLegacy = () => {
+      if (!legacyUrl) return false
+      window.open(
+        `/api/download?lucrareId=${encodeURIComponent(paramsId)}&type=deviz&url=${encodeURIComponent(legacyUrl)}`,
+        "_blank",
+      )
+      return true
+    }
+
+    const sourceProducts = Array.isArray((lucrare as any)?.devizProducts) ? (lucrare as any).devizProducts : []
+    if (sourceProducts.length === 0) {
+      if (openLegacy()) return
+      toast({
+        title: "Deviz indisponibil",
+        description: "Nu există poziții salvate pentru regenerarea PDF-ului.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      const preparedAtRaw = (lucrare as any)?.devizPreparedAt
+      const preparedAt =
+        preparedAtRaw?.toDate?.() ||
+        (preparedAtRaw instanceof Date ? preparedAtRaw : typeof preparedAtRaw === "string" ? preparedAtRaw : new Date())
+
+      const blob = await generateDevizPdf({
+        id: String(lucrare.id),
+        numarRaport: String((lucrare as any)?.numarRaport || ""),
+        offerNumber: Number((lucrare as any)?.devizSendCount || 0),
+        client: String(lucrare.client || ""),
+        fromCompany: "NRG Access Systems SRL",
+        products: sourceProducts.map((product: any) => ({
+          name: String(product?.name || ""),
+          quantity: Number(product?.quantity || 0),
+          price: Number(product?.price || 0),
+        })),
+        offerVAT: Number((lucrare as any)?.devizVAT || 0),
+        adjustmentPercent: Number((lucrare as any)?.devizAdjustmentPercent || 0),
+        preparedBy: String((lucrare as any)?.devizPreparedBy || (lucrare as any)?.preluatDe || userData?.displayName || userData?.email || ""),
+        preparedAt,
+        beneficiar: {
+          name: String((lucrare as any)?.client || client?.nume || (client as any)?.name || ""),
+          cui: String((lucrare as any)?.clientInfo?.cui || client?.cif || ""),
+          reg: String((lucrare as any)?.clientInfo?.rc || (client as any)?.regCom || ""),
+          address: String((lucrare as any)?.clientInfo?.adresa || client?.adresa || ""),
+        },
+      } as any)
+
+      const blobUrl = URL.createObjectURL(blob)
+      window.open(blobUrl, "_blank")
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
+    } catch (error) {
+      console.error("Eroare la regenerarea devizului arhivat:", error)
+      if (openLegacy()) return
+      toast({
+        title: "Eroare",
+        description: "Nu s-a putut regenera PDF-ul de deviz.",
+        variant: "destructive",
+      })
+    }
+  }
 
   if (!hasAccess) {
     return null // Se va redirecționa în useEffect
@@ -1062,7 +1132,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
           )}
 
           {/* Documente (doar vizualizare) */}
-          {(lucrare.facturaDocument || lucrare.ofertaDocument) && (
+          {(lucrare.facturaDocument || lucrare.ofertaDocument || (lucrare as any).devizDocument || hasDevizRegenerationData) && (
             <Card>
               <CardHeader>
                 <CardTitle>Documente Încărcate</CardTitle>
@@ -1071,11 +1141,50 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <DocumentUpload 
-                  lucrareId={paramsId}
-                  lucrare={lucrare}
-                  onLucrareUpdate={setLucrare}
-                />
+                <div className="space-y-4">
+                  <DocumentUpload 
+                    lucrareId={paramsId}
+                    lucrare={lucrare}
+                    onLucrareUpdate={setLucrare}
+                  />
+
+                  {((lucrare as any).devizDocument || hasDevizRegenerationData) && (
+                    <div className="rounded-lg border bg-white p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <FileSpreadsheet className="h-4 w-4 text-slate-700" />
+                            <span className="text-sm font-medium">Deviz</span>
+                            <Badge variant="outline">Încărcat</Badge>
+                          </div>
+                          <div className="mt-2 space-y-1 text-sm text-gray-600">
+                            {(lucrare as any).devizDocument?.fileName && (
+                              <p className="truncate">
+                                Fișier: <span className="font-medium text-gray-900">{(lucrare as any).devizDocument.fileName}</span>
+                              </p>
+                            )}
+                            {(lucrare as any).devizDocument?.uploadedAt && (
+                              <p>
+                                Încărcat pe {formatISODate((lucrare as any).devizDocument.uploadedAt)} la{" "}
+                                {formatTime((lucrare as any).devizDocument.uploadedAt)}
+                              </p>
+                            )}
+                            {(lucrare as any).devizDocument?.numarDeviz && (
+                              <p>Număr deviz: <span className="font-medium text-gray-900">{(lucrare as any).devizDocument.numarDeviz}</span></p>
+                            )}
+                            {(lucrare as any).devizDocument?.dataDeviz && (
+                              <p>Data deviz: <span className="font-medium text-gray-900">{formatISODate((lucrare as any).devizDocument.dataDeviz)}</span></p>
+                            )}
+                          </div>
+                        </div>
+                        <Button variant="outline" onClick={() => { void handleOpenDevizPdf() }}>
+                          <Download className="mr-2 h-4 w-4" />
+                          Descarcă devizul
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           )}

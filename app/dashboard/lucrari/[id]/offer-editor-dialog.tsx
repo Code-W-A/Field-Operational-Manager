@@ -11,6 +11,14 @@ import { useAuth } from "@/contexts/AuthContext"
 import { toast } from "@/hooks/use-toast"
 // Recipient selection temporarily disabled; show read-only info instead
 import { useTargetList, useTargetValue } from "@/hooks/use-settings"
+import {
+  blobToBase64,
+  buildPricingConditions,
+  formatPreparedDate,
+  normalizeEmail,
+  resolveLocationForWork,
+  resolveRecipientEmailForLocation,
+} from "@/lib/work-documents/shared"
 
 interface OfferEditorDialogProps {
   lucrareId: string
@@ -153,131 +161,14 @@ useEffect(() => {
 
   // no manual recipient selection; display-only suggestion handled via suggestedRecipient
 
-  // Normalizează email-uri venite din Firestore/UI: trim, elimină spații invizibile, extrage dintre <>
-  const normalizeEmail = (raw?: any): string => {
-    let s = String(raw ?? "")
-    // normalize unicode (pentru caractere invizibile/compat)
-    try { s = s.normalize("NFKC") } catch {}
-    // înlocuim NBSP/ZWSP cu nimic și trim
-    s = s.replace(/\u00A0/g, " ").replace(/[\u200B-\u200D\uFEFF]/g, "").trim()
-    // dacă e în format "Nume <email@domeniu>", extragem email-ul
-    const m = s.match(/<\s*([^>]+)\s*>/)
-    if (m?.[1]) s = m[1].trim()
-    // dacă sunt separatori (virgulă/;), luăm prima intrare
-    if (/[;,]/.test(s)) s = s.split(/[;,]/)[0].trim()
-    return s
-  }
-
-  // Helper: resolve best email for the work's location/contact with robust fallbacks
-  function resolveRecipientEmailForLocation(client: any, work: any): string | null {
-    const isValid = (e?: any) => {
-      const v = normalizeEmail(e)
-      return !!v && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
-    }
-    const norm = (s?: string) => String(s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').trim()
-    const matches = (a?: string, b?: string) => {
-      const na = norm(a); const nb = norm(b)
-      if (!na || !nb) return false
-      return na === nb || na.includes(nb) || nb.includes(na)
-    }
-
-    dbg("resolveRecipientEmailForLocation input", {
-      presetRecipientEmail,
-      work_locatie: work?.locatie,
-      work_contact: work?.persoanaContact,
-      work_locationId: work?.clientInfo?.locationId || work?.clientInfo?.locatieId || work?.locationId,
-      work_locationName: work?.clientInfo?.locationName,
-      work_locationAddress: work?.clientInfo?.locationAddress,
-    })
-
-    // Fallback direct din lucrare/clientInfo dacă nu avem client complet încărcat
-    const workLevelCandidates = [
-      work?.clientInfo?.locationEmail,
-      work?.clientInfo?.email,
-      work?.clientInfo?.contactEmail,
-      work?.email,
-      work?.persoanaContactEmail,
-    ].filter(isValid)
-    dbg("workLevelCandidates(valid)", workLevelCandidates.map((e: any) => ({ raw: e, normalized: normalizeEmail(e) })))
-    if (workLevelCandidates.length) return normalizeEmail(workLevelCandidates[0])
-
-    const locatii = Array.isArray(client?.locatii) ? client.locatii : []
-    const targetId = work?.clientInfo?.locationId || work?.clientInfo?.locatieId || work?.locationId
-    const targetName = work?.locatie || work?.clientInfo?.locationName
-    const targetAddr = work?.clientInfo?.locationAddress
-    const targetContactName = work?.persoanaContact
-
-    // 1) Try ID match first
-    let loc = targetId ? locatii.find((l: any) => String(l?.id || '') === String(targetId)) : undefined
-    // 2) Fallback: name/address fuzzy match
-    if (!loc) {
-      loc = locatii.find((l: any) => matches(l?.nume, targetName) || matches(l?.adresa, targetAddr))
-    }
-    dbg("location match", {
-      found: Boolean(loc),
-      byId: Boolean(targetId && loc && String(loc?.id || "") === String(targetId)),
-      locName: loc?.nume,
-      locAddr: loc?.adresa,
-      locEmail: loc?.email,
-      locContactsCount: Array.isArray(loc?.persoaneContact) ? loc.persoaneContact.length : 0,
-    })
-
-    // If we have a location, try exact contact match first, then any contact, then location email
-    if (loc) {
-      const persoane: any[] = Array.isArray(loc?.persoaneContact) ? loc.persoaneContact : []
-      const exact = persoane.find((c: any) => matches(c?.nume, targetContactName))
-      dbg("contacts scan", {
-        targetContactName,
-        exactName: exact?.nume,
-        exactEmailRaw: exact?.email,
-        exactEmailNormalized: normalizeEmail(exact?.email),
-        anyValidContactEmails: persoane
-          .map((c: any) => ({ name: c?.nume, emailRaw: c?.email, emailNorm: normalizeEmail(c?.email), valid: isValid(c?.email) }))
-          .filter((x: any) => x.valid),
-      })
-      if (isValid(exact?.email)) return normalizeEmail(exact.email)
-      const anyContact = persoane.find((c: any) => isValid(c?.email))
-      if (isValid(anyContact?.email)) return normalizeEmail(anyContact.email)
-      if (isValid(loc?.email)) return normalizeEmail(loc.email)
-    }
-
-    // Global fallbacks on client level
-    if (isValid(client?.email)) return normalizeEmail(client.email)
-    const persoaneClient: any[] = Array.isArray(client?.persoaneContact) ? client.persoaneContact : []
-    const anyClientContact = persoaneClient.find((c: any) => isValid(c?.email))
-    if (isValid(anyClientContact?.email)) return normalizeEmail(anyClientContact.email)
-
-    // No valid email found
-    dbg("resolveRecipientEmailForLocation result", null)
-    return null
-  }
-
   // read-only suggested recipient
   const suggestedRecipient = useMemo(() => {
     try {
-      return presetRecipientEmail || resolveRecipientEmailForLocation(clientData, currentWork)
+      return resolveRecipientEmailForLocation(clientData, currentWork, presetRecipientEmail)
     } catch {
       return null
     }
   }, [presetRecipientEmail, clientData, currentWork])
-
-  // Helper: găsește locația în client (preferă ID, altfel fuzzy pe nume/adresă).
-  // Folosit pentru "lazy backfill" (lucrări vechi fără locationId/clientId).
-  const resolveLocationForWork = (client: any, work: any) => {
-    const locatii = Array.isArray(client?.locatii) ? client.locatii : []
-    const targetId = work?.clientInfo?.locationId || work?.clientInfo?.locatieId || work?.locationId
-    const targetName = work?.locatie || work?.clientInfo?.locationName
-    const targetAddr = work?.clientInfo?.locationAddress
-    const norm = (s?: string) => String(s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').trim()
-    const matches = (a?: string, b?: string) => {
-      const na = norm(a); const nb = norm(b)
-      if (!na || !nb) return false
-      return na === nb || na.includes(nb) || nb.includes(na)
-    }
-    let loc = targetId ? locatii.find((l: any) => String(l?.id || '') === String(targetId)) : undefined
-    if (!loc) loc = locatii.find((l: any) => matches(l?.nume, targetName) || matches(l?.adresa, targetAddr))
-    return loc || null
-  }
 
   const total = useMemo(() => products.reduce((s, p) => s + (p.total || 0), 0), [products])
   // Discount as percentage applied to subtotal (acts like a discount)
@@ -345,11 +236,7 @@ useEffect(() => {
       const existing = (current as any)?.offerVersions || []
       const newVersions = [...existing, version]
       // Build dynamic conditions (without warranty)
-      const conditiiOferta = [
-        `Plata: ${termsPayment}`,
-        `Livrare: ${termsDelivery}`,
-        `Instalare: ${termsInstallation}`,
-      ]
+      const conditiiOferta = buildPricingConditions(termsPayment, termsDelivery, termsInstallation)
       const adjToSave = (() => { const n = parseFloat(String(adjustmentInput).replace(',', '.')); return isNaN(n) ? 0 : n })()
       await updateLucrare(lucrareId, {
         products,
@@ -437,7 +324,7 @@ useEffect(() => {
         freshWork_contact: (freshWork as any)?.persoanaContact,
       })
 
-      const candidate = presetRecipientEmail || resolveRecipientEmailForLocation(freshClient, freshWork)
+      const candidate = resolveRecipientEmailForLocation(freshClient, freshWork, presetRecipientEmail)
       const recipient = normalizeEmail(candidate)
       dbg("recipient resolution", { candidateRaw: candidate, recipientNormalized: recipient })
       if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
@@ -582,7 +469,7 @@ useEffect(() => {
             // Cerință: pe PDF să apară dispecerul/adminul care a preluat lucrarea (preluatDe),
             // nu neapărat utilizatorul curent care trimite oferta.
             preparedBy: String((freshWork as any)?.preluatDe || (currentWork as any)?.preluatDe || userData?.displayName || userData?.email || ''),
-            preparedAt: new Date().toISOString().slice(0,10).split('-').reverse().join('.'),
+            preparedAt: formatPreparedDate(new Date()),
             beneficiar: {
               name: String((freshWork as any)?.client || (freshWork as any)?.clientInfo?.nume || ''),
               cui: String((freshWork as any)?.clientInfo?.cui || ''),
@@ -590,19 +477,6 @@ useEffect(() => {
               address: String((freshWork as any)?.clientInfo?.adresa || ''),
             },
           } as any)
-
-          const blobToBase64 = (b: Blob): Promise<string> => new Promise((resolve, reject) => {
-            const reader = new FileReader()
-            reader.onloadend = () => {
-              try {
-                const result = String(reader.result || '')
-                const base64 = result.includes(',') ? result.split(',')[1] : result
-                resolve(base64)
-              } catch (e) { reject(e) }
-            }
-            reader.onerror = reject
-            reader.readAsDataURL(b)
-          })
 
           const base64 = await blobToBase64(blob)
           attachmentData = [{ 
@@ -973,5 +847,3 @@ useEffect(() => {
     </Dialog>
   )
 }
-
-

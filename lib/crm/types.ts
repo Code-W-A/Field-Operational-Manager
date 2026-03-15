@@ -141,6 +141,7 @@ export interface CrmEmailLog {
   from: string
   to: string[]
   bodySnippet: string
+  sourceInboxMessageId?: string
   sentAt?: FirestoreDateValue
   createdById: string
   visibility: CrmVisibility
@@ -270,6 +271,7 @@ export interface CreateEmailInput {
   from: string
   to: string[]
   bodySnippet: string
+  sourceInboxMessageId?: string
   sentAt?: Date
   createdById: string
   visibility?: CrmVisibility

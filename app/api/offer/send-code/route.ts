@@ -3,6 +3,7 @@ import nodemailer from "nodemailer"
 import { adminDb } from "@/lib/firebase/admin"
 import { getEmailFrom } from "@/lib/email/from"
 import { logOfferPortalEvent } from "@/lib/offer/portal-audit"
+import { sendMailWithSentCopy } from "@/lib/email/send-with-sent-copy.server"
 
 const CODE_LENGTH = 6
 const CODE_TTL_MS = 15 * 60 * 1000
@@ -224,13 +225,15 @@ export async function POST(req: NextRequest) {
         { status: 429 },
       )
     }
+    const smtpUser = process.env.EMAIL_USER || "fom@nrg-acces.ro"
+    const smtpPass = process.env.EMAIL_PASS || "FOM@nrg25"
     const transporter = nodemailer.createTransport({
       host: process.env.EMAIL_HOST || "mail.nrg-acces.ro",
       port: Number(process.env.EMAIL_PORT || 465),
       secure: true,
       auth: {
-        user: process.env.EMAIL_USER || "fom@nrg-acces.ro",
-        pass: process.env.EMAIL_PASS || "FOM@nrg25",
+        user: smtpUser,
+        pass: smtpPass,
       },
     })
 
@@ -244,12 +247,20 @@ export async function POST(req: NextRequest) {
     `
 
     try {
-      await transporter.sendMail({
-        from: getEmailFrom(),
-        to: [cleanEmail],
-        subject,
-        html,
-        text: `Pentru validarea ofertei, introduceți codul: ${code}. Codul este valabil 15 minute. Dacă ați cerut coduri multiple, folosiți ultimul cod primit.`,
+      await sendMailWithSentCopy({
+        transporter,
+        smtpAuth: { user: smtpUser, pass: smtpPass },
+        mailOptions: {
+          from: getEmailFrom(),
+          to: [cleanEmail],
+          subject,
+          html,
+          text: `Pentru validarea ofertei, introduceți codul: ${code}. Codul este valabil 15 minute. Dacă ați cerut coduri multiple, folosiți ultimul cod primit.`,
+        },
+        imapContext: {
+          route: "/api/offer/send-code",
+          flow: "offer_code",
+        },
       })
     } catch (sendError) {
       // Allow immediate retry if SMTP send fails after code was persisted.

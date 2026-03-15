@@ -3,6 +3,7 @@ import nodemailer from "nodemailer"
 import { getEmailFrom } from "@/lib/email/from"
 import { adminDb } from "@/lib/firebase/admin"
 import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-events.server"
+import { sendMailWithSentCopy } from "@/lib/email/send-with-sent-copy.server"
 
 export async function POST(request: Request) {
   // IMPORTANT: Request body can be read only once. Keep a copy for both success + error logging.
@@ -22,29 +23,42 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Destinatari lipsă" }, { status: 400 })
     }
 
+    const smtpUser = process.env.EMAIL_USER || "fom@nrg-acces.ro"
+    const smtpPass = process.env.EMAIL_PASS || "FOM@nrg25"
     const transporter = nodemailer.createTransport({
       host: process.env.EMAIL_HOST || "mail.nrg-acces.ro",
       port: Number(process.env.EMAIL_PORT || 465),
       secure: true,
       auth: {
-        user: process.env.EMAIL_USER || "fom@nrg-acces.ro",
-        pass: process.env.EMAIL_PASS || "FOM@nrg25",
+        user: smtpUser,
+        pass: smtpPass,
       },
     })
 
     // Log queued
     try {
       const inferredLucrareId = (Array.isArray((attachments as any)) && (attachments as any)[0]?.lucrareId) || undefined
-      const inferredType = String(type || "").toUpperCase() === "REPORT"
-        ? "REPORT"
-        : String(type || "").toUpperCase() === "OFFER"
-          ? "OFFER"
-          : inferredLucrareId
+      const normalizedType = String(type || "").toUpperCase()
+      const inferredType =
+        normalizedType === "REPORT"
+          ? "REPORT"
+          : normalizedType === "OFFER"
             ? "OFFER"
-            : "GENERIC"
+            : normalizedType === "DEVIZ"
+              ? "DEVIZ"
+              : inferredLucrareId
+                ? "OFFER"
+                : "GENERIC"
 
       emailEventId = await logEmailEventServer({
-        type: inferredType === "REPORT" ? "REPORT" : inferredType === "OFFER" ? "OFFER" : "INVITE",
+        type:
+          inferredType === "REPORT"
+            ? "REPORT"
+            : inferredType === "OFFER"
+              ? "OFFER"
+              : inferredType === "DEVIZ"
+                ? "DEVIZ"
+                : "INVITE",
         lucrareId: inferredLucrareId,
         to: (to as string[]) || [],
         subject: subject || "Email – FOM",
@@ -60,7 +74,10 @@ export async function POST(request: Request) {
       console.error("Eroare la logging eveniment email queued:", error)
     }
 
-    const info = await transporter.sendMail({
+    const info = await sendMailWithSentCopy({
+      transporter,
+      smtpAuth: { user: smtpUser, pass: smtpPass },
+      mailOptions: {
       from: getEmailFrom(),
       to,
       subject: subject || "Invitație acces Portal Client – FOM",
@@ -72,6 +89,12 @@ export async function POST(request: Request) {
         encoding: a?.encoding || undefined,
         contentType: a?.contentType || undefined,
       })) : undefined,
+      },
+      imapContext: {
+        route: "/api/users/invite",
+        emailEventId: emailEventId || undefined,
+        flow: String(type || "invite").toLowerCase(),
+      },
     })
 
     // mark sent
@@ -79,13 +102,15 @@ export async function POST(request: Request) {
       if (emailEventId) await updateEmailEventServer(emailEventId, { status: "sent", messageId: info.messageId })
       const lucrareId = (Array.isArray((attachments as any)) && (attachments as any)[0]?.lucrareId) || undefined
       if (lucrareId) {
+        const emailStatusField =
+          String(type || "").toUpperCase() === "DEVIZ" ? "lastDevizEmail" : "lastOfferEmail"
         await adminDb.collection("lucrari").doc(String(lucrareId)).set(
           {
-          lastOfferEmail: {
-            sentAt: new Date().toISOString(),
+            [emailStatusField]: {
+              sentAt: new Date().toISOString(),
               to: (to as string[]) || [],
-            status: "sent",
-            messageId: info.messageId,
+              status: "sent",
+              messageId: info.messageId,
             },
           },
           { merge: true },
@@ -120,12 +145,14 @@ export async function POST(request: Request) {
       
       const lucrareId = (Array.isArray((body?.attachments as any)) && (body?.attachments as any)[0]?.lucrareId) || undefined
       if (lucrareId) {
+        const emailStatusField =
+          String(body?.type || "").toUpperCase() === "DEVIZ" ? "lastDevizEmail" : "lastOfferEmail"
         await adminDb.collection("lucrari").doc(String(lucrareId)).set(
           {
-          lastOfferEmail: {
-            sentAt: new Date().toISOString(),
-            to: errorTo,
-            status: "failed",
+            [emailStatusField]: {
+              sentAt: new Date().toISOString(),
+              to: errorTo,
+              status: "failed",
             },
           },
           { merge: true },
@@ -140,7 +167,14 @@ export async function POST(request: Request) {
       if (emailEventId) await updateEmailEventServer(emailEventId, { status: "failed", error: details.message || String(e) })
       if (!emailEventId) {
         await logEmailEventServer({
-          type: String(body?.type || "").toUpperCase() === "REPORT" ? "REPORT" : String(body?.type || "").toUpperCase() === "OFFER" ? "OFFER" : "INVITE",
+          type:
+            String(body?.type || "").toUpperCase() === "REPORT"
+              ? "REPORT"
+              : String(body?.type || "").toUpperCase() === "OFFER"
+                ? "OFFER"
+                : String(body?.type || "").toUpperCase() === "DEVIZ"
+                  ? "DEVIZ"
+                  : "INVITE",
           lucrareId: (Array.isArray((body?.attachments as any)) && (body?.attachments as any)[0]?.lucrareId) || undefined,
           to: errorTo,
           subject: errorSubject,
@@ -167,5 +201,3 @@ export async function POST(request: Request) {
     }, { status: 500 })
   }
 }
-
-

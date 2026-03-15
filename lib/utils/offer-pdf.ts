@@ -31,6 +31,7 @@ export interface OfferPdfInput {
   preparedAt?: string
   prestator?: { name?: string; cui?: string; reg?: string; address?: string }
   beneficiar?: { name?: string; cui?: string; reg?: string; address?: string }
+  documentType?: "offer" | "deviz"
 }
 
 // Normalize keeping diacritics; fix common cedilla/comma confusions and enforce NFC
@@ -41,8 +42,101 @@ function normalizeForPdf(text = ""): string {
   return t
 }
 
-// Generate Offer PDF as Blob using a clean layout
-export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
+function formatDisplayWorkId(input: OfferPdfInput): string {
+  const value = String(input.numarRaport || "").trim()
+  if (value) return value.startsWith("#") ? value : `#${value}`
+  return `#${String(input.id)}`
+}
+
+function formatUiDate(val?: string | Date): string {
+  try {
+    let d: Date
+    if (!val) {
+      d = new Date()
+    } else if (val instanceof Date) {
+      d = val
+    } else {
+      const iso = new Date(val)
+      if (!Number.isNaN(iso.getTime())) {
+        d = iso
+      } else {
+        const parts = val.split(".")
+        if (parts.length === 3) {
+          const [dd, mm, yyyy] = parts.map((x) => Number.parseInt(x, 10))
+          d = new Date(yyyy, (mm || 1) - 1, dd || 1)
+        } else {
+          d = new Date()
+        }
+      }
+    }
+
+    if (Number.isNaN(d.getTime())) d = new Date()
+    const dd = String(d.getDate()).padStart(2, "0")
+    const monthShort = ["ian", "feb", "mar", "apr", "mai", "iun", "iul", "aug", "sep", "oct", "nov", "dec"][d.getMonth()]
+    return `${dd} ${monthShort} ${d.getFullYear()}`
+  } catch {
+    return "-"
+  }
+}
+
+async function getPdfLogoDataUrl(): Promise<string | null> {
+  try {
+    const resp = await fetch("/nrglogo.png")
+    const blob = await resp.blob()
+    const reader = new FileReader()
+    const dataUrl = await new Promise<string>((resolve) => {
+      reader.onload = () => resolve(reader.result as string)
+      reader.readAsDataURL(blob)
+    })
+    return dataUrl
+  } catch {
+    return null
+  }
+}
+
+function drawStandardFooter(doc: jsPDF, margin: number, width: number, pageHeight: number) {
+  doc.setDrawColor(209, 213, 219)
+  doc.line(margin, pageHeight - 28, margin + width, pageHeight - 28)
+
+  const y = pageHeight - 23
+  doc.setFontSize(8)
+  doc.setTextColor(41, 72, 143)
+
+  const footerColW = width / 3 - 4
+  const footerColX = [margin, margin + width / 3, margin + (2 * width) / 3]
+  const footerLeft = [
+    "NRG Access Systems SRL",
+    "Rezervelor Nr 70,",
+    "Chiajna, Ilfov",
+    "C.I.F. RO34722913",
+  ]
+  const footerMid = [
+    "Telefon: +40 371 49 44 99",
+    "E-mail: office@nrg-acces.ro",
+    "Website: www.nrg-acces.ro",
+  ]
+  const footerRight = [
+    "IBAN RO79BTRL RON CRT 0294 5948 01",
+    "Banca Transilvania Sucursala Aviatiei",
+  ]
+
+  const renderColumn = (items: string[], x: number) => {
+    let yy = y
+    items.forEach((text) => {
+      const lines = doc.splitTextToSize(text, footerColW)
+      lines.forEach((line: string) => {
+        doc.text(line, x, yy)
+        yy += 4
+      })
+    })
+  }
+
+  renderColumn(footerLeft, footerColX[0])
+  renderColumn(footerMid, footerColX[1])
+  renderColumn(footerRight, footerColX[2])
+}
+
+async function generatePricingDocumentPdf(input: OfferPdfInput): Promise<Blob> {
   const doc = new jsPDF({ unit: "mm", format: "a4" })
   // Ensure Unicode font is embedded (aliased to 'helvetica')
   try { await ensurePdfFont(doc) } catch {}
@@ -62,69 +156,22 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   const headerHeight = 16
   doc.setFillColor(73, 100, 155).rect(M, y, W, headerHeight, "F")
   doc.setTextColor(255).setFont("NotoSans", "bold").setFontSize(12)
-  const displayWorkId = (() => {
-    const n = (input.numarRaport || '').trim()
-    if (n) return n.startsWith('#') ? n : `#${n}`
-    return `#${String(input.id)}`
-  })()
+  const displayWorkId = formatDisplayWorkId(input)
   const offerNo = typeof input.offerNumber === 'number' && input.offerNumber > 0 ? `-${input.offerNumber}` : ''
-  const title = normalizeForPdf(`Oferta piese și servicii ${displayWorkId}${offerNo}`)
+  const documentLabel = input.documentType === "deviz" ? "Deviz" : "Oferta"
+  const title = normalizeForPdf(`${documentLabel} piese și servicii ${displayWorkId}${offerNo}`)
   doc.text(title, M + 4, y + (headerHeight / 2) + 1)
   // Logo (right)
-  try {
-    const resp = await fetch("/nrglogo.png")
-    const blob = await resp.blob()
-    const reader = new FileReader()
-    const dataUrl: string = await new Promise((resolve) => {
-      reader.onload = () => resolve(reader.result as string)
-      reader.readAsDataURL(blob)
-    })
-    const logoW = 24; const logoH = 18
-    doc.addImage(dataUrl, "PNG", M + W - logoW - 4, y + (headerHeight - logoH) / 2, logoW, logoH)
-  } catch {}
+  const logoDataUrl = await getPdfLogoDataUrl()
+  if (logoDataUrl) {
+    const logoW = 24
+    const logoH = 18
+    doc.addImage(logoDataUrl, "PNG", M + W - logoW - 4, y + (headerHeight - logoH) / 2, logoW, logoH)
+  }
   y += headerHeight + 12
   doc.setTextColor(0)
 
   // Prestator / Beneficiar (two columns)
-  // Helper to format a date as "dd mmm yyyy" (e.g., 02 dec 2025) for visual display only
-  const formatUiDate = (val?: string | Date): string => {
-    try {
-      let d: Date
-      if (!val) d = new Date()
-      else if (val instanceof Date) d = val
-      else {
-        const iso = new Date(val)
-        if (!isNaN(iso.getTime())) d = iso
-        else {
-          const parts = val.split(".")
-          if (parts.length === 3) {
-            const [dd, mm, yyyy] = parts.map((x) => parseInt(x, 10))
-            d = new Date(yyyy, (mm || 1) - 1, dd || 1)
-          } else {
-            d = new Date()
-          }
-        }
-      }
-      if (isNaN(d.getTime())) d = new Date()
-      const dd = String(d.getDate()).padStart(2, "0")
-      const monthShort = ["ian","feb","mar","apr","mai","iun","iul","aug","sep","oct","nov","dec"][d.getMonth()]
-      const yyyy = d.getFullYear()
-      return `${dd} ${monthShort} ${yyyy}`
-    } catch {
-      return "-"
-    }
-  }
-  // Format date as DD-MMM-YYYY (e.g., 31-Jul-2025)
-  const fmtDate = (() => {
-    if (input.date) return input.date
-    const d = new Date()
-    const day = String(d.getDate()).padStart(2, "0")
-    const month = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]
-    const year = d.getFullYear()
-    return `${day}-${month}-${year}`
-  })()
-  const leftW = W/2 - 3
-  const rightW = W/2 - 3
   const l = input.prestator || {}
   const r = input.beneficiar || {}
   doc.setFont("NotoSans", "bold").setFontSize(9)
@@ -302,48 +349,167 @@ export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
     doc.text(line, M, footerSepY - 4)
   } catch {}
 
-  // Footer separator line (moved lower)
-  doc.setDrawColor(209, 213, 219)
-  doc.line(M, PH - 28, M + W, PH - 28)
-  // Footer company info and bank details laid out in three equal columns with wrapping
-  y = Math.max(y, PH - 23)
-  doc.setFontSize(8)
-  doc.setTextColor(41, 72, 143) // footer text - more vibrant blue
-  const footerColW = W / 3 - 4
-  const footerColX = [M, M + W / 3, M + (2 * W) / 3]
-  const footerLeft = [
-    "NRG Access Systems SRL",
-    "Rezervelor Nr 70,",
-    "Chiajna, Ilfov",
-    "C.I.F. RO34722913",
-  ]
-  const footerMid = [
-    "Telefon: +40 371 49 44 99",
-    "E-mail: office@nrg-acces.ro",
-    "Website: www.nrg-acces.ro",
-  ]
-  const footerRight = [
-    "IBAN RO79BTRL RON CRT 0294 5948 01",
-    "Banca Transilvania Sucursala Aviatiei",
-  ]
-  const renderColumn = (items: string[], x: number) => {
-    let yy = y
-    items.forEach((t) => {
-      const lines = doc.splitTextToSize(t, footerColW)
-      lines.forEach((ln: string) => {
-        doc.text(ln, x, yy)
-        yy += 4
-      })
-    })
-  }
-  renderColumn(footerLeft, footerColX[0])
-  renderColumn(footerMid, footerColX[1])
-  renderColumn(footerRight, footerColX[2])
-
-  
+  drawStandardFooter(doc, M, W, PH)
 
   const blob = doc.output("blob")
   return blob
 }
 
+async function generateDevizDocumentPdf(input: OfferPdfInput): Promise<Blob> {
+  const doc = new jsPDF({ unit: "mm", format: "a4" })
+  try { await ensurePdfFont(doc) } catch {}
 
+  const M = 10
+  const W = doc.internal.pageSize.getWidth() - 2 * M
+  const PH = doc.internal.pageSize.getHeight()
+  const displayWorkId = formatDisplayWorkId(input)
+  const prestator = input.prestator || {}
+  const beneficiar = input.beneficiar || {}
+  const logoDataUrl = await getPdfLogoDataUrl()
+
+  let y = M
+
+  const checkPage = (need: number) => {
+    if (y + need > PH - 35) {
+      doc.addPage()
+      y = M
+    }
+  }
+
+  const headerHeight = 16
+  doc.setFillColor(73, 100, 155).rect(M, y, W, headerHeight, "F")
+  doc.setTextColor(255).setFont("NotoSans", "bold").setFontSize(12)
+  doc.text(normalizeForPdf(`Deviz de reparatii pentru tichetul ${displayWorkId}`), M + 4, y + (headerHeight / 2) + 1)
+
+  if (logoDataUrl) {
+    const logoW = 24
+    const logoH = 18
+    doc.addImage(logoDataUrl, "PNG", M + W - logoW - 4, y + (headerHeight - logoH) / 2, logoW, logoH)
+  }
+
+  y += headerHeight + 14
+  doc.setTextColor(0)
+
+  doc.setFont("NotoSans", "bold").setFontSize(9)
+  doc.text("Prestator", M, y)
+  doc.text("Beneficiar", M + W, y, { align: "right" })
+
+  doc.setFont("NotoSans", "normal")
+  const prestatorLines = [
+    normalizeForPdf(prestator.name || input.fromCompany || "NRG Access Systems SRL"),
+    normalizeForPdf(prestator.cui || prestator.reg || "RO34722913"),
+    normalizeForPdf(prestator.address || "Rezervelor 70, Chiajna, Ilfov"),
+  ]
+  const beneficiarName = normalizeForPdf(beneficiar.name || input.client || "-")
+
+  prestatorLines.forEach((line, index) => doc.text(line, M, y + 6 + index * 5))
+  doc.text(beneficiarName, M + W, y + 6, { align: "right" })
+
+  y += 6 + Math.max(prestatorLines.length, 1) * 5 + 20
+
+  doc.setFont("NotoSans", "bold").setFontSize(11)
+  const intro = normalizeForPdf(
+    `In urma interventiei efectuate conform tichetului ${displayWorkId} va facem cunoscut mai jos devizul de reparatii si detalierea costurilor:`,
+  )
+  const introLines = doc.splitTextToSize(intro, W - 4)
+  introLines.forEach((line: string) => {
+    checkPage(6)
+    doc.text(line, M, y)
+    y += 6
+  })
+
+  y += 16
+
+  const headers = ["Denumire", "Cantitate", "Pret unitar", "Suma liniei"]
+  const colW = [W - 20 - 24 - 28, 20, 24, 28]
+  const xPos: number[] = [M]
+  for (let i = 0; i < colW.length; i++) xPos.push(xPos[i] + colW[i])
+
+  doc.setTextColor(73, 100, 155)
+  doc.setFont("NotoSans", "bold").setFontSize(10)
+  headers.forEach((header, index) => {
+    if (index === 0) {
+      doc.text(header, xPos[index] + 2, y + 5)
+    } else {
+      doc.text(header, xPos[index] + colW[index] - 1, y + 5, { align: "right" })
+    }
+  })
+  y += 7
+
+  doc.setDrawColor(209, 213, 219).setLineWidth(0.2)
+  doc.line(M, y, M + W, y)
+  doc.setTextColor(0)
+
+  const items = (input.products || []).map((product) => ({
+    name: normalizeForPdf(product.name || "-"),
+    qty: Number(product.quantity || 0),
+    price: Number(product.price || 0),
+    total: Number(product.quantity || 0) * Number(product.price || 0),
+  }))
+
+  let subtotal = 0
+  doc.setFont("NotoSans", "normal").setFontSize(9)
+  items.forEach((item) => {
+    const rowHeight = 6
+    checkPage(rowHeight)
+    const nameLines = doc.splitTextToSize(item.name, colW[0] - 2)
+    const cellHeight = Math.max(rowHeight, nameLines.length * 4.5 + 2)
+    doc.text(nameLines, xPos[0] + 2, y + 5)
+    doc.text(String(item.qty), xPos[1] + colW[1] - 1, y + 5, { align: "right" })
+    doc.text(item.price.toLocaleString("ro-RO"), xPos[2] + colW[2] - 1, y + 5, { align: "right" })
+    doc.text(item.total.toLocaleString("ro-RO"), xPos[3] + colW[3] - 1, y + 5, { align: "right" })
+    y += cellHeight
+    doc.setDrawColor(209, 213, 219).setLineWidth(0.2)
+    doc.line(M, y, M + W, y)
+    subtotal += item.total
+  })
+
+  y += 8
+
+  const adjustment = typeof input.adjustmentPercent === "number" ? Number(input.adjustmentPercent) : 0
+  const totalNoVat = subtotal * (1 - adjustment / 100)
+  const bandHeight = 18
+  const valueX = M + W - 5
+  const labelX = M + W - 25
+
+  checkPage(bandHeight + 4)
+  doc.setFillColor(220, 227, 240)
+  doc.rect(M, y, W, bandHeight, "F")
+
+  y += 4
+  doc.setTextColor(0)
+  doc.setFont("NotoSans", "normal").setFontSize(9)
+  doc.text("Subtotal:", labelX, y, { align: "right" })
+  doc.text(subtotal.toLocaleString("ro-RO"), valueX, y, { align: "right" })
+  y += 5
+
+  doc.text("Ajustare:", labelX, y, { align: "right" })
+  doc.text(`${adjustment}%`, valueX, y, { align: "right" })
+  y += 5
+
+  doc.setFont("NotoSans", "bold").setFontSize(10)
+  doc.text("Total insumat LEI fara TVA:", labelX, y, { align: "right" })
+  doc.text(totalNoVat.toLocaleString("ro-RO"), valueX, y, { align: "right" })
+
+  const preparedBy = normalizeForPdf(String(input.preparedBy || "").trim())
+  const preparedAt = normalizeForPdf(formatUiDate(input.preparedAt || new Date()))
+  const preparedLine = preparedBy
+    ? normalizeForPdf(`Întocmit la data de ${preparedAt} de ${preparedBy}`)
+    : normalizeForPdf(`Întocmit la data de ${preparedAt}`)
+  const footerSepY = PH - 28
+  doc.setFont("NotoSans", "normal").setFontSize(9).setTextColor(0)
+  doc.text(preparedLine, M, footerSepY - 4)
+
+  drawStandardFooter(doc, M, W, PH)
+
+  return doc.output("blob")
+}
+
+// Generate Offer PDF as Blob using a clean layout
+export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
+  return generatePricingDocumentPdf({ ...input, documentType: "offer" })
+}
+
+export async function generateDevizPdf(input: OfferPdfInput): Promise<Blob> {
+  return generateDevizDocumentPdf({ ...input, documentType: "deviz" })
+}

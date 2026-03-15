@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import nodemailer from "nodemailer"
 import { getEmailFrom } from "@/lib/email/from"
 import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-events.server"
+import { sendMailWithSentCopy } from "@/lib/email/send-with-sent-copy.server"
 
 export async function POST(request: NextRequest) {
   let errorRecipient = "unknown"
@@ -30,13 +31,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Configure email transporter
+    const smtpUser = process.env.EMAIL_USER
+    const smtpPass = process.env.EMAIL_PASSWORD
     const transporter = nodemailer.createTransport({
       host: process.env.EMAIL_SMTP_HOST,
       port: Number.parseInt(process.env.EMAIL_SMTP_PORT || "465"),
       secure: process.env.EMAIL_SMTP_SECURE === "false" ? false : true,
       auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD,
+        user: smtpUser,
+        pass: smtpPass,
       },
       debug: true,
       logger: true,
@@ -68,7 +71,16 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`[Email Test] Sending test email to ${recipient}...`)
-    const info = await transporter.sendMail(mailOptions)
+    const info = await sendMailWithSentCopy({
+      transporter,
+      mailOptions,
+      smtpAuth: { user: smtpUser, pass: smtpPass },
+      imapContext: {
+        route: "/api/email/send-test",
+        emailEventId: emailEventId || undefined,
+        flow: "test",
+      },
+    })
     console.log(`[Email Test] Email sent successfully, messageId: ${info.messageId}`)
 
     try {

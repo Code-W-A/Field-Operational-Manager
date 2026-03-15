@@ -70,6 +70,7 @@ import { getDocs, query as fsQuery, where } from "firebase/firestore"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { CustomDatePicker } from "@/components/custom-date-picker"
 import { Card, CardContent } from "@/components/ui/card"
+import { useAuth } from "@/contexts/AuthContext"
 
 const SCHEDULE_MONTHS_AHEAD = 48
 const MAX_PREVIEW_OCCURRENCES = 2000
@@ -207,6 +208,8 @@ const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0
 export default function ContractsPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { userData } = useAuth()
+  const isReadOnlyDispatcher = userData?.role === "dispecer"
   const [contracts, setContracts] = useState<Contract[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
@@ -486,7 +489,7 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
   // Deschide automat dialogul de editare dacă există parametrul edit în URL
   useEffect(() => {
     const editId = searchParams.get("edit")
-    if (editId && contracts.length > 0 && !loading) {
+    if (editId && contracts.length > 0 && !loading && !isReadOnlyDispatcher) {
       const contractToEdit = contracts.find(c => c.id === editId)
       if (contractToEdit) {
         openEditDialog(contractToEdit)
@@ -494,7 +497,7 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
         router.replace("/dashboard/contracte", { scroll: false })
       }
     }
-  }, [searchParams, contracts, loading])
+  }, [searchParams, contracts, loading, isReadOnlyDispatcher, router])
 
   // Populăm opțiunile pentru coloane când tabelul este disponibil
   useEffect(() => {
@@ -908,44 +911,47 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
       enableHiding: false,
       enableSorting: false,
       enableFiltering: false,
-      cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button 
-                variant="outline" 
-                size="icon" 
-                className="h-8 w-8 text-blue-600"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  openEditDialog(row.original)
-                }}
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Editează</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button 
-                variant="outline" 
-                size="icon" 
-                className="h-8 w-8 text-red-600"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  openDeleteDialog(row.original)
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Șterge</TooltipContent>
-          </Tooltip>
-        </div>
-      ),
+      cell: ({ row }) =>
+        isReadOnlyDispatcher ? (
+          <span className="text-xs text-muted-foreground">Read-only</span>
+        ) : (
+          <div className="flex items-center justify-end gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  className="h-8 w-8 text-blue-600"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    openEditDialog(row.original)
+                  }}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Editează</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  className="h-8 w-8 text-red-600"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    openDeleteDialog(row.original)
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Șterge</TooltipContent>
+            </Tooltip>
+          </div>
+        ),
     },
-  ], [clients, dynamicColumns, triggeringContractId, toast])
+  ], [clients, dynamicColumns, isReadOnlyDispatcher])
 
   // Încărcăm contractele și clienții din Firestore
   useEffect(() => {
@@ -1050,6 +1056,14 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
 
   // Funcție pentru adăugarea unui contract nou
   const handleAddContract = async () => {
+    if (isReadOnlyDispatcher) {
+      toast({
+        title: "Acțiune indisponibilă",
+        description: "Dispecerul are acces doar pentru vizualizare la contracte.",
+        variant: "destructive",
+      })
+      return
+    }
     if (!newContractName || !newContractNumber) {
       toast({
         title: "Eroare",
@@ -1243,6 +1257,14 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
 
   // Funcție pentru editarea unui contract
   const handleEditContract = async () => {
+    if (isReadOnlyDispatcher) {
+      toast({
+        title: "Acțiune indisponibilă",
+        description: "Dispecerul are acces doar pentru vizualizare la contracte.",
+        variant: "destructive",
+      })
+      return
+    }
     if (!selectedContract || !newContractName || !newContractNumber) {
       toast({
         title: "Eroare",
@@ -1398,6 +1420,14 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
 
   // Funcție pentru ștergerea unui contract
   const handleDeleteContract = async () => {
+    if (isReadOnlyDispatcher) {
+      toast({
+        title: "Acțiune indisponibilă",
+        description: "Dispecerul are acces doar pentru vizualizare la contracte.",
+        variant: "destructive",
+      })
+      return
+    }
     if (!selectedContract) return
 
     try {
@@ -1433,6 +1463,9 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
 
   // Funcție pentru deschiderea dialogului de editare
   const openEditDialog = async (contract: Contract) => {
+    if (isReadOnlyDispatcher) {
+      return
+    }
     setSelectedContract(contract)
     setNewContractName(contract.name)
     setNewContractNumber(contract.number)
@@ -1485,6 +1518,9 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
 
   // Funcție pentru deschiderea dialogului de ștergere
   const openDeleteDialog = (contract: Contract) => {
+    if (isReadOnlyDispatcher) {
+      return
+    }
     setSelectedContract(contract)
     setIsDeleteDialogOpen(true)
   }
@@ -1564,7 +1600,10 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
     <TooltipProvider>
       <DashboardShell>
         {viewMode === "list" && (
-          <DashboardHeader heading="Contracte" text="Gestionați contractele din sistem">
+          <DashboardHeader
+            heading="Contracte"
+            text={isReadOnlyDispatcher ? "Vizualizare contracte de mentenanță" : "Gestionați contractele din sistem"}
+          >
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="outline"
@@ -1572,9 +1611,11 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
               >
                 Calendar revizii
               </Button>
-              <Button onClick={() => setIsAddDialogOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" /> Adaugă Contract
-              </Button>
+              {!isReadOnlyDispatcher && (
+                <Button onClick={() => setIsAddDialogOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" /> Adaugă Contract
+                </Button>
+              )}
             </div>
           </DashboardHeader>
         )}
@@ -1594,9 +1635,11 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
       ) : contracts.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-muted-foreground">Nu există contracte în sistem.</p>
-          <Button onClick={() => setIsAddDialogOpen(true)} className="mt-4">
-            <Plus className="mr-2 h-4 w-4" /> Adaugă primul contract
-          </Button>
+          {!isReadOnlyDispatcher && (
+            <Button onClick={() => setIsAddDialogOpen(true)} className="mt-4">
+              <Plus className="mr-2 h-4 w-4" /> Adaugă primul contract
+            </Button>
+          )}
         </div>
       ) : (
         <div className="space-y-4">

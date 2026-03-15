@@ -6,6 +6,7 @@ import path from "path"
 import fs from "fs"
 import { adminDb } from "@/lib/firebase/admin"
 import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-events.server"
+import { sendMailWithSentCopy } from "@/lib/email/send-with-sent-copy.server"
 
 // Add this function at the top of the file
 async function validateEmails(data: any) {
@@ -190,13 +191,15 @@ export async function POST(request: NextRequest) {
 
     // Configurăm transportorul de email (similar cu api/send-email/route.ts)
     console.log(`[WORK-ORDER-API] [${requestId}] Configurare transporter nodemailer...`)
+    const smtpUser = process.env.EMAIL_USER || "fom@nrg-acces.ro"
+    const smtpPass = process.env.EMAIL_PASSWORD
     const transporter = nodemailer.createTransport({
       host: process.env.EMAIL_SMTP_HOST || "mail.nrg-acces.ro",
       port: Number.parseInt(process.env.EMAIL_SMTP_PORT || "465"),
       secure: process.env.EMAIL_SMTP_SECURE === "false" ? false : true,
       auth: {
-        user: process.env.EMAIL_USER || "fom@nrg-acces.ro",
-        pass: process.env.EMAIL_PASSWORD,
+        user: smtpUser,
+        pass: smtpPass,
       },
       debug: true, // Activăm debugging pentru nodemailer
       logger: true, // Activăm logging pentru nodemailer
@@ -453,7 +456,17 @@ export async function POST(request: NextRequest) {
               })
             } catch {}
 
-            const info = await transporter.sendMail(mailOptions)
+            const info = await sendMailWithSentCopy({
+              transporter,
+              smtpAuth: { user: smtpUser, pass: smtpPass },
+              mailOptions,
+              imapContext: {
+                route: "/api/notifications/work-order",
+                requestId,
+                emailEventId: evId || undefined,
+                flow: "work_order_tech_notify",
+              },
+            })
 
             console.log(`[WORK-ORDER-API] [${requestId}] Email trimis cu succes către tehnician!`)
             console.log(`- MessageId: ${info.messageId}`)
@@ -623,7 +636,17 @@ export async function POST(request: NextRequest) {
           })
         } catch {}
 
-        const info = await transporter.sendMail(mailOptions)
+        const info = await sendMailWithSentCopy({
+          transporter,
+          smtpAuth: { user: smtpUser, pass: smtpPass },
+          mailOptions,
+          imapContext: {
+            route: "/api/notifications/work-order",
+            requestId,
+            emailEventId: clientEvId || undefined,
+            flow: "work_order_client_notify",
+          },
+        })
 
         console.log(`[WORK-ORDER-API] [${requestId}] Email trimis cu succes către destinatari!`)
         console.log(`- MessageId: ${info.messageId}`)

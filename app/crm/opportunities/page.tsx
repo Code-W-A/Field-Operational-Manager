@@ -409,7 +409,6 @@ export default function CrmOpportunitiesPage() {
   ]
 
   const isMainLoading = loading || tasksLoading
-  const displayedStageTotal = displayedOpportunities.length
   const rightRailContent = (
     <div className="space-y-4">
       <div className="space-y-2">
@@ -470,7 +469,6 @@ export default function CrmOpportunitiesPage() {
           {visiblePipelineStages.length > 0 ? (
             visiblePipelineStages.map((stage, index) => {
               const stageCount = displayedStageStats[stage] || 0
-              const stagePercent = displayedStageTotal > 0 ? Math.round((stageCount / displayedStageTotal) * 100) : 0
 
               return (
                 <div
@@ -485,7 +483,7 @@ export default function CrmOpportunitiesPage() {
                     <span>{CRM_PIPELINE_STAGE_LABELS[stage] || stage}</span>
                   </span>
                   <span className={cn("font-medium", stageFilter === stage ? "text-neutral-900" : "text-neutral-700")}>
-                    {stageCount} ({stagePercent}%)
+                    {stageCount}
                   </span>
                 </div>
               )

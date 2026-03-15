@@ -27,6 +27,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { getClienti, type Client } from "@/lib/firebase/firestore"
 import { formatUiDate, toDateSafe } from "@/lib/utils/time-format"
+import { useAuth } from "@/contexts/AuthContext"
 
 interface Contract {
   id: string
@@ -95,7 +96,9 @@ const computeFallbackUpcoming = (contract: Contract, count = 3): UpcomingGenerat
 export default function ContractDetailsPage() {
   const router = useRouter()
   const params = useParams()
+  const { userData } = useAuth()
   const contractId = params.id as string
+  const isReadOnlyDispatcher = userData?.role === "dispecer"
 
   const [contract, setContract] = useState<Contract | null>(null)
   const [client, setClient] = useState<Client | null>(null)
@@ -163,19 +166,18 @@ export default function ContractDetailsPage() {
           limit(3)
         )
         const snap = await getDocs(q)
-        const items: UpcomingGeneration[] = snap.docs
-          .map((doc) => doc.data())
-          .map((data: any) => {
-            const generateAt: Date | undefined = data.generateAt?.toDate?.()
-            const scheduledAt: Date | undefined = data.scheduledAt?.toDate?.()
-            if (!generateAt || !scheduledAt) return null
-            return {
-              generateAt,
-              scheduledAt,
-              locationName: data.locationName || data.locationId || undefined,
-            }
+        const items: UpcomingGeneration[] = snap.docs.reduce<UpcomingGeneration[]>((acc, docSnap) => {
+          const data: any = docSnap.data()
+          const generateAt: Date | undefined = data.generateAt?.toDate?.()
+          const scheduledAt: Date | undefined = data.scheduledAt?.toDate?.()
+          if (!generateAt || !scheduledAt) return acc
+          acc.push({
+            generateAt,
+            scheduledAt,
+            locationName: data.locationName || data.locationId || undefined,
           })
-          .filter((v): v is UpcomingGeneration => Boolean(v))
+          return acc
+        }, [])
         if (items.length > 0) {
           setUpcomingGenerations(items)
         } else {
@@ -257,12 +259,14 @@ export default function ContractDetailsPage() {
             <ArrowLeft className="mr-2 h-4 w-4" />
             Înapoi
           </Button>
-          <Button
-            onClick={() => router.push(`/dashboard/contracte?edit=${contractId}`)}
-          >
-            <Pencil className="mr-2 h-4 w-4" />
-            Editează
-          </Button>
+          {!isReadOnlyDispatcher && (
+            <Button
+              onClick={() => router.push(`/dashboard/contracte?edit=${contractId}`)}
+            >
+              <Pencil className="mr-2 h-4 w-4" />
+              Editează
+            </Button>
+          )}
         </div>
       </DashboardHeader>
 
@@ -498,4 +502,3 @@ export default function ContractDetailsPage() {
     </DashboardShell>
   )
 }
-

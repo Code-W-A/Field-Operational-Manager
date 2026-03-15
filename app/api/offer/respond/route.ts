@@ -162,6 +162,7 @@ export async function POST(req: NextRequest) {
           at: now,
           ...(verifiedEmail ? { verifiedEmail } : {}),
           ...(safeFinalAction === "reject" && reason ? { reason } : {}),
+          ...(versionSavedAt ? { versionSavedAt } : {}),
         },
         offerResponsesHistory: hasExistingResponseForProof ? existingHistory : [...existingHistory, historyEntry],
         offerActionUsedAt: now,

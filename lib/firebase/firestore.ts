@@ -102,6 +102,8 @@ export interface Lucrare {
     reason?: string
     at: any
     by?: string
+    verifiedEmail?: string
+    versionSavedAt?: string | null
   }
   // Istoric complet răspunsuri client la ofertă (append-only, backward compatible)
   offerResponsesHistory?: Array<{
@@ -121,6 +123,21 @@ export interface Lucrare {
   offerActionUsedAt?: any
   // Adăugăm câmpul pentru comentarii legate de ofertă
   comentariiOferta?: string
+  // Câmpuri pentru deviz - separate complet de ofertă
+  devizProducts?: ProductItem[]
+  devizTotal?: number
+  devizVAT?: number
+  devizAdjustmentPercent?: number
+  devizSendCount?: number
+  devizPreparedBy?: string
+  devizPreparedAt?: any
+  devizVersions?: Array<{
+    savedAt: any
+    savedBy?: string
+    total: number
+    products: ProductItem[]
+  }>
+  devizConditions?: string[]
   // Câmpuri pentru timpul de sosire și plecare
   timpSosire?: string
   dataSosire?: string
@@ -197,6 +214,14 @@ export interface Lucrare {
     numarOferta: string  // Numărul ofertei (editabil)
     dataOferta: string   // Data ofertei (editabil)
   }
+  devizDocument?: {
+    url?: string
+    fileName: string
+    uploadedAt: string
+    uploadedBy: string
+    numarDeviz: string
+    dataDeviz: string
+  }
   // CÂMPURI NOI PENTRU IMAGINI DEFECTE - BACKWARD COMPATIBLE
   imaginiDefecte?: Array<{
     url: string         // URL-ul imaginii în Firebase Storage
@@ -249,6 +274,12 @@ export interface Lucrare {
     status?: "queued" | "sent" | "failed" | "bounced" | "delivered"
     messageId?: string
   }
+  lastDevizEmail?: {
+    sentAt?: any
+    to?: string[]
+    status?: "queued" | "sent" | "failed" | "bounced" | "delivered"
+    messageId?: string
+  }
   // Revizie (multi-echipament)
   equipmentIds?: string[]           // Lista echipamentelor pentru lucrarea de tip Revizie
   revision?: WorkRevisionMeta       // Metadate revizie (versiune checklist, progres)
@@ -257,7 +288,7 @@ export interface Lucrare {
 // Email events tracking
 export interface EmailEvent {
   id?: string
-  type: "REPORT" | "OFFER" | "GENERIC" | "TECH_NOTIFY" | "INVITE" | "TEST" | "CRM_TASK"
+  type: "REPORT" | "OFFER" | "DEVIZ" | "GENERIC" | "TECH_NOTIFY" | "INVITE" | "TEST" | "CRM_TASK"
   lucrareId?: string
   clientId?: string
   to: string[]

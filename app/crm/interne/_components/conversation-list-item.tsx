@@ -40,7 +40,9 @@ export function ConversationListItem({ row, selected, userNameMap, onSelect }: C
         <p className="inline-flex items-center gap-1.5 truncate">
           <UserRound className="h-3.5 w-3.5" />
           <span className="truncate">
-            {userNameMap[row.fromUserId] || row.fromUserId} -> {userNameMap[row.toUserId] || row.toUserId}
+            {userNameMap[row.fromUserId] || row.fromUserId}
+            {" -> "}
+            {userNameMap[row.toUserId] || row.toUserId}
           </span>
         </p>
         <p className="inline-flex items-center gap-1.5">

@@ -41,6 +41,7 @@ interface CreateOpportunityDialogProps {
   onSaved?: (opportunityId: string) => void
   iconOnly?: boolean
   prefilledClientId?: string
+  prefilledTitle?: string
   autoOpen?: boolean
   open?: boolean
   onOpenChange?: (open: boolean) => void
@@ -61,6 +62,7 @@ export function CreateOpportunityDialog({
   onSaved,
   iconOnly = false,
   prefilledClientId = "",
+  prefilledTitle = "",
   autoOpen = false,
   open: controlledOpen,
   onOpenChange,
@@ -218,7 +220,7 @@ export function CreateOpportunityDialog({
       )
       setPrimaryContactId(initialOpportunity.primaryContactId || "")
     } else {
-      setTitle("")
+      setTitle(prefilledTitle.trim())
       setClientId(prefilledClientId.trim())
       setOwnerId("")
       setPipelineStage(getDefaultPipelineStageForOpportunityType("VANZARI"))
@@ -236,7 +238,7 @@ export function CreateOpportunityDialog({
     if (!open) return
     resetForm(mode)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, mode, initialOpportunity?.id, prefilledClientId])
+  }, [open, mode, initialOpportunity?.id, prefilledClientId, prefilledTitle])
 
   const handleSubmit = async () => {
     if (!clientId) {

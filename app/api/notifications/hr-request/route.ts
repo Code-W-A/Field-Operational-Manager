@@ -3,6 +3,7 @@ import nodemailer from "nodemailer"
 import { adminDb } from "@/lib/firebase/admin"
 import { getEmailFrom } from "@/lib/email/from"
 import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-events.server"
+import { sendMailWithSentCopy } from "@/lib/email/send-with-sent-copy.server"
 import { logError, logInfo, logWarning } from "@/lib/utils/logging-service"
 import { formatRomanianDateDotsISO } from "@/lib/utils/date-utils"
 import { generateHrRequestPdfBuffer } from "@/lib/hr/request-pdf.server"
@@ -139,13 +140,15 @@ export async function POST(request: NextRequest) {
     const baseUrl = buildBaseUrl(request)
     const approvalsUrl = baseUrl ? `${baseUrl}/dashboard/cereri-aprobari` : "/dashboard/cereri-aprobari"
 
+    const smtpUser = process.env.EMAIL_USER || "fom@nrg-acces.ro"
+    const smtpPass = process.env.EMAIL_PASSWORD
     const transporter = nodemailer.createTransport({
       host: process.env.EMAIL_SMTP_HOST || "mail.nrg-acces.ro",
       port: Number.parseInt(process.env.EMAIL_SMTP_PORT || "465"),
       secure: process.env.EMAIL_SMTP_SECURE === "false" ? false : true,
       auth: {
-        user: process.env.EMAIL_USER || "fom@nrg-acces.ro",
-        pass: process.env.EMAIL_PASSWORD,
+        user: smtpUser,
+        pass: smtpPass,
       },
     })
 
@@ -178,12 +181,22 @@ export async function POST(request: NextRequest) {
       } catch {}
 
       try {
-        const info = await transporter.sendMail({
-          from: getEmailFrom(),
-          to: params.to,
-          subject: params.subject,
-          text: params.text,
-          attachments: params.attachments,
+        const info = await sendMailWithSentCopy({
+          transporter,
+          smtpAuth: { user: smtpUser, pass: smtpPass },
+          mailOptions: {
+            from: getEmailFrom(),
+            to: params.to,
+            subject: params.subject,
+            text: params.text,
+            attachments: params.attachments,
+          },
+          imapContext: {
+            route: "/api/notifications/hr-request",
+            requestId,
+            emailEventId: evId || undefined,
+            flow: `hr_request_${params.recipientType}`,
+          },
         })
         if (evId) await updateEmailEventServer(evId, { status: "sent", messageId: info.messageId })
         return { ok: true, messageId: info.messageId }

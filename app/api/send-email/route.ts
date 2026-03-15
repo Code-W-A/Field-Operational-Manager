@@ -4,6 +4,7 @@ import { getEmailFrom } from "@/lib/email/from"
 import path from "path"
 import { adminDb } from "@/lib/firebase/admin"
 import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-events.server"
+import { sendMailWithSentCopy } from "@/lib/email/send-with-sent-copy.server"
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,13 +23,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Configurăm transportorul de email (Client Email Server)
+    const smtpUser = "fom@nrg-acces.ro"
+    const smtpPass = "FOM@nrg25"
     const transporter = nodemailer.createTransport({
       host: "mail.nrg-acces.ro",
       port: 465,
       secure: true, // true for 465, false for other ports
       auth: {
-        user: "fom@nrg-acces.ro",
-        pass: "FOM@nrg25",
+        user: smtpUser,
+        pass: smtpPass,
       },
     })
 
@@ -162,7 +165,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Trimitem emailul
-    const info = await transporter.sendMail(mailOptions)
+    const info = await sendMailWithSentCopy({
+      transporter,
+      mailOptions,
+      smtpAuth: { user: smtpUser, pass: smtpPass },
+      imapContext: {
+        route: "/api/send-email",
+        emailEventId: emailEventId || undefined,
+        flow: "report",
+      },
+    })
 
     // Actualizăm evenimentul la SENT
     try {
