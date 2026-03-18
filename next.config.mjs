@@ -25,9 +25,7 @@ const nextConfig = {
   },
   // Configurație pentru development cu HTTPS
   ...(process.env.NODE_ENV === 'development' && {
-    experimental: {
-      serverComponentsExternalPackages: ['@next/env']
-    }
+    serverExternalPackages: ['@next/env']
   })
 }
 

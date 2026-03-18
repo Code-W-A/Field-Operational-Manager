@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed:crm": "node scripts/seed-crm.mjs"
+    "seed:crm": "node scripts/seed-crm.mjs",
+    "logs:functions": "firebase functions:log --limit 100",
+    "logs:interne": "firebase functions:log --only onCrmInternalThreadMessageCreatedEmail --limit 50"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",

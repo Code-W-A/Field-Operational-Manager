@@ -121,7 +121,7 @@ export function InternalConversationsSection() {
     const statusValue = override?.status || status
     setLoading(true)
     try {
-      const [threadRows, internalNoteRows, userRows] = await Promise.all([
+      const [threadResult, internalNoteResult, userResult] = await Promise.allSettled([
         listInternalThreadsForUser({
           userId: user.uid,
           mailbox: mailboxValue,
@@ -134,6 +134,10 @@ export function InternalConversationsSection() {
         }),
         listCrmUsers(),
       ])
+
+      const threadRows = threadResult.status === "fulfilled" ? threadResult.value : []
+      const internalNoteRows = internalNoteResult.status === "fulfilled" ? internalNoteResult.value : []
+      const userRows = userResult.status === "fulfilled" ? userResult.value : []
 
       setThreads(threadRows)
       setLegacyRows(internalNoteRows)
@@ -148,6 +152,49 @@ export function InternalConversationsSection() {
         if (internalNoteRows.length > 0) return { kind: "legacy", id: internalNoteRows[0].id }
         return null
       })
+
+      if (threadResult.status === "rejected") {
+        const details = getErrorDetails(threadResult.reason)
+        console.error("[CRM Interne] thread load failed", {
+          userId: user?.uid || null,
+          mailbox: mailboxValue,
+          status: statusValue,
+          code: details.code,
+          message: details.message,
+          error: threadResult.reason,
+        })
+      }
+
+      if (internalNoteResult.status === "rejected") {
+        const details = getErrorDetails(internalNoteResult.reason)
+        console.error("[CRM Interne] legacy load failed", {
+          userId: user?.uid || null,
+          mailbox: mailboxValue,
+          status: statusValue,
+          code: details.code,
+          message: details.message,
+          error: internalNoteResult.reason,
+        })
+      }
+
+      if (userResult.status === "rejected") {
+        const details = getErrorDetails(userResult.reason)
+        console.error("[CRM Interne] user load failed", {
+          userId: user?.uid || null,
+          code: details.code,
+          message: details.message,
+          error: userResult.reason,
+        })
+      }
+
+      if (threadResult.status === "rejected" && internalNoteResult.status === "rejected") {
+        const details = getErrorDetails(threadResult.reason)
+        toast({
+          title: "Eroare la încărcare",
+          description: `Nu am putut încărca conversațiile interne (${details.code}).`,
+          variant: "destructive",
+        })
+      }
     } catch (error) {
       const details = getErrorDetails(error)
       console.error("[CRM Interne] load failed", {
@@ -236,6 +283,13 @@ export function InternalConversationsSection() {
     if (!selectedConversation || selectedConversation.kind !== "legacy") return null
     return legacyRows.find((row) => row.id === selectedConversation.id) || null
   }, [legacyRows, selectedConversation])
+
+  const canConfirmSelectedLegacy = useMemo(() => {
+    if (!selectedLegacy || !user?.uid) return false
+    if (selectedLegacy.status === "CONFIRMED") return false
+    if (selectedLegacy.fromUserId === user.uid) return false
+    return selectedLegacy.toUserId === user.uid || canOverrideConfirm
+  }, [canOverrideConfirm, selectedLegacy, user?.uid])
 
   useEffect(() => {
     if (!filteredRows.length) {
@@ -349,7 +403,7 @@ export function InternalConversationsSection() {
   }
 
   const handleConfirmLegacy = async (noteId: string) => {
-    if (!user?.uid) return
+    if (!user?.uid || !selectedLegacy || !canConfirmSelectedLegacy) return
     setConfirmingLegacyId(noteId)
     try {
       await confirmCrmInternalNote({
@@ -384,6 +438,14 @@ export function InternalConversationsSection() {
 
   const handleConfirmMessage = async (messageId: string) => {
     if (!user?.uid || !selectedThread) return
+    const targetMessage = activeThreadMessages.find((row) => row.id === messageId)
+    if (!targetMessage) return
+    const canConfirmTargetMessage =
+      targetMessage.requiresConfirmation &&
+      targetMessage.cycleStatus === "PENDING" &&
+      targetMessage.fromUserId !== user.uid &&
+      (targetMessage.toUserId === user.uid || canOverrideConfirm)
+    if (!canConfirmTargetMessage) return
     setConfirmingMessageId(messageId)
     try {
       await confirmThreadMessage({
@@ -393,12 +455,17 @@ export function InternalConversationsSection() {
         confirmationMessage: confirmationDrafts[messageId],
         canOverrideRecipient: canOverrideConfirm,
       })
+      setConfirmationDrafts((prev) => {
+        const next = { ...prev }
+        delete next[messageId]
+        return next
+      })
       await load()
       const messages = await listThreadMessages({ threadId: selectedThread.id, userId: user.uid })
       setActiveThreadMessages(messages)
       toast({
         title: "Mesaj confirmat",
-        description: "Reminderele pentru acest ciclu sunt oprite.",
+        description: "Confirmarea a fost trimisă în conversație, iar reminderele pentru acest ciclu sunt oprite.",
       })
     } catch (error) {
       const details = getErrorDetails(error)
@@ -615,14 +682,14 @@ export function InternalConversationsSection() {
                   }
                   rows={2}
                   placeholder="Mesaj confirmare (legacy)"
-                  disabled={selectedLegacy.status === "CONFIRMED"}
+                  disabled={!canConfirmSelectedLegacy}
                 />
                 <div className="mt-2 flex justify-end">
                   <Button
                     size="sm"
                     type="button"
                     onClick={() => void handleConfirmLegacy(selectedLegacy.id)}
-                    disabled={selectedLegacy.status === "CONFIRMED" || confirmingLegacyId === selectedLegacy.id}
+                    disabled={!canConfirmSelectedLegacy || confirmingLegacyId === selectedLegacy.id}
                   >
                     <CheckCheck className="mr-1.5 h-4 w-4" />
                     Confirmă
@@ -653,6 +720,7 @@ export function InternalConversationsSection() {
                     const canConfirm =
                       row.requiresConfirmation &&
                       row.cycleStatus === "PENDING" &&
+                      row.fromUserId !== user?.uid &&
                       (row.toUserId === user?.uid || canOverrideConfirm)
                     return (
                       <div key={row.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
@@ -687,8 +755,11 @@ export function InternalConversationsSection() {
                                   }))
                                 }
                                 rows={2}
-                                placeholder="Mesaj confirmare"
+                                placeholder='Mesaj confirmare (opțional). Dacă lași gol, se trimite "Confirmat".'
                               />
+                              <p className="mt-1 text-[10px] text-neutral-500 xl:text-[11px]">
+                                Confirmarea va apărea ca reply nou în conversație.
+                              </p>
                               <div className="mt-2 flex justify-end">
                                 <Button
                                   size="sm"
@@ -697,7 +768,7 @@ export function InternalConversationsSection() {
                                   disabled={confirmingMessageId === row.id}
                                 >
                                   <CheckCheck className="mr-1.5 h-4 w-4" />
-                                  Confirmă
+                                  Confirmă și trimite
                                 </Button>
                               </div>
                             </div>

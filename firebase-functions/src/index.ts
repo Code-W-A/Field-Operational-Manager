@@ -285,7 +285,12 @@ function escapeHtml(value: string) {
 function getCrmBaseUrl() {
   const cfg: any = (functions as any).config?.() ?? {}
   const fromEnv = process.env.CRM_APP_BASE_URL || process.env.APP_BASE_URL || cfg.app?.base_url || cfg.crm?.base_url
-  const base = String(fromEnv || "").trim().replace(/\/+$/, "")
+  let base = String(fromEnv || "").trim().replace(/\/+$/, "")
+  if (!base) {
+    base = "https://fom.nrg-acces.ro"
+  } else if (!base.startsWith("http://") && !base.startsWith("https://")) {
+    base = `https://${base}`
+  }
   return base
 }
 
@@ -581,6 +586,7 @@ async function dispatchCrmInternalThreadMessageNotification(params: {
       text,
       html,
     })
+    console.log("[CRM Interne] email sent to", recipientEmail, "threadId:", threadId, "messageId:", messageId)
     await updateCrmInternalThreadMessageEmailEvent(emailEventId, { status: "sent" })
     return { ok: true, skipped: false as const, sentCount: 1 }
   } catch (error: any) {

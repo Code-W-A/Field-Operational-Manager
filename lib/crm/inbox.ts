@@ -20,7 +20,7 @@ import type {
 } from "./inbox-types"
 import { getClientLevelContactsFromRecord, getClientLocationContactsFromRecord } from "../client-contacts"
 import { createCrmEmail } from "./tasks"
-import { getCrmOpportunityById, listCrmClients, listCrmOpportunitiesForUser } from "./opportunities"
+import { getCrmOpportunityById } from "./opportunities"
 
 const CRM_INBOX_ACCOUNT = "fom@nrg-acces.ro"
 const CRM_INBOX_PROVIDER = "imap"
@@ -297,10 +297,76 @@ async function buildSenderEmailToClientIds(senderEmails: string[]) {
   return matches
 }
 
+/** Admin SDK version for server-side use (API routes). Client SDK has no auth context on server. */
+async function listCrmClientsAdmin(): Promise<{ id: string; name: string }[]> {
+  const adminDb = await getAdminDb()
+  const [crmRows, legacyRows] = await Promise.all([
+    adminDb.collection(CRM_COLLECTIONS.clients).orderBy("name", "asc").limit(500).get(),
+    adminDb.collection("clienti").orderBy("nume", "asc").limit(500).get(),
+  ])
+  const result: { id: string; name: string }[] = []
+  crmRows.docs.forEach((snap) => {
+    const data = snap.data() as Record<string, unknown>
+    const name = String(data.name || "").trim()
+    if (name) result.push({ id: snap.id, name })
+  })
+  legacyRows.docs.forEach((snap) => {
+    const data = snap.data() as Record<string, unknown>
+    const name = String(data.nume || "").trim()
+    if (name) result.push({ id: snap.id, name })
+  })
+  const byId = new Map<string, string>()
+  result.forEach((r) => { if (!byId.has(r.id)) byId.set(r.id, r.name) })
+  return Array.from(byId.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, "ro"))
+}
+
+/** Admin SDK version for server-side use. Returns minimal opportunity data for recommendation context. */
+async function listCrmOpportunitiesForUserAdmin(userId: string): Promise<{ id: string; code: string; title: string; clientId: string; updatedAt?: CrmInboxDateValue }[]> {
+  const adminDb = await getAdminDb()
+  const idSet = new Set<string>()
+
+  const ownerRows = await adminDb.collection(CRM_COLLECTIONS.opportunities).where("ownerId", "==", userId).limit(200).get()
+  ownerRows.docs.forEach((snap) => idSet.add(snap.id))
+
+  const readRows = await adminDb.collection(CRM_COLLECTIONS.opportunities).where("readUserIds", "array-contains", userId).limit(200).get()
+  readRows.docs.forEach((snap) => idSet.add(snap.id))
+
+  const editRows = await adminDb.collection(CRM_COLLECTIONS.opportunities).where("editUserIds", "array-contains", userId).limit(200).get()
+  editRows.docs.forEach((snap) => idSet.add(snap.id))
+
+  const accessRows = await adminDb.collection(CRM_COLLECTIONS.opportunityAccess).where("userId", "==", userId).limit(200).get()
+  accessRows.docs.forEach((snap) => {
+    const data = snap.data() as Record<string, unknown>
+    const opportunityId = String(data.opportunityId || "")
+    if (opportunityId) idSet.add(opportunityId)
+  })
+
+  const opportunityIds = Array.from(idSet)
+  if (!opportunityIds.length) return []
+
+  const { FieldPath } = await import("firebase-admin/firestore")
+  const result: { id: string; code: string; title: string; clientId: string; updatedAt?: CrmInboxDateValue }[] = []
+  for (let i = 0; i < opportunityIds.length; i += 10) {
+    const chunk = opportunityIds.slice(i, i + 10)
+    const rows = await adminDb.collection(CRM_COLLECTIONS.opportunities).where(FieldPath.documentId(), "in", chunk).get()
+    rows.docs.forEach((snap) => {
+      const data = snap.data() as Record<string, unknown>
+      result.push({
+        id: snap.id,
+        code: String(data.code || ""),
+        title: String(data.title || ""),
+        clientId: String(data.clientId || ""),
+        updatedAt: data.updatedAt as CrmInboxDateValue | undefined,
+      })
+    })
+  }
+  return result
+}
+
 async function buildRecommendationContext(items: CrmInboxMessage[], userId?: string): Promise<RecommendationContext> {
   const senderEmails = Array.from(new Set(items.map((item) => extractPrimaryEmail(item.from)).filter(Boolean)))
   const senderClientIds = await buildSenderEmailToClientIds(senderEmails)
-  const clientRows = await listCrmClients()
+  const clientRows = await listCrmClientsAdmin()
   const clientNameMap = new Map(clientRows.map((client) => [client.id, client.name]))
 
   if (!userId) {
@@ -319,7 +385,7 @@ async function buildRecommendationContext(items: CrmInboxMessage[], userId?: str
     }
   }
 
-  const opportunities = await listCrmOpportunitiesForUser(userId)
+  const opportunities = await listCrmOpportunitiesForUserAdmin(userId)
   const summaries = opportunities.map((opportunity) => toOpportunitySummary(opportunity, clientNameMap))
   const byId = new Map<string, CrmInboxOpportunitySummary>()
   const byCode = new Map<string, CrmInboxOpportunitySummary>()

@@ -734,6 +734,10 @@ export async function confirmCrmInternalNote(params: {
   const note = mapInternalNote(noteSnap.id, noteSnap.data() as Record<string, unknown>)
   if (note.status === "CONFIRMED") return
 
+  if (note.fromUserId === params.actorId) {
+    throw new Error("Inițiatorul notei nu poate confirma propria solicitare")
+  }
+
   const canConfirm = note.toUserId === params.actorId || params.canOverrideRecipient === true
   if (!canConfirm) {
     throw new Error("Doar destinatarul poate confirma nota internă")
@@ -828,6 +832,12 @@ function toComparableDate(value: unknown) {
   if (typeof value === "number") return value
   if (typeof value === "string") return new Date(value).getTime()
   return 0
+}
+
+function isMissingIndexError(error: unknown) {
+  const message = (error as { message?: unknown } | null | undefined)?.message
+  const code = (error as { code?: unknown } | null | undefined)?.code
+  return code === "failed-precondition" && String(message || "").toLowerCase().includes("requires an index")
 }
 
 export async function createThreadWithFirstMessage(input: CreateInternalThreadWithMessageInput) {
@@ -957,29 +967,64 @@ export async function confirmThreadMessage(params: {
   const message = mapInternalMessage(params.threadId, messageSnap.id, messageSnap.data() as Record<string, unknown>)
   if (!message.requiresConfirmation || message.cycleStatus !== "PENDING") return
 
+  if (message.fromUserId === params.actorId) {
+    throw new Error("Inițiatorul mesajului nu poate confirma propria solicitare")
+  }
+
   const canConfirm = message.toUserId === params.actorId || params.canOverrideRecipient === true
   if (!canConfirm) throw new Error("Doar destinatarul poate confirma acest mesaj")
 
-  const confirmationMessage = params.confirmationMessage?.trim() || null
+  const confirmationText = params.confirmationMessage?.trim() || "Confirmat"
 
   await updateDoc(messageRef, {
     cycleStatus: "CONFIRMED",
     confirmedById: params.actorId,
     confirmedAt: serverTimestamp(),
-    confirmationMessage,
+    confirmationMessage: confirmationText,
     updatedAt: serverTimestamp(),
   })
 
   const threadRef = doc(db, CRM_COLLECTIONS.internalThreads, params.threadId)
   const threadSnap = await getDoc(threadRef)
   if (threadSnap.exists()) {
-    const thread = mapInternalThread(threadSnap.id, threadSnap.data() as Record<string, unknown>)
-    if (thread.lastMessageId === params.messageId) {
-      await updateDoc(threadRef, {
-        lastMessageCycleStatus: "CONFIRMED",
-        updatedAt: serverTimestamp(),
-      })
-    }
+    const threadData = threadSnap.data() as Record<string, unknown>
+    const existingParticipants = Array.isArray(threadData.participantUserIds)
+      ? (threadData.participantUserIds as string[])
+      : []
+    const participants = Array.from(new Set([...existingParticipants, params.actorId, message.fromUserId].filter(Boolean)))
+    const context = typeof threadData.context === "string" ? threadData.context : message.context || null
+
+    const confirmationReplyRef = await addDoc(internalThreadMessagesCollection(params.threadId), {
+      threadId: params.threadId,
+      fromUserId: params.actorId,
+      toUserId: message.fromUserId,
+      message: confirmationText,
+      context,
+      requiresConfirmation: false,
+      deadlineAt: null,
+      cycleStatus: "NONE",
+      confirmedAt: null,
+      confirmedById: null,
+      confirmationMessage: null,
+      replyToMessageId: params.messageId,
+      createdById: params.actorId,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+
+    await updateDoc(threadRef, {
+      participantUserIds: participants,
+      updatedAt: serverTimestamp(),
+      lastMessageId: confirmationReplyRef.id,
+      lastMessageAt: serverTimestamp(),
+      lastMessageById: params.actorId,
+      lastMessagePreview: confirmationText.slice(0, 180),
+      lastMessageCycleStatus: "NONE",
+      lastMessageFromUserId: params.actorId,
+      lastMessageToUserId: message.fromUserId,
+      lastMessageDeadlineAt: null,
+      context: context || null,
+    })
   }
 }
 
@@ -992,14 +1037,27 @@ export async function listInternalThreadsForUser(params: {
   mailbox: "INBOX" | "SENT" | "ALL"
   status?: "ALL" | "PENDING" | "CONFIRMED" | "NONE"
 }) {
-  const rows = await getDocs(
-    query(
-      collection(db, CRM_COLLECTIONS.internalThreads),
-      where("participantUserIds", "array-contains", params.userId),
-      orderBy("updatedAt", "desc"),
-      limit(300)
+  const threadCollection = collection(db, CRM_COLLECTIONS.internalThreads)
+  let rows
+  try {
+    rows = await getDocs(
+      query(
+        threadCollection,
+        where("participantUserIds", "array-contains", params.userId),
+        orderBy("updatedAt", "desc"),
+        limit(300)
+      )
     )
-  )
+  } catch (error) {
+    if (!isMissingIndexError(error)) {
+      throw error
+    }
+
+    // Fallback for environments where the composite index has not been built yet.
+    rows = await getDocs(
+      query(threadCollection, where("participantUserIds", "array-contains", params.userId), limit(300))
+    )
+  }
   const mapped = rows.docs.map((snap) => mapInternalThread(snap.id, snap.data() as Record<string, unknown>))
 
   const statusFilter = params.status && params.status !== "ALL" ? params.status : null
