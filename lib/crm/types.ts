@@ -2,6 +2,7 @@ import type { Timestamp } from "firebase/firestore"
 import {
   CRM_DIRECTIONS,
   CRM_INTERNAL_HANDOFF_STATUSES,
+  CRM_INTERNAL_MESSAGE_CYCLE_STATUSES,
   CRM_INTERNAL_NOTE_STATUSES,
   CRM_PERMISSIONS,
   CRM_PRIORITIES,
@@ -23,6 +24,7 @@ export type CrmEmailDirection = (typeof CRM_DIRECTIONS)[number]
 export type CrmOpportunityType = (typeof CRM_OPPORTUNITY_TYPES)[number]
 export type CrmInternalHandoffStatus = (typeof CRM_INTERNAL_HANDOFF_STATUSES)[number]
 export type CrmInternalNoteStatus = (typeof CRM_INTERNAL_NOTE_STATUSES)[number]
+export type CrmInternalMessageCycleStatus = (typeof CRM_INTERNAL_MESSAGE_CYCLE_STATUSES)[number]
 
 export type FirestoreDateValue = Timestamp | Date | number | string | null | undefined
 
@@ -42,7 +44,6 @@ export interface CrmClientContact {
   phone: string
   email?: string
   functie?: string
-  label?: string
   locationName?: string
   createdAt?: FirestoreDateValue
   updatedAt?: FirestoreDateValue
@@ -140,6 +141,8 @@ export interface CrmEmailLog {
   subject: string
   from: string
   to: string[]
+  cc?: string[]
+  bcc?: string[]
   bodySnippet: string
   sourceInboxMessageId?: string
   sentAt?: FirestoreDateValue
@@ -209,6 +212,42 @@ export interface CrmInternalNote {
   updatedAt?: FirestoreDateValue
 }
 
+export interface CrmInternalThread {
+  id: string
+  participantUserIds: string[]
+  context?: string
+  createdById: string
+  createdAt?: FirestoreDateValue
+  updatedAt?: FirestoreDateValue
+  lastMessageId?: string
+  lastMessageAt?: FirestoreDateValue
+  lastMessageById?: string
+  lastMessagePreview?: string
+  lastMessageCycleStatus?: CrmInternalMessageCycleStatus
+  lastMessageFromUserId?: string
+  lastMessageToUserId?: string
+  lastMessageDeadlineAt?: FirestoreDateValue
+}
+
+export interface CrmInternalMessage {
+  id: string
+  threadId: string
+  fromUserId: string
+  toUserId: string
+  message: string
+  context?: string
+  requiresConfirmation: boolean
+  deadlineAt?: FirestoreDateValue
+  cycleStatus: CrmInternalMessageCycleStatus
+  confirmedAt?: FirestoreDateValue
+  confirmedById?: string
+  confirmationMessage?: string
+  replyToMessageId?: string
+  createdById: string
+  createdAt?: FirestoreDateValue
+  updatedAt?: FirestoreDateValue
+}
+
 export interface CrmVisibleTo {
   id: string
   entityType: "TASK" | "NOTE" | "FILE" | "EMAIL" | "CALENDAR_EVENT" | "ACTIVITY"
@@ -270,10 +309,24 @@ export interface CreateEmailInput {
   subject: string
   from: string
   to: string[]
+  cc?: string[]
+  bcc?: string[]
   bodySnippet: string
   sourceInboxMessageId?: string
   sentAt?: Date
   createdById: string
+  visibility?: CrmVisibility
+  visibleToUserIds?: string[]
+}
+
+export interface SendCrmOpportunityEmailInput {
+  opportunityId: string
+  subject: string
+  from: string
+  to: string[]
+  cc?: string[]
+  bcc?: string[]
+  bodySnippet: string
   visibility?: CrmVisibility
   visibleToUserIds?: string[]
 }
@@ -330,6 +383,28 @@ export interface CreateStandaloneInternalNoteInput {
   createdById: string
   context?: string
   dueAt?: Date
+}
+
+export interface CreateInternalThreadWithMessageInput {
+  fromUserId: string
+  toUserId: string
+  message: string
+  createdById: string
+  context?: string
+  requiresConfirmation?: boolean
+  deadlineAt?: Date
+}
+
+export interface CreateInternalThreadReplyInput {
+  threadId: string
+  fromUserId: string
+  toUserId: string
+  message: string
+  createdById: string
+  context?: string
+  requiresConfirmation?: boolean
+  deadlineAt?: Date
+  replyToMessageId?: string
 }
 
 export interface CrmUserOption {

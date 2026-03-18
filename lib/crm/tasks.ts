@@ -26,7 +26,10 @@ import type {
   CrmCalendarEvent,
   CrmEmailLog,
   CrmInternalHandoff,
+  CrmInternalMessage,
+  CrmInternalMessageCycleStatus,
   CrmInternalNote,
+  CrmInternalThread,
   CrmFileAttachment,
   CrmNote,
   CrmTask,
@@ -35,9 +38,12 @@ import type {
   CreateEmailInput,
   CreateInternalHandoffInput,
   CreateInternalNoteInput,
+  CreateInternalThreadReplyInput,
+  CreateInternalThreadWithMessageInput,
   CreateStandaloneInternalNoteInput,
   CreateNoteInput,
   CreateTaskInput,
+  SendCrmOpportunityEmailInput,
   UpdateCalendarEventInput,
 } from "@/lib/crm/types"
 import { crmStorageProvider } from "@/lib/crm/storage/provider"
@@ -56,12 +62,20 @@ function normalizeTaskStatus(status: unknown): CrmTask["status"] {
 }
 
 function mapTask(docId: string, data: Record<string, unknown>): CrmTask {
+  const taskTypeRaw = typeof data.taskType === "string" ? data.taskType : undefined
+  const taskType =
+    taskTypeRaw &&
+    (["PROSPECTARE", "EVALUARE_NEVOI", "OFERTARE", "FOLLOW_UP_OFERTA", "CONTRACTARE", "FACTURARE", "INCASARE", "LIVRARE", "INSTALARE"] as const).includes(
+      taskTypeRaw as CrmTask["taskType"] & string
+    )
+      ? (taskTypeRaw as CrmTask["taskType"])
+      : undefined
   return {
     id: docId,
     opportunityId: String(data.opportunityId || ""),
     title: String(data.title || ""),
     status: normalizeTaskStatus(data.status),
-    taskType: typeof data.taskType === "string" ? data.taskType : undefined,
+    taskType,
     dueAt: (data.dueAt as CrmTask["dueAt"]) || undefined,
     assigneeId: typeof data.assigneeId === "string" ? data.assigneeId : undefined,
     createdById: String(data.createdById || ""),
@@ -607,6 +621,13 @@ export async function createCrmInternalNote(input: CreateInternalNoteInput) {
 export async function createCrmInternalNoteStandalone(input: CreateStandaloneInternalNoteInput) {
   const message = input.message.trim()
   const context = input.context?.trim() || null
+  const dueAtNormalized = input.dueAt
+    ? (() => {
+        const normalized = new Date(input.dueAt)
+        normalized.setHours(9, 0, 0, 0)
+        return normalized
+      })()
+    : null
 
   const ref = await addDoc(collection(db, CRM_COLLECTIONS.internalNotes), {
     opportunityId: null,
@@ -614,7 +635,7 @@ export async function createCrmInternalNoteStandalone(input: CreateStandaloneInt
     toUserId: input.toUserId,
     message,
     context,
-    dueAt: toTimestamp(input.dueAt) || null,
+    dueAt: dueAtNormalized ? toTimestamp(dueAtNormalized) : null,
     status: "PENDING",
     confirmationMessage: null,
     confirmedAt: null,
@@ -749,6 +770,265 @@ export async function confirmCrmInternalNote(params: {
   }
 }
 
+function internalThreadMessagesCollection(threadId: string) {
+  return collection(db, CRM_COLLECTIONS.internalThreads, threadId, "messages")
+}
+
+function normalizeInternalMessageCycleStatus(value: unknown): CrmInternalMessageCycleStatus {
+  if (value === "CONFIRMED") return "CONFIRMED"
+  if (value === "PENDING") return "PENDING"
+  return "NONE"
+}
+
+function mapInternalThread(docId: string, data: Record<string, unknown>): CrmInternalThread {
+  return {
+    id: docId,
+    participantUserIds: Array.isArray(data.participantUserIds) ? (data.participantUserIds as string[]) : [],
+    context: typeof data.context === "string" ? data.context : undefined,
+    createdById: String(data.createdById || ""),
+    createdAt: (data.createdAt as CrmInternalThread["createdAt"]) || undefined,
+    updatedAt: (data.updatedAt as CrmInternalThread["updatedAt"]) || undefined,
+    lastMessageId: typeof data.lastMessageId === "string" ? data.lastMessageId : undefined,
+    lastMessageAt: (data.lastMessageAt as CrmInternalThread["lastMessageAt"]) || undefined,
+    lastMessageById: typeof data.lastMessageById === "string" ? data.lastMessageById : undefined,
+    lastMessagePreview: typeof data.lastMessagePreview === "string" ? data.lastMessagePreview : undefined,
+    lastMessageCycleStatus: normalizeInternalMessageCycleStatus(data.lastMessageCycleStatus),
+    lastMessageFromUserId: typeof data.lastMessageFromUserId === "string" ? data.lastMessageFromUserId : undefined,
+    lastMessageToUserId: typeof data.lastMessageToUserId === "string" ? data.lastMessageToUserId : undefined,
+    lastMessageDeadlineAt: (data.lastMessageDeadlineAt as CrmInternalThread["lastMessageDeadlineAt"]) || undefined,
+  }
+}
+
+function mapInternalMessage(threadId: string, docId: string, data: Record<string, unknown>): CrmInternalMessage {
+  const requiresConfirmation = Boolean(data.requiresConfirmation)
+  const cycleStatus = normalizeInternalMessageCycleStatus(data.cycleStatus)
+  return {
+    id: docId,
+    threadId,
+    fromUserId: String(data.fromUserId || ""),
+    toUserId: String(data.toUserId || ""),
+    message: String(data.message || ""),
+    context: typeof data.context === "string" ? data.context : undefined,
+    requiresConfirmation,
+    deadlineAt: (data.deadlineAt as CrmInternalMessage["deadlineAt"]) || undefined,
+    cycleStatus: requiresConfirmation ? cycleStatus : "NONE",
+    confirmedAt: (data.confirmedAt as CrmInternalMessage["confirmedAt"]) || undefined,
+    confirmedById: typeof data.confirmedById === "string" ? data.confirmedById : undefined,
+    confirmationMessage: typeof data.confirmationMessage === "string" ? data.confirmationMessage : undefined,
+    replyToMessageId: typeof data.replyToMessageId === "string" ? data.replyToMessageId : undefined,
+    createdById: String(data.createdById || ""),
+    createdAt: (data.createdAt as CrmInternalMessage["createdAt"]) || undefined,
+    updatedAt: (data.updatedAt as CrmInternalMessage["updatedAt"]) || undefined,
+  }
+}
+
+function toComparableDate(value: unknown) {
+  if (value instanceof Timestamp) return value.toDate().getTime()
+  if (value instanceof Date) return value.getTime()
+  if (typeof value === "number") return value
+  if (typeof value === "string") return new Date(value).getTime()
+  return 0
+}
+
+export async function createThreadWithFirstMessage(input: CreateInternalThreadWithMessageInput) {
+  const message = input.message.trim()
+  if (!message) throw new Error("Mesajul nu poate fi gol")
+  const context = input.context?.trim() || null
+  const requiresConfirmation = input.requiresConfirmation === true
+  const deadlineAt = requiresConfirmation && input.deadlineAt ? Timestamp.fromDate(input.deadlineAt) : null
+  const cycleStatus: CrmInternalMessageCycleStatus = requiresConfirmation ? "PENDING" : "NONE"
+  const participants = Array.from(new Set([input.fromUserId, input.toUserId].filter(Boolean)))
+
+  const threadRef = await addDoc(collection(db, CRM_COLLECTIONS.internalThreads), {
+    participantUserIds: participants,
+    context,
+    createdById: input.createdById,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    lastMessageId: null,
+    lastMessageAt: null,
+    lastMessageById: null,
+    lastMessagePreview: null,
+    lastMessageCycleStatus: cycleStatus,
+    lastMessageFromUserId: input.fromUserId,
+    lastMessageToUserId: input.toUserId,
+    lastMessageDeadlineAt: deadlineAt,
+  })
+
+  const messageRef = await addDoc(internalThreadMessagesCollection(threadRef.id), {
+    threadId: threadRef.id,
+    fromUserId: input.fromUserId,
+    toUserId: input.toUserId,
+    message,
+    context,
+    requiresConfirmation,
+    deadlineAt,
+    cycleStatus,
+    confirmedAt: null,
+    confirmedById: null,
+    confirmationMessage: null,
+    replyToMessageId: null,
+    createdById: input.createdById,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+
+  await updateDoc(doc(db, CRM_COLLECTIONS.internalThreads, threadRef.id), {
+    updatedAt: serverTimestamp(),
+    lastMessageId: messageRef.id,
+    lastMessageAt: serverTimestamp(),
+    lastMessageById: input.createdById,
+    lastMessagePreview: message.slice(0, 180),
+    lastMessageCycleStatus: cycleStatus,
+    lastMessageFromUserId: input.fromUserId,
+    lastMessageToUserId: input.toUserId,
+    context,
+  })
+
+  return {
+    threadId: threadRef.id,
+    messageId: messageRef.id,
+  }
+}
+
+export async function addThreadMessage(input: CreateInternalThreadReplyInput) {
+  const threadRef = doc(db, CRM_COLLECTIONS.internalThreads, input.threadId)
+  const threadSnap = await getDoc(threadRef)
+  if (!threadSnap.exists()) throw new Error("Conversația nu există")
+  const message = input.message.trim()
+  if (!message) throw new Error("Mesajul nu poate fi gol")
+
+  const context = input.context?.trim() || null
+  const requiresConfirmation = input.requiresConfirmation === true
+  const deadlineAt = requiresConfirmation && input.deadlineAt ? Timestamp.fromDate(input.deadlineAt) : null
+  const cycleStatus: CrmInternalMessageCycleStatus = requiresConfirmation ? "PENDING" : "NONE"
+
+  const messageRef = await addDoc(internalThreadMessagesCollection(input.threadId), {
+    threadId: input.threadId,
+    fromUserId: input.fromUserId,
+    toUserId: input.toUserId,
+    message,
+    context,
+    requiresConfirmation,
+    deadlineAt,
+    cycleStatus,
+    confirmedAt: null,
+    confirmedById: null,
+    confirmationMessage: null,
+    replyToMessageId: input.replyToMessageId || null,
+    createdById: input.createdById,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+
+  const threadData = threadSnap.data() as Record<string, unknown>
+  const existingParticipants = Array.isArray(threadData.participantUserIds)
+    ? (threadData.participantUserIds as string[])
+    : []
+  const participants = Array.from(new Set([...existingParticipants, input.fromUserId, input.toUserId].filter(Boolean)))
+
+  await updateDoc(threadRef, {
+    participantUserIds: participants,
+    updatedAt: serverTimestamp(),
+    lastMessageId: messageRef.id,
+    lastMessageAt: serverTimestamp(),
+    lastMessageById: input.createdById,
+    lastMessagePreview: message.slice(0, 180),
+    lastMessageCycleStatus: cycleStatus,
+    lastMessageFromUserId: input.fromUserId,
+    lastMessageToUserId: input.toUserId,
+    lastMessageDeadlineAt: deadlineAt,
+    context: context || threadData.context || null,
+  })
+
+  return messageRef.id
+}
+
+export async function confirmThreadMessage(params: {
+  threadId: string
+  messageId: string
+  actorId: string
+  confirmationMessage?: string
+  canOverrideRecipient?: boolean
+}) {
+  const messageRef = doc(db, CRM_COLLECTIONS.internalThreads, params.threadId, "messages", params.messageId)
+  const messageSnap = await getDoc(messageRef)
+  if (!messageSnap.exists()) throw new Error("Mesajul nu există")
+  const message = mapInternalMessage(params.threadId, messageSnap.id, messageSnap.data() as Record<string, unknown>)
+  if (!message.requiresConfirmation || message.cycleStatus !== "PENDING") return
+
+  const canConfirm = message.toUserId === params.actorId || params.canOverrideRecipient === true
+  if (!canConfirm) throw new Error("Doar destinatarul poate confirma acest mesaj")
+
+  const confirmationMessage = params.confirmationMessage?.trim() || null
+
+  await updateDoc(messageRef, {
+    cycleStatus: "CONFIRMED",
+    confirmedById: params.actorId,
+    confirmedAt: serverTimestamp(),
+    confirmationMessage,
+    updatedAt: serverTimestamp(),
+  })
+
+  const threadRef = doc(db, CRM_COLLECTIONS.internalThreads, params.threadId)
+  const threadSnap = await getDoc(threadRef)
+  if (threadSnap.exists()) {
+    const thread = mapInternalThread(threadSnap.id, threadSnap.data() as Record<string, unknown>)
+    if (thread.lastMessageId === params.messageId) {
+      await updateDoc(threadRef, {
+        lastMessageCycleStatus: "CONFIRMED",
+        updatedAt: serverTimestamp(),
+      })
+    }
+  }
+}
+
+function sortThreadsDesc(rows: CrmInternalThread[]) {
+  return [...rows].sort((left, right) => toComparableDate(right.lastMessageAt || right.updatedAt) - toComparableDate(left.lastMessageAt || left.updatedAt))
+}
+
+export async function listInternalThreadsForUser(params: {
+  userId: string
+  mailbox: "INBOX" | "SENT" | "ALL"
+  status?: "ALL" | "PENDING" | "CONFIRMED" | "NONE"
+}) {
+  const rows = await getDocs(
+    query(
+      collection(db, CRM_COLLECTIONS.internalThreads),
+      where("participantUserIds", "array-contains", params.userId),
+      orderBy("updatedAt", "desc"),
+      limit(300)
+    )
+  )
+  const mapped = rows.docs.map((snap) => mapInternalThread(snap.id, snap.data() as Record<string, unknown>))
+
+  const statusFilter = params.status && params.status !== "ALL" ? params.status : null
+  const filteredByStatus = statusFilter ? mapped.filter((row) => row.lastMessageCycleStatus === statusFilter) : mapped
+  const filteredByMailbox = filteredByStatus.filter((row) => {
+    if (params.mailbox === "ALL") return true
+    if (params.mailbox === "INBOX") return row.lastMessageToUserId === params.userId
+    return row.lastMessageFromUserId === params.userId
+  })
+
+  return sortThreadsDesc(filteredByMailbox)
+}
+
+export async function listThreadMessages(params: { threadId: string; userId: string }) {
+  const threadSnap = await getDoc(doc(db, CRM_COLLECTIONS.internalThreads, params.threadId))
+  if (!threadSnap.exists()) return []
+  const thread = mapInternalThread(threadSnap.id, threadSnap.data() as Record<string, unknown>)
+  if (!thread.participantUserIds.includes(params.userId)) {
+    throw new Error("Nu ai acces la această conversație")
+  }
+
+  const rows = await getDocs(
+    query(internalThreadMessagesCollection(params.threadId), orderBy("createdAt", "asc"), limit(500))
+  )
+  return rows.docs
+    .map((snap) => mapInternalMessage(params.threadId, snap.id, snap.data() as Record<string, unknown>))
+    .sort((left, right) => toComparableDate(left.createdAt) - toComparableDate(right.createdAt))
+}
+
 function mapInternalHandoff(docId: string, data: Record<string, unknown>): CrmInternalHandoff {
   return {
     id: docId,
@@ -871,6 +1151,8 @@ function mapEmail(docId: string, data: Record<string, unknown>): CrmEmailLog {
     subject: String(data.subject || ""),
     from: String(data.from || ""),
     to: Array.isArray(data.to) ? (data.to as string[]) : [],
+    cc: Array.isArray(data.cc) ? (data.cc as string[]) : [],
+    bcc: Array.isArray(data.bcc) ? (data.bcc as string[]) : [],
     bodySnippet: String(data.bodySnippet || ""),
     sourceInboxMessageId: typeof data.sourceInboxMessageId === "string" ? data.sourceInboxMessageId : undefined,
     sentAt: (data.sentAt as CrmEmailLog["sentAt"]) || undefined,
@@ -892,6 +1174,8 @@ export async function createCrmEmail(input: CreateEmailInput) {
     subject: input.subject.trim(),
     from: input.from.trim(),
     to: input.to,
+    cc: input.cc || [],
+    bcc: input.bcc || [],
     bodySnippet: input.bodySnippet.trim(),
     sourceInboxMessageId: input.sourceInboxMessageId || null,
     sentAt: input.sentAt ? Timestamp.fromDate(input.sentAt) : serverTimestamp(),
@@ -918,6 +1202,8 @@ export async function createCrmEmail(input: CreateEmailInput) {
       subject: input.subject,
       from: input.from,
       to: input.to,
+      cc: input.cc || [],
+      bcc: input.bcc || [],
       bodySnippet: input.bodySnippet,
       sourceInboxMessageId: input.sourceInboxMessageId || null,
       sentAt: input.sentAt?.toISOString() || null,
@@ -929,6 +1215,36 @@ export async function createCrmEmail(input: CreateEmailInput) {
   await rebuildOpportunitySearchIndex(input.opportunityId)
 
   return ref.id
+}
+
+export async function sendCrmOpportunityEmail(input: SendCrmOpportunityEmailInput) {
+  const response = await fetch("/api/crm/opportunities/send-email", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(input),
+  })
+
+  const data = (await response.json().catch(() => null)) as
+    | {
+        ok?: boolean
+        error?: string
+        emailId?: string
+        emailEventId?: string
+        messageId?: string
+      }
+    | null
+
+  if (!response.ok || !data?.ok) {
+    throw new Error(data?.error || "Nu am putut trimite emailul din oportunitate")
+  }
+
+  return {
+    emailId: data.emailId || "",
+    emailEventId: data.emailEventId || "",
+    messageId: data.messageId || "",
+  }
 }
 
 export async function listCrmEmails(params: {

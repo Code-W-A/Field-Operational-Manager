@@ -1,7 +1,17 @@
 import { FieldValue } from "firebase-admin/firestore"
 import { adminDb } from "@/lib/firebase/admin"
 
-export type EmailEventType = "REPORT" | "OFFER" | "DEVIZ" | "GENERIC" | "TECH_NOTIFY" | "INVITE" | "TEST" | "HR_REQUEST" | "CRM_TASK"
+export type EmailEventType =
+  | "REPORT"
+  | "OFFER"
+  | "DEVIZ"
+  | "GENERIC"
+  | "TECH_NOTIFY"
+  | "INVITE"
+  | "TEST"
+  | "HR_REQUEST"
+  | "CRM_TASK"
+  | "CRM_EMAIL"
 export type EmailEventStatus = "queued" | "sent" | "failed" | "bounced" | "delivered" | "skipped"
 
 export interface EmailEventServer {

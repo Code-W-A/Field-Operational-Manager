@@ -259,6 +259,8 @@ function renderActivityContent(
         {renderKeyValueRow("Subiect", String(payload.subject || "-"))}
         {renderKeyValueRow("From", String(payload.from || "-"))}
         {renderKeyValueRow("To", Array.isArray(payload.to) ? (payload.to as string[]).join(", ") : "-")}
+        {renderKeyValueRow("CC", Array.isArray(payload.cc) && payload.cc.length ? (payload.cc as string[]).join(", ") : "-")}
+        {renderKeyValueRow("BCC", Array.isArray(payload.bcc) && payload.bcc.length ? (payload.bcc as string[]).join(", ") : "-")}
         <p className="whitespace-pre-wrap text-sm text-neutral-700">{String(payload.bodySnippet || "") || "-"}</p>
       </div>
     )

@@ -141,14 +141,6 @@ export function buildNav(ctx: NavCtx): NavNode[] {
           icon: Inbox,
           activeMatch: "prefix",
         },
-        {
-          type: "link",
-          id: "crm-interne",
-          label: "CRM Interne",
-          href: "/crm/interne",
-          icon: MessageSquare,
-          activeMatch: "prefix",
-        },
       ],
     },
     {

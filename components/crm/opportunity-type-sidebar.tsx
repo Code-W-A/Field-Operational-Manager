@@ -14,6 +14,7 @@ type OpportunityTypeSidebarItem = {
 
 interface OpportunityTypeSidebarProps {
   homeItem: OpportunityTypeSidebarItem
+  sectionItems?: OpportunityTypeSidebarItem[]
   items: OpportunityTypeSidebarItem[]
   collapsibleOnMobile?: boolean
   renderMode?: "panel" | "content"
@@ -59,10 +60,25 @@ function SidebarEntry({
   )
 }
 
-function SidebarContent({ homeItem, items }: { homeItem: OpportunityTypeSidebarItem; items: OpportunityTypeSidebarItem[] }) {
+function SidebarContent({
+  homeItem,
+  sectionItems,
+  items,
+}: {
+  homeItem: OpportunityTypeSidebarItem
+  sectionItems: OpportunityTypeSidebarItem[]
+  items: OpportunityTypeSidebarItem[]
+}) {
   return (
     <>
       <SidebarEntry item={homeItem} className="mb-3" />
+      {sectionItems.length > 0 ? (
+        <div className="mb-3 flex min-h-0 flex-col gap-1.5 border-b border-white/35 pb-3">
+          {sectionItems.map((item) => (
+            <SidebarEntry key={item.key} item={item} />
+          ))}
+        </div>
+      ) : null}
       <div className="mb-3 mt-1 border-b border-white/35 pb-3">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/85">Tip oportunitate</p>
       </div>
@@ -77,6 +93,7 @@ function SidebarContent({ homeItem, items }: { homeItem: OpportunityTypeSidebarI
 
 export function OpportunityTypeSidebar({
   homeItem,
+  sectionItems = [],
   items,
   collapsibleOnMobile = false,
   renderMode = "panel",
@@ -91,6 +108,13 @@ export function OpportunityTypeSidebar({
       onItemSelect?.()
     },
   }
+  const sectionItemsWithSelect = sectionItems.map((item) => ({
+    ...item,
+    onClick: () => {
+      item.onClick?.()
+      onItemSelect?.()
+    },
+  }))
   const itemsWithSelect = items.map((item) => ({
     ...item,
     onClick: () => {
@@ -102,7 +126,7 @@ export function OpportunityTypeSidebar({
   if (renderMode === "content") {
     return (
       <div className={cn("flex min-h-0 flex-1 flex-col", contentClassName)}>
-        <SidebarContent homeItem={homeItemWithSelect} items={itemsWithSelect} />
+        <SidebarContent homeItem={homeItemWithSelect} sectionItems={sectionItemsWithSelect} items={itemsWithSelect} />
       </div>
     )
   }
@@ -128,7 +152,7 @@ export function OpportunityTypeSidebar({
         )}
         contentClassName="flex h-full min-h-0 flex-col overflow-y-auto pt-4"
       >
-        <SidebarContent homeItem={homeItemWithSelect} items={itemsWithSelect} />
+        <SidebarContent homeItem={homeItemWithSelect} sectionItems={sectionItemsWithSelect} items={itemsWithSelect} />
       </Panel>
     </>
   )

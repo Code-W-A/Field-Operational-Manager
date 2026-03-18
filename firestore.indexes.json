@@ -79,6 +79,23 @@
         { "fieldPath": "category", "order": "ASCENDING" },
         { "fieldPath": "receivedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "crm_internal_threads",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "participantUserIds", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "messages",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "requiresConfirmation", "order": "ASCENDING" },
+        { "fieldPath": "cycleStatus", "order": "ASCENDING" },
+        { "fieldPath": "deadlineAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

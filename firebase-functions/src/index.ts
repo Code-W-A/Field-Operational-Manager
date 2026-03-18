@@ -13,6 +13,8 @@ const TIMEZONE = "Europe/Bucharest"
 const MAX_WORKS_PER_RUN = 200
 
 type CrmTaskNotifyEventType = "assigned" | "reassigned" | "reminder_15m"
+type CrmInternalNoteNotifyEventType = "created" | "overdue_daily"
+type CrmInternalThreadMessageNotifyEventType = "created" | "overdue_daily"
 
 // =========================
 // HR Requests → Timesheets
@@ -208,6 +210,38 @@ type CrmOpportunityRecord = {
   title?: string
 }
 
+type CrmInternalNoteRecord = {
+  opportunityId?: string | null
+  fromUserId?: string
+  toUserId?: string
+  message?: string
+  context?: string | null
+  dueAt?: any
+  status?: string
+  confirmationMessage?: string | null
+  confirmedAt?: any
+  confirmedById?: string | null
+  createdById?: string | null
+  createdAt?: any
+  updatedAt?: any
+}
+
+type CrmInternalThreadMessageRecord = {
+  threadId?: string
+  fromUserId?: string
+  toUserId?: string
+  message?: string
+  context?: string | null
+  requiresConfirmation?: boolean
+  deadlineAt?: any
+  cycleStatus?: string
+  confirmedAt?: any
+  confirmedById?: string | null
+  createdById?: string | null
+  createdAt?: any
+  updatedAt?: any
+}
+
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
@@ -267,6 +301,16 @@ function formatRoDateTime(ms: number | null) {
   })
 }
 
+function formatDateKeyInTimeZone(ms: number, timeZone: string) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+  return formatter.format(new Date(ms))
+}
+
 async function hasQueuedOrSentCrmTaskEvent(eventKey: string) {
   const rows = await db.collection("emailEvents").where("meta.crmTaskEventKey", "==", eventKey).limit(20).get()
   return rows.docs.some((snap) => {
@@ -309,6 +353,408 @@ async function updateCrmTaskEmailEvent(
     },
     { merge: true }
   )
+}
+
+function crmInternalNoteEventKey(params: {
+  eventType: CrmInternalNoteNotifyEventType
+  noteId: string
+  dateKey?: string
+}) {
+  if (params.eventType === "created") return `crm_internal_note_created:${params.noteId}`
+  return `crm_internal_note_overdue_daily:${params.noteId}:${params.dateKey || "no_date"}`
+}
+
+async function hasQueuedOrSentCrmInternalNoteEvent(eventKey: string) {
+  const rows = await db.collection("emailEvents").where("meta.crmInternalNoteEventKey", "==", eventKey).limit(20).get()
+  return rows.docs.some((snap) => {
+    const status = String(snap.data()?.status || "")
+    return status === "queued" || status === "sent"
+  })
+}
+
+async function logCrmInternalNoteEmailEvent(params: {
+  to: string[]
+  subject: string
+  status: "queued" | "sent" | "failed" | "skipped"
+  error?: string
+  meta: Record<string, unknown>
+}) {
+  const ref = await db.collection("emailEvents").add({
+    type: "CRM_INTERNAL_NOTE",
+    to: params.to,
+    subject: params.subject,
+    status: params.status,
+    provider: "smtp",
+    ...(params.error ? { error: params.error } : {}),
+    meta: params.meta,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  })
+  return ref.id
+}
+
+async function updateCrmInternalNoteEmailEvent(
+  eventId: string,
+  patch: { status?: "sent" | "failed"; error?: string; meta?: Record<string, unknown> }
+) {
+  await db.collection("emailEvents").doc(eventId).set(
+    {
+      ...(patch.status ? { status: patch.status } : {}),
+      ...(patch.error ? { error: patch.error } : {}),
+      ...(patch.meta ? { meta: patch.meta } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  )
+}
+
+function crmInternalThreadMessageEventKey(params: {
+  eventType: CrmInternalThreadMessageNotifyEventType
+  threadId: string
+  messageId: string
+  dateKey?: string
+}) {
+  if (params.eventType === "created") return `crm_internal_thread_message_created:${params.threadId}:${params.messageId}`
+  return `crm_internal_thread_message_overdue_daily:${params.threadId}:${params.messageId}:${params.dateKey || "no_date"}`
+}
+
+async function hasQueuedOrSentCrmInternalThreadMessageEvent(eventKey: string) {
+  const rows = await db.collection("emailEvents").where("meta.crmInternalThreadMessageEventKey", "==", eventKey).limit(20).get()
+  return rows.docs.some((snap) => {
+    const status = String(snap.data()?.status || "")
+    return status === "queued" || status === "sent"
+  })
+}
+
+async function logCrmInternalThreadMessageEmailEvent(params: {
+  to: string[]
+  subject: string
+  status: "queued" | "sent" | "failed" | "skipped"
+  error?: string
+  meta: Record<string, unknown>
+}) {
+  const ref = await db.collection("emailEvents").add({
+    type: "CRM_INTERNAL_THREAD_MESSAGE",
+    to: params.to,
+    subject: params.subject,
+    status: params.status,
+    provider: "smtp",
+    ...(params.error ? { error: params.error } : {}),
+    meta: params.meta,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  })
+  return ref.id
+}
+
+async function updateCrmInternalThreadMessageEmailEvent(
+  eventId: string,
+  patch: { status?: "sent" | "failed"; error?: string; meta?: Record<string, unknown> }
+) {
+  await db.collection("emailEvents").doc(eventId).set(
+    {
+      ...(patch.status ? { status: patch.status } : {}),
+      ...(patch.error ? { error: patch.error } : {}),
+      ...(patch.meta ? { meta: patch.meta } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  )
+}
+
+async function dispatchCrmInternalThreadMessageNotification(params: {
+  threadId: string
+  messageId: string
+  eventType: CrmInternalThreadMessageNotifyEventType
+  dateKey?: string
+}) {
+  const threadId = String(params.threadId || "").trim()
+  const messageId = String(params.messageId || "").trim()
+  if (!threadId || !messageId) return { ok: false, skipped: true as const, reason: "missing_ids" }
+
+  const messageSnap = await db.collection("crm_internal_threads").doc(threadId).collection("messages").doc(messageId).get()
+  if (!messageSnap.exists) return { ok: false, skipped: true as const, reason: "message_not_found" }
+  const message = messageSnap.data() as CrmInternalThreadMessageRecord
+
+  if (!message.requiresConfirmation) {
+    return { ok: true, skipped: true as const, reason: "no_confirmation_required" }
+  }
+  if (String(message.cycleStatus || "") !== "PENDING") {
+    return { ok: true, skipped: true as const, reason: "cycle_not_pending" }
+  }
+
+  const toUserId = String(message.toUserId || "").trim()
+  if (!toUserId) {
+    return { ok: true, skipped: true as const, reason: "missing_recipient" }
+  }
+  const deadlineAtMs = crmDateToMs(message.deadlineAt)
+  const eventKey = crmInternalThreadMessageEventKey({
+    eventType: params.eventType,
+    threadId,
+    messageId,
+    dateKey: params.dateKey,
+  })
+  if (await hasQueuedOrSentCrmInternalThreadMessageEvent(eventKey)) {
+    return { ok: true, skipped: true as const, reason: "already_sent_or_queued" }
+  }
+
+  const recipient = await getUserEmail(toUserId)
+  const recipientEmail = String(recipient.email || "").trim().toLowerCase()
+  if (!isValidEmail(recipientEmail)) {
+    await logCrmInternalThreadMessageEmailEvent({
+      to: [],
+      subject: `CRM Internal thread message skipped (${threadId}/${messageId})`,
+      status: "skipped",
+      meta: {
+        eventType: params.eventType,
+        threadId,
+        messageId,
+        reason: "no_valid_recipient_email",
+      },
+    })
+    return { ok: true, skipped: true as const, reason: "no_valid_recipient_email" }
+  }
+
+  const senderUserId = String(message.fromUserId || "").trim()
+  const sender = senderUserId ? await getUserEmail(senderUserId) : { email: null, displayName: null }
+  const senderLabel = sender.displayName || sender.email || senderUserId || "Utilizator CRM"
+  const recipientLabel = recipient.displayName || recipientEmail
+  const deadlineLabel = formatRoDateTime(deadlineAtMs)
+  const messageBody = String(message.message || "").trim() || "-"
+  const messageContext = String(message.context || "").trim()
+  const internalPath = "/crm/opportunities?section=interne"
+  const baseUrl = getCrmBaseUrl()
+  const internalUrl = baseUrl ? `${baseUrl}${internalPath}` : internalPath
+  const subject =
+    params.eventType === "created"
+      ? "Ai primit un mesaj intern cu confirmare"
+      : "Reminder: mesaj intern neconfirmat"
+  const text =
+    `${params.eventType === "created" ? "Ai primit un mesaj intern nou care necesită confirmare." : "Reminder zilnic: ai un mesaj intern neconfirmat."}\n\n` +
+    `Destinatar: ${recipientLabel}\n` +
+    `De la: ${senderLabel}\n` +
+    `Termen: ${deadlineLabel}\n` +
+    `${messageContext ? `Context: ${messageContext}\n` : ""}` +
+    `Mesaj: ${messageBody}\n\n` +
+    `Deschide secțiunea Interne: ${internalUrl}\n`
+  const html = `
+    <div style="background:#f1f5f9;padding:24px 12px;font-family:Arial,sans-serif;color:#0f172a;">
+      <div style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+        <div style="padding:18px 20px;background:#0f172a;color:#ffffff;">
+          <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.8;">Notificare CRM</div>
+          <h2 style="margin:6px 0 4px;font-size:20px;line-height:1.3;">${escapeHtml(subject)}</h2>
+        </div>
+        <div style="padding:20px;">
+          <p style="margin:0;font-size:13px;color:#334155;"><strong>De la:</strong> ${escapeHtml(senderLabel)}</p>
+          <p style="margin:6px 0 0;font-size:13px;color:#334155;"><strong>Termen:</strong> ${escapeHtml(deadlineLabel)}</p>
+          ${messageContext ? `<p style="margin:6px 0 0;font-size:13px;color:#334155;"><strong>Context:</strong> ${escapeHtml(messageContext)}</p>` : ""}
+          <p style="margin:10px 0 0;font-size:14px;line-height:1.5;color:#334155;">${escapeHtml(messageBody)}</p>
+          <div style="margin-top:16px;">
+            <a href="${escapeHtml(internalUrl)}" style="display:inline-block;padding:11px 16px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;">
+              Deschide Interne
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  `
+
+  const emailEventId = await logCrmInternalThreadMessageEmailEvent({
+    to: [recipientEmail],
+    subject,
+    status: "queued",
+    meta: {
+      eventType: params.eventType,
+      threadId,
+      messageId,
+      toUserId,
+      deadlineAtMs,
+      crmInternalThreadMessageEventKey: eventKey,
+      dateKey: params.dateKey || null,
+    },
+  })
+
+  try {
+    await smtpSendMail({
+      to: recipientEmail,
+      subject,
+      text,
+      html,
+    })
+    await updateCrmInternalThreadMessageEmailEvent(emailEventId, { status: "sent" })
+    return { ok: true, skipped: false as const, sentCount: 1 }
+  } catch (error: any) {
+    await updateCrmInternalThreadMessageEmailEvent(emailEventId, {
+      status: "failed",
+      error: String(error?.message || error || "unknown"),
+    })
+    return { ok: false, skipped: false as const, reason: "send_failed" }
+  }
+}
+
+async function dispatchCrmInternalNoteNotification(params: {
+  noteId: string
+  eventType: CrmInternalNoteNotifyEventType
+  dateKey?: string
+}) {
+  const noteId = String(params.noteId || "").trim()
+  if (!noteId) return { ok: false, skipped: true as const, reason: "missing_note_id" }
+
+  const noteSnap = await db.collection("crm_internal_notes").doc(noteId).get()
+  if (!noteSnap.exists) return { ok: false, skipped: true as const, reason: "note_not_found" }
+  const note = noteSnap.data() as CrmInternalNoteRecord
+
+  if (note.opportunityId !== null && note.opportunityId !== undefined) {
+    return { ok: true, skipped: true as const, reason: "not_standalone_note" }
+  }
+
+  const status = String(note.status || "")
+  if (status !== "PENDING") {
+    await logCrmInternalNoteEmailEvent({
+      to: [],
+      subject: `CRM Internal note skipped (${noteId})`,
+      status: "skipped",
+      meta: {
+        eventType: params.eventType,
+        noteId,
+        reason: "status_not_pending",
+        status,
+      },
+    })
+    return { ok: true, skipped: true as const, reason: "status_not_pending" }
+  }
+
+  const toUserId = String(note.toUserId || "").trim()
+  if (!toUserId) {
+    await logCrmInternalNoteEmailEvent({
+      to: [],
+      subject: `CRM Internal note skipped (${noteId})`,
+      status: "skipped",
+      meta: {
+        eventType: params.eventType,
+        noteId,
+        reason: "missing_recipient",
+      },
+    })
+    return { ok: true, skipped: true as const, reason: "missing_recipient" }
+  }
+
+  const dueAtMs = crmDateToMs(note.dueAt)
+  const eventKey = crmInternalNoteEventKey({
+    eventType: params.eventType,
+    noteId,
+    dateKey: params.dateKey,
+  })
+  if (await hasQueuedOrSentCrmInternalNoteEvent(eventKey)) {
+    return { ok: true, skipped: true as const, reason: "already_sent_or_queued" }
+  }
+
+  const recipient = await getUserEmail(toUserId)
+  const recipientEmail = String(recipient.email || "").trim().toLowerCase()
+  if (!isValidEmail(recipientEmail)) {
+    await logCrmInternalNoteEmailEvent({
+      to: [],
+      subject: `CRM Internal note skipped (${noteId})`,
+      status: "skipped",
+      meta: {
+        eventType: params.eventType,
+        noteId,
+        reason: "no_valid_recipient_email",
+        toUserId,
+      },
+    })
+    return { ok: true, skipped: true as const, reason: "no_valid_recipient_email" }
+  }
+
+  const senderUserId = String(note.fromUserId || "").trim()
+  const sender = senderUserId ? await getUserEmail(senderUserId) : { email: null, displayName: null }
+  const senderLabel = sender.displayName || sender.email || senderUserId || "Utilizator CRM"
+  const recipientLabel = recipient.displayName || recipientEmail
+  const dueAtLabel = formatRoDateTime(dueAtMs)
+  const noteMessage = String(note.message || "").trim() || "-"
+  const noteContext = String(note.context || "").trim()
+  const internalPath = "/crm/opportunities?section=interne"
+  const baseUrl = getCrmBaseUrl()
+  const internalUrl = baseUrl ? `${baseUrl}${internalPath}` : internalPath
+  const subject =
+    params.eventType === "created"
+      ? "Ai primit o notă internă nouă"
+      : "Reminder: ai o notă internă neconfirmată"
+  const headerTitle =
+    params.eventType === "created"
+      ? "Notă internă nouă"
+      : "Reminder notă internă"
+  const headerSubtitle =
+    params.eventType === "created"
+      ? "Ai primit o solicitare internă care necesită confirmare."
+      : "Nota internă este încă în așteptare și necesită confirmare."
+  const text =
+    `${params.eventType === "created" ? "Ai primit o notă internă nouă." : "Reminder zilnic: ai o notă internă neconfirmată."}\n\n` +
+    `Destinatar: ${recipientLabel}\n` +
+    `De la: ${senderLabel}\n` +
+    `Termen: ${dueAtLabel}\n` +
+    `${noteContext ? `Context: ${noteContext}\n` : ""}` +
+    `Mesaj: ${noteMessage}\n\n` +
+    `Deschide secțiunea Interne: ${internalUrl}\n`
+  const html = `
+    <div style="background:#f1f5f9;padding:24px 12px;font-family:Arial,sans-serif;color:#0f172a;">
+      <div style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+        <div style="padding:18px 20px;background:#0f172a;color:#ffffff;">
+          <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.8;">Notificare CRM</div>
+          <h2 style="margin:6px 0 4px;font-size:20px;line-height:1.3;">${escapeHtml(headerTitle)}</h2>
+          <p style="margin:0;font-size:13px;opacity:.9;">${escapeHtml(headerSubtitle)}</p>
+        </div>
+        <div style="padding:20px;">
+          <div style="border:1px solid #e2e8f0;border-radius:10px;padding:14px 14px 10px;">
+            <p style="margin:0;font-size:13px;color:#334155;"><strong>De la:</strong> ${escapeHtml(senderLabel)}</p>
+            <p style="margin:6px 0 0;font-size:13px;color:#334155;"><strong>Termen:</strong> ${escapeHtml(dueAtLabel)}</p>
+            ${noteContext ? `<p style="margin:6px 0 0;font-size:13px;color:#334155;"><strong>Context:</strong> ${escapeHtml(noteContext)}</p>` : ""}
+            <p style="margin:10px 0 0;font-size:14px;color:#0f172a;"><strong>Mesaj:</strong></p>
+            <p style="margin:6px 0 0;font-size:14px;line-height:1.5;color:#334155;">${escapeHtml(noteMessage)}</p>
+          </div>
+          <div style="margin-top:16px;">
+            <a href="${escapeHtml(internalUrl)}" style="display:inline-block;padding:11px 16px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;">
+              Deschide Interne
+            </a>
+          </div>
+          <p style="margin:14px 0 0;font-size:12px;color:#64748b;">
+            Dacă butonul nu funcționează, deschide manual: ${escapeHtml(internalUrl)}
+          </p>
+        </div>
+      </div>
+    </div>
+  `
+
+  const emailEventId = await logCrmInternalNoteEmailEvent({
+    to: [recipientEmail],
+    subject,
+    status: "queued",
+    meta: {
+      eventType: params.eventType,
+      noteId,
+      toUserId,
+      dueAtMs,
+      crmInternalNoteEventKey: eventKey,
+      dateKey: params.dateKey || null,
+    },
+  })
+
+  try {
+    await smtpSendMail({
+      to: recipientEmail,
+      subject,
+      text,
+      html,
+    })
+    await updateCrmInternalNoteEmailEvent(emailEventId, { status: "sent" })
+    return { ok: true, skipped: false as const, sentCount: 1 }
+  } catch (error: any) {
+    await updateCrmInternalNoteEmailEvent(emailEventId, {
+      status: "failed",
+      error: String(error?.message || error || "unknown"),
+    })
+    return { ok: false, skipped: false as const, reason: "send_failed" }
+  }
 }
 
 async function dispatchCrmTaskNotification(params: {
@@ -1347,6 +1793,158 @@ export const sendCrmTaskReminders15m = functions
       })
     } catch (error) {
       console.error("sendCrmTaskReminders15m failed", error)
+    }
+
+    return null
+  })
+
+export const onCrmInternalNoteCreatedEmail = functions
+  .region(REGION)
+  .firestore.document("crm_internal_notes/{noteId}")
+  .onCreate(async (_snap, context) => {
+    const noteId = String(context.params.noteId || "").trim()
+    if (!noteId) return null
+
+    await dispatchCrmInternalNoteNotification({
+      noteId,
+      eventType: "created",
+    })
+
+    return null
+  })
+
+export const sendCrmInternalNoteOverdueDailyReminders = functions
+  .region(REGION)
+  .pubsub.schedule("0 8 * * *")
+  .timeZone(TIMEZONE)
+  .onRun(async () => {
+    const nowMs = Date.now()
+    const todayDateKey = formatDateKeyInTimeZone(nowMs, TIMEZONE)
+
+    let checked = 0
+    let skipped = 0
+    let dispatched = 0
+
+    try {
+      const rows = await db
+        .collection("crm_internal_notes")
+        .where("opportunityId", "==", null)
+        .where("status", "==", "PENDING")
+        .where("dueAt", "<=", Timestamp.fromMillis(nowMs))
+        .limit(500)
+        .get()
+
+      for (const row of rows.docs) {
+        checked += 1
+        const data = row.data() as CrmInternalNoteRecord
+        const dueAtMs = crmDateToMs(data.dueAt)
+        if (!dueAtMs) {
+          skipped += 1
+          continue
+        }
+        const dueDateKey = formatDateKeyInTimeZone(dueAtMs, TIMEZONE)
+        if (todayDateKey <= dueDateKey) {
+          // Reminder starts the day after due date.
+          skipped += 1
+          continue
+        }
+
+        const result = await dispatchCrmInternalNoteNotification({
+          noteId: row.id,
+          eventType: "overdue_daily",
+          dateKey: todayDateKey,
+        })
+        if (result.ok && !result.skipped) {
+          dispatched += 1
+        }
+      }
+
+      console.log("sendCrmInternalNoteOverdueDailyReminders completed", {
+        checked,
+        skipped,
+        dispatched,
+        todayDateKey,
+      })
+    } catch (error) {
+      console.error("sendCrmInternalNoteOverdueDailyReminders failed", error)
+    }
+
+    return null
+  })
+
+export const onCrmInternalThreadMessageCreatedEmail = functions
+  .region(REGION)
+  .firestore.document("crm_internal_threads/{threadId}/messages/{messageId}")
+  .onCreate(async (_snap, context) => {
+    const threadId = String(context.params.threadId || "").trim()
+    const messageId = String(context.params.messageId || "").trim()
+    if (!threadId || !messageId) return null
+    await dispatchCrmInternalThreadMessageNotification({
+      threadId,
+      messageId,
+      eventType: "created",
+    })
+    return null
+  })
+
+export const sendCrmInternalThreadOverdueDailyReminders = functions
+  .region(REGION)
+  .pubsub.schedule("0 8 * * *")
+  .timeZone(TIMEZONE)
+  .onRun(async () => {
+    const nowMs = Date.now()
+    const todayDateKey = formatDateKeyInTimeZone(nowMs, TIMEZONE)
+    let checked = 0
+    let skipped = 0
+    let dispatched = 0
+
+    try {
+      const rows = await db
+        .collectionGroup("messages")
+        .where("requiresConfirmation", "==", true)
+        .where("cycleStatus", "==", "PENDING")
+        .where("deadlineAt", "<=", Timestamp.fromMillis(nowMs))
+        .limit(500)
+        .get()
+
+      for (const row of rows.docs) {
+        const parentRef = row.ref.parent.parent
+        if (!parentRef) {
+          skipped += 1
+          continue
+        }
+        const threadId = parentRef.id
+        const messageId = row.id
+        checked += 1
+        const data = row.data() as CrmInternalThreadMessageRecord
+        const deadlineAtMs = crmDateToMs(data.deadlineAt)
+        if (!deadlineAtMs) {
+          skipped += 1
+          continue
+        }
+        const dueDateKey = formatDateKeyInTimeZone(deadlineAtMs, TIMEZONE)
+        if (todayDateKey <= dueDateKey) {
+          skipped += 1
+          continue
+        }
+        const result = await dispatchCrmInternalThreadMessageNotification({
+          threadId,
+          messageId,
+          eventType: "overdue_daily",
+          dateKey: todayDateKey,
+        })
+        if (result.ok && !result.skipped) {
+          dispatched += 1
+        }
+      }
+      console.log("sendCrmInternalThreadOverdueDailyReminders completed", {
+        checked,
+        skipped,
+        dispatched,
+        todayDateKey,
+      })
+    } catch (error) {
+      console.error("sendCrmInternalThreadOverdueDailyReminders failed", error)
     }
 
     return null

@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { AlertCircle, ChevronLeft, ChevronRight, Inbox, LayoutGrid, List, Menu, Pencil, Search, Trash2, UserRound } from "lucide-react"
+import { AlertCircle, ChevronLeft, ChevronRight, Inbox, LayoutGrid, List, Menu, MessageSquare, Pencil, Search, Trash2, UserRound } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { MobileRailSheet, OpportunityTypeSidebar, PageShell, Panel, RailDrawer, SegmentedControl, TaskCounterRing } from "@/components/crm"
+import { InternalConversationsSection, MobileRailSheet, OpportunityTypeSidebar, PageShell, Panel, RailDrawer, SegmentedControl, TaskCounterRing } from "@/components/crm"
 import {
   CRM_OPPORTUNITY_TYPE_LABELS,
   CRM_PIPELINE_STAGE_LABELS,
@@ -44,9 +44,9 @@ const LEFT_FILTER_ITEMS = [
   "INSTALARI",
   "FACTURARE",
   "EVENIMENTE",
-  "INTERNE",
 ] as const
 type OpportunityTypeFilter = (typeof LEFT_FILTER_ITEMS)[number] | "ALL"
+type OpportunityCenterSection = "OPPORTUNITIES" | "INTERNE"
 
 type TaskQuickFilterKey = "ACTIVE" | "IN_PROGRESS" | "DONE" | "OVERDUE"
 type LeftTypeItem = {
@@ -162,11 +162,13 @@ export default function CrmOpportunitiesPage() {
   const isAdmin = userData?.role === "admin"
 
   const typeFromUrlRaw = (searchParams.get("type") || "").toUpperCase()
+  const sectionFromUrl: OpportunityCenterSection = searchParams.get("section") === "interne" ? "INTERNE" : "OPPORTUNITIES"
   const prefilledClientId = (searchParams.get("clientId") || "").trim()
   const shouldAutoOpenCreate = searchParams.get("create") === "1"
   const typeFromUrl = LEFT_FILTER_ITEMS.includes(typeFromUrlRaw as (typeof LEFT_FILTER_ITEMS)[number])
     ? (typeFromUrlRaw as (typeof LEFT_FILTER_ITEMS)[number])
     : "ALL"
+  const [activeSection, setActiveSection] = useState<OpportunityCenterSection>(sectionFromUrl)
   const [activeType, setActiveType] = useState<OpportunityTypeFilter>(
     typeFromUrl
   )
@@ -215,6 +217,7 @@ export default function CrmOpportunitiesPage() {
   }
 
   const resetToHome = () => {
+    setActiveSection("OPPORTUNITIES")
     setActiveType("ALL")
     setSearch("")
     setOwnerFilter("ALL")
@@ -239,12 +242,13 @@ export default function CrmOpportunitiesPage() {
   )
 
   useEffect(() => {
-    if (typeFromUrlRaw && typeFromUrl === "ALL") {
+    if (typeFromUrlRaw && typeFromUrl === "ALL" && sectionFromUrl !== "INTERNE") {
       router.replace("/crm/opportunities")
       return
     }
+    setActiveSection((current) => (current === sectionFromUrl ? current : sectionFromUrl))
     setActiveType((current) => (current === typeFromUrl ? current : typeFromUrl))
-  }, [router, typeFromUrl, typeFromUrlRaw])
+  }, [router, sectionFromUrl, typeFromUrl, typeFromUrlRaw])
 
   const availableStages = useMemo(() => {
     if (activeType !== "ALL") return getPipelineStagesForOpportunityType(activeType)
@@ -417,16 +421,30 @@ export default function CrmOpportunitiesPage() {
   const sidebarHomeItem = {
     key: "ALL",
     label: "Acasa",
-    active: activeType === "ALL",
+    active: activeSection === "OPPORTUNITIES" && activeType === "ALL",
     onClick: resetToHome,
     title: "Acasa",
   }
+  const sidebarSectionItems = [
+    {
+      key: "INTERNE_SECTION",
+      label: "Interne",
+      active: activeSection === "INTERNE",
+      onClick: () => {
+        setActiveSection("INTERNE")
+        router.replace("/crm/opportunities?section=interne")
+      },
+      title: "Interne",
+    },
+  ]
   const sidebarItems = leftTypeItems.map((item) => ({
     ...item,
-    active: activeType === item.key,
+    active: activeSection === "OPPORTUNITIES" && activeType === item.key,
     onClick: () => {
+      setActiveSection("OPPORTUNITIES")
       setActiveType(item.key)
       const next = new URLSearchParams(searchParams.toString())
+      next.delete("section")
       next.set("type", item.key)
       router.replace(`/crm/opportunities?${next.toString()}`)
     },
@@ -654,6 +672,7 @@ export default function CrmOpportunitiesPage() {
         >
           <OpportunityTypeSidebar
             homeItem={sidebarHomeItem}
+            sectionItems={sidebarSectionItems}
             items={sidebarItems}
             renderMode="content"
             contentClassName="pt-1"
@@ -673,6 +692,7 @@ export default function CrmOpportunitiesPage() {
               {({ close }) => (
                 <OpportunityTypeSidebar
                   homeItem={sidebarHomeItem}
+                  sectionItems={sidebarSectionItems}
                   items={sidebarItems}
                   renderMode="content"
                   onItemSelect={close}
@@ -680,25 +700,35 @@ export default function CrmOpportunitiesPage() {
                 />
               )}
             </MobileRailSheet>
-            <div className="mx-2 min-w-0 flex-1">
-              <div className="grid grid-cols-2 gap-1 rounded-md border border-neutral-200 bg-white/80 px-2 py-1 text-[10px] leading-tight text-neutral-700">
-                <span className="truncate rounded bg-neutral-100 px-1.5 py-0.5">Active: {taskCounters.active}</span>
-                <span className="truncate rounded bg-neutral-100 px-1.5 py-0.5">In lucru: {taskCounters.inProgress}</span>
-                <span className="truncate rounded bg-neutral-100 px-1.5 py-0.5">Indeplinite: {taskCounters.done}</span>
-                <span className="truncate rounded bg-neutral-100 px-1.5 py-0.5 text-rose-700">Intarziate: {taskCounters.overdue}</span>
-              </div>
-            </div>
-            <MobileRailSheet
-              side="right"
-              title="Status oportunități"
-              triggerLabel="Status"
-              triggerIcon={Menu}
-              iconOnly
-              className="bg-[#f3f4f6]"
-            >
-              {rightRailContent}
-            </MobileRailSheet>
+            {activeSection === "INTERNE" ? (
+              <>
+                <div className="mx-2 min-w-0 flex-1 text-center text-sm font-semibold text-neutral-800">Interne</div>
+                <div className="w-9 shrink-0" />
+              </>
+            ) : (
+              <>
+                <div className="mx-2 min-w-0 flex-1">
+                  <div className="grid grid-cols-2 gap-1 rounded-md border border-neutral-200 bg-white/80 px-2 py-1 text-[10px] leading-tight text-neutral-700">
+                    <span className="truncate rounded bg-neutral-100 px-1.5 py-0.5">Active: {taskCounters.active}</span>
+                    <span className="truncate rounded bg-neutral-100 px-1.5 py-0.5">In lucru: {taskCounters.inProgress}</span>
+                    <span className="truncate rounded bg-neutral-100 px-1.5 py-0.5">Indeplinite: {taskCounters.done}</span>
+                    <span className="truncate rounded bg-neutral-100 px-1.5 py-0.5 text-rose-700">Intarziate: {taskCounters.overdue}</span>
+                  </div>
+                </div>
+                <MobileRailSheet
+                  side="right"
+                  title="Status oportunități"
+                  triggerLabel="Status"
+                  triggerIcon={Menu}
+                  iconOnly
+                  className="bg-[#f3f4f6]"
+                >
+                  {rightRailContent}
+                </MobileRailSheet>
+              </>
+            )}
           </div>
+          {activeSection === "OPPORTUNITIES" ? (
           <Panel className="mt-1 rounded-md border-neutral-300 bg-white shadow-none shrink-0" contentClassName="p-3 space-y-2 xl:p-4 xl:space-y-4">
             <div className="flex flex-wrap items-center gap-2">
               <div className="relative min-w-0 flex-1">
@@ -846,7 +876,9 @@ export default function CrmOpportunitiesPage() {
               </div>
             </div>
           </Panel>
+          ) : null}
 
+          {activeSection === "OPPORTUNITIES" ? (
           <Panel
             title={viewMode === "LIST" ? undefined : "Kanban pipeline"}
             className="rounded-md border-neutral-300 bg-white shadow-none flex min-h-[calc(100svh-14rem)] flex-1 flex-col overflow-hidden xl:min-h-0"
@@ -1034,7 +1066,26 @@ export default function CrmOpportunitiesPage() {
               </div>
             )}
           </Panel>
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden xl:gap-3">
+              <div className="rounded-md border border-neutral-300 bg-white px-3 py-2.5 shadow-none xl:px-4 xl:py-3">
+                <div className="flex items-center gap-2">
+                  <div className="rounded-md border border-blue-200 bg-blue-50 p-1.5 text-blue-700">
+                    <MessageSquare className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-neutral-900">CRM Interne</p>
+                    <p className="text-xs text-neutral-500">Conversații interne și confirmări afișate direct în modulul de oportunități.</p>
+                  </div>
+                </div>
+              </div>
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <InternalConversationsSection />
+              </div>
+            </div>
+          )}
         </div>
+        {activeSection === "OPPORTUNITIES" ? (
         <RailDrawer
           side="right"
           title="Status oportunități"
@@ -1061,6 +1112,7 @@ export default function CrmOpportunitiesPage() {
         >
           {rightRailContent}
         </RailDrawer>
+        ) : null}
       </div>
     </PageShell>
   )

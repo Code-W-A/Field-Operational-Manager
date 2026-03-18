@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation"
 
 export default function OpportunityInternePage() {
-  redirect("/crm/interne")
+  redirect("/crm/opportunities?section=interne")
 }

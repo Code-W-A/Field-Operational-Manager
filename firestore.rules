@@ -36,6 +36,7 @@ service cloud.firestore {
          request.path.segments[0] == 'crm_tasks' ||
          request.path.segments[0] == 'crm_notes' ||
          request.path.segments[0] == 'crm_internal_notes' ||
+         request.path.segments[0] == 'crm_internal_threads' ||
          request.path.segments[0] == 'crm_internal_handoffs' ||
          request.path.segments[0] == 'crm_files' ||
          request.path.segments[0] == 'crm_emails' ||
@@ -102,6 +103,14 @@ service cloud.firestore {
 
     match /crm_internal_notes/{docId} {
       allow read, write: if isStaffInternal();
+    }
+
+    match /crm_internal_threads/{threadId} {
+      allow read, write: if isStaffInternal();
+
+      match /messages/{messageId} {
+        allow read, write: if isStaffInternal();
+      }
     }
 
     match /crm_internal_handoffs/{docId} {

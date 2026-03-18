@@ -7,6 +7,7 @@ export const CRM_COLLECTIONS = {
   tasks: "crm_tasks",
   notes: "crm_notes",
   internalNotes: "crm_internal_notes",
+  internalThreads: "crm_internal_threads",
   files: "crm_files",
   emails: "crm_emails",
   calendarEvents: "crm_calendar_events",
@@ -71,7 +72,18 @@ export const CRM_INTERNAL_HANDOFF_STATUS_LABELS: Record<(typeof CRM_INTERNAL_HAN
 
 export const CRM_INTERNAL_NOTE_STATUSES = ["PENDING", "CONFIRMED"] as const
 
+export const CRM_INTERNAL_MESSAGE_CYCLE_STATUSES = ["NONE", "PENDING", "CONFIRMED"] as const
+
 export const CRM_INTERNAL_NOTE_STATUS_LABELS: Record<(typeof CRM_INTERNAL_NOTE_STATUSES)[number], string> = {
+  PENDING: "În așteptare",
+  CONFIRMED: "Confirmat",
+}
+
+export const CRM_INTERNAL_MESSAGE_CYCLE_STATUS_LABELS: Record<
+  (typeof CRM_INTERNAL_MESSAGE_CYCLE_STATUSES)[number],
+  string
+> = {
+  NONE: "Fără confirmare",
   PENDING: "În așteptare",
   CONFIRMED: "Confirmat",
 }
