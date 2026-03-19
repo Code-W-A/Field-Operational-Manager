@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
-import { Download, FileText, Plus, Trash2 } from "lucide-react"
+import { Download, ExternalLink, FileText, Plus, Trash2 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -14,20 +14,10 @@ import { useCrmOpportunity } from "@/hooks/use-crm-opportunity"
 import { deleteCrmFile, listCrmFiles, updateCrmFileVisibility, uploadCrmFile } from "@/lib/crm/tasks"
 import { listCrmUsers } from "@/lib/crm/opportunities"
 import { CRM_VISIBILITIES, CRM_VISIBILITY_LABELS } from "@/lib/crm/constants"
+import { getCrmFileOpenUrl } from "@/lib/crm/file-preview"
 import { formatDateTime } from "@/lib/crm/presenters"
 import { useToast } from "@/hooks/use-toast"
 import type { CrmFileAttachment } from "@/lib/crm/types"
-
-function canPreviewInBrowser(mime: string) {
-  if (!mime) return false
-  return (
-    mime.startsWith("image/") ||
-    mime === "application/pdf" ||
-    mime.startsWith("text/") ||
-    mime === "application/json" ||
-    mime === "application/xml"
-  )
-}
 
 export default function OpportunityFilesPage() {
   const params = useParams()
@@ -357,7 +347,12 @@ export default function OpportunityFilesPage() {
                       </Button>
                     ) : null}
                     <Button asChild size="icon" variant="ghost" className="h-8 w-8">
-                      <a href={file.url} target="_blank" rel="noreferrer" download={canPreviewInBrowser(file.mime) ? undefined : file.filename}>
+                      <a href={getCrmFileOpenUrl(file)} target="_blank" rel="noreferrer">
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    </Button>
+                    <Button asChild size="icon" variant="ghost" className="h-8 w-8">
+                      <a href={file.url} target="_blank" rel="noreferrer" download={file.filename}>
                         <Download className="h-4 w-4" />
                       </a>
                     </Button>

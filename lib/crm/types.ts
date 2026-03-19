@@ -92,6 +92,78 @@ export interface CrmOpportunityAccess {
   createdById: string
 }
 
+export type CrmOfferStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED" | "EXPIRED"
+
+export interface CrmOfferProduct {
+  id: string
+  name: string
+  um: string
+  quantity: number
+  price: number
+  total: number
+}
+
+export interface CrmOfferSnapshot {
+  products: CrmOfferProduct[]
+  vatPercent: number
+  adjustmentPercent: number
+  conditions: string[]
+  comments?: string
+  subtotal: number
+  total: number
+}
+
+export interface CrmOfferVerification {
+  email?: string
+  version?: number
+  codeHash?: string
+  codeSentAt?: FirestoreDateValue
+  codeExpiresAt?: FirestoreDateValue
+  resendAvailableAt?: FirestoreDateValue
+  verifiedAt?: FirestoreDateValue | null
+  attemptCount?: number
+  maxAttempts?: number
+  lockUntil?: FirestoreDateValue | null
+  lockDurationMs?: number
+  responseProofHash?: string | null
+  responseProofIssuedAt?: FirestoreDateValue | null
+  responseProofExpiresAt?: FirestoreDateValue | null
+  responseProofUsedAt?: FirestoreDateValue | null
+}
+
+export interface CrmOfferResponse {
+  status: "accept" | "reject"
+  at: FirestoreDateValue
+  reason?: string
+  verifiedEmail?: string
+}
+
+export interface CrmOffer {
+  id: string
+  opportunityId: string
+  version: number
+  status: CrmOfferStatus
+  snapshot: CrmOfferSnapshot
+  recipientEmail?: string
+  recipientName?: string
+  subject?: string
+  message?: string
+  pdfUrl?: string
+  pdfStoragePath?: string
+  pdfFilename?: string
+  pdfMime?: string
+  pdfSize?: number
+  actionToken?: string
+  actionExpiresAt?: FirestoreDateValue | null
+  actionUsedAt?: FirestoreDateValue | null
+  verification?: CrmOfferVerification
+  response?: CrmOfferResponse
+  sentAt?: FirestoreDateValue
+  createdById: string
+  createdAt?: FirestoreDateValue
+  updatedAt?: FirestoreDateValue
+}
+
 export interface CrmTask {
   id: string
   opportunityId: string
@@ -329,6 +401,33 @@ export interface SendCrmOpportunityEmailInput {
   bodySnippet: string
   visibility?: CrmVisibility
   visibleToUserIds?: string[]
+}
+
+export interface SaveCrmOfferDraftInput {
+  offerId?: string
+  opportunityId: string
+  snapshot: CrmOfferSnapshot
+  recipientEmail?: string
+  recipientName?: string
+  subject?: string
+  message?: string
+  actorId: string
+}
+
+export interface IssueCrmOfferInput {
+  opportunityId: string
+  draftOfferId?: string
+  recipientEmail: string
+  recipientName?: string
+  subject: string
+  message: string
+  snapshot: CrmOfferSnapshot
+  pdfUrl: string
+  pdfStoragePath: string
+  pdfFilename: string
+  pdfMime?: string
+  pdfSize?: number
+  attachmentBase64?: string
 }
 
 export interface CreateCalendarEventInput {

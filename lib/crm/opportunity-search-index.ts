@@ -85,6 +85,16 @@ export async function rebuildOpportunitySearchIndex(opportunityId: string) {
     getDocs(query(collection(db, CRM_COLLECTIONS.files), where("opportunityId", "==", opportunityId), limit(300))),
   ])
 
+  let offerDocs: Record<string, unknown>[] = []
+  try {
+    const offerRows = await getDocs(
+      query(collection(db, CRM_COLLECTIONS.offers), where("opportunityId", "==", opportunityId), limit(300))
+    )
+    offerDocs = offerRows.docs.map((row) => row.data() as Record<string, unknown>)
+  } catch {
+    offerDocs = []
+  }
+
   taskRows.docs.forEach((row) => {
     const data = row.data() as Record<string, unknown>
     pushText(parts, data.title)
@@ -114,6 +124,14 @@ export async function rebuildOpportunitySearchIndex(opportunityId: string) {
   fileRows.docs.forEach((row) => {
     const data = row.data() as Record<string, unknown>
     pushText(parts, data.filename)
+  })
+  offerDocs.forEach((data) => {
+    pushText(parts, data.subject)
+    pushText(parts, data.message)
+    pushText(parts, data.recipientEmail)
+    const snapshot = (data.snapshot || {}) as Record<string, unknown>
+    const products = Array.isArray(snapshot.products) ? (snapshot.products as Record<string, unknown>[]) : []
+    products.forEach((product) => pushText(parts, product.name))
   })
 
   const searchIndex = Array.from(new Set(parts)).join(" ")

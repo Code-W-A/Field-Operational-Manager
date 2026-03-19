@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { Panel } from "@/components/crm"
 import { getDateValue, listCrmActivity } from "@/lib/crm/activity"
 import { listCrmClientContacts, listCrmUsers } from "@/lib/crm/opportunities"
+import { getCrmFileOpenUrl } from "@/lib/crm/file-preview"
 import { formatDateTime } from "@/lib/crm/presenters"
 import { CRM_PIPELINE_STAGE_LABELS, CRM_PRIORITY_LABELS, CRM_WORK_STATUS_LABELS } from "@/lib/crm/constants"
 import type { CrmActivityLog } from "@/lib/crm/types"
@@ -52,6 +53,9 @@ function getActivityLabel(activityType: string) {
     FILE_UPLOADED: "Fișier adăugat",
     FILE_DELETED: "Fișier șters",
     EMAIL_LOGGED: "Email logat",
+    OFFER_SENT: "Ofertă emisă",
+    OFFER_ACCEPTED: "Ofertă acceptată",
+    OFFER_REJECTED: "Ofertă refuzată",
     CALENDAR_EVENT_CREATED: "Eveniment calendar creat",
     CALENDAR_EVENT_DELETED: "Eveniment calendar șters",
     INTERNAL_NOTE_CREATED: "Notă internă",
@@ -80,6 +84,9 @@ function getActivityVisual(activityType: string) {
     FILE_UPLOADED: { icon: FileText, dotClass: "border-indigo-200 bg-indigo-50 text-indigo-700", lineClass: "bg-indigo-200" },
     FILE_DELETED: { icon: Trash2, dotClass: "border-rose-200 bg-rose-50 text-rose-700", lineClass: "bg-rose-200" },
     EMAIL_LOGGED: { icon: Mail, dotClass: "border-amber-200 bg-amber-50 text-amber-700", lineClass: "bg-amber-200" },
+    OFFER_SENT: { icon: FileText, dotClass: "border-blue-200 bg-blue-50 text-blue-700", lineClass: "bg-blue-200" },
+    OFFER_ACCEPTED: { icon: CheckCheck, dotClass: "border-emerald-200 bg-emerald-50 text-emerald-700", lineClass: "bg-emerald-200" },
+    OFFER_REJECTED: { icon: Trash2, dotClass: "border-rose-200 bg-rose-50 text-rose-700", lineClass: "bg-rose-200" },
     CALENDAR_EVENT_CREATED: { icon: ClipboardList, dotClass: "border-teal-200 bg-teal-50 text-teal-700", lineClass: "bg-teal-200" },
     CALENDAR_EVENT_DELETED: { icon: Trash2, dotClass: "border-rose-200 bg-rose-50 text-rose-700", lineClass: "bg-rose-200" },
     INTERNAL_HANDOFF_CREATED: { icon: Handshake, dotClass: "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700", lineClass: "bg-fuchsia-200" },
@@ -241,7 +248,15 @@ function renderActivityContent(
             {renderKeyValueRow("Dimensiune", file.size ? `${Number(file.size).toLocaleString("ro-RO")} B` : "-")}
             {file.url ? (
               <p className="text-sm text-blue-700">
-                <a href={String(file.url)} target="_blank" rel="noreferrer" className="hover:underline">
+                <a
+                  href={getCrmFileOpenUrl({
+                    url: String(file.url),
+                    mime: String(file.mime || ""),
+                  })}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hover:underline"
+                >
                   Deschide fișier
                 </a>
               </p>
@@ -262,6 +277,26 @@ function renderActivityContent(
         {renderKeyValueRow("CC", Array.isArray(payload.cc) && payload.cc.length ? (payload.cc as string[]).join(", ") : "-")}
         {renderKeyValueRow("BCC", Array.isArray(payload.bcc) && payload.bcc.length ? (payload.bcc as string[]).join(", ") : "-")}
         <p className="whitespace-pre-wrap text-sm text-neutral-700">{String(payload.bodySnippet || "") || "-"}</p>
+      </div>
+    )
+  }
+
+  if (activity.type === "OFFER_SENT" || activity.type === "OFFER_ACCEPTED" || activity.type === "OFFER_REJECTED") {
+    return (
+      <div className="space-y-1.5">
+        {renderKeyValueRow("ID ofertă", String(payload.offerId || "-"))}
+        {renderKeyValueRow("Versiune", String(payload.version || "-"))}
+        {payload.recipientEmail ? renderKeyValueRow("Destinatar", String(payload.recipientEmail)) : null}
+        {payload.subject ? renderKeyValueRow("Subiect", String(payload.subject)) : null}
+        {payload.total !== undefined ? renderKeyValueRow("Total", `${Number(payload.total || 0).toFixed(2)} lei`) : null}
+        {payload.reason ? renderKeyValueRow("Motiv refuz", String(payload.reason)) : null}
+        {payload.pdfUrl ? (
+          <p className="text-sm text-blue-700">
+            <a href={String(payload.pdfUrl)} target="_blank" rel="noreferrer" className="hover:underline">
+              Deschide PDF ofertă
+            </a>
+          </p>
+        ) : null}
       </div>
     )
   }

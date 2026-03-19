@@ -278,6 +278,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
       { href: `/crm/opportunities/${opportunityId}/files`, label: "Fișiere", icon: FileText },
       { href: `/crm/opportunities/${opportunityId}/emails`, label: "Email", icon: Mail },
       { href: `/crm/opportunities/${opportunityId}/calendar`, label: "Calendar", icon: CalendarDays },
+      { href: `/crm/opportunities/${opportunityId}/offers`, label: "Oferte", icon: FileText },
     ],
     [opportunityId]
   )

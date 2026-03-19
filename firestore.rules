@@ -33,6 +33,7 @@ service cloud.firestore {
          request.path.segments[0] == 'crm_opportunities' ||
          request.path.segments[0] == 'crm_opportunity_contacts' ||
          request.path.segments[0] == 'crm_opportunity_access' ||
+         request.path.segments[0] == 'crm_offers' ||
          request.path.segments[0] == 'crm_tasks' ||
          request.path.segments[0] == 'crm_notes' ||
          request.path.segments[0] == 'crm_internal_notes' ||
@@ -90,6 +91,10 @@ service cloud.firestore {
     }
 
     match /crm_opportunity_access/{docId} {
+      allow read, write: if isStaffInternal();
+    }
+
+    match /crm_offers/{docId} {
       allow read, write: if isStaffInternal();
     }
 

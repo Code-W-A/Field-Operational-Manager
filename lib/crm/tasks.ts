@@ -65,7 +65,18 @@ function mapTask(docId: string, data: Record<string, unknown>): CrmTask {
   const taskTypeRaw = typeof data.taskType === "string" ? data.taskType : undefined
   const taskType =
     taskTypeRaw &&
-    (["PROSPECTARE", "EVALUARE_NEVOI", "OFERTARE", "FOLLOW_UP_OFERTA", "CONTRACTARE", "FACTURARE", "INCASARE", "LIVRARE", "INSTALARE"] as const).includes(
+    ([
+      "PROSPECTARE",
+      "EVALUARE_NEVOI",
+      "OFERTARE",
+      "FOLLOW_UP_OFERTA",
+      "VIZITA_CLIENT",
+      "CONTRACTARE",
+      "FACTURARE",
+      "INCASARE",
+      "LIVRARE",
+      "INSTALARE",
+    ] as const).includes(
       taskTypeRaw as CrmTask["taskType"] & string
     )
       ? (taskTypeRaw as CrmTask["taskType"])

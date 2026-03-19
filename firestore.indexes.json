@@ -49,6 +49,14 @@
       ]
     },
     {
+      "collectionGroup": "crm_offers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "opportunityId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "crm_calendar_events",
       "queryScope": "COLLECTION",
       "fields": [

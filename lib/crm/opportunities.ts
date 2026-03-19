@@ -575,6 +575,14 @@ async function deleteByOpportunityId(collectionName: string, opportunityId: stri
   await Promise.all(rows.docs.map((row) => deleteDoc(row.ref)))
 }
 
+async function deleteByOpportunityIdSafe(collectionName: string, opportunityId: string) {
+  try {
+    await deleteByOpportunityId(collectionName, opportunityId)
+  } catch {
+    // Best effort cleanup for collections that may not be readable in client SDK context.
+  }
+}
+
 export async function deleteCrmOpportunity(params: { opportunityId: string; actorId: string }) {
   await assertActorIsAdmin(params.actorId)
 
@@ -585,6 +593,18 @@ export async function deleteCrmOpportunity(params: { opportunityId: string; acto
   }
 
   const fileRows = await getDocs(query(collection(db, CRM_COLLECTIONS.files), where("opportunityId", "==", params.opportunityId), limit(1000)))
+  let offerDocs: Array<{ ref: (typeof fileRows.docs)[number]["ref"]; data: Record<string, unknown> }> = []
+  try {
+    const offerRows = await getDocs(
+      query(collection(db, CRM_COLLECTIONS.offers), where("opportunityId", "==", params.opportunityId), limit(1000))
+    )
+    offerDocs = offerRows.docs.map((row) => ({
+      ref: row.ref,
+      data: row.data() as Record<string, unknown>,
+    }))
+  } catch {
+    offerDocs = []
+  }
   await Promise.all(
     fileRows.docs.map(async (row) => {
       const data = row.data() as Record<string, unknown>
@@ -595,12 +615,25 @@ export async function deleteCrmOpportunity(params: { opportunityId: string; acto
       await deleteDoc(row.ref)
     })
   )
+  if (offerDocs.length) {
+    await Promise.all(
+      offerDocs.map(async (row) => {
+        const data = row.data
+        const storagePath = typeof data.pdfStoragePath === "string" ? data.pdfStoragePath : ""
+        if (storagePath) {
+          await crmStorageProvider.deleteOpportunityFile(storagePath)
+        }
+        await deleteDoc(row.ref)
+      })
+    )
+  }
 
   await Promise.all([
     deleteByOpportunityId(CRM_COLLECTIONS.tasks, params.opportunityId),
     deleteByOpportunityId(CRM_COLLECTIONS.notes, params.opportunityId),
     deleteByOpportunityId(CRM_COLLECTIONS.internalNotes, params.opportunityId),
     deleteByOpportunityId(CRM_COLLECTIONS.internalHandoffs, params.opportunityId),
+    deleteByOpportunityIdSafe(CRM_COLLECTIONS.offers, params.opportunityId),
     deleteByOpportunityId(CRM_COLLECTIONS.emails, params.opportunityId),
     deleteByOpportunityId(CRM_COLLECTIONS.calendarEvents, params.opportunityId),
     deleteByOpportunityId(CRM_COLLECTIONS.activityLogs, params.opportunityId),
