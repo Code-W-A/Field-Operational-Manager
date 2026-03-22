@@ -6,6 +6,7 @@ import { Plus, Trash2 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useIsMobile } from "@/components/ui/use-mobile"
+import { cn } from "@/lib/utils"
 import React from "react"
 
 export interface ProductItem {
@@ -29,9 +30,17 @@ interface ProductTableFormProps {
   onProductsChange: (products: ProductItem[]) => void
   disabled?: boolean
   showTitle?: boolean
+  /** Clase pentru containerul scrollabil al tabelului (desktop). Implicit max-h-[60vh]. */
+  tableScrollClassName?: string
 }
 
-export function ProductTableForm({ products, onProductsChange, disabled = false, showTitle = true }: ProductTableFormProps) {
+export function ProductTableForm({
+  products,
+  onProductsChange,
+  disabled = false,
+  showTitle = true,
+  tableScrollClassName = "max-h-[60vh]",
+}: ProductTableFormProps) {
   const isMobile = useIsMobile()
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const [draft, setDraft] = React.useState<ProductItem | null>(null)
@@ -166,7 +175,7 @@ const handleNumberChange = (
       )}
 
       {!isMobile ? (
-        <div className="overflow-x-auto overflow-y-auto rounded border max-h-[60vh]">
+        <div className={cn("overflow-x-auto overflow-y-auto rounded border", tableScrollClassName)}>
           <table className="w-full text-sm table-fixed">
           <thead className="bg-muted">
             <tr>

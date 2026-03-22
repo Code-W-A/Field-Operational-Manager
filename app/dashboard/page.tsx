@@ -19,6 +19,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { AddLucrareDialog } from "@/components/add-lucrare-dialog"
 import { addLucrare, getNextReportNumber, type PersoanaContact } from "@/lib/firebase/firestore"
 import { WORK_STATUS } from "@/lib/utils/constants"
+import { validateWorkEquipmentForCreation } from "@/lib/utils/work-equipment-validation"
 import { toast } from "@/hooks/use-toast"
 import { format } from "date-fns"
 import { Scanner } from "@yudiel/react-qr-scanner"
@@ -48,6 +49,7 @@ export default function Dashboard() {
     echipament: string
     echipamentId: string
     echipamentCod: string
+    equipmentIds?: string[]
     persoaneContact: PersoanaContact[]
   }
   // State pentru dialoguri mobile (trebuie definit înainte de orice return condițional)
@@ -118,6 +120,7 @@ export default function Dashboard() {
     echipament: "",
     echipamentId: "",
     echipamentCod: "",
+    equipmentIds: [],
     persoaneContact: [],
   })
   const [fieldErrors, setFieldErrors] = React.useState<string[]>([])
@@ -221,6 +224,7 @@ export default function Dashboard() {
       persoaneContact: [],
       echipamentId: "",
       echipamentCod: "",
+      equipmentIds: [],
     })
     setFieldErrors([])
   }, [])
@@ -263,6 +267,22 @@ export default function Dashboard() {
           title: "Contract invalid",
           description:
             "Tichetele „Intervenție în contract” se pot lansa doar pe contracte de tip „Abonament”. Pentru „La cerere” folosește un tip facturabil.",
+          variant: "destructive",
+        })
+        return
+      }
+      const equipmentValidation = validateWorkEquipmentForCreation({
+        tipLucrare: formData.tipLucrare,
+        echipamentId: formData.echipamentId,
+        echipamentCod: formData.echipamentCod,
+        echipament: formData.echipament,
+        equipmentIds: formData.equipmentIds,
+      })
+      if (!equipmentValidation.valid) {
+        setFieldErrors((prev) => (prev.includes(equipmentValidation.field) ? prev : [...prev, equipmentValidation.field]))
+        toast({
+          title: equipmentValidation.field === "equipmentIds" ? "Revizie incompletă" : "Echipament obligatoriu",
+          description: equipmentValidation.message,
           variant: "destructive",
         })
         return
@@ -318,9 +338,13 @@ export default function Dashboard() {
       })
     } catch (error) {
       console.error("Eroare la adăugarea tichetului:", error)
+      const errorMessage =
+        error instanceof Error && error.message
+          ? error.message
+          : "A apărut o eroare la adăugarea tichetului."
       toast({
         title: "Eroare",
-        description: "A apărut o eroare la adăugarea tichetului.",
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {

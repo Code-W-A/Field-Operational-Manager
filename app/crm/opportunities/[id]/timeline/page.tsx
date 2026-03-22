@@ -95,9 +95,9 @@ function getActivityVisual(activityType: string) {
   return styles[activityType] || { icon: ClipboardList, dotClass: "border-neutral-200 bg-neutral-50 text-neutral-700", lineClass: "bg-neutral-200" }
 }
 
-function renderKeyValueRow(label: string, value: ReactNode) {
+function renderKeyValueRow(label: string, value: ReactNode, rowKey?: string) {
   return (
-    <p className="text-sm text-neutral-700">
+    <p key={rowKey} className="text-sm text-neutral-700">
       <span className="font-medium text-neutral-800">{label}:</span> {value}
     </p>
   )
@@ -173,7 +173,7 @@ function renderActivityContent(
     if (nonEmpty.length === 0) return <p className="text-sm text-neutral-500">Fără detalii suplimentare.</p>
     return (
       <div className="space-y-1.5">
-        {nonEmpty.map(([key, value]) => renderKeyValueRow(fieldLabels[key] || key, mapValue(key, value)))}
+        {nonEmpty.map(([key, value]) => renderKeyValueRow(fieldLabels[key] || key, mapValue(key, value), key))}
       </div>
     )
   }

@@ -31,6 +31,7 @@ import { DataTable } from "@/components/data-table/data-table"
 import { useTablePersistence } from "@/hooks/use-table-persistence"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { WORK_TYPES, WORK_STATUS } from "@/lib/utils/constants"
+import { validateWorkEquipmentForCreation } from "@/lib/utils/work-equipment-validation"
 import { cn } from "@/lib/utils"
 import { doc, getDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
@@ -153,7 +154,7 @@ export default function Lucrari() {
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [fieldErrors, setFieldErrors] = useState([])
+  const [fieldErrors, setFieldErrors] = useState<string[]>([])
   const [activeWorkCount, setActiveWorkCount] = useState(0)
   const [activeWorkEquipmentName, setActiveWorkEquipmentName] = useState("")
   const [activeWorkItems, setActiveWorkItems] = useState<ActiveWorkSummary[]>([])
@@ -164,6 +165,8 @@ export default function Lucrari() {
     tipLucrare: "Tip lucrare",
     client: "Client",
     contract: "Contract",
+    echipament: "Echipament",
+    equipmentIds: "Echipamente revizie",
   }
 
   const missingFieldsMessage =
@@ -1481,6 +1484,25 @@ export default function Lucrari() {
         return
       }
 
+      const equipmentValidation = validateWorkEquipmentForCreation({
+        tipLucrare: formData.tipLucrare,
+        echipamentId: formData.echipamentId,
+        echipamentCod: formData.echipamentCod,
+        echipament: formData.echipament,
+        equipmentIds: formData.equipmentIds,
+      })
+      if (!equipmentValidation.valid) {
+        setFieldErrors((prev) => (prev.includes(equipmentValidation.field) ? prev : [...prev, equipmentValidation.field]))
+        setError(equipmentValidation.message)
+        toast({
+          title: equipmentValidation.field === "equipmentIds" ? "Revizie incompletă" : "Echipament obligatoriu",
+          description: equipmentValidation.message,
+          variant: "destructive",
+        })
+        setIsSubmitting(false)
+        return
+      }
+
       if (!validateForm()) {
         if (!dataInterventie) {
           toast({
@@ -1709,7 +1731,16 @@ export default function Lucrari() {
       })
     } catch (err) {
       console.error("Eroare la adăugarea tichetului:", err)
-      setError("A apărut o eroare la adăugarea tichetului. Încercați din nou.")
+      const errorMessage =
+        err instanceof Error && err.message
+          ? err.message
+          : "A apărut o eroare la adăugarea tichetului. Încercați din nou."
+      setError(errorMessage)
+      toast({
+        title: "Eroare",
+        description: errorMessage,
+        variant: "destructive",
+      })
       setIsSubmitting(false)
     } finally {
       setIsSubmitting(false)

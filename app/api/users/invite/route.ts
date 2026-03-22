@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server"
-import nodemailer from "nodemailer"
-import { getEmailFrom } from "@/lib/email/from"
 import { adminDb } from "@/lib/firebase/admin"
-import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-events.server"
-import { sendMailWithSentCopy } from "@/lib/email/send-with-sent-copy.server"
+import { logEmailEventServer } from "@/lib/email/email-events.server"
+import {
+  InviteStyleEmailSendError,
+  sendInviteStyleEmail,
+} from "@/lib/email/send-invite-style-email.server"
 
 export async function POST(request: Request) {
   // IMPORTANT: Request body can be read only once. Keep a copy for both success + error logging.
@@ -14,92 +15,27 @@ export async function POST(request: Request) {
     body = null
   }
 
-  // Track eventId so we can update it on failures too.
-  let emailEventId: string | null = null
-
+  let lastEmailEventId: string | null = null
   try {
     const { to, subject, content, html, attachments, type } = body || {}
     if (!to || !Array.isArray(to) || to.length === 0) {
       return NextResponse.json({ error: "Destinatari lipsă" }, { status: 400 })
     }
 
-    const smtpUser = process.env.EMAIL_USER || "fom@nrg-acces.ro"
-    const smtpPass = process.env.EMAIL_PASS || "FOM@nrg25"
-    const transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST || "mail.nrg-acces.ro",
-      port: Number(process.env.EMAIL_PORT || 465),
-      secure: true,
-      auth: {
-        user: smtpUser,
-        pass: smtpPass,
-      },
+    const { messageId, emailEventId } = await sendInviteStyleEmail({
+      to: to as string[],
+      subject,
+      content,
+      html,
+      attachments,
+      type,
+      route: "/api/users/invite",
+      flow: String(type || "invite").toLowerCase(),
     })
+    lastEmailEventId = emailEventId
 
-    // Log queued
+    // mark sent on lucrare (portal offer/deviz)
     try {
-      const inferredLucrareId = (Array.isArray((attachments as any)) && (attachments as any)[0]?.lucrareId) || undefined
-      const normalizedType = String(type || "").toUpperCase()
-      const inferredType =
-        normalizedType === "REPORT"
-          ? "REPORT"
-          : normalizedType === "OFFER"
-            ? "OFFER"
-            : normalizedType === "DEVIZ"
-              ? "DEVIZ"
-              : inferredLucrareId
-                ? "OFFER"
-                : "GENERIC"
-
-      emailEventId = await logEmailEventServer({
-        type:
-          inferredType === "REPORT"
-            ? "REPORT"
-            : inferredType === "OFFER"
-              ? "OFFER"
-              : inferredType === "DEVIZ"
-                ? "DEVIZ"
-                : "INVITE",
-        lucrareId: inferredLucrareId,
-        to: (to as string[]) || [],
-        subject: subject || "Email – FOM",
-        status: "queued",
-        provider: "smtp",
-        meta: {
-          route: "/api/users/invite",
-          inviteType: inferredType,
-          attachmentsCount: Array.isArray(attachments) ? attachments.length : 0,
-        },
-      })
-    } catch (error) {
-      console.error("Eroare la logging eveniment email queued:", error)
-    }
-
-    const info = await sendMailWithSentCopy({
-      transporter,
-      smtpAuth: { user: smtpUser, pass: smtpPass },
-      mailOptions: {
-      from: getEmailFrom(),
-      to,
-      subject: subject || "Invitație acces Portal Client – FOM",
-      text: content || "Vă-am creat acces în Portalul Client FOM.",
-      html: html || undefined,
-      attachments: Array.isArray(attachments) ? attachments.map((a: any) => ({
-        filename: String(a?.filename || 'attachment'),
-        content: a?.content,
-        encoding: a?.encoding || undefined,
-        contentType: a?.contentType || undefined,
-      })) : undefined,
-      },
-      imapContext: {
-        route: "/api/users/invite",
-        emailEventId: emailEventId || undefined,
-        flow: String(type || "invite").toLowerCase(),
-      },
-    })
-
-    // mark sent
-    try {
-      if (emailEventId) await updateEmailEventServer(emailEventId, { status: "sent", messageId: info.messageId })
       const lucrareId = (Array.isArray((attachments as any)) && (attachments as any)[0]?.lucrareId) || undefined
       if (lucrareId) {
         const emailStatusField =
@@ -110,7 +46,7 @@ export async function POST(request: Request) {
               sentAt: new Date().toISOString(),
               to: (to as string[]) || [],
               status: "sent",
-              messageId: info.messageId,
+              messageId,
             },
           },
           { merge: true },
@@ -122,27 +58,35 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      messageId: info.messageId,
+      messageId,
       emailEventId,
       acceptedBySmtp: true,
     })
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error("Invite email error", e)
-    
+
+    const smtpError = e instanceof InviteStyleEmailSendError ? e.cause : e
+    const err = smtpError as {
+      message?: string
+      code?: string
+      command?: string
+      response?: string
+      responseCode?: number
+    }
+    const details = {
+      message: err?.message,
+      code: err?.code,
+      command: err?.command,
+      response: err?.response,
+      responseCode: err?.responseCode,
+    }
+
     let errorTo: string[] = []
     let errorSubject = "unknown"
-    const details = {
-      message: e?.message,
-      code: e?.code,
-      command: e?.command,
-      response: e?.response,
-      responseCode: e?.responseCode,
-    }
-    
     try {
       errorTo = Array.isArray(body?.to) ? body.to : []
       errorSubject = body?.subject || "Email – FOM"
-      
+
       const lucrareId = (Array.isArray((body?.attachments as any)) && (body?.attachments as any)[0]?.lucrareId) || undefined
       if (lucrareId) {
         const emailStatusField =
@@ -162,10 +106,11 @@ export async function POST(request: Request) {
       console.error("Eroare la parsarea body pentru logging:", parseError)
     }
 
-    // Mark failed in emailEvents too (if we managed to create it)
+    const failedEventId = e instanceof InviteStyleEmailSendError ? e.emailEventId : lastEmailEventId
+
+    // Fallback log when queued event was never created (helper already marks failed when event exists)
     try {
-      if (emailEventId) await updateEmailEventServer(emailEventId, { status: "failed", error: details.message || String(e) })
-      if (!emailEventId) {
+      if (!failedEventId) {
         await logEmailEventServer({
           type:
             String(body?.type || "").toUpperCase() === "REPORT"
@@ -191,13 +136,16 @@ export async function POST(request: Request) {
     } catch (eventError) {
       console.error("Eroare la update email event failed:", eventError)
     }
-    
-    return NextResponse.json({ 
-      error: "Eroare trimitere email",
-      details,
-      emailEventId,
-      to: errorTo,
-      subject: errorSubject,
-    }, { status: 500 })
+
+    return NextResponse.json(
+      {
+        error: "Eroare trimitere email",
+        details,
+        emailEventId: failedEventId,
+        to: errorTo,
+        subject: errorSubject,
+      },
+      { status: 500 },
+    )
   }
 }

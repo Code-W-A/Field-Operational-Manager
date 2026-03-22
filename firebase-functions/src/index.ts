@@ -1584,6 +1584,19 @@ async function generateRevisionWorks(params: { now: Date; contractId?: string })
           equipmentIdsForWork = fallbackIds.length ? fallbackIds : undefined
         }
 
+        const normalizedEquipmentIdsForWork = Array.isArray(equipmentIdsForWork)
+          ? Array.from(new Set(equipmentIdsForWork.map((id) => String(id || "").trim()).filter(Boolean)))
+          : []
+        if (normalizedEquipmentIdsForWork.length === 0) {
+          console.warn("generateRevisionWorks: skip create due to missing equipments", {
+            contractId: contract.id,
+            locationId: entry.locationId,
+            locationName: entry.locationName,
+            scheduledIso,
+          })
+          continue
+        }
+
         const payload = createWorkPayload({
           contract,
           clientName: clientPayload.name,
@@ -1592,7 +1605,7 @@ async function generateRevisionWorks(params: { now: Date; contractId?: string })
           locationName: entry.locationName,
           scheduledDate: entry.scheduledAt,
           nrLucrare,
-          equipmentIds: equipmentIdsForWork,
+          equipmentIds: normalizedEquipmentIdsForWork,
         })
 
       // Safety net: chiar dacă o altă bucată de cod ar crea prematur, UI va ascunde lucrarea până la generateAt.

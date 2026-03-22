@@ -16,6 +16,7 @@ import { sendWorkOrderNotifications } from "@/components/work-order-notification
 import { useAuth } from "@/contexts/AuthContext"
 import { Check, Mail, AlertCircle, RefreshCw } from "lucide-react"
 import { WORK_STATUS, INVOICE_STATUS } from "@/lib/utils/constants"
+import { validateWorkEquipmentForCreation } from "@/lib/utils/work-equipment-validation"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { getRevisionChecklistOnce } from "@/lib/revisions/checklist"
 import type { WorkRevisionMeta } from "@/types/revision"
@@ -81,6 +82,7 @@ export default function NewLucrarePage() {
         statusFacturare: INVOICE_STATUS.NOT_INVOICED,
         persoaneContact: [] as PersoanaContact[],
         echipamentId: "",
+        equipmentIds: [] as string[],
       }
       
       // Parsăm tehnicienii din JSON
@@ -165,6 +167,7 @@ export default function NewLucrarePage() {
     } else {
       const equipmentId = String(payload.echipamentId || "").trim()
       const equipmentCod = String(payload.echipamentCod || "").trim()
+      const equipmentName = String(payload.echipament || "").trim()
 
       if (equipmentId) {
         const snap = await getDocs(query(collection(db, "lucrari"), where("echipamentId", "==", equipmentId)))
@@ -176,6 +179,14 @@ export default function NewLucrarePage() {
 
       if (results.length === 0 && equipmentCod) {
         const snap = await getDocs(query(collection(db, "lucrari"), where("echipamentCod", "==", equipmentCod)))
+        snap.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() }))
+          .filter(isActive)
+          .forEach((work) => results.push(work))
+      }
+
+      if (results.length === 0 && !equipmentId && !equipmentCod && equipmentName) {
+        const snap = await getDocs(query(collection(db, "lucrari"), where("echipament", "==", equipmentName)))
         snap.docs
           .map((doc) => ({ id: doc.id, ...doc.data() }))
           .filter(isActive)
@@ -205,6 +216,22 @@ export default function NewLucrarePage() {
         ...(dataFromForm && typeof dataFromForm === "object" ? dataFromForm : {}),
         dataEmiterii: currentDateTime.toISOString(),
         dataInterventie: dataInterventie.toISOString(),
+      }
+
+      const equipmentValidation = validateWorkEquipmentForCreation({
+        tipLucrare: newWorkOrderData.tipLucrare,
+        echipamentId: newWorkOrderData.echipamentId,
+        echipamentCod: newWorkOrderData.echipamentCod,
+        echipament: newWorkOrderData.echipament,
+        equipmentIds: newWorkOrderData.equipmentIds,
+      })
+      if (!equipmentValidation.valid) {
+        toast({
+          title: equipmentValidation.field === "equipmentIds" ? "Revizie incompletă" : "Echipament obligatoriu",
+          description: equipmentValidation.message,
+          variant: "destructive",
+        })
+        return
       }
 
       // Blocăm crearea dacă există deja tichete active pe echipamentul selectat
@@ -363,9 +390,13 @@ export default function NewLucrarePage() {
       router.back()
     } catch (error) {
       console.error("Eroare la adăugarea tichetului:", error)
+      const errorMessage =
+        error instanceof Error && error.message
+          ? error.message
+          : "A apărut o eroare la adăugarea tichetului. Vă rugăm să încercați din nou."
       toast({
         title: "Eroare",
-        description: "A apărut o eroare la adăugarea tichetului. Vă rugăm să încercați din nou.",
+        description: errorMessage,
         variant: "destructive",
         icon: <AlertCircle className="h-4 w-4" />,
       })

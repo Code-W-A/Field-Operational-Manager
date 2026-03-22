@@ -5,6 +5,7 @@ import { type User, onAuthStateChanged, signOut } from "firebase/auth"
 import { doc, getDoc } from "firebase/firestore"
 import { auth, db } from "@/lib/firebase/config"
 import type { UserData } from "@/lib/firebase/auth"
+import { clearServerSessionCookie, syncServerSessionCookie } from "@/lib/auth/sync-server-session"
 import { useMockData } from "./MockDataContext"
 import { toast } from "@/hooks/use-toast"
 
@@ -182,6 +183,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(user)
 
       if (user) {
+        if (!isPreview) {
+          await syncServerSessionCookie(user)
+        }
         try {
           console.log("Fetching user data for:", user.uid)
           const docRef = doc(db, "users", user.uid)
@@ -208,6 +212,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           console.error("Eroare la obținerea datelor utilizatorului:", error)
         }
       } else {
+        if (!isPreview) {
+          void clearServerSessionCookie()
+        }
         setUserData(null)
         // Clear all timers when user logs out
         cleanupTimers()

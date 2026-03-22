@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
   let emailEventId: string | null = null
 
   try {
-    const session = await requireRole(["admin", "dispecer"])
+    const session = await requireRole(["admin", "dispecer"], request)
     if (!session.uid) {
       return NextResponse.json({ error: "Sesiune invalidă sau expirată." }, { status: 401 })
     }

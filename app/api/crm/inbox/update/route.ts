@@ -8,7 +8,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   try {
-    const session = await requireRole(["admin", "dispecer", "tehnician"])
+    const session = await requireRole(["admin", "dispecer", "tehnician"], request)
 
     let body: unknown
     try {

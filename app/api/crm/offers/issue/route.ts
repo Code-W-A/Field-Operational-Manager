@@ -2,12 +2,11 @@ import { NextResponse, type NextRequest } from "next/server"
 import { FieldValue, Timestamp } from "firebase-admin/firestore"
 import { requireRole, RequireRoleError } from "@/lib/auth/require-role"
 import { adminDb } from "@/lib/firebase/admin"
+import { logFirestoreIndexHintIfPresent } from "@/lib/firebase/firestore-index-hint.server"
 import { CRM_COLLECTIONS, CRM_PIPELINE_STAGE_LABELS, isPipelineStageAllowedForOpportunityType } from "@/lib/crm/constants"
 import { hasOpportunityEditAccess } from "@/lib/crm/access"
 import { getEmailFrom } from "@/lib/email/from"
-import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-events.server"
-import { sendMailWithSentCopy } from "@/lib/email/send-with-sent-copy.server"
-import { createConfiguredSmtpTransport } from "@/lib/email/smtp.server"
+import { sendInviteStyleEmail } from "@/lib/email/send-invite-style-email.server"
 import type { CrmOfferSnapshot } from "@/lib/crm/types"
 
 function normalizeString(value: unknown) {
@@ -167,9 +166,8 @@ async function updateOpportunityStageForOffer(params: {
 }
 
 export async function POST(request: NextRequest) {
-  let emailEventId: string | null = null
   try {
-    const session = await requireRole(["admin", "dispecer"])
+    const session = await requireRole(["admin", "dispecer"], request)
     if (!session.uid) {
       return NextResponse.json({ error: "Sesiune invalidă sau expirată." }, { status: 401 })
     }
@@ -249,52 +247,31 @@ export async function POST(request: NextRequest) {
       version,
     })
 
-    const { transporter, auth } = createConfiguredSmtpTransport()
-    emailEventId = await logEmailEventServer({
-      type: "OFFER",
+    const { messageId } = await sendInviteStyleEmail({
       to: [recipientEmail],
       subject,
-      status: "queued",
-      provider: "smtp",
-      meta: {
-        route: "/api/crm/offers/issue",
+      content: `${message}\n\nAccept: ${acceptUrl}\nRefuz: ${rejectUrl}`,
+      html,
+      type: "OFFER",
+      route: "/api/crm/offers/issue",
+      flow: "crm_offer_issue",
+      replyTo: actorEmail || undefined,
+      metaExtra: {
         opportunityId,
         offerId,
         version,
         actorId,
       },
+      attachments: attachmentBase64
+        ? [
+            {
+              filename: pdfFilename,
+              content: Buffer.from(attachmentBase64, "base64"),
+              contentType: pdfMime,
+            },
+          ]
+        : undefined,
     })
-
-    const info = await sendMailWithSentCopy({
-      transporter,
-      smtpAuth: auth,
-      mailOptions: {
-        from: getEmailFrom(),
-        replyTo: actorEmail || undefined,
-        to: [recipientEmail],
-        subject,
-        text: `${message}\n\nAccept: ${acceptUrl}\nRefuz: ${rejectUrl}`,
-        html,
-        attachments: attachmentBase64
-          ? [
-              {
-                filename: pdfFilename,
-                content: Buffer.from(attachmentBase64, "base64"),
-                contentType: pdfMime,
-              },
-            ]
-          : undefined,
-      },
-      imapContext: {
-        route: "/api/crm/offers/issue",
-        emailEventId: emailEventId || undefined,
-        flow: "crm_offer_issue",
-      },
-    })
-
-    if (emailEventId) {
-      await updateEmailEventServer(emailEventId, { status: "sent", messageId: info.messageId })
-    }
 
     const now = new Date()
     await existingDraftRef.set(
@@ -372,20 +349,15 @@ export async function POST(request: NextRequest) {
       offerId,
       version,
       publicUrl: `${baseUrl}/offer/crm/${encodeURIComponent(offerId)}?t=${encodeURIComponent(token)}&action=accept`,
-      messageId: info.messageId,
+      messageId,
       sentAt: now.toISOString(),
       actorName,
     })
   } catch (error: unknown) {
-    if (emailEventId) {
-      await updateEmailEventServer(emailEventId, {
-        status: "failed",
-        error: error instanceof Error ? error.message : String(error),
-      }).catch(() => {})
-    }
     if (error instanceof RequireRoleError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
+    logFirestoreIndexHintIfPresent(error, "POST /api/crm/offers/issue")
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Nu s-a putut emite oferta." },
       { status: 500 }

@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const session = await requireRole(["admin", "dispecer", "tehnician"])
+    const session = await requireRole(["admin", "dispecer", "tehnician"], request)
     if (!session.uid) {
       return NextResponse.json({ error: "Sesiune invalidă sau expirată." }, { status: 401 })
     }

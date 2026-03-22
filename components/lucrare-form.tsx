@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { INVOICE_STATUS_OPTIONS, WORK_TYPE_OPTIONS, WORK_TYPES } from "@/lib/utils/constants"
 import { getWorkStatusClass } from "@/lib/utils/status-classes"
+import { validateWorkEquipmentForCreation } from "@/lib/utils/work-equipment-validation"
 // Adăugăm importurile pentru calcularea garanției
 import { calculateWarranty, getWarrantyDisplayInfo, updateWorkOrderWarrantyInfo } from "@/lib/utils/warranty-calculator"
 import { DynamicDialogFields } from "@/components/DynamicDialogFields"
@@ -769,7 +770,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     }
 
     // Funcție pentru verificarea lucrărilor existente pe echipament
-    const checkExistingWorkOrders = async (equipmentId: string, equipmentCod: string) => {
+    const checkExistingWorkOrders = async (equipmentId: string, equipmentCod: string, equipmentName?: string) => {
       if (isEdit) return [] as ActiveWorkSummary[] // Nu verificăm la editare, doar la creare
       
       setCheckingEquipment(true)
@@ -824,6 +825,15 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           )
           const codSnapshot = await getDocs(lucrariByCodQuery)
           addSnapshotToMap(codSnapshot)
+        }
+
+        if (equipmentName && byId.size === 0 && !equipmentId && !equipmentCod) {
+          const lucrariByNameQuery = query(
+            collection(db, "lucrari"),
+            where("echipament", "==", equipmentName)
+          )
+          const nameSnapshot = await getDocs(lucrariByNameQuery)
+          addSnapshotToMap(nameSnapshot)
         }
 
         const existingWorks = Array.from(byId.values())
@@ -1502,19 +1512,29 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         return
       }
 
-      // Guard (safety): nu permitem salvarea cu echipament "textual" fără ID,
-      // și nici cu ID care nu mai există în lista locației curente.
-      const hasAnyEquipmentInput = Boolean(formData.echipament || formData.echipamentCod || formData.echipamentId)
-      if (formData.tipLucrare !== "Revizie" && hasAnyEquipmentInput) {
-        if (!formData.echipamentId) {
-          setError("Selectați echipamentul din listă (lipsește ID-ul echipamentului).")
-          toast({
-            title: "Echipament invalid",
-            description: "Pentru siguranță, nu putem salva fără un echipament selectat explicit din listă.",
-            variant: "destructive",
-          })
-          return
+      const equipmentValidation = validateWorkEquipmentForCreation({
+        tipLucrare: formData.tipLucrare,
+        echipamentId: formData.echipamentId,
+        echipamentCod: formData.echipamentCod,
+        echipament: formData.echipament,
+        equipmentIds: (formData as any).equipmentIds,
+      })
+      if (!equipmentValidation.valid) {
+        setError(equipmentValidation.message)
+        if (setFieldErrors) {
+          const next = Array.from(new Set([...(fieldErrors || []), equipmentValidation.field]))
+          setFieldErrors(next)
         }
+        toast({
+          title: equipmentValidation.field === "equipmentIds" ? "Revizie incompletă" : "Echipament obligatoriu",
+          description: equipmentValidation.message,
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Guard (safety): dacă avem ID de echipament, acesta trebuie să fie valid în locația curentă.
+      if (formData.tipLucrare !== "Revizie" && formData.echipamentId) {
         const match = availableEquipments.find((e) => e.id === formData.echipamentId)
         if (!match) {
           setError("Echipamentul selectat nu mai este valid pentru locația curentă. Re-selectați echipamentul.")
@@ -1540,11 +1560,12 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       if (!isEdit && formData.tipLucrare !== "Revizie") {
         const equipmentId = String(formData.echipamentId || "")
         const equipmentCod = String(formData.echipamentCod || "")
+        const equipmentName = String(formData.echipament || "")
         const currentExisting =
           existingWorkOnEquipment.length > 0
             ? existingWorkOnEquipment
-            : (equipmentId || equipmentCod)
-              ? await checkExistingWorkOrders(equipmentId, equipmentCod)
+            : (equipmentId || equipmentCod || equipmentName)
+              ? await checkExistingWorkOrders(equipmentId, equipmentCod, equipmentName)
               : []
         if (currentExisting.length > 0) {
           setError("Nu puteți crea o tichet nouă pe acest echipament. Există deja tichete active pe acest echipament.")

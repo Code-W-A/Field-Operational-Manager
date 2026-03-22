@@ -21,6 +21,7 @@ import { trackLucrareUpdate } from "@/lib/utils/work-modifications-tracker"
 import { getLucrareTitle } from "@/lib/utils/work-modifications-tracker"
 import type { WorkRevisionMeta } from "@/types/revision"
 import { ensureClientContactIds } from "@/lib/client-contacts"
+import { validateWorkEquipmentForCreation } from "@/lib/utils/work-equipment-validation"
 
 export interface PersoanaContact {
   id?: string
@@ -1091,6 +1092,17 @@ export const getLucrareById = async (id: string) => {
 
 // Add a new work order
 export const addLucrare = async (lucrare: Lucrare) => {
+  const equipmentValidation = validateWorkEquipmentForCreation({
+    tipLucrare: lucrare?.tipLucrare,
+    echipamentId: (lucrare as any)?.echipamentId,
+    echipamentCod: (lucrare as any)?.echipamentCod,
+    echipament: lucrare?.echipament,
+    equipmentIds: (lucrare as any)?.equipmentIds,
+  })
+  if (!equipmentValidation.valid) {
+    throw new Error(equipmentValidation.message)
+  }
+
   const lucrariCollection = collection(db, "lucrari")
   // Best-effort: derive stable IDs from clientInfo snapshot if present (backward compatible)
   try {

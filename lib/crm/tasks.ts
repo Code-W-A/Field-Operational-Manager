@@ -1289,6 +1289,7 @@ export async function createCrmEmail(input: CreateEmailInput) {
 export async function sendCrmOpportunityEmail(input: SendCrmOpportunityEmailInput) {
   const response = await fetch("/api/crm/opportunities/send-email", {
     method: "POST",
+    credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
     },

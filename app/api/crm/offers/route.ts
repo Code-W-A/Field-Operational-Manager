@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { FieldValue } from "firebase-admin/firestore"
 import { requireRole, RequireRoleError } from "@/lib/auth/require-role"
 import { adminDb } from "@/lib/firebase/admin"
+import { logFirestoreIndexHintIfPresent } from "@/lib/firebase/firestore-index-hint.server"
 import { CRM_COLLECTIONS } from "@/lib/crm/constants"
 import { hasOpportunityEditAccess, hasOpportunityViewAccess } from "@/lib/crm/access"
 import type { CrmOfferProduct, CrmOfferSnapshot } from "@/lib/crm/types"
@@ -186,7 +187,7 @@ async function getNextOfferVersion(opportunityId: string) {
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireRole(["admin", "dispecer", "tehnician"])
+    const session = await requireRole(["admin", "dispecer", "tehnician"], request)
     if (!session.uid) {
       return NextResponse.json({ error: "Sesiune invalidă sau expirată." }, { status: 401 })
     }
@@ -220,6 +221,7 @@ export async function GET(request: NextRequest) {
     if (error instanceof RequireRoleError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
+    logFirestoreIndexHintIfPresent(error, "GET /api/crm/offers")
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Nu s-au putut încărca ofertele." },
       { status: 500 }
@@ -229,7 +231,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await requireRole(["admin", "dispecer"])
+    const session = await requireRole(["admin", "dispecer"], request)
     if (!session.uid) {
       return NextResponse.json({ error: "Sesiune invalidă sau expirată." }, { status: 401 })
     }
@@ -321,6 +323,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof RequireRoleError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
+    logFirestoreIndexHintIfPresent(error, "POST /api/crm/offers")
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Nu s-a putut salva draftul." },
       { status: 500 }

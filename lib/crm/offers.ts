@@ -1,4 +1,12 @@
+import { auth } from "@/lib/firebase/config"
 import type { CrmOffer, IssueCrmOfferInput, SaveCrmOfferDraftInput } from "@/lib/crm/types"
+
+async function firebaseBearerHeader(): Promise<Record<string, string>> {
+  const user = auth.currentUser
+  if (!user) return {}
+  const token = await user.getIdToken()
+  return { Authorization: `Bearer ${token}` }
+}
 
 function normalizeOfferStatus(value: unknown): CrmOffer["status"] {
   if (value === "DRAFT" || value === "SENT" || value === "ACCEPTED" || value === "REJECTED" || value === "EXPIRED") {
@@ -50,6 +58,8 @@ export async function listCrmOffers(opportunityId: string) {
   const response = await fetch(`/api/crm/offers?${query.toString()}`, {
     method: "GET",
     cache: "no-store",
+    credentials: "same-origin",
+    headers: await firebaseBearerHeader(),
   })
 
   const data = (await response.json().catch(() => null)) as
@@ -72,7 +82,8 @@ export async function saveCrmOfferDraft(input: SaveCrmOfferDraftInput) {
 
   const response = await fetch("/api/crm/offers", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json", ...(await firebaseBearerHeader()) },
     body: JSON.stringify({
       offerId: input.offerId,
       opportunityId: input.opportunityId,
@@ -100,9 +111,13 @@ export async function saveCrmOfferDraft(input: SaveCrmOfferDraftInput) {
 }
 
 export async function issueCrmOffer(input: IssueCrmOfferInput) {
+  if (!auth.currentUser) {
+    throw new Error("Trebuie să fii autentificat pentru a emite oferta.")
+  }
   const response = await fetch("/api/crm/offers/issue", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json", ...(await firebaseBearerHeader()) },
     body: JSON.stringify(input),
   })
 

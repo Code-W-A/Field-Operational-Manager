@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const session = await requireRole(["admin", "dispecer", "tehnician"])
+    const session = await requireRole(["admin", "dispecer", "tehnician"], request)
     const searchParams = request.nextUrl.searchParams
     const status = validateStatus(searchParams.get("status"))
     const category = validateCategory(searchParams.get("category"))
