@@ -15,6 +15,7 @@ const MAX_WORKS_PER_RUN = 200
 type CrmTaskNotifyEventType = "assigned" | "reassigned" | "reminder_15m"
 type CrmInternalNoteNotifyEventType = "created" | "overdue_daily"
 type CrmInternalThreadMessageNotifyEventType = "created" | "overdue_daily"
+type HrRequestReminderEventType = "weekly_pending" | "day_before_start"
 
 // =========================
 // HR Requests → Timesheets
@@ -1027,7 +1028,7 @@ function kindLabel(kind: HrRequestKind) {
 function statusLabel(status: HrRequestStatus) {
   if (status === "approved") return "Aprobat"
   if (status === "rejected") return "Respins"
-  return "Pending"
+  return "În așteptare"
 }
 
 function requestDateLabel(req: HrRequest) {
@@ -1036,6 +1037,287 @@ function requestDateLabel(req: HrRequest) {
   if (p?.date && p?.startTime && p?.endTime) return `${p.date} • ${p.startTime}–${p.endTime}`
   if (p?.date) return String(p.date)
   return "—"
+}
+
+function getAppBaseUrl() {
+  const cfg: any = (functions as any).config?.() ?? {}
+  const fromEnv = process.env.APP_BASE_URL || process.env.CRM_APP_BASE_URL || cfg.app?.base_url || cfg.crm?.base_url
+  let base = String(fromEnv || "").trim().replace(/\/+$/, "")
+  if (!base) {
+    base = "https://fom.nrg-acces.ro"
+  } else if (!base.startsWith("http://") && !base.startsWith("https://")) {
+    base = `https://${base}`
+  }
+  return base
+}
+
+function formatRoDateKey(dateKey: string | null | undefined) {
+  const value = String(dateKey || "").trim()
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return value || "—"
+  return `${match[3]}.${match[2]}.${match[1]}`
+}
+
+function dateKeyToUtcMs(dateKey: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateKey || "").trim())
+  if (!match) return null
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null
+  return Date.UTC(year, month - 1, day, 12, 0, 0, 0)
+}
+
+function addDaysToDateKey(dateKey: string, days: number) {
+  const baseMs = dateKeyToUtcMs(dateKey)
+  if (baseMs == null || !Number.isFinite(days)) return null
+  const shifted = new Date(baseMs)
+  shifted.setUTCDate(shifted.getUTCDate() + days)
+  const year = shifted.getUTCFullYear()
+  const month = String(shifted.getUTCMonth() + 1).padStart(2, "0")
+  const day = String(shifted.getUTCDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+function diffDateKeysInDays(startDateKey: string, endDateKey: string) {
+  const startMs = dateKeyToUtcMs(startDateKey)
+  const endMs = dateKeyToUtcMs(endDateKey)
+  if (startMs == null || endMs == null) return null
+  return Math.round((endMs - startMs) / (24 * 60 * 60 * 1000))
+}
+
+function isHrRequestReminderEligibleKind(kind: HrRequestKind) {
+  return kind === "CO" || kind === "CFP" || kind === "CM" || kind === "DEL" || kind === "IN"
+}
+
+function hrRequestStartDateKey(req: HrRequest) {
+  const payload: any = req.payload ?? {}
+  if (req.kind === "IN") {
+    const date = String(payload?.date || "").trim()
+    return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null
+  }
+  if (req.kind === "CO" || req.kind === "CFP" || req.kind === "CM" || req.kind === "DEL") {
+    const startDate = String(payload?.startDate || "").trim()
+    return /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? startDate : null
+  }
+  return null
+}
+
+function hrRequestReminderEventKey(params: {
+  eventType: HrRequestReminderEventType
+  requestId: string
+  weekNumber?: number | null
+  startDateKey?: string | null
+}) {
+  if (params.eventType === "day_before_start") {
+    return `hr_request_day_before:${params.requestId}:${params.startDateKey || "no_start_date"}`
+  }
+  return `hr_request_pending_weekly:${params.requestId}:${params.weekNumber || "no_week"}`
+}
+
+async function hasQueuedOrSentHrRequestReminderEvent(eventKey: string) {
+  const rows = await db.collection("emailEvents").where("meta.hrRequestReminderEventKey", "==", eventKey).limit(20).get()
+  return rows.docs.some((snap) => {
+    const status = String(snap.data()?.status || "")
+    return status === "queued" || status === "sent"
+  })
+}
+
+async function logHrRequestReminderEmailEvent(params: {
+  to: string[]
+  subject: string
+  status: "queued" | "sent" | "failed" | "skipped"
+  error?: string
+  meta: Record<string, unknown>
+}) {
+  const ref = await db.collection("emailEvents").add({
+    type: "HR_REQUEST_REMINDER",
+    to: params.to,
+    subject: params.subject,
+    status: params.status,
+    provider: "smtp",
+    ...(params.error ? { error: params.error } : {}),
+    meta: params.meta,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  })
+  return ref.id
+}
+
+async function updateHrRequestReminderEmailEvent(
+  eventId: string,
+  patch: { status?: "sent" | "failed"; error?: string; meta?: Record<string, unknown> }
+) {
+  await db.collection("emailEvents").doc(eventId).set(
+    {
+      ...(patch.status ? { status: patch.status } : {}),
+      ...(patch.error ? { error: patch.error } : {}),
+      ...(patch.meta ? { meta: patch.meta } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  )
+}
+
+async function dispatchHrRequestPendingReminder(params: {
+  requestId: string
+  eventType: HrRequestReminderEventType
+  todayDateKey: string
+  weekNumber?: number | null
+}) {
+  const requestId = String(params.requestId || "").trim()
+  if (!requestId) return { ok: false, skipped: true as const, reason: "missing_request_id" }
+
+  const snap = await db.collection("hrRequests").doc(requestId).get()
+  if (!snap.exists) return { ok: false, skipped: true as const, reason: "request_not_found" }
+
+  const data = snap.data() as any
+  const req: HrRequest = {
+    employeeId: String(data?.employeeId || ""),
+    employeeName: data?.employeeName ? String(data.employeeName) : undefined,
+    requesterUid: String(data?.requesterUid || ""),
+    sectorId: String(data?.sectorId || ""),
+    managerUid: String(data?.managerUid || ""),
+    kind: String(data?.kind || "") as HrRequestKind,
+    status: String(data?.status || "pending") as HrRequestStatus,
+    payload: data?.payload ?? {},
+    rejectionReason: data?.rejectionReason ?? null,
+  }
+
+  if (req.status !== "pending") {
+    return { ok: true, skipped: true as const, reason: "status_not_pending" }
+  }
+  if (!isHrRequestReminderEligibleKind(req.kind)) {
+    return { ok: true, skipped: true as const, reason: "kind_not_eligible" }
+  }
+
+  const startDateKey = hrRequestStartDateKey(req)
+  if (!startDateKey) {
+    return { ok: true, skipped: true as const, reason: "missing_start_date" }
+  }
+
+  const createdAtMs = crmDateToMs(data?.createdAt)
+  if (!createdAtMs) {
+    return { ok: true, skipped: true as const, reason: "missing_created_at" }
+  }
+
+  const createdDateKey = formatDateKeyInTimeZone(createdAtMs, TIMEZONE)
+  const daysPending = diffDateKeysInDays(createdDateKey, params.todayDateKey)
+  if (daysPending == null || daysPending < 0) {
+    return { ok: true, skipped: true as const, reason: "invalid_pending_age" }
+  }
+
+  const eventKey = hrRequestReminderEventKey({
+    eventType: params.eventType,
+    requestId,
+    weekNumber: params.weekNumber ?? null,
+    startDateKey,
+  })
+  if (await hasQueuedOrSentHrRequestReminderEvent(eventKey)) {
+    return { ok: true, skipped: true as const, reason: "already_sent_or_queued" }
+  }
+
+  const manager = await getUserEmail(req.managerUid)
+  const managerEmail = String(manager.email || "").trim().toLowerCase()
+  if (!isValidEmail(managerEmail)) {
+    await logHrRequestReminderEmailEvent({
+      to: [],
+      subject: `HR request reminder skipped (${requestId})`,
+      status: "skipped",
+      meta: {
+        eventType: params.eventType,
+        requestId,
+        managerUid: req.managerUid || null,
+        reason: "no_valid_manager_email",
+        hrRequestReminderEventKey: eventKey,
+      },
+    })
+    return { ok: true, skipped: true as const, reason: "no_valid_manager_email" }
+  }
+
+  const approvalsUrl = `${getAppBaseUrl()}/dashboard/cereri-aprobari`
+  const employeeName = req.employeeName || req.employeeId || "—"
+  const title = `${kindLabel(req.kind)} • ${requestDateLabel(req)}`
+  const managerLabel = manager.displayName || managerEmail
+  const subject =
+    params.eventType === "day_before_start"
+      ? `Reminder urgent aprobare cerere: ${title}`
+      : `Reminder aprobare cerere în așteptare: ${title}`
+  const intro =
+    params.eventType === "day_before_start"
+      ? "Cererea de mai jos începe mâine și este încă în așteptare."
+      : `Cererea de mai jos este încă în așteptare de ${daysPending} zile.`
+  const details =
+    `Aprobator: ${managerLabel}\n` +
+    `Angajat: ${employeeName}\n` +
+    `Tip: ${kindLabel(req.kind)}\n` +
+    `Perioadă/zi: ${requestDateLabel(req)}\n` +
+    `Status: ${statusLabel(req.status)}\n` +
+    `Creată la: ${formatRoDateKey(createdDateKey)}\n` +
+    `Începe la: ${formatRoDateKey(startDateKey)}\n`
+  const text = `${intro}\n\n${details}\nDeschide aplicația: ${approvalsUrl}\n`
+  const html = `
+    <div style="background:#f1f5f9;padding:24px 12px;font-family:Arial,sans-serif;color:#0f172a;">
+      <div style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+        <div style="padding:18px 20px;background:#0f172a;color:#ffffff;">
+          <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.8;">Reminder HR</div>
+          <h2 style="margin:6px 0 4px;font-size:20px;line-height:1.3;">${escapeHtml(subject)}</h2>
+          <p style="margin:0;font-size:13px;opacity:.9;">${escapeHtml(intro)}</p>
+        </div>
+        <div style="padding:20px;">
+          <div style="border:1px solid #e2e8f0;border-radius:10px;padding:14px 14px 10px;">
+            <p style="margin:0;font-size:13px;color:#334155;"><strong>Angajat:</strong> ${escapeHtml(employeeName)}</p>
+            <p style="margin:6px 0 0;font-size:13px;color:#334155;"><strong>Tip:</strong> ${escapeHtml(kindLabel(req.kind))}</p>
+            <p style="margin:6px 0 0;font-size:13px;color:#334155;"><strong>Perioadă/zi:</strong> ${escapeHtml(requestDateLabel(req))}</p>
+            <p style="margin:6px 0 0;font-size:13px;color:#334155;"><strong>Status:</strong> ${escapeHtml(statusLabel(req.status))}</p>
+            <p style="margin:6px 0 0;font-size:13px;color:#334155;"><strong>Creată la:</strong> ${escapeHtml(formatRoDateKey(createdDateKey))}</p>
+            <p style="margin:6px 0 0;font-size:13px;color:#334155;"><strong>Începe la:</strong> ${escapeHtml(formatRoDateKey(startDateKey))}</p>
+          </div>
+          <div style="margin-top:16px;">
+            <a href="${escapeHtml(approvalsUrl)}" style="display:inline-block;padding:11px 16px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;">
+              Deschide aprobările
+            </a>
+          </div>
+          <p style="margin:14px 0 0;font-size:12px;color:#64748b;">
+            Dacă butonul nu funcționează, deschide manual: ${escapeHtml(approvalsUrl)}
+          </p>
+        </div>
+      </div>
+    </div>
+  `
+
+  const emailEventId = await logHrRequestReminderEmailEvent({
+    to: [managerEmail],
+    subject,
+    status: "queued",
+    meta: {
+      eventType: params.eventType,
+      requestId,
+      managerUid: req.managerUid || null,
+      hrRequestReminderEventKey: eventKey,
+      todayDateKey: params.todayDateKey,
+      weekNumber: params.weekNumber ?? null,
+      daysPending,
+      startDateKey,
+    },
+  })
+
+  try {
+    await smtpSendMail({
+      to: managerEmail,
+      subject,
+      text,
+      html,
+    })
+    await updateHrRequestReminderEmailEvent(emailEventId, { status: "sent" })
+    return { ok: true, skipped: false as const, sentCount: 1 }
+  } catch (error: any) {
+    await updateHrRequestReminderEmailEvent(emailEventId, {
+      status: "failed",
+      error: String(error?.message || error || "unknown"),
+    })
+    return { ok: false, skipped: false as const, reason: "send_failed" }
+  }
 }
 
 type TimesheetCell = {
@@ -1964,6 +2246,109 @@ export const sendCrmInternalThreadOverdueDailyReminders = functions
       })
     } catch (error) {
       console.error("sendCrmInternalThreadOverdueDailyReminders failed", error)
+    }
+
+    return null
+  })
+
+export const sendHrRequestPendingApprovalReminders = functions
+  .region(REGION)
+  .pubsub.schedule("0 8 * * *")
+  .timeZone(TIMEZONE)
+  .onRun(async () => {
+    const nowMs = Date.now()
+    const todayDateKey = formatDateKeyInTimeZone(nowMs, TIMEZONE)
+
+    let checked = 0
+    let dueWeekly = 0
+    let dueDayBefore = 0
+    let skipped = 0
+    let dispatched = 0
+
+    try {
+      const rows = await db.collection("hrRequests").where("status", "==", "pending").limit(500).get()
+
+      for (const row of rows.docs) {
+        checked += 1
+        const data = row.data() as any
+        const kind = String(data?.kind || "") as HrRequestKind
+        if (!isHrRequestReminderEligibleKind(kind)) {
+          skipped += 1
+          continue
+        }
+
+        const req: HrRequest = {
+          employeeId: String(data?.employeeId || ""),
+          employeeName: data?.employeeName ? String(data.employeeName) : undefined,
+          requesterUid: String(data?.requesterUid || ""),
+          sectorId: String(data?.sectorId || ""),
+          managerUid: String(data?.managerUid || ""),
+          kind,
+          status: "pending",
+          payload: data?.payload ?? {},
+          rejectionReason: data?.rejectionReason ?? null,
+        }
+
+        const startDateKey = hrRequestStartDateKey(req)
+        if (!startDateKey) {
+          skipped += 1
+          continue
+        }
+
+        const createdAtMs = crmDateToMs(data?.createdAt)
+        if (!createdAtMs) {
+          skipped += 1
+          continue
+        }
+
+        const createdDateKey = formatDateKeyInTimeZone(createdAtMs, TIMEZONE)
+        const daysPending = diffDateKeysInDays(createdDateKey, todayDateKey)
+        if (daysPending == null || daysPending < 0) {
+          skipped += 1
+          continue
+        }
+
+        const dayBeforeDateKey = addDaysToDateKey(startDateKey, -1)
+        if (dayBeforeDateKey === todayDateKey) {
+          dueDayBefore += 1
+          const result = await dispatchHrRequestPendingReminder({
+            requestId: row.id,
+            eventType: "day_before_start",
+            todayDateKey,
+          })
+          if (result.ok && !result.skipped) {
+            dispatched += 1
+          }
+          continue
+        }
+
+        if (daysPending >= 7 && daysPending % 7 === 0) {
+          dueWeekly += 1
+          const result = await dispatchHrRequestPendingReminder({
+            requestId: row.id,
+            eventType: "weekly_pending",
+            todayDateKey,
+            weekNumber: Math.floor(daysPending / 7),
+          })
+          if (result.ok && !result.skipped) {
+            dispatched += 1
+          }
+          continue
+        }
+
+        skipped += 1
+      }
+
+      console.log("sendHrRequestPendingApprovalReminders completed", {
+        checked,
+        dueWeekly,
+        dueDayBefore,
+        skipped,
+        dispatched,
+        todayDateKey,
+      })
+    } catch (error) {
+      console.error("sendHrRequestPendingApprovalReminders failed", error)
     }
 
     return null

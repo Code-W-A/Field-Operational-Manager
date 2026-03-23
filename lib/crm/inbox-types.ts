@@ -103,6 +103,7 @@ export interface CrmInboxIngestResult {
   inserted: number
   updated: number
   skipped: number
+  autoLinked: number
   errors: Array<{ index: number; reason: string }>
 }
 

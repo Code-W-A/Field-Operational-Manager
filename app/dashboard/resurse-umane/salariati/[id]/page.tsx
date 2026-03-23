@@ -18,7 +18,23 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, BarChart3, Calendar, CalendarCheck, CalendarDays, Clock, ClipboardList, Link2, Pencil, Plus, TrendingUp, User, UserCheck, UserRound } from "lucide-react"
+import {
+  ArrowLeft,
+  BarChart3,
+  Calendar,
+  CalendarCheck,
+  CalendarDays,
+  Clock,
+  ClipboardList,
+  Link2,
+  Pencil,
+  Plus,
+  Trash2,
+  TrendingUp,
+  User,
+  UserCheck,
+  UserRound,
+} from "lucide-react"
 
 import type { Department, Employee, HrRequest, TimesheetCell, TimesheetMonthKey } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
@@ -31,6 +47,7 @@ import {
   subscribeHrRequestsForEmployee,
   subscribeTimesheetsForMonth,
   subscribeDepartments,
+  deletePendingHrRequest,
 } from "@/lib/hr/storage"
 import type { TimesheetMonth } from "@/lib/hr/types"
 import { toast } from "@/hooks/use-toast"
@@ -93,7 +110,7 @@ function calculateWorkDays(startStr: string, endStr: string): number {
 }
 
 export default function HrEmployeeDetailsPage() {
-  const { user } = useAuth()
+  const { user, userData } = useAuth()
   const router = useRouter()
   const params = useParams()
   const searchParams = useSearchParams()
@@ -114,6 +131,7 @@ export default function HrEmployeeDetailsPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   
   const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false)
+  const [deletingRequestId, setDeletingRequestId] = useState<string | null>(null)
 
   useEffect(() => {
     let unsub: null | (() => void) = null
@@ -250,9 +268,31 @@ export default function HrEmployeeDetailsPage() {
   const daysRemaining = daysAvailable - daysConsumed
 
   const leaveRequestsDisplay = useMemo(
-    () => leaveRequests.filter((req) => ["CO", "CFP", "CM", "DEL"].includes(req.kind)),
+    () => leaveRequests.filter((req) => ["CO", "CFP", "CM", "DEL", "IN"].includes(req.kind)),
     [leaveRequests]
   )
+
+  const canDeletePendingRequests = userData?.role === "admin" || userData?.role === "dispecer"
+
+  const handleDeletePendingRequest = async (request: HrRequest) => {
+    if (!canDeletePendingRequests) return
+    if (request.status !== "pending") return
+
+    const confirmed = window.confirm(
+      "Sigur vrei să ștergi definitiv această cerere în așteptare? Acțiunea nu poate fi anulată.",
+    )
+    if (!confirmed) return
+
+    try {
+      setDeletingRequestId(request.id)
+      await deletePendingHrRequest(request.id)
+      toast({ title: "Cerere ștearsă", description: "Cererea în așteptare a fost ștearsă." })
+    } catch (e: any) {
+      toast({ title: "Eroare", description: e?.message || "Nu am putut șterge cererea.", variant: "destructive" })
+    } finally {
+      setDeletingRequestId(null)
+    }
+  }
 
   if (!employee) {
     return (
@@ -916,9 +956,22 @@ export default function HrEmployeeDetailsPage() {
                           generateHrRequestDOCX(req)
                         }}
                         title="Descarcă document"
+                        disabled={deletingRequestId === req.id}
                       >
                         <ClipboardList className="h-5 w-5" />
                       </Button>
+                      {canDeletePendingRequests && req.status === "pending" ? (
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          className="ml-2 shadow-sm hover:shadow-md transition-all"
+                          onClick={() => handleDeletePendingRequest(req)}
+                          title="Șterge cererea"
+                          disabled={deletingRequestId === req.id}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -949,4 +1002,3 @@ export default function HrEmployeeDetailsPage() {
     </DashboardShell>
   )
 }
-

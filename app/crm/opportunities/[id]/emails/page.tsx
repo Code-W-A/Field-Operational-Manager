@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
-import { Plus } from "lucide-react"
+import { Loader2, Plus, RefreshCw } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,6 +18,22 @@ import { getCrmClientById, listCrmClientContacts, listCrmUsers } from "@/lib/crm
 import type { CrmClientContact } from "@/lib/crm/types"
 import { CRM_OPPORTUNITY_TYPE_LABELS, CRM_VISIBILITIES, CRM_VISIBILITY_LABELS } from "@/lib/crm/constants"
 import { formatDateTime } from "@/lib/crm/presenters"
+
+const CRM_ACTIVITY_REFRESH_EVENT = "crm:activity-refresh"
+
+type InboxSyncResponse = {
+  ok: boolean
+  sync: {
+    locked: boolean
+    fetched: number
+    inserted: number
+    updated: number
+    skipped: number
+    autoLinked: number
+    bootstrap: boolean
+    reset: boolean
+  }
+}
 
 function parseEmailList(value: string) {
   return Array.from(
@@ -99,6 +115,7 @@ export default function OpportunityEmailsPage() {
   const [visibleToUserIds, setVisibleToUserIds] = useState<string[]>([])
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isCreatingEmail, setIsCreatingEmail] = useState(false)
+  const [isSyncingEmails, setIsSyncingEmails] = useState(false)
 
   const userOptions = useMemo(() => users.map((row) => ({ value: row.uid, label: row.displayName })), [users])
   const userNameMap = useMemo(
@@ -111,7 +128,7 @@ export default function OpportunityEmailsPage() {
   )
 
   const load = async () => {
-    if (!opportunity || !user?.uid) return
+    if (!opportunity || !user?.uid) return 0
 
     setLoading(true)
     try {
@@ -137,8 +154,68 @@ export default function OpportunityEmailsPage() {
       )
       setClientName(clientRow?.name || "")
       setClientContacts(clientContactRows)
+      return emailRows.length
     } finally {
       setLoading(false)
+    }
+  }
+
+  const refreshActivityTimeline = () => {
+    if (typeof window === "undefined") return
+    window.dispatchEvent(new CustomEvent(CRM_ACTIVITY_REFRESH_EVENT, { detail: { opportunityId } }))
+  }
+
+  const handleSyncEmails = async () => {
+    if (isSyncingEmails) return
+
+    const previousEmailCount = emails.length
+    setIsSyncingEmails(true)
+    try {
+      const response = await fetch("/api/crm/inbox/sync", {
+        method: "POST",
+        credentials: "same-origin",
+      })
+
+      const data = (await response.json().catch(() => null)) as InboxSyncResponse | { error?: string } | null
+      if (!response.ok) {
+        throw new Error(data && "error" in data && data.error ? data.error : "Nu am putut sincroniza emailurile.")
+      }
+
+      const successData = data as InboxSyncResponse
+      if (successData.sync.locked) {
+        toast({
+          title: "Sincronizare în curs",
+          description: "Există deja o sincronizare activă pentru inbox. Reîncearcă în scurt timp.",
+        })
+        return
+      }
+
+      const refreshedEmailCount = await load()
+      refreshActivityTimeline()
+
+      const newVisibleEmails = Math.max(0, refreshedEmailCount - previousEmailCount)
+      const syncSummary = [
+        `preluate ${successData.sync.fetched}`,
+        `noi ${successData.sync.inserted}`,
+        `actualizate ${successData.sync.updated}`,
+        `auto-legate ${successData.sync.autoLinked}`,
+      ].join(" · ")
+
+      toast({
+        title: "Sincronizare email finalizată",
+        description:
+          newVisibleEmails > 0
+            ? `${newVisibleEmails} emailuri noi sunt vizibile în această oportunitate. Global: ${syncSummary}.`
+            : `Sincronizarea a rulat, dar nu s-au asociat emailuri noi la această oportunitate. Global: ${syncSummary}.`,
+      })
+    } catch (error) {
+      toast({
+        title: "Eroare la sincronizare",
+        description: error instanceof Error ? error.message : "Nu am putut sincroniza emailurile.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSyncingEmails(false)
     }
   }
 
@@ -265,24 +342,48 @@ export default function OpportunityEmailsPage() {
       title="Email"
       subtitle={""}
       headerAction={
-        !isTechnician ? (
+        <div className="hidden items-center gap-2 xl:flex">
           <Button
             size="sm"
-            className="hidden h-9 items-center gap-1.5 whitespace-nowrap px-3 text-sm xl:inline-flex"
-            onClick={() => setIsCreateOpen(true)}
-            aria-label="Adaugă email"
+            variant="outline"
+            className="h-9 items-center gap-1.5 whitespace-nowrap px-3 text-sm"
+            onClick={() => void handleSyncEmails()}
+            disabled={isSyncingEmails}
+            aria-label="Sincronizare email"
           >
-            <Plus className="h-4 w-4" />
-            <span>Adaugă email</span>
+            {isSyncingEmails ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            <span>Sincronizare email</span>
           </Button>
-        ) : undefined
+          {!isTechnician ? (
+            <Button
+              size="sm"
+              className="h-9 items-center gap-1.5 whitespace-nowrap px-3 text-sm"
+              onClick={() => setIsCreateOpen(true)}
+              aria-label="Adaugă email"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Adaugă email</span>
+            </Button>
+          ) : null}
+        </div>
       }
       size="comfortable"
       className="flex min-h-0 flex-1 flex-col overflow-hidden [&>header]:hidden xl:[&>header]:block"
       contentClassName="flex min-h-0 flex-1 flex-col"
     >
-      {!isTechnician ? (
-        <div className="mb-4 shrink-0 flex justify-end xl:hidden">
+      <div className="mb-4 shrink-0 flex justify-end gap-2 xl:hidden">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 w-8 p-0 text-sm sm:h-9 sm:w-auto sm:px-3"
+          onClick={() => void handleSyncEmails()}
+          disabled={isSyncingEmails}
+          aria-label="Sincronizare email"
+        >
+          {isSyncingEmails ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          <span className="hidden sm:inline">Sincronizare email</span>
+        </Button>
+        {!isTechnician ? (
           <Button
             size="sm"
             className="h-8 w-8 p-0 text-sm sm:h-9 sm:w-auto sm:px-3"
@@ -292,8 +393,8 @@ export default function OpportunityEmailsPage() {
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">Adaugă email</span>
           </Button>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
       <Sheet open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <SheetContent side="right" className="w-full p-0 sm:max-w-xl">

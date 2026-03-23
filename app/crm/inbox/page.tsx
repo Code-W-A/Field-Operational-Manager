@@ -1,16 +1,16 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ExternalLink, Link2, Loader2, MailPlus, Search, Sparkles } from "lucide-react"
+import { ChevronDown, ExternalLink, Link2, Loader2, MailPlus, RefreshCw, Search, Sparkles } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { CreateOpportunityDialog } from "@/components/crm/create-opportunity-dialog"
-import { Badge } from "@/components/ui/badge"
+import { SubtleBadge } from "@/components/crm"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
 import {
   CRM_INBOX_ACCOUNT,
@@ -23,6 +23,7 @@ import {
   type CrmInboxOpportunityRecommendation,
   type CrmInboxStatus,
 } from "@/lib/crm/inbox-types"
+import { cn } from "@/lib/utils"
 
 type InboxListResponse = {
   ok: boolean
@@ -52,6 +53,20 @@ type OpportunitySearchResponse = {
   error?: string
 }
 
+type InboxSyncResponse = {
+  ok: boolean
+  sync: {
+    locked: boolean
+    fetched: number
+    inserted: number
+    updated: number
+    skipped: number
+    autoLinked: number
+    bootstrap: boolean
+    reset: boolean
+  }
+}
+
 const ALL_FILTER = "ALL"
 
 const RECOMMENDATION_REASON_LABELS: Record<CrmInboxOpportunityRecommendation["reason"], string> = {
@@ -64,6 +79,29 @@ const LINK_METHOD_LABELS: Record<CrmInboxLinkMethod, string> = {
   sender_contact: "Legat din contact",
   manual_existing: "Legat manual",
   created_from_email: "Creat din email",
+}
+
+const INBOX_GRID_COLUMNS =
+  "grid min-w-[1540px] grid-cols-[minmax(0,1.8fr)_minmax(0,1.08fr)_minmax(0,1.16fr)_minmax(0,1.34fr)_minmax(0,0.78fr)_minmax(0,0.78fr)_minmax(0,0.78fr)_minmax(0,1.55fr)]"
+
+function splitSenderDisplay(value: string) {
+  const trimmed = value.trim()
+  const emailMatch = trimmed.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)
+  const email = emailMatch?.[0] || ""
+
+  let label = trimmed
+  if (email) {
+    label = trimmed.replace(email, "").replace(/[<>"]/g, " ").replace(/\s+/g, " ").trim()
+  }
+
+  if (!label) {
+    label = email || trimmed || "-"
+  }
+
+  return {
+    label,
+    email: email || trimmed || "-",
+  }
 }
 
 function formatReceivedAt(value: unknown) {
@@ -84,7 +122,7 @@ function getOpportunityDraftTitle(subject: string) {
     .replace(/^[\s\-:|#]+|[\s\-:|#]+$/g, "")
     .trim()
 
-  return cleaned || subject.trim() || "Oportunitate noua din email"
+  return cleaned || subject.trim() || "Oportunitate nouă din email"
 }
 
 function getLinkedOpportunityHref(item: CrmInboxMessageListItem) {
@@ -94,10 +132,102 @@ function getLinkedOpportunityHref(item: CrmInboxMessageListItem) {
 }
 
 function getSuggestionDisplay(recommendation: CrmInboxOpportunityRecommendation) {
-  const code = recommendation.code || "Fara cod"
-  const title = recommendation.title || "Fara titlu"
+  const code = recommendation.code || "Fără cod"
+  const title = recommendation.title || "Fără titlu"
   const reason = RECOMMENDATION_REASON_LABELS[recommendation.reason]
   return { code, title, reason }
+}
+
+function InboxStatPill({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200/80 bg-white px-3.5 py-1.5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-neutral-500">{label}</span>
+      <span className="text-sm font-semibold tabular-nums text-neutral-900">{value}</span>
+    </div>
+  )
+}
+
+function InboxSelect({
+  label,
+  value,
+  onChange,
+  children,
+  className,
+  compact = false,
+}: {
+  label?: string
+  value: string
+  onChange: (value: string) => void
+  children: ReactNode
+  className?: string
+  compact?: boolean
+}) {
+  return (
+    <label className={cn("flex min-w-0 flex-col gap-1.5", className)}>
+      {label ? <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-neutral-400">{label}</span> : null}
+      <div className="relative">
+        <select
+          className={cn(
+            "w-full appearance-none rounded-full border border-neutral-200/80 bg-white pl-3 pr-9 text-[13px] font-medium text-neutral-800 shadow-none outline-none transition focus:border-neutral-300 focus:ring-4 focus:ring-neutral-900/[0.04]",
+            compact ? "h-8" : "h-10",
+            !label && "text-xs",
+          )}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        >
+          {children}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
+      </div>
+    </label>
+  )
+}
+
+function InboxEmptyState({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center px-6 py-20 text-center">
+      <SubtleBadge tone="neutral" className="mb-3 px-3">
+        Inbox curat
+      </SubtleBadge>
+      <h3 className="text-base font-semibold tracking-tight text-neutral-900">{title}</h3>
+      <p className="mt-2 max-w-lg text-sm leading-6 text-neutral-500">{description}</p>
+    </div>
+  )
+}
+
+function InboxLoadingState() {
+  return (
+    <div className="space-y-3 px-5 py-5">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <div key={index} className="rounded-[24px] border border-neutral-200/70 bg-white/90 p-4 shadow-[0_1px_2px_rgba(15,23,42,0.02)]">
+          <div className={INBOX_GRID_COLUMNS + " gap-4"}>
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-4/5" />
+              <Skeleton className="h-3 w-full" />
+              <Skeleton className="h-3 w-3/5" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-6 w-20 rounded-full" />
+              <Skeleton className="h-6 w-28 rounded-full" />
+            </div>
+            <Skeleton className="h-24 rounded-2xl" />
+            <Skeleton className="h-8 w-full rounded-full" />
+            <Skeleton className="h-8 w-full rounded-full" />
+            <Skeleton className="h-6 w-24 rounded-full" />
+            <div className="space-y-2">
+              <Skeleton className="h-9 w-full rounded-full" />
+              <Skeleton className="h-9 w-full rounded-full" />
+              <Skeleton className="h-9 w-full rounded-full" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 export default function CrmInboxPage() {
@@ -111,6 +241,7 @@ export default function CrmInboxPage() {
   const [linkStateFilter, setLinkStateFilter] = useState(searchParams.get("linkState") || ALL_FILTER)
   const [items, setItems] = useState<CrmInboxMessageListItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
   const [disabled, setDisabled] = useState(false)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [linkingId, setLinkingId] = useState<string | null>(null)
@@ -314,6 +445,67 @@ export default function CrmInboxPage() {
     }
   }
 
+  const handleSync = async () => {
+    if (disabled) return
+
+    setSyncing(true)
+    try {
+      const response = await fetch("/api/crm/inbox/sync", {
+        method: "POST",
+        credentials: "same-origin",
+      })
+
+      if (response.status === 404) {
+        setDisabled(true)
+        setItems([])
+        setMeta({ scanned: 0, returned: 0 })
+        return
+      }
+
+      const data = (await response.json()) as InboxSyncResponse | { error?: string }
+      if (!response.ok) {
+        throw new Error("error" in data && data.error ? data.error : "Nu am putut sincroniza inbox-ul")
+      }
+
+      const successData = data as InboxSyncResponse
+      if (successData.sync.locked) {
+        toast({
+          title: "Sincronizare în curs",
+          description: "Există deja o sincronizare activă pentru inbox. Reîncearcă în scurt timp.",
+        })
+        return
+      }
+
+      await loadInbox(false)
+
+      const flags = [
+        successData.sync.bootstrap ? "bootstrap" : null,
+        successData.sync.reset ? "reset UIDVALIDITY" : null,
+      ].filter(Boolean)
+
+      toast({
+        title: "Inbox sincronizat",
+        description: [
+          `Preluate ${successData.sync.fetched}`,
+          `noi ${successData.sync.inserted}`,
+          `actualizate ${successData.sync.updated}`,
+          `auto-legate ${successData.sync.autoLinked}`,
+          flags.length ? `(${flags.join(", ")})` : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      })
+    } catch (error) {
+      toast({
+        title: "Eroare la sincronizare",
+        description: error instanceof Error ? error.message : "Nu am putut sincroniza inbox-ul",
+        variant: "destructive",
+      })
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   const selectedOpportunity = useMemo(
     () => opportunityResults.find((item) => item.id === selectedOpportunityId) || null,
     [opportunityResults, selectedOpportunityId]
@@ -321,299 +513,334 @@ export default function CrmInboxPage() {
 
   if (disabled) {
     return (
-      <div className="p-4 sm:p-6">
-        <Card className="border-neutral-200">
-          <CardHeader>
-            <CardTitle>Emailuri CRM sunt dezactivate</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-neutral-600">
-            Activeaza `CRM_INBOX_ENABLED=true` pentru a folosi acest modul.
-          </CardContent>
-        </Card>
+      <div className="mx-auto flex min-h-full max-w-[1680px] items-start px-4 py-5 sm:px-6 lg:px-8">
+        <div className="w-full rounded-[28px] border border-neutral-200/80 bg-white/95 px-6 py-8 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+          <SubtleBadge tone="neutral" className="mb-4 px-3">
+            CRM Inbox
+          </SubtleBadge>
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-950">Emailuri CRM sunt dezactivate</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-500">
+            Activează `CRM_INBOX_ENABLED=true` pentru a folosi acest modul.
+          </p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="p-4 sm:p-6">
-      <Card className="border-neutral-200">
-        <CardHeader className="space-y-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle>Emailuri</CardTitle>
-              <p className="mt-1 text-sm text-neutral-500">
-                Inbox de lucru pentru mesajele incoming din {CRM_INBOX_ACCOUNT}, cu recomandare si legare la oportunitati.
-              </p>
+    <div className="mx-auto min-h-full max-w-[1680px] px-4 py-5 sm:px-6 lg:px-8">
+      <div className="space-y-5">
+        <section className="rounded-[32px] border border-neutral-200/80 bg-white/95 px-5 py-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+            <div className="max-w-3xl">
+            
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-neutral-950">Emailuri</h1>
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                
+                <SubtleBadge tone="neutral" className="px-3">
+                  {items.length} emailuri vizibile
+                </SubtleBadge>
+              </div>
             </div>
-            <div className="text-xs text-neutral-500">
-              Scanate: {meta.scanned} | Afisate: {meta.returned}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <label className="flex flex-col gap-1 text-sm text-neutral-600">
-              Status
-              <select
-                className="h-10 rounded-md border border-neutral-200 bg-white px-3 text-sm"
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-              >
-                <option value={ALL_FILTER}>Toate</option>
-                {CRM_INBOX_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="flex flex-col gap-1 text-sm text-neutral-600">
-              Categorie
-              <select
-                className="h-10 rounded-md border border-neutral-200 bg-white px-3 text-sm"
-                value={categoryFilter}
-                onChange={(event) => setCategoryFilter(event.target.value)}
-              >
-                <option value={ALL_FILTER}>Toate</option>
-                {CRM_INBOX_CATEGORIES.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="flex flex-col gap-1 text-sm text-neutral-600">
-              Legare
-              <select
-                className="h-10 rounded-md border border-neutral-200 bg-white px-3 text-sm"
-                value={linkStateFilter}
-                onChange={(event) => setLinkStateFilter(event.target.value)}
-              >
-                <option value={ALL_FILTER}>Toate</option>
-                {CRM_INBOX_LINK_STATES.map((linkState) => (
-                  <option key={linkState} value={linkState}>
-                    {linkState}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <div className="flex items-end">
+            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+              <InboxStatPill label="Scanate" value={meta.scanned} />
+              <InboxStatPill label="Afisate" value={meta.returned} />
               <Button
                 type="button"
                 variant="outline"
+                onClick={() => void handleSync()}
+                disabled={syncing || loading}
+                className="h-10 rounded-full border-neutral-200/80 bg-white px-4 text-sm font-medium text-neutral-700 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition hover:border-neutral-300 hover:bg-neutral-50 hover:text-neutral-900"
+              >
+                {syncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                Sincronizează
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-[28px] border border-neutral-200/80 bg-white/95 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+          <div className="border-b border-neutral-100/80 px-4 py-4">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+              <div className="grid gap-3 sm:grid-cols-3 xl:flex xl:flex-1 xl:flex-wrap">
+                <InboxSelect label="Status" value={statusFilter} onChange={setStatusFilter} className="sm:min-w-[180px]">
+                  <option value={ALL_FILTER}>Toate</option>
+                  {CRM_INBOX_STATUSES.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </InboxSelect>
+
+                <InboxSelect label="Categorie" value={categoryFilter} onChange={setCategoryFilter} className="sm:min-w-[180px]">
+                  <option value={ALL_FILTER}>Toate</option>
+                  {CRM_INBOX_CATEGORIES.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </InboxSelect>
+
+                <InboxSelect label="Legare" value={linkStateFilter} onChange={setLinkStateFilter} className="sm:min-w-[180px]">
+                  <option value={ALL_FILTER}>Toate</option>
+                  {CRM_INBOX_LINK_STATES.map((linkState) => (
+                    <option key={linkState} value={linkState}>
+                      {linkState}
+                    </option>
+                  ))}
+                </InboxSelect>
+              </div>
+
+              <Button
+                type="button"
+                variant="ghost"
                 onClick={() => {
                   setStatusFilter(ALL_FILTER)
                   setCategoryFilter(ALL_FILTER)
                   setLinkStateFilter(ALL_FILTER)
                 }}
+                className="h-10 rounded-full px-4 text-sm font-medium text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-900"
               >
-                Reseteaza filtrele
+                Resetează filtrele
               </Button>
             </div>
           </div>
-        </CardHeader>
 
-        <CardContent>
           {loading ? (
-            <p className="text-sm text-neutral-500">Se incarca inbox-ul...</p>
+            <InboxLoadingState />
           ) : items.length === 0 ? (
-            <p className="text-sm text-neutral-500">Nu exista emailuri pentru filtrele curente.</p>
+            <InboxEmptyState
+              title="Nu există emailuri pentru filtrele curente."
+              description="Încearcă alt filtru sau apasă Sincronizează pentru a prelua mesaje noi în inbox."
+            />
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-neutral-200 text-left text-xs uppercase tracking-wide text-neutral-500">
-                    <th className="px-3 py-2 font-medium">Email</th>
-                    <th className="px-3 py-2 font-medium">From</th>
-                    <th className="px-3 py-2 font-medium">Sugestie</th>
-                    <th className="px-3 py-2 font-medium">Oportunitate</th>
-                    <th className="px-3 py-2 font-medium">Categorie</th>
-                    <th className="px-3 py-2 font-medium">Status</th>
-                    <th className="px-3 py-2 font-medium">Primit</th>
-                    <th className="px-3 py-2 font-medium">Actiuni</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item) => {
-                    const topRecommendation = item.recommendedOpportunities[0]
-                    const linkedHref = getLinkedOpportunityHref(item)
+              <div className={INBOX_GRID_COLUMNS}>
+                <div className="border-b border-neutral-100/80 bg-neutral-50/80 px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.24em] text-neutral-400">
+                  Email
+                </div>
+                <div className="border-b border-neutral-100/80 bg-neutral-50/80 px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.24em] text-neutral-400">
+                  From
+                </div>
+                <div className="border-b border-neutral-100/80 bg-neutral-50/80 px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.24em] text-neutral-400">
+                  Sugestie
+                </div>
+                <div className="border-b border-neutral-100/80 bg-neutral-50/80 px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.24em] text-neutral-400">
+                  Oportunitate
+                </div>
+                <div className="border-b border-neutral-100/80 bg-neutral-50/80 px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.24em] text-neutral-400">
+                  Categorie
+                </div>
+                <div className="border-b border-neutral-100/80 bg-neutral-50/80 px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.24em] text-neutral-400">
+                  Status
+                </div>
+                <div className="border-b border-neutral-100/80 bg-neutral-50/80 px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.24em] text-neutral-400">
+                  Primit
+                </div>
+                <div className="border-b border-neutral-100/80 bg-neutral-50/80 px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.24em] text-neutral-400">
+                  Actiuni
+                </div>
+              </div>
 
-                    return (
-                      <tr key={item.id} className="border-b border-neutral-100 align-top">
-                        <td className="min-w-[320px] px-3 py-3">
-                          <div className="font-medium text-neutral-900">{item.subject || "(fara subiect)"}</div>
-                          <div className="mt-1 max-w-xl text-xs text-neutral-500">{item.bodySnippet || "-"}</div>
-                          <div className="mt-2 flex flex-wrap gap-2">
+              <div className="space-y-3 p-3">
+                {items.map((item) => {
+                  const topRecommendation = item.recommendedOpportunities[0]
+                  const linkedHref = getLinkedOpportunityHref(item)
+                  const sender = splitSenderDisplay(item.from)
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={cn(
+                        INBOX_GRID_COLUMNS,
+                        "group overflow-hidden rounded-[24px] border border-neutral-200/70 bg-white/95 shadow-[0_1px_2px_rgba(15,23,42,0.02)] transition-[border-color,box-shadow,background-color] duration-150 hover:border-neutral-300 hover:bg-white hover:shadow-[0_3px_8px_rgba(15,23,42,0.03)] focus-within:border-neutral-300 focus-within:bg-white",
+                      )}
+                    >
+                      <div className="px-5 py-4 align-top">
+                        <div className="space-y-2">
+                          <div className="text-[15px] font-medium leading-6 tracking-tight text-neutral-950 transition-colors group-hover:text-neutral-900">
+                            {item.subject || "(fără subiect)"}
+                          </div>
+                          <div className="max-w-[58ch] text-[13px] leading-5 text-neutral-500 [display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical] overflow-hidden">
+                            {item.bodySnippet || "-"}
+                          </div>
+                          <div className="flex flex-wrap gap-2 pt-1">
                             {item.subjectOpportunityCode ? (
-                              <Badge variant="secondary" className="bg-sky-100 text-sky-700 hover:bg-sky-100">
+                              <SubtleBadge tone="accent" className="h-6 px-2.5 text-[10px] font-semibold uppercase tracking-[0.18em]">
                                 {item.subjectOpportunityCode}
-                              </Badge>
+                              </SubtleBadge>
                             ) : null}
                             {item.crmEmailId ? (
-                              <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+                              <SubtleBadge tone="success" className="h-6 px-2.5 text-[10px] font-semibold uppercase tracking-[0.18em]">
                                 Logat in CRM Email
-                              </Badge>
+                              </SubtleBadge>
                             ) : null}
                           </div>
-                        </td>
+                        </div>
+                      </div>
 
-                        <td className="min-w-[220px] px-3 py-3 text-neutral-700">{item.from}</td>
+                      <div className="px-5 py-4 align-top">
+                        <div className="space-y-1">
+                          <div className="text-[14px] font-medium leading-6 text-neutral-900">{sender.label}</div>
+                          <div className="text-xs leading-5 text-neutral-500">{sender.email}</div>
+                        </div>
+                      </div>
 
-                        <td className="min-w-[260px] px-3 py-3">
-                          {item.recommendedOpportunities.length === 0 ? (
-                            <span className="text-xs text-neutral-500">Fara recomandare</span>
-                          ) : (
-                            <div className="space-y-2">
-                              {item.recommendedOpportunities.slice(0, 2).map((recommendation) => {
-                                const display = getSuggestionDisplay(recommendation)
-                                return (
-                                  <div key={`${item.id}-${recommendation.id}`} className="rounded-md border border-neutral-200 p-2">
-                                    <div className="flex items-start justify-between gap-2">
-                                      <div className="min-w-0">
-                                        <div className="truncate text-xs font-semibold text-neutral-900">
-                                          {display.code} - {display.title}
-                                        </div>
-                                        <div className="mt-1 text-[11px] text-neutral-500">{display.reason}</div>
-                                        {recommendation.clientName ? (
-                                          <div className="mt-1 text-[11px] text-neutral-500">{recommendation.clientName}</div>
-                                        ) : null}
-                                      </div>
-                                      <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                      <div className="px-5 py-4 align-top">
+                        {item.recommendedOpportunities.length === 0 ? (
+                          <SubtleBadge tone="neutral" className="h-6 px-2.5 text-[10px] font-semibold uppercase tracking-[0.18em]">
+                            Fără recomandare
+                          </SubtleBadge>
+                        ) : (
+                          <div className="space-y-2">
+                            {item.recommendedOpportunities.slice(0, 2).map((recommendation) => {
+                              const display = getSuggestionDisplay(recommendation)
+                              return (
+                                <div key={`${item.id}-${recommendation.id}`} className="rounded-2xl border border-neutral-200/70 bg-white/90 p-3 shadow-[0_1px_2px_rgba(15,23,42,0.02)]">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0 space-y-1">
+                                      <SubtleBadge tone="accent" className="h-6 px-2.5 text-[10px] font-semibold uppercase tracking-[0.18em]">
+                                        {display.code}
+                                      </SubtleBadge>
+                                      <div className="text-sm font-medium leading-5 text-neutral-900">{display.title}</div>
+                                      <div className="text-[11px] leading-4 text-neutral-500">{display.reason}</div>
+                                      {recommendation.clientName ? <div className="text-[11px] leading-4 text-neutral-500">{recommendation.clientName}</div> : null}
                                     </div>
+                                    <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                                   </div>
-                                )
-                              })}
-                            </div>
-                          )}
-                        </td>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
 
-                        <td className="min-w-[260px] px-3 py-3">
-                          {item.linkedOpportunity?.id || item.opportunityId ? (
-                            <div className="space-y-2">
-                              <div className="rounded-md border border-neutral-200 p-2">
-                                <div className="text-xs font-semibold text-neutral-900">
-                                  {item.linkedOpportunity?.code || item.opportunityCode || "Fara cod"} -{" "}
-                                  {item.linkedOpportunity?.title || "Oportunitate legata"}
-                                </div>
-                                {item.linkedOpportunity?.clientName ? (
-                                  <div className="mt-1 text-[11px] text-neutral-500">{item.linkedOpportunity.clientName}</div>
+                      <div className="px-5 py-4 align-top">
+                        {item.linkedOpportunity?.id || item.opportunityId ? (
+                          <div className="rounded-2xl border border-neutral-200/70 bg-neutral-50/75 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+                            <div className="space-y-1">
+                              <div className="text-[14px] font-semibold leading-5 text-neutral-950">
+                                {item.linkedOpportunity?.code || item.opportunityCode || "Fără cod"}{" "}
+                                <span className="text-neutral-300">•</span> {item.linkedOpportunity?.title || "Oportunitate legata"}
+                              </div>
+                              {item.linkedOpportunity?.clientName ? <div className="text-xs leading-5 text-neutral-500">{item.linkedOpportunity.clientName}</div> : null}
+                              <div className="mt-2 flex flex-wrap items-center gap-2">
+                                {item.linkMethod ? (
+                                  <SubtleBadge tone="neutral" className="h-6 px-2.5 text-[10px] font-semibold uppercase tracking-[0.18em]">
+                                    {LINK_METHOD_LABELS[item.linkMethod]}
+                                  </SubtleBadge>
                                 ) : null}
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                  {item.linkMethod ? (
-                                    <Badge variant="secondary" className="bg-blue-100 text-blue-700 hover:bg-blue-100">
-                                      {LINK_METHOD_LABELS[item.linkMethod]}
-                                    </Badge>
-                                  ) : null}
-                                  {linkedHref ? (
-                                    <Button asChild variant="ghost" size="sm" className="h-7 px-2 text-xs">
-                                      <Link href={linkedHref}>
-                                        <ExternalLink className="mr-1 h-3.5 w-3.5" />
-                                        Deschide
-                                      </Link>
-                                    </Button>
-                                  ) : null}
-                                </div>
+                                {linkedHref ? (
+                                  <Button
+                                    asChild
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 rounded-full px-2 text-[11px] font-medium text-neutral-600 transition hover:bg-white hover:text-neutral-900"
+                                  >
+                                    <Link href={linkedHref}>
+                                      <ExternalLink className="mr-1 h-3.5 w-3.5" />
+                                      Deschide
+                                    </Link>
+                                  </Button>
+                                ) : null}
                               </div>
                             </div>
-                          ) : (
-                            <span className="text-xs text-neutral-500">Neasignat</span>
-                          )}
-                        </td>
-
-                        <td className="px-3 py-3">
-                          <select
-                            className="h-9 rounded-md border border-neutral-200 bg-white px-2 text-xs"
-                            value={item.category}
-                            disabled={savingId === item.id}
-                            onChange={(event) =>
-                              void handleUpdate(item.id, { category: event.target.value as CrmInboxCategory })
-                            }
-                          >
-                            {CRM_INBOX_CATEGORIES.map((category) => (
-                              <option key={category} value={category}>
-                                {category}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-
-                        <td className="px-3 py-3">
-                          <select
-                            className="h-9 rounded-md border border-neutral-200 bg-white px-2 text-xs"
-                            value={item.status}
-                            disabled={savingId === item.id}
-                            onChange={(event) =>
-                              void handleUpdate(item.id, { status: event.target.value as CrmInboxStatus })
-                            }
-                          >
-                            {CRM_INBOX_STATUSES.map((status) => (
-                              <option key={status} value={status}>
-                                {status}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-
-                        <td className="whitespace-nowrap px-3 py-3 text-neutral-600">{formatReceivedAt(item.receivedAt)}</td>
-
-                        <td className="min-w-[260px] px-3 py-3">
-                          <div className="flex flex-col gap-2">
-                            {topRecommendation && !item.opportunityId ? (
-                              <Button
-                                type="button"
-                                size="sm"
-                                className="justify-start"
-                                disabled={linkingId === item.id}
-                                onClick={() => void handleLink(item, topRecommendation.id, topRecommendation.reason)}
-                              >
-                                {linkingId === item.id ? (
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Sparkles className="mr-2 h-4 w-4" />
-                                )}
-                                Asigneaza la sugestie
-                              </Button>
-                            ) : null}
-
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              disabled={Boolean(item.opportunityId)}
-                              onClick={() => setLinkDialogItem(item)}
-                            >
-                              <Search className="mr-2 h-4 w-4" />
-                              Asigneaza la oportunitate
-                            </Button>
-
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              disabled={!user?.uid || Boolean(item.opportunityId)}
-                              onClick={() => setCreateDialogItem(item)}
-                            >
-                              <MailPlus className="mr-2 h-4 w-4" />
-                              Oportunitate noua
-                            </Button>
                           </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+                        ) : (
+                          <span className="text-sm text-neutral-500">Neasignat</span>
+                        )}
+                      </div>
+
+                      <div className="px-5 py-4 align-top">
+                        <InboxSelect
+                          value={item.category}
+                          onChange={(value) => void handleUpdate(item.id, { category: value as CrmInboxCategory })}
+                          compact
+                        >
+                          {CRM_INBOX_CATEGORIES.map((category) => (
+                            <option key={category} value={category}>
+                              {category}
+                            </option>
+                          ))}
+                        </InboxSelect>
+                      </div>
+
+                      <div className="px-5 py-4 align-top">
+                        <InboxSelect
+                          value={item.status}
+                          onChange={(value) => void handleUpdate(item.id, { status: value as CrmInboxStatus })}
+                          compact
+                        >
+                          {CRM_INBOX_STATUSES.map((status) => (
+                            <option key={status} value={status}>
+                              {status}
+                            </option>
+                          ))}
+                        </InboxSelect>
+                      </div>
+
+                      <div className="px-5 py-4 align-top">
+                        <div className="text-sm font-medium leading-6 text-neutral-700">{formatReceivedAt(item.receivedAt)}</div>
+                      </div>
+
+                      <div className="px-5 py-4 align-top">
+                        <div className="flex flex-col gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-9 justify-start rounded-full border-neutral-200/80 bg-white px-3.5 text-xs font-medium text-neutral-800 shadow-[0_1px_2px_rgba(15,23,42,0.02)] transition hover:border-neutral-300 hover:bg-neutral-50"
+                            disabled={Boolean(item.opportunityId)}
+                            onClick={() => setLinkDialogItem(item)}
+                          >
+                            <Search className="mr-2 h-4 w-4" />
+                            Asignează la oportunitate
+                          </Button>
+
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-9 justify-start rounded-full px-3.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-100 hover:text-neutral-900"
+                            disabled={!user?.uid || Boolean(item.opportunityId)}
+                            onClick={() => setCreateDialogItem(item)}
+                          >
+                            <MailPlus className="mr-2 h-4 w-4" />
+                            Oportunitate nouă
+                          </Button>
+
+                          {topRecommendation && !item.opportunityId ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 justify-start rounded-full px-2.5 text-[11px] font-medium text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-800"
+                              disabled={linkingId === item.id}
+                              onClick={() => void handleLink(item, topRecommendation.id, topRecommendation.reason)}
+                            >
+                              {linkingId === item.id ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <Sparkles className="mr-2 h-4 w-4" />
+                              )}
+                              Asignează sugestia
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </section>
+      </div>
 
       <Dialog open={Boolean(linkDialogItem)} onOpenChange={(open) => (!open ? setLinkDialogItem(null) : undefined)}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Asigneaza email la oportunitate existenta</DialogTitle>
+          <DialogTitle>Asignează email la oportunitate existentă</DialogTitle>
             <DialogDescription>
               Cauta o oportunitate accesibila si leaga acest email. Dupa legare, mesajul este logat in tab-ul Email.
             </DialogDescription>
@@ -622,12 +849,12 @@ export default function CrmInboxPage() {
           {linkDialogItem ? (
             <div className="space-y-4">
               <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3 text-sm">
-                <div className="font-medium text-neutral-900">{linkDialogItem.subject || "(fara subiect)"}</div>
+                <div className="font-medium text-neutral-900">{linkDialogItem.subject || "(fără subiect)"}</div>
                 <div className="mt-1 text-xs text-neutral-500">{linkDialogItem.from}</div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-neutral-700">Cauta oportunitate</label>
+                <label className="text-sm font-medium text-neutral-700">Caută oportunitate</label>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
                   <Input
@@ -642,11 +869,11 @@ export default function CrmInboxPage() {
               {opportunitySearchLoading ? (
                 <div className="flex items-center gap-2 rounded-md border border-neutral-200 p-3 text-sm text-neutral-500">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Se cauta oportunitati...
+                  Se caută oportunități...
                 </div>
               ) : opportunityResults.length === 0 ? (
                 <div className="rounded-md border border-dashed border-neutral-200 p-3 text-sm text-neutral-500">
-                  Nu am gasit oportunitati pentru cautarea curenta.
+                  Nu am găsit oportunități pentru căutarea curentă.
                 </div>
               ) : (
                 <div className="max-h-[360px] space-y-2 overflow-y-auto">
@@ -662,7 +889,7 @@ export default function CrmInboxPage() {
                       onClick={() => setSelectedOpportunityId(result.id)}
                     >
                       <div className="text-sm font-semibold text-neutral-900">
-                        {result.code || "Fara cod"} - {result.title || result.displayTitle || "Fara titlu"}
+                        {result.code || "Fără cod"} - {result.title || result.displayTitle || "Fără titlu"}
                       </div>
                       {result.clientName ? <div className="mt-1 text-xs text-neutral-500">{result.clientName}</div> : null}
                       {result.updatedAt ? (
@@ -677,10 +904,10 @@ export default function CrmInboxPage() {
                 <div className="text-xs text-neutral-500">
                   {selectedOpportunity ? (
                     <>
-                      Selectat: {selectedOpportunity.code || "Fara cod"} - {selectedOpportunity.title || selectedOpportunity.displayTitle}
+                      Selectat: {selectedOpportunity.code || "Fără cod"} - {selectedOpportunity.title || selectedOpportunity.displayTitle}
                     </>
                   ) : (
-                    "Selecteaza o oportunitate din lista."
+                    "Selectează o oportunitate din listă."
                   )}
                 </div>
                 <Button
@@ -693,7 +920,7 @@ export default function CrmInboxPage() {
                   ) : (
                     <Link2 className="mr-2 h-4 w-4" />
                   )}
-                  Leaga emailul
+                  Leagă emailul
                 </Button>
               </div>
             </div>

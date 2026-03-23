@@ -68,9 +68,15 @@ service cloud.firestore {
         || (isSignedIn() && resource.data.requesterUid == request.auth.uid)
         || (isSignedIn() && resource.data.managerUid == request.auth.uid);
 
-      // Update/delete: manager OR admin/dispatcher (requester edits can be added later).
-      allow update, delete: if isAdminOrDispatcher()
+      // Update: manager OR admin/dispatcher (requester edits can be added later).
+      allow update: if isAdminOrDispatcher()
         || (isSignedIn() && resource.data.managerUid == request.auth.uid);
+
+      // Delete: only pending requests can be hard-deleted, by manager or admin/dispatcher.
+      allow delete: if resource.data.status == 'pending' && (
+        isAdminOrDispatcher()
+        || (isSignedIn() && resource.data.managerUid == request.auth.uid)
+      );
     }
 
     // CRM collections: access for internal staff (admin/dispecer/tehnician).

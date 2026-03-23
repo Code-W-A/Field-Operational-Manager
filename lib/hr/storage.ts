@@ -769,6 +769,22 @@ export async function decideHrRequest(params: {
   await notifyHrRequestEmail({ requestId: params.requestId, event: "status_changed" })
 }
 
+export async function deletePendingHrRequest(requestId: string) {
+  const ref = doc(db, "hrRequests", requestId)
+  const snap = await getDoc(ref)
+  if (!snap.exists()) {
+    throw new Error("Cererea nu mai există.")
+  }
+
+  const current = normalizeHrRequest(snap.id, snap.data())
+  if (current.status !== "pending") {
+    throw new Error("Doar cererile în așteptare pot fi șterse.")
+  }
+
+  // Pending requests are not synced into condică, so deleting the request does not require timesheet cleanup.
+  await deleteDoc(ref)
+}
+
 function enumerateDatesInclusiveISO(startDate: string, endDate: string): string[] {
   const start = new Date(startDate)
   const end = new Date(endDate)

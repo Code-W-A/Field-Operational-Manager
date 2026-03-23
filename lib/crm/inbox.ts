@@ -1,6 +1,8 @@
 import { createHash } from "crypto"
+import { hasOpportunityViewAccess, normalizeVisibilityUsers } from "./access"
 import { getDateValue } from "./activity"
 import { CRM_COLLECTIONS } from "./constants"
+import { extractOpportunityCodeFromSubject, shouldAutoLinkInboxMessage } from "./inbox-autolink"
 import type {
   CrmInboxCategory,
   CrmInboxDateValue,
@@ -18,9 +20,8 @@ import type {
   CrmInboxStatus,
   CrmInboxUpdateInput,
 } from "./inbox-types"
+import type { CrmVisibility } from "./types"
 import { getClientLevelContactsFromRecord, getClientLocationContactsFromRecord } from "../client-contacts"
-import { createCrmEmail } from "./tasks"
-import { getCrmOpportunityById } from "./opportunities"
 
 const CRM_INBOX_ACCOUNT = "fom@nrg-acces.ro"
 const CRM_INBOX_PROVIDER = "imap"
@@ -158,16 +159,6 @@ function extractPrimaryEmail(value: unknown) {
   return emailMatch ? emailMatch[0].trim().toLowerCase() : ""
 }
 
-function extractOpportunityCodeFromSubject(subject: string) {
-  const match = subject.match(/\bOP\.\s*0*(\d+)\b/i)
-  if (!match) return undefined
-
-  const numberValue = Number(match[1])
-  if (!Number.isFinite(numberValue) || numberValue < 1) return undefined
-
-  return `OP.${numberValue}`
-}
-
 function mapInboxMessage(docId: string, data: Record<string, unknown>): CrmInboxMessage {
   return {
     id: docId,
@@ -254,6 +245,204 @@ async function getAdminDb() {
 async function getAdminFirestoreFieldValue() {
   const mod = await import("firebase-admin/firestore")
   return mod.FieldValue
+}
+
+type AdminOpportunityRecord = {
+  id: string
+  code: string
+  title: string
+  clientId: string
+  ownerId: string
+  readUserIds: string[]
+  editUserIds: string[]
+}
+
+function mapAdminOpportunity(docId: string, data: Record<string, unknown>): AdminOpportunityRecord {
+  return {
+    id: docId,
+    code: String(data.code || ""),
+    title: String(data.title || ""),
+    clientId: String(data.clientId || ""),
+    ownerId: String(data.ownerId || ""),
+    readUserIds: Array.isArray(data.readUserIds) ? (data.readUserIds as string[]) : [],
+    editUserIds: Array.isArray(data.editUserIds) ? (data.editUserIds as string[]) : [],
+  }
+}
+
+async function getCrmOpportunityByIdAdmin(opportunityId: string, userId?: string) {
+  const adminDb = await getAdminDb()
+  const [opportunitySnap, accessRows] = await Promise.all([
+    adminDb.collection(CRM_COLLECTIONS.opportunities).doc(opportunityId).get(),
+    userId
+      ? adminDb
+          .collection(CRM_COLLECTIONS.opportunityAccess)
+          .where("opportunityId", "==", opportunityId)
+          .where("userId", "==", userId)
+          .limit(5)
+          .get()
+      : Promise.resolve(null),
+  ])
+
+  if (!opportunitySnap.exists) return null
+
+  const opportunity = mapAdminOpportunity(opportunitySnap.id, opportunitySnap.data() as Record<string, unknown>)
+  if (!userId) return opportunity
+
+  const explicitPermissions = (accessRows?.docs || []).map((row) => String(row.data().permission || "VIEW"))
+  if (!hasOpportunityViewAccess(opportunity, userId, explicitPermissions as ("VIEW" | "EDIT")[])) {
+    return null
+  }
+
+  return opportunity
+}
+
+async function findExactOpportunityByCodeAdmin(code: string) {
+  const normalizedCode = normalizeString(code)
+  if (!normalizedCode) return null
+
+  const adminDb = await getAdminDb()
+  const snapshot = await adminDb.collection(CRM_COLLECTIONS.opportunities).where("code", "==", normalizedCode).limit(2).get()
+  if (snapshot.size !== 1) return null
+
+  return mapAdminOpportunity(snapshot.docs[0].id, snapshot.docs[0].data() as Record<string, unknown>)
+}
+
+async function createVisibleToRowsAdmin(params: {
+  entityType: "EMAIL" | "ACTIVITY"
+  entityId: string
+  opportunityId: string
+  userIds: string[]
+}) {
+  if (!params.userIds.length) return
+
+  const adminDb = await getAdminDb()
+  const FieldValue = await getAdminFirestoreFieldValue()
+  await Promise.all(
+    params.userIds.map((userId) =>
+      adminDb.collection(CRM_COLLECTIONS.visibleTo).add({
+        entityType: params.entityType,
+        entityId: params.entityId,
+        opportunityId: params.opportunityId,
+        userId,
+        createdAt: FieldValue.serverTimestamp(),
+      }),
+    ),
+  )
+}
+
+function normalizeSearchPart(value: unknown) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+}
+
+async function appendOpportunitySearchTextAdmin(opportunityId: string, values: string[]) {
+  const adminDb = await getAdminDb()
+  const FieldValue = await getAdminFirestoreFieldValue()
+  const ref = adminDb.collection(CRM_COLLECTIONS.opportunities).doc(opportunityId)
+  const snapshot = await ref.get()
+  if (!snapshot.exists) return
+
+  const current = normalizeSearchPart(snapshot.data()?.searchIndex)
+  const additions = values.map((value) => normalizeSearchPart(value)).filter(Boolean)
+  const searchIndex = [current, ...additions].filter(Boolean).join(" ").trim()
+
+  await ref.set(
+    {
+      searchIndex,
+      searchIndexUpdatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  )
+}
+
+async function createCrmEmailAdmin(input: {
+  opportunityId: string
+  source: "manual" | "inbox"
+  subject: string
+  from: string
+  to: string[]
+  cc?: string[]
+  bcc?: string[]
+  bodySnippet: string
+  sourceInboxMessageId?: string
+  sentAt?: Date
+  createdById: string
+  visibility?: CrmVisibility
+  visibleToUserIds?: string[]
+}) {
+  const adminDb = await getAdminDb()
+  const FieldValue = await getAdminFirestoreFieldValue()
+  const visibility = input.visibility || "PRIVATE"
+  const visibleToUserIds = normalizeVisibilityUsers(visibility, input.visibleToUserIds)
+  const direction = input.source === "inbox" ? "IN" : "OUT"
+
+  const emailRef = await adminDb.collection(CRM_COLLECTIONS.emails).add({
+    opportunityId: input.opportunityId,
+    direction,
+    subject: input.subject.trim(),
+    from: input.from.trim(),
+    to: input.to,
+    cc: input.cc || [],
+    bcc: input.bcc || [],
+    bodySnippet: input.bodySnippet.trim(),
+    sourceInboxMessageId: input.sourceInboxMessageId || null,
+    sentAt: input.sentAt || FieldValue.serverTimestamp(),
+    createdById: input.createdById,
+    visibility,
+    visibleToUserIds,
+    createdAt: FieldValue.serverTimestamp(),
+  })
+
+  if (visibility === "CUSTOM") {
+    await createVisibleToRowsAdmin({
+      entityType: "EMAIL",
+      entityId: emailRef.id,
+      opportunityId: input.opportunityId,
+      userIds: visibleToUserIds,
+    })
+  }
+
+  const activityRef = await adminDb.collection(CRM_COLLECTIONS.activityLogs).add({
+    opportunityId: input.opportunityId,
+    actorId: input.createdById,
+    type: "EMAIL_LOGGED",
+    payload: {
+      emailId: emailRef.id,
+      direction,
+      subject: input.subject,
+      from: input.from,
+      to: input.to,
+      cc: input.cc || [],
+      bcc: input.bcc || [],
+      bodySnippet: input.bodySnippet,
+      sourceInboxMessageId: input.sourceInboxMessageId || null,
+      sentAt: input.sentAt?.toISOString() || null,
+    },
+    visibility,
+    visibleToUserIds,
+    createdAt: FieldValue.serverTimestamp(),
+  })
+
+  if (visibility === "CUSTOM") {
+    await createVisibleToRowsAdmin({
+      entityType: "ACTIVITY",
+      entityId: activityRef.id,
+      opportunityId: input.opportunityId,
+      userIds: visibleToUserIds,
+    })
+  }
+
+  await appendOpportunitySearchTextAdmin(input.opportunityId, [
+    input.subject,
+    input.bodySnippet,
+    input.from,
+    ...input.to,
+    ...(input.cc || []),
+    ...(input.bcc || []),
+  ])
+
+  return emailRef.id
 }
 
 async function buildSenderEmailToClientIds(senderEmails: string[]) {
@@ -585,10 +774,14 @@ export function parseCrmInboxUpdateInput(input: unknown) {
   return { ok: true as const, data: output }
 }
 
-export async function ingestCrmInboxMessages(batch: CrmInboxIngestInput[]): Promise<CrmInboxIngestResult> {
+export async function ingestCrmInboxMessages(
+  batch: CrmInboxIngestInput[],
+  options?: { actorId?: string },
+): Promise<CrmInboxIngestResult> {
   const adminDb = await getAdminDb()
   const FieldValue = await getAdminFirestoreFieldValue()
-  const result: CrmInboxIngestResult = { inserted: 0, updated: 0, skipped: 0, errors: [] }
+  const actorId = normalizeString(options?.actorId)
+  const result: CrmInboxIngestResult = { inserted: 0, updated: 0, skipped: 0, autoLinked: 0, errors: [] }
 
   for (const [index, rawMessage] of batch.entries()) {
     const normalized = normalizeInboxMessageInput(rawMessage)
@@ -633,6 +826,32 @@ export async function ingestCrmInboxMessages(batch: CrmInboxIngestInput[]): Prom
       result.updated += 1
     } else {
       result.inserted += 1
+    }
+
+    const inboxMessage = mapInboxMessage(docId, {
+      ...(existing.data() as Record<string, unknown> | undefined),
+      ...payload,
+    })
+
+    if (!actorId) {
+      continue
+    }
+
+    try {
+      const linked = await autoLinkInboxMessageBySubjectCode({
+        docRef,
+        inboxMessage,
+        actorId,
+      })
+      if (linked) {
+        result.autoLinked += 1
+      }
+    } catch (error) {
+      console.error("[CRM Inbox] auto-link failed", {
+        inboxMessageId: docId,
+        messageId: inboxMessage.messageId,
+        error,
+      })
     }
   }
 
@@ -717,9 +936,85 @@ async function findExistingCrmEmailIdForInboxMessage(opportunityId: string, inbo
   return snapshot.docs[0].id
 }
 
+async function linkInboxMessageRecordToOpportunity(params: {
+  docRef: FirebaseFirestore.DocumentReference
+  inboxMessage: CrmInboxMessage
+  opportunity: AdminOpportunityRecord
+  actorId: string
+  linkMethod: CrmInboxLinkMethod
+}) {
+  const FieldValue = await getAdminFirestoreFieldValue()
+  let crmEmailId =
+    params.inboxMessage.crmEmailId ||
+    (await findExistingCrmEmailIdForInboxMessage(params.opportunity.id, params.inboxMessage.id))
+
+  if (!crmEmailId) {
+    crmEmailId = await createCrmEmailAdmin({
+      opportunityId: params.opportunity.id,
+      source: "inbox",
+      subject: params.inboxMessage.subject,
+      from: params.inboxMessage.from,
+      to: params.inboxMessage.to,
+      cc: params.inboxMessage.cc,
+      bodySnippet: params.inboxMessage.bodySnippet,
+      sourceInboxMessageId: params.inboxMessage.id,
+      sentAt: getDateValue(params.inboxMessage.receivedAt) || undefined,
+      createdById: params.actorId,
+      visibility: "GENERAL",
+    })
+  }
+
+  await params.docRef.set(
+    {
+      opportunityId: params.opportunity.id,
+      opportunityCode: params.opportunity.code,
+      linkedAt: FieldValue.serverTimestamp(),
+      linkedByUserId: params.actorId,
+      linkMethod: params.linkMethod,
+      crmEmailId,
+      status: "DONE",
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  )
+
+  return crmEmailId
+}
+
+async function autoLinkInboxMessageBySubjectCode(params: {
+  docRef: FirebaseFirestore.DocumentReference
+  inboxMessage: CrmInboxMessage
+  actorId: string
+}) {
+  if (
+    !shouldAutoLinkInboxMessage({
+      subject: params.inboxMessage.subject,
+      opportunityId: params.inboxMessage.opportunityId,
+      crmEmailId: params.inboxMessage.crmEmailId,
+    })
+  ) {
+    return false
+  }
+
+  const opportunityCode = extractOpportunityCodeFromSubject(params.inboxMessage.subject)
+  if (!opportunityCode) return false
+
+  const opportunity = await findExactOpportunityByCodeAdmin(opportunityCode)
+  if (!opportunity) return false
+
+  await linkInboxMessageRecordToOpportunity({
+    docRef: params.docRef,
+    inboxMessage: params.inboxMessage,
+    opportunity,
+    actorId: params.actorId,
+    linkMethod: "subject_code",
+  })
+
+  return true
+}
+
 export async function linkCrmInboxMessageToOpportunity(input: CrmInboxLinkInput): Promise<CrmInboxMessageListItem> {
   const adminDb = await getAdminDb()
-  const FieldValue = await getAdminFirestoreFieldValue()
   const docRef = adminDb.collection(CRM_COLLECTIONS.inboxMessages).doc(input.inboxMessageId)
   const existing = await docRef.get()
 
@@ -737,41 +1032,18 @@ export async function linkCrmInboxMessageToOpportunity(input: CrmInboxLinkInput)
     throw new Error("Mesajul inbox este deja legat la o alta oportunitate")
   }
 
-  const opportunity = await getCrmOpportunityById(input.opportunityId, input.actorId)
+  const opportunity = await getCrmOpportunityByIdAdmin(input.opportunityId, input.actorId)
   if (!opportunity) {
     throw new Error("Oportunitatea nu exista sau nu ai acces la ea")
   }
 
-  let crmEmailId = inboxMessage.crmEmailId || await findExistingCrmEmailIdForInboxMessage(opportunity.id, inboxMessage.id)
-
-  if (!crmEmailId) {
-    crmEmailId = await createCrmEmail({
-      opportunityId: opportunity.id,
-      source: "inbox",
-      subject: inboxMessage.subject,
-      from: inboxMessage.from,
-      to: inboxMessage.to,
-      bodySnippet: inboxMessage.bodySnippet,
-      sourceInboxMessageId: inboxMessage.id,
-      sentAt: getDateValue(inboxMessage.receivedAt) || undefined,
-      createdById: input.actorId,
-      visibility: "GENERAL",
-    })
-  }
-
-  await docRef.set(
-    {
-      opportunityId: opportunity.id,
-      opportunityCode: opportunity.code,
-      linkedAt: FieldValue.serverTimestamp(),
-      linkedByUserId: input.actorId,
-      linkMethod: input.linkMethod,
-      crmEmailId,
-      status: "DONE",
-      updatedAt: FieldValue.serverTimestamp(),
-    },
-    { merge: true }
-  )
+  await linkInboxMessageRecordToOpportunity({
+    docRef,
+    inboxMessage,
+    opportunity,
+    actorId: input.actorId,
+    linkMethod: input.linkMethod,
+  })
 
   return getCrmInboxMessageById(input.inboxMessageId, input.actorId)
 }

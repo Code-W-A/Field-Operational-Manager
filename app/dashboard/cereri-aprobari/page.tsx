@@ -13,10 +13,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Spinner } from "@/components/ui/spinner"
-import { ClipboardList, Pencil, Download, ExternalLink } from "lucide-react"
+import { ClipboardList, Pencil, Download, ExternalLink, Trash2 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import type { HrRequest, HrRequestKind, HrRequestPayload } from "@/lib/hr/types"
-import { decideHrRequest, subscribeDepartments, subscribeHrRequestsForManager, syncHrRequestToTimesheets, updateHrRequestByManager } from "@/lib/hr/storage"
+import {
+  decideHrRequest,
+  deletePendingHrRequest,
+  subscribeDepartments,
+  subscribeHrRequestsForManager,
+  syncHrRequestToTimesheets,
+  updateHrRequestByManager,
+} from "@/lib/hr/storage"
 import { hrRequestDateLabel, hrRequestKindLabel, hrRequestStatusLabel } from "@/lib/hr/hr-requests"
 import { toast } from "@/hooks/use-toast"
 import { generateHrRequestDOCX } from "@/lib/hr/request-docx-generator"
@@ -43,7 +50,7 @@ export default function CereriAprobariPage() {
   const [editPayload, setEditPayload] = useState<HrRequestPayload | null>(null)
   const [editOriginalPayload, setEditOriginalPayload] = useState<HrRequestPayload | null>(null)
   const [saving, setSaving] = useState(false)
-  const [savingAction, setSavingAction] = useState<"approve" | "reject" | "edit" | null>(null)
+  const [savingAction, setSavingAction] = useState<"approve" | "reject" | "edit" | "delete" | null>(null)
 
   useEffect(() => {
     if (!user?.uid) return
@@ -191,6 +198,27 @@ export default function CereriAprobariPage() {
       setEditOpen(false)
     } catch (e: any) {
       toast({ title: "Eroare", description: e?.message || "Nu am putut salva.", variant: "destructive" })
+    } finally {
+      setSaving(false)
+      setSavingAction(null)
+    }
+  }
+
+  const removePendingRequest = async () => {
+    if (!selected) return
+    const confirmed = window.confirm(
+      "Sigur vrei să ștergi definitiv această cerere în așteptare? Acțiunea nu poate fi anulată.",
+    )
+    if (!confirmed) return
+
+    try {
+      setSaving(true)
+      setSavingAction("delete")
+      await deletePendingHrRequest(selected.id)
+      toast({ title: "Cerere ștearsă", description: "Cererea în așteptare a fost ștearsă." })
+      setDetailOpen(false)
+    } catch (e: any) {
+      toast({ title: "Eroare", description: e?.message || "Nu am putut șterge cererea.", variant: "destructive" })
     } finally {
       setSaving(false)
       setSavingAction(null)
@@ -414,6 +442,19 @@ export default function CereriAprobariPage() {
                 </Button>
                 {selected.status === "pending" ? (
                   <>
+                    <Button variant="destructive" onClick={removePendingRequest} disabled={saving}>
+                      {saving && savingAction === "delete" ? (
+                        <>
+                          <Spinner className="h-4 w-4 mr-2 border-muted-foreground border-t-transparent" />
+                          Se șterge...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Șterge
+                        </>
+                      )}
+                    </Button>
                     <Button variant="destructive" onClick={() => setRejectOpen(true)} disabled={saving}>
                       Refuză
                     </Button>
