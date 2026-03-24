@@ -1030,7 +1030,9 @@ export async function confirmThreadMessage(params: {
       lastMessageAt: serverTimestamp(),
       lastMessageById: params.actorId,
       lastMessagePreview: confirmationText.slice(0, 180),
-      lastMessageCycleStatus: "NONE",
+      // Ultimul mesaj e reply-ul de confirmare (requiresConfirmation: false → cycle NONE pe document),
+      // dar pentru listă/header folosim CONFIRMED ca să nu apară „Fără confirmare” după ce ciclul s-a încheiat.
+      lastMessageCycleStatus: "CONFIRMED",
       lastMessageFromUserId: params.actorId,
       lastMessageToUserId: message.fromUserId,
       lastMessageDeadlineAt: null,

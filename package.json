@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "seed:crm": "node scripts/seed-crm.mjs",
+    "seed:hr-reminder-test": "tsx scripts/seed-hr-reminder-test.ts",
     "logs:functions": "firebase functions:log --limit 100",
     "logs:interne": "firebase functions:log --only onCrmInternalThreadMessageCreatedEmail --limit 50"
   },
@@ -88,6 +89,7 @@
     "zod": "latest"
   },
   "devDependencies": {
+    "tsx": "^4.19.3",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",

@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { CheckCheck, Clock, MessageSquare, PanelLeft, Plus, Send } from "lucide-react"
 import { MobileRailSheet } from "@/components/crm/mobile-rail-sheet"
 import { useAuth } from "@/contexts/AuthContext"
@@ -53,6 +54,11 @@ type SelectedConversation =
   | null
 
 export function InternalConversationsSection() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const incomingDeepLinkRef = useRef<{ thread?: string; legacy?: string; msg?: string } | null>(null)
+  const pendingScrollToMessageIdRef = useRef("")
+
   const toMillis = (value: unknown) => {
     if (value && typeof value === "object" && "toDate" in value && typeof (value as { toDate?: () => Date }).toDate === "function") {
       const date = (value as { toDate: () => Date }).toDate()
@@ -95,6 +101,29 @@ export function InternalConversationsSection() {
   const [replyRequiresConfirmation, setReplyRequiresConfirmation] = useState(false)
   const [replyToUserId, setReplyToUserId] = useState("")
 
+  const stripInternalDeepLinkParams = useCallback(() => {
+    const p = new URLSearchParams(searchParams.toString())
+    p.delete("thread")
+    p.delete("msg")
+    p.delete("legacyNote")
+    const qs = p.toString()
+    router.replace(qs ? `/crm/opportunities?${qs}` : "/crm/opportunities")
+  }, [router, searchParams])
+
+  useEffect(() => {
+    const t = searchParams.get("thread")?.trim() || ""
+    const l = searchParams.get("legacyNote")?.trim() || ""
+    const m = searchParams.get("msg")?.trim() || ""
+    if (!t && !l) return
+    incomingDeepLinkRef.current = { thread: t || undefined, legacy: l || undefined, msg: m || undefined }
+    if (mailbox !== "ALL" || status !== "ALL") {
+      setMailbox("ALL")
+      setStatus("ALL")
+    }
+    setSearch("")
+    setOnlyWithDeadline(false)
+  }, [searchParams, mailbox, status])
+
   const userNameMap = useMemo(
     () =>
       users.reduce<Record<string, string>>((acc, row) => {
@@ -117,8 +146,11 @@ export function InternalConversationsSection() {
 
   const load = async (override?: { mailbox?: MailboxFilter; status?: StatusFilter }) => {
     if (!user?.uid) return
-    const mailboxValue = override?.mailbox || mailbox
-    const statusValue = override?.status || status
+    const deepThread = searchParams.get("thread")?.trim() || ""
+    const deepLegacy = searchParams.get("legacyNote")?.trim() || ""
+    const hasInternalDeepLink = Boolean(deepThread || deepLegacy)
+    const mailboxValue = hasInternalDeepLink ? "ALL" : override?.mailbox || mailbox
+    const statusValue = hasInternalDeepLink ? "ALL" : override?.status || status
     setLoading(true)
     try {
       const [threadResult, internalNoteResult, userResult] = await Promise.allSettled([
@@ -293,9 +325,39 @@ export function InternalConversationsSection() {
 
   useEffect(() => {
     if (!filteredRows.length) {
-      setSelectedConversation(null)
+      if (!incomingDeepLinkRef.current) {
+        setSelectedConversation(null)
+      }
       return
     }
+
+    const deep = incomingDeepLinkRef.current
+    if (deep?.thread) {
+      const hit = filteredRows.find((r) => r.kind === "thread" && r.id === deep.thread)
+      if (hit) {
+        if (deep.msg) pendingScrollToMessageIdRef.current = deep.msg
+        incomingDeepLinkRef.current = null
+        stripInternalDeepLinkParams()
+        setSelectedConversation({ kind: "thread", id: deep.thread })
+        return
+      }
+    }
+    if (deep?.legacy) {
+      const hit = filteredRows.find((r) => r.kind === "legacy" && r.id === deep.legacy)
+      if (hit) {
+        incomingDeepLinkRef.current = null
+        stripInternalDeepLinkParams()
+        setSelectedConversation({ kind: "legacy", id: deep.legacy })
+        return
+      }
+    }
+    if (deep && (deep.thread || deep.legacy)) {
+      if (!loading && mailbox === "ALL" && status === "ALL") {
+        incomingDeepLinkRef.current = null
+        stripInternalDeepLinkParams()
+      }
+    }
+
     if (!selectedConversation) {
       setSelectedConversation({
         kind: filteredRows[0].kind,
@@ -310,7 +372,7 @@ export function InternalConversationsSection() {
         id: filteredRows[0].id,
       })
     }
-  }, [filteredRows, selectedConversation])
+  }, [filteredRows, loading, mailbox, selectedConversation, status, stripInternalDeepLinkParams])
 
   useEffect(() => {
     const loadMessages = async () => {
@@ -332,6 +394,16 @@ export function InternalConversationsSection() {
     }
     void loadMessages()
   }, [selectedThread, toast, user?.uid])
+
+  useEffect(() => {
+    const targetId = pendingScrollToMessageIdRef.current
+    if (!targetId || !activeThreadMessages.length) return
+    if (!activeThreadMessages.some((m) => m.id === targetId)) return
+    pendingScrollToMessageIdRef.current = ""
+    requestAnimationFrame(() => {
+      document.getElementById(`crm-internal-msg-${targetId}`)?.scrollIntoView({ behavior: "smooth", block: "center" })
+    })
+  }, [activeThreadMessages])
 
   useEffect(() => {
     if (!selectedThread || !user?.uid) return
@@ -623,7 +695,7 @@ export function InternalConversationsSection() {
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col">
-      <section className="grid h-full min-h-0 w-full flex-1 overflow-hidden rounded-md border border-neutral-300 bg-[#f6f8fc] shadow-none xl:rounded-none xl:border-y xl:border-x-0 xl:border-neutral-200 xl:bg-white xl:grid-cols-[340px_minmax(0,1fr)]">
+      <section className="grid h-full min-h-0 w-full flex-1 overflow-hidden rounded-md border border-neutral-300 bg-[#f6f8fc] shadow-none xl:rounded-none xl:border-y xl:border-x-0 xl:border-neutral-200 xl:bg-white xl:grid-cols-[340px_minmax(0,1fr)] min-[1800px]:grid-cols-[680px_minmax(0,1fr)]">
         <div className="hidden min-h-0 xl:flex xl:flex-col xl:overflow-hidden">
           {renderConversationRail()}
         </div>
@@ -723,7 +795,11 @@ export function InternalConversationsSection() {
                       row.fromUserId !== user?.uid &&
                       (row.toUserId === user?.uid || canOverrideConfirm)
                     return (
-                      <div key={row.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                      <div
+                        key={row.id}
+                        id={`crm-internal-msg-${row.id}`}
+                        className={`flex scroll-mt-4 ${mine ? "justify-end" : "justify-start"}`}
+                      >
                         <div className={`max-w-[90%] rounded-md border px-3 py-2.5 xl:max-w-[85%] xl:rounded-2xl xl:px-4 xl:py-3 ${mine ? "border-blue-200 bg-blue-50" : "border-neutral-200 bg-white"}`}>
                           <p className="whitespace-pre-wrap text-xs text-neutral-800 xl:text-sm">{row.message}</p>
                           <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-neutral-500 xl:mt-2 xl:gap-2 xl:text-[11px]">

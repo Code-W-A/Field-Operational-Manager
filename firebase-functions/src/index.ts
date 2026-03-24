@@ -64,6 +64,15 @@ function getSmtpConfig(): SmtpConfig | null {
   return { host: String(host), port, secure, user: String(user), pass: String(pass), from: String(from) }
 }
 
+/** JSON pe o linie — filtrează în Cloud Logging: `jsonPayload.message` conține "hrRequestReminder" sau folosește query text. */
+function hrReminderLog(phase: string, data: Record<string, unknown> = {}) {
+  console.log(JSON.stringify({ src: "hrRequestReminder", phase, ...data }))
+}
+
+function hrReminderErr(phase: string, data: Record<string, unknown> = {}) {
+  console.error(JSON.stringify({ src: "hrRequestReminder", phase, ...data }))
+}
+
 function b64(s: string) {
   return Buffer.from(String(s), "utf8").toString("base64")
 }
@@ -71,8 +80,10 @@ function b64(s: string) {
 async function smtpSendMail(params: { to: string; subject: string; text: string; html?: string }) {
   const cfg = getSmtpConfig()
   if (!cfg) {
-    console.warn("SMTP not configured; skipping email to", params.to)
-    return
+    const msg =
+      "SMTP not configured for Cloud Functions (set functions.config().smtp.* or env SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_FROM). Email not sent."
+    hrReminderErr("smtp_not_configured", { to: params.to, message: msg })
+    throw new Error(msg)
   }
 
   const socket: net.Socket = cfg.secure
@@ -528,7 +539,11 @@ async function dispatchCrmInternalThreadMessageNotification(params: {
   const deadlineLabel = formatRoDateTime(deadlineAtMs)
   const messageBody = String(message.message || "").trim() || "-"
   const messageContext = String(message.context || "").trim()
-  const internalPath = "/crm/opportunities?section=interne"
+  const internalQs = new URLSearchParams()
+  internalQs.set("section", "interne")
+  internalQs.set("thread", threadId)
+  internalQs.set("msg", messageId)
+  const internalPath = `/crm/opportunities?${internalQs.toString()}`
   const baseUrl = getCrmBaseUrl()
   const internalUrl = baseUrl ? `${baseUrl}${internalPath}` : internalPath
   const subject =
@@ -542,7 +557,7 @@ async function dispatchCrmInternalThreadMessageNotification(params: {
     `Termen: ${deadlineLabel}\n` +
     `${messageContext ? `Context: ${messageContext}\n` : ""}` +
     `Mesaj: ${messageBody}\n\n` +
-    `Deschide secțiunea Interne: ${internalUrl}\n`
+    `Deschide direct mesajul în CRM: ${internalUrl}\n`
   const html = `
     <div style="background:#f1f5f9;padding:24px 12px;font-family:Arial,sans-serif;color:#0f172a;">
       <div style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
@@ -557,7 +572,7 @@ async function dispatchCrmInternalThreadMessageNotification(params: {
           <p style="margin:10px 0 0;font-size:14px;line-height:1.5;color:#334155;">${escapeHtml(messageBody)}</p>
           <div style="margin-top:16px;">
             <a href="${escapeHtml(internalUrl)}" style="display:inline-block;padding:11px 16px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;">
-              Deschide Interne
+              Deschide mesajul
             </a>
           </div>
         </div>
@@ -680,7 +695,10 @@ async function dispatchCrmInternalNoteNotification(params: {
   const dueAtLabel = formatRoDateTime(dueAtMs)
   const noteMessage = String(note.message || "").trim() || "-"
   const noteContext = String(note.context || "").trim()
-  const internalPath = "/crm/opportunities?section=interne"
+  const internalNoteQs = new URLSearchParams()
+  internalNoteQs.set("section", "interne")
+  internalNoteQs.set("legacyNote", noteId)
+  const internalPath = `/crm/opportunities?${internalNoteQs.toString()}`
   const baseUrl = getCrmBaseUrl()
   const internalUrl = baseUrl ? `${baseUrl}${internalPath}` : internalPath
   const subject =
@@ -702,7 +720,7 @@ async function dispatchCrmInternalNoteNotification(params: {
     `Termen: ${dueAtLabel}\n` +
     `${noteContext ? `Context: ${noteContext}\n` : ""}` +
     `Mesaj: ${noteMessage}\n\n` +
-    `Deschide secțiunea Interne: ${internalUrl}\n`
+    `Deschide direct nota în CRM: ${internalUrl}\n`
   const html = `
     <div style="background:#f1f5f9;padding:24px 12px;font-family:Arial,sans-serif;color:#0f172a;">
       <div style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
@@ -721,7 +739,7 @@ async function dispatchCrmInternalNoteNotification(params: {
           </div>
           <div style="margin-top:16px;">
             <a href="${escapeHtml(internalUrl)}" style="display:inline-block;padding:11px 16px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;">
-              Deschide Interne
+              Deschide nota
             </a>
           </div>
           <p style="margin:14px 0 0;font-size:12px;color:#64748b;">
@@ -1166,10 +1184,23 @@ async function dispatchHrRequestPendingReminder(params: {
   weekNumber?: number | null
 }) {
   const requestId = String(params.requestId || "").trim()
-  if (!requestId) return { ok: false, skipped: true as const, reason: "missing_request_id" }
+  if (!requestId) {
+    hrReminderLog("skip", { requestId: "(empty)", reason: "missing_request_id", eventType: params.eventType })
+    return { ok: false, skipped: true as const, reason: "missing_request_id" }
+  }
+
+  hrReminderLog("evaluate", {
+    requestId,
+    eventType: params.eventType,
+    todayDateKey: params.todayDateKey,
+    weekNumber: params.weekNumber ?? null,
+  })
 
   const snap = await db.collection("hrRequests").doc(requestId).get()
-  if (!snap.exists) return { ok: false, skipped: true as const, reason: "request_not_found" }
+  if (!snap.exists) {
+    hrReminderLog("skip", { requestId, reason: "request_not_found", eventType: params.eventType })
+    return { ok: false, skipped: true as const, reason: "request_not_found" }
+  }
 
   const data = snap.data() as any
   const req: HrRequest = {
@@ -1185,25 +1216,37 @@ async function dispatchHrRequestPendingReminder(params: {
   }
 
   if (req.status !== "pending") {
+    hrReminderLog("skip", { requestId, reason: "status_not_pending", status: req.status, eventType: params.eventType })
     return { ok: true, skipped: true as const, reason: "status_not_pending" }
   }
   if (!isHrRequestReminderEligibleKind(req.kind)) {
+    hrReminderLog("skip", { requestId, reason: "kind_not_eligible", kind: req.kind, eventType: params.eventType })
     return { ok: true, skipped: true as const, reason: "kind_not_eligible" }
   }
 
   const startDateKey = hrRequestStartDateKey(req)
   if (!startDateKey) {
+    hrReminderLog("skip", { requestId, reason: "missing_start_date", kind: req.kind, eventType: params.eventType })
     return { ok: true, skipped: true as const, reason: "missing_start_date" }
   }
 
   const createdAtMs = crmDateToMs(data?.createdAt)
   if (!createdAtMs) {
+    hrReminderLog("skip", { requestId, reason: "missing_created_at", eventType: params.eventType })
     return { ok: true, skipped: true as const, reason: "missing_created_at" }
   }
 
   const createdDateKey = formatDateKeyInTimeZone(createdAtMs, TIMEZONE)
   const daysPending = diffDateKeysInDays(createdDateKey, params.todayDateKey)
   if (daysPending == null || daysPending < 0) {
+    hrReminderLog("skip", {
+      requestId,
+      reason: "invalid_pending_age",
+      createdDateKey,
+      todayDateKey: params.todayDateKey,
+      daysPending,
+      eventType: params.eventType,
+    })
     return { ok: true, skipped: true as const, reason: "invalid_pending_age" }
   }
 
@@ -1214,6 +1257,13 @@ async function dispatchHrRequestPendingReminder(params: {
     startDateKey,
   })
   if (await hasQueuedOrSentHrRequestReminderEvent(eventKey)) {
+    hrReminderLog("skip", {
+      requestId,
+      reason: "already_sent_or_queued",
+      eventKey,
+      eventType: params.eventType,
+      note: "există deja emailEvents queued/sent pentru această cheie",
+    })
     return { ok: true, skipped: true as const, reason: "already_sent_or_queued" }
   }
 
@@ -1231,6 +1281,14 @@ async function dispatchHrRequestPendingReminder(params: {
         reason: "no_valid_manager_email",
         hrRequestReminderEventKey: eventKey,
       },
+    })
+    hrReminderLog("skip", {
+      requestId,
+      reason: "no_valid_manager_email",
+      managerUid: req.managerUid,
+      eventKey,
+      eventType: params.eventType,
+      rawEmailFromUsersDoc: manager.email,
     })
     return { ok: true, skipped: true as const, reason: "no_valid_manager_email" }
   }
@@ -1302,6 +1360,24 @@ async function dispatchHrRequestPendingReminder(params: {
     },
   })
 
+  const smtpCfg = getSmtpConfig()
+  hrReminderLog("smtp_attempt", {
+    requestId,
+    to: managerEmail,
+    managerUid: req.managerUid,
+    emailEventId,
+    eventKey,
+    eventType: params.eventType,
+    daysPending,
+    weekNumber: params.weekNumber ?? null,
+    subjectPreview: subject.slice(0, 120),
+    smtpConfigured: Boolean(smtpCfg),
+    smtpHost: smtpCfg?.host ?? null,
+    smtpPort: smtpCfg?.port ?? null,
+    smtpSecure: smtpCfg?.secure ?? null,
+    smtpFrom: smtpCfg?.from ?? null,
+  })
+
   try {
     await smtpSendMail({
       to: managerEmail,
@@ -1310,13 +1386,24 @@ async function dispatchHrRequestPendingReminder(params: {
       html,
     })
     await updateHrRequestReminderEmailEvent(emailEventId, { status: "sent" })
+    hrReminderLog("smtp_ok", { requestId, to: managerEmail, emailEventId, eventKey })
     return { ok: true, skipped: false as const, sentCount: 1 }
   } catch (error: any) {
+    const errMsg = String(error?.message || error || "unknown")
+    const stack = error?.stack ? String(error.stack).slice(0, 800) : undefined
+    hrReminderErr("smtp_failed", {
+      requestId,
+      to: managerEmail,
+      emailEventId,
+      eventKey,
+      error: errMsg,
+      stack,
+    })
     await updateHrRequestReminderEmailEvent(emailEventId, {
       status: "failed",
-      error: String(error?.message || error || "unknown"),
+      error: errMsg,
     })
-    return { ok: false, skipped: false as const, reason: "send_failed" }
+    return { ok: false, skipped: false as const, reason: "send_failed", error: errMsg }
   }
 }
 
@@ -2267,6 +2354,7 @@ export const sendHrRequestPendingApprovalReminders = functions
 
     try {
       const rows = await db.collection("hrRequests").where("status", "==", "pending").limit(500).get()
+      hrReminderLog("job_start", { todayDateKey, pendingHrRequests: rows.size })
 
       for (const row of rows.docs) {
         checked += 1
@@ -2318,6 +2406,12 @@ export const sendHrRequestPendingApprovalReminders = functions
           })
           if (result.ok && !result.skipped) {
             dispatched += 1
+            console.log("sendHrRequestPendingApprovalReminders dispatched", row.id, "day_before")
+          } else if (result.skipped) {
+            console.log("sendHrRequestPendingApprovalReminders skip", row.id, "day_before", result.reason)
+          } else {
+            const errDetail = "error" in result && result.error ? result.error : ""
+            console.log("sendHrRequestPendingApprovalReminders failed", row.id, "day_before", result.reason, errDetail)
           }
           continue
         }
@@ -2332,6 +2426,12 @@ export const sendHrRequestPendingApprovalReminders = functions
           })
           if (result.ok && !result.skipped) {
             dispatched += 1
+            console.log("sendHrRequestPendingApprovalReminders dispatched", row.id, "weekly")
+          } else if (result.skipped) {
+            console.log("sendHrRequestPendingApprovalReminders skip", row.id, "weekly", result.reason)
+          } else {
+            const errDetail = "error" in result && result.error ? result.error : ""
+            console.log("sendHrRequestPendingApprovalReminders failed", row.id, "weekly", result.reason, errDetail)
           }
           continue
         }
