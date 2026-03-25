@@ -162,6 +162,26 @@ export const SETTINGS_TARGETS: SettingsTarget[] = [
     label: "Ofertă → TVA implicit (%)",
     kind: "value",
   },
+  {
+    id: "deviz.baseVisitPrice",
+    label: "Deviz → Tarif Deplasare/Constatare + 1/2h manoperă",
+    kind: "value",
+  },
+  {
+    id: "deviz.laborHourlyPrice",
+    label: "Deviz → Tarif orar manoperă",
+    kind: "value",
+  },
+  {
+    id: "deviz.includedMinutes",
+    label: "Deviz → Minute incluse în tariful standard",
+    kind: "value",
+  },
+  {
+    id: "deviz.laborBillingStepMinutes",
+    label: "Deviz → Pas facturare manoperă (minute)",
+    kind: "value",
+  },
 
   // Contracte
   {

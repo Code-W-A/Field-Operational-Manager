@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MultiSelect } from "@/components/ui/multi-select"
-import { Panel, SubtleBadge } from "@/components/crm"
+import { Panel, SubtleBadge, TaskPostponeMenu } from "@/components/crm"
 import { useCrmOpportunity } from "@/hooks/use-crm-opportunity"
 import { useToast } from "@/hooks/use-toast"
 import { getDateValue } from "@/lib/crm/activity"
@@ -174,8 +174,13 @@ export default function OpportunityCalendarPage() {
 
   const userOptions = useMemo(() => users.map((row) => ({ value: row.uid, label: row.displayName })), [users])
 
-  const load = async () => {
-    if (!opportunity || !user?.uid) return
+  const calendarTaskForPostpone = useMemo(() => {
+    if (!taskDraft) return null
+    return openTasks.find((t) => t.id === taskDraft.taskId) ?? null
+  }, [openTasks, taskDraft])
+
+  const load = async (): Promise<CrmTask[] | null> => {
+    if (!opportunity || !user?.uid) return null
 
     setLoading(true)
     try {
@@ -197,6 +202,7 @@ export default function OpportunityCalendarPage() {
       setEvents(eventRows)
       setOpenTasks(taskRows.filter(isOpenTask))
       setUsers(userRows.map((row) => ({ uid: row.uid, displayName: row.displayName || row.email || row.uid })))
+      return taskRows
     } finally {
       setLoading(false)
     }
@@ -674,12 +680,31 @@ export default function OpportunityCalendarPage() {
                       </SelectContent>
                     </Select>
 
-                    <Input
-                      type="datetime-local"
-                      value={taskDraft.dueAt}
-                      onChange={(event) => setTaskDraft((prev) => (prev ? { ...prev, dueAt: event.target.value } : prev))}
-                      className="h-9 text-sm"
-                    />
+                    <div className="space-y-1.5">
+                      <Label className="text-sm text-neutral-700">Termen</Label>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Input
+                          type="datetime-local"
+                          value={taskDraft.dueAt}
+                          onChange={(event) => setTaskDraft((prev) => (prev ? { ...prev, dueAt: event.target.value } : prev))}
+                          className="h-9 min-w-[200px] flex-1 text-sm"
+                        />
+                        {user?.uid && calendarTaskForPostpone ? (
+                          <TaskPostponeMenu
+                            task={calendarTaskForPostpone}
+                            actorId={user.uid}
+                            disabled={isSavingTask || Boolean(actingTaskId)}
+                            onSuccess={async () => {
+                              const taskId = taskDraft?.taskId
+                              const rows = await load()
+                              if (!taskId) return
+                              const refreshed = rows?.find((r) => r.id === taskId)
+                              if (refreshed) setTaskDraft(createTaskDraftFromRow(refreshed))
+                            }}
+                          />
+                        ) : null}
+                      </div>
+                    </div>
                   </div>
                 </div>
 

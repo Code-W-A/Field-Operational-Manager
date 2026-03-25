@@ -1,13 +1,13 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AlertCircle, ArrowRight, CalendarClock, KanbanSquare, ListChecks, TrendingUp } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { PageShell, Panel, SectionHeader, SubtleBadge } from "@/components/crm"
+import { PageShell, Panel, SectionHeader, SubtleBadge, TaskPostponeMenu } from "@/components/crm"
 import { listCrmDashboardStats, listCrmOpportunitiesForUser } from "@/lib/crm/opportunities"
 import { listCrmTasksForOpportunityIds } from "@/lib/crm/tasks"
 import { formatDateTime, priorityLabel, stageLabel, taskStatusLabel } from "@/lib/crm/presenters"
@@ -51,39 +51,39 @@ export default function CrmDashboardPage() {
   const [stats, setStats] = useState<{ total: number; won: number; lost: number; stageStats: Record<string, number> } | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    const load = async () => {
-      if (!user?.uid) return
+  const loadDashboard = useCallback(async () => {
+    if (!user?.uid) return
 
-      setLoading(true)
-      try {
-        const [opportunityRows, dashboardStats] = await Promise.all([
-          listCrmOpportunitiesForUser(user.uid),
-          listCrmDashboardStats(user.uid),
-        ])
+    setLoading(true)
+    try {
+      const [opportunityRows, dashboardStats] = await Promise.all([
+        listCrmOpportunitiesForUser(user.uid),
+        listCrmDashboardStats(user.uid),
+      ])
 
-        const ownerByOpportunityId = opportunityRows.reduce<Record<string, string>>((acc, row) => {
-          acc[row.id] = row.ownerId
-          return acc
-        }, {})
+      const ownerByOpportunityId = opportunityRows.reduce<Record<string, string>>((acc, row) => {
+        acc[row.id] = row.ownerId
+        return acc
+      }, {})
 
-        const taskRows = await listCrmTasksForOpportunityIds({
-          opportunityIds: opportunityRows.map((row) => row.id),
-          userId: user.uid,
-          ownerByOpportunityId,
-          assigneeOnlyUserId: userData?.role === "admin" ? undefined : user.uid,
-        })
+      const taskRows = await listCrmTasksForOpportunityIds({
+        opportunityIds: opportunityRows.map((row) => row.id),
+        userId: user.uid,
+        ownerByOpportunityId,
+        assigneeOnlyUserId: userData?.role === "admin" ? undefined : user.uid,
+      })
 
-        setOpportunities(opportunityRows)
-        setTasks(taskRows)
-        setStats(dashboardStats)
-      } finally {
-        setLoading(false)
-      }
+      setOpportunities(opportunityRows)
+      setTasks(taskRows)
+      setStats(dashboardStats)
+    } finally {
+      setLoading(false)
     }
-
-    load()
   }, [user?.uid, userData?.role])
+
+  useEffect(() => {
+    void loadDashboard()
+  }, [loadDashboard])
 
   const opportunitiesWithUrgency = useMemo(() => {
     const groupedTasks = tasks.reduce<Record<string, CrmTask[]>>((acc, task) => {
@@ -222,25 +222,64 @@ export default function CrmDashboardPage() {
             <div className="space-y-3">
               <div className="rounded-lg border border-rose-100 bg-rose-50/60 p-3">
                 <p className="text-xs font-medium text-rose-700">Overdue ({taskBuckets.overdue.length})</p>
-                <div className="mt-2 space-y-1">
+                <div className="mt-2 space-y-2">
                   {taskBuckets.overdue.slice(0, 3).map((task) => (
-                    <p key={task.id} className="text-xs text-rose-700">{task.title}</p>
+                    <div key={task.id} className="flex flex-wrap items-center justify-between gap-2">
+                      <Link
+                        href={`/crm/opportunities/${task.opportunityId}/tasks`}
+                        className="min-w-0 flex-1 text-xs text-rose-700 hover:underline"
+                        title={task.title}
+                      >
+                        {task.title}
+                      </Link>
+                      {user?.uid ? (
+                        <div className="shrink-0">
+                          <TaskPostponeMenu task={task} actorId={user.uid} onSuccess={loadDashboard} />
+                        </div>
+                      ) : null}
+                    </div>
                   ))}
                 </div>
               </div>
               <div className="rounded-lg border border-amber-100 bg-amber-50/60 p-3">
                 <p className="text-xs font-medium text-amber-700">Today ({taskBuckets.today.length})</p>
-                <div className="mt-2 space-y-1">
+                <div className="mt-2 space-y-2">
                   {taskBuckets.today.slice(0, 3).map((task) => (
-                    <p key={task.id} className="text-xs text-amber-700">{task.title}</p>
+                    <div key={task.id} className="flex flex-wrap items-center justify-between gap-2">
+                      <Link
+                        href={`/crm/opportunities/${task.opportunityId}/tasks`}
+                        className="min-w-0 flex-1 text-xs text-amber-700 hover:underline"
+                        title={task.title}
+                      >
+                        {task.title}
+                      </Link>
+                      {user?.uid ? (
+                        <div className="shrink-0">
+                          <TaskPostponeMenu task={task} actorId={user.uid} onSuccess={loadDashboard} />
+                        </div>
+                      ) : null}
+                    </div>
                   ))}
                 </div>
               </div>
               <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
                 <p className="text-xs font-medium text-neutral-700">Upcoming ({taskBuckets.upcoming.length})</p>
-                <div className="mt-2 space-y-1">
+                <div className="mt-2 space-y-2">
                   {taskBuckets.upcoming.slice(0, 3).map((task) => (
-                    <p key={task.id} className="text-xs text-neutral-600">{task.title}</p>
+                    <div key={task.id} className="flex flex-wrap items-center justify-between gap-2">
+                      <Link
+                        href={`/crm/opportunities/${task.opportunityId}/tasks`}
+                        className="min-w-0 flex-1 text-xs text-neutral-600 hover:underline"
+                        title={task.title}
+                      >
+                        {task.title}
+                      </Link>
+                      {user?.uid ? (
+                        <div className="shrink-0">
+                          <TaskPostponeMenu task={task} actorId={user.uid} onSuccess={loadDashboard} />
+                        </div>
+                      ) : null}
+                    </div>
                   ))}
                 </div>
               </div>

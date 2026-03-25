@@ -8,11 +8,11 @@ import { ProductTableForm, type ProductItem } from "@/components/product-table-f
 import { updateLucrare, getLucrareById, getClientById, addUserLogEntry } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import { toast } from "@/hooks/use-toast"
-import { useTargetList, useTargetValue } from "@/hooks/use-settings"
+import { useTargetValue } from "@/hooks/use-settings"
 import { generateDevizPdf } from "@/lib/utils/offer-pdf"
+import { buildAutoDevizProducts } from "@/lib/deviz/auto-deviz"
 import {
   blobToBase64,
-  buildPricingConditions,
   formatPreparedDate,
   normalizeEmail,
   resolveRecipientEmailForLocation,
@@ -34,6 +34,13 @@ type DevizVersion = {
   products: ProductItem[]
 }
 
+type AutoDevizBreakdownState = {
+  totalMinutes: number
+  extraMinutes: number
+  techCount: number
+  billableHours: number
+}
+
 export function DevizEditorDialog({
   lucrareId,
   open,
@@ -53,15 +60,14 @@ export function DevizEditorDialog({
   const [vatPercent, setVatPercent] = useState<number>(21)
   const [adjustmentPercent, setAdjustmentPercent] = useState<number>(0)
   const [adjustmentInput, setAdjustmentInput] = useState<string>("0")
-  const [termsPayment, setTermsPayment] = useState("")
-  const [termsDelivery, setTermsDelivery] = useState("")
-  const [termsInstallation, setTermsInstallation] = useState("")
   const [canSendDeviz, setCanSendDeviz] = useState(false)
   const [lastEmailDebug, setLastEmailDebug] = useState<any>(null)
-  const { items: paymentTermOptions } = useTargetList("offer.paymentTermsOptions")
-  const { items: deliveryTermOptions } = useTargetList("offer.deliveryTermsOptions")
-  const { items: installationTermOptions } = useTargetList("offer.installationTermsOptions")
+  const [autoDevizBreakdown, setAutoDevizBreakdown] = useState<AutoDevizBreakdownState | null>(null)
   const { value: defaultVatPercentSetting } = useTargetValue<number>("offer.defaultVatPercent")
+  const { value: devizBaseVisitPriceSetting } = useTargetValue<number>("deviz.baseVisitPrice")
+  const { value: devizLaborHourlyPriceSetting } = useTargetValue<number>("deviz.laborHourlyPrice")
+  const { value: devizIncludedMinutesSetting } = useTargetValue<number>("deviz.includedMinutes")
+  const { value: devizLaborBillingStepMinutesSetting } = useTargetValue<number>("deviz.laborBillingStepMinutes")
 
   const total = useMemo(() => products.reduce((sum, product) => sum + (Number(product.total) || 0), 0), [products])
   const discountedTotal = useMemo(() => {
@@ -78,10 +84,28 @@ export function DevizEditorDialog({
 
     const load = async () => {
       const current = await getLucrareById(lucrareId)
+      const savedDevizProducts = Array.isArray((current as any)?.devizProducts) ? (current as any).devizProducts : []
+      const hasSavedDevizProducts = savedDevizProducts.length > 0
+      const autoDeviz = buildAutoDevizProducts({
+        reportProducts: Array.isArray((current as any)?.raportSnapshot?.products)
+          ? (current as any).raportSnapshot.products
+          : Array.isArray((current as any)?.products)
+            ? (current as any).products
+            : [],
+        durationText: (current as any)?.raportSnapshot?.durataInterventie || (current as any)?.durataInterventie,
+        arrivalAt: (current as any)?.timpSosire,
+        departureAt: (current as any)?.raportSnapshot?.timpPlecare || (current as any)?.timpPlecare,
+        techniciansCount: Array.isArray((current as any)?.tehnicieni) ? (current as any).tehnicieni.length : 0,
+        baseVisitPrice: devizBaseVisitPriceSetting,
+        laborHourlyPrice: devizLaborHourlyPriceSetting,
+        includedMinutes: devizIncludedMinutesSetting,
+        laborBillingStepMinutes: devizLaborBillingStepMinutesSetting,
+      })
       setCurrentWork(current)
       setVersions(Array.isArray((current as any)?.devizVersions) ? (current as any).devizVersions : [])
       setIsPickedUp(Boolean((current as any)?.preluatDispecer))
-      setProducts(Array.isArray((current as any)?.devizProducts) ? (current as any).devizProducts : initialProducts || [])
+      setProducts(hasSavedDevizProducts ? savedDevizProducts : autoDeviz.products)
+      setAutoDevizBreakdown(hasSavedDevizProducts ? null : autoDeviz.breakdown)
       setVatPercent(
         typeof (current as any)?.devizVAT === "number"
           ? Number((current as any).devizVAT)
@@ -97,21 +121,6 @@ export function DevizEditorDialog({
       setAdjustmentInput(String(nextAdjustment))
 
       try {
-        const conditions: string[] = Array.isArray((current as any)?.devizConditions) ? (current as any).devizConditions : []
-        const findByPrefix = (prefix: string) => conditions.find((entry) => String(entry || "").toLowerCase().startsWith(prefix))
-        const payment = findByPrefix("plata:")
-        const delivery = findByPrefix("livrare:")
-        const installation = findByPrefix("instalare:")
-        setTermsPayment(payment ? payment.replace(/^plata:\s*/i, "").trim() : "")
-        setTermsDelivery(delivery ? delivery.replace(/^livrare:\s*/i, "").trim() : "")
-        setTermsInstallation(installation ? installation.replace(/^instalare:\s*/i, "").trim() : "")
-      } catch {
-        setTermsPayment("")
-        setTermsDelivery("")
-        setTermsInstallation("")
-      }
-
-      try {
         const clientId = (current as any)?.clientId || (current as any)?.clientInfo?.id
         if (clientId) {
           setClientData(await getClientById(String(clientId)))
@@ -124,7 +133,16 @@ export function DevizEditorDialog({
     }
 
     void load()
-  }, [open, lucrareId, initialProducts, defaultVatPercentSetting])
+  }, [
+    open,
+    lucrareId,
+    initialProducts,
+    defaultVatPercentSetting,
+    devizBaseVisitPriceSetting,
+    devizLaborHourlyPriceSetting,
+    devizIncludedMinutesSetting,
+    devizLaborBillingStepMinutesSetting,
+  ])
 
   useEffect(() => {
     setCanSendDeviz(versions.length > 0)
@@ -156,7 +174,6 @@ export function DevizEditorDialog({
       const current = await getLucrareById(lucrareId)
       const existingVersions = Array.isArray((current as any)?.devizVersions) ? (current as any).devizVersions : []
       const updatedVersions = [...existingVersions, version]
-      const conditions = buildPricingConditions(termsPayment, termsDelivery, termsInstallation)
       const normalizedAdjustment = parseFloat(String(adjustmentInput).replace(",", "."))
 
       await updateLucrare(lucrareId, {
@@ -165,7 +182,7 @@ export function DevizEditorDialog({
         devizVAT: Number(vatPercent) || 0,
         devizAdjustmentPercent: Number.isNaN(normalizedAdjustment) ? 0 : normalizedAdjustment,
         devizVersions: updatedVersions as any,
-        devizConditions: conditions as any,
+        devizConditions: [] as any,
       } as any)
 
       setVersions(updatedVersions)
@@ -234,7 +251,6 @@ export function DevizEditorDialog({
         })),
         offerVAT: Number(vatPercent) || 0,
         adjustmentPercent: Number(adjustmentPercent) || 0,
-        conditions: Array.isArray((freshWork as any)?.devizConditions) ? (freshWork as any).devizConditions : buildPricingConditions(termsPayment, termsDelivery, termsInstallation),
         equipmentName: String((freshWork as any)?.echipament || ""),
         locationName: String((freshWork as any)?.locatie || ""),
         preparedBy: String((freshWork as any)?.preluatDe || userData?.displayName || userData?.email || ""),
@@ -249,13 +265,12 @@ export function DevizEditorDialog({
 
       const fileName = `deviz_${String((freshWork as any)?.numarRaport || lucrareId)}.pdf`
       const attachmentBase64 = await blobToBase64(blob)
-      const conditions = buildPricingConditions(termsPayment, termsDelivery, termsInstallation)
       const sentAtIso = new Date().toISOString()
       const subject = `Deviz pentru lucrarea ${freshWork?.numarRaport || freshWork?.id || lucrareId}`
       const html = `
         <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0b1220">
           <h2 style="margin:0 0 12px;color:#0f56b3">Deviz lucrarea ${freshWork?.numarRaport || freshWork?.id || lucrareId}</h2>
-          <p style="margin:8px 0 12px;color:#0b1220">Atașat găsiți devizul aferent lucrării. Documentul conține pozițiile introduse manual și condițiile comerciale aplicabile.</p>
+          <p style="margin:8px 0 12px;color:#0b1220">Atașat găsiți devizul aferent lucrării, cu pozițiile introduse manual.</p>
           <p style="margin:8px 0;color:#0b1220"><strong>Total fără TVA:</strong> ${latestVersion.total.toFixed(2)} lei</p>
           <p style="margin:8px 0;color:#64748b">Locație: ${presetLocationLabel || freshWork?.locatie || freshWork?.clientInfo?.locationName || "-"}</p>
           <div style="margin-top:14px;font-size:11px;color:#6b7280">Acesta este un mesaj automat emis de FOM by NRG.</div>
@@ -299,7 +314,7 @@ export function DevizEditorDialog({
         devizPreparedBy: userData?.displayName || userData?.email || "—",
         devizPreparedAt: new Date(),
         devizSendCount: Number((freshWork as any)?.devizSendCount || 0) + 1,
-        devizConditions: conditions as any,
+        devizConditions: [] as any,
         devizDocument: {
           fileName,
           uploadedAt: sentAtIso,
@@ -355,149 +370,94 @@ export function DevizEditorDialog({
               </Badge>
             </div>
 
-            <ProductTableForm products={products} onProductsChange={setProducts} disabled={!isPickedUp || saving} />
+            <ProductTableForm
+              products={products}
+              onProductsChange={setProducts}
+              disabled={!isPickedUp || saving}
+              allowDecimalQuantity
+            />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded border p-4 bg-slate-50">
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Termen de plată</label>
-                  <input
-                    type="text"
-                    value={termsPayment}
-                    onChange={(e) => setTermsPayment(e.target.value)}
-                    className="w-full border rounded px-2 py-1 text-sm bg-white"
-                    disabled={!isPickedUp || saving}
-                  />
-                  {!!paymentTermOptions?.length && (
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {paymentTermOptions.map((option) => (
-                        <button
-                          key={option.id}
-                          type="button"
-                          className="text-[11px] px-2 py-0.5 rounded border hover:bg-muted"
-                          onClick={() => setTermsPayment(option.name)}
-                          disabled={!isPickedUp || saving}
-                        >
-                          {option.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Termen de livrare</label>
-                  <input
-                    type="text"
-                    value={termsDelivery}
-                    onChange={(e) => setTermsDelivery(e.target.value)}
-                    className="w-full border rounded px-2 py-1 text-sm bg-white"
-                    disabled={!isPickedUp || saving}
-                  />
-                  {!!deliveryTermOptions?.length && (
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {deliveryTermOptions.map((option) => (
-                        <button
-                          key={option.id}
-                          type="button"
-                          className="text-[11px] px-2 py-0.5 rounded border hover:bg-muted"
-                          onClick={() => setTermsDelivery(option.name)}
-                          disabled={!isPickedUp || saving}
-                        >
-                          {option.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Termen de instalare</label>
-                  <input
-                    type="text"
-                    value={termsInstallation}
-                    onChange={(e) => setTermsInstallation(e.target.value)}
-                    className="w-full border rounded px-2 py-1 text-sm bg-white"
-                    disabled={!isPickedUp || saving}
-                  />
-                  {!!installationTermOptions?.length && (
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {installationTermOptions.map((option) => (
-                        <button
-                          key={option.id}
-                          type="button"
-                          className="text-[11px] px-2 py-0.5 rounded border hover:bg-muted"
-                          onClick={() => setTermsInstallation(option.name)}
-                          disabled={!isPickedUp || saving}
-                        >
-                          {option.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-muted-foreground mb-1">TVA (%)</label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      value={String(vatPercent)}
-                      onChange={(e) => setVatPercent(Number(e.target.value.replace(/\D+/g, "") || 0))}
-                      className="w-full border rounded px-2 py-1 text-sm bg-white"
-                      disabled={!isPickedUp || saving}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-muted-foreground mb-1">Discount (%)</label>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={adjustmentInput}
-                      onChange={(e) => setAdjustmentInput(e.target.value)}
-                      onBlur={() => {
-                        const parsed = parseFloat(String(adjustmentInput).replace(",", "."))
-                        const safeValue = Number.isNaN(parsed) ? 0 : parsed
-                        setAdjustmentPercent(safeValue)
-                        setAdjustmentInput(String(safeValue))
-                      }}
-                      className="w-full border rounded px-2 py-1 text-sm bg-white"
-                      disabled={!isPickedUp || saving}
-                    />
-                  </div>
-                </div>
-
-                <div className="rounded border bg-white p-3 text-sm">
-                  <div>Subtotal: <strong>{total.toFixed(2)} lei</strong></div>
-                  <div>Discount: <strong>-{(Number(adjustmentPercent) || 0).toFixed(0)}%</strong></div>
-                  <div>Total după discount: <strong>{discountedTotal.toFixed(2)} lei</strong></div>
-                </div>
-
-                <div className="text-xs bg-blue-50 text-blue-800 border border-blue-200 rounded px-2 py-2">
-                  {suggestedRecipient ? (
-                    <>
-                      <span className="font-medium">Devizul se va trimite la adresa de email: </span>
-                      <span>{suggestedRecipient}</span>
-                      {(presetLocationLabel || currentWork?.locatie || currentWork?.clientInfo?.locationName) ? (
-                        <span>{` (Locație: ${presetLocationLabel || currentWork?.locatie || currentWork?.clientInfo?.locationName || "-"})`}</span>
-                      ) : null}
-                    </>
-                  ) : (
-                    <span>Nu există email valid pentru persoana de contact din locația lucrării.</span>
-                  )}
-                </div>
-
-                {lastEmailDebug && (
-                  <div className="text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded px-2 py-2">
-                    <div>Status: <span className="font-mono">{String(lastEmailDebug.status)}</span></div>
-                    {lastEmailDebug.recipient ? <div>Către: <span className="font-mono">{String(lastEmailDebug.recipient)}</span></div> : null}
-                    {lastEmailDebug.api?.messageId ? <div>MessageID: <span className="font-mono">{String(lastEmailDebug.api.messageId)}</span></div> : null}
-                    {lastEmailDebug.apiError ? <div>API error: <span className="font-mono">{JSON.stringify(lastEmailDebug.apiError)}</span></div> : null}
-                  </div>
+            {autoDevizBreakdown && (
+              <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                {autoDevizBreakdown.totalMinutes > 0 ? (
+                  <>
+                    Manopera a fost calculata automat din durata interventiei: {autoDevizBreakdown.totalMinutes} min total,{" "}
+                    {Math.max(Number(devizIncludedMinutesSetting) || 30, 0)} min incluse in linia standard,{" "}
+                    {autoDevizBreakdown.extraMinutes} min suplimentare facturate pentru{" "}
+                    {autoDevizBreakdown.techCount} {autoDevizBreakdown.techCount === 1 ? "tehnician" : "tehnicieni"}.
+                    Rezultatul este {autoDevizBreakdown.billableHours.toFixed(2)} ore facturabile pe linia
+                    &nbsp;<span className="font-medium">Manopera service</span>.
+                  </>
+                ) : (
+                  <>
+                    Liniile standard au fost generate automat. Nu s-a putut determina o durata valida a interventiei,
+                    asa ca linia <span className="font-medium">Manopera service</span> a fost initializata cu valoare 0.
+                  </>
                 )}
               </div>
+            )}
+
+            <div className="space-y-3 rounded border p-4 bg-slate-50">
+              <div className="grid grid-cols-2 gap-3 max-w-md">
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">TVA (%)</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={String(vatPercent)}
+                    onChange={(e) => setVatPercent(Number(e.target.value.replace(/\D+/g, "") || 0))}
+                    className="w-full border rounded px-2 py-1 text-sm bg-white"
+                    disabled={!isPickedUp || saving}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Discount (%)</label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={adjustmentInput}
+                    onChange={(e) => setAdjustmentInput(e.target.value)}
+                    onBlur={() => {
+                      const parsed = parseFloat(String(adjustmentInput).replace(",", "."))
+                      const safeValue = Number.isNaN(parsed) ? 0 : parsed
+                      setAdjustmentPercent(safeValue)
+                      setAdjustmentInput(String(safeValue))
+                    }}
+                    className="w-full border rounded px-2 py-1 text-sm bg-white"
+                    disabled={!isPickedUp || saving}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded border bg-white p-3 text-sm">
+                <div>Subtotal: <strong>{total.toFixed(2)} lei</strong></div>
+                <div>Discount: <strong>-{(Number(adjustmentPercent) || 0).toFixed(0)}%</strong></div>
+                <div>Total după discount: <strong>{discountedTotal.toFixed(2)} lei</strong></div>
+              </div>
+
+              <div className="text-xs bg-blue-50 text-blue-800 border border-blue-200 rounded px-2 py-2">
+                {suggestedRecipient ? (
+                  <>
+                    <span className="font-medium">Devizul se va trimite la adresa de email: </span>
+                    <span>{suggestedRecipient}</span>
+                    {(presetLocationLabel || currentWork?.locatie || currentWork?.clientInfo?.locationName) ? (
+                      <span>{` (Locație: ${presetLocationLabel || currentWork?.locatie || currentWork?.clientInfo?.locationName || "-"})`}</span>
+                    ) : null}
+                  </>
+                ) : (
+                  <span>Nu există email valid pentru persoana de contact din locația lucrării.</span>
+                )}
+              </div>
+
+              {lastEmailDebug && (
+                <div className="text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded px-2 py-2">
+                  <div>Status: <span className="font-mono">{String(lastEmailDebug.status)}</span></div>
+                  {lastEmailDebug.recipient ? <div>Către: <span className="font-mono">{String(lastEmailDebug.recipient)}</span></div> : null}
+                  {lastEmailDebug.api?.messageId ? <div>MessageID: <span className="font-mono">{String(lastEmailDebug.api.messageId)}</span></div> : null}
+                  {lastEmailDebug.apiError ? <div>API error: <span className="font-mono">{JSON.stringify(lastEmailDebug.apiError)}</span></div> : null}
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-2">

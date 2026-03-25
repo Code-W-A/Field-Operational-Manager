@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MultiSelect } from "@/components/ui/multi-select"
-import { Panel, SubtleBadge } from "@/components/crm"
+import { Panel, SubtleBadge, TaskPostponeMenu } from "@/components/crm"
 import { useCrmOpportunity } from "@/hooks/use-crm-opportunity"
 import {
   createCrmTask,
@@ -457,6 +457,12 @@ export default function OpportunityTasksPage() {
                       >
                         Edit
                       </Button>
+                    <TaskPostponeMenu
+                      task={task}
+                      actorId={user?.uid || ""}
+                      disabled={actingTaskId === task.id}
+                      onSuccess={load}
+                    />
                     <Button
                       variant="outline"
                       size="sm"

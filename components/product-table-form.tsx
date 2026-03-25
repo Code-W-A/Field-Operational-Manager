@@ -30,6 +30,7 @@ interface ProductTableFormProps {
   onProductsChange: (products: ProductItem[]) => void
   disabled?: boolean
   showTitle?: boolean
+  allowDecimalQuantity?: boolean
   /** Clase pentru containerul scrollabil al tabelului (desktop). Implicit max-h-[60vh]. */
   tableScrollClassName?: string
 }
@@ -39,6 +40,7 @@ export function ProductTableForm({
   onProductsChange,
   disabled = false,
   showTitle = true,
+  allowDecimalQuantity = false,
   tableScrollClassName = "max-h-[60vh]",
 }: ProductTableFormProps) {
   const isMobile = useIsMobile()
@@ -134,7 +136,7 @@ const handleNumberChange = (
   const hasValidationError = (p: ProductItem) => {
     const nameOk = (p.name || "").trim().length > 0
     const priceOk = (Number(p.price) || 0) >= 0
-    const qtyOk = (Number(p.quantity) || 0) >= 1
+    const qtyOk = allowDecimalQuantity ? (Number(p.quantity) || 0) > 0 : (Number(p.quantity) || 0) >= 1
     return !(nameOk && priceOk && qtyOk)
   }
 
@@ -229,12 +231,14 @@ const handleNumberChange = (
                       <Input
                         id={`quantity-${p.id}`}
                         type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
+                        inputMode={allowDecimalQuantity ? "decimal" : "numeric"}
+                        pattern={allowDecimalQuantity ? "[0-9]+([.,][0-9]+)?" : "[0-9]*"}
                         value={p.quantity === 0 ? "" : String(p.quantity)}
                         onChange={(e) => {
-                          const onlyDigits = e.target.value.replace(/\D+/g, "")
-                          handleNumberChange(p.id, "quantity")({ ...e, target: { ...e.target, value: onlyDigits } } as any)
+                          const normalized = allowDecimalQuantity
+                            ? e.target.value.replace(",", ".").replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1")
+                            : e.target.value.replace(/\D+/g, "")
+                          handleNumberChange(p.id, "quantity")({ ...e, target: { ...e.target, value: normalized } } as any)
                         }}
                         onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
                         disabled={disabled}
@@ -325,8 +329,8 @@ const handleNumberChange = (
                 <label className="text-sm font-medium">Buc</label>
                 <Input
                   type="number"
-                  min="1"
-                  step="1"
+                  min={allowDecimalQuantity ? "0.01" : "1"}
+                  step={allowDecimalQuantity ? "0.01" : "1"}
                   value={draft?.quantity === undefined || draft?.quantity === null ? "" : String(draft.quantity)}
                   onChange={(e) => {
                     const v = e.target.value
