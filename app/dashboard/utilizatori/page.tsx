@@ -57,6 +57,53 @@ import { DynamicDialogFields } from "@/components/DynamicDialogFields"
 import { useTargetList } from "@/hooks/use-settings"
 import { formatUiDate, toDateSafe } from "@/lib/utils/time-format"
 
+const DEFAULT_ROLE_OPTIONS = [
+  { value: "admin", label: "Administrator" },
+  { value: "dispecer", label: "Dispecer" },
+  { value: "tehnician", label: "Tehnician" },
+  { value: "client", label: "Client" },
+  { value: "kiosk", label: "Kiosk Pontaj" },
+]
+
+const DEFAULT_ROLE_ORDER = DEFAULT_ROLE_OPTIONS.map((item) => item.value)
+
+function getRoleLabel(role: string) {
+  const normalizedRole = String(role || "").trim()
+  const lowerRole = normalizedRole.toLowerCase()
+
+  switch (lowerRole) {
+    case "admin":
+      return "Administrator"
+    case "dispecer":
+      return "Dispecer"
+    case "tehnician":
+      return "Tehnician"
+    case "client":
+      return "Client"
+    case "kiosk":
+      return "Kiosk Pontaj"
+    default:
+      return normalizedRole
+        .replace(/[_-]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/\b\w/g, (char) => char.toUpperCase())
+  }
+}
+
+function compareRoleOptions(a: { value: string; label: string }, b: { value: string; label: string }) {
+  const aIndex = DEFAULT_ROLE_ORDER.indexOf(a.value.toLowerCase())
+  const bIndex = DEFAULT_ROLE_ORDER.indexOf(b.value.toLowerCase())
+
+  if (aIndex !== -1 || bIndex !== -1) {
+    if (aIndex === -1) return 1
+    if (bIndex === -1) return -1
+    if (aIndex !== bIndex) return aIndex - bIndex
+  }
+
+  return a.label.localeCompare(b.label, "ro", { sensitivity: "base" })
+}
+
 export default function Utilizatori() {
   const { userData: currentUser } = useAuth()
   const { items: dynamicUserRoles } = useTargetList("users.create.roles")
@@ -115,6 +162,28 @@ export default function Utilizatori() {
   const sortedClientsForSelect = useMemo(() => {
     return [...clientsForSelect].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" }))
   }, [clientsForSelect])
+
+  const availableRoleOptions = useMemo(() => {
+    const roleMap = new Map<string, { value: string; label: string }>()
+
+    DEFAULT_ROLE_OPTIONS.forEach((option) => {
+      roleMap.set(option.value.toLowerCase(), option)
+    })
+
+    dynamicUserRoles.forEach((role) => {
+      const value = String(role?.name || "").trim()
+      if (!value) return
+      roleMap.set(value.toLowerCase(), { value, label: getRoleLabel(value) })
+    })
+
+    utilizatori.forEach((user) => {
+      const value = String(user?.role || "").trim()
+      if (!value) return
+      roleMap.set(value.toLowerCase(), { value, label: getRoleLabel(value) })
+    })
+
+    return Array.from(roleMap.values()).sort(compareRoleOptions)
+  }, [dynamicUserRoles, utilizatori])
 
   // Add state for activeTab
   const [activeTab, setActiveTab] = useState("tabel")
@@ -186,19 +255,13 @@ export default function Utilizatori() {
 
   // Define filter options based on user data
   const filterOptions = useMemo<FilterOption[]>(() => {
-    // Extract unique roles for multiselect filter
-    const roleOptions = Array.from(new Set(utilizatori.map((user) => user.role))).map((role) => ({
-      value: role,
-      label: role === "admin" ? "Administrator" : role === "dispecer" ? "Dispecer" : "Tehnician",
-    }))
-
     // Create a date range for last login
     return [
       {
         id: "role",
         label: "Rol",
         type: "multiselect",
-        options: roleOptions,
+        options: availableRoleOptions,
         value: [],
       } as unknown as FilterOption,
       {
@@ -208,7 +271,7 @@ export default function Utilizatori() {
         value: null,
       } as unknown as FilterOption,
     ]
-  }, [utilizatori])
+  }, [availableRoleOptions])
 
   // Apply active filters
   const applyFilters = useCallback(
@@ -718,6 +781,10 @@ export default function Utilizatori() {
         return "bg-blue-100 text-blue-800 hover:bg-blue-200"
       case "tehnician":
         return "bg-green-100 text-green-800 hover:bg-green-200"
+      case "client":
+        return "bg-amber-100 text-amber-800 hover:bg-amber-200"
+      case "kiosk":
+        return "bg-slate-100 text-slate-800 hover:bg-slate-200"
       default:
         return "bg-gray-100 text-gray-800 hover:bg-gray-200"
     }
@@ -767,15 +834,7 @@ export default function Utilizatori() {
         header: "Rol",
         enableFiltering: true,
         cell: ({ row }: any) => (
-          <Badge className={getRolColor(row.original.role)}>
-            {row.original.role === "admin"
-              ? "Administrator"
-              : row.original.role === "dispecer"
-                ? "Dispecer"
-                : row.original.role === "tehnician"
-                  ? "Tehnician"
-                  : "Client"}
-          </Badge>
+          <Badge className={getRolColor(row.original.role)}>{getRoleLabel(row.original.role)}</Badge>
         ),
       },
       {
@@ -1469,7 +1528,7 @@ export default function Utilizatori() {
                       <p className="text-sm text-muted-foreground">{user.email}</p>
                     </div>
                     <Badge className={getRolColor(user.role)}>
-                      {user.role === "admin" ? "Administrator" : user.role === "dispecer" ? "Dispecer" : "Tehnician"}
+                      {getRoleLabel(user.role)}
                     </Badge>
                   </div>
                   <div className="p-4">
