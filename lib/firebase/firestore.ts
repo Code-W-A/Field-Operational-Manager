@@ -20,7 +20,7 @@ import { db } from "./firebase"
 import { trackLucrareUpdate } from "@/lib/utils/work-modifications-tracker"
 import { getLucrareTitle } from "@/lib/utils/work-modifications-tracker"
 import type { WorkRevisionMeta } from "@/types/revision"
-import { ensureClientContactIds } from "@/lib/client-contacts"
+import { deriveLegacyPrimaryClientContact, ensureClientContactIds } from "@/lib/client-contacts"
 import { validateWorkEquipmentForCreation } from "@/lib/utils/work-equipment-validation"
 
 export interface PersoanaContact {
@@ -753,6 +753,7 @@ export const updateClientContactDetails = async (params: {
   }
 
   let contactUpdated = false
+  let legacyPrimaryContactUpdated = false
 
   const nextLocatii = Array.isArray(clientData.locatii)
     ? (clientData.locatii as Array<Record<string, unknown>>).map((locatie) => {
@@ -801,6 +802,14 @@ export const updateClientContactDetails = async (params: {
     : undefined
 
   if (!contactUpdated) {
+    const legacyPrimaryContact = deriveLegacyPrimaryClientContact(params.clientId, clientData)
+    if (legacyPrimaryContact?.id === params.contactId) {
+      contactUpdated = true
+      legacyPrimaryContactUpdated = true
+    }
+  }
+
+  if (!contactUpdated) {
     throw new Error("Contactul nu a fost găsit în documentul clientului.")
   }
 
@@ -809,6 +818,21 @@ export const updateClientContactDetails = async (params: {
   }
   if (nextLocatii) payload.locatii = nextLocatii
   if (nextClientContacts) payload.persoaneContact = nextClientContacts
+  if (legacyPrimaryContactUpdated) {
+    payload.persoanaContact = normalizedName
+    payload.reprezentantFirma = normalizedName
+    payload.telefon = normalizedPhone
+    if (normalizedEmail) {
+      payload.email = normalizedEmail
+    } else {
+      payload.email = ""
+    }
+    if (normalizedFunctie) {
+      payload.functieReprezentant = normalizedFunctie
+    } else {
+      payload.functieReprezentant = ""
+    }
+  }
 
   await updateDoc(clientDoc, payload as DocumentData)
 }

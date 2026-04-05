@@ -659,7 +659,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
                         <tr className="bg-slate-50 border-b border-slate-200">
                           <th className="text-left p-2 font-semibold text-xs">Puncte de control</th>
                           <th className="text-center p-2 font-semibold text-xs w-20">Verificat</th>
-                          <th className="text-center p-2 font-semibold text-xs w-16">Obs.</th>
+                          <th className="text-left p-2 font-semibold text-xs min-w-[8rem] w-[28%]">Obs.</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200">
@@ -670,7 +670,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
 
                           return (
                             <tr key={item.id} className="hover:bg-slate-50">
-                              <td className="p-2 align-middle">
+                              <td className="p-2 align-top">
                                 <div className="flex items-start gap-2">
                                   <span className="text-xs break-words leading-tight max-w-full">
                                     {item.label || item.name}
@@ -688,8 +688,8 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
                                   )}
                                 </div>
                               </td>
-                              <td className="p-2 text-center align-middle">
-                                <div className="flex justify-center">
+                              <td className="p-2 text-center align-top">
+                                <div className="flex justify-center pt-0.5">
                                   <Checkbox
                                     checked={isChecked}
                                     onCheckedChange={(checked) => handleCheckboxChange(item.id, checked === true)}
@@ -697,16 +697,23 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
                                   />
                                 </div>
                               </td>
-                              <td className="p-2 text-center align-middle">
-                                <button
-                                  type="button"
-                                  onClick={() => openObsDialog(item.id)}
-                                  className={`text-xs font-medium px-2 py-1 rounded transition-colors ${
-                                    hasObs ? "text-green-700 hover:bg-green-50" : "text-gray-700 hover:bg-gray-100"
-                                  }`}
-                                >
-                                  Obs.
-                                </button>
+                              <td className="p-2 align-top min-w-[8rem] max-w-none">
+                                <div className="flex flex-col items-stretch gap-1.5 text-left">
+                                  {hasObs ? (
+                                    <div className="text-xs whitespace-pre-wrap break-words text-slate-800">
+                                      {obs[item.id]}
+                                    </div>
+                                  ) : null}
+                                  <button
+                                    type="button"
+                                    onClick={() => openObsDialog(item.id)}
+                                    className={`self-start text-xs font-medium px-2 py-1 rounded transition-colors ${
+                                      hasObs ? "text-green-700 hover:bg-green-50" : "text-gray-700 hover:bg-gray-100"
+                                    }`}
+                                  >
+                                    {hasObs ? "Editează obs." : "Obs."}
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           )
@@ -872,12 +879,12 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
               placeholder="Adaugă observații despre acest punct de control..."
               value={dialogItemObs}
               onChange={(e) => setDialogItemObs(e.target.value)}
-              className="min-h-[120px] text-base resize-none"
-              rows={5}
+              className="min-h-[160px] text-base resize-y max-h-[min(70vh,32rem)]"
+              rows={8}
               autoFocus
             />
             <p className="text-xs text-muted-foreground mt-2">
-              Observațiile nu sunt afișate în tabel pentru a economisi spațiu. Textul "Obs." devine verde dacă există observații salvate.
+              Textul este afișat integral în tabel; rândul crește pe înălțime. Butonul rămâne verde când există observații salvate.
             </p>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">

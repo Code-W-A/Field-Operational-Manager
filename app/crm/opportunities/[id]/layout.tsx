@@ -22,9 +22,9 @@ import {
   getCrmOpportunityById,
   listCrmClientContacts,
   listCrmOpportunitiesForUser,
-  listCrmOpportunityContacts,
   listCrmUsers,
 } from "@/lib/crm/opportunities"
+import { resolveClientContactsForOpportunity } from "@/lib/crm/opportunity-contacts"
 import { formatDateTime, priorityLabel, stageLabel, workStatusLabel } from "@/lib/crm/presenters"
 import {
   CRM_PIPELINE_STAGE_LABELS,
@@ -127,7 +127,6 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
   const [opportunity, setOpportunity] = useState<CrmOpportunity | null>(null)
   const [client, setClient] = useState<CrmClient | null>(null)
   const [clientContacts, setClientContacts] = useState<CrmClientContact[]>([])
-  const [opportunityContactIds, setOpportunityContactIds] = useState<string[]>([])
   const [userMap, setUserMap] = useState<Record<string, string>>({})
   const [accessibleOpportunities, setAccessibleOpportunities] = useState<CrmOpportunity[]>([])
   const [activeOpportunityCounts, setActiveOpportunityCounts] = useState<Record<string, number>>(() => {
@@ -226,14 +225,12 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
         setOpportunity(null)
         setClient(null)
         setClientContacts([])
-        setOpportunityContactIds([])
         return
       }
 
-      const [clientRow, clientContactRows, opportunityContacts, userRows, opportunitiesForCounts] = await Promise.all([
+      const [clientRow, clientContactRows, userRows, opportunitiesForCounts] = await Promise.all([
         getCrmClientById(opportunityRow.clientId),
         listCrmClientContacts(opportunityRow.clientId),
-        listCrmOpportunityContacts(opportunityId),
         listCrmUsers(),
         listCrmOpportunitiesForUser(user.uid, { type: "ALL" }),
       ])
@@ -241,7 +238,6 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
       setOpportunity(opportunityRow)
       setClient(clientRow)
       setClientContacts(clientContactRows)
-      setOpportunityContactIds(opportunityContacts.map((row) => row.contactId))
       setUserMap(
         userRows.reduce<Record<string, string>>((acc, crmUser) => {
           acc[crmUser.uid] = crmUser.displayName || crmUser.email || crmUser.uid
@@ -597,14 +593,10 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
     return <div className="rounded-xl border border-neutral-200 bg-white p-5 text-sm text-neutral-500">Nu ai acces la această oportunitate sau nu există.</div>
   }
 
-  const selectedContacts = clientContacts.filter((contact) => opportunityContactIds.includes(contact.id))
-  const contextContacts = selectedContacts.length > 0 ? selectedContacts : clientContacts
-  const effectivePrimaryContactId = opportunity.primaryContactId || selectedContacts[0]?.id || ""
-  const primaryContact =
-    contextContacts.find((contact) => contact.id === effectivePrimaryContactId) ||
-    contextContacts[0] ||
-    null
-  const secondaryContacts = contextContacts.filter((contact) => contact.id !== primaryContact?.id)
+  const { primary: primaryContact, secondary: secondaryContacts } = resolveClientContactsForOpportunity(
+    clientContacts,
+    opportunity
+  )
   const relatedOpportunities = accessibleOpportunities
     .filter((row) => row.clientId === opportunity.clientId && row.id !== opportunity.id)
     .slice(0, 8)
@@ -705,7 +697,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
       >
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <p className={cn("truncate text-sm", isPrimary ? "font-semibold text-neutral-900" : "font-medium text-neutral-800")}>
+            <p className={cn("break-words text-sm", isPrimary ? "font-semibold text-neutral-900" : "font-medium text-neutral-800")}>
               {contact.name}
             </p>
           </div>
@@ -790,7 +782,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
         <p className="mt-1 text-sm text-neutral-500">{client?.address || "Adresă indisponibilă"}</p>
         <div className="mt-2 flex flex-wrap gap-2 text-xs">
           <Badge variant="outline">{client?.type || "Client"}</Badge>
-          <Badge variant="outline">{contextContacts.length} contacte</Badge>
+          <Badge variant="outline">{clientContacts.length} contacte</Badge>
           <Badge variant="outline">{relatedOpportunities.length} oportunități conexe</Badge>
         </div>
         <div className="mt-2 flex flex-wrap gap-2">
@@ -1170,7 +1162,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
             <div className="space-y-3 text-sm">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-base font-semibold text-neutral-900">{selectedContactForDialog.name || "-"}</p>
-                {effectivePrimaryContactId === selectedContactForDialog.id ? (
+                {primaryContact?.id === selectedContactForDialog.id ? (
                   <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Principal</Badge>
                 ) : null}
               </div>

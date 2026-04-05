@@ -17,7 +17,7 @@ interface SegmentedControlProps {
 
 export function SegmentedControl({ value, items, onValueChange, className, iconOnlyOnMobile = false }: SegmentedControlProps) {
   return (
-    <div className={cn("inline-flex items-center gap-1", className)}>
+    <div className={cn("inline-flex flex-wrap items-center gap-1", className)}>
       {items.map((item) => {
         const active = item.id === value
         const Icon = item.icon

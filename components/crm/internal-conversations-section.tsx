@@ -23,6 +23,31 @@ import {
 } from "@/lib/crm/tasks"
 import type { CrmInternalMessage, CrmInternalMessageCycleStatus, CrmInternalNote, CrmInternalThread } from "@/lib/crm/types"
 import { formatDateTime } from "@/lib/crm/presenters"
+import { SegmentedControl } from "@/components/crm/segmented-control"
+
+type ConversationSortOrder = "NEWEST_FIRST" | "OLDEST_FIRST"
+
+const CRM_INTERNE_SORT_STORAGE_PREFIX = "crm:interne:conversationSortOrder"
+
+function readStoredConversationSortOrder(userId: string | undefined): ConversationSortOrder {
+  if (typeof window === "undefined") return "NEWEST_FIRST"
+  try {
+    const raw = window.localStorage.getItem(`${CRM_INTERNE_SORT_STORAGE_PREFIX}:${userId || "anonymous"}`)
+    if (raw === "OLDEST_FIRST") return "OLDEST_FIRST"
+  } catch {
+    /* ignore */
+  }
+  return "NEWEST_FIRST"
+}
+
+function writeStoredConversationSortOrder(userId: string | undefined, order: ConversationSortOrder) {
+  if (typeof window === "undefined") return
+  try {
+    window.localStorage.setItem(`${CRM_INTERNE_SORT_STORAGE_PREFIX}:${userId || "anonymous"}`, order)
+  } catch {
+    /* ignore */
+  }
+}
 
 function getErrorDetails(error: unknown) {
   if (error && typeof error === "object") {
@@ -88,6 +113,7 @@ export function InternalConversationsSection() {
 
   const [mailbox, setMailbox] = useState<MailboxFilter>("ALL")
   const [status, setStatus] = useState<StatusFilter>("ALL")
+  const [conversationSortOrder, setConversationSortOrder] = useState<ConversationSortOrder>("NEWEST_FIRST")
   const [search, setSearch] = useState("")
   const [onlyWithDeadline, setOnlyWithDeadline] = useState(false)
   const [toUserId, setToUserId] = useState("")
@@ -122,7 +148,20 @@ export function InternalConversationsSection() {
     }
     setSearch("")
     setOnlyWithDeadline(false)
+    // Păstrăm conversationSortOrder la deep link (preferință utilizator).
   }, [searchParams, mailbox, status])
+
+  useEffect(() => {
+    setConversationSortOrder(readStoredConversationSortOrder(user?.uid))
+  }, [user?.uid])
+
+  const setConversationSortOrderPersisted = useCallback(
+    (order: ConversationSortOrder) => {
+      setConversationSortOrder(order)
+      writeStoredConversationSortOrder(user?.uid, order)
+    },
+    [user?.uid]
+  )
 
   const userNameMap = useMemo(
     () =>
@@ -301,10 +340,11 @@ export function InternalConversationsSection() {
       .sort((left, right) => {
         const leftDate = toMillis(left.updatedAt)
         const rightDate = toMillis(right.updatedAt)
-        return rightDate - leftDate
+        if (conversationSortOrder === "NEWEST_FIRST") return rightDate - leftDate
+        return leftDate - rightDate
       })
     return allRows
-  }, [legacyRows, onlyWithDeadline, search, status, threads, userNameMap])
+  }, [conversationSortOrder, legacyRows, onlyWithDeadline, search, status, threads, userNameMap])
 
   const selectedThread = useMemo(() => {
     if (!selectedConversation || selectedConversation.kind !== "thread") return null
@@ -605,26 +645,41 @@ export function InternalConversationsSection() {
           placeholder="Caută conversații"
           className="h-8 text-xs xl:h-9 xl:text-sm"
         />
-        <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-medium text-neutral-500 xl:text-xs">Căsuță poștală</label>
           <select
             value={mailbox}
             onChange={(event) => setMailbox(event.target.value as MailboxFilter)}
-            className="h-8 rounded-md border border-neutral-200 bg-white px-2 text-xs xl:h-9 xl:rounded-lg xl:px-2.5 xl:text-sm"
+            className="h-8 w-full rounded-md border border-neutral-200 bg-white px-2 text-xs xl:h-9 xl:rounded-lg xl:px-2.5 xl:text-sm"
           >
             <option value="ALL">Toate</option>
             <option value="INBOX">Inbox</option>
             <option value="SENT">Trimise</option>
           </select>
-          <select
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-medium text-neutral-500 xl:text-xs">Ordonare după dată</label>
+          <SegmentedControl
+            value={conversationSortOrder}
+            items={[
+              { id: "NEWEST_FIRST", label: "Cele mai noi" },
+              { id: "OLDEST_FIRST", label: "Cele mai vechi" },
+            ]}
+            onValueChange={(id) => setConversationSortOrderPersisted(id as ConversationSortOrder)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-medium text-neutral-500 xl:text-xs">Status</label>
+          <SegmentedControl
             value={status}
-            onChange={(event) => setStatus(event.target.value as StatusFilter)}
-            className="h-8 rounded-md border border-neutral-200 bg-white px-2 text-xs xl:h-9 xl:rounded-lg xl:px-2.5 xl:text-sm"
-          >
-            <option value="ALL">Toate statusurile</option>
-            <option value="PENDING">În așteptare</option>
-            <option value="CONFIRMED">Confirmat</option>
-            <option value="NONE">Fără confirmare</option>
-          </select>
+            items={[
+              { id: "ALL", label: "Toate" },
+              { id: "PENDING", label: "Active" },
+              { id: "CONFIRMED", label: "Arhivate" },
+              { id: "NONE", label: "Fără confirmare" },
+            ]}
+            onValueChange={(id) => setStatus(id as StatusFilter)}
+          />
         </div>
         <label className="inline-flex items-center gap-1.5 text-[11px] text-neutral-600 xl:gap-2 xl:text-xs">
           <input

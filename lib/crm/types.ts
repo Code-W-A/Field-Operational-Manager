@@ -44,7 +44,10 @@ export interface CrmClientContact {
   phone: string
   email?: string
   functie?: string
+  label?: string
   locationName?: string
+  isPrimary?: boolean
+  source?: "client" | "location" | "legacy" | "crm"
   createdAt?: FirestoreDateValue
   updatedAt?: FirestoreDateValue
 }

@@ -31,6 +31,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { ClientAddDialog } from "@/components/client-add-dialog"
 import { crmUi } from "@/components/crm/ui"
+import { resolveClientContactsForOpportunity } from "@/lib/crm/opportunity-contacts"
 import type { CrmClientContact, CrmOpportunity, CrmPipelineStage } from "@/lib/crm/types"
 
 interface CreateOpportunityDialogProps {
@@ -49,10 +50,6 @@ interface CreateOpportunityDialogProps {
 }
 
 type SelectableOpportunityType = (typeof CRM_OPPORTUNITY_SELECTABLE_TYPES)[number]
-
-function getFirstContactId(contacts: CrmClientContact[]) {
-  return contacts[0]?.id || ""
-}
 
 export function CreateOpportunityDialog({
   actorId,
@@ -173,8 +170,12 @@ export function CreateOpportunityDialog({
   }, [clients, clientId])
   const allContactIds = useMemo(() => contacts.map((contact) => contact.id).filter(Boolean), [contacts])
   const effectivePrimaryContactId = useMemo(
-    () => (allContactIds.includes(primaryContactId) ? primaryContactId : getFirstContactId(contacts)),
-    [allContactIds, contacts, primaryContactId]
+    () =>
+      resolveClientContactsForOpportunity(
+        contacts,
+        primaryContactId ? { primaryContactId } : null
+      ).primary?.id || "",
+    [contacts, primaryContactId]
   )
 
   useEffect(() => {
@@ -196,7 +197,7 @@ export function CreateOpportunityDialog({
       return
     }
 
-    const nextPrimaryContactId = getFirstContactId(contacts)
+    const nextPrimaryContactId = resolveClientContactsForOpportunity(contacts, null).primary?.id || ""
     if (!primaryContactId || !allContactIds.includes(primaryContactId)) {
       if (nextPrimaryContactId !== primaryContactId) {
         setPrimaryContactId(nextPrimaryContactId)
@@ -574,7 +575,7 @@ export function CreateOpportunityDialog({
               <div>
                 <Label>Contacte client</Label>
                 <p className="mt-1 text-xs text-neutral-500">
-                  Toate persoanele de contact ale clientului sunt preluate automat. Alege doar contactul principal.
+                  Toate persoanele de contact ale clientului sunt preluate automat. Contactul principal din fișa clientului este preselectat.
                 </p>
               </div>
               {clientId && contacts.length > 0 ? (
@@ -595,7 +596,7 @@ export function CreateOpportunityDialog({
               </div>
             ) : contacts.length === 0 ? (
               <div className="mt-4 rounded-lg border border-dashed border-neutral-300 bg-white px-4 py-6 text-sm text-neutral-500">
-                Clientul selectat nu are persoane de contact definite pe locațiile lui în Clienți.
+                Clientul selectat nu are persoane de contact definite în Clienți.
               </div>
             ) : (
               <div className="mt-4 max-h-72 overflow-y-auto rounded-xl border border-neutral-200 bg-white p-2 lg:min-h-0 lg:max-h-none lg:flex-1">

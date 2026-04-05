@@ -37,6 +37,13 @@ function clonePayload(payload: HrRequestPayload): HrRequestPayload {
   return JSON.parse(JSON.stringify(payload)) as HrRequestPayload
 }
 
+function formatOvertimeHoursForDetail(payload: HrRequestPayload): string {
+  const raw = payload.kind === "ADD_OVERTIME" ? payload.overtimeHours : (payload as { overtimeHours?: unknown }).overtimeHours
+  const n = typeof raw === "number" ? raw : Number(raw)
+  if (!Number.isFinite(n)) return "—"
+  return `${new Intl.NumberFormat("ro-RO", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n)} h`
+}
+
 export default function CereriAprobariPage() {
   const { user } = useAuth()
   const [requests, setRequests] = useState<HrRequest[]>([])
@@ -366,6 +373,12 @@ export default function CereriAprobariPage() {
                     {selected.sectorId ? (departmentsById[selected.sectorId] || "—") : "—"}
                   </span>
                 </div>
+                {selected.kind === "ADD_OVERTIME" ? (
+                  <div className="text-sm mt-1">
+                    <span className="text-muted-foreground">Ore suplimentare:</span>{" "}
+                    <span className="font-semibold">{formatOvertimeHoursForDetail(selected.payload)}</span>
+                  </div>
+                ) : null}
                 <div className="text-sm mt-2">
                   <Badge
                     variant={

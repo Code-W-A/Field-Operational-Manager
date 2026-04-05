@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { AlertCircle, Download, ExternalLink, Save, Send } from "lucide-react"
+import { AlertCircle, Download, ExternalLink, Mail, Save, Send, TableProperties } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { Panel } from "@/components/crm"
 import { ProductTableForm, type ProductItem } from "@/components/product-table-form"
@@ -13,9 +13,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { useCrmOpportunity } from "@/hooks/use-crm-opportunity"
-import { getCrmClientById, listCrmClientContacts, listCrmOpportunityContacts } from "@/lib/crm/opportunities"
+import { resolveClientContactsForOpportunity } from "@/lib/crm/opportunity-contacts"
+import { getCrmClientById, listCrmClientContacts } from "@/lib/crm/opportunities"
 import { issueCrmOffer, listCrmOffers, saveCrmOfferDraft } from "@/lib/crm/offers"
 import { isTerminalPipelineStageForOpportunityType } from "@/lib/crm/constants"
 import { formatDateTime } from "@/lib/crm/presenters"
@@ -66,7 +68,6 @@ export default function OpportunityOffersPage() {
   const [offers, setOffers] = useState<CrmOffer[]>([])
   const [clientName, setClientName] = useState("")
   const [contacts, setContacts] = useState<CrmClientContact[]>([])
-  const [opportunityContactIds, setOpportunityContactIds] = useState<string[]>([])
   const [offerEditorOpen, setOfferEditorOpen] = useState(false)
 
   const [products, setProducts] = useState<ProductItem[]>([createEmptyProduct()])
@@ -87,26 +88,11 @@ export default function OpportunityOffersPage() {
   const adjustment = Number(adjustmentPercent.replace(",", ".")) || 0
   const total = subtotal * (1 - adjustment / 100)
 
-  /** Same resolution as opportunity layout Context CRM rail (contextContacts + primary). */
-  const selectedContacts = useMemo(
-    () => contacts.filter((contact) => opportunityContactIds.includes(contact.id)),
-    [contacts, opportunityContactIds]
+  /** Same resolution as opportunity layout Context CRM rail (all client contacts + primary). */
+  const primaryContact = useMemo(
+    () => resolveClientContactsForOpportunity(contacts, opportunity ?? null).primary,
+    [contacts, opportunity]
   )
-  const contextContacts = useMemo(
-    () => (selectedContacts.length > 0 ? selectedContacts : contacts),
-    [contacts, selectedContacts]
-  )
-  const effectivePrimaryContactId = opportunity
-    ? opportunity.primaryContactId || selectedContacts[0]?.id || ""
-    : ""
-  const primaryContact = useMemo(() => {
-    if (!opportunity) return null
-    return (
-      contextContacts.find((contact) => contact.id === effectivePrimaryContactId) ||
-      contextContacts[0] ||
-      null
-    )
-  }, [contextContacts, effectivePrimaryContactId, opportunity])
 
   const primaryRecipientEmail = useMemo(() => {
     if (!primaryContact?.email) return ""
@@ -130,7 +116,6 @@ export default function OpportunityOffersPage() {
     if (!clientId) {
       setOffers([])
       setContacts([])
-      setOpportunityContactIds([])
       setClientName("")
       setLoading(false)
       return
@@ -138,13 +123,8 @@ export default function OpportunityOffersPage() {
     setLoading(true)
     try {
       // Contacts + client must not be blocked if listCrmOffers (API) fails
-      const [contactRows, opportunityContactRows, clientRow] = await Promise.all([
-        listCrmClientContacts(clientId),
-        listCrmOpportunityContacts(opportunityId),
-        getCrmClientById(clientId),
-      ])
+      const [contactRows, clientRow] = await Promise.all([listCrmClientContacts(clientId), getCrmClientById(clientId)])
       setContacts(contactRows)
-      setOpportunityContactIds(opportunityContactRows.map((row) => String(row.contactId || "")).filter(Boolean))
       setClientName(clientRow?.name || "")
     } catch (error) {
       console.error("[CRM Offers] Failed to load contacts", error)
@@ -372,47 +352,133 @@ export default function OpportunityOffersPage() {
   }
 
   const editorForm = (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
-      <div className="grid min-h-0 grid-cols-1 gap-4 xl:grid-cols-2 xl:gap-6 xl:items-start">
-        <div className="flex min-h-0 flex-col gap-3">
-          <p className="text-xs font-medium text-muted-foreground">Poziții și costuri</p>
-          <ProductTableForm
-            products={products}
-            onProductsChange={setProducts}
-            disabled={false}
-            tableScrollClassName="max-h-[min(50vh,360px)]"
-          />
-          <div className="flex flex-wrap items-center gap-2 text-sm text-neutral-600">
-            <span>
-              Total fără TVA: <strong>{subtotal.toFixed(2)} lei</strong>
-            </span>
-            <span>•</span>
-            <span>
-              Total ajustat: <strong>{total.toFixed(2)} lei</strong>
-            </span>
-            {editingDraftOfferId ? <Badge variant="outline">Draft: {editingDraftOfferId}</Badge> : null}
-          </div>
-        </div>
+    <div className="flex min-h-0 flex-1 flex-col gap-6">
+      <div className="grid min-h-0 grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
+        <Card className="border-neutral-200 shadow-sm">
+          <CardHeader className="space-y-1 border-b border-neutral-100 bg-neutral-50/80 pb-4">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold text-neutral-900">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
+                <TableProperties className="h-4 w-4" />
+              </span>
+              Poziții și costuri
+            </CardTitle>
+            <CardDescription>Completați denumirile pe mai multe rânduri dacă e nevoie; tabelul poate fi derulat orizontal pe ecrane înguste.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 pt-5">
+            <ProductTableForm
+              products={products}
+              onProductsChange={setProducts}
+              disabled={false}
+              showTitle={false}
+              tableScrollClassName="max-h-[min(52vh,440px)]"
+            />
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-neutral-200 bg-neutral-50/90 px-3 py-2.5 text-sm text-neutral-700">
+              <span>
+                Total fără TVA: <strong className="tabular-nums text-neutral-900">{subtotal.toFixed(2)} lei</strong>
+              </span>
+              <span className="hidden sm:inline text-neutral-300">|</span>
+              <span>
+                Total ajustat: <strong className="tabular-nums text-neutral-900">{total.toFixed(2)} lei</strong>
+              </span>
+              {editingDraftOfferId ? (
+                <Badge variant="outline" className="ml-auto">
+                  Draft: {editingDraftOfferId}
+                </Badge>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="flex min-h-0 flex-col gap-3">
-          <p className="text-xs font-medium text-muted-foreground">Email (emitere)</p>
-          <Input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Subiect email ofertă" />
-          <Textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Mesaj email" className="min-h-[100px]" />
-          <div className="grid gap-2 md:grid-cols-2">
-            <Input value={vatPercent} onChange={(event) => setVatPercent(event.target.value)} placeholder="TVA (%)" />
-            <Input value={adjustmentPercent} onChange={(event) => setAdjustmentPercent(event.target.value)} placeholder="Discount/Ajustare (%)" />
-          </div>
-          <Textarea
-            value={conditionsInput}
-            onChange={(event) => setConditionsInput(event.target.value)}
-            placeholder="Condiții (câte una pe rând)"
-            className="min-h-[80px]"
-          />
-          <Textarea value={comments} onChange={(event) => setComments(event.target.value)} placeholder="Comentarii ofertă" className="min-h-[80px]" />
-        </div>
+        <Card className="border-neutral-200 shadow-sm">
+          <CardHeader className="space-y-1 border-b border-neutral-100 bg-neutral-50/80 pb-4">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold text-neutral-900">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+                <Mail className="h-4 w-4" />
+              </span>
+              Email și condiții
+            </CardTitle>
+            <CardDescription>Mesajul trimis clientului împreună cu PDF-ul ofertei.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 pt-5">
+            <div className="grid gap-2">
+              <Label htmlFor="offer-email-subject" className="text-sm font-medium text-neutral-800">
+                Subiect
+              </Label>
+              <Input
+                id="offer-email-subject"
+                value={subject}
+                onChange={(event) => setSubject(event.target.value)}
+                placeholder="Ex.: Ofertă OP.25"
+                className="h-10"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="offer-email-body" className="text-sm font-medium text-neutral-800">
+                Mesaj
+              </Label>
+              <Textarea
+                id="offer-email-body"
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                placeholder="Textul din corpul emailului…"
+                className="min-h-[140px] resize-y text-sm leading-relaxed"
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="offer-vat" className="text-sm font-medium text-neutral-800">
+                  TVA (%)
+                </Label>
+                <Input
+                  id="offer-vat"
+                  value={vatPercent}
+                  onChange={(event) => setVatPercent(event.target.value)}
+                  placeholder="21"
+                  className="h-10"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="offer-adjustment" className="text-sm font-medium text-neutral-800">
+                  Discount / ajustare (%)
+                </Label>
+                <Input
+                  id="offer-adjustment"
+                  value={adjustmentPercent}
+                  onChange={(event) => setAdjustmentPercent(event.target.value)}
+                  placeholder="0"
+                  className="h-10"
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="offer-conditions" className="text-sm font-medium text-neutral-800">
+                Condiții comerciale
+              </Label>
+              <Textarea
+                id="offer-conditions"
+                value={conditionsInput}
+                onChange={(event) => setConditionsInput(event.target.value)}
+                placeholder="Câte o condiție pe rând (apar în ofertă)"
+                className="min-h-[100px] resize-y text-sm leading-relaxed"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="offer-comments" className="text-sm font-medium text-neutral-800">
+                Comentarii interne (ofertă)
+              </Label>
+              <Textarea
+                id="offer-comments"
+                value={comments}
+                onChange={(event) => setComments(event.target.value)}
+                placeholder="Opțional, vizibil în fluxul ofertei"
+                className="min-h-[88px] resize-y text-sm leading-relaxed"
+              />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="flex flex-wrap justify-end gap-2 border-t border-neutral-200 pt-3">
+      <div className="flex flex-wrap justify-end gap-2 border-t border-neutral-200 pt-4">
         <Button variant="outline" onClick={handleSaveDraft} disabled={savingDraft || issuingOffer}>
           <Save className="mr-1.5 h-4 w-4" />
           {savingDraft ? "Se salvează..." : "Salvează draft"}
@@ -513,14 +579,17 @@ export default function OpportunityOffersPage() {
         </div>
 
         <Dialog open={offerEditorOpen} onOpenChange={setOfferEditorOpen}>
-          <DialogContent className="flex max-h-[90vh] w-[min(100%,95vw)] max-w-5xl flex-col gap-4 overflow-y-auto p-6 xl:max-w-6xl">
-            <DialogHeader className="shrink-0 space-y-1">
-              <DialogTitle>Editor ofertă</DialogTitle>
+          <DialogContent className="flex max-h-[92vh] w-[min(100%,96vw)] max-w-6xl flex-col gap-5 overflow-y-auto p-6 sm:p-8 xl:max-w-7xl">
+            <DialogHeader className="shrink-0 space-y-2 text-left">
+              <DialogTitle className="text-xl font-semibold tracking-tight text-neutral-900">Editor ofertă</DialogTitle>
+              <p className="text-sm leading-relaxed text-neutral-600">
+                Destinatar:{" "}
+                <span className="font-medium text-neutral-900">{primaryRecipientName || "—"}</span>{" "}
+                <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 font-mono text-xs text-neutral-700">
+                  {primaryRecipientEmail || "—"}
+                </span>
+              </p>
             </DialogHeader>
-            <p className="shrink-0 text-sm text-neutral-600">
-              Destinatar: <span className="font-medium text-neutral-900">{primaryRecipientName || "—"}</span>{" "}
-              <span className="text-neutral-500">&lt;{primaryRecipientEmail}&gt;</span>
-            </p>
             {editorForm}
           </DialogContent>
         </Dialog>

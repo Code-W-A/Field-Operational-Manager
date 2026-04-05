@@ -177,16 +177,31 @@ const handleNumberChange = (
       )}
 
       {!isMobile ? (
-        <div className={cn("overflow-x-auto overflow-y-auto rounded border", tableScrollClassName)}>
-          <table className="w-full text-sm table-fixed">
-          <thead className="bg-muted">
+        <div
+          className={cn(
+            "overflow-x-auto overflow-y-auto rounded-xl border border-neutral-200 bg-white shadow-sm",
+            tableScrollClassName
+          )}
+        >
+          <table className="w-full min-w-[720px] border-collapse text-sm">
+          <thead className="sticky top-0 z-[1] border-b border-neutral-200 bg-neutral-100/95 backdrop-blur-sm">
             <tr>
-              <th className="px-2 py-2 text-left w-10">Nr.</th>
-              <th className="px-3 py-2 text-left">Denumire</th>
-              <th className="px-2 py-2 text-right w-32">PU (lei)</th>
-              <th className="px-2 py-2 text-right w-24">Buc</th>
-              <th className="px-2 py-2 text-right w-28">Total</th>
-              <th className="px-1 py-2 text-right w-10">&nbsp;</th>
+              <th className="w-11 shrink-0 px-2 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-neutral-600">
+                Nr.
+              </th>
+              <th className="min-w-[240px] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-600">
+                Denumire
+              </th>
+              <th className="w-28 shrink-0 px-2 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-600">
+                PU (lei)
+              </th>
+              <th className="w-24 shrink-0 px-2 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-600">
+                Buc
+              </th>
+              <th className="w-28 shrink-0 px-2 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-600">
+                Total
+              </th>
+              <th className="w-11 shrink-0 px-1 py-2.5 text-center text-xs font-semibold text-neutral-600">&nbsp;</th>
             </tr>
           </thead>
           <tbody>
@@ -198,20 +213,21 @@ const handleNumberChange = (
               products.map((p, idx) => {
                 const invalid = hasValidationError(p)
                 return (
-                  <tr key={p.id} className={invalid ? "bg-red-50" : ""}>
-                    <td className="px-2 py-2 align-top text-center">{idx + 1}</td>
-                    <td className="px-3 py-2 align-top">
+                  <tr key={p.id} className={cn("border-b border-neutral-100", invalid ? "bg-red-50" : "hover:bg-neutral-50/80")}>
+                    <td className="px-2 py-2.5 align-top text-center text-sm text-muted-foreground">{idx + 1}</td>
+                    <td className="min-w-[240px] px-3 py-2.5 align-top">
                       <Textarea
                         id={`name-${p.id}`}
                         value={p.name}
                         onChange={(e) => updateProduct(p.id, "name", e.target.value)}
-                        placeholder="Denumire produs/serviciu"
-                        className="min-h-[60px] text-sm w-full resize-none"
+                        placeholder="Denumire produs sau serviciu"
+                        className="min-h-[72px] w-full resize-y text-sm leading-relaxed"
                         disabled={disabled}
+                        rows={3}
                         onFocus={(e) => { lastFocusedFieldIdRef.current = e.currentTarget.id }}
                       />
                     </td>
-                    <td className="px-2 py-2 align-top w-32">
+                    <td className="w-28 shrink-0 px-2 py-2.5 align-top">
                       <Input
                         id={`price-${p.id}`}
                         type="text"
@@ -223,11 +239,11 @@ const handleNumberChange = (
                         }}
                         onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
                         disabled={disabled}
-                        className="text-right text-xs"
+                        className="h-9 text-right text-sm tabular-nums"
                       onFocus={(e) => { lastFocusedFieldIdRef.current = e.currentTarget.id }}
                       />
                     </td>
-                    <td className="px-2 py-2 align-top w-24">
+                    <td className="w-24 shrink-0 px-2 py-2.5 align-top">
                       <Input
                         id={`quantity-${p.id}`}
                         type="text"
@@ -242,14 +258,16 @@ const handleNumberChange = (
                         }}
                         onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
                         disabled={disabled}
-                        className="text-right text-xs"
+                        className="h-9 text-right text-sm tabular-nums"
                       onFocus={(e) => { lastFocusedFieldIdRef.current = e.currentTarget.id }}
                       />
                     </td>
-                    <td className="px-2 py-2 align-top text-right font-medium text-xs">{(Number(p.total) || 0).toFixed(2)}</td>
-                    <td className="px-1 py-2 align-top text-center">
-                      <Button variant="ghost" size="sm" onClick={() => removeProduct(p.id)} disabled={disabled} className="h-6 w-6 p-0">
-                        <Trash2 className="h-3 w-3" />
+                    <td className="w-28 shrink-0 px-2 py-2.5 align-top text-right text-sm font-semibold tabular-nums text-neutral-900">
+                      {(Number(p.total) || 0).toFixed(2)}
+                    </td>
+                    <td className="px-1 py-2.5 align-top text-center">
+                      <Button variant="ghost" size="sm" onClick={() => removeProduct(p.id)} disabled={disabled} className="h-8 w-8 p-0 text-neutral-500 hover:text-destructive">
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </td>
                   </tr>
@@ -258,10 +276,14 @@ const handleNumberChange = (
             )}
           </tbody>
           <tfoot>
-            <tr className="bg-yellow-50">
-              <td colSpan={4} className="px-3 py-2 text-right font-medium">Total lei fără TVA</td>
-              <td className="px-3 py-2 text-right font-bold">{totalWithoutVAT.toFixed(2)}</td>
-              <td className="px-3 py-2" />
+            <tr className="border-t-2 border-amber-200/80 bg-amber-50/90">
+              <td colSpan={4} className="px-3 py-3 text-right text-sm font-semibold text-amber-950">
+                Total lei fără TVA
+              </td>
+              <td className="px-3 py-3 text-right text-base font-bold tabular-nums text-amber-950">
+                {totalWithoutVAT.toFixed(2)}
+              </td>
+              <td className="px-3 py-3" />
             </tr>
           </tfoot>
           </table>
@@ -293,11 +315,13 @@ const handleNumberChange = (
         </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <Button variant="outline" onClick={addProduct} disabled={disabled} className="gap-1">
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+        <Button variant="outline" onClick={addProduct} disabled={disabled} className="gap-2 shadow-sm">
           <Plus className="h-4 w-4" /> Adaugă produs
         </Button>
-        <div className="text-xs text-muted-foreground">Valută: RON</div>
+        <div className="rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-xs font-medium text-neutral-600">
+          Valută: RON
+        </div>
       </div>
 
       {/* Dialog editor mobil */}
