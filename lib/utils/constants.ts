@@ -168,7 +168,7 @@ export function getWorkStatusRowClass(lucrare: any): string {
     case WORK_STATUS.POSTPONED.toLowerCase():
       return "bg-purple-50"
     case WORK_STATUS.NO_SIGNATURE.toLowerCase():
-      return "bg-amber-50"
+      return "bg-amber-50 border-l-4 border-amber-500"
     case WORK_STATUS.COMPLETED.toLowerCase():
       return "bg-green-50"
     case WORK_STATUS.CANCELED.toLowerCase():

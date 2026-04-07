@@ -30,6 +30,8 @@ export interface DashboardBuckets {
   intarziate: DashboardBubbleItem[]
   amanate: DashboardBubbleItem[]
   listate: DashboardBubbleItem[]
+  /** Tichete cu „Semnează mai târziu” (status Fără semnătură) */
+  faraSemnatura: DashboardBubbleItem[]
   nepreluate: DashboardBubbleItem[]
   nefacturate: DashboardBubbleItem[]
   necesitaOferta: DashboardBubbleItem[]
@@ -277,6 +279,7 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
       intarziate: [],
       amanate: [],
       listate: [],
+      faraSemnatura: [],
       nepreluate: [],
       nefacturate: [],
       necesitaOferta: [],
@@ -450,6 +453,11 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
         }
       }
 
+      // Fără semnătură (flux „Semnează mai târziu”) — lucrări deschise, așteaptă semnare din raport
+      if (eqInsensitive(status, WORK_STATUS.NO_SIGNATURE) && isOpenWorkStatus(status)) {
+        res.faraSemnatura.push(buildBubble(l, undefined, toDate(l.updatedAt) || toDate(l.createdAt) || undefined))
+      }
+
       // Nepreluate (raport generat, nepreluat) - sortate după data generării raportului
       if (cfg.nepreluateEnabled) {
         const reportOk = cfg.nepreluateRequireReportGenerated ? Boolean(l.raportGenerat) : true
@@ -533,6 +541,7 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
     res.intarziate = sortByDate(res.intarziate)
     res.amanate = sortByDate(res.amanate)
     res.listate = sortByDate(res.listate)
+    res.faraSemnatura = sortByDate(res.faraSemnatura)
     res.nepreluate = sortByDate(res.nepreluate)
     res.nefacturate = sortByDate(res.nefacturate)
     res.necesitaOferta = sortByDate(res.necesitaOferta)

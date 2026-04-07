@@ -15,7 +15,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import {
   DropdownMenu,
@@ -107,25 +106,7 @@ const categoryLabels = {
 
 export default function NoteInternePage() {
   const { userData } = useAuth()
-  
-  // Restricționez accesul doar pentru dispeceri și administratori
-  if (userData?.role === "tehnician") {
-    return (
-      <DashboardShell>
-        <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-          <AlertCircle className="h-16 w-16 text-red-500 mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Acces restricționat</h2>
-          <p className="text-gray-600 mb-6 max-w-md">
-            Nu aveți permisiunea de a accesa secțiunea "Note interne". 
-            Această funcționalitate este disponibilă doar pentru dispeceri și administratori.
-          </p>
-          <Button onClick={() => window.history.back()} variant="outline">
-            Înapoi
-          </Button>
-        </div>
-      </DashboardShell>
-    )
-  }
+  const canManageProcedures = userData?.role === "admin"
 
   const [notes, setNotes] = useState<Note[]>([])
   const [loading, setLoading] = useState(true)
@@ -242,6 +223,10 @@ export default function NoteInternePage() {
 
   // Handle create note
   const handleCreateNote = async () => {
+    if (!canManageProcedures) {
+      toast({ title: "Acces restricționat", description: "Doar administratorii pot adăuga proceduri.", variant: "destructive" })
+      return
+    }
     if (!userData || !title.trim() || !content.trim()) {
       toast({
         title: "Eroare",
@@ -266,14 +251,14 @@ export default function NoteInternePage() {
 
       // Log non-blocking
       void addUserLogEntry({
-        actiune: "Creare notă internă",
+        actiune: "Creare procedură",
         detalii: `ID: ${docRef.id}; titlu: ${title.trim()}; prioritate: ${priority}; categorie: ${category}`,
-        categorie: "Note interne",
+        categorie: "Proceduri",
       })
 
       toast({
         title: "Succes",
-        description: "Nota a fost creată cu succes."
+        description: "Procedura a fost creată cu succes.",
       })
 
       resetForm()
@@ -292,6 +277,10 @@ export default function NoteInternePage() {
 
   // Handle edit note
   const handleEditNote = async () => {
+    if (!canManageProcedures) {
+      toast({ title: "Acces restricționat", description: "Doar administratorii pot modifica proceduri.", variant: "destructive" })
+      return
+    }
     if (!editingNote || !title.trim() || !content.trim()) {
       toast({
         title: "Eroare",
@@ -319,14 +308,14 @@ export default function NoteInternePage() {
       if (editingNote.category !== category) changes.push(`category: "${editingNote.category}" → "${category}"`)
       const detalii = changes.length ? changes.join("; ") : "Actualizare fără câmpuri esențiale modificate"
       void addUserLogEntry({
-        actiune: "Actualizare notă internă",
+        actiune: "Actualizare procedură",
         detalii: `ID: ${editingNote.id}; ${detalii}`,
-        categorie: "Note interne",
+        categorie: "Proceduri",
       })
 
       toast({
         title: "Succes",
-        description: "Nota a fost actualizată cu succes."
+        description: "Procedura a fost actualizată cu succes.",
       })
 
       // Keep dialog open after save to show updated content
@@ -347,20 +336,24 @@ export default function NoteInternePage() {
 
   // Handle delete note
   const handleDeleteNote = async (noteId: string) => {
-    const confirmed = window.confirm("Sunteți sigur că doriți să ștergeți această notă?")
+    if (!canManageProcedures) {
+      toast({ title: "Acces restricționat", description: "Doar administratorii pot șterge proceduri.", variant: "destructive" })
+      return
+    }
+    const confirmed = window.confirm("Sunteți sigur că doriți să ștergeți această procedură?")
     if (!confirmed) return
 
     try {
       // Log non-blocking înainte de ștergere
       void addUserLogEntry({
-        actiune: "Ștergere notă internă",
+        actiune: "Ștergere procedură",
         detalii: `ID: ${noteId}`,
-        categorie: "Note interne",
+        categorie: "Proceduri",
       })
       await deleteDoc(doc(db, "note-interne", noteId))
       toast({
         title: "Succes",
-        description: "Nota a fost ștearsă cu succes."
+        description: "Procedura a fost ștearsă cu succes.",
       })
     } catch (error) {
       console.error("Eroare la ștergerea notei:", error)
@@ -393,6 +386,7 @@ export default function NoteInternePage() {
 
   // Open create dialog
   const openCreateDialog = () => {
+    if (!canManageProcedures) return
     resetForm()
     setIsDialogOpen(true)
   }
@@ -458,6 +452,23 @@ export default function NoteInternePage() {
     setCurrentPage(1)
   }, [searchTerm, selectedPriority, selectedCategory])
 
+  if (userData?.role === "client") {
+    return (
+      <DashboardShell>
+        <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+          <AlertCircle className="h-16 w-16 text-red-500 mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Acces restricționat</h2>
+          <p className="text-gray-600 mb-6 max-w-md">
+            Procedurile sunt disponibile doar pentru utilizatorii interni, nu pentru contul de client.
+          </p>
+          <Button onClick={() => window.history.back()} variant="outline">
+            Înapoi
+          </Button>
+        </div>
+      </DashboardShell>
+    )
+  }
+
   // Format date
   const formatDate = (timestamp: Timestamp) => {
     if (!timestamp) return "Data necunoscută"
@@ -488,19 +499,30 @@ export default function NoteInternePage() {
       <DashboardShell>
         <div className="flex justify-center items-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-          <span className="ml-2 text-gray-600">Se încarcă notele...</span>
+          <span className="ml-2 text-gray-600">Se încarcă procedurile...</span>
         </div>
       </DashboardShell>
     )
   }
 
+  const dialogReadOnly = Boolean(editingNote) && !canManageProcedures
+
   return (
     <DashboardShell>
-      <DashboardHeader heading="Note Interne" text="Gestionați notele interne ale echipei">
-        <Button onClick={openCreateDialog}>
-          <Plus className="mr-2 h-4 w-4" />
-          Notă nouă
-        </Button>
+      <DashboardHeader
+        heading="Proceduri"
+        text={
+          canManageProcedures
+            ? "Texte de procedură vizibile pentru toți utilizatorii interni; doar administratorii pot edita."
+            : "Consultați procedurile operaționale stabilite de administrator. Pentru modificări, contactați un admin."
+        }
+      >
+        {canManageProcedures ? (
+          <Button onClick={openCreateDialog}>
+            <Plus className="mr-2 h-4 w-4" />
+            Procedură nouă
+          </Button>
+        ) : null}
       </DashboardHeader>
 
       {/* Filters */}
@@ -508,7 +530,7 @@ export default function NoteInternePage() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
           <Input
-            placeholder="Căutați note..."
+            placeholder="Căutați proceduri..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
@@ -545,19 +567,20 @@ export default function NoteInternePage() {
       {filteredNotes.length === 0 ? (
         <Card className="p-8 text-center">
           <StickyNote className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Nu există note</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Nu există proceduri</h3>
           <p className="text-gray-500 mb-4">
-            {notes.length === 0 
-              ? "Creați prima notă pentru a începe." 
-              : "Nu s-au găsit note care să corespundă criteriilor de filtrare."
-            }
+            {notes.length === 0
+              ? canManageProcedures
+                ? "Creați prima procedură pentru a începe."
+                : "Nu au fost încă publicate proceduri."
+              : "Nu s-au găsit proceduri care să corespundă criteriilor de filtrare."}
           </p>
-          {notes.length === 0 && (
+          {notes.length === 0 && canManageProcedures ? (
             <Button onClick={openCreateDialog}>
               <Plus className="mr-2 h-4 w-4" />
-              Creați prima notă
+              Adaugă prima procedură
             </Button>
-          )}
+          ) : null}
         </Card>
       ) : (
         <>
@@ -571,39 +594,41 @@ export default function NoteInternePage() {
                       {note.title}
                     </CardTitle>
                   </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem 
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          openEditDialog(note)
-                        }}
-                      >
-                        <Edit3 className="mr-2 h-4 w-4" />
-                        Editează
-                      </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDeleteNote(note.id)
-                        }}
-                        className="text-red-600"
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Șterge
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  {canManageProcedures ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openEditDialog(note)
+                          }}
+                        >
+                          <Edit3 className="mr-2 h-4 w-4" />
+                          Editează
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteNote(note.id)
+                          }}
+                          className="text-red-600"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Șterge
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : null}
                 </div>
                 
                 <div className="flex gap-2 mt-2">
@@ -640,7 +665,7 @@ export default function NoteInternePage() {
           {totalPages > 1 && (
             <div className="flex items-center justify-between mt-6">
               <div className="text-sm text-gray-500">
-                Afișare {startIndex + 1}-{Math.min(endIndex, filteredNotes.length)} din {filteredNotes.length} note
+                Afișare {startIndex + 1}-{Math.min(endIndex, filteredNotes.length)} din {filteredNotes.length} proceduri
               </div>
               <div className="flex items-center space-x-2">
                 <Button
@@ -691,13 +716,14 @@ export default function NoteInternePage() {
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader className="space-y-3">
             <DialogTitle className="text-xl">
-              {editingNote ? "Editează nota" : "Notă nouă"}
+              {dialogReadOnly ? "Vizualizare procedură" : editingNote ? "Editează procedura" : "Procedură nouă"}
             </DialogTitle>
             <DialogDescription>
-              {editingNote 
-                ? "Modificați detaliile notei și vizualizați informațiile." 
-                : "Creați o notă nouă pentru echipa dumneavoastră."
-              }
+              {dialogReadOnly
+                ? "Doar citire. Modificările pot fi făcute doar de un administrator."
+                : editingNote
+                  ? "Modificați detaliile procedurii sau consultați istoricul de mai jos."
+                  : "Adăugați o procedură vizibilă pentru toți utilizatorii interni (exceptând clienții portal)."}
             </DialogDescription>
           </DialogHeader>
 
@@ -710,8 +736,10 @@ export default function NoteInternePage() {
                   id="title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Introduceți titlul notei"
+                  placeholder="Titlul procedurii"
                   maxLength={100}
+                  readOnly={dialogReadOnly}
+                  disabled={dialogReadOnly}
                 />
               </div>
 
@@ -721,20 +749,29 @@ export default function NoteInternePage() {
                   id="content"
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
-                  placeholder="Introduceți conținutul notei"
+                  placeholder="Textul procedurii"
                   rows={6}
                   maxLength={1000}
+                  readOnly={dialogReadOnly}
+                  disabled={dialogReadOnly}
+                  className={dialogReadOnly ? "bg-muted/50" : undefined}
                 />
-                <p className="text-xs text-gray-500">
-                  {content.length}/1000 caractere
-                </p>
+                {!dialogReadOnly ? (
+                  <p className="text-xs text-gray-500">
+                    {content.length}/1000 caractere
+                  </p>
+                ) : null}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="priority">Prioritate</Label>
-                  <Select value={priority} onValueChange={(value: "low" | "medium" | "high") => setPriority(value)}>
-                    <SelectTrigger>
+                  <Select
+                    value={priority}
+                    onValueChange={(value: "low" | "medium" | "high") => setPriority(value)}
+                    disabled={dialogReadOnly}
+                  >
+                    <SelectTrigger id="priority">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -747,8 +784,12 @@ export default function NoteInternePage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="category">Categorie</Label>
-                  <Select value={category} onValueChange={(value: "general" | "urgent" | "info" | "task") => setCategory(value)}>
-                    <SelectTrigger>
+                  <Select
+                    value={category}
+                    onValueChange={(value: "general" | "urgent" | "info" | "task") => setCategory(value)}
+                    disabled={dialogReadOnly}
+                  >
+                    <SelectTrigger id="category">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -768,7 +809,7 @@ export default function NoteInternePage() {
                 <div className="border-t pt-4">
                   <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
                     <StickyNote className="h-5 w-5" />
-                    Informații nota
+                    Informații procedură
                   </h3>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -822,46 +863,54 @@ export default function NoteInternePage() {
           </div>
 
           <DialogFooter className="flex flex-col sm:flex-row gap-2">
-            <div className="flex flex-1 justify-start">
-              {editingNote && (
-                <Button 
-                  variant="destructive"
-                  onClick={() => {
-                    handleDeleteNote(editingNote.id)
-                    setIsDialogOpen(false)
-                  }}
-                  className="w-full sm:w-auto"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Șterge nota
+            {dialogReadOnly ? (
+              <div className="flex w-full justify-end">
+                <Button variant="outline" onClick={handleDialogClose} className="w-full sm:w-auto">
+                  Închide
                 </Button>
-              )}
-            </div>
-            
-            <div className="flex gap-2 flex-1 sm:flex-none justify-end">
-              <Button 
-                variant="outline" 
-                onClick={handleCloseAttempt}
-                className="w-full sm:w-auto"
-              >
-                Anulează
-              </Button>
-              
-              <Button 
-                onClick={editingNote ? handleEditNote : handleCreateNote}
-                disabled={isCreating || !title.trim() || !content.trim()}
-                className="w-full sm:w-auto"
-              >
-                {isCreating ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {editingNote ? "Se salvează..." : "Se creează..."}
-                  </>
-                ) : (
-                  editingNote ? "Salvează modificările" : "Creează nota"
-                )}
-              </Button>
-            </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-1 justify-start">
+                  {editingNote && canManageProcedures ? (
+                    <Button
+                      variant="destructive"
+                      onClick={() => {
+                        handleDeleteNote(editingNote.id)
+                        setIsDialogOpen(false)
+                      }}
+                      className="w-full sm:w-auto"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Șterge procedura
+                    </Button>
+                  ) : null}
+                </div>
+
+                <div className="flex gap-2 flex-1 sm:flex-none justify-end">
+                  <Button variant="outline" onClick={handleCloseAttempt} className="w-full sm:w-auto">
+                    Anulează
+                  </Button>
+
+                  <Button
+                    onClick={editingNote ? handleEditNote : handleCreateNote}
+                    disabled={isCreating || !title.trim() || !content.trim()}
+                    className="w-full sm:w-auto"
+                  >
+                    {isCreating ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {editingNote ? "Se salvează..." : "Se creează..."}
+                      </>
+                    ) : editingNote ? (
+                      "Salvează modificările"
+                    ) : (
+                      "Creează procedura"
+                    )}
+                  </Button>
+                </div>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

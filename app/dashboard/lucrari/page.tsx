@@ -3298,6 +3298,8 @@ export default function Lucrari() {
                       ? cn("cursor-default", !isSelectedForBulk && "border-gray-200")
                       : cn("cursor-pointer hover:shadow-lg hover:shadow-gray-200/50", !isSelectedForBulk && "border-gray-100 hover:border-gray-200"),
                     lucrare ? getWorkStatusRowClass(lucrare) : "",
+                    lucrare.statusLucrare === WORK_STATUS.NO_SIGNATURE &&
+                      "ring-2 ring-amber-400/90 shadow-md shadow-amber-100/60",
                   )}
                   onClick={() => {
                     if (isBulkSelectionMode) {
@@ -3325,6 +3327,14 @@ export default function Lucrari() {
                             <Badge className={cn("shadow-sm font-semibold text-xs", getWorkStatusClass(lucrare.statusLucrare))}>
                               {workStatusLabel}
                             </Badge>
+                            {lucrare.statusLucrare === WORK_STATUS.NO_SIGNATURE && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] font-semibold border-amber-400 bg-amber-50 text-amber-900"
+                              >
+                                Semnare amânată
+                              </Badge>
+                            )}
                             {lucrare.statusFacturare && (
                               <Badge variant="outline" className="text-xs border-blue-300 text-blue-700 bg-blue-50">
                                 {lucrare.statusFacturare}
@@ -3334,8 +3344,11 @@ export default function Lucrari() {
                         )}
                       </div>
                       {isTechnician && lucrare.statusLucrare === WORK_STATUS.NO_SIGNATURE && (
-                        <div className="flex">
-                          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-200">Fără semnătură</Badge>
+                        <div className="flex flex-col gap-1">
+                          <Badge className="w-fit bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300">
+                            Fără semnătură
+                          </Badge>
+                          <p className="text-xs text-amber-900/90">Finalizează din raport (semnătură).</p>
                         </div>
                       )}
 
@@ -3399,6 +3412,14 @@ export default function Lucrari() {
                             <Badge className={cn("shadow-sm font-semibold text-xs", getWorkStatusClass(lucrare.statusLucrare))}>
                               {workStatusLabel}
                             </Badge>
+                            {lucrare.statusLucrare === WORK_STATUS.NO_SIGNATURE && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] font-semibold border-amber-400 bg-amber-50 text-amber-900"
+                              >
+                                Semnare amânată
+                              </Badge>
+                            )}
                             {lucrare.statusFacturare && (
                               <Badge variant="outline" className="text-xs border-blue-300 text-blue-700 bg-blue-50">
                                 {lucrare.statusFacturare}
@@ -3408,8 +3429,11 @@ export default function Lucrari() {
                         )}
                       </div>
                       {isTechnician && lucrare.statusLucrare === WORK_STATUS.NO_SIGNATURE && (
-                        <div className="flex">
-                          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-200">Fără semnătură</Badge>
+                        <div className="flex flex-col gap-1">
+                          <Badge className="w-fit bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300">
+                            Fără semnătură
+                          </Badge>
+                          <p className="text-xs text-amber-900/90">Finalizează din raport (semnătură).</p>
                         </div>
                       )}
 

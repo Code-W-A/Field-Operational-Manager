@@ -18,12 +18,26 @@ service cloud.firestore {
       return isSignedIn() && (userRole() == 'admin' || userRole() == 'dispecer' || userRole() == 'tehnician');
     }
 
+    function isAdminOnlyRole() {
+      return isSignedIn() && userRole() == 'admin';
+    }
+
+    /** Proceduri (colecția note-interne): vizualizare pentru orice rol în afară de client portal. */
+    function canReadProceduresCollection() {
+      return isSignedIn() && userRole() != 'client';
+    }
+
     function isHrCollection() {
       // First segment after /documents/
       return request.path.segments.size() > 0 &&
         (request.path.segments[0] == 'hrEmployees' ||
          request.path.segments[0] == 'hrTimesheets' ||
          request.path.segments[0] == 'hrRequests');
+    }
+
+    function isTechnicianGroupsCollection() {
+      return request.path.segments.size() > 0 &&
+        request.path.segments[0] == 'technician_groups';
     }
 
     function isCrmCollection() {
@@ -152,11 +166,23 @@ service cloud.firestore {
       allow read, write: if isStaffInternal();
     }
 
+    // Proceduri operaționale (UI: /dashboard/note-interne)
+    match /note-interne/{docId} {
+      allow read: if canReadProceduresCollection();
+      allow create, update, delete: if isAdminOnlyRole();
+    }
+
+    // Grupuri tehnicieni: dispecer citește (select grupat la tichet); doar admin CRUD
+    match /technician_groups/{groupId} {
+      allow read: if isAdminOrDispatcher();
+      allow create, update, delete: if isAdminOnlyRole();
+    }
+
     // Fallback (existing app behavior): allow authenticated access.
     // NOTE: this is intentionally broad to avoid breaking existing collections in this repo.
     match /{document=**} {
       // Keep broad access for legacy collections, but exclude HR collections which have explicit rules above.
-      allow read, write: if isSignedIn() && !isHrCollection() && !isCrmCollection();
+      allow read, write: if isSignedIn() && !isHrCollection() && !isCrmCollection() && !isTechnicianGroupsCollection();
     }
   }
 }

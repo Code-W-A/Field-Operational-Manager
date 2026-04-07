@@ -12,7 +12,7 @@ import {
   LayoutDashboard,
   MessageSquare,
   Sliders,
-  StickyNote,
+  BookOpen,
   Users,
   UserRound,
 } from "lucide-react"
@@ -317,6 +317,15 @@ export function buildNav(ctx: NavCtx): NavNode[] {
         },
         {
           type: "link",
+          id: "grupuri-tehnicieni",
+          label: "Grupuri tehnicieni",
+          href: "/dashboard/utilizatori/grupuri-tehnicieni",
+          icon: Users,
+          activeMatch: "prefix",
+          visible: () => isAdmin,
+        },
+        {
+          type: "link",
           id: "loguri",
           label: "Loguri",
           href: "/dashboard/loguri",
@@ -355,12 +364,12 @@ export function buildNav(ctx: NavCtx): NavNode[] {
     },
     {
       type: "link",
-      id: "note-interne",
-      label: "Note interne",
+      id: "proceduri",
+      label: "Proceduri",
       href: "/dashboard/note-interne",
-      icon: StickyNote,
+      icon: BookOpen,
       activeMatch: "prefix",
-      visible: () => !isTechnician,
+      visible: () => !isClient,
     },
   ]
 

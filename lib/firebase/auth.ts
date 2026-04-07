@@ -33,6 +33,8 @@ export interface UserData {
   createdAt?: Date
   lastLogin?: Date
   updatedAt?: Date
+  /** ID-uri documente din colecția technician_groups (doar rol tehnician) */
+  technicianGroupIds?: string[]
 }
 
 // Înregistrare utilizator nou
@@ -43,6 +45,7 @@ export const registerUser = async (
   role: UserRole,
   phoneNumber?: string,
   clientAccess?: Array<{ clientId: string; locationNames: string[] }>,
+  technicianGroupIds?: string[],
 ): Promise<UserData> => {
   try {
     // Creare cont prin API server-side (Admin SDK), pentru a evita conturi orfane în Auth.
@@ -56,6 +59,7 @@ export const registerUser = async (
         role,
         phoneNumber,
         clientAccess: clientAccess || [],
+        technicianGroupIds: Array.isArray(technicianGroupIds) ? technicianGroupIds : [],
       }),
     })
 

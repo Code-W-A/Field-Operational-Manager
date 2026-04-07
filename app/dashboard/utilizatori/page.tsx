@@ -56,6 +56,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { DynamicDialogFields } from "@/components/DynamicDialogFields"
 import { useTargetList } from "@/hooks/use-settings"
 import { formatUiDate, toDateSafe } from "@/lib/utils/time-format"
+import { subscribeTechnicianGroups, type TechnicianGroup } from "@/lib/firebase/technician-groups"
 
 const DEFAULT_ROLE_OPTIONS = [
   { value: "admin", label: "Administrator" },
@@ -122,7 +123,9 @@ export default function Utilizatori() {
     role: "" as UserRole,
     clientId: "",
     allowedLocationNames: [] as string[],
+    technicianGroupIds: [] as string[],
   })
+  const [technicianGroupList, setTechnicianGroupList] = useState<TechnicianGroup[]>([])
   const [clientsForSelect, setClientsForSelect] = useState<Array<{id:string; nume:string; locatii?: any[]; email?: string}>>([])
   const [selectedClientLocations, setSelectedClientLocations] = useState<string[]>([])
   const [clientAccess, setClientAccess] = useState<Array<{ clientId: string; locationNames: string[] }>>([])
@@ -162,6 +165,11 @@ export default function Utilizatori() {
   const sortedClientsForSelect = useMemo(() => {
     return [...clientsForSelect].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" }))
   }, [clientsForSelect])
+
+  const technicianGroupOptions = useMemo(
+    () => technicianGroupList.map((g) => ({ label: g.name, value: g.id })),
+    [technicianGroupList],
+  )
 
   const availableRoleOptions = useMemo(() => {
     const roleMap = new Map<string, { value: string; label: string }>()
@@ -219,6 +227,11 @@ export default function Utilizatori() {
 
   useEffect(() => {
     fetchUtilizatori()
+  }, [])
+
+  useEffect(() => {
+    const unsub = subscribeTechnicianGroups(setTechnicianGroupList)
+    return () => unsub()
   }, [])
 
   // Fetch clients for client-user creation
@@ -453,7 +466,11 @@ export default function Utilizatori() {
   }
 
   const handleSelectChange = (value: string) => {
-    setFormData((prev) => ({ ...prev, role: value as UserRole }))
+    setFormData((prev) => ({
+      ...prev,
+      role: value as UserRole,
+      technicianGroupIds: value === "tehnician" ? prev.technicianGroupIds : [],
+    }))
   }
 
   const handleClientChange = (value: string) => {
@@ -560,6 +577,7 @@ export default function Utilizatori() {
         formData.role,
         formData.phoneNumber,
         access,
+        formData.role === "tehnician" ? formData.technicianGroupIds : undefined,
       )
 
       toast({ title: "Utilizator creat", description: `Contul pentru ${formData.displayName} a fost creat cu succes.` })
@@ -609,6 +627,7 @@ export default function Utilizatori() {
         role: "" as UserRole,
         clientId: "",
         allowedLocationNames: [],
+        technicianGroupIds: [],
       })
       setSelectedClientLocations([])
       setClientAccess([])
@@ -666,6 +685,7 @@ export default function Utilizatori() {
       role: "" as UserRole,
       clientId: "",
       allowedLocationNames: [],
+      technicianGroupIds: [],
     })
     setSelectedClientLocations([])
     setClientAccess([])
@@ -1052,6 +1072,21 @@ export default function Utilizatori() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {formData.role === "tehnician" && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Grupuri tehnicieni</label>
+                    <MultiSelect
+                      options={technicianGroupOptions}
+                      selected={formData.technicianGroupIds}
+                      onChange={(selected) =>
+                        setFormData((prev) => ({ ...prev, technicianGroupIds: selected }))
+                      }
+                      placeholder="Selectați grupuri (opțional)"
+                      emptyText="Nu există grupuri. Definiți-le din Setări → Grupuri tehnicieni."
+                    />
+                  </div>
+                )}
 
                 {/* Pentru roluri non-client, parolele rămân în aceeași coloană */}
                 {formData.role !== "client" && (

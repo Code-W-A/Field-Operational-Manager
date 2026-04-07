@@ -16,6 +16,9 @@ export async function POST(request: NextRequest) {
     const rawPhoneNumber = typeof body?.phoneNumber === "string" ? body.phoneNumber.trim() : ""
     const rawNotes = typeof body?.notes === "string" ? body.notes : ""
     const rawClientAccess = Array.isArray(body?.clientAccess) ? body.clientAccess : []
+    const rawTechnicianGroupIds = Array.isArray(body?.technicianGroupIds)
+      ? body.technicianGroupIds.map((id: unknown) => String(id || "").trim()).filter(Boolean)
+      : []
 
     if (!rawEmail || !rawPassword || !rawDisplayName || !rawRole) {
       return NextResponse.json({ error: "Date obligatorii lipsă" }, { status: 400 })
@@ -37,7 +40,7 @@ export async function POST(request: NextRequest) {
     createdUid = authUser.uid
 
     const now = Timestamp.now()
-    const userDoc = {
+    const userDoc: Record<string, unknown> = {
       uid: authUser.uid,
       email: authUser.email ?? rawEmail,
       displayName: authUser.displayName ?? rawDisplayName,
@@ -47,6 +50,9 @@ export async function POST(request: NextRequest) {
       notes: rawNotes,
       clientAccess: rawRole === "client" ? rawClientAccess : [],
       ...(rawRole === "kiosk" ? { isKioskMode: true } : {}),
+      ...(rawRole === "tehnician" && rawTechnicianGroupIds.length > 0
+        ? { technicianGroupIds: rawTechnicianGroupIds }
+        : {}),
       createdAt: FieldValue.serverTimestamp(),
       lastLogin: FieldValue.serverTimestamp(),
     }
@@ -77,6 +83,9 @@ export async function POST(request: NextRequest) {
       notes: rawNotes,
       clientAccess: userDoc.clientAccess,
       ...(rawRole === "kiosk" ? { isKioskMode: true } : {}),
+      ...(rawRole === "tehnician" && rawTechnicianGroupIds.length > 0
+        ? { technicianGroupIds: rawTechnicianGroupIds }
+        : {}),
     }
 
     return NextResponse.json({ success: true, user: responseUser })

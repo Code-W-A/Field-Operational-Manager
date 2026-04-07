@@ -288,7 +288,17 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const debugRevizie = searchParams.get("debugRevizie") === "1"
   const fromArhivate = searchParams.get('from') === 'arhivate'
   const fromIstoricEchipament = searchParams.get("from") === "istoric-echipament"
-  
+
+  /** Păstrează accesul tehnicianului din fluxul „Istoric echipament” la tichete înrudite (ex. lucrarea inițială). */
+  const relatedTicketUrl = useCallback(
+    (lucrareId: string) => {
+      if (!lucrareId) return "/dashboard/lucrari"
+      if (!fromIstoricEchipament) return `/dashboard/lucrari/${lucrareId}`
+      return `/dashboard/lucrari/${lucrareId}?from=istoric-echipament`
+    },
+    [fromIstoricEchipament]
+  )
+
   const { id: paramsId } = React.use(params)
   
   // Detectăm parametrul modificationId din URL
@@ -2454,7 +2464,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                   variant="outline"
                                   size="sm"
                                   className="h-7 px-2 text-xs self-start sm:self-center"
-                                  onClick={() => router.push(`/dashboard/lucrari/${conflict.id}`)}
+                                  onClick={() => router.push(relatedTicketUrl(conflict.id))}
                                 >
                                   Deschide
                                 </Button>
@@ -2478,6 +2488,21 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           modification={modification}
           onDismiss={() => setShowModificationBanner(false)}
         />
+      )}
+
+      {role !== "client" && lucrare?.statusLucrare === WORK_STATUS.NO_SIGNATURE && (
+        <Alert variant="default" className="mb-4 border-amber-300 bg-amber-50">
+          <AlertCircle className="h-4 w-4 text-amber-600" />
+          <AlertTitle>Semnare amânată („Semnează mai târziu”)</AlertTitle>
+          <AlertDescription className="space-y-3 text-amber-950/90">
+            <p>
+              Tichetul are statusul „Fără semnătură”. Intervenția se încheie cu semnătura clientului din pagina de raport.
+            </p>
+            <Button asChild variant="outline" size="sm" className="border-amber-400 bg-white hover:bg-amber-100">
+              <Link href={`/raport/${paramsId}`}>Deschide raportul</Link>
+            </Button>
+          </AlertDescription>
+        </Alert>
       )}
 
       {isReadOnlyTechView && (
@@ -2986,7 +3011,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         variant="outline"
                         size="sm"
                         className="mt-2 h-7 px-2 text-blue-600 border-blue-200 hover:bg-blue-100"
-                        onClick={() => router.push(`/dashboard/lucrari/${lucrare.lucrareOriginala}`)}
+                        onClick={() => router.push(relatedTicketUrl(String(lucrare.lucrareOriginala)))}
                       >
                         Vizualizează lucrarea originală
                       </Button>
@@ -3031,7 +3056,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => router.push(`/dashboard/lucrari/${lucrare.lucrareOriginala}`)}
+                          onClick={() => router.push(relatedTicketUrl(String(lucrare.lucrareOriginala)))}
                           className="text-xs px-2 py-1 h-7 text-orange-700 border-orange-300 hover:bg-orange-100"
                         >
                           <ChevronLeft className="h-3 w-3 mr-1" />
@@ -3194,7 +3219,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => router.push(`/dashboard/lucrari/${reinterventie.id}`)}
+                                onClick={() => router.push(relatedTicketUrl(reinterventie.id))}
                                 className="text-xs px-2 py-1 h-7 text-blue-700 border-blue-300 hover:bg-blue-100"
                               >
                                 <ChevronLeft className="h-3 w-3 mr-1 rotate-180" />
@@ -4740,7 +4765,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       </AlertDescription>
                     </Alert>
                     <div className="flex items-center justify-center gap-3">
-                      <Button onClick={() => router.push(`/dashboard/lucrari/${otherActiveWork.id}`)}>
+                      <Button onClick={() => router.push(relatedTicketUrl(otherActiveWork.id))}>
                         Deschide lucrarea în lucru
                       </Button>
                       {checkingOtherActive && (

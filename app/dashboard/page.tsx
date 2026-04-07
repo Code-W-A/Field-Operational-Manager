@@ -400,6 +400,7 @@ export default function Dashboard() {
     const finalized = ["finalizată", "finalizata", "finalizat", "raportată", "raportata", "închisă", "inchisa", "închis", "inchis"]
     if (finalized.includes(s)) return "bg-green-700"
     if (s === WORK_STATUS.IN_PROGRESS.toLowerCase()) return "bg-blue-700"
+    if (s === WORK_STATUS.NO_SIGNATURE.toLowerCase()) return "bg-amber-600"
     // Atribuită / orice alt status non-finalizat rămâne gri
     return "bg-gray-700"
   }
@@ -682,6 +683,13 @@ export default function Dashboard() {
             />
           )}
 
+          <MobileStatCard
+            title="Fără semnătură"
+            count={buckets.faraSemnatura.length}
+            countClassName="text-amber-700"
+            onClick={() => setMobileDialogOpen("faraSemnatura")}
+          />
+
           {/* Nepreluate */}
           {dashboardConfig.nepreluateEnabled && (
             <MobileStatCard
@@ -817,6 +825,22 @@ export default function Dashboard() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={mobileDialogOpen === "faraSemnatura"} onOpenChange={(open) => !open && setMobileDialogOpen(null)}>
+        <DialogContent className="max-w-md max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Fără semnătură ({buckets.faraSemnatura.length})</DialogTitle>
+            <DialogDescription>
+              Tichete la care s-a folosit „Semnează mai târziu” — finalizare cu semnătură din raport.
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[60vh]">
+            <div className="space-y-2 pr-4">
+              {buckets.faraSemnatura.map(statusBubble("bg-amber-600"))}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={mobileDialogOpen === 'nepreluate'} onOpenChange={(open) => !open && setMobileDialogOpen(null)}>
         <DialogContent className="max-w-md max-h-[80vh]">
           <DialogHeader>
@@ -940,7 +964,7 @@ export default function Dashboard() {
       <div className="hidden md:flex flex-col h-full min-h-0 gap-4">
         {/* Prima secțiune: Statusuri (50% din înălțime) */}
         <div className="flex-1 min-h-0 overflow-hidden">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9 gap-3 h-full min-w-0">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 gap-3 h-full min-w-0">
             <StatusBox title="Întârziate" count={buckets.intarziate.length} disabled={!dashboardConfig.intarziateEnabled}>
               {buckets.intarziate.map(statusBubble("bg-red-600"))}
             </StatusBox>
@@ -949,6 +973,9 @@ export default function Dashboard() {
             </StatusBox>
             <StatusBox title="Listate" count={buckets.listate.length} disabled={!dashboardConfig.listateEnabled}>
               {buckets.listate.map(statusBubble("bg-gray-600"))}
+            </StatusBox>
+            <StatusBox title="Fără semnătură" count={buckets.faraSemnatura.length}>
+              {buckets.faraSemnatura.map(statusBubble("bg-amber-600"))}
             </StatusBox>
             <StatusBox title="Nepreluate" count={buckets.nepreluate.length} disabled={!dashboardConfig.nepreluateEnabled}>
               {buckets.nepreluate.map(statusBubble("bg-orange-600"))}

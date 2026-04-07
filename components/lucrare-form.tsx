@@ -1,11 +1,11 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useCallback, useImperativeHandle, forwardRef, useRef } from "react"
+import { useState, useEffect, useCallback, useImperativeHandle, forwardRef, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -56,6 +56,12 @@ import { validateWorkEquipmentForCreation } from "@/lib/utils/work-equipment-val
 import { calculateWarranty, getWarrantyDisplayInfo, updateWorkOrderWarrantyInfo } from "@/lib/utils/warranty-calculator"
 import { DynamicDialogFields } from "@/components/DynamicDialogFields"
 import { useTargetList } from "@/hooks/use-settings"
+import {
+  primaryDisplayGroupId,
+  sortTechnicianGroups,
+  subscribeTechnicianGroups,
+  type TechnicianGroup,
+} from "@/lib/firebase/technician-groups"
 
 // Define the Lucrare type
 interface Lucrare {
@@ -204,6 +210,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     const [isAddClientDialogOpen, setIsAddClientDialogOpen] = useState(false)
     const [isEditClientDialogOpen, setIsEditClientDialogOpen] = useState(false)
     const [tehnicieni, setTehnicieni] = useState<any[]>([])
+    const [technicianGroups, setTechnicianGroups] = useState<TechnicianGroup[]>([])
     const [loadingTehnicieni, setLoadingTehnicieni] = useState(true)
     const [timeEmiterii, setTimeEmiterii] = useState<string>(
       dataEmiterii ? formatTime24(dataEmiterii) : formatTime24(new Date()),
@@ -632,6 +639,41 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
       fetchTehnicieni()
     }, [])
+
+    useEffect(() => {
+      const unsub = subscribeTechnicianGroups(setTechnicianGroups)
+      return () => unsub()
+    }, [])
+
+    const techniciansGroupedForSelect = useMemo(() => {
+      const sortedGroups = sortTechnicianGroups(technicianGroups)
+      const sortedIds = sortedGroups.map((g) => g.id)
+      const labelByKey = new Map<string, string>()
+      sortedGroups.forEach((g) => labelByKey.set(g.id, g.name))
+      const noneKey = "__none__"
+      labelByKey.set(noneKey, "Fără grup")
+
+      const bucket = new Map<string, any[]>()
+      for (const t of tehnicieni) {
+        const rawIds = (t as any)?.technicianGroupIds
+        const ids = Array.isArray(rawIds) ? rawIds.map(String) : []
+        const primary = primaryDisplayGroupId(sortedIds, ids) ?? noneKey
+        const list = bucket.get(primary) || []
+        list.push(t)
+        bucket.set(primary, list)
+      }
+      for (const list of bucket.values()) {
+        list.sort((a, b) =>
+          String(a.displayName || "").localeCompare(String(b.displayName || ""), "ro", { sensitivity: "base" }),
+        )
+      }
+      const sectionOrder: string[] = []
+      for (const id of sortedIds) {
+        if ((bucket.get(id)?.length ?? 0) > 0) sectionOrder.push(id)
+      }
+      if ((bucket.get(noneKey)?.length ?? 0) > 0) sectionOrder.push(noneKey)
+      return { sectionOrder, labelByKey, bucket, noneKey }
+    }, [tehnicieni, technicianGroups])
 
     // Modificăm funcția handleClientChange pentru a reseta echipamentul când se schimbă clientul
     const handleClientChange = async (value: string) => {
@@ -2500,17 +2542,33 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
               <SelectTrigger id="tehnicieni">
                 <SelectValue placeholder="Selectați tehnicienii" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-[min(24rem,var(--radix-select-content-available-height))]">
                 {loadingTehnicieni ? (
                   <div className="flex items-center justify-center p-2">
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
                     <span>Se încarcă...</span>
                   </div>
                 ) : tehnicieni.length > 0 ? (
-                  tehnicieni.map((tehnician) => (
-                    <SelectItem key={tehnician.id} value={tehnician.displayName || ""}>
-                      {tehnician.displayName}
-                    </SelectItem>
+                  techniciansGroupedForSelect.sectionOrder.map((sectionKey) => (
+                    <SelectGroup key={sectionKey}>
+                      <SelectLabel className="text-muted-foreground">
+                        {techniciansGroupedForSelect.labelByKey.get(sectionKey) || sectionKey}
+                      </SelectLabel>
+                      {(techniciansGroupedForSelect.bucket.get(sectionKey) || []).map((tehnician: any) => {
+                        const rawIds = tehnician?.technicianGroupIds
+                        const gidCount = Array.isArray(rawIds) ? rawIds.length : 0
+                        const suffix =
+                          gidCount > 1
+                            ? ` (+${gidCount - 1} grup${gidCount - 1 === 1 ? "" : "uri"})`
+                            : ""
+                        const label = `${tehnician.displayName || ""}${suffix}`
+                        return (
+                          <SelectItem key={tehnician.id} value={tehnician.displayName || ""}>
+                            {label}
+                          </SelectItem>
+                        )
+                      })}
+                    </SelectGroup>
                   ))
                 ) : (
                   <div className="p-2 text-center text-sm text-muted-foreground">

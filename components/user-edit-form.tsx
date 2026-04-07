@@ -15,8 +15,10 @@ import { toast } from "@/hooks/use-toast"
 import { updateUserEmail } from "@/lib/firebase/auth"
 import { Key, ChevronsUpDown, Check } from "lucide-react"
 import { PasswordResetDialog } from "./password-reset-dialog"
-import { doc, updateDoc, collection, getDocs } from "firebase/firestore"
+import { doc, updateDoc, collection, getDocs, deleteField } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
+import { subscribeTechnicianGroups, type TechnicianGroup } from "@/lib/firebase/technician-groups"
+import { MultiSelect } from "@/components/ui/multi-select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -59,9 +61,16 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
   const [pendingClientId, setPendingClientId] = useState<string>("")
   const [pendingLocations, setPendingLocations] = useState<string[]>([])
   const [selectedClientsDialogOpen, setSelectedClientsDialogOpen] = useState(false)
+  const [technicianGroupList, setTechnicianGroupList] = useState<TechnicianGroup[]>([])
+  const [technicianGroupIds, setTechnicianGroupIds] = useState<string[]>([])
 
   const sortedClientsForSelect = [...clientsForSelect].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" }))
   const clientOptions = sortedClientsForSelect.map(c => ({ label: c.nume || c.id, value: c.id }))
+  const technicianGroupOptions = useMemo(
+    () => technicianGroupList.map((g) => ({ label: g.name, value: g.id })),
+    [technicianGroupList],
+  )
+
   const aggregatedLocationOptions = useMemo(() => {
     const selected = clientsForSelect.filter(c => clientAccess.some(e => e.clientId === c.id) || tempClientId === c.id)
     const names = new Set<string>()
@@ -118,6 +127,16 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
     }
     loadClients()
   }, [])
+
+  useEffect(() => {
+    const unsub = subscribeTechnicianGroups(setTechnicianGroupList)
+    return () => unsub()
+  }, [])
+
+  useEffect(() => {
+    const raw = (user as any)?.technicianGroupIds
+    setTechnicianGroupIds(Array.isArray(raw) ? raw.map(String) : [])
+  }, [user?.uid])
 
   // Recalculează destinatarii invitației pentru rol client
   useEffect(() => {
@@ -210,17 +229,22 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
       // Actualizăm datele utilizatorului în Firestore
       // Acest cod ar trebui să fie adaptat la structura aplicației tale
       const userRef = doc(db, "users", user.uid)
-      await updateDoc(userRef, {
+      const baseUpdate: Record<string, unknown> = {
         displayName: values.displayName,
         email: values.email,
         role: values.role,
         phoneNumber: values.phoneNumber || "",
-        // legacy field for backward compatibility
         telefon: values.phoneNumber || "",
         notes: values.notes || "",
         clientAccess: values.role === "client" ? clientAccess : [],
         updatedAt: new Date(),
-      })
+      }
+      if (values.role === "tehnician") {
+        baseUpdate.technicianGroupIds = technicianGroupIds
+      } else {
+        baseUpdate.technicianGroupIds = deleteField()
+      }
+      await updateDoc(userRef, baseUpdate as any)
 
       // Trimitere invitație după salvare, dacă s-a bifat
       if (values.role === "client" && sendInvite) {
@@ -353,6 +377,25 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
               </FormItem>
             )}
           />
+
+          {form.watch("role") === "tehnician" && (
+            <div className="space-y-2">
+              <FormLabel>Grupuri tehnicieni</FormLabel>
+              <MultiSelect
+                options={technicianGroupOptions}
+                selected={technicianGroupIds}
+                onChange={(next) => {
+                  setTechnicianGroupIds(next)
+                  setFormModified(true)
+                }}
+                placeholder="Selectați unul sau mai multe grupuri"
+                emptyText="Nu există grupuri definite. Creați-le din Setări → Grupuri tehnicieni."
+              />
+              <p className="text-xs text-muted-foreground">
+                Grupurile se gestionează din pagina Grupuri tehnicieni (meniu Setări).
+              </p>
+            </div>
+          )}
 
           <FormField
             control={form.control}
