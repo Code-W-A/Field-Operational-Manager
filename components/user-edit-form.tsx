@@ -13,7 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/hooks/use-toast"
 import { updateUserEmail } from "@/lib/firebase/auth"
-import { Key, ChevronsUpDown, Check } from "lucide-react"
+import { Key, ChevronsUpDown, Check, Mail, Trash2 } from "lucide-react"
 import { PasswordResetDialog } from "./password-reset-dialog"
 import { doc, updateDoc, collection, getDocs, deleteField } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
@@ -24,7 +24,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DynamicDialogFields } from "@/components/DynamicDialogFields"
-
+import { useAuth } from "@/contexts/AuthContext"
 // Schema de validare pentru formular
 const formSchema = z.object({
   displayName: z.string().min(2, {
@@ -46,6 +46,9 @@ interface UserEditFormProps {
 
 const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProps, ref: any) => {
   const router = useRouter()
+  const { userData: currentUser } = useAuth()
+  const canManageMailCredentials =
+    currentUser?.role === "admin" || currentUser?.role === "dispecer"
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isPasswordResetOpen, setIsPasswordResetOpen] = useState(false)
   const [formModified, setFormModified] = useState(false)
@@ -64,6 +67,21 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
   const [technicianGroupList, setTechnicianGroupList] = useState<TechnicianGroup[]>([])
   const [technicianGroupIds, setTechnicianGroupIds] = useState<string[]>([])
 
+  const [mailLoading, setMailLoading] = useState(false)
+  const [mailDirty, setMailDirty] = useState(false)
+  const [smtpHost, setSmtpHost] = useState("")
+  const [smtpPort, setSmtpPort] = useState("465")
+  const [smtpSecure, setSmtpSecure] = useState(true)
+  const [smtpUser, setSmtpUser] = useState("")
+  const [smtpPassword, setSmtpPassword] = useState("")
+  const [smtpHasPassword, setSmtpHasPassword] = useState(false)
+  const [imapHost, setImapHost] = useState("")
+  const [imapPort, setImapPort] = useState("993")
+  const [imapSecure, setImapSecure] = useState(true)
+  const [imapUser, setImapUser] = useState("")
+  const [imapPassword, setImapPassword] = useState("")
+  const [imapHasPassword, setImapHasPassword] = useState(false)
+
   const sortedClientsForSelect = [...clientsForSelect].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" }))
   const clientOptions = sortedClientsForSelect.map(c => ({ label: c.nume || c.id, value: c.id }))
   const technicianGroupOptions = useMemo(
@@ -79,7 +97,7 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
   }, [clientsForSelect, clientAccess, tempClientId])
 
   useImperativeHandle(ref, () => ({
-    hasUnsavedChanges: () => formModified,
+    hasUnsavedChanges: () => formModified || mailDirty,
   }))
 
   useEffect(() => {
@@ -138,6 +156,54 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
     setTechnicianGroupIds(Array.isArray(raw) ? raw.map(String) : [])
   }, [user?.uid])
 
+  useEffect(() => {
+    if (!canManageMailCredentials || !user?.uid) return
+    let cancelled = false
+    setMailLoading(true)
+    void (async () => {
+      try {
+        const r = await fetch(`/api/users/mail-credentials?userId=${encodeURIComponent(user.uid)}`)
+        if (!r.ok) return
+        const j = await r.json()
+        const c = j?.credentials
+        if (cancelled) return
+        if (c) {
+          setSmtpHost(c.smtpHost || "")
+          setSmtpPort(String(c.smtpPort ?? 465))
+          setSmtpSecure(c.smtpSecure !== false)
+          setSmtpUser(c.smtpUser || "")
+          setSmtpHasPassword(Boolean(c.smtpHasPassword))
+          setImapHost(c.imapHost || "")
+          setImapPort(String(c.imapPort ?? 993))
+          setImapSecure(c.imapSecure !== false)
+          setImapUser(c.imapUser || "")
+          setImapHasPassword(Boolean(c.imapHasPassword))
+        } else {
+          setSmtpHost("")
+          setSmtpPort("465")
+          setSmtpSecure(true)
+          setSmtpUser("")
+          setSmtpHasPassword(false)
+          setImapHost("")
+          setImapPort("993")
+          setImapSecure(true)
+          setImapUser("")
+          setImapHasPassword(false)
+        }
+        setSmtpPassword("")
+        setImapPassword("")
+        setMailDirty(false)
+      } catch {
+        /* ignore */
+      } finally {
+        if (!cancelled) setMailLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [user?.uid, canManageMailCredentials])
+
   // Recalculează destinatarii invitației pentru rol client
   useEffect(() => {
     const currentRole = form.getValues("role")
@@ -161,6 +227,28 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
     })
     setInviteRecipients(Array.from(recipients))
   }, [clientsForSelect, clientAccess, form])
+
+  const postMailCredentials = async (extra: Record<string, unknown> = {}) => {
+    const body: Record<string, unknown> = {
+      userId: user.uid,
+      smtpHost,
+      smtpPort: Number.parseInt(String(smtpPort || "465"), 10) || 465,
+      smtpSecure,
+      smtpUser,
+      imapHost,
+      imapPort: Number.parseInt(String(imapPort || "993"), 10) || 993,
+      imapSecure,
+      imapUser,
+      ...extra,
+    }
+    if (smtpPassword.trim() && !extra.clearSmtpPassword) body.smtpPassword = smtpPassword.trim()
+    if (imapPassword.trim() && !extra.clearImapPassword) body.imapPassword = imapPassword.trim()
+    return fetch("/api/users/mail-credentials", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+  }
 
   const addClientAccessEntry = () => {
     if (!pendingClientId) return
@@ -246,6 +334,43 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
       }
       await updateDoc(userRef, baseUpdate as any)
 
+      if (canManageMailCredentials && mailDirty) {
+        const mailBody: Record<string, unknown> = {
+          userId: user.uid,
+          smtpHost,
+          smtpPort: Number.parseInt(String(smtpPort || "465"), 10) || 465,
+          smtpSecure,
+          smtpUser,
+          imapHost,
+          imapPort: Number.parseInt(String(imapPort || "993"), 10) || 993,
+          imapSecure,
+          imapUser,
+        }
+        if (smtpPassword.trim()) mailBody.smtpPassword = smtpPassword.trim()
+        if (imapPassword.trim()) mailBody.imapPassword = imapPassword.trim()
+        const mailResp = await fetch("/api/users/mail-credentials", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(mailBody),
+        })
+        if (!mailResp.ok) {
+          const errBody = await mailResp.json().catch(() => ({}))
+          toast({
+            variant: "destructive",
+            title: "Setări email personale nesalvate",
+            description: (errBody as { error?: string }).error || "Nu s-au putut salva credențialele SMTP/IMAP.",
+          })
+        } else {
+          const savedSmtpPw = smtpPassword.trim()
+          const savedImapPw = imapPassword.trim()
+          setMailDirty(false)
+          setSmtpPassword("")
+          setImapPassword("")
+          if (savedSmtpPw) setSmtpHasPassword(true)
+          if (savedImapPw) setImapHasPassword(true)
+        }
+      }
+
       // Trimitere invitație după salvare, dacă s-a bifat
       if (values.role === "client" && sendInvite) {
         if (!inviteRecipients.length) {
@@ -294,12 +419,19 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
     }
   }
 
+  const watchedRole = form.watch("role")
+  const isClientUser = watchedRole === "client"
+  const useWideTwoColumnLayout = canManageMailCredentials || isClientUser
+
   return (
     <div className="space-y-6">
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className={`py-0 ${form.watch("role") === "client" ? "grid grid-cols-1 lg:grid-cols-2 gap-6" : "grid gap-6"}`}>
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className={`py-0 grid gap-6 ${useWideTwoColumnLayout ? "lg:grid-cols-2" : ""}`}
+        >
           {/* Câmpuri dinamice (legate la Dialog: Utilizator Nou) */}
-          <div className="lg:col-span-2">
+          <div className={useWideTwoColumnLayout ? "lg:col-span-2" : ""}>
             <DynamicDialogFields
               targetId="dialogs.user.new"
               values={(user as any)?.customFields}
@@ -309,8 +441,9 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
               }}
             />
           </div>
+
           {/* Coloana stângă - informații de bază */}
-          <div className="space-y-6">
+          <div className="min-w-0 space-y-6">
           <FormField
             control={form.control}
             name="displayName"
@@ -378,7 +511,7 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
             )}
           />
 
-          {form.watch("role") === "tehnician" && (
+          {watchedRole === "tehnician" && (
             <div className="space-y-2">
               <FormLabel>Grupuri tehnicieni</FormLabel>
               <MultiSelect
@@ -411,6 +544,59 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
             )}
           />
 
+          {isClientUser && canManageMailCredentials ? (
+            <div className="space-y-4 rounded-lg border border-border bg-muted/10 p-4">
+              <div className="space-y-2">
+                <FormLabel>Adaugă client</FormLabel>
+                <Popover open={isClientPickerOpen2} onOpenChange={setIsClientPickerOpen2}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" aria-expanded={isClientPickerOpen2} className="w-full justify-between">
+                      Selectează client
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="p-0 w-[--radix-popover-trigger-width] max-w-[90vw]">
+                    <Command shouldFilter={true}>
+                      <CommandInput placeholder="Căutați clientul..." />
+                      <CommandEmpty>Nu s-au găsit clienți.</CommandEmpty>
+                      <CommandList className="max-h-[240px] overflow-y-auto overflow-x-auto whitespace-nowrap">
+                        <CommandGroup>
+                          {sortedClientsForSelect.map((c) => (
+                            <CommandItem
+                              key={c.id}
+                              value={`${c.nume}__${c.id}`}
+                              onSelect={() => {
+                                setIsClientPickerOpen2(false)
+                                setPendingClientId(c.id)
+                                setPendingLocations([])
+                                setLocationDialogOpen(true)
+                              }}
+                              className="whitespace-nowrap"
+                            >
+                              <span className="inline-block min-w-max">{c.nume}</span>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {clientAccess.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <FormLabel>Clienți selectați</FormLabel>
+                    <div className="text-sm text-muted-foreground">{clientAccess.length} clienți adăugați</div>
+                  </div>
+                  <div>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setSelectedClientsDialogOpen(true)}>Arată clienții selectați</Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null}
+
           <div className="flex flex-col sm:flex-row gap-4">
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? "Se salvează..." : "Salvează modificările"}
@@ -428,8 +614,264 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
           </div>
           </div>
 
-          {/* Coloana dreaptă - zona client (doar pentru rol client) */}
-          {form.watch("role") === "client" && (
+          {canManageMailCredentials ? (
+            <div className="min-w-0 rounded-lg border border-border bg-muted/20 p-4 lg:max-h-[min(72vh,720px)] lg:overflow-y-auto lg:sticky lg:top-0 lg:self-start">
+              <div className="mb-3 flex items-center gap-2 border-b border-border pb-3 text-sm font-medium">
+                <Mail className="h-4 w-4 shrink-0" />
+                Email personal (SMTP / IMAP)
+              </div>
+              <div className="space-y-4">
+                  <p className="text-xs text-muted-foreground">
+                    Salvați setările odată cu „Salvează modificările”. Parolele nu se reafișează după salvare.
+                  </p>
+                  {mailLoading ? (
+                    <p className="text-sm text-muted-foreground">Se încarcă setările…</p>
+                  ) : (
+                    <>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-2 sm:col-span-2">
+                          <span className="text-sm font-medium">SMTP</span>
+                        </div>
+                        <div className="space-y-2">
+                          <FormLabel className="text-xs">Server SMTP</FormLabel>
+                          <Input
+                            value={smtpHost}
+                            onChange={(e) => {
+                              setSmtpHost(e.target.value)
+                              setMailDirty(true)
+                            }}
+                            placeholder="mail.exemplu.ro"
+                            autoComplete="off"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <FormLabel className="text-xs">Port SMTP</FormLabel>
+                          <Input
+                            value={smtpPort}
+                            onChange={(e) => {
+                              setSmtpPort(e.target.value)
+                              setMailDirty(true)
+                            }}
+                            placeholder="465"
+                            autoComplete="off"
+                          />
+                        </div>
+                        <div className="space-y-2 sm:col-span-2 flex items-center gap-2">
+                          <Checkbox
+                            id="smtpSecure"
+                            checked={smtpSecure}
+                            onCheckedChange={(v) => {
+                              setSmtpSecure(v === true)
+                              setMailDirty(true)
+                            }}
+                          />
+                          <label htmlFor="smtpSecure" className="text-sm cursor-pointer">
+                            Conexiune securizată (SSL/TLS)
+                          </label>
+                        </div>
+                        <div className="space-y-2 sm:col-span-2">
+                          <FormLabel className="text-xs">Utilizator SMTP</FormLabel>
+                          <Input
+                            value={smtpUser}
+                            onChange={(e) => {
+                              setSmtpUser(e.target.value)
+                              setMailDirty(true)
+                            }}
+                            placeholder="user@domeniu.ro"
+                            autoComplete="off"
+                          />
+                        </div>
+                        <div className="space-y-2 sm:col-span-2">
+                          <FormLabel className="text-xs">
+                            Parolă SMTP {smtpHasPassword ? "(lăsați gol pentru a păstra)" : ""}
+                          </FormLabel>
+                          <Input
+                            type="password"
+                            value={smtpPassword}
+                            onChange={(e) => {
+                              setSmtpPassword(e.target.value)
+                              setMailDirty(true)
+                            }}
+                            placeholder={smtpHasPassword ? "••••••••" : "Parolă"}
+                            autoComplete="new-password"
+                          />
+                          {smtpHasPassword ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="mt-1"
+                              onClick={async () => {
+                                try {
+                                  const r = await postMailCredentials({ clearSmtpPassword: true })
+                                  if (!r.ok) {
+                                    const err = await r.json().catch(() => ({}))
+                                    throw new Error((err as { error?: string }).error)
+                                  }
+                                  setSmtpHasPassword(false)
+                                  setSmtpPassword("")
+                                  toast({ title: "Parolă SMTP eliminată" })
+                                } catch (e: unknown) {
+                                  toast({
+                                    variant: "destructive",
+                                    title: "Eroare",
+                                    description: e instanceof Error ? e.message : "Nu s-a putut șterge parola.",
+                                  })
+                                }
+                              }}
+                            >
+                              Șterge parola SMTP salvată
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2 border-t pt-4">
+                        <div className="space-y-2 sm:col-span-2">
+                          <span className="text-sm font-medium">IMAP</span>
+                        </div>
+                        <div className="space-y-2">
+                          <FormLabel className="text-xs">Server IMAP</FormLabel>
+                          <Input
+                            value={imapHost}
+                            onChange={(e) => {
+                              setImapHost(e.target.value)
+                              setMailDirty(true)
+                            }}
+                            placeholder="mail.exemplu.ro"
+                            autoComplete="off"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <FormLabel className="text-xs">Port IMAP</FormLabel>
+                          <Input
+                            value={imapPort}
+                            onChange={(e) => {
+                              setImapPort(e.target.value)
+                              setMailDirty(true)
+                            }}
+                            placeholder="993"
+                            autoComplete="off"
+                          />
+                        </div>
+                        <div className="space-y-2 sm:col-span-2 flex items-center gap-2">
+                          <Checkbox
+                            id="imapSecure"
+                            checked={imapSecure}
+                            onCheckedChange={(v) => {
+                              setImapSecure(v === true)
+                              setMailDirty(true)
+                            }}
+                          />
+                          <label htmlFor="imapSecure" className="text-sm cursor-pointer">
+                            Conexiune securizată (SSL/TLS)
+                          </label>
+                        </div>
+                        <div className="space-y-2 sm:col-span-2">
+                          <FormLabel className="text-xs">Utilizator IMAP</FormLabel>
+                          <Input
+                            value={imapUser}
+                            onChange={(e) => {
+                              setImapUser(e.target.value)
+                              setMailDirty(true)
+                            }}
+                            placeholder="user@domeniu.ro"
+                            autoComplete="off"
+                          />
+                        </div>
+                        <div className="space-y-2 sm:col-span-2">
+                          <FormLabel className="text-xs">
+                            Parolă IMAP {imapHasPassword ? "(lăsați gol pentru a păstra)" : ""}
+                          </FormLabel>
+                          <Input
+                            type="password"
+                            value={imapPassword}
+                            onChange={(e) => {
+                              setImapPassword(e.target.value)
+                              setMailDirty(true)
+                            }}
+                            placeholder={imapHasPassword ? "••••••••" : "Parolă"}
+                            autoComplete="new-password"
+                          />
+                          {imapHasPassword ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="mt-1"
+                              onClick={async () => {
+                                try {
+                                  const r = await postMailCredentials({ clearImapPassword: true })
+                                  if (!r.ok) {
+                                    const err = await r.json().catch(() => ({}))
+                                    throw new Error((err as { error?: string }).error)
+                                  }
+                                  setImapHasPassword(false)
+                                  setImapPassword("")
+                                  toast({ title: "Parolă IMAP eliminată" })
+                                } catch (e: unknown) {
+                                  toast({
+                                    variant: "destructive",
+                                    title: "Eroare",
+                                    description: e instanceof Error ? e.message : "Nu s-a putut șterge parola.",
+                                  })
+                                }
+                              }}
+                            >
+                              Șterge parola IMAP salvată
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 border-t pt-3">
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="gap-1"
+                          onClick={async () => {
+                            if (!window.confirm("Ștergeți toate setările SMTP/IMAP pentru acest utilizator?")) return
+                            try {
+                              const r = await fetch(
+                                `/api/users/mail-credentials?userId=${encodeURIComponent(user.uid)}`,
+                                { method: "DELETE" },
+                              )
+                              if (!r.ok) throw new Error("Ștergere eșuată")
+                              setSmtpHost("")
+                              setSmtpPort("465")
+                              setSmtpSecure(true)
+                              setSmtpUser("")
+                              setSmtpPassword("")
+                              setSmtpHasPassword(false)
+                              setImapHost("")
+                              setImapPort("993")
+                              setImapSecure(true)
+                              setImapUser("")
+                              setImapPassword("")
+                              setImapHasPassword(false)
+                              setMailDirty(false)
+                              toast({ title: "Setări email eliminate" })
+                            } catch {
+                              toast({
+                                variant: "destructive",
+                                title: "Eroare",
+                                description: "Nu s-au putut șterge setările.",
+                              })
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Șterge toate setările email
+                        </Button>
+                      </div>
+                    </>
+                  )}
+              </div>
+            </div>
+          ) : null}
+
+          {isClientUser && !canManageMailCredentials ? (
             <div className="space-y-4">
               <div className="space-y-2">
                 <FormLabel>Adaugă client</FormLabel>
@@ -480,7 +922,7 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
                 </div>
               )}
             </div>
-          )}
+          ) : null}
         </form>
       </Form>
 

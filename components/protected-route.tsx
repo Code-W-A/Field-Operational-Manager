@@ -5,6 +5,7 @@ import type React from "react"
 import { useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
+import { reportToSentry } from "@/lib/sentry/report-error"
 import type { UserRole } from "@/lib/firebase/auth"
 
 interface ProtectedRouteProps {
@@ -39,7 +40,9 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
         } else if (!user) {
           document.cookie = "userRole=; Path=/; Max-Age=0; SameSite=Lax"
         }
-      } catch {}
+      } catch (e) {
+        reportToSentry(e, { tags: { area: "protected-route", op: "user-role-cookie" } })
+      }
 
       // Adăugăm logging pentru debugging
       console.log("ProtectedRoute check:", {

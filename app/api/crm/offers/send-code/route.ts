@@ -2,8 +2,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { FieldValue } from "firebase-admin/firestore"
 import { adminDb } from "@/lib/firebase/admin"
 import { CRM_COLLECTIONS } from "@/lib/crm/constants"
-import { createConfiguredSmtpTransport } from "@/lib/email/smtp.server"
-import { getEmailFrom } from "@/lib/email/from"
+import { resolveMailTransport } from "@/lib/email/resolve-mail-transport.server"
 import { sendMailWithSentCopy } from "@/lib/email/send-with-sent-copy.server"
 
 const CODE_LENGTH = 6
@@ -157,12 +156,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { transporter, auth } = createConfiguredSmtpTransport()
-    await sendMailWithSentCopy({
-      transporter,
-      smtpAuth: auth,
+    // Fără sesiune staff: folosim SMTP/IMAP din env (flux public cu token ofertă).
+    const resolved = await resolveMailTransport(null)
+    const sendParams: Parameters<typeof sendMailWithSentCopy>[0] = {
+      transporter: resolved.transporter,
+      smtpAuth: resolved.smtpAuth,
       mailOptions: {
-        from: getEmailFrom(),
+        from: resolved.mailFrom,
         to: [email],
         subject: "Cod validare ofertă",
         html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#0b1220">
@@ -176,7 +176,11 @@ export async function POST(request: NextRequest) {
         route: "/api/crm/offers/send-code",
         flow: "crm_offer_send_code",
       },
-    })
+    }
+    if (resolved.imapExplicit !== undefined) {
+      sendParams.imapExplicit = resolved.imapExplicit
+    }
+    await sendMailWithSentCopy(sendParams)
 
     return NextResponse.json({ status: "sent", message: "Codul a fost trimis pe email." })
   } catch (error) {

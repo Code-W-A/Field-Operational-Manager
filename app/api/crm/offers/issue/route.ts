@@ -255,6 +255,7 @@ export async function POST(request: NextRequest) {
       type: "OFFER",
       route: "/api/crm/offers/issue",
       flow: "crm_offer_issue",
+      actorUserId: actorId,
       replyTo: actorEmail || undefined,
       metaExtra: {
         opportunityId,

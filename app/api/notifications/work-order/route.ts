@@ -1,10 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
-import nodemailer from "nodemailer"
 import { logDebug, logInfo, logWarning, logError } from "@/lib/utils/logging-service"
-import { getEmailFrom } from "@/lib/email/from"
+import { requireRole, RequireRoleError } from "@/lib/auth/require-role"
+import { resolveMailTransport } from "@/lib/email/resolve-mail-transport.server"
 import path from "path"
 import fs from "fs"
 import { adminDb } from "@/lib/firebase/admin"
+import { emailDiagnosticsToMeta, extractEmailSendDiagnostics } from "@/lib/email/email-error-diagnostics.server"
 import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-events.server"
 import { sendMailWithSentCopy } from "@/lib/email/send-with-sent-copy.server"
 
@@ -118,6 +119,11 @@ export async function POST(request: NextRequest) {
     console.log(`[WORK-ORDER-API] [${requestId}] Începerea procesării cererii de notificare`)
     logInfo("Received work order notification request", { requestId }, { category: "api", context: logContext })
 
+    const session = await requireRole(["admin", "dispecer", "tehnician"], request)
+    if (!session.uid) {
+      return NextResponse.json({ error: "Autentificare obligatorie (sesiune sau Bearer token)." }, { status: 401 })
+    }
+
     let data = await request.json()
     const requestBody = data
 
@@ -167,49 +173,20 @@ export async function POST(request: NextRequest) {
       "Email",
     )
 
-    // Log pentru configurația de email
-    console.log(`[WORK-ORDER-API] [${requestId}] Configurație email:`)
-    console.log(`- EMAIL_SMTP_HOST: ${process.env.EMAIL_SMTP_HOST || "mail.nrg-acces.ro"}`)
-    console.log(`- EMAIL_SMTP_PORT: ${process.env.EMAIL_SMTP_PORT || "465"}`)
-    console.log(`- EMAIL_SMTP_SECURE: ${process.env.EMAIL_SMTP_SECURE === "false" ? false : true}`)
-    console.log(`- EMAIL_USER: ${process.env.EMAIL_USER || "fom@nrg-acces.ro"}`)
-    console.log(`- EMAIL_PASSWORD: ${process.env.EMAIL_PASSWORD ? "SETAT" : "NESETAT"}`)
+    const resolved = await resolveMailTransport(session.uid)
 
+    console.log(`[WORK-ORDER-API] [${requestId}] Transport email: source=${resolved.source}`)
     logInfo(
-      "Email configuration",
-      {
-        host: process.env.EMAIL_SMTP_HOST || "mail.nrg-acces.ro",
-        port: Number.parseInt(process.env.EMAIL_SMTP_PORT || "465"),
-        secure: process.env.EMAIL_SMTP_SECURE === "false" ? false : true,
-        auth: {
-          user: process.env.EMAIL_USER || "fom@nrg-acces.ro",
-          pass: process.env.EMAIL_PASSWORD ? "[REDACTED]" : "Not set",
-        },
-      },
+      "Email transport resolved",
+      { smtpTransportSource: resolved.source, actorUid: session.uid },
       { category: "email", context: logContext },
     )
-
-    // Configurăm transportorul de email (similar cu api/send-email/route.ts)
-    console.log(`[WORK-ORDER-API] [${requestId}] Configurare transporter nodemailer...`)
-    const smtpUser = process.env.EMAIL_USER || "fom@nrg-acces.ro"
-    const smtpPass = process.env.EMAIL_PASSWORD
-    const transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_SMTP_HOST || "mail.nrg-acces.ro",
-      port: Number.parseInt(process.env.EMAIL_SMTP_PORT || "465"),
-      secure: process.env.EMAIL_SMTP_SECURE === "false" ? false : true,
-      auth: {
-        user: smtpUser,
-        pass: smtpPass,
-      },
-      debug: true, // Activăm debugging pentru nodemailer
-      logger: true, // Activăm logging pentru nodemailer
-    })
 
     // Verificăm conexiunea SMTP
     console.log(`[WORK-ORDER-API] [${requestId}] Verificare conexiune SMTP...`)
     logInfo("Verifying SMTP connection", null, { category: "email", context: logContext })
     try {
-      await transporter.verify()
+      await resolved.transporter.verify()
       console.log(`[WORK-ORDER-API] [${requestId}] Conexiune SMTP verificată cu succes!`)
       logInfo("SMTP connection verified successfully", null, { category: "email", context: logContext })
       // #region agent log
@@ -346,6 +323,7 @@ export async function POST(request: NextRequest) {
 
       for (const tech of technicians) {
         if (tech.email) {
+          let evId: string | null = null
           try {
             console.log(`[WORK-ORDER-API] [${requestId}] Trimitere email către tehnician: ${tech.name} <${tech.email}>`)
 
@@ -408,7 +386,7 @@ export async function POST(request: NextRequest) {
 
             // Configurăm opțiunile emailului (similar cu api/send-email/route.ts)
             const mailOptions = {
-              from: getEmailFrom(),
+              from: resolved.mailFrom,
               to: tech.email,
               subject: `Tichet nou: ${client?.name}`,
               text: `Salut ${tech.name}, ai fost asignat la o nouă tichet pentru clientul ${client?.name || "N/A"}. Accesează lucrarea la: ${workOrderUrl}`,
@@ -442,8 +420,6 @@ export async function POST(request: NextRequest) {
             )
 
             console.log(`[WORK-ORDER-API] [${requestId}] Trimitere email către tehnician...`)
-            // log queued
-            let evId: string | null = null
             try {
               evId = await logEmailEventServer({
                 type: "TECH_NOTIFY",
@@ -452,13 +428,20 @@ export async function POST(request: NextRequest) {
                 subject: String(mailOptions.subject || ""),
                 status: "queued",
                 provider: "smtp",
-                meta: { route: "/api/notifications/work-order", requestId, target: "technician", techName: tech.name || undefined },
+                meta: {
+                  route: "/api/notifications/work-order",
+                  requestId,
+                  target: "technician",
+                  techName: tech.name || undefined,
+                  smtpTransportSource: resolved.source,
+                  actorUid: session.uid,
+                },
               })
             } catch {}
 
-            const info = await sendMailWithSentCopy({
-              transporter,
-              smtpAuth: { user: smtpUser, pass: smtpPass },
+            const techSendParams: Parameters<typeof sendMailWithSentCopy>[0] = {
+              transporter: resolved.transporter,
+              smtpAuth: resolved.smtpAuth,
               mailOptions,
               imapContext: {
                 route: "/api/notifications/work-order",
@@ -466,7 +449,11 @@ export async function POST(request: NextRequest) {
                 emailEventId: evId || undefined,
                 flow: "work_order_tech_notify",
               },
-            })
+            }
+            if (resolved.imapExplicit !== undefined) {
+              techSendParams.imapExplicit = resolved.imapExplicit
+            }
+            const info = await sendMailWithSentCopy(techSendParams)
 
             console.log(`[WORK-ORDER-API] [${requestId}] Email trimis cu succes către tehnician!`)
             console.log(`- MessageId: ${info.messageId}`)
@@ -483,7 +470,9 @@ export async function POST(request: NextRequest) {
             )
 
             technicianEmails.push({ name: tech.name, email: tech.email, success: true, messageId: info.messageId })
-            try { if (evId) await updateEmailEventServer(evId, { status: "sent", messageId: info.messageId }) } catch {}
+            try {
+              if (evId) await updateEmailEventServer(evId, { status: "sent", messageId: info.messageId })
+            } catch {}
           } catch (error: any) {
             console.error(
               `[WORK-ORDER-API] [${requestId}] EROARE la trimiterea email-ului către tehnician ${tech.name}:`,
@@ -506,6 +495,21 @@ export async function POST(request: NextRequest) {
             )
 
             technicianEmails.push({ name: tech.name, email: tech.email, success: false, error: error.message })
+            try {
+              if (evId) {
+                const diag = extractEmailSendDiagnostics(error)
+                await updateEmailEventServer(evId, {
+                  status: "failed",
+                  error: diag.summary,
+                  meta: {
+                    failureStage: "work_order_tech_notify",
+                    requestId,
+                    techName: tech.name || undefined,
+                    emailDiagnostics: emailDiagnosticsToMeta(diag),
+                  },
+                })
+              }
+            } catch {}
           }
         } else {
           console.log(`[WORK-ORDER-API] [${requestId}] Tehnicianul ${tech.name} nu are adresă de email`)
@@ -540,6 +544,7 @@ export async function POST(request: NextRequest) {
       console.log(`[WORK-ORDER-API] [${requestId}] Recipients after normalization:`, uniqueRecipients.join(', ') || '(none)')
     } catch {}
     if (uniqueRecipients.length > 0) {
+      let clientEvId: string | null = null
       try {
         console.log(`[WORK-ORDER-API] [${requestId}] Trimitere email către destinatari: ${uniqueRecipients.join(", ")}`)
 
@@ -584,7 +589,7 @@ export async function POST(request: NextRequest) {
 
         // Configurăm opțiunile emailului (similar cu api/send-email/route.ts)
         const mailOptions = {
-          from: getEmailFrom(),
+          from: resolved.mailFrom,
           to: uniqueRecipients,
           subject: isPostponed
             ? `Anunț amânare tichet: ${details?.location || "Locație nedefinită"}`
@@ -622,8 +627,6 @@ export async function POST(request: NextRequest) {
         )
 
         console.log(`[WORK-ORDER-API] [${requestId}] Trimitere email către client...`)
-        // Log queued for client recipients
-        let clientEvId: string | null = null
         try {
           clientEvId = await logEmailEventServer({
             type: "GENERIC",
@@ -632,13 +635,20 @@ export async function POST(request: NextRequest) {
             subject: String(mailOptions.subject || ""),
             status: "queued",
             provider: "smtp",
-            meta: { route: "/api/notifications/work-order", requestId, target: "client", location: details?.location || undefined },
+            meta: {
+              route: "/api/notifications/work-order",
+              requestId,
+              target: "client",
+              location: details?.location || undefined,
+              smtpTransportSource: resolved.source,
+              actorUid: session.uid,
+            },
           })
         } catch {}
 
-        const info = await sendMailWithSentCopy({
-          transporter,
-          smtpAuth: { user: smtpUser, pass: smtpPass },
+        const clientSendParams: Parameters<typeof sendMailWithSentCopy>[0] = {
+          transporter: resolved.transporter,
+          smtpAuth: resolved.smtpAuth,
           mailOptions,
           imapContext: {
             route: "/api/notifications/work-order",
@@ -646,7 +656,11 @@ export async function POST(request: NextRequest) {
             emailEventId: clientEvId || undefined,
             flow: "work_order_client_notify",
           },
-        })
+        }
+        if (resolved.imapExplicit !== undefined) {
+          clientSendParams.imapExplicit = resolved.imapExplicit
+        }
+        const info = await sendMailWithSentCopy(clientSendParams)
 
         console.log(`[WORK-ORDER-API] [${requestId}] Email trimis cu succes către destinatari!`)
         console.log(`- MessageId: ${info.messageId}`)
@@ -686,18 +700,36 @@ export async function POST(request: NextRequest) {
         )
 
         clientEmailResult = { success: false, error: error.message }
-        // Mark failed event if we have one
         try {
-          await logEmailEventServer({
-            type: "GENERIC",
-            lucrareId: safeWorkOrderId || undefined,
-            to: uniqueRecipients,
-            subject: isPostponed ? `Anunț amânare tichet: ${details?.location || ""}` : `Confirmare intervenție: ${details?.location || ""}`,
-            status: "failed",
-            provider: "smtp",
-            error: String(error?.message || error || "unknown"),
-            meta: { route: "/api/notifications/work-order", requestId, target: "client" },
-          })
+          const diag = extractEmailSendDiagnostics(error)
+          if (clientEvId) {
+            await updateEmailEventServer(clientEvId, {
+              status: "failed",
+              error: diag.summary,
+              meta: {
+                failureStage: "work_order_client_notify",
+                requestId,
+                target: "client",
+                emailDiagnostics: emailDiagnosticsToMeta(diag),
+              },
+            })
+          } else {
+            await logEmailEventServer({
+              type: "GENERIC",
+              lucrareId: safeWorkOrderId || undefined,
+              to: uniqueRecipients,
+              subject: isPostponed ? `Anunț amânare tichet: ${details?.location || ""}` : `Confirmare intervenție: ${details?.location || ""}`,
+              status: "failed",
+              provider: "smtp",
+              error: diag.summary,
+              meta: {
+                route: "/api/notifications/work-order",
+                requestId,
+                target: "client",
+                emailDiagnostics: emailDiagnosticsToMeta(diag),
+              },
+            })
+          }
         } catch {}
       }
     } else {
@@ -769,20 +801,24 @@ export async function POST(request: NextRequest) {
     logInfo("Work order notification completed successfully", response, { category: "api", context: logContext })
 
     return NextResponse.json(response)
-  } catch (error: any) {
+  } catch (error: unknown) {
+    if (error instanceof RequireRoleError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+    const errAny = error as { message?: string; stack?: string; code?: string; command?: string }
     console.error(`[WORK-ORDER-API] [${requestId}] EROARE GENERALĂ în API:`, error)
-    console.error(`- Mesaj: ${error.message || "N/A"}`)
-    console.error(`- Cod: ${error.code || "N/A"}`)
-    console.error(`- Comandă: ${error.command || "N/A"}`)
-    console.error(`- Stack: ${error.stack || "N/A"}`)
+    console.error(`- Mesaj: ${errAny.message || "N/A"}`)
+    console.error(`- Cod: ${errAny.code || "N/A"}`)
+    console.error(`- Comandă: ${errAny.command || "N/A"}`)
+    console.error(`- Stack: ${errAny.stack || "N/A"}`)
 
     logError(
       "Error in work order notification API",
       {
-        error: error.message,
-        stack: error.stack,
-        code: error.code,
-        command: error.command,
+        error: errAny.message,
+        stack: errAny.stack,
+        code: errAny.code,
+        command: errAny.command,
       },
       { category: "api", context: logContext },
     )
@@ -791,7 +827,7 @@ export async function POST(request: NextRequest) {
     try {
       await safeAddLog(
         "Eroare notificare API",
-        `Eroare la trimiterea notificărilor: ${error.message}`,
+        `Eroare la trimiterea notificărilor: ${errAny.message || String(error)}`,
         "Eroare",
         "Email",
       )
@@ -800,7 +836,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: `Eroare la configurarea sau trimiterea email-urilor: ${error.message}` },
+      { error: `Eroare la configurarea sau trimiterea email-urilor: ${errAny.message || String(error)}` },
       { status: 500 },
     )
   }

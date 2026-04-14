@@ -1338,18 +1338,22 @@ export default function Utilizatori() {
           }
         }}
       >
-        <DialogContent className={`w-[calc(100%-2rem)] ${(selectedUser?.role || "") === "client" ? "max-w-[800px]" : "max-w-[500px]"}`}>
-          <DialogHeader>
+        <DialogContent
+          className="flex max-h-[min(92dvh,960px)] w-[calc(100vw-1rem)] max-w-none flex-col overflow-hidden p-4 sm:w-[calc(100vw-2rem)] sm:p-6"
+        >
+          <DialogHeader className="shrink-0">
             <DialogTitle>Editează Utilizator</DialogTitle>
             <DialogDescription>Modificați detaliile utilizatorului</DialogDescription>
           </DialogHeader>
           {selectedUser && (
-            <UserEditForm
-              ref={editFormRef}
-              user={selectedUser}
-              onSuccess={handleEditSuccess}
-              onCancel={handleCloseEditDialog}
-            />
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              <UserEditForm
+                ref={editFormRef}
+                user={selectedUser}
+                onSuccess={handleEditSuccess}
+                onCancel={handleCloseEditDialog}
+              />
+            </div>
           )}
         </DialogContent>
       </Dialog>

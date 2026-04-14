@@ -1,12 +1,13 @@
-import { NextResponse } from "next/server"
+import { NextResponse, type NextRequest } from "next/server"
 import { adminDb } from "@/lib/firebase/admin"
+import { requireRole, RequireRoleError } from "@/lib/auth/require-role"
 import { logEmailEventServer } from "@/lib/email/email-events.server"
 import {
   InviteStyleEmailSendError,
   sendInviteStyleEmail,
 } from "@/lib/email/send-invite-style-email.server"
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   // IMPORTANT: Request body can be read only once. Keep a copy for both success + error logging.
   let body: any = null
   try {
@@ -17,6 +18,11 @@ export async function POST(request: Request) {
 
   let lastEmailEventId: string | null = null
   try {
+    const session = await requireRole(["admin", "dispecer"], request)
+    if (!session.uid) {
+      return NextResponse.json({ error: "Autentificare obligatorie (sesiune sau Bearer token)." }, { status: 401 })
+    }
+
     const { to, subject, content, html, attachments, type } = body || {}
     if (!to || !Array.isArray(to) || to.length === 0) {
       return NextResponse.json({ error: "Destinatari lipsă" }, { status: 400 })
@@ -31,6 +37,7 @@ export async function POST(request: Request) {
       type,
       route: "/api/users/invite",
       flow: String(type || "invite").toLowerCase(),
+      actorUserId: session.uid,
     })
     lastEmailEventId = emailEventId
 
@@ -63,6 +70,9 @@ export async function POST(request: Request) {
       acceptedBySmtp: true,
     })
   } catch (e: unknown) {
+    if (e instanceof RequireRoleError) {
+      return NextResponse.json({ error: e.message }, { status: e.status })
+    }
     console.error("Invite email error", e)
 
     const smtpError = e instanceof InviteStyleEmailSendError ? e.cause : e

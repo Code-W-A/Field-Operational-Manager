@@ -14,6 +14,7 @@ import type { AttendanceSession } from "@/types/attendance"
 import type { TimesheetCell, TimesheetMonthKey, TimesheetCode } from "@/lib/hr/types"
 import { getCurrentMonthKey, timesheetDocId } from "@/lib/hr/storage"
 import { calcEffectiveMinutes, type HMRange, isValidHMRange } from "@/lib/hr/time-calc"
+import { logPontajCondicaSync } from "@/lib/attendance/pontaj-audit-log"
 
 const DEBUG_PONTAJ = process.env.NEXT_PUBLIC_ENABLE_DEBUG_PANEL === "true"
 
@@ -532,7 +533,9 @@ export async function syncAttendanceUserDayToTimesheet(userId: string, date: Dat
 
   if (!sessions.length) {
     debugPontajLog("sync-user-day:no-sessions", { userId, monthKey, day })
-    return { synced: false, reason: "no_sessions", sessionCount: 0, monthKey, day }
+    const r = { synced: false as const, reason: "no_sessions" as const, sessionCount: 0, monthKey, day }
+    logPontajCondicaSync(userId, r)
+    return r
   }
 
   const employeeId = await getEmployeeIdForUser(userId, {
@@ -541,7 +544,15 @@ export async function syncAttendanceUserDayToTimesheet(userId: string, date: Dat
   })
   if (!employeeId) {
     debugPontajLog("sync-user-day:no-employee", { userId, monthKey, day })
-    return { synced: false, reason: "no_employee", sessionCount: sessions.length, monthKey, day }
+    const r = {
+      synced: false as const,
+      reason: "no_employee" as const,
+      sessionCount: sessions.length,
+      monthKey,
+      day,
+    }
+    logPontajCondicaSync(userId, r)
+    return r
   }
 
   const dayKey = String(day)
@@ -553,7 +564,16 @@ export async function syncAttendanceUserDayToTimesheet(userId: string, date: Dat
   const existingCode = existingDay?.code as TimesheetCode | undefined
   if (isNonWorkHrCode(existingCode)) {
     debugPontajLog("sync-user-day:protected", { userId, employeeId, monthKey, day, existingCode })
-    return { synced: false, reason: "protected_day", sessionCount: sessions.length, employeeId, monthKey, day }
+    const r = {
+      synced: false as const,
+      reason: "protected_day" as const,
+      sessionCount: sessions.length,
+      employeeId,
+      monthKey,
+      day,
+    }
+    logPontajCondicaSync(userId, r, { existingCode: existingCode ? String(existingCode) : undefined })
+    return r
   }
 
   const totalMinutes = sessions.reduce((sum, s) => {
@@ -629,13 +649,15 @@ export async function syncAttendanceUserDayToTimesheet(userId: string, date: Dat
     totalHours,
   })
 
-  return {
-    synced: true,
-    reason: "synced",
+  const ok = {
+    synced: true as const,
+    reason: "synced" as const,
     employeeId,
     sessionCount: sessions.length,
     totalHours,
     monthKey,
     day,
   }
+  logPontajCondicaSync(userId, ok)
+  return ok
 }

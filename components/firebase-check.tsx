@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { reportMessageToSentry } from "@/lib/sentry/report-error"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
 
@@ -23,6 +24,14 @@ export function FirebaseCheck() {
       setError(null)
     }
   }, [])
+
+  useEffect(() => {
+    if (error) {
+      reportMessageToSentry(`Firebase env: ${error}`, "warning", {
+        tags: { area: "firebase-check" },
+      })
+    }
+  }, [error])
 
   if (!error) return null
 

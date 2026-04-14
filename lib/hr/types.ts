@@ -176,6 +176,8 @@ export type HrRequest = {
   timesheetClearedNote?: string
   /** Optional: which backend channel sends email notifications. */
   emailChannel?: "nextjs" | "firebase"
+  /** Număr secvențial pentru documente (1–9999), alocat la creare. */
+  documentSerial?: number
   createdAt: number
   updatedAt: number
   decidedAt?: number

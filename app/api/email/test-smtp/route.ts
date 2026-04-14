@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import nodemailer from "nodemailer"
+import { emailDiagnosticsToMeta, extractEmailSendDiagnostics } from "@/lib/email/email-error-diagnostics.server"
 import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-events.server"
+import { reportToSentry } from "@/lib/sentry/report-error"
 
 export async function POST(request: NextRequest) {
   let emailEventId: string | null = null
@@ -53,12 +55,24 @@ export async function POST(request: NextRequest) {
       success: true,
       message: "Conexiunea SMTP a fost testată cu succes",
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const diag = extractEmailSendDiagnostics(error)
     console.error("[SMTP Test] Connection test failed:", error)
+    reportToSentry(error instanceof Error ? error : new Error(diag.summary), {
+      tags: { area: "email", stage: "smtp_verify_test" },
+      extra: { route: "/api/email/test-smtp", diagnosticsSummary: diag.summary },
+    })
 
     try {
       if (emailEventId) {
-        await updateEmailEventServer(emailEventId, { status: "failed", error: String(error?.message || error || "unknown") })
+        await updateEmailEventServer(emailEventId, {
+          status: "failed",
+          error: diag.summary,
+          meta: {
+            route: "/api/email/test-smtp",
+            emailDiagnostics: emailDiagnosticsToMeta(diag),
+          },
+        })
       } else {
         await logEmailEventServer({
           type: "TEST",
@@ -66,8 +80,11 @@ export async function POST(request: NextRequest) {
           subject: "SMTP connection test",
           status: "failed",
           provider: "smtp",
-          error: String(error?.message || error || "unknown"),
-          meta: { route: "/api/email/test-smtp" },
+          error: diag.summary,
+          meta: {
+            route: "/api/email/test-smtp",
+            emailDiagnostics: emailDiagnosticsToMeta(diag),
+          },
         })
       }
     } catch {}
@@ -75,7 +92,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: `Testarea conexiunii SMTP a eșuat: ${error.message}`,
+        error: `Testarea conexiunii SMTP a eșuat: ${diag.summary}`,
       },
       { status: 500 },
     )

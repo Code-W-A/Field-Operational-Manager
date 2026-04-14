@@ -366,10 +366,6 @@ export async function POST(request: NextRequest) {
         )
       }
     } else if (event === "status_changed") {
-      const recipients = new Set<string>()
-      if (employee.email) recipients.add(employee.email)
-      if (manager.email) recipients.add(manager.email)
-
       const baseText =
         `Statusul cererii a fost actualizat.\n\n` +
         `Angajat: ${employeeName}\n` +
@@ -379,11 +375,11 @@ export async function POST(request: NextRequest) {
         `Status: ${statusLabel(String(data.status || ""))}\n` +
         (rejectReason ? `Motiv refuz: ${rejectReason}\n` : "")
 
-      for (const to of recipients) {
+      if (requester.email) {
         results.push(
           await sendMail({
-            to,
-            recipientType: to === manager.email ? "manager" : "employee",
+            to: requester.email,
+            recipientType: "requester",
             subject: `Status cerere actualizat: ${statusLabel(String(data.status || ""))} • ${title}`,
             text: baseText,
             attachments: finalAttachments,

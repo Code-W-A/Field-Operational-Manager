@@ -109,6 +109,11 @@ function requestNumberFromId(requestId: string): string {
   return `HR-${clean.slice(0, 8).toUpperCase()}`
 }
 
+function formatNrCerere(documentSerial: number | undefined): string {
+  if (documentSerial == null || !Number.isFinite(documentSerial)) return "—"
+  return String(Math.trunc(documentSerial)).padStart(4, "0")
+}
+
 function sanitizeFileNameChunk(raw: string): string {
   return String(raw || "")
     .trim()
@@ -226,6 +231,7 @@ function buildPlaceholderMap(params: {
     "nume-companie": HR_COMPANY.name,
     "cui-companie": HR_COMPANY.cui,
     "număr-de-înregistrare-companie": HR_COMPANY.registrationNumber,
+    "nr-cerere": formatNrCerere(params.request.documentSerial),
     "tip-eveniment": hrRequestKindLabel(params.request.kind),
     "nume-angajat": params.employeeLastName,
     "prenume-angajat": params.employeeFirstName,

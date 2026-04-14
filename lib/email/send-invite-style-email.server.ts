@@ -1,7 +1,8 @@
 import nodemailer from "nodemailer"
 import type { EmailEventType } from "@/lib/email/email-events.server"
 import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-events.server"
-import { getEmailFrom } from "@/lib/email/from"
+import { emailDiagnosticsToMeta, extractEmailSendDiagnostics } from "@/lib/email/email-error-diagnostics.server"
+import { resolveMailTransport } from "@/lib/email/resolve-mail-transport.server"
 import { sendMailWithSentCopy } from "@/lib/email/send-with-sent-copy.server"
 
 /** Thrown when SMTP send fails after optional queued emailEvent was created (id exposed for callers). */
@@ -79,6 +80,8 @@ export type SendInviteStyleEmailParams = {
   replyTo?: string
   /** Merged into `meta` for emailEvents (e.g. opportunityId, offerId, version) */
   metaExtra?: Record<string, unknown>
+  /** Dacă setat, încearcă SMTP/IMAP salvat pe utilizator; altfel doar env */
+  actorUserId?: string | null
 }
 
 /**
@@ -88,7 +91,10 @@ export type SendInviteStyleEmailParams = {
 export async function sendInviteStyleEmail(
   params: SendInviteStyleEmailParams,
 ): Promise<{ messageId: string; emailEventId: string | null }> {
-  const { to, subject, content, html, attachments, type, route, flow, replyTo, metaExtra } = params
+  const { to, subject, content, html, attachments, type, route, flow, replyTo, metaExtra, actorUserId } =
+    params
+
+  const resolved = await resolveMailTransport(actorUserId ?? null)
 
   const normalizedType = String(type || "").toUpperCase()
   const inferredLucrareId =
@@ -120,6 +126,8 @@ export async function sendInviteStyleEmail(
         route,
         inviteType: inferredType,
         attachmentsCount: Array.isArray(attachments) ? attachments.length : 0,
+        smtpTransportSource: resolved.source,
+        ...(actorUserId ? { actorUserId } : {}),
         ...metaExtra,
       },
     })
@@ -127,14 +135,14 @@ export async function sendInviteStyleEmail(
     console.error("Eroare la logging eveniment email queued:", error)
   }
 
-  const { transporter, smtpAuth } = createInviteStyleSmtpTransport()
+  const { transporter, smtpAuth, imapExplicit, mailFrom } = resolved
 
   try {
-    const info = await sendMailWithSentCopy({
+    const sentParams: Parameters<typeof sendMailWithSentCopy>[0] = {
       transporter,
       smtpAuth,
       mailOptions: {
-        from: getEmailFrom(),
+        from: mailFrom,
         replyTo: replyTo || undefined,
         to,
         subject: subject || "Invitație acces Portal Client – FOM",
@@ -154,7 +162,11 @@ export async function sendInviteStyleEmail(
         emailEventId: emailEventId || undefined,
         flow: flow ?? String(type || "invite").toLowerCase(),
       },
-    })
+    }
+    if (resolved.imapExplicit !== undefined) {
+      sentParams.imapExplicit = resolved.imapExplicit
+    }
+    const info = await sendMailWithSentCopy(sentParams)
 
     try {
       if (emailEventId) await updateEmailEventServer(emailEventId, { status: "sent", messageId: info.messageId })
@@ -164,21 +176,18 @@ export async function sendInviteStyleEmail(
 
     return { messageId: String(info.messageId || ""), emailEventId }
   } catch (e: unknown) {
-    const err = e as { message?: string; code?: string; command?: string; response?: string; responseCode?: number }
-    const details = {
-      message: err?.message,
-      code: err?.code,
-      command: err?.command,
-      response: err?.response,
-      responseCode: err?.responseCode,
-    }
+    const diag = extractEmailSendDiagnostics(e)
     try {
       if (emailEventId) {
-        await updateEmailEventServer(emailEventId, { status: "failed", error: details.message || String(e) })
+        await updateEmailEventServer(emailEventId, {
+          status: "failed",
+          error: diag.summary,
+          meta: { emailDiagnostics: emailDiagnosticsToMeta(diag) },
+        })
       }
     } catch (eventError) {
       console.error("Eroare la update email event failed:", eventError)
     }
-    throw new InviteStyleEmailSendError(details.message || String(e), emailEventId, { cause: e })
+    throw new InviteStyleEmailSendError(diag.summary, emailEventId, { cause: e })
   }
 }

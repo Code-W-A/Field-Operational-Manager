@@ -1,6 +1,12 @@
 import nodemailer from "nodemailer"
 import tls from "tls"
 import { randomUUID } from "crypto"
+import { reportToSentry } from "@/lib/sentry/report-error"
+import { updateEmailEventServer } from "@/lib/email/email-events.server"
+import {
+  emailDiagnosticsToMeta,
+  extractEmailSendDiagnostics,
+} from "@/lib/email/email-error-diagnostics.server"
 
 type SmtpAuth = {
   user?: string
@@ -14,11 +20,26 @@ type ImapContext = {
   flow?: string
 }
 
+/** Dacă este setat și complet, folosit în loc de resolveImapConfig(env + smtpAuth) */
+export type SendMailImapExplicit = {
+  host: string
+  port: number
+  rejectUnauthorized: boolean
+  user: string
+  pass: string
+  mailbox: string
+}
+
 type SendWithSentCopyParams = {
   transporter: nodemailer.Transporter
   mailOptions: nodemailer.SendMailOptions
   smtpAuth?: SmtpAuth
   imapContext?: ImapContext
+  /**
+   * IMAP pentru copie Sent: omit = resolveImapConfig(env + smtpAuth);
+   * obiect = folosește aceste valori; `null` = nu încerca IMAP (ex. user SMTP fără IMAP configurat).
+   */
+  imapExplicit?: SendMailImapExplicit | null
 }
 
 type ImapConfig = {
@@ -398,8 +419,54 @@ async function buildRawMime(mailOptions: nodemailer.SendMailOptions) {
   return Buffer.isBuffer(rawInfo.message) ? rawInfo.message : Buffer.from(String(rawInfo.message || ""), "utf8")
 }
 
+async function patchEmailEventImapSentCopy(
+  emailEventId: string | undefined,
+  payload: Record<string, unknown>,
+) {
+  if (!emailEventId) return
+  try {
+    await updateEmailEventServer(emailEventId, {
+      meta: { imapSentCopy: payload },
+    })
+  } catch (e) {
+    console.warn("[Email] Failed to patch emailEvent imapSentCopy:", e)
+  }
+}
+
 export async function sendMailWithSentCopy(params: SendWithSentCopyParams) {
-  const info = await params.transporter.sendMail(params.mailOptions)
+  let info: nodemailer.SentMessageInfo
+  try {
+    info = await params.transporter.sendMail(params.mailOptions)
+  } catch (smtpError) {
+    const diag = extractEmailSendDiagnostics(smtpError)
+    const evId = params.imapContext?.emailEventId
+    if (evId) {
+      try {
+        await updateEmailEventServer(evId, {
+          status: "failed",
+          error: diag.summary,
+          meta: {
+            failureStage: "smtp_send",
+            emailDiagnostics: emailDiagnosticsToMeta(diag),
+          },
+        })
+      } catch (e) {
+        console.warn("[Email] Failed to record SMTP failure on emailEvent:", e)
+      }
+    }
+    reportToSentry(smtpError instanceof Error ? smtpError : new Error(diag.summary), {
+      tags: { area: "email", stage: "smtp_send" },
+      extra: {
+        route: params.imapContext?.route,
+        requestId: params.imapContext?.requestId,
+        flow: params.imapContext?.flow,
+        emailEventId: evId,
+        diagnosticsSummary: diag.summary,
+      },
+    })
+    throw smtpError
+  }
+
   imapDebug("SMTP send done", { messageId: info.messageId, response: info.response })
 
   const mode = resolveAppendMode()
@@ -414,7 +481,27 @@ export async function sendMailWithSentCopy(params: SendWithSentCopyParams) {
     flow: params.imapContext?.flow,
   }
 
-  const imapConfig = resolveImapConfig(params.smtpAuth)
+  const imapConfig: ImapConfig | null = (() => {
+    if (params.imapExplicit === undefined) {
+      return resolveImapConfig(params.smtpAuth)
+    }
+    if (params.imapExplicit === null) {
+      return null
+    }
+    const ex = params.imapExplicit
+    if (ex.host && ex.user && ex.pass && Number.isFinite(ex.port) && ex.mailbox) {
+      return {
+        host: ex.host,
+        port: ex.port,
+        rejectUnauthorized: ex.rejectUnauthorized,
+        user: ex.user,
+        pass: ex.pass,
+        mailbox: ex.mailbox,
+      }
+    }
+    return null
+  })()
+
   if (!imapConfig) {
     imapLifecycle({
       ...lifecycleBase,
@@ -453,8 +540,26 @@ export async function sendMailWithSentCopy(params: SendWithSentCopyParams) {
         durationMs: Date.now() - appendStartedAt,
       })
       imapDebug("Sent copy append completed")
+      await patchEmailEventImapSentCopy(params.imapContext?.emailEventId, {
+        ok: true,
+        stage: "completed",
+        host: imapConfig.host,
+        port: imapConfig.port,
+        mailbox: imapConfig.mailbox,
+        durationMs: Date.now() - appendStartedAt,
+        at: new Date().toISOString(),
+      })
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
+      reportToSentry(error instanceof Error ? error : new Error(errorMessage), {
+        tags: { area: "email", stage: "imap_sent_copy" },
+        extra: {
+          ...lifecycleBase,
+          imapHost: imapConfig.host,
+          imapPort: imapConfig.port,
+          mailbox: imapConfig.mailbox,
+        },
+      })
       console.warn("[Email] Sent copy append failed:", error)
       imapDebug("Sent copy append failed", {
         error: errorMessage,
@@ -470,6 +575,16 @@ export async function sendMailWithSentCopy(params: SendWithSentCopyParams) {
         durationMs: Date.now() - appendStartedAt,
         error: errorMessage,
       })
+      await patchEmailEventImapSentCopy(params.imapContext?.emailEventId, {
+        ok: false,
+        stage,
+        error: errorMessage,
+        host: imapConfig.host,
+        port: imapConfig.port,
+        mailbox: imapConfig.mailbox,
+        durationMs: Date.now() - appendStartedAt,
+        at: new Date().toISOString(),
+      })
     }
   }
 
@@ -478,12 +593,25 @@ export async function sendMailWithSentCopy(params: SendWithSentCopyParams) {
     setImmediate(() => {
       void runAppend().catch((error) => {
         const errorMessage = error instanceof Error ? error.message : String(error)
+        reportToSentry(error instanceof Error ? error : new Error(errorMessage), {
+          tags: { area: "email", stage: "imap_sent_copy_async" },
+          extra: { ...lifecycleBase, imapHost: imapConfig.host, imapPort: imapConfig.port },
+        })
         console.warn("[Email] Async sent-copy runner failed unexpectedly:", error)
         imapLifecycle({
           ...lifecycleBase,
           stage: "runner",
           result: "failed",
           error: errorMessage,
+        })
+        void patchEmailEventImapSentCopy(params.imapContext?.emailEventId, {
+          ok: false,
+          stage: "runner",
+          error: errorMessage,
+          host: imapConfig.host,
+          port: imapConfig.port,
+          mailbox: imapConfig.mailbox,
+          at: new Date().toISOString(),
         })
       })
     })

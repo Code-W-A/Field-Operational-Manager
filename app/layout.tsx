@@ -7,6 +7,7 @@ import { FirebaseProvider } from "@/components/firebase-provider"
 import { FirebaseCheck } from "@/components/firebase-check"
 import { MockDataProvider } from "@/contexts/MockDataContext"
 import { NotificationsProvider } from "@/components/notifications-provider"
+import { SentryErrorBoundary } from "@/components/sentry-error-boundary"
 import { Toaster } from "@/components/ui/toaster"
 
 const inter = Inter({ subsets: ["latin"] })
@@ -32,7 +33,9 @@ export default function RootLayout({
             <FirebaseCheck />
             <AuthProvider>
               <NotificationsProvider>
-                {children}
+                <SentryErrorBoundary>
+                  {children}
+                </SentryErrorBoundary>
                 <Toaster />
               </NotificationsProvider>
             </AuthProvider>

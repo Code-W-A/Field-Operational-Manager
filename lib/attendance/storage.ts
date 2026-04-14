@@ -28,6 +28,7 @@ import type {
 import type { Employee, HrDefaults } from "@/lib/hr/types"
 import { calculateHomeRouteMinutes } from "@/lib/attendance/extra-time"
 import { syncAttendanceUserDayToTimesheet, type UserDaySyncResult } from "@/lib/attendance/sync-timesheet"
+import { logPontajCondicaSyncError, logPontajPlay, logPontajStop } from "@/lib/attendance/pontaj-audit-log"
 
 export type Unsubscribe = () => void
 
@@ -351,6 +352,14 @@ export async function createCheckIn(request: CheckInRequest): Promise<string> {
     sessionStart: now,
   })
 
+  logPontajPlay({
+    userId: request.userId,
+    userDisplayName: request.userName,
+    employeeId: schedule?.employeeId,
+    sessionId,
+    sessionStartMs: now,
+  })
+
   return sessionId
 }
 
@@ -444,6 +453,15 @@ export async function createCheckOut(request: CheckOutRequest): Promise<UserDayS
     extraTimeLogs: Array.isArray(extraTimeLogs) ? extraTimeLogs.length : 0,
   })
 
+  logPontajStop({
+    userId: sessionData.userId,
+    userDisplayName: (sessionData as any)?.userName,
+    employeeId: (sessionData as any)?.employeeId,
+    sessionId: request.sessionId,
+    sessionStartMs: sessionStart,
+    sessionEndMs: now,
+  })
+
   // Immediately update HR timesheet so condica reflects the Stop without extra steps.
   try {
     const res = await syncAttendanceUserDayToTimesheet(sessionData.userId, new Date(sessionStart))
@@ -451,6 +469,7 @@ export async function createCheckOut(request: CheckOutRequest): Promise<UserDayS
     return res
   } catch (error) {
     console.warn("Auto-sync Pontaj → Condică failed (storage):", error)
+    logPontajCondicaSyncError(sessionData.userId, error)
     return null
   }
 }

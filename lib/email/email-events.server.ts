@@ -72,14 +72,73 @@ export async function logEmailEventServer(
   return ref.id
 }
 
+/** Merge recursiv pentru obiecte; `imapSentCopy` se înlocuiește întreg (nu se amestecă ok/error între rulări). */
+function deepMergeRecord(existing: Record<string, any> | undefined, patch: Record<string, any>): Record<string, any> {
+  const base =
+    existing && typeof existing === "object" && !Array.isArray(existing) ? { ...existing } : {}
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === undefined) continue
+    if (k === "imapSentCopy" && typeof v === "object" && v !== null && !Array.isArray(v)) {
+      base[k] = { ...(v as Record<string, any>) }
+      continue
+    }
+    const prev = base[k]
+    if (
+      prev !== undefined &&
+      typeof prev === "object" &&
+      prev !== null &&
+      !Array.isArray(prev) &&
+      typeof v === "object" &&
+      v !== null &&
+      !Array.isArray(v)
+    ) {
+      base[k] = deepMergeRecord(prev as Record<string, any>, v as Record<string, any>)
+    } else {
+      base[k] = v
+    }
+  }
+  return base
+}
+
 export async function updateEmailEventServer(emailEventId: string, patch: Partial<EmailEventServer>): Promise<void> {
   if (!emailEventId) return
-  const clean = stripUndefinedDeep({
-    ...patch,
-    ...(patch.to ? { to: normalizeEmails((patch as any).to) } : {}),
-    ...(patch.cc ? { cc: normalizeEmails((patch as any).cc) } : {}),
-    ...(patch.bcc ? { bcc: normalizeEmails((patch as any).bcc) } : {}),
-    updatedAt: FieldValue.serverTimestamp(),
+
+  const ref = adminDb.collection("emailEvents").doc(String(emailEventId))
+
+  if (patch.meta === undefined) {
+    const clean = stripUndefinedDeep({
+      ...patch,
+      ...(patch.to ? { to: normalizeEmails((patch as any).to) } : {}),
+      ...(patch.cc ? { cc: normalizeEmails((patch as any).cc) } : {}),
+      ...(patch.bcc ? { bcc: normalizeEmails((patch as any).bcc) } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    })
+    await ref.set(clean, { merge: true })
+    return
+  }
+
+  const { meta: metaPatch, ...restPatch } = patch
+  const mergedFromPatch = stripUndefinedDeep({
+    ...restPatch,
+    ...(restPatch.to ? { to: normalizeEmails((restPatch as any).to) } : {}),
+    ...(restPatch.cc ? { cc: normalizeEmails((restPatch as any).cc) } : {}),
+    ...(restPatch.bcc ? { bcc: normalizeEmails((restPatch as any).bcc) } : {}),
   })
-  await adminDb.collection("emailEvents").doc(String(emailEventId)).set(clean, { merge: true })
+
+  await adminDb.runTransaction(async (tx) => {
+    const snap = await tx.get(ref)
+    const data = snap.exists ? (snap.data() as Record<string, any>) : {}
+    const existingMeta =
+      data.meta && typeof data.meta === "object" && !Array.isArray(data.meta) ? (data.meta as Record<string, any>) : {}
+    const patchMeta =
+      metaPatch && typeof metaPatch === "object" && !Array.isArray(metaPatch) ? (metaPatch as Record<string, any>) : {}
+    const mergedMeta = deepMergeRecord(existingMeta, patchMeta)
+
+    const payload = stripUndefinedDeep({
+      ...mergedFromPatch,
+      meta: mergedMeta,
+      updatedAt: FieldValue.serverTimestamp(),
+    })
+    tx.set(ref, payload, { merge: true })
+  })
 }

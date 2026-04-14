@@ -107,6 +107,9 @@ export default function Loguri() {
   const [selectedLogIds, setSelectedLogIds] = useState<Set<string>>(new Set())
   const [pageSize, setPageSize] = useState<number>(50)
   const [currentPage, setCurrentPage] = useState<number>(1)
+  const [pontajSearchText, setPontajSearchText] = useState("")
+  const [selectedPontajLog, setSelectedPontajLog] = useState<any>(null)
+  const [isPontajDetailsOpen, setIsPontajDetailsOpen] = useState(false)
 
   // Helpers pentru fallback parsing din detalii
   const extractLucrareId = useCallback((detalii?: string): string | undefined => {
@@ -299,7 +302,23 @@ export default function Loguri() {
     if (emailSearchText.trim()) {
       const q = emailSearchText.toLowerCase()
       result = result.filter((ev: any) => {
-        const fields = [ev.lucrareId, ev.clientId, (ev.to||[]).join(','), ev.subject, ev.messageId, ev.type, ev.status]
+        let metaStr = ""
+        try {
+          metaStr = ev.meta != null ? JSON.stringify(ev.meta).toLowerCase() : ""
+        } catch {
+          metaStr = ""
+        }
+        const fields = [
+          ev.lucrareId,
+          ev.clientId,
+          (ev.to || []).join(","),
+          ev.subject,
+          ev.messageId,
+          ev.type,
+          ev.status,
+          ev.error,
+          metaStr,
+        ]
         return fields.some((f) => (f ? String(f).toLowerCase().includes(q) : false))
       })
     }
@@ -759,6 +778,24 @@ export default function Loguri() {
     }
   }
 
+  const pontajLogs = useMemo(() => logs.filter((l) => String((l as any).categorie || "") === "Pontaj"), [logs])
+
+  const pontajFiltered = useMemo(() => {
+    const t = pontajSearchText.trim().toLowerCase()
+    if (!t) return pontajLogs
+    return pontajLogs.filter((l: any) => {
+      const meta = l.metadata != null ? JSON.stringify(l.metadata).toLowerCase() : ""
+      return (
+        String(l.actiune || "").toLowerCase().includes(t) ||
+        String(l.detalii || "").toLowerCase().includes(t) ||
+        String(l.utilizator || "").toLowerCase().includes(t) ||
+        String(l.utilizatorId || "").toLowerCase().includes(t) ||
+        String(l.tip || "").toLowerCase().includes(t) ||
+        meta.includes(t)
+      )
+    })
+  }, [pontajLogs, pontajSearchText])
+
   // Populate column options when table is available
   useEffect(() => {
     if (table) {
@@ -960,6 +997,7 @@ export default function Loguri() {
             <TabsTrigger value="sistem">Loguri sistem</TabsTrigger>
             <TabsTrigger value="crm">CRM</TabsTrigger>
             <TabsTrigger value="emailuri">Emailuri</TabsTrigger>
+            <TabsTrigger value="pontaj">Pontaj</TabsTrigger>
             <TabsTrigger value="erori-trimise">Erori trimise</TabsTrigger>
           </TabsList>
           <TabsContent value="sistem">
@@ -1533,10 +1571,73 @@ export default function Loguri() {
                         {String(selectedEmailEvent.error)}
                       </div>
                     ) : null}
+                    {(() => {
+                      const m = (selectedEmailEvent as any).meta as Record<string, unknown> | undefined
+                      if (!m || typeof m !== "object") return null
+                      const imap = m.imapSentCopy as Record<string, unknown> | undefined
+                      const diag = m.emailDiagnostics as Record<string, unknown> | undefined
+                      const smtp = diag?.smtp as Record<string, unknown> | undefined
+                      const hasSummary =
+                        m.smtpTransportSource ||
+                        m.failureStage ||
+                        (imap && typeof imap === "object") ||
+                        (diag && typeof diag === "object")
+                      if (!hasSummary) return null
+                      return (
+                        <div className="rounded border border-amber-200 bg-amber-50/80 p-3 text-sm space-y-1">
+                          <div className="font-medium text-amber-900">Rezumat diagnostic</div>
+                          {m.smtpTransportSource != null ? (
+                            <div>
+                              <span className="text-muted-foreground">Transport SMTP:</span>{" "}
+                              <span className="font-mono text-xs">{String(m.smtpTransportSource)}</span>
+                            </div>
+                          ) : null}
+                          {m.failureStage != null ? (
+                            <div>
+                              <span className="text-muted-foreground">Etapă eșec:</span>{" "}
+                              <span className="font-mono text-xs">{String(m.failureStage)}</span>
+                            </div>
+                          ) : null}
+                          {imap && typeof imap === "object" ? (
+                            <div className="space-y-0.5">
+                              <div className="text-muted-foreground">Copie Sent (IMAP)</div>
+                              <div className="font-mono text-xs pl-2">
+                                ok={String(imap.ok)} {imap.stage != null ? `stage=${String(imap.stage)}` : ""}
+                                {imap.error != null ? (
+                                  <span className="block text-red-700 mt-1 whitespace-pre-wrap">
+                                    {String(imap.error)}
+                                  </span>
+                                ) : null}
+                                {imap.host != null ? (
+                                  <span className="block text-muted-foreground">
+                                    {String(imap.host)}:{String(imap.port ?? "")} / {String(imap.mailbox ?? "")}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+                          ) : null}
+                          {diag && typeof diag === "object" ? (
+                            <div className="space-y-0.5">
+                              <div className="text-muted-foreground">Detalii SMTP / eroare</div>
+                              {diag.summary != null ? (
+                                <div className="text-xs whitespace-pre-wrap">{String(diag.summary)}</div>
+                              ) : null}
+                              {smtp && typeof smtp === "object" ? (
+                                <div className="font-mono text-[11px] text-muted-foreground pl-2">
+                                  {smtp.code != null ? `code=${String(smtp.code)} ` : ""}
+                                  {smtp.command != null ? `command=${String(smtp.command)} ` : ""}
+                                  {smtp.responseCode != null ? `responseCode=${String(smtp.responseCode)}` : ""}
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      )
+                    })()}
                     {(selectedEmailEvent as any).meta ? (
                       <div>
-                        <div className="text-muted-foreground mb-1">Meta (debug)</div>
-                        <pre className="max-h-[260px] overflow-auto rounded bg-muted p-3 text-xs">
+                        <div className="text-muted-foreground mb-1">Meta (complet)</div>
+                        <pre className="max-h-[min(520px,70vh)] overflow-auto rounded bg-muted p-3 text-xs">
 {JSON.stringify((selectedEmailEvent as any).meta, null, 2)}
                         </pre>
                       </div>
@@ -1548,6 +1649,70 @@ export default function Loguri() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+          </TabsContent>
+
+          <TabsContent value="pontaj">
+            <div className="space-y-3">
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  Evenimente la Play, Stop și sincronizare condică (inclusiv motivele când ziua nu se actualizează). Căutare
+                  după nume, UID, ID sesiune sau text din detalii / metadate.
+                </AlertDescription>
+              </Alert>
+              <UniversalSearch onSearch={setPontajSearchText} initialValue={pontajSearchText} className="flex-1" />
+              {loading ? (
+                <div className="flex items-center gap-2 py-8">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span>Se încarcă logurile…</span>
+                </div>
+              ) : pontajFiltered.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {pontajLogs.length === 0
+                    ? "Nu există încă înregistrări de pontaj (apar după ce utilizatorii folosesc kiosk-ul)."
+                    : "Nicio înregistrare nu corespunde căutării."}
+                </p>
+              ) : (
+                <div className="grid gap-3 px-4 sm:px-0 sm:grid-cols-2 lg:grid-cols-3">
+                  {pontajFiltered.map((item: any) => (
+                    <Card key={item.id} className="overflow-hidden">
+                      <CardContent className="p-4 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <Badge className={getTipColor(item.tip || "")}>{item.tip || "—"}</Badge>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(item.timestamp)}</span>
+                        </div>
+                        <div className="text-sm font-semibold">{item.actiune || "—"}</div>
+                        <p className="text-xs text-muted-foreground line-clamp-3" title={item.detalii}>
+                          {item.detalii || "—"}
+                        </p>
+                        <div className="text-xs text-muted-foreground">
+                          Utilizator: <span className="text-foreground">{item.utilizator || item.utilizatorId || "—"}</span>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full mt-1"
+                          onClick={() => {
+                            setSelectedPontajLog(item)
+                            setIsPontajDetailsOpen(true)
+                          }}
+                        >
+                          Detalii
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+              <LogDetailsDialog
+                log={selectedPontajLog}
+                isOpen={isPontajDetailsOpen}
+                onClose={() => {
+                  setIsPontajDetailsOpen(false)
+                  setSelectedPontajLog(null)
+                }}
+              />
+            </div>
           </TabsContent>
 
           <TabsContent value="erori-trimise">

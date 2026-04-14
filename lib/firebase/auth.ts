@@ -4,6 +4,7 @@ import {
   sendPasswordResetEmail,
   type User,
 } from "firebase/auth"
+import { reportToSentry } from "@/lib/sentry/report-error"
 import { auth, db } from "./config"
 import { doc, setDoc, serverTimestamp } from "firebase/firestore"
 
@@ -73,6 +74,7 @@ export const registerUser = async (
     return data?.user as UserData
   } catch (error) {
     console.error("Eroare la înregistrarea utilizatorului:", error)
+    reportToSentry(error, { tags: { area: "firebase-auth", op: "register-user" } })
     throw error
   }
 }
@@ -88,6 +90,10 @@ export const signIn = async (email: string, password: string): Promise<User> => 
     return userCredential.user
   } catch (error) {
     console.error("Eroare la autentificare:", error)
+    reportToSentry(error, {
+      tags: { area: "firebase-auth", op: "sign-in" },
+      extra: { code: (error as { code?: string })?.code },
+    })
     throw error
   }
 }
@@ -102,6 +108,7 @@ export const signOut = async (): Promise<void> => {
     return firebaseSignOut(auth)
   } catch (error) {
     console.error("Eroare la deconectare:", error)
+    reportToSentry(error, { tags: { area: "firebase-auth", op: "sign-out" } })
     throw error
   }
 }
@@ -112,6 +119,7 @@ export const resetPassword = async (email: string): Promise<void> => {
     return sendPasswordResetEmail(auth, email)
   } catch (error) {
     console.error("Eroare la resetarea parolei:", error)
+    reportToSentry(error, { tags: { area: "firebase-auth", op: "reset-password" } })
     throw error
   }
 }
@@ -138,6 +146,7 @@ export const deleteUserAccount = async (userId: string): Promise<void> => {
     return Promise.resolve()
   } catch (error) {
     console.error("Eroare la ștergerea utilizatorului:", error)
+    reportToSentry(error, { tags: { area: "firebase-auth", op: "delete-user" } })
     throw error
   }
 }
@@ -163,6 +172,7 @@ export const updateUserEmail = async (userId: string, newEmail: string): Promise
     return Promise.resolve()
   } catch (error) {
     console.error("Eroare la actualizarea email-ului utilizatorului:", error)
+    reportToSentry(error, { tags: { area: "firebase-auth", op: "update-user-email" } })
     throw error
   }
 }
@@ -182,5 +192,6 @@ const addAuthLog = async (actiune: string, detalii: string, user: User | null): 
     })
   } catch (error) {
     console.error("Eroare la adăugarea logului:", error)
+    reportToSentry(error, { tags: { area: "firebase-auth", op: "add-auth-log" } })
   }
 }

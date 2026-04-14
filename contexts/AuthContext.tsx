@@ -6,6 +6,8 @@ import { doc, getDoc } from "firebase/firestore"
 import { auth, db } from "@/lib/firebase/config"
 import type { UserData } from "@/lib/firebase/auth"
 import { clearServerSessionCookie, syncServerSessionCookie } from "@/lib/auth/sync-server-session"
+import { reportToSentry } from "@/lib/sentry/report-error"
+import { useSentryUserSync } from "@/lib/sentry/use-sentry-user-sync"
 import { useMockData } from "./MockDataContext"
 import { toast } from "@/hooks/use-toast"
 
@@ -36,6 +38,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const dailyCheckIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const hasShownWelcomeThisSessionRef = useRef(false)
   const { isPreview, currentUser } = useMockData()
+
+  useSentryUserSync({
+    firebaseUser: user,
+    userData,
+    isPreview,
+    mockUser: currentUser,
+  })
 
   const hideWelcomeDialog = () => {
     setShowWelcomeDialog(false)
@@ -101,6 +110,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       } catch (error) {
         console.error("Eroare la logout automat:", error)
+        reportToSentry(error, { tags: { area: "auth", op: "auto-logout" } })
       }
       
       // Clear the timer reference
@@ -184,7 +194,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (user) {
         if (!isPreview) {
-          await syncServerSessionCookie(user)
+          try {
+            await syncServerSessionCookie(user)
+          } catch (err) {
+            reportToSentry(err, { tags: { area: "auth", op: "sync-server-session-cookie" } })
+          }
         }
         try {
           console.log("Fetching user data for:", user.uid)
@@ -210,6 +224,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         } catch (error) {
           console.error("Eroare la obținerea datelor utilizatorului:", error)
+          reportToSentry(error, { tags: { area: "auth", op: "firestore-user-doc" } })
         }
       } else {
         if (!isPreview) {

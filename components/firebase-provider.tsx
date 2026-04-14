@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle, Loader2, Info } from "lucide-react"
 import { isPreviewEnvironment, isFirebaseAvailable } from "@/lib/utils/environment"
+import { reportToSentry } from "@/lib/sentry/report-error"
 
 export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const [isFirebaseInitialized, setIsFirebaseInitialized] = useState(false)
@@ -42,6 +43,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (error) {
         console.error("Eroare la inițializarea Firebase:", error)
+        reportToSentry(error, { tags: { area: "firebase-provider", op: "init" } })
         setInitError(error instanceof Error ? error.message : "Eroare necunoscută la inițializarea Firebase")
       }
     }

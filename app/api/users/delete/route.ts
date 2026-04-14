@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { adminAuth, adminDb } from "@/lib/firebase/admin"
+import { deleteMailCredentialsForUser } from "@/lib/users/mail-credentials-store.server"
 
 export async function POST(request: NextRequest) {
   try {
@@ -7,6 +8,12 @@ export async function POST(request: NextRequest) {
 
     if (!userId || typeof userId !== "string") {
       return NextResponse.json({ error: "ID-ul utilizatorului este obligatoriu" }, { status: 400 })
+    }
+
+    try {
+      await deleteMailCredentialsForUser(userId)
+    } catch (mailCredErr) {
+      console.warn("Ștergere mailCredentials (poate lipsa):", mailCredErr)
     }
 
     // Încercăm să ștergem utilizatorul din Authentication și Firestore

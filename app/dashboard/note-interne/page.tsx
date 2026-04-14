@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState, useEffect } from "react"
+import dynamic from "next/dynamic"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
@@ -31,12 +31,10 @@ import {
   Trash2, 
   MoreVertical, 
   Search, 
-  Calendar, 
   User,
   StickyNote,
   Clock,
   AlertCircle,
-  Filter,
   Loader2
 } from "lucide-react"
 import { 
@@ -49,7 +47,7 @@ import {
   orderBy, 
   onSnapshot,
   serverTimestamp,
-  where,
+  deleteField,
   Timestamp
 } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
@@ -65,12 +63,36 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog"
+import {
+  stripHtml,
+  isRichContentEmpty,
+  plainTextLengthFromHtml,
+  isProbablyRichHtml,
+} from "@/lib/note-interne/procedure-content-html"
+
+const ProcedureRichTextEditor = dynamic(
+  () =>
+    import("@/components/note-interne/procedure-rich-text-editor").then((m) => ({
+      default: m.ProcedureRichTextEditor,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="min-h-[420px] w-full rounded-md border border-input bg-muted/30 animate-pulse" />
+    ),
+  }
+)
+
+const MAX_PROCEDURE_CONTENT_PLAIN_CHARS = 20000
+
+const procedureRichHtmlViewClass =
+  "text-sm text-gray-600 leading-relaxed break-words [&_p]:mb-1 last:[&_p]:mb-0 [&_strong]:font-semibold [&_b]:font-semibold [&_em]:italic [&_i]:italic [&_u]:underline [&_s]:line-through [&_strike]:line-through [&_ul]:my-2 [&_ul]:ml-6 [&_ul]:list-disc [&_ul]:pl-1 [&_ol]:my-2 [&_ol]:ml-6 [&_ol]:list-decimal [&_ol]:pl-1 [&_li]:my-0.5"
 
 interface Note {
   id: string
   title: string
   content: string
-  priority: "low" | "medium" | "high"
+  priority?: "low" | "medium" | "high"
   category: "general" | "urgent" | "info" | "task"
   createdAt: Timestamp
   updatedAt: Timestamp
@@ -78,23 +100,11 @@ interface Note {
   authorName: string
 }
 
-const priorityColors = {
-  low: "bg-green-100 text-green-800 border-green-200",
-  medium: "bg-yellow-100 text-yellow-800 border-yellow-200", 
-  high: "bg-red-100 text-red-800 border-red-200"
-}
-
 const categoryColors = {
   general: "bg-blue-100 text-blue-800 border-blue-200",
   urgent: "bg-red-100 text-red-800 border-red-200",
   info: "bg-cyan-100 text-cyan-800 border-cyan-200",
   task: "bg-purple-100 text-purple-800 border-purple-200"
-}
-
-const priorityLabels = {
-  low: "Scăzută",
-  medium: "Medie",
-  high: "Înaltă"
 }
 
 const categoryLabels = {
@@ -114,7 +124,6 @@ export default function NoteInternePage() {
   const [editingNote, setEditingNote] = useState<Note | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
-  const [selectedPriority, setSelectedPriority] = useState<string>("all")
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
@@ -122,7 +131,6 @@ export default function NoteInternePage() {
   // Form state
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
-  const [priority, setPriority] = useState<"low" | "medium" | "high">("medium")
   const [category, setCategory] = useState<"general" | "urgent" | "info" | "task">("general")
 
   // Add close confirmation states
@@ -130,7 +138,6 @@ export default function NoteInternePage() {
   const [initialFormState, setInitialFormState] = useState({
     title: "",
     content: "",
-    priority: "medium" as "low" | "medium" | "high",
     category: "general" as "general" | "urgent" | "info" | "task"
   })
 
@@ -164,13 +171,11 @@ export default function NoteInternePage() {
     const defaultState = {
       title: "",
       content: "",
-      priority: "medium" as "low" | "medium" | "high",
       category: "general" as "general" | "urgent" | "info" | "task"
     }
     
     setTitle(defaultState.title)
     setContent(defaultState.content)
-    setPriority(defaultState.priority)
     setCategory(defaultState.category)
     setEditingNote(null)
     
@@ -180,18 +185,16 @@ export default function NoteInternePage() {
 
   // Function to check if form has unsaved changes
   const hasUnsavedChanges = () => {
-    const currentState = { title, content, priority, category }
+    const currentState = { title, content, category }
     
     // For new notes, check if any field has content
     if (!editingNote) {
-      return title.trim() !== "" || content.trim() !== "" || 
-             priority !== "medium" || category !== "general"
+      return title.trim() !== "" || !isRichContentEmpty(content) || category !== "general"
     }
     
     // For existing notes, compare with initial state
     return currentState.title !== initialFormState.title ||
            currentState.content !== initialFormState.content ||
-           currentState.priority !== initialFormState.priority ||
            currentState.category !== initialFormState.category
   }
 
@@ -227,10 +230,19 @@ export default function NoteInternePage() {
       toast({ title: "Acces restricționat", description: "Doar administratorii pot adăuga proceduri.", variant: "destructive" })
       return
     }
-    if (!userData || !title.trim() || !content.trim()) {
+    const plainLen = plainTextLengthFromHtml(content)
+    if (!userData || !title.trim() || isRichContentEmpty(content)) {
       toast({
         title: "Eroare",
         description: "Vă rugăm să completați toate câmpurile obligatorii.",
+        variant: "destructive"
+      })
+      return
+    }
+    if (plainLen > MAX_PROCEDURE_CONTENT_PLAIN_CHARS) {
+      toast({
+        title: "Eroare",
+        description: `Conținutul depășește ${MAX_PROCEDURE_CONTENT_PLAIN_CHARS} caractere (fără formatare).`,
         variant: "destructive"
       })
       return
@@ -241,7 +253,6 @@ export default function NoteInternePage() {
       const docRef = await addDoc(collection(db, "note-interne"), {
         title: title.trim(),
         content: content.trim(),
-        priority,
         category,
         authorId: userData.uid,
         authorName: userData.displayName || "Utilizator necunoscut",
@@ -252,7 +263,7 @@ export default function NoteInternePage() {
       // Log non-blocking
       void addUserLogEntry({
         actiune: "Creare procedură",
-        detalii: `ID: ${docRef.id}; titlu: ${title.trim()}; prioritate: ${priority}; categorie: ${category}`,
+        detalii: `ID: ${docRef.id}; titlu: ${title.trim()}; categorie: ${category}`,
         categorie: "Proceduri",
       })
 
@@ -281,10 +292,19 @@ export default function NoteInternePage() {
       toast({ title: "Acces restricționat", description: "Doar administratorii pot modifica proceduri.", variant: "destructive" })
       return
     }
-    if (!editingNote || !title.trim() || !content.trim()) {
+    const plainLen = plainTextLengthFromHtml(content)
+    if (!editingNote || !title.trim() || isRichContentEmpty(content)) {
       toast({
         title: "Eroare",
         description: "Vă rugăm să completați toate câmpurile obligatorii.",
+        variant: "destructive"
+      })
+      return
+    }
+    if (plainLen > MAX_PROCEDURE_CONTENT_PLAIN_CHARS) {
+      toast({
+        title: "Eroare",
+        description: `Conținutul depășește ${MAX_PROCEDURE_CONTENT_PLAIN_CHARS} caractere (fără formatare).`,
         variant: "destructive"
       })
       return
@@ -295,8 +315,8 @@ export default function NoteInternePage() {
       await updateDoc(doc(db, "note-interne", editingNote.id), {
         title: title.trim(),
         content: content.trim(),
-        priority,
         category,
+        priority: deleteField(),
         updatedAt: serverTimestamp()
       })
 
@@ -304,7 +324,6 @@ export default function NoteInternePage() {
       const changes: string[] = []
       if (editingNote.title !== title.trim()) changes.push(`title: "${editingNote.title}" → "${title.trim()}"`)
       if (editingNote.content !== content.trim()) changes.push(`content: [text actualizat]`)
-      if (editingNote.priority !== priority) changes.push(`priority: "${editingNote.priority}" → "${priority}"`)
       if (editingNote.category !== category) changes.push(`category: "${editingNote.category}" → "${category}"`)
       const detalii = changes.length ? changes.join("; ") : "Actualizare fără câmpuri esențiale modificate"
       void addUserLogEntry({
@@ -370,14 +389,12 @@ export default function NoteInternePage() {
     setEditingNote(note)
     setTitle(note.title)
     setContent(note.content)
-    setPriority(note.priority)
     setCategory(note.category)
     
     // Set initial state for comparison
     setInitialFormState({
       title: note.title,
       content: note.content,
-      priority: note.priority,
       category: note.category
     })
     
@@ -396,8 +413,12 @@ export default function NoteInternePage() {
     setEditingNote(note)
     setTitle(note.title)
     setContent(note.content)
-    setPriority(note.priority)
     setCategory(note.category)
+    setInitialFormState({
+      title: note.title,
+      content: note.content,
+      category: note.category,
+    })
     setIsDialogOpen(true)
   }
 
@@ -408,7 +429,8 @@ export default function NoteInternePage() {
     const maxTitleLineLength = titleLines.length > 0 ? Math.max(...titleLines.map(line => line.length)) : 0
     
     // Analyze content line lengths
-    const contentLines = note.content.split('\n').filter(line => line.trim().length > 0)
+    const contentPlain = stripHtml(note.content)
+    const contentLines = contentPlain.split('\n').filter(line => line.trim().length > 0)
     const maxContentLineLength = contentLines.length > 0 ? Math.max(...contentLines.map(line => line.length)) : 0
     
     // Take the longest line from either title or content
@@ -426,14 +448,14 @@ export default function NoteInternePage() {
   // Filter and sort notes (newest first)
   const filteredNotes = notes
     .filter(note => {
+      const contentPlain = stripHtml(note.content)
       const matchesSearch = note.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           note.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           contentPlain.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            note.authorName.toLowerCase().includes(searchTerm.toLowerCase())
       
-      const matchesPriority = selectedPriority === "all" || note.priority === selectedPriority
       const matchesCategory = selectedCategory === "all" || note.category === selectedCategory
 
-      return matchesSearch && matchesPriority && matchesCategory
+      return matchesSearch && matchesCategory
     })
     .sort((a, b) => {
       // Ensure newest notes appear first (descending order)
@@ -450,7 +472,7 @@ export default function NoteInternePage() {
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchTerm, selectedPriority, selectedCategory])
+  }, [searchTerm, selectedCategory])
 
   if (userData?.role === "client") {
     return (
@@ -537,18 +559,6 @@ export default function NoteInternePage() {
           />
         </div>
 
-        <Select value={selectedPriority} onValueChange={setSelectedPriority}>
-          <SelectTrigger className="w-full sm:w-[180px]">
-            <SelectValue placeholder="Prioritate" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Toate prioritățile</SelectItem>
-            <SelectItem value="high">Înaltă</SelectItem>
-            <SelectItem value="medium">Medie</SelectItem>
-            <SelectItem value="low">Scăzută</SelectItem>
-          </SelectContent>
-        </Select>
-
         <Select value={selectedCategory} onValueChange={setSelectedCategory}>
           <SelectTrigger className="w-full sm:w-[180px]">
             <SelectValue placeholder="Categorie" />
@@ -632,9 +642,6 @@ export default function NoteInternePage() {
                 </div>
                 
                 <div className="flex gap-2 mt-2">
-                  <Badge className={`text-xs ${priorityColors[note.priority]}`}>
-                    {priorityLabels[note.priority]}
-                  </Badge>
                   <Badge className={`text-xs ${categoryColors[note.category]}`}>
                     {categoryLabels[note.category]}
                   </Badge>
@@ -642,9 +649,16 @@ export default function NoteInternePage() {
               </CardHeader>
 
               <CardContent className="pt-0">
-                <p className="text-sm text-gray-600 mb-4 whitespace-pre-wrap leading-relaxed break-words">
-                  {note.content}
-                </p>
+                {isProbablyRichHtml(note.content) ? (
+                  <div
+                    className={`mb-4 ${procedureRichHtmlViewClass}`}
+                    dangerouslySetInnerHTML={{ __html: note.content }}
+                  />
+                ) : (
+                  <p className="text-sm text-gray-600 mb-4 whitespace-pre-wrap leading-relaxed break-words">
+                    {note.content}
+                  </p>
+                )}
                 
                 <div className="flex items-center justify-between text-xs text-gray-500 gap-2">
                   <div className="flex items-center min-w-0 flex-1">
@@ -713,7 +727,7 @@ export default function NoteInternePage() {
           setIsDialogOpen(open)
         }
       }}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100vw-1.5rem)] sm:max-w-[min(96vw,1024px)] max-h-[90vh] overflow-y-auto">
           <DialogHeader className="space-y-3">
             <DialogTitle className="text-xl">
               {dialogReadOnly ? "Vizualizare procedură" : editingNote ? "Editează procedura" : "Procedură nouă"}
@@ -743,63 +757,51 @@ export default function NoteInternePage() {
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 w-full min-w-0">
                 <Label htmlFor="content">Conținut *</Label>
-                <Textarea
-                  id="content"
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  placeholder="Textul procedurii"
-                  rows={6}
-                  maxLength={1000}
-                  readOnly={dialogReadOnly}
-                  disabled={dialogReadOnly}
-                  className={dialogReadOnly ? "bg-muted/50" : undefined}
-                />
-                {!dialogReadOnly ? (
-                  <p className="text-xs text-gray-500">
-                    {content.length}/1000 caractere
-                  </p>
-                ) : null}
+                {dialogReadOnly ? (
+                  isProbablyRichHtml(content) ? (
+                    <div
+                      className={`rounded-md border border-input bg-muted/30 px-3 py-2 min-h-[240px] max-h-[min(65vh,640px)] overflow-y-auto ${procedureRichHtmlViewClass}`}
+                      dangerouslySetInnerHTML={{ __html: content }}
+                    />
+                  ) : (
+                    <p className="text-sm text-gray-600 whitespace-pre-wrap rounded-md border border-input bg-muted/30 px-3 py-2 min-h-[240px] max-h-[min(65vh,640px)] overflow-y-auto">
+                      {content}
+                    </p>
+                  )
+                ) : (
+                  <>
+                    <ProcedureRichTextEditor
+                      key={editingNote?.id ?? "new-procedure"}
+                      value={content}
+                      onChange={setContent}
+                      className="w-full min-w-0"
+                    />
+                    <p className="text-xs text-gray-500">
+                      {plainTextLengthFromHtml(content)}/{MAX_PROCEDURE_CONTENT_PLAIN_CHARS} caractere (text fără formatare)
+                    </p>
+                  </>
+                )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="priority">Prioritate</Label>
-                  <Select
-                    value={priority}
-                    onValueChange={(value: "low" | "medium" | "high") => setPriority(value)}
-                    disabled={dialogReadOnly}
-                  >
-                    <SelectTrigger id="priority">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="low">Scăzută</SelectItem>
-                      <SelectItem value="medium">Medie</SelectItem>
-                      <SelectItem value="high">Înaltă</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="category">Categorie</Label>
-                  <Select
-                    value={category}
-                    onValueChange={(value: "general" | "urgent" | "info" | "task") => setCategory(value)}
-                    disabled={dialogReadOnly}
-                  >
-                    <SelectTrigger id="category">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="general">General</SelectItem>
-                      <SelectItem value="urgent">Urgent</SelectItem>
-                      <SelectItem value="info">Informație</SelectItem>
-                      <SelectItem value="task">Sarcină</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2 max-w-md">
+                <Label htmlFor="category">Categorie</Label>
+                <Select
+                  value={category}
+                  onValueChange={(value: "general" | "urgent" | "info" | "task") => setCategory(value)}
+                  disabled={dialogReadOnly}
+                >
+                  <SelectTrigger id="category">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="general">General</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                    <SelectItem value="info">Informație</SelectItem>
+                    <SelectItem value="task">Sarcină</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -826,15 +828,6 @@ export default function NoteInternePage() {
                       <div className="flex items-center text-sm text-gray-600">
                         <Clock className="mr-2 h-4 w-4" />
                         {formatDate(editingNote.createdAt)}
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-gray-700">Prioritate curentă</Label>
-                      <div className="flex items-center">
-                        <Badge className={`text-xs ${priorityColors[editingNote.priority]}`}>
-                          {priorityLabels[editingNote.priority]}
-                        </Badge>
                       </div>
                     </div>
 
@@ -894,7 +887,12 @@ export default function NoteInternePage() {
 
                   <Button
                     onClick={editingNote ? handleEditNote : handleCreateNote}
-                    disabled={isCreating || !title.trim() || !content.trim()}
+                    disabled={
+                      isCreating ||
+                      !title.trim() ||
+                      isRichContentEmpty(content) ||
+                      plainTextLengthFromHtml(content) > MAX_PROCEDURE_CONTENT_PLAIN_CHARS
+                    }
                     className="w-full sm:w-auto"
                   >
                     {isCreating ? (

@@ -5,10 +5,11 @@ import { adminDb } from "@/lib/firebase/admin"
 import { CRM_COLLECTIONS } from "@/lib/crm/constants"
 import { hasOpportunityViewAccess, normalizeVisibilityUsers } from "@/lib/crm/access"
 import type { CrmVisibility } from "@/lib/crm/types"
+import { emailDiagnosticsToMeta, extractEmailSendDiagnostics } from "@/lib/email/email-error-diagnostics.server"
 import { getEmailFrom } from "@/lib/email/from"
 import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-events.server"
+import { resolveMailTransport } from "@/lib/email/resolve-mail-transport.server"
 import { sendMailWithSentCopy } from "@/lib/email/send-with-sent-copy.server"
-import { createConfiguredSmtpTransport } from "@/lib/email/smtp.server"
 
 function normalizeString(value: unknown) {
   return typeof value === "string" ? value.trim() : ""
@@ -184,7 +185,16 @@ export async function POST(request: NextRequest) {
     const visibility = parsed.data.visibility as CrmVisibility
     const visibleToUserIds = normalizeVisibilityUsers(visibility, parsed.data.visibleToUserIds)
     const sentAt = Timestamp.now()
-    const { transporter, auth } = createConfiguredSmtpTransport()
+    const resolved = await resolveMailTransport(actorId)
+    const fromForMail =
+      resolved.source === "user"
+        ? resolved.mailFrom
+        : { name: getEmailFrom().name, address: parsed.data.from }
+
+    const persistedFromString =
+      resolved.source === "user"
+        ? `${resolved.mailFrom.name} <${resolved.mailFrom.address}>`
+        : parsed.data.from
 
     emailEventId = await logEmailEventServer({
       type: "CRM_EMAIL",
@@ -201,13 +211,14 @@ export async function POST(request: NextRequest) {
         actorEmail: actorEmail || null,
         fromInput: parsed.data.from,
         visibility,
+        smtpTransportSource: resolved.source,
       },
     })
 
-    const info = await sendMailWithSentCopy({
-      transporter,
+    const sendParams: Parameters<typeof sendMailWithSentCopy>[0] = {
+      transporter: resolved.transporter,
       mailOptions: {
-        from: parsed.data.from || getEmailFrom(),
+        from: fromForMail,
         replyTo: parsed.data.from || actorEmail || undefined,
         to: parsed.data.to,
         cc: parsed.data.cc,
@@ -227,19 +238,23 @@ export async function POST(request: NextRequest) {
           </div>
         `,
       },
-      smtpAuth: auth,
+      smtpAuth: resolved.smtpAuth,
       imapContext: {
         route: "/api/crm/opportunities/send-email",
         emailEventId: emailEventId || undefined,
         flow: "crm_opportunity_email",
       },
-    })
+    }
+    if (resolved.imapExplicit !== undefined) {
+      sendParams.imapExplicit = resolved.imapExplicit
+    }
+    const info = await sendMailWithSentCopy(sendParams)
 
     const emailRef = await adminDb.collection(CRM_COLLECTIONS.emails).add({
       opportunityId: parsed.data.opportunityId,
       direction: "OUT",
       subject: parsed.data.subject,
-      from: parsed.data.from,
+      from: persistedFromString,
       to: parsed.data.to,
       cc: parsed.data.cc,
       bcc: parsed.data.bcc,
@@ -269,7 +284,7 @@ export async function POST(request: NextRequest) {
         emailId: emailRef.id,
         direction: "OUT",
         subject: parsed.data.subject,
-        from: parsed.data.from,
+        from: persistedFromString,
         to: parsed.data.to,
         cc: parsed.data.cc,
         bcc: parsed.data.bcc,
@@ -293,7 +308,7 @@ export async function POST(request: NextRequest) {
     await appendOpportunitySearchText(parsed.data.opportunityId, [
       parsed.data.subject,
       parsed.data.bodySnippet,
-      parsed.data.from,
+      persistedFromString,
       ...parsed.data.to,
       ...parsed.data.cc,
       ...parsed.data.bcc,
@@ -308,6 +323,7 @@ export async function POST(request: NextRequest) {
         actorId,
         emailId: emailRef.id,
         visibility,
+        smtpTransportSource: resolved.source,
       },
     })
 
@@ -324,12 +340,14 @@ export async function POST(request: NextRequest) {
 
     if (emailEventId) {
       try {
+        const diag = extractEmailSendDiagnostics(error)
         await updateEmailEventServer(emailEventId, {
           status: "failed",
-          error: error instanceof Error ? error.message : String(error),
+          error: diag.summary,
           meta: {
             route: "/api/crm/opportunities/send-email",
-            stack: error instanceof Error ? error.stack?.slice(0, 2000) : undefined,
+            failureStage: "crm_opportunity_send",
+            emailDiagnostics: emailDiagnosticsToMeta(diag),
           },
         })
       } catch (logError) {

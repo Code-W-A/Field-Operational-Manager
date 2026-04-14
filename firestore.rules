@@ -40,6 +40,11 @@ service cloud.firestore {
         request.path.segments[0] == 'technician_groups';
     }
 
+    /** Credențiale mail per user: doar Admin SDK (API), nu client SDK */
+    function isUsersMailCredentialsPath() {
+      return request.path.matches('/databases/{database}/documents/users/{userId}/mailCredentials/{docId}');
+    }
+
     function isCrmCollection() {
       return request.path.segments.size() > 0 &&
         (request.path.segments[0] == 'crm_clients' ||
@@ -178,11 +183,16 @@ service cloud.firestore {
       allow create, update, delete: if isAdminOnlyRole();
     }
 
+    match /users/{userId}/mailCredentials/{docId} {
+      allow read, write: if false;
+    }
+
     // Fallback (existing app behavior): allow authenticated access.
     // NOTE: this is intentionally broad to avoid breaking existing collections in this repo.
     match /{document=**} {
       // Keep broad access for legacy collections, but exclude HR collections which have explicit rules above.
-      allow read, write: if isSignedIn() && !isHrCollection() && !isCrmCollection() && !isTechnicianGroupsCollection();
+      allow read, write: if isSignedIn() && !isHrCollection() && !isCrmCollection() && !isTechnicianGroupsCollection()
+        && !isUsersMailCredentialsPath();
     }
   }
 }

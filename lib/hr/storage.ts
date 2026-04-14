@@ -559,6 +559,10 @@ function normalizeHrRequest(id: string, data: any): HrRequest {
     timesheetClearedDateISO: data.timesheetClearedDateISO ? String(data.timesheetClearedDateISO) : undefined,
     timesheetClearedNote: data.timesheetClearedNote ? String(data.timesheetClearedNote) : undefined,
     emailChannel: data.emailChannel ? String(data.emailChannel) as any : undefined,
+    documentSerial:
+      typeof data.documentSerial === "number" && Number.isFinite(data.documentSerial)
+        ? data.documentSerial
+        : undefined,
     createdAt: data.createdAt?.toMillis?.() ?? Date.now(),
     updatedAt: data.updatedAt?.toMillis?.() ?? Date.now(),
     decidedAt: data.decidedAt?.toMillis?.() ?? undefined,
@@ -693,19 +697,31 @@ async function notifyHrRequestEmail(params: { requestId: string; event: "created
 }
 
 export async function createHrRequest(request: Omit<HrRequest, "id" | "createdAt" | "updatedAt">): Promise<string> {
-  const ref = doc(collection(db, "hrRequests"))
   await assertNoActiveRequestOverlap({
     employeeId: request.employeeId,
     kind: request.kind,
     payload: request.payload,
   })
-  const cleanRequest = removeUndefined(request as any)
-  await setDoc(ref, {
-    ...cleanRequest,
-    emailChannel: "nextjs",
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+  const ref = doc(collection(db, "hrRequests"))
+  const counterRef = doc(db, "hrCounters", "leaveRequestSerial")
+  const cleanRequest = removeUndefined(request as any) as Record<string, unknown>
+  delete cleanRequest.documentSerial
+
+  await runTransaction(db, async (transaction) => {
+    const counterSnap = await transaction.get(counterRef)
+    const lastRaw = counterSnap.exists() ? (counterSnap.data() as { last?: unknown }).last : undefined
+    const last = typeof lastRaw === "number" && Number.isFinite(lastRaw) ? lastRaw : 0
+    const nextSerial = last >= 9999 ? 1 : last + 1
+    transaction.set(counterRef, { last: nextSerial }, { merge: true })
+    transaction.set(ref, {
+      ...cleanRequest,
+      documentSerial: nextSerial,
+      emailChannel: "nextjs",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
   })
+
   void notifyHrRequestEmail({ requestId: ref.id, event: "created" })
   return ref.id
 }

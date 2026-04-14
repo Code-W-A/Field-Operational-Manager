@@ -2551,7 +2551,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 ) : tehnicieni.length > 0 ? (
                   techniciansGroupedForSelect.sectionOrder.map((sectionKey) => (
                     <SelectGroup key={sectionKey}>
-                      <SelectLabel className="text-muted-foreground">
+                      <SelectLabel className="px-2 pl-2.5 pr-2 py-1.5 text-xs font-semibold text-muted-foreground">
                         {techniciansGroupedForSelect.labelByKey.get(sectionKey) || sectionKey}
                       </SelectLabel>
                       {(techniciansGroupedForSelect.bucket.get(sectionKey) || []).map((tehnician: any) => {
@@ -2563,7 +2563,11 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                             : ""
                         const label = `${tehnician.displayName || ""}${suffix}`
                         return (
-                          <SelectItem key={tehnician.id} value={tehnician.displayName || ""}>
+                          <SelectItem
+                            key={tehnician.id}
+                            value={tehnician.displayName || ""}
+                            className="pl-11 [&>span:first-child]:left-3.5"
+                          >
                             {label}
                           </SelectItem>
                         )

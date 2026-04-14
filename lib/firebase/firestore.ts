@@ -289,7 +289,17 @@ export interface Lucrare {
 // Email events tracking
 export interface EmailEvent {
   id?: string
-  type: "REPORT" | "OFFER" | "DEVIZ" | "GENERIC" | "TECH_NOTIFY" | "INVITE" | "TEST" | "CRM_TASK"
+  type:
+    | "REPORT"
+    | "OFFER"
+    | "DEVIZ"
+    | "GENERIC"
+    | "TECH_NOTIFY"
+    | "INVITE"
+    | "TEST"
+    | "CRM_TASK"
+    | "CRM_EMAIL"
+    | "HR_REQUEST"
   lucrareId?: string
   clientId?: string
   to: string[]

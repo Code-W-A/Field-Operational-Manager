@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
       type,
       route: "/api/crm/offers/send-email",
       flow: String(type || "crm_offer_email").toLowerCase(),
+      actorUserId: session.uid,
       metaExtra: {
         ...(opportunityId ? { opportunityId } : {}),
         ...(offerId ? { offerId } : {}),

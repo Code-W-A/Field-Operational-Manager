@@ -2568,8 +2568,7 @@ export const onHrRequestStatusChangedEmail = functions
       rejectionReason: after.rejectionReason ?? null,
     }
 
-    const employee = await getUserEmail(req.employeeId)
-    const manager = await getUserEmail(req.managerUid)
+    const requester = await getUserEmail(req.requesterUid)
 
     const title = `${kindLabel(req.kind)} • ${requestDateLabel(req)}`
     const rejectReason = afterStatus === "rejected" ? String(after.rejectionReason ?? "").trim() : ""
@@ -2582,13 +2581,9 @@ export const onHrRequestStatusChangedEmail = functions
       `Status: ${statusLabel(afterStatus)}\n` +
       (rejectReason ? `Motiv refuz: ${rejectReason}\n` : "")
 
-    const recipients = new Set<string>()
-    if (employee.email) recipients.add(employee.email)
-    if (manager.email) recipients.add(manager.email)
-
-    for (const to of recipients) {
+    if (requester.email) {
       await smtpSendMail({
-        to,
+        to: requester.email,
         subject: `Status cerere actualizat: ${statusLabel(afterStatus)} • ${title}`,
         text: baseText,
       })

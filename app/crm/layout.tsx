@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 import { usePathname } from "next/navigation"
 import { ProtectedRoute } from "@/components/protected-route"
 import { DashboardShell } from "@/components/dashboard-shell"
+import { SentryErrorBoundary } from "@/components/sentry-error-boundary"
 import { cn } from "@/lib/utils"
 
 export default function CrmLayout({ children }: { children: ReactNode }) {
@@ -21,7 +22,7 @@ export default function CrmLayout({ children }: { children: ReactNode }) {
             isFullHeightRoute && "-mb-24 min-h-[calc(100%+6rem)] xl:-mt-4 xl:-mb-24 xl:min-h-[calc(100%+7rem)]"
           )}
         >
-          {children}
+          <SentryErrorBoundary fallbackTitle="Eroare în zona CRM">{children}</SentryErrorBoundary>
         </div>
       </DashboardShell>
     </ProtectedRoute>

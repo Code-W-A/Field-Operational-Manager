@@ -100,6 +100,11 @@ function requestNumberFromId(requestId: string): string {
   return `HR-${clean.slice(0, 8).toUpperCase()}`
 }
 
+function formatNrCerere(documentSerial: number | undefined): string {
+  if (documentSerial == null || !Number.isFinite(documentSerial)) return "—"
+  return String(Math.trunc(documentSerial)).padStart(4, "0")
+}
+
 async function fetchDepartmentName(departmentId: string, fallback?: string): Promise<string> {
   if (fallback?.trim()) return fallback.trim()
   if (!departmentId) return "—"
@@ -254,6 +259,7 @@ function buildPlaceholderMap(params: {
     "nume-companie": HR_COMPANY.name,
     "cui-companie": HR_COMPANY.cui,
     "număr-de-înregistrare-companie": HR_COMPANY.registrationNumber,
+    "nr-cerere": formatNrCerere(params.request.documentSerial),
     "tip-eveniment": hrRequestKindLabel(params.request.kind),
     "nume-angajat": params.employeeLastName,
     "prenume-angajat": params.employeeFirstName,
@@ -376,6 +382,14 @@ export async function generateHrRequestPDFAsync(
   if (request.kind === "CO") {
     y = writeParagraph(
       doc,
+      `Nr. cerere: ${placeholders["nr-cerere"]}.`,
+      margin,
+      y,
+      contentWidth
+    )
+    y += 2
+    y = writeParagraph(
+      doc,
       `Vă rog să-mi aprobați ${placeholders["tip-eveniment"]} pentru perioada ${placeholders["data-de-început-a-evenimentului"]} - ${placeholders["data-de-sfârșit-a-evenimentului"]}.`,
       margin,
       y,
@@ -402,6 +416,14 @@ export async function generateHrRequestPDFAsync(
       y = writeParagraph(doc, `Motiv: ${placeholders["motiv-delegare"]}.`, margin, y, contentWidth)
     }
   } else if (request.kind === "CFP") {
+    y = writeParagraph(
+      doc,
+      `Nr. cerere: ${placeholders["nr-cerere"]}.`,
+      margin,
+      y,
+      contentWidth
+    )
+    y += 2
     y = writeParagraph(
       doc,
       `Solicit aprobarea pentru concediu fără plată în perioada ${placeholders["data-de-început-a-cererii"]} - ${placeholders["data-de-sfârșit-a-cererii"]}.`,

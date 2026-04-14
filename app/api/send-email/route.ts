@@ -1,19 +1,32 @@
 import { type NextRequest, NextResponse } from "next/server"
-import nodemailer from "nodemailer"
-import { getEmailFrom } from "@/lib/email/from"
 import path from "path"
+import { requireRole, RequireRoleError } from "@/lib/auth/require-role"
 import { adminDb } from "@/lib/firebase/admin"
+import { emailDiagnosticsToMeta, extractEmailSendDiagnostics } from "@/lib/email/email-error-diagnostics.server"
 import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-events.server"
+import { resolveMailTransport } from "@/lib/email/resolve-mail-transport.server"
 import { sendMailWithSentCopy } from "@/lib/email/send-with-sent-copy.server"
 
 export async function POST(request: NextRequest) {
+  let emailEventId: string | null = null
+  let errorTo = "unknown"
+  let errorSubject = "unknown"
+  let errorLucrareId: string | null = null
   try {
+    const session = await requireRole(["admin", "dispecer", "tehnician"], request)
+    if (!session.uid) {
+      return NextResponse.json({ error: "Autentificare obligatorie (sesiune sau Bearer token)." }, { status: 401 })
+    }
+
     const formData = await request.formData()
 
     const to = formData.get("to") as string
     const subject = formData.get("subject") as string
     const message = formData.get("message") as string
     const pdfFile = formData.get("pdfFile") as File
+    errorTo = to || "unknown"
+    errorSubject = subject || "unknown"
+    errorLucrareId = (formData.get("lucrareId") as string) || null
 
     if (!to || !subject || !pdfFile) {
       return NextResponse.json(
@@ -22,18 +35,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Configurăm transportorul de email (Client Email Server)
-    const smtpUser = "fom@nrg-acces.ro"
-    const smtpPass = "FOM@nrg25"
-    const transporter = nodemailer.createTransport({
-      host: "mail.nrg-acces.ro",
-      port: 465,
-      secure: true, // true for 465, false for other ports
-      auth: {
-        user: smtpUser,
-        pass: smtpPass,
-      },
-    })
+    const resolved = await resolveMailTransport(session.uid)
 
     // Convertim fișierul PDF în buffer pentru atașament
     const arrayBuffer = await pdfFile.arrayBuffer()
@@ -67,9 +69,6 @@ export async function POST(request: NextRequest) {
         </div>`
       : ""
 
-    // Get the logo path
-    const logoPath = path.join(process.cwd(), "public", "nrglogo.png")
-
     // Construim HTML-ul pentru email
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -87,7 +86,7 @@ export async function POST(request: NextRequest) {
 
     // Configurăm opțiunile emailului
     const mailOptions = {
-      from: getEmailFrom(),
+      from: resolved.mailFrom,
       to,
       subject,
       text: message || "Va transmitem atasat raportul de interventie.",
@@ -126,7 +125,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Înregistrăm eveniment QUEUED
-    let emailEventId: string | null = null
     try {
       const lucrareId = (formData.get("lucrareId") as string) || undefined
       const clientId = (formData.get("clientId") as string) || undefined
@@ -146,6 +144,8 @@ export async function POST(request: NextRequest) {
           route: "/api/send-email",
           hasOpsPdfFile: Boolean(formData.get("opsPdfFile")),
           pdfName: (pdfFile as any)?.name || undefined,
+          smtpTransportSource: resolved.source,
+          actorUid: session.uid,
         },
       })
     } catch (error) {
@@ -165,21 +165,29 @@ export async function POST(request: NextRequest) {
     }
 
     // Trimitem emailul
-    const info = await sendMailWithSentCopy({
-      transporter,
+    const sendParams: Parameters<typeof sendMailWithSentCopy>[0] = {
+      transporter: resolved.transporter,
       mailOptions,
-      smtpAuth: { user: smtpUser, pass: smtpPass },
+      smtpAuth: resolved.smtpAuth,
       imapContext: {
         route: "/api/send-email",
         emailEventId: emailEventId || undefined,
         flow: "report",
       },
-    })
+    }
+    if (resolved.imapExplicit !== undefined) {
+      sendParams.imapExplicit = resolved.imapExplicit
+    }
+    const info = await sendMailWithSentCopy(sendParams)
 
     // Actualizăm evenimentul la SENT
     try {
       if (emailEventId) {
-        await updateEmailEventServer(emailEventId, { status: "sent", messageId: info.messageId })
+        await updateEmailEventServer(emailEventId, {
+          status: "sent",
+          messageId: info.messageId,
+          meta: { smtpTransportSource: resolved.source },
+        })
       }
       const lucrareId = (formData.get("lucrareId") as string) || undefined
       if (lucrareId) {
@@ -206,64 +214,70 @@ export async function POST(request: NextRequest) {
     console.log(`Email sent successfully to: ${to}`)
 
     return NextResponse.json({ success: true })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    if (error instanceof RequireRoleError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+    const diag = extractEmailSendDiagnostics(error)
     console.error("Eroare la trimiterea emailului:", error)
-    
-    // Extract form data for logging (request body can only be read once)
-    let errorTo = "unknown"
-    let errorSubject = "unknown"
-    let errorLucrareId: string | null = null
-    
+
     try {
-      const formData = await request.formData()
-      errorTo = (formData.get("to") as string) || "unknown"
-      errorSubject = (formData.get("subject") as string) || "unknown"
-      errorLucrareId = (formData.get("lucrareId") as string) || null
-      
       if (errorLucrareId) {
         await adminDb.collection("lucrari").doc(String(errorLucrareId)).set(
           {
-          lastReportEmail: {
-            sentAt: new Date().toISOString(),
+            lastReportEmail: {
+              sentAt: new Date().toISOString(),
               to: String(errorTo || "")
                 .split(/[;,]+/)
                 .map((s) => s.trim())
                 .filter(Boolean),
-            status: "failed",
+              status: "failed",
             },
           },
           { merge: true },
         )
       }
     } catch (parseError) {
-      console.error("Eroare la parsarea formData pentru logging:", parseError)
+      console.error("Eroare la actualizarea lucrării după eșec email:", parseError)
     }
     
-    // Update emailEvents if we have an id in the request (best-effort) - not available here, so create a failed event
     try {
-      await logEmailEventServer({
-        type: "REPORT",
-        lucrareId: errorLucrareId || undefined,
-        to: String(errorTo || "")
-          .split(/[;,]+/)
-          .map((s) => s.trim())
-          .filter(Boolean),
-        subject: errorSubject,
-        status: "failed",
-        provider: "smtp",
-        error: String(error?.message || error || "unknown error"),
-        meta: {
-          route: "/api/send-email",
-          stack: error?.stack ? String(error.stack).slice(0, 2000) : undefined,
-        },
-      })
+      if (emailEventId) {
+        await updateEmailEventServer(emailEventId, {
+          status: "failed",
+          error: diag.summary,
+          meta: {
+            route: "/api/send-email",
+            failureStage: "report_route",
+            emailDiagnostics: emailDiagnosticsToMeta(diag),
+          },
+        })
+      } else {
+        await logEmailEventServer({
+          type: "REPORT",
+          lucrareId: errorLucrareId || undefined,
+          to: String(errorTo || "")
+            .split(/[;,]+/)
+            .map((s) => s.trim())
+            .filter(Boolean),
+          subject: errorSubject,
+          status: "failed",
+          provider: "smtp",
+          error: diag.summary,
+          meta: {
+            route: "/api/send-email",
+            failureStage: "report_route_no_queued_id",
+            emailDiagnostics: emailDiagnosticsToMeta(diag),
+          },
+        })
+      }
     } catch (logErr) {
       console.error("Eroare la logarea email failed (server):", logErr)
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: "A aparut o eroare la trimiterea emailului",
-      details: error.message 
+      details: diag.summary,
     }, { status: 500 })
   }
 }

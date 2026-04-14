@@ -106,6 +106,11 @@ function requestNumberFromId(requestId: string): string {
   return `HR-${clean.slice(0, 8).toUpperCase()}`
 }
 
+function formatNrCerere(documentSerial: number | undefined): string {
+  if (documentSerial == null || !Number.isFinite(documentSerial)) return "—"
+  return String(Math.trunc(documentSerial)).padStart(4, "0")
+}
+
 function sanitizeFileNameChunk(raw: string): string {
   return String(raw || "")
     .trim()
@@ -221,6 +226,7 @@ export async function generateHrRequestDocxBuffer(
     "nume-companie": HR_COMPANY.name,
     "cui-companie": HR_COMPANY.cui,
     "număr-de-înregistrare-companie": HR_COMPANY.registrationNumber,
+    "nr-cerere": formatNrCerere(request.documentSerial),
     "tip-eveniment": hrRequestKindLabel(request.kind),
     "nume-angajat": employeeLastName,
     "prenume-angajat": employeeFirstName,

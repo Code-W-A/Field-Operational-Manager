@@ -1,13 +1,19 @@
 import { type NextRequest, NextResponse } from "next/server"
-import nodemailer from "nodemailer"
-import { getEmailFrom } from "@/lib/email/from"
+import { requireRole, RequireRoleError } from "@/lib/auth/require-role"
+import { emailDiagnosticsToMeta, extractEmailSendDiagnostics } from "@/lib/email/email-error-diagnostics.server"
 import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-events.server"
+import { resolveMailTransport } from "@/lib/email/resolve-mail-transport.server"
 import { sendMailWithSentCopy } from "@/lib/email/send-with-sent-copy.server"
 
 export async function POST(request: NextRequest) {
   let errorRecipient = "unknown"
   let emailEventId: string | null = null
   try {
+    const session = await requireRole(["admin", "dispecer", "tehnician"], request)
+    if (!session.uid) {
+      return NextResponse.json({ error: "Autentificare obligatorie (sesiune sau Bearer token)." }, { status: 401 })
+    }
+
     const data = await request.json()
     const { recipient, subject = "Test Email", message = "Acesta este un email de test." } = data
     errorRecipient = recipient || "unknown"
@@ -16,7 +22,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Adresa de email a destinatarului este obligatorie" }, { status: 400 })
     }
 
-    // Log queued (server)
+    const resolved = await resolveMailTransport(session.uid)
+
     try {
       emailEventId = await logEmailEventServer({
         type: "TEST",
@@ -24,35 +31,22 @@ export async function POST(request: NextRequest) {
         subject,
         status: "queued",
         provider: "smtp",
-        meta: { route: "/api/email/send-test" },
+        meta: {
+          route: "/api/email/send-test",
+          smtpTransportSource: resolved.source,
+          actorUid: session.uid,
+        },
       })
     } catch (logError) {
       console.error("[Email Test] Failed to log test attempt:", logError)
     }
 
-    // Configure email transporter
-    const smtpUser = process.env.EMAIL_USER
-    const smtpPass = process.env.EMAIL_PASSWORD
-    const transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_SMTP_HOST,
-      port: Number.parseInt(process.env.EMAIL_SMTP_PORT || "465"),
-      secure: process.env.EMAIL_SMTP_SECURE === "false" ? false : true,
-      auth: {
-        user: smtpUser,
-        pass: smtpPass,
-      },
-      debug: true,
-      logger: true,
-    })
-
-    // Verify connection configuration
     console.log("[Email Test] Verifying SMTP connection...")
-    await transporter.verify()
+    await resolved.transporter.verify()
     console.log("[Email Test] SMTP connection verified successfully")
 
-    // Send test email
     const mailOptions = {
-      from: getEmailFrom(),
+      from: resolved.mailFrom,
       to: recipient,
       subject: subject,
       html: `
@@ -71,20 +65,30 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`[Email Test] Sending test email to ${recipient}...`)
-    const info = await sendMailWithSentCopy({
-      transporter,
+    const sendParams: Parameters<typeof sendMailWithSentCopy>[0] = {
+      transporter: resolved.transporter,
       mailOptions,
-      smtpAuth: { user: smtpUser, pass: smtpPass },
+      smtpAuth: resolved.smtpAuth,
       imapContext: {
         route: "/api/email/send-test",
         emailEventId: emailEventId || undefined,
         flow: "test",
       },
-    })
+    }
+    if (resolved.imapExplicit !== undefined) {
+      sendParams.imapExplicit = resolved.imapExplicit
+    }
+    const info = await sendMailWithSentCopy(sendParams)
     console.log(`[Email Test] Email sent successfully, messageId: ${info.messageId}`)
 
     try {
-      if (emailEventId) await updateEmailEventServer(emailEventId, { status: "sent", messageId: info.messageId })
+      if (emailEventId) {
+        await updateEmailEventServer(emailEventId, {
+          status: "sent",
+          messageId: info.messageId,
+          meta: { smtpTransportSource: resolved.source },
+        })
+      }
     } catch (logError) {
       console.error("[Email Test] Failed to log success:", logError)
     }
@@ -94,15 +98,22 @@ export async function POST(request: NextRequest) {
       messageId: info.messageId,
       message: `Email de test trimis cu succes către ${recipient}`,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    if (error instanceof RequireRoleError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+    const diag = extractEmailSendDiagnostics(error)
     console.error("[Email Test] Failed to send test email:", error)
 
     try {
       if (emailEventId) {
         await updateEmailEventServer(emailEventId, {
           status: "failed",
-          error: String(error?.message || error || "unknown error"),
-          meta: { stack: error?.stack ? String(error.stack).slice(0, 2000) : undefined },
+          error: diag.summary,
+          meta: {
+            route: "/api/email/send-test",
+            emailDiagnostics: emailDiagnosticsToMeta(diag),
+          },
         })
       } else {
         await logEmailEventServer({
@@ -111,9 +122,12 @@ export async function POST(request: NextRequest) {
           subject: "Test Email",
           status: "failed",
           provider: "smtp",
-          error: String(error?.message || error || "unknown error"),
-          meta: { route: "/api/email/send-test", stack: error?.stack ? String(error.stack).slice(0, 2000) : undefined },
-      })
+          error: diag.summary,
+          meta: {
+            route: "/api/email/send-test",
+            emailDiagnostics: emailDiagnosticsToMeta(diag),
+          },
+        })
       }
     } catch (logError) {
       console.error("[Email Test] Failed to log error:", logError)
@@ -122,7 +136,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: `Eroare la trimiterea email-ului de test: ${error.message}`,
+        error: `Eroare la trimiterea email-ului de test: ${diag.summary}`,
       },
       { status: 500 },
     )
