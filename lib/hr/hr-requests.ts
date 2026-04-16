@@ -40,3 +40,12 @@ export function hrRequestDateLabel(req: HrRequest) {
   return "—"
 }
 
+/** Număr cerere pentru UI / documente: 0001–9999, apoi 10000+ (fără duplicate la ciclu). */
+export function formatHrRequestSerial(documentSerial: number | undefined): string {
+  if (documentSerial == null || !Number.isFinite(documentSerial)) return "—"
+  const k = Math.trunc(documentSerial)
+  if (k < 1) return "—"
+  if (k <= 9999) return String(k).padStart(4, "0")
+  return String(k)
+}
+

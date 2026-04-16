@@ -7,7 +7,12 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Calendar, Download } from "lucide-react"
 import { generateHrRequestDOCX } from "@/lib/hr/request-docx-generator"
-import { hrRequestDateLabel, hrRequestKindLabel, hrRequestStatusLabel } from "@/lib/hr/hr-requests"
+import {
+  formatHrRequestSerial,
+  hrRequestDateLabel,
+  hrRequestKindLabel,
+  hrRequestStatusLabel,
+} from "@/lib/hr/hr-requests"
 import Link from "next/link"
 
 export function LeaveRequestsSection({
@@ -50,7 +55,12 @@ export function LeaveRequestsSection({
                   return (
                     <div key={req.id} className="flex items-center justify-between rounded-lg border p-3 bg-muted/20 hover:bg-muted/40 transition-colors">
                       <div className="flex-1">
-                        <div className="font-medium">{employee ? getEmployeeFullName(employee) : req.employeeId}</div>
+                        <div className="font-medium flex flex-wrap items-center gap-2">
+                          <Badge variant="outline" className="font-mono text-xs shrink-0">
+                            #{formatHrRequestSerial(req.documentSerial)}
+                          </Badge>
+                          <span>{employee ? getEmployeeFullName(employee) : req.employeeId}</span>
+                        </div>
                         <div className="text-xs text-muted-foreground mt-1 flex items-center gap-3">
                           <span>{hrRequestDateLabel(req)}</span>
                           <span className="inline-flex items-center gap-1">

@@ -24,7 +24,12 @@ import {
   syncHrRequestToTimesheets,
   updateHrRequestByManager,
 } from "@/lib/hr/storage"
-import { hrRequestDateLabel, hrRequestKindLabel, hrRequestStatusLabel } from "@/lib/hr/hr-requests"
+import {
+  formatHrRequestSerial,
+  hrRequestDateLabel,
+  hrRequestKindLabel,
+  hrRequestStatusLabel,
+} from "@/lib/hr/hr-requests"
 import { toast } from "@/hooks/use-toast"
 import { generateHrRequestDOCX } from "@/lib/hr/request-docx-generator"
 
@@ -272,8 +277,13 @@ export default function CereriAprobariPage() {
                           className="w-full text-left flex items-center justify-between rounded-lg border p-3 bg-muted/20 hover:bg-muted/40 transition-colors"
                         >
                           <div className="min-w-0">
-                            <div className="font-medium truncate">
-                              {r.employeeName || r.employeeId} • {hrRequestKindLabel(r.kind)}
+                            <div className="font-medium truncate flex flex-wrap items-center gap-2">
+                              <Badge variant="outline" className="font-mono shrink-0">
+                                #{formatHrRequestSerial(r.documentSerial)}
+                              </Badge>
+                              <span>
+                                {r.employeeName || r.employeeId} • {hrRequestKindLabel(r.kind)}
+                              </span>
                             </div>
                             <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-3">
                               <span>{hrRequestDateLabel(r)}</span>
@@ -307,8 +317,13 @@ export default function CereriAprobariPage() {
                           className="w-full text-left flex items-center justify-between rounded-lg border p-3 bg-muted/20 hover:bg-muted/40 transition-colors"
                         >
                           <div className="min-w-0">
-                            <div className="font-medium truncate">
-                              {r.employeeName || r.employeeId} • {hrRequestKindLabel(r.kind)}
+                            <div className="font-medium truncate flex flex-wrap items-center gap-2">
+                              <Badge variant="outline" className="font-mono shrink-0">
+                                #{formatHrRequestSerial(r.documentSerial)}
+                              </Badge>
+                              <span>
+                                {r.employeeName || r.employeeId} • {hrRequestKindLabel(r.kind)}
+                              </span>
                             </div>
                             <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-3">
                               <span>{hrRequestDateLabel(r)}</span>
@@ -355,6 +370,12 @@ export default function CereriAprobariPage() {
           {selected ? (
             <div className="space-y-4">
               <div className="rounded-lg border p-3 bg-muted/20">
+                <div className="text-sm flex flex-wrap items-center gap-2 mb-2">
+                  <span className="text-muted-foreground">Nr. cerere:</span>
+                  <Badge variant="secondary" className="font-mono">
+                    #{formatHrRequestSerial(selected.documentSerial)}
+                  </Badge>
+                </div>
                 <div className="text-sm">
                   <span className="text-muted-foreground">Angajat:</span>{" "}
                   <span className="font-semibold">{selected.employeeName || selected.employeeId}</span>

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Check, ChevronsUpDown, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command"
+import { Command, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 
@@ -56,7 +56,8 @@ export function ClientSearchSelect({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-full p-0" align="start">
-        <Command>
+        {/* Filtrare manuală după `nume`; fără asta cmdk ascunde rândurile la căutare după nume (value = doar id). */}
+        <Command shouldFilter={false}>
           <div className="flex items-center border-b px-3">
             <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
             <CommandInput
@@ -66,7 +67,6 @@ export function ClientSearchSelect({
               className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
             />
           </div>
-          <CommandEmpty>Nu s-au găsit clienți.</CommandEmpty>
           <CommandGroup className="max-h-64 overflow-auto">
             {/* Opțiunea Neasignat */}
             <CommandItem
@@ -87,12 +87,15 @@ export function ClientSearchSelect({
             </CommandItem>
             
             {/* Lista de clienți filtrați */}
+            {filteredClients.length === 0 ? (
+              <div className="py-6 text-center text-sm text-muted-foreground">Nu s-au găsit clienți.</div>
+            ) : null}
             {filteredClients.map((client) => (
               <CommandItem
                 key={client.id}
-                value={client.id}
-                onSelect={(currentValue) => {
-                  onValueChange(currentValue === value ? "UNASSIGNED" : currentValue)
+                value={`${client.nume} ${client.id}`}
+                onSelect={() => {
+                  onValueChange(client.id === value ? "UNASSIGNED" : client.id)
                   setOpen(false)
                   setSearchValue("")
                 }}

@@ -696,7 +696,9 @@ async function notifyHrRequestEmail(params: { requestId: string; event: "created
   }
 }
 
-export async function createHrRequest(request: Omit<HrRequest, "id" | "createdAt" | "updatedAt">): Promise<string> {
+export async function createHrRequest(
+  request: Omit<HrRequest, "id" | "createdAt" | "updatedAt">,
+): Promise<{ id: string; documentSerial: number }> {
   await assertNoActiveRequestOverlap({
     employeeId: request.employeeId,
     kind: request.kind,
@@ -707,11 +709,11 @@ export async function createHrRequest(request: Omit<HrRequest, "id" | "createdAt
   const cleanRequest = removeUndefined(request as any) as Record<string, unknown>
   delete cleanRequest.documentSerial
 
-  await runTransaction(db, async (transaction) => {
+  const documentSerial = await runTransaction(db, async (transaction) => {
     const counterSnap = await transaction.get(counterRef)
     const lastRaw = counterSnap.exists() ? (counterSnap.data() as { last?: unknown }).last : undefined
     const last = typeof lastRaw === "number" && Number.isFinite(lastRaw) ? lastRaw : 0
-    const nextSerial = last >= 9999 ? 1 : last + 1
+    const nextSerial = last + 1
     transaction.set(counterRef, { last: nextSerial }, { merge: true })
     transaction.set(ref, {
       ...cleanRequest,
@@ -720,10 +722,11 @@ export async function createHrRequest(request: Omit<HrRequest, "id" | "createdAt
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     })
+    return nextSerial
   })
 
   void notifyHrRequestEmail({ requestId: ref.id, event: "created" })
-  return ref.id
+  return { id: ref.id, documentSerial }
 }
 
 export async function updateHrRequestByManager(params: {

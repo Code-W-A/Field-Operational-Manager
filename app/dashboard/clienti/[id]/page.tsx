@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { ArrowLeft, Pencil, Trash2, MapPin, Wrench, Calendar, Clock, FileText, Building2, Phone, Mail, User, Hash, FileCheck, TrendingUp, Plus, AlertCircle } from "lucide-react"
+import { ArrowLeft, ArrowRightLeft, Pencil, Trash2, MapPin, Wrench, Calendar, Clock, FileText, Building2, Phone, Mail, User, Hash, FileCheck, TrendingUp, Plus, AlertCircle } from "lucide-react"
 import { getWarrantyDisplayInfo } from "@/lib/utils/warranty-calculator"
 import { getClientById, deleteClient, type Client } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
@@ -24,6 +24,7 @@ import { formatDate, formatDateTimeSafe, formatUiDate, toDateSafe } from "@/lib/
 import { DashboardShell } from "@/components/dashboard-shell"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { ClientForm } from "@/components/client-form"
+import { EquipmentMigrateWizardDialog } from "@/components/equipment/equipment-migrate-wizard-dialog"
 
 // Importăm hook-ul useClientLucrari pentru a putea actualiza datele
 import { useClientLucrari } from "@/hooks/use-client-lucrari"
@@ -50,6 +51,15 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
       }
     | undefined
   >(undefined)
+
+  const [migrateWizardOpen, setMigrateWizardOpen] = useState(false)
+  const [migrateContext, setMigrateContext] = useState<{
+    sourceLocationId: string
+    sourceLocationName: string
+    equipmentId: string
+    equipmentCod: string
+    equipmentNume: string
+  } | null>(null)
 
   // Obținem lucrările pentru acest client
   const { data: toateLucrarile } = useFirebaseCollection<Lucrare>("lucrari", [orderBy("dataEmiterii", "desc")])
@@ -575,7 +585,7 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
                                             </div>
 
                                             {/* Butoane QR Code și Editare echipament */}
-                                            <div className="flex items-center justify-between gap-2 pt-3 mt-3 border-t">
+                                            <div className="flex flex-col gap-2 pt-3 mt-3 border-t sm:flex-row sm:items-center sm:justify-between">
                                               <EquipmentQRCode
                                                 equipment={echipament}
                                                 clientName={client?.nume || ""}
@@ -603,24 +613,47 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
                                                 }}
                                                 useSimpleFormat={true} // Format simplu pentru scanare mai ușoară
                                               />
-                                              <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="gap-2"
-                                                onClick={() => {
-                                                  setInitialEquipmentSelection({
-                                                    locationIndex: index,
-                                                    equipmentIndex: echipamentIndex,
-                                                    equipmentId: (echipament as any).id,
-                                                    equipmentCode: (echipament as any).cod,
-                                                  })
-                                                  setIsEditDialogOpen(true)
-                                                }}
-                                                title="Editează echipamentul"
-                                              >
-                                                <Pencil className="h-3 w-3" />
-                                                <span className="text-xs">Editează</span>
-                                              </Button>
+                                              <div className="flex flex-wrap items-center justify-end gap-2">
+                                                {userData?.role === "admin" && (echipament as any).id ? (
+                                                  <Button
+                                                    variant="secondary"
+                                                    size="sm"
+                                                    className="gap-2"
+                                                    onClick={() => {
+                                                      setMigrateContext({
+                                                        sourceLocationId: String((locatie as any)?.id || ""),
+                                                        sourceLocationName: String(locatie.nume || ""),
+                                                        equipmentId: String((echipament as any).id),
+                                                        equipmentCod: String((echipament as any).cod || ""),
+                                                        equipmentNume: String((echipament as any).nume || ""),
+                                                      })
+                                                      setMigrateWizardOpen(true)
+                                                    }}
+                                                    title="Mută sau copiază echipamentul pe alt client"
+                                                  >
+                                                    <ArrowRightLeft className="h-3 w-3" />
+                                                    <span className="text-xs">Migrează</span>
+                                                  </Button>
+                                                ) : null}
+                                                <Button
+                                                  variant="outline"
+                                                  size="sm"
+                                                  className="gap-2"
+                                                  onClick={() => {
+                                                    setInitialEquipmentSelection({
+                                                      locationIndex: index,
+                                                      equipmentIndex: echipamentIndex,
+                                                      equipmentId: (echipament as any).id,
+                                                      equipmentCode: (echipament as any).cod,
+                                                    })
+                                                    setIsEditDialogOpen(true)
+                                                  }}
+                                                  title="Editează echipamentul"
+                                                >
+                                                  <Pencil className="h-3 w-3" />
+                                                  <span className="text-xs">Editează</span>
+                                                </Button>
+                                              </div>
                                             </div>
                                           </div>
                                         </div>
@@ -696,6 +729,31 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
             )}
           </DialogContent>
         </Dialog>
+
+        {client && migrateContext ? (
+          <EquipmentMigrateWizardDialog
+            open={migrateWizardOpen}
+            onOpenChange={(open) => {
+              setMigrateWizardOpen(open)
+              if (!open) setMigrateContext(null)
+            }}
+            sourceClientId={id}
+            sourceClientName={client.nume || ""}
+            sourceLocationId={migrateContext.sourceLocationId}
+            sourceLocationName={migrateContext.sourceLocationName}
+            equipmentId={migrateContext.equipmentId}
+            equipmentCod={migrateContext.equipmentCod}
+            equipmentNume={migrateContext.equipmentNume}
+            onSuccess={async () => {
+              try {
+                const data = await getClientById(id)
+                if (data) setClient(data)
+              } catch {
+                /* ignore */
+              }
+            }}
+          />
+        ) : null}
       </DashboardShell>
     </TooltipProvider>
   )

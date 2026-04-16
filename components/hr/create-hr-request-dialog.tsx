@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Plus, FileText, Trash2 } from "lucide-react"
 import type { Department, Employee, HrRequest, HrRequestKind, HrRequestPayload } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
-import { hrRequestKindLabel } from "@/lib/hr/hr-requests"
+import { formatHrRequestSerial, hrRequestKindLabel } from "@/lib/hr/hr-requests"
 import { createHrRequest, subscribeDepartments, subscribeHrRequestsForEmployee } from "@/lib/hr/storage"
 import { toast } from "@/hooks/use-toast"
 import { DateInput } from "@/components/ui/date-input"
@@ -282,7 +282,7 @@ export function CreateHrRequestDialog({
       }
 
       setSubmitting(true)
-      await createHrRequest({
+      const { documentSerial } = await createHrRequest({
         employeeId: employee.id,
         employeeName: getEmployeeFullName(employee),
         requesterUid,
@@ -293,7 +293,10 @@ export function CreateHrRequestDialog({
         payload,
       })
 
-      toast({ title: "Cerere creată", description: "Cererea a fost trimisă către șeful ierarhic." })
+      toast({
+        title: "Cerere creată",
+        description: `Număr cerere: #${formatHrRequestSerial(documentSerial)}. Trimisă către șeful ierarhic.`,
+      })
       reset()
       onOpenChange(false)
     } catch (e: any) {

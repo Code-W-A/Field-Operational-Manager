@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 import type { Firestore } from "firebase-admin/firestore"
 import { FieldValue } from "firebase-admin/firestore"
 
@@ -18,6 +18,8 @@ export class MigrateEquipmentError extends Error {
   }
 }
 
+export type MigrateEquipmentMode = "move" | "copy"
+
 export type MigrateEquipmentInput = {
   sourceClientId: string
   targetClientId: string
@@ -28,12 +30,17 @@ export type MigrateEquipmentInput = {
   equipmentIds: string[]
   /** Opțional: `contracte[].id` pe clientul destinație */
   targetContractId?: string | null
+  /** `move` = șterge de la sursă + actualizează lucrări (implicit). `copy` = clonă cu id nou, sursă și lucrări neschimbate. */
+  mode?: MigrateEquipmentMode
   dryRun?: boolean
   idempotencyKey?: string | null
 }
 
 export type MigrateEquipmentDryRunResult = {
   dryRun: true
+  mode: MigrateEquipmentMode
+  /** La `copy`, lucrările nu se modifică. */
+  willUpdateLucrari: boolean
   equipmentCount: number
   equipmentPreview: Array<{
     id: string
@@ -51,15 +58,20 @@ export type MigrateEquipmentDryRunResult = {
     contractId?: string
     contractNumber?: string
     equipmentIdsToAdd: string[]
+    /** La copiere: numărul de id-uri noi care vor fi alocate la commit (preview fără id-uri stabile între cereri). */
+    pendingNewIdsCount?: number
   }
 }
 
 export type MigrateEquipmentCommitResult = {
   dryRun: false
   success: true
+  mode: MigrateEquipmentMode
+  /** Id-uri finale pe destinație: la `move` aceleași ca sursa; la `copy` id-uri noi generate. */
   migratedEquipmentIds: string[]
   affectedLucrareIds: string[]
   updatedLucrariCount: number
+  willUpdateLucrari: boolean
   sourceContractChanges: MigrateEquipmentDryRunResult["sourceContractChanges"]
   targetContractAddition?: MigrateEquipmentDryRunResult["targetContractAddition"]
   idempotentReplay?: boolean
@@ -88,7 +100,9 @@ function chunk<T>(arr: T[], size: number): T[][] {
 }
 
 function stableInputHash(input: Omit<MigrateEquipmentInput, "dryRun" | "idempotencyKey">): string {
+  const mode: MigrateEquipmentMode = input.mode === "copy" ? "copy" : "move"
   const normalized = {
+    mode,
     sourceClientId: norm(input.sourceClientId),
     targetClientId: norm(input.targetClientId),
     targetLocationId: norm(input.targetLocationId),
@@ -398,6 +412,7 @@ export async function migrateEquipment(adminDb: Firestore, input: MigrateEquipme
   const targetClientId = norm(input.targetClientId)
   const dryRun = Boolean(input.dryRun)
   const idempotencyKey = norm(input.idempotencyKey)
+  const mode: MigrateEquipmentMode = input.mode === "copy" ? "copy" : "move"
 
   if (!sourceClientId || !targetClientId) {
     throw new MigrateEquipmentError("sourceClientId și targetClientId sunt obligatorii.", 400)
@@ -413,6 +428,7 @@ export async function migrateEquipment(adminDb: Firestore, input: MigrateEquipme
 
   const wanted = new Set(equipmentIds)
   const payloadHash = stableInputHash({
+    mode,
     sourceClientId,
     targetClientId,
     targetLocationId: input.targetLocationId,
@@ -433,12 +449,15 @@ export async function migrateEquipment(adminDb: Firestore, input: MigrateEquipme
         })
       }
       if (row?.status === "completed" && prevHash === payloadHash) {
+        const replayMode: MigrateEquipmentMode = row?.mode === "copy" ? "copy" : "move"
         return {
           dryRun: false,
           success: true,
+          mode: replayMode,
           migratedEquipmentIds: Array.isArray(row?.migratedEquipmentIds) ? row.migratedEquipmentIds : equipmentIds,
           affectedLucrareIds: Array.isArray(row?.affectedLucrareIds) ? row.affectedLucrareIds : [],
           updatedLucrariCount: Number(row?.updatedLucrariCount) || 0,
+          willUpdateLucrari: replayMode === "move",
           sourceContractChanges: Array.isArray(row?.sourceContractChanges) ? row.sourceContractChanges : [],
           targetContractAddition: row?.targetContractAddition,
           idempotentReplay: true,
@@ -473,9 +492,11 @@ export async function migrateEquipment(adminDb: Firestore, input: MigrateEquipme
   }
 
   const targetExistingIds = allEquipmentIdsOnClient(targetData)
-  const collisions = equipmentIds.filter((id) => targetExistingIds.has(id))
-  if (collisions.length) {
-    throw new MigrateEquipmentError("Id-uri de echipament deja prezente la clientul destinație.", 409, { collisions })
+  if (mode === "move") {
+    const collisions = equipmentIds.filter((id) => targetExistingIds.has(id))
+    if (collisions.length) {
+      throw new MigrateEquipmentError("Id-uri de echipament deja prezente la clientul destinație.", 409, { collisions })
+    }
   }
 
   const { locatie: targetLoc } = resolveTargetLocation(targetData, input.targetLocationId, input.targetLocationName)
@@ -486,19 +507,22 @@ export async function migrateEquipment(adminDb: Firestore, input: MigrateEquipme
     throw new MigrateEquipmentError("Clientul destinație nu are nume (câmp „nume”).", 400)
   }
 
-  const affectedLucrareIds = await discoverAffectedLucrareIds(adminDb, wanted)
+  const affectedLucrareIds = mode === "move" ? await discoverAffectedLucrareIds(adminDb, wanted) : []
 
-  const { changes: sourceContractChanges } = stripEquipmentFromContracts(sourceData.contracte as any, wanted)
+  const sourceContractChanges: MigrateEquipmentDryRunResult["sourceContractChanges"] =
+    mode === "move" ? stripEquipmentFromContracts(sourceData.contracte as any, wanted).changes : []
 
   let targetContractAddition: MigrateEquipmentDryRunResult["targetContractAddition"] | undefined
   const tcid = norm(input.targetContractId)
   if (tcid) {
-    const { addition } = addEquipmentToTargetContract(targetData.contracte as any, tcid, equipmentIds)
+    const idsForContractPreview = mode === "copy" ? equipmentIds.map(() => randomUUID()) : equipmentIds
+    const { addition } = addEquipmentToTargetContract(targetData.contracte as any, tcid, idsForContractPreview)
     targetContractAddition = addition
       ? {
           contractId: addition.contractId,
           contractNumber: addition.contractNumber,
-          equipmentIdsToAdd: addition.equipmentIdsToAdd,
+          equipmentIdsToAdd: mode === "move" ? addition.equipmentIdsToAdd : [],
+          ...(mode === "copy" ? { pendingNewIdsCount: equipmentIds.length } : {}),
         }
       : undefined
   }
@@ -517,6 +541,8 @@ export async function migrateEquipment(adminDb: Firestore, input: MigrateEquipme
   if (dryRun) {
     return {
       dryRun: true,
+      mode,
+      willUpdateLucrari: mode === "move",
       equipmentCount: equipmentIds.length,
       equipmentPreview,
       affectedLucrareIds,
@@ -525,97 +551,184 @@ export async function migrateEquipment(adminDb: Firestore, input: MigrateEquipme
     }
   }
 
-  const movedEquipments = equipmentIds.map((id) => {
-    const { equipment } = foundMap.get(id)!
-    return omitUndefinedShallow({ ...equipment, clientId: targetClientId })
-  })
+  let finalMigratedIds: string[] = equipmentIds
 
-  await adminDb.runTransaction(async (tx) => {
-    const sSnap = await tx.get(sourceRef)
-    const tSnap = await tx.get(targetRef)
-    if (!sSnap.exists || !tSnap.exists) {
-      throw new MigrateEquipmentError("Client sursă sau destinație dispărut în timpul tranzacției.", 409)
-    }
-    const sData = sSnap.data() as Record<string, unknown>
-    const tData = tSnap.data() as Record<string, unknown>
+  if (mode === "move") {
+    const movedEquipments = equipmentIds.map((id) => {
+      const { equipment } = foundMap.get(id)!
+      return omitUndefinedShallow({ ...equipment, clientId: targetClientId })
+    })
 
-    const { locatii: sLocAfter, rootEchipamente: sRootAfter, removed } = removeEquipmentFromClientTree(sData, wanted)
-    for (const id of equipmentIds) {
-      if (!removed.has(id)) {
-        throw new MigrateEquipmentError(`Echipamentul „${id}” nu mai este la clientul sursă (conflict concurență).`, 409)
+    await adminDb.runTransaction(async (tx) => {
+      const sSnap = await tx.get(sourceRef)
+      const tSnap = await tx.get(targetRef)
+      if (!sSnap.exists || !tSnap.exists) {
+        throw new MigrateEquipmentError("Client sursă sau destinație dispărut în timpul tranzacției.", 409)
+      }
+      const sData = sSnap.data() as Record<string, unknown>
+      const tData = tSnap.data() as Record<string, unknown>
+
+      const { locatii: sLocAfter, rootEchipamente: sRootAfter, removed } = removeEquipmentFromClientTree(sData, wanted)
+      for (const id of equipmentIds) {
+        if (!removed.has(id)) {
+          throw new MigrateEquipmentError(`Echipamentul „${id}” nu mai este la clientul sursă (conflict concurență).`, 409)
+        }
+      }
+
+      const { next: sContractsNext } = stripEquipmentFromContracts(sData.contracte as any, wanted)
+
+      const { locIndex: txTargetLocIndex } = resolveTargetLocation(
+        tData,
+        input.targetLocationId,
+        input.targetLocationName,
+      )
+      const tLocatii = Array.isArray(tData.locatii) ? ([...tData.locatii] as any[]) : []
+      if (txTargetLocIndex < 0 || txTargetLocIndex >= tLocatii.length) {
+        throw new MigrateEquipmentError("Index locație destinație invalid.", 500)
+      }
+      const loc = { ...tLocatii[txTargetLocIndex] }
+      const existingList = Array.isArray(loc.echipamente) ? [...loc.echipamente] : []
+      loc.echipamente = [...existingList, ...movedEquipments]
+      tLocatii[txTargetLocIndex] = loc
+
+      const sourceUpdate: Record<string, unknown> = {
+        locatii: sLocAfter,
+        contracte: sContractsNext,
+        updatedAt: FieldValue.serverTimestamp(),
+      }
+      if (Array.isArray(sData.echipamente)) {
+        sourceUpdate.echipamente = sRootAfter !== undefined ? sRootAfter : []
+      }
+
+      const targetUpdate: Record<string, unknown> = {
+        locatii: tLocatii,
+        updatedAt: FieldValue.serverTimestamp(),
+      }
+      if (tcid) {
+        const { next: tContractsNext } = addEquipmentToTargetContract(tData.contracte as any, tcid, equipmentIds)
+        targetUpdate.contracte = tContractsNext
+      }
+
+      tx.update(sourceRef, sourceUpdate as any)
+      tx.update(targetRef, targetUpdate as any)
+    })
+  } else {
+    const newIds = equipmentIds.map(() => randomUUID())
+    for (const nid of newIds) {
+      if (targetExistingIds.has(nid)) {
+        throw new MigrateEquipmentError("Coliziune extrem de rară la generarea id-ului; reîncearcă.", 409)
       }
     }
 
-    const { next: sContractsNext } = stripEquipmentFromContracts(sData.contracte as any, wanted)
+    const clonedEquipments = equipmentIds.map((sourceEqId, i) => {
+      const { equipment } = foundMap.get(sourceEqId)!
+      const newId = newIds[i]!
+      return omitUndefinedShallow({
+        ...equipment,
+        id: newId,
+        clientId: targetClientId,
+        migratedFromEquipmentId: sourceEqId,
+        migratedFromClientId: sourceClientId,
+      })
+    })
 
-    const { locIndex: txTargetLocIndex } = resolveTargetLocation(
-      tData,
-      input.targetLocationId,
-      input.targetLocationName,
-    )
-    const tLocatii = Array.isArray(tData.locatii) ? ([...tData.locatii] as any[]) : []
-    if (txTargetLocIndex < 0 || txTargetLocIndex >= tLocatii.length) {
-      throw new MigrateEquipmentError("Index locație destinație invalid.", 500)
-    }
-    const loc = { ...tLocatii[txTargetLocIndex] }
-    const existingList = Array.isArray(loc.echipamente) ? [...loc.echipamente] : []
-    loc.echipamente = [...existingList, ...movedEquipments]
-    tLocatii[txTargetLocIndex] = loc
-
-    const sourceUpdate: Record<string, unknown> = {
-      locatii: sLocAfter,
-      contracte: sContractsNext,
-      updatedAt: FieldValue.serverTimestamp(),
-    }
-    if (Array.isArray(sData.echipamente)) {
-      sourceUpdate.echipamente = sRootAfter !== undefined ? sRootAfter : []
-    }
-
-    const targetUpdate: Record<string, unknown> = {
-      locatii: tLocatii,
-      updatedAt: FieldValue.serverTimestamp(),
-    }
     if (tcid) {
-      const { next: tContractsNext } = addEquipmentToTargetContract(tData.contracte as any, tcid, equipmentIds)
-      targetUpdate.contracte = tContractsNext
+      const { addition } = addEquipmentToTargetContract(targetData.contracte as any, tcid, newIds)
+      targetContractAddition = addition
+        ? {
+            contractId: addition.contractId,
+            contractNumber: addition.contractNumber,
+            equipmentIdsToAdd: addition.equipmentIdsToAdd,
+          }
+        : undefined
     }
 
-    tx.update(sourceRef, sourceUpdate as any)
-    tx.update(targetRef, targetUpdate as any)
-  })
+    await adminDb.runTransaction(async (tx) => {
+      const sSnap = await tx.get(sourceRef)
+      const tSnap = await tx.get(targetRef)
+      if (!sSnap.exists || !tSnap.exists) {
+        throw new MigrateEquipmentError("Client sursă sau destinație dispărut în timpul tranzacției.", 409)
+      }
+      const sData = sSnap.data() as Record<string, unknown>
+      const tData = tSnap.data() as Record<string, unknown>
+
+      const verifyFound = findEquipmentsOnSource(sData, wanted)
+      if (verifyFound.missing.length) {
+        throw new MigrateEquipmentError("Echipamentul nu mai este la sursă (conflict concurență).", 409, {
+          missing: verifyFound.missing,
+        })
+      }
+
+      const { locIndex: txTargetLocIndex } = resolveTargetLocation(
+        tData,
+        input.targetLocationId,
+        input.targetLocationName,
+      )
+      const tLocatii = Array.isArray(tData.locatii) ? ([...tData.locatii] as any[]) : []
+      if (txTargetLocIndex < 0 || txTargetLocIndex >= tLocatii.length) {
+        throw new MigrateEquipmentError("Index locație destinație invalid.", 500)
+      }
+      const loc = { ...tLocatii[txTargetLocIndex] }
+      const existingList = Array.isArray(loc.echipamente) ? [...loc.echipamente] : []
+      const existingIds = new Set(existingList.map((e: any) => norm(e?.id)).filter(Boolean))
+      for (const c of clonedEquipments) {
+        const id = norm((c as any).id)
+        if (id && existingIds.has(id)) {
+          throw new MigrateEquipmentError("Id clonă deja prezent pe locația destinație.", 409)
+        }
+      }
+      loc.echipamente = [...existingList, ...clonedEquipments]
+      tLocatii[txTargetLocIndex] = loc
+
+      const targetUpdate: Record<string, unknown> = {
+        locatii: tLocatii,
+        updatedAt: FieldValue.serverTimestamp(),
+      }
+      if (tcid) {
+        const { next: tContractsNext } = addEquipmentToTargetContract(tData.contracte as any, tcid, newIds)
+        targetUpdate.contracte = tContractsNext
+      }
+
+      tx.update(targetRef, targetUpdate as any)
+    })
+
+    finalMigratedIds = newIds
+  }
 
   let updatedLucrariCount = 0
-  const equipmentByIdForPatch = new Map<string, FoundEquipment>()
-  for (const id of equipmentIds) {
-    const f = foundMap.get(id)!
-    equipmentByIdForPatch.set(id, f)
-  }
-
-  const workPatches: Array<{ id: string; patch: Record<string, unknown> }> = []
-  for (const workId of affectedLucrareIds) {
-    const wref = adminDb.collection("lucrari").doc(workId)
-    const wsnap = await wref.get()
-    if (!wsnap.exists) continue
-    const wdata = wsnap.data() as Record<string, unknown>
-    const patch = buildLucrarePatch(
-      wdata,
-      wanted,
-      equipmentByIdForPatch,
-      targetClientId,
-      targetClientName,
-      targetLocId,
-      targetLocName,
-    )
-    if (patch) workPatches.push({ id: workId, patch })
-  }
-
-  for (const part of chunk(workPatches, BATCH_SIZE)) {
-    const batch = adminDb.batch()
-    for (const { id, patch } of part) {
-      batch.update(adminDb.collection("lucrari").doc(id), patch as any)
+  if (mode === "move") {
+    const equipmentByIdForPatch = new Map<string, FoundEquipment>()
+    for (const id of equipmentIds) {
+      const f = foundMap.get(id)!
+      equipmentByIdForPatch.set(id, f)
     }
-    await batch.commit()
-    updatedLucrariCount += part.length
+
+    const workPatches: Array<{ id: string; patch: Record<string, unknown> }> = []
+    for (const workId of affectedLucrareIds) {
+      const wref = adminDb.collection("lucrari").doc(workId)
+      const wsnap = await wref.get()
+      if (!wsnap.exists) continue
+      const wdata = wsnap.data() as Record<string, unknown>
+      const patch = buildLucrarePatch(
+        wdata,
+        wanted,
+        equipmentByIdForPatch,
+        targetClientId,
+        targetClientName,
+        targetLocId,
+        targetLocName,
+      )
+      if (patch) workPatches.push({ id: workId, patch })
+    }
+
+    for (const part of chunk(workPatches, BATCH_SIZE)) {
+      const batch = adminDb.batch()
+      for (const { id, patch } of part) {
+        batch.update(adminDb.collection("lucrari").doc(id), patch as any)
+      }
+      await batch.commit()
+      updatedLucrariCount += part.length
+    }
   }
 
   if (idempotencyKey) {
@@ -627,9 +740,10 @@ export async function migrateEquipment(adminDb: Firestore, input: MigrateEquipme
           status: "completed",
           completedAt: FieldValue.serverTimestamp(),
           inputHash: payloadHash,
+          mode,
           sourceClientId,
           targetClientId,
-          migratedEquipmentIds: equipmentIds,
+          migratedEquipmentIds: finalMigratedIds,
           affectedLucrareIds,
           updatedLucrariCount,
           sourceContractChanges,
@@ -642,9 +756,11 @@ export async function migrateEquipment(adminDb: Firestore, input: MigrateEquipme
   return {
     dryRun: false,
     success: true,
-    migratedEquipmentIds: equipmentIds,
+    mode,
+    migratedEquipmentIds: finalMigratedIds,
     affectedLucrareIds,
     updatedLucrariCount,
+    willUpdateLucrari: mode === "move",
     sourceContractChanges,
     targetContractAddition,
     idempotencyKey: idempotencyKey || undefined,

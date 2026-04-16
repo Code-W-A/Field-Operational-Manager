@@ -10,7 +10,12 @@ import { Plus, FileText, Download } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import type { Employee, HrRequest } from "@/lib/hr/types"
 import { getEmployeeByUserUid, subscribeDepartments, subscribeHrRequestsForEmployee, subscribeHrRequestsForRequester } from "@/lib/hr/storage"
-import { hrRequestDateLabel, hrRequestKindLabel, hrRequestStatusLabel } from "@/lib/hr/hr-requests"
+import {
+  formatHrRequestSerial,
+  hrRequestDateLabel,
+  hrRequestKindLabel,
+  hrRequestStatusLabel,
+} from "@/lib/hr/hr-requests"
 import { CreateHrRequestDialog } from "@/components/hr/create-hr-request-dialog"
 import { generateHrRequestDOCX } from "@/lib/hr/request-docx-generator"
 
@@ -110,7 +115,12 @@ export default function CereriTehnicianPage() {
                   className="flex items-center justify-between rounded-lg border p-3 bg-muted/20 hover:bg-muted/40 transition-colors"
                 >
                   <div className="min-w-0">
-                    <div className="font-medium truncate">{hrRequestKindLabel(r.kind)}</div>
+                    <div className="font-medium truncate flex flex-wrap items-center gap-2">
+                      <Badge variant="outline" className="font-mono shrink-0 text-xs">
+                        #{formatHrRequestSerial(r.documentSerial)}
+                      </Badge>
+                      <span>{hrRequestKindLabel(r.kind)}</span>
+                    </div>
                     <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-3">
                       <span>{hrRequestDateLabel(r)}</span>
                       <span>Departament: {r.sectorId ? (departmentsById[r.sectorId] || "—") : "—"}</span>

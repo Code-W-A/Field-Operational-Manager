@@ -233,7 +233,7 @@ export function CreateLeaveRequestDialog({
         medicalDocumentName,
       }
 
-      const requestId = await createHrRequest({
+      const { id: requestId, documentSerial } = await createHrRequest({
         employeeId,
         employeeName: selectedEmployee ? getEmployeeFullName(selectedEmployee) : undefined,
         requesterUid,
@@ -255,6 +255,7 @@ export function CreateLeaveRequestDialog({
           kind: type,
           status: "pending",
           payload: rangePayload,
+          documentSerial,
           createdAt: Date.now(),
           updatedAt: Date.now(),
         })

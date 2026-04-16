@@ -4,7 +4,7 @@ import Docxtemplater from "docxtemplater"
 import PizZip from "pizzip"
 import { doc as firestoreDoc, getDoc } from "firebase/firestore"
 import type { HrRequest } from "@/lib/hr/types"
-import { hrRequestKindLabel } from "@/lib/hr/hr-requests"
+import { formatHrRequestSerial, hrRequestKindLabel } from "@/lib/hr/hr-requests"
 import { db } from "@/lib/firebase/firebase"
 import { formatRomanianDateDots, formatRomanianDateDotsISO } from "@/lib/utils/date-utils"
 import { generateHrRequestPDF } from "@/lib/hr/request-pdf-generator"
@@ -107,11 +107,6 @@ function requestNumberFromId(requestId: string): string {
   const clean = String(requestId || "").trim()
   if (!clean) return `HR-${Date.now()}`
   return `HR-${clean.slice(0, 8).toUpperCase()}`
-}
-
-function formatNrCerere(documentSerial: number | undefined): string {
-  if (documentSerial == null || !Number.isFinite(documentSerial)) return "—"
-  return String(Math.trunc(documentSerial)).padStart(4, "0")
 }
 
 function sanitizeFileNameChunk(raw: string): string {
@@ -231,7 +226,7 @@ function buildPlaceholderMap(params: {
     "nume-companie": HR_COMPANY.name,
     "cui-companie": HR_COMPANY.cui,
     "număr-de-înregistrare-companie": HR_COMPANY.registrationNumber,
-    "nr-cerere": formatNrCerere(params.request.documentSerial),
+    "nr-cerere": formatHrRequestSerial(params.request.documentSerial),
     "tip-eveniment": hrRequestKindLabel(params.request.kind),
     "nume-angajat": params.employeeLastName,
     "prenume-angajat": params.employeeFirstName,

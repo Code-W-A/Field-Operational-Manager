@@ -47,6 +47,8 @@ export async function POST(req: NextRequest) {
         : undefined
     const dryRun = Boolean(body.dryRun)
     const idempotencyKey = body.idempotencyKey != null ? String(body.idempotencyKey).trim() : ""
+    const modeRaw = body.mode != null ? String(body.mode).trim().toLowerCase() : ""
+    const mode = modeRaw === "copy" ? "copy" : "move"
 
     const rawIds = body.equipmentIds
     const equipmentIds = Array.isArray(rawIds)
@@ -72,6 +74,7 @@ export async function POST(req: NextRequest) {
       targetContractId: targetContractId || null,
       equipmentIds,
       dryRun,
+      mode,
     }
 
     if (!dryRun) {
@@ -81,7 +84,7 @@ export async function POST(req: NextRequest) {
         utilizator: actor.email || "admin",
         utilizatorId: actor.userId,
         actiune: "Migrare echipamente — început",
-        detalii: `Sursă ${sourceClientId} → destinație ${targetClientId}; ${equipmentIds.length} echipamente`,
+        detalii: `Mod ${mode}; sursă ${sourceClientId} → destinație ${targetClientId}; ${equipmentIds.length} echipamente`,
         tip: "Informație",
         categorie: "Migrare echipamente",
         extra: logExtraBase,
@@ -95,6 +98,7 @@ export async function POST(req: NextRequest) {
       targetLocationName: targetLocationName || undefined,
       equipmentIds,
       targetContractId,
+      mode,
       dryRun,
       idempotencyKey: idempotencyKey || undefined,
     })
