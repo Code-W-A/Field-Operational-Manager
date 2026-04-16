@@ -304,20 +304,7 @@ export function EquipmentMigrateWizardDialog({
             <div className="px-6 py-4 space-y-4">
               {step === 1 && (
                 <>
-                  <Alert>
-                    <History className="h-4 w-4" />
-                    <AlertTitle>Istoric intervenții</AlertTitle>
-                    <AlertDescription className="text-sm leading-relaxed">
-                      Istoricul din aplicație se caută după{" "}
-                      <span className="font-mono font-medium">codul echipamentului</span>. La{" "}
-                      <strong>mutare</strong>, tichetele legate de acest echipament sunt actualizate la noul client. La{" "}
-                      <strong>copiere</strong>, tichetele vechi rămân neschimbate; poți vedea intervențiile după cod aici:{" "}
-                      <Link href={istoricHref} className="underline font-medium" target="_blank" rel="noreferrer">
-                        deschide istoric
-                      </Link>
-                      .
-                    </AlertDescription>
-                  </Alert>
+              
 
                   <div className="space-y-2">
                     <Label>Client destinație</Label>
