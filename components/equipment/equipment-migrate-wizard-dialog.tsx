@@ -540,9 +540,7 @@ export function EquipmentMigrateWizardDialog({
                     <strong>{sourceClientName}</strong> și adăugat la <strong>{targetClientLabel}</strong> —{" "}
                     {targetLocationLabel}.
                   </span>
-                  <span className="block text-destructive font-medium">
-                    Operația nu poate fi anulată automat din acest dialog.
-                  </span>
+                
                 </>
               ) : (
                 <span>
